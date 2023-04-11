@@ -1,0 +1,3 @@
+[submodule "tests/solidity"]
+	path = tests/solidity
+	url = https://github.com/ethereum/solidity
