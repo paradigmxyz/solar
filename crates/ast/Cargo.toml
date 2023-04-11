@@ -1,9 +1,9 @@
 [package]
-name = "rsolc-lexer"
+name = "rsolc-ast"
 version = "0.0.0"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
-description = "Solidity lexer"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/lexer"
+description = "Solidity Abstract Syntax Tree"
+homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
 
 edition.workspace = true
 rust-version.workspace = true
@@ -13,7 +13,3 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-unicode-ident = "1.0"
-
-[dev-dependencies]
-expect-test = "1.4"
