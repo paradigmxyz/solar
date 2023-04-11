@@ -1,0 +1,15 @@
+[package]
+name = "rsolc-parser"
+version = "0.0.0"
+authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
+description = "Solidity parser"
+homepage = "https://github.com/danipopes/rsolc/blob/master/crates/parser"
+
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]

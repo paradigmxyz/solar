@@ -3,5 +3,9 @@
 version = 3
 
 [[package]]
-name = "rsolc"
-version = "0.1.0"
+name = "rsolc-lexer"
+version = "0.0.0"
+
+[[package]]
+name = "rsolc-parser"
+version = "0.0.0"
