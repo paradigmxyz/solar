@@ -1,19 +1,21 @@
 [package]
-name = "rsolc-ast"
+name = "rsolc-macros"
 version = "0.0.0"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
-description = "Solidity Abstract Syntax Tree"
+description = "Rsolc macros"
 homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
 
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-keywords.workspace = true
-categories.workspace = true
+# keywords.workspace = true
+# categories.workspace = true
+
+[lib]
+proc-macro = true
 
 [dependencies]
-rsolc-data-structures = { path = "../data-structures" }
-rsolc-macros = { path = "../macros" }
-
-scoped-tls = "1.0"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }

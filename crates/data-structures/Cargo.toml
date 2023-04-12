@@ -1,0 +1,18 @@
+[package]
+name = "rsolc-data-structures"
+version = "0.0.0"
+authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
+description = "The arena, a fast but limited type of allocator."
+homepage = "https://github.com/danipopes/rsolc/blob/master/crates/arena"
+
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# keywords.workspace = true
+# categories.workspace = true
+
+[dependencies]
+smallvec = { version = "1.8.1", features = ["union"] }
+rustc-hash = "1.1"
+indexmap = "1.9"

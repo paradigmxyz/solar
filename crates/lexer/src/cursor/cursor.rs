@@ -82,7 +82,7 @@ impl<'a> Cursor<'a> {
         Some(c)
     }
 
-    /// Advances `n` characters, without setting `prev`.
+    /// Advances `N` characters, without setting `prev`.
     #[inline]
     pub(crate) fn ignore<const N: usize>(&mut self) {
         for _ in 0..N {
