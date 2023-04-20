@@ -1,5 +1,5 @@
 //! Solidity parser.
 
-mod cursor;
+mod lexer;
 
 // TODO: Parser
