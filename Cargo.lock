@@ -83,14 +83,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rsolc-lexer"
-version = "0.0.0"
-dependencies = [
- "expect-test",
- "unicode-ident",
-]
-
-[[package]]
 name = "rsolc-macros"
 version = "0.0.0"
 dependencies = [
@@ -102,6 +94,10 @@ dependencies = [
 [[package]]
 name = "rsolc-parser"
 version = "0.0.0"
+dependencies = [
+ "expect-test",
+ "unicode-ident",
+]
 
 [[package]]
 name = "rustc-hash"

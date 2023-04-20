@@ -204,8 +204,8 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
         const SYMBOL_DIGITS_BASE: u32 = #digits_base;
         const PREINTERNED_SYMBOLS_COUNT: u32 = #counter;
 
-        #[doc(hidden)]
         #[allow(non_upper_case_globals)]
+        #[doc(hidden)]
         mod kw_generated {
             use super::Symbol;
             #keyword_stream
@@ -213,7 +213,7 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
 
         #[allow(non_upper_case_globals)]
         #[doc(hidden)]
-        pub mod sym_generated {
+        mod sym_generated {
             use super::Symbol;
             #symbols_stream
         }
