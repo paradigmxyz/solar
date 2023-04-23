@@ -33,8 +33,9 @@ pub fn test_unused() {
     assert!(arena.chunks.borrow().is_empty());
 }
 
+// TODO: Something about dropck is broken here without `may_dangle` stuff
 #[test]
-#[cfg(FALSE)] // TODO: Something about dropck is broken here without `may_dangle` stuff
+#[cfg(feature = "nightly")]
 fn test_arena_alloc_nested() {
     struct Inner {
         value: u8,

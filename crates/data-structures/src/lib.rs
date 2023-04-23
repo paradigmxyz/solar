@@ -1,13 +1,20 @@
-#![cfg_attr(test, feature(test))]
+#![doc(test(no_crate_inject, attr(deny(warnings))))]
+#![cfg_attr(all(any(feature = "nightly", feature = "nightly-tests"), test), feature(test))]
+#![cfg_attr(
+    feature = "nightly",
+    feature(
+        decl_macro,
+        dropck_eyepatch,
+        maybe_uninit_slice,
+        min_specialization,
+        new_uninit,
+        pointer_byte_offsets,
+        rustc_attrs,
+        strict_provenance,
+    )
+)]
 
-// #[cfg(not(feature = "nightly"))]
 mod arena;
-// #[cfg(not(feature = "nightly"))]
-pub use arena::{DroplessArena, IterExt, TypedArena};
-
-// #[cfg(feature = "nightly")]
-// mod nightly_arena;
-// #[cfg(feature = "nightly")]
-// pub use nightly_arena::{DroplessArena, IterExt, TypedArena};
+pub use arena::{DroplessArena, TypedArena};
 
 pub mod fx;

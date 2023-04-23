@@ -16,3 +16,7 @@ repository.workspace = true
 smallvec = { version = "1.8.1", features = ["union"] }
 rustc-hash = "1.1"
 indexmap = "1.9"
+
+[features]
+nightly = []
+nightly-tests = []
