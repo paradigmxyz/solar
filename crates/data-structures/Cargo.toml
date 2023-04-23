@@ -2,7 +2,7 @@
 name = "rsolc-data-structures"
 version = "0.0.0"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
-description = "The arena, a fast but limited type of allocator."
+description = "RSolc common data structures"
 homepage = "https://github.com/danipopes/rsolc/blob/master/crates/arena"
 
 edition.workspace = true

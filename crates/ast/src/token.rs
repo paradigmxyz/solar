@@ -1,10 +1,9 @@
+use rsolc_span::{Ident, Span, Symbol};
+use std::fmt;
+
 pub use BinOpToken::*;
 pub use LitKind::*;
 pub use TokenKind::*;
-
-use std::fmt;
-
-use crate::symbol::Symbol;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommentKind {
@@ -208,7 +207,7 @@ pub enum TokenKind {
     // ModSep,
     // RArrow,
     // LArrow,
-    Arrow,
+    // Arrow,
     FatArrow,
     // Pound,
     // Dollar,
@@ -226,11 +225,6 @@ pub enum TokenKind {
     /// It's recommended to use `Token::(ident,uninterpolate,uninterpolated_span)` to
     /// treat regular and interpolated identifiers in the same way.
     Ident(Symbol),
-    // /// Lifetime identifier token.
-    // /// Do not forget about `NtLifetime` when you want to match on lifetime identifiers.
-    // /// It's recommended to use `Token::(lifetime,uninterpolate,uninterpolated_span)` to
-    // /// treat regular and interpolated lifetime identifiers in the same way.
-    // Lifetime(Symbol),
     /// A doc comment token.
     /// `Symbol` is the doc comment's data excluding its "quotes" (`///`, `//*`, etc)
     /// similarly to symbols in string literal tokens.
@@ -242,5 +236,99 @@ pub enum TokenKind {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub kind: TokenKind,
-    // pub span: Span,
+    pub span: Span,
+}
+
+impl TokenKind {
+    pub fn lit(kind: LitKind, symbol: Symbol) -> TokenKind {
+        Literal(Lit::new(kind, symbol))
+    }
+
+    /// An approximation to proc-macro-style single-character operators used by rustc parser.
+    /// If the operator token can be broken into two tokens, the first of which is single-character,
+    /// then this function performs that operation, otherwise it returns `None`.
+    pub fn break_two_token_op(&self) -> Option<(TokenKind, TokenKind)> {
+        Some(match *self {
+            Le => (Lt, Eq),
+            EqEq => (Eq, Eq),
+            Ne => (Not, Eq),
+            Ge => (Gt, Eq),
+            AndAnd => (BinOp(And), BinOp(And)),
+            OrOr => (BinOp(Or), BinOp(Or)),
+            BinOp(Shl) => (Lt, Lt),
+            BinOp(Shr) => (Gt, Gt),
+            BinOpEq(Plus) => (BinOp(Plus), Eq),
+            BinOpEq(Minus) => (BinOp(Minus), Eq),
+            BinOpEq(Star) => (BinOp(Star), Eq),
+            BinOpEq(Slash) => (BinOp(Slash), Eq),
+            BinOpEq(Percent) => (BinOp(Percent), Eq),
+            BinOpEq(Caret) => (BinOp(Caret), Eq),
+            BinOpEq(And) => (BinOp(And), Eq),
+            BinOpEq(Or) => (BinOp(Or), Eq),
+            BinOpEq(Shl) => (Lt, Le),
+            BinOpEq(Shr) => (Gt, Ge),
+            // DotDot => (Dot, Dot),
+            // DotDotDot => (Dot, DotDot),
+            // ModSep => (Colon, Colon),
+            // RArrow => (BinOp(Minus), Gt),
+            // LArrow => (Lt, BinOp(Minus)),
+            FatArrow => (Eq, Gt),
+            _ => return None,
+        })
+    }
+
+    /// Returns tokens that are likely to be typed accidentally instead of the current token.
+    /// Enables better error recovery when the wrong token is found.
+    pub fn similar_tokens(&self) -> Option<Vec<TokenKind>> {
+        match *self {
+            Comma => Some(vec![Dot, Lt, Semi]),
+            Semi => Some(vec![Colon, Comma]),
+            // FatArrow => Some(vec![Eq, RArrow]),
+            _ => None,
+        }
+    }
+}
+
+impl Token {
+    pub fn new(kind: TokenKind, span: Span) -> Self {
+        Token { kind, span }
+    }
+
+    /// Some token that will be thrown away later.
+    pub fn dummy() -> Self {
+        Token::new(TokenKind::Question, Span::DUMMY)
+    }
+
+    /// Recovers a `Token` from an `Ident`. This creates a raw identifier if necessary.
+    pub fn from_ast_ident(ident: Ident) -> Self {
+        Token::new(Ident(ident.name), ident.span)
+    }
+
+    // /// For interpolated tokens, returns a span of the fragment to which the interpolated
+    // /// token refers. For all other tokens this is just a regular span.
+    // /// It is particularly important to use this for identifiers and lifetimes
+    // /// for which spans affect name resolution and edition checks.
+    // /// Note that keywords are also identifiers, so they should use this
+    // /// if they keep spans or perform edition checks.
+    // pub fn uninterpolated_span(&self) -> Span {
+    //     match &self.kind {
+    //         Interpolated(nt) => nt.span(),
+    //         _ => self.span,
+    //     }
+    // }
+
+    pub fn is_op(&self) -> bool {
+        match self.kind {
+            Eq | Lt | Le | EqEq | Ne | Ge | Gt | AndAnd | OrOr | Not | Tilde | BinOp(_)
+            | BinOpEq(_) | At | Dot | Comma | Semi | Colon | FatArrow | Question => true,
+
+            OpenDelim(..) | CloseDelim(..) | Literal(..) | DocComment(..) | Ident(..) | Eof => {
+                false
+            }
+        }
+    }
+
+    pub fn is_like_plus(&self) -> bool {
+        matches!(self.kind, BinOp(Plus) | BinOpEq(Plus))
+    }
 }

@@ -5,7 +5,6 @@
 //! [rustc_lexer]: https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs
 
 mod cursor;
-
 pub use cursor::Cursor;
 
 mod token;
@@ -17,60 +16,22 @@ mod tests;
 use LiteralKind::*;
 use TokenKind::*;
 
-/// Creates an iterator that produces tokens from the input string.
-///
-/// Alias for [`Cursor::new`].
-#[inline]
-pub fn tokenize(input: &str) -> Cursor {
-    Cursor::new(input)
-}
-
-/// True if `c` is considered a whitespace according to Rust language definition.
-///
-/// See [Rust language reference][ref] for definitions of these classes.
-///
-/// [ref]: https://doc.rust-lang.org/reference/whitespace.html
+/// Returns true if `c` is considered a whitespace.
 pub fn is_whitespace(c: char) -> bool {
-    // This is Pattern_White_Space.
-    //
-    // Note that this set is stable (ie, it doesn't change with different
-    // Unicode versions), so it's ok to just hard-code the values.
-
-    matches!(
-        c,
-        // Usual ASCII suspects
-        '\u{0009}'   // \t
-        | '\u{000A}' // \n
-        | '\u{000B}' // vertical tab
-        | '\u{000C}' // form feed
-        | '\u{000D}' // \r
-        | '\u{0020}' // space
-
-        // NEXT LINE from latin1
-        | '\u{0085}'
-
-        // Bidi markers
-        | '\u{200E}' // LEFT-TO-RIGHT MARK
-        | '\u{200F}' // RIGHT-TO-LEFT MARK
-
-        // Dedicated whitespace characters from Unicode
-        | '\u{2028}' // LINE SEPARATOR
-        | '\u{2029}' // PARAGRAPH SEPARATOR
-    )
+    matches!(c, '\t' | '\n' | ' ')
 }
 
-/// True if `c` is valid as a first character of an identifier.
+/// Returns true if `c` is valid as a first character of an identifier.
 pub fn is_id_start(c: char) -> bool {
-    // This is XID_Start OR '_' (which formally is not a XID_Start).
-    c == '_' || unicode_ident::is_xid_start(c)
+    matches!(c, '$' | 'A'..='Z' | '_' | 'a'..='z')
 }
 
-/// True if `c` is valid as a non-first character of an identifier.
+/// Returns true if `c` is valid as a non-first character of an identifier.
 pub fn is_id_continue(c: char) -> bool {
-    unicode_ident::is_xid_continue(c)
+    matches!(c, '$' | '0'..='9' | 'A'..='Z' | '_' | 'a'..='z')
 }
 
-/// The passed string is lexically an identifier.
+/// Returns true if the given string is lexically a valid identifier.
 pub fn is_ident(string: &str) -> bool {
     let mut chars = string.chars();
     if let Some(start) = chars.next() {
@@ -121,8 +82,8 @@ impl Cursor<'_> {
             '~' => Tilde,
             '?' => Question,
             ':' => Colon,
-            '$' => Dollar,
             '=' => Eq,
+            '!' => Bang,
             '<' => Lt,
             '>' => Gt,
             '-' => Minus,
@@ -224,7 +185,7 @@ impl Cursor<'_> {
         self.eat_while(is_id_continue);
         // Known prefixes must have been handled earlier. So if
         // we see a prefix here, it is definitely an unknown prefix.
-        self.eat_identifier();
+        // self.eat_identifier();
         match self.first() {
             '"' | '\'' => UnknownPrefix,
             _ => Ident,
@@ -291,34 +252,32 @@ impl Cursor<'_> {
 
     fn maybe_hex_literal(&mut self) -> Option<TokenKind> {
         debug_assert_eq!(self.prev(), 'h');
-        let mut chars = self.chars.clone();
-        let Some('e') = chars.next() else { return None };
-        let Some('x') = chars.next() else { return None };
-        let Some(quote @ ('"' | '\'')) = chars.next() else { return None };
-
-        self.ignore::<2>();
-        self.bump();
-        let terminated = self.eat_string(quote);
-        let kind = HexStr { terminated };
-        Some(Literal { kind })
+        let s = self.as_str();
+        if s.starts_with("ex") {
+            let Some(quote @ ('"' | '\'')) = s.chars().nth(2) else { return None };
+            self.ignore::<2>();
+            self.bump();
+            let terminated = self.eat_string(quote);
+            let kind = HexStr { terminated };
+            Some(Literal { kind })
+        } else {
+            None
+        }
     }
 
     fn maybe_unicode_literal(&mut self) -> Option<TokenKind> {
         debug_assert_eq!(self.prev(), 'u');
-        let mut chars = self.chars.clone();
-        let Some('n') = chars.next() else { return None };
-        let Some('i') = chars.next() else { return None };
-        let Some('c') = chars.next() else { return None };
-        let Some('o') = chars.next() else { return None };
-        let Some('d') = chars.next() else { return None };
-        let Some('e') = chars.next() else { return None };
-        let Some(quote @ ('"' | '\'')) = chars.next() else { return None };
-
-        self.ignore::<6>();
-        self.bump();
-        let terminated = self.eat_string(quote);
-        let kind = Str { terminated, unicode: true };
-        Some(Literal { kind })
+        let s = self.as_str();
+        if s.starts_with("nicode") {
+            let Some(quote @ ('"' | '\'')) = s.chars().nth(6) else { return None };
+            self.ignore::<6>();
+            self.bump();
+            let terminated = self.eat_string(quote);
+            let kind = Str { terminated, unicode: true };
+            Some(Literal { kind })
+        } else {
+            None
+        }
     }
 
     fn eat_string(&mut self, quote: char) -> bool {
@@ -327,14 +286,7 @@ impl Cursor<'_> {
             if c == quote {
                 return true;
             }
-            let next;
-            if c == '\\'
-                && ({
-                    next = self.first();
-                    next
-                } == '\\'
-                    || next == quote)
-            {
+            if c == '\\' && (self.first() == '\\' || self.first() == quote) {
                 // Bump again to skip escaped character.
                 self.bump();
             }
@@ -392,6 +344,7 @@ impl Cursor<'_> {
     /// Eats the identifier.
     ///
     /// Note: succeeds on `_`, which isn't a valid identifier.
+    #[allow(dead_code)]
     fn eat_identifier(&mut self) {
         if !is_id_start(self.first()) {
             return;

@@ -1,4 +1,4 @@
-/// Parsed token.
+/// A raw token.
 ///
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
@@ -86,10 +86,10 @@ pub enum TokenKind {
     Question,
     /// `:`
     Colon,
-    /// `$`
-    Dollar,
     /// `=`
     Eq,
+    /// `!`
+    Bang,
     /// `<`
     Lt,
     /// `>`

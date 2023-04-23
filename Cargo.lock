@@ -65,12 +65,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rsolc"
+version = "0.0.0"
+
+[[package]]
 name = "rsolc-ast"
 version = "0.0.0"
 dependencies = [
  "rsolc-data-structures",
  "rsolc-macros",
- "scoped-tls",
+ "rsolc-span",
 ]
 
 [[package]]
@@ -96,8 +100,19 @@ name = "rsolc-parser"
 version = "0.0.0"
 dependencies = [
  "expect-test",
+ "rsolc-ast",
+ "rsolc-span",
  "unicode-ident",
  "unicode-normalization",
+]
+
+[[package]]
+name = "rsolc-span"
+version = "0.0.0"
+dependencies = [
+ "rsolc-data-structures",
+ "rsolc-macros",
+ "scoped-tls",
 ]
 
 [[package]]

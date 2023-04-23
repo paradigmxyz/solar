@@ -1,9 +1,9 @@
 [package]
-name = "rsolc-ast"
+name = "rsolc"
 version = "0.0.0"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
-description = "Solidity Abstract Syntax Tree"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
+description = "Rust Solidity compiler"
+homepage = "https://github.com/danipopes/rsolc"
 
 edition.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,4 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-data-structures = { path = "../data-structures" }
-rsolc-macros = { path = "../macros" }
-rsolc-span = { path = "../span" }
+# rsolc-parser = { path = "../parser" }

@@ -1,7 +1,10 @@
-use crate::with_session_globals;
+use crate::{with_session_globals, Span};
 use rsolc_data_structures::{fx::FxHashMap, DroplessArena};
 use rsolc_macros::symbols;
 use std::{cell::RefCell, fmt, str};
+
+#[cfg(test)]
+mod tests;
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
@@ -193,7 +196,7 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
-
+        underscore: "_",
     }
 }
 
@@ -231,48 +234,48 @@ pub mod sym {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident {
     pub name: Symbol,
-    // pub span: Span,
+    pub span: Span,
 }
 
 impl Ident {
-    // /// Constructs a new identifier from a symbol and a span.
-    // #[inline]
-    // pub const fn new(name: Symbol, span: Span) -> Ident {
-    //     Ident { name, span }
-    // }
+    /// Constructs a new identifier from a symbol and a span.
+    #[inline]
+    pub const fn new(name: Symbol, span: Span) -> Ident {
+        Ident { name, span }
+    }
 
-    // /// Constructs a new identifier with a dummy span.
-    // #[inline]
-    // pub const fn with_dummy_span(name: Symbol) -> Ident {
-    //     Ident::new(name, DUMMY_SP)
-    // }
+    /// Constructs a new identifier with a dummy span.
+    #[inline]
+    pub const fn with_dummy_span(name: Symbol) -> Ident {
+        Ident::new(name, Span::DUMMY)
+    }
 
     // #[inline]
     // pub fn empty() -> Ident {
     //     Ident::with_dummy_span(kw::Empty)
     // }
 
-    // /// Maps a string to an identifier with a dummy span.
-    // pub fn from_str(string: &str) -> Ident {
-    //     Ident::with_dummy_span(Symbol::intern(string))
-    // }
+    /// Maps a string to an identifier with a dummy span.
+    pub fn from_str(string: &str) -> Ident {
+        Ident::with_dummy_span(Symbol::intern(string))
+    }
 
-    // /// Maps a string and a span to an identifier.
-    // pub fn from_str_and_span(string: &str, span: Span) -> Ident {
-    //     Ident::new(Symbol::intern(string), span)
-    // }
+    /// Maps a string and a span to an identifier.
+    pub fn from_str_and_span(string: &str, span: Span) -> Ident {
+        Ident::new(Symbol::intern(string), span)
+    }
 
     // /// Replaces `lo` and `hi` with those from `span`, but keep hygiene context.
     // pub fn with_span_pos(self, span: Span) -> Ident {
     //     Ident::new(self.name, span.with_ctxt(self.span.ctxt()))
     // }
 
-    // pub fn without_first_quote(self) -> Ident {
-    //     Ident::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
-    // }
+    pub fn without_first_quote(self) -> Ident {
+        Ident::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
+    }
 
     /// Access the underlying string. This is a slowish operation because it
     /// requires locking the symbol interner.
@@ -287,9 +290,8 @@ impl Ident {
 impl PartialEq for Ident {
     #[inline]
     fn eq(&self, rhs: &Self) -> bool {
-        _ = rhs;
-        todo!()
-        // self.name == rhs.name && self.span.eq_ctxt(rhs.span)
+        self.name == rhs.name
+        // && self.span.eq_ctxt(rhs.span)
     }
 }
 
@@ -417,6 +419,16 @@ struct InternerInner {
 }
 
 impl Interner {
+    #[cfg(test)]
+    #[allow(clippy::new_without_default)]
+    fn new() -> Self {
+        Self(RefCell::new(InternerInner {
+            arena: Default::default(),
+            names: Default::default(),
+            strings: Default::default(),
+        }))
+    }
+
     fn prefill(init: &[&'static str]) -> Self {
         Interner(RefCell::new(InternerInner {
             arena: Default::default(),
@@ -427,7 +439,7 @@ impl Interner {
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        let inner = self.0.borrow_mut();
+        let mut inner = self.0.borrow_mut();
         if let Some(&name) = inner.names.get(string) {
             return name;
         }
@@ -442,7 +454,6 @@ impl Interner {
 
         // SAFETY: we can extend the arena allocation to `'static` because we
         // only access these while the arena is still alive.
-        let mut inner = self.0.borrow_mut();
         let string: &'static str = unsafe { &*(string as *const str) };
         inner.strings.push(string);
 
@@ -450,6 +461,7 @@ impl Interner {
         // but this code path isn't hot enough for it to be worth it. See
         // #91445 for details.
         inner.names.insert(string, name);
+
         name
     }
 

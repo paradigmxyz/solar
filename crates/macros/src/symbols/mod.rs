@@ -27,6 +27,7 @@ use quote::quote;
 use std::collections::HashMap;
 use syn::{
     braced,
+    ext::IdentExt,
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
     Ident, LitStr, Token,
@@ -62,7 +63,7 @@ struct Symbol {
 
 impl Parse for Symbol {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let name = input.parse()?;
+        let name = input.call(Ident::parse_any)?;
         let value = match input.parse::<Token![:]>() {
             Ok(_) => Some(input.parse()?),
             Err(_) => None,

@@ -9,7 +9,7 @@ pub(crate) const EOF_CHAR: char = '\0';
 pub struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
-    pub(crate) chars: Chars<'a>,
+    chars: Chars<'a>,
     #[cfg(debug_assertions)]
     prev: char,
 }
@@ -22,6 +22,11 @@ impl<'a> Cursor<'a> {
             #[cfg(debug_assertions)]
             prev: EOF_CHAR,
         }
+    }
+
+    /// Returns the remaining input as a string slice.
+    pub(crate) fn as_str(&self) -> &'a str {
+        self.chars.as_str()
     }
 
     /// Returns the last eaten symbol (or `'\0'` in release builds).

@@ -1,5 +1,6 @@
 //! Solidity parser.
 
-mod lexer;
+pub mod errors;
+pub mod lexer;
 
 // TODO: Parser

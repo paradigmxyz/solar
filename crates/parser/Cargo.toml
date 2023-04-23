@@ -13,6 +13,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+rsolc-ast = { path = "../ast" }
+rsolc-span = { path = "../span" }
+
 unicode-ident = "1.0"
 unicode-normalization = "0.1.22"
 
