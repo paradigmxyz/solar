@@ -16,12 +16,19 @@ jobs:
             fail-fast: false
             matrix:
                 os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+                rust:
+                    - toolchain: stable
+                      flags: ""
+                    - toolchain: nightly
+                      flags: --features nightly
         steps:
             - uses: actions/checkout@v3
-            - uses: dtolnay/rust-toolchain@stable
+            - uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: ${{ matrix.rust.toolchain }}
             - uses: Swatinem/rust-cache@v2
             - name: test
-              run: cargo +stable test --workspace --all-features
+              run: cargo test --workspace ${{ matrix.rust.flags }}
 
     features:
         name: features
