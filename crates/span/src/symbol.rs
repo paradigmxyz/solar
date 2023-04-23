@@ -3,9 +3,6 @@ use rsolc_data_structures::{fx::FxHashMap, DroplessArena};
 use rsolc_macros::symbols;
 use std::{cell::RefCell, fmt, str};
 
-#[cfg(test)]
-mod tests;
-
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
     Keywords {
@@ -469,5 +466,24 @@ impl Interner {
     // preference to this function.
     fn get(&self, symbol: Symbol) -> &str {
         self.0.borrow().strings[symbol.0 as usize]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn interner_tests() {
+        let i = Interner::new();
+        // first one is zero:
+        assert_eq!(i.intern("dog"), Symbol::new(0));
+        // re-use gets the same entry:
+        assert_eq!(i.intern("dog"), Symbol::new(0));
+        // different string gets a different #:
+        assert_eq!(i.intern("cat"), Symbol::new(1));
+        assert_eq!(i.intern("cat"), Symbol::new(1));
+        // dog is still at zero
+        assert_eq!(i.intern("dog"), Symbol::new(0));
     }
 }

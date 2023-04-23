@@ -13,4 +13,4 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-# rsolc-parser = { path = "../parser" }
+rsolc-parser = { path = "../parser" }

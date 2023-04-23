@@ -14,7 +14,7 @@
     )
 )]
 
-mod arena;
+pub mod arena;
 pub use arena::{DroplessArena, TypedArena};
 
 pub mod fx;

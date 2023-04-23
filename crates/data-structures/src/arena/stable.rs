@@ -90,7 +90,7 @@ impl<T> ArenaChunk<T> {
         unsafe {
             if mem::size_of::<T>() == 0 {
                 // A pointer as large as possible for zero-sized elements.
-                usize::MAX as *mut T
+                !0 as *mut T
             } else {
                 self.start().add((*self.storage.as_ptr()).len())
             }
@@ -123,22 +123,6 @@ impl<T> Default for TypedArena<T> {
 pub trait IterExt<T> {
     fn alloc_from_iter(self, arena: &TypedArena<T>) -> &mut [T];
 }
-
-// impl<I, T> IterExt<T> for I
-// where
-//     I: IntoIterator<Item = T>,
-// {
-//     // This default collects into a `SmallVec` and then allocates by copying
-//     // from it. The specializations below for types like `Vec` are more
-//     // efficient, copying directly without the intermediate collecting step.
-//     // This default could be made more efficient, like
-//     // `DroplessArena::alloc_from_iter`, but it's not hot enough to bother.
-//     #[inline]
-//     default fn alloc_from_iter(self, arena: &TypedArena<T>) -> &mut [T] {
-//         let vec: SmallVec<[_; 8]> = self.into_iter().collect();
-//         vec.alloc_from_iter(arena)
-//     }
-// }
 
 impl<T, const N: usize> IterExt<T> for std::array::IntoIter<T, N> {
     #[inline]
@@ -430,15 +414,14 @@ impl DroplessArena {
     #[inline]
     fn alloc_raw_without_grow(&self, layout: Layout) -> Option<*mut u8> {
         let start = self.start.get() as usize;
-        let old_end = self.end.get();
-        let end = old_end as usize;
+        let end = self.end.get() as usize;
 
         let align = layout.align();
         let bytes = layout.size();
 
         let new_end = end.checked_sub(bytes)? & !(align - 1);
         if start <= new_end {
-            let new_end = old_end.wrapping_add(new_end);
+            let new_end = new_end as *mut u8;
             self.end.set(new_end);
             Some(new_end)
         } else {
@@ -559,109 +542,3 @@ impl DroplessArena {
         }
     }
 }
-
-/*
-/// Declare an `Arena` containing one dropless arena and many typed arenas (the
-/// types of the typed arenas are specified by the arguments).
-///
-/// There are three cases of interest.
-/// - Types that are `Copy`: these need not be specified in the arguments. They will use the
-///   `DroplessArena`.
-/// - Types that are `!Copy` and `!Drop`: these must be specified in the arguments. An empty
-///   `TypedArena` will be created for each one, but the `DroplessArena` will always be used and the
-///   `TypedArena` will stay empty. This is odd but harmless, because an empty arena allocates no
-///   memory.
-/// - Types that are `!Copy` and `Drop`: these must be specified in the arguments. The `TypedArena`
-///   will be used for them.
-#[rustc_macro_transparency = "semitransparent"]
-pub macro declare_arena([$($a:tt $name:ident: $ty:ty,)*]) {
-    #[derive(Default)]
-    pub struct Arena<'tcx> {
-        pub dropless: $crate::DroplessArena,
-        $($name: $crate::TypedArena<$ty>,)*
-    }
-
-    pub trait ArenaAllocatable<'tcx, C = rustc_arena::IsNotCopy>: Sized {
-        #[allow(clippy::mut_from_ref)]
-        fn allocate_on<'a>(self, arena: &'a Arena<'tcx>) -> &'a mut Self;
-        #[allow(clippy::mut_from_ref)]
-        fn allocate_from_iter<'a>(
-            arena: &'a Arena<'tcx>,
-            iter: impl ::std::iter::IntoIterator<Item = Self>,
-        ) -> &'a mut [Self];
-    }
-
-    // Any type that impls `Copy` can be arena-allocated in the `DroplessArena`.
-    impl<'tcx, T: Copy> ArenaAllocatable<'tcx, rustc_arena::IsCopy> for T {
-        #[inline]
-        #[allow(clippy::mut_from_ref)]
-        fn allocate_on<'a>(self, arena: &'a Arena<'tcx>) -> &'a mut Self {
-            arena.dropless.alloc(self)
-        }
-        #[inline]
-        #[allow(clippy::mut_from_ref)]
-        fn allocate_from_iter<'a>(
-            arena: &'a Arena<'tcx>,
-            iter: impl ::std::iter::IntoIterator<Item = Self>,
-        ) -> &'a mut [Self] {
-            arena.dropless.alloc_from_iter(iter)
-        }
-    }
-    $(
-        impl<'tcx> ArenaAllocatable<'tcx, rustc_arena::IsNotCopy> for $ty {
-            #[inline]
-            fn allocate_on<'a>(self, arena: &'a Arena<'tcx>) -> &'a mut Self {
-                if !::std::mem::needs_drop::<Self>() {
-                    arena.dropless.alloc(self)
-                } else {
-                    arena.$name.alloc(self)
-                }
-            }
-
-            #[inline]
-            #[allow(clippy::mut_from_ref)]
-            fn allocate_from_iter<'a>(
-                arena: &'a Arena<'tcx>,
-                iter: impl ::std::iter::IntoIterator<Item = Self>,
-            ) -> &'a mut [Self] {
-                if !::std::mem::needs_drop::<Self>() {
-                    arena.dropless.alloc_from_iter(iter)
-                } else {
-                    arena.$name.alloc_from_iter(iter)
-                }
-            }
-        }
-    )*
-
-    impl<'tcx> Arena<'tcx> {
-        #[inline]
-        #[allow(clippy::mut_from_ref)]
-        pub fn alloc<T: ArenaAllocatable<'tcx, C>, C>(&self, value: T) -> &mut T {
-            value.allocate_on(self)
-        }
-
-        // Any type that impls `Copy` can have slices be arena-allocated in the `DroplessArena`.
-        #[inline]
-        #[allow(clippy::mut_from_ref)]
-        pub fn alloc_slice<T: ::std::marker::Copy>(&self, value: &[T]) -> &mut [T] {
-            if value.is_empty() {
-                return &mut [];
-            }
-            self.dropless.alloc_slice(value)
-        }
-
-        #[allow(clippy::mut_from_ref)]
-        pub fn alloc_from_iter<'a, T: ArenaAllocatable<'tcx, C>, C>(
-            &'a self,
-            iter: impl ::std::iter::IntoIterator<Item = T>,
-        ) -> &'a mut [T] {
-            T::allocate_from_iter(self, iter)
-        }
-    }
-}
-
-// Marker types that let us give different behaviour for arenas allocating
-// `Copy` types vs `!Copy` types.
-pub struct IsCopy;
-pub struct IsNotCopy;
-*/
