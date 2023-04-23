@@ -231,7 +231,7 @@ pub mod sym {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ident {
     pub name: Symbol,
     pub span: Span,
@@ -256,6 +256,7 @@ impl Ident {
     // }
 
     /// Maps a string to an identifier with a dummy span.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(string: &str) -> Ident {
         Ident::with_dummy_span(Symbol::intern(string))
     }
@@ -284,13 +285,12 @@ impl Ident {
     }
 }
 
-impl PartialEq for Ident {
-    #[inline]
-    fn eq(&self, rhs: &Self) -> bool {
-        self.name == rhs.name
-        // && self.span.eq_ctxt(rhs.span)
-    }
-}
+// impl PartialEq for Ident {
+//     #[inline]
+//     fn eq(&self, rhs: &Self) -> bool {
+//         self.name == rhs.name && self.span.eq_ctxt(rhs.span)
+//     }
+// }
 
 // impl Hash for Ident {
 //     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -299,23 +299,18 @@ impl PartialEq for Ident {
 //     }
 // }
 
-// impl fmt::Debug for Ident {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         fmt::Display::fmt(self, f)?;
-//         fmt::Debug::fmt(&self.span.ctxt(), f)
-//     }
-// }
-
-/*
-/// This implementation is supposed to be used in error messages, so it's expected to be identical
-/// to printing the original identifier token written in source code (`token_to_string`),
-/// except that AST identifiers don't keep the rawness flag, so we have to guess it.
-impl fmt::Display for Ident {
+impl fmt::Debug for Ident {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&IdentPrinter::new(self.name, self.is_raw_guess(), None), f)
+        fmt::Display::fmt(self, f)
+        // fmt::Debug::fmt(&self.span.ctxt(), f)
     }
 }
-*/
+
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
+    }
+}
 
 /// An interned string.
 ///

@@ -16,6 +16,12 @@ pub struct SessionGlobals {
     // source_map: RefCell<Option<Rc<SourceMap>>>,
 }
 
+impl Default for SessionGlobals {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SessionGlobals {
     pub fn new() -> SessionGlobals {
         SessionGlobals {
