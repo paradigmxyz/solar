@@ -132,7 +132,8 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut keyword_stream = quote! {};
     let mut symbols_stream = quote! {};
     let mut prefill_stream = quote! {};
-    let mut counter = 0u32;
+    // start at 1 for NonZeroU32
+    let mut counter = 1u32;
     let mut keys =
         HashMap::<String, Span>::with_capacity(input.keywords.len() + input.symbols.len() + 10);
     let mut prev_key: Option<(Span, String)> = None;

@@ -1,7 +1,7 @@
 use crate::{with_session_globals, Span};
 use rsolc_data_structures::{fx::FxHashMap, DroplessArena};
 use rsolc_macros::symbols;
-use std::{cell::RefCell, fmt, str};
+use std::{cell::RefCell, fmt, num::NonZeroU32, str};
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
@@ -322,12 +322,11 @@ impl fmt::Display for Ident {
 /// Note that `Symbol` cannot directly be a `rustc_index::newtype_index!` because it
 /// implements `fmt::Debug`, `Encodable`, and `Decodable` in special ways.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(u32);
+pub struct Symbol(NonZeroU32);
 
 impl Symbol {
-    #[inline]
     const fn new(n: u32) -> Self {
-        Symbol(n)
+        Symbol(unsafe { NonZeroU32::new_unchecked(n) })
     }
 
     /// Maps a string to its interned representation.
@@ -352,7 +351,7 @@ impl Symbol {
     /// Returns the internal representation of the symbol.
     #[inline]
     pub const fn as_u32(self) -> u32 {
-        self.0
+        self.0.get()
     }
 
     /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
@@ -460,7 +459,7 @@ impl Interner {
     // Get the symbol as a string. `Symbol::as_str()` should be used in
     // preference to this function.
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.borrow().strings[symbol.0 as usize]
+        self.0.borrow().strings[symbol.0.get() as usize]
     }
 }
 
