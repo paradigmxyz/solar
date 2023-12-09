@@ -4,40 +4,59 @@
 //!
 //! [rustc_lexer]: https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs
 
+use std::str::Chars;
+
 mod token;
 pub use token::{Base, LiteralKind, Token, TokenKind};
 
 #[cfg(test)]
 mod tests;
 
-use LiteralKind::*;
-use TokenKind::*;
-
-use std::str::Chars;
-
-/// Returns true if `c` is considered a whitespace.
-pub fn is_whitespace(c: char) -> bool {
+/// Returns `true` if `c` is considered a whitespace.
+#[inline]
+pub const fn is_whitespace(c: char) -> bool {
     matches!(c, '\t' | '\n' | ' ')
 }
 
-/// Returns true if `c` is valid as a first character of an identifier.
-pub fn is_id_start(c: char) -> bool {
-    matches!(c, '$' | 'A'..='Z' | '_' | 'a'..='z')
+/// Returns `true` if the given character is valid at the start of a Solidity identifier.
+#[inline]
+pub const fn is_id_start(c: char) -> bool {
+    matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '$')
 }
 
-/// Returns true if `c` is valid as a non-first character of an identifier.
-pub fn is_id_continue(c: char) -> bool {
-    matches!(c, '$' | '0'..='9' | 'A'..='Z' | '_' | 'a'..='z')
+/// Returns `true` if the given character is valid in a Solidity identifier.
+#[inline]
+pub const fn is_id_continue(c: char) -> bool {
+    matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '$')
 }
 
-/// Returns true if the given string is lexically a valid identifier.
-pub fn is_ident(string: &str) -> bool {
-    let mut chars = string.chars();
-    if let Some(start) = chars.next() {
-        is_id_start(start) && chars.all(is_id_continue)
-    } else {
-        false
+/// Returns `true` if the given string is a valid Solidity identifier.
+///
+/// An identifier in Solidity has to start with a letter, a dollar-sign or an underscore and may
+/// additionally contain numbers after the first symbol.
+///
+/// Solidity reference:
+/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier>
+pub const fn is_ident(s: &str) -> bool {
+    // Note: valid idents can only contain ASCII characters, so we can
+    // use the byte representation here.
+    let [first, rest @ ..] = s.as_bytes() else {
+        return false;
+    };
+
+    if !is_id_start(*first as char) {
+        return false;
     }
+
+    let mut i = 0;
+    while i < rest.len() {
+        if !is_id_continue(rest[i] as char) {
+            return false;
+        }
+        i += 1;
+    }
+
+    true
 }
 
 const EOF_CHAR: char = '\0';
@@ -77,7 +96,7 @@ impl<'a> Cursor<'a> {
             '/' => match self.first() {
                 '/' => self.line_comment(),
                 '*' => self.block_comment(),
-                _ => Slash,
+                _ => TokenKind::Slash,
             },
 
             // Whitespace sequence.
@@ -93,42 +112,42 @@ impl<'a> Cursor<'a> {
             }
 
             // One-symbol tokens.
-            ';' => Semi,
-            ',' => Comma,
-            '.' => Dot,
-            '(' => OpenParen,
-            ')' => CloseParen,
-            '{' => OpenBrace,
-            '}' => CloseBrace,
-            '[' => OpenBracket,
-            ']' => CloseBracket,
-            '~' => Tilde,
-            '?' => Question,
-            ':' => Colon,
-            '=' => Eq,
-            '!' => Bang,
-            '<' => Lt,
-            '>' => Gt,
-            '-' => Minus,
-            '&' => And,
-            '|' => Or,
-            '+' => Plus,
-            '*' => Star,
-            '^' => Caret,
-            '%' => Percent,
+            ';' => TokenKind::Semi,
+            ',' => TokenKind::Comma,
+            '.' => TokenKind::Dot,
+            '(' => TokenKind::OpenParen,
+            ')' => TokenKind::CloseParen,
+            '{' => TokenKind::OpenBrace,
+            '}' => TokenKind::CloseBrace,
+            '[' => TokenKind::OpenBracket,
+            ']' => TokenKind::CloseBracket,
+            '~' => TokenKind::Tilde,
+            '?' => TokenKind::Question,
+            ':' => TokenKind::Colon,
+            '=' => TokenKind::Eq,
+            '!' => TokenKind::Bang,
+            '<' => TokenKind::Lt,
+            '>' => TokenKind::Gt,
+            '-' => TokenKind::Minus,
+            '&' => TokenKind::And,
+            '|' => TokenKind::Or,
+            '+' => TokenKind::Plus,
+            '*' => TokenKind::Star,
+            '^' => TokenKind::Caret,
+            '%' => TokenKind::Percent,
 
             // String literal.
             c @ ('\'' | '"') => {
                 let terminated = self.eat_string(c);
-                let kind = Str { terminated, unicode: false };
-                Literal { kind }
+                let kind = LiteralKind::Str { terminated, unicode: false };
+                TokenKind::Literal { kind }
             }
 
             // Identifier starting with an emoji. Only lexed for graceful error recovery.
             // c if !c.is_ascii() && unic_emoji_char::is_emoji(c) => {
             //     self.fake_ident_or_unknown_prefix()
             // }
-            _ => Unknown,
+            _ => TokenKind::Unknown,
         };
         let res = Token::new(token_kind, self.pos_within_token());
         self.reset_pos_within_token();
@@ -143,7 +162,7 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), '/' if self.second() != '/');
 
         self.eat_while(|c| c != '\n');
-        LineComment { is_doc }
+        TokenKind::LineComment { is_doc }
     }
 
     fn block_comment(&mut self) -> TokenKind {
@@ -175,13 +194,13 @@ impl<'a> Cursor<'a> {
             }
         }
 
-        BlockComment { is_doc, terminated: depth == 0 }
+        TokenKind::BlockComment { is_doc, terminated: depth == 0 }
     }
 
     fn whitespace(&mut self) -> TokenKind {
         debug_assert!(is_whitespace(self.prev()));
         self.eat_while(is_whitespace);
-        Whitespace
+        TokenKind::Whitespace
     }
 
     fn ident_or_prefixed_literal(&mut self, first_char: char) -> TokenKind {
@@ -210,8 +229,8 @@ impl<'a> Cursor<'a> {
         // we see a prefix here, it is definitely an unknown prefix.
         // self.eat_identifier();
         match self.first() {
-            '"' | '\'' => UnknownPrefix,
-            _ => Ident,
+            '"' | '\'' => TokenKind::UnknownPrefix,
+            _ => TokenKind::Ident,
         }
     }
 
@@ -232,12 +251,12 @@ impl<'a> Cursor<'a> {
                     true
                 }
                 // Just a 0.
-                _ => return Int { base, empty_int: false },
+                _ => return LiteralKind::Int { base, empty_int: false },
             };
             // Base prefix was provided, but there were no digits
             // after it, e.g. "0x".
             if !has_digits {
-                return Int { base, empty_int: true };
+                return LiteralKind::Int { base, empty_int: true };
             }
         } else {
             // No base prefix, parse number in the usual way.
@@ -262,14 +281,14 @@ impl<'a> Cursor<'a> {
                         _ => (),
                     }
                 }
-                Rational { base, empty_exponent }
+                LiteralKind::Rational { base, empty_exponent }
             }
             'e' | 'E' => {
                 self.bump();
                 let empty_exponent = !self.eat_exponent();
-                Rational { base, empty_exponent }
+                LiteralKind::Rational { base, empty_exponent }
             }
-            _ => Int { base, empty_int: false },
+            _ => LiteralKind::Int { base, empty_int: false },
         }
     }
 
@@ -281,8 +300,8 @@ impl<'a> Cursor<'a> {
             self.ignore::<2>();
             self.bump();
             let terminated = self.eat_string(quote);
-            let kind = HexStr { terminated };
-            Some(Literal { kind })
+            let kind = LiteralKind::HexStr { terminated };
+            Some(TokenKind::Literal { kind })
         } else {
             None
         }
@@ -296,8 +315,8 @@ impl<'a> Cursor<'a> {
             self.ignore::<6>();
             self.bump();
             let terminated = self.eat_string(quote);
-            let kind = Str { terminated, unicode: true };
-            Some(Literal { kind })
+            let kind = LiteralKind::Str { terminated, unicode: true };
+            Some(TokenKind::Literal { kind })
         } else {
             None
         }

@@ -11,7 +11,8 @@
         pointer_byte_offsets,
         rustc_attrs,
         strict_provenance,
-    )
+    ),
+    allow(stable_features, internal_features)
 )]
 
 pub mod arena;

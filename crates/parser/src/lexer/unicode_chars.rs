@@ -3,7 +3,7 @@
 
 use super::StringReader;
 use crate::errors::TokenSubstitution;
-use rsolc_ast::token::{self, Delimiter};
+use rsolc_ast::token::{BinOpToken, Delimiter, TokenKind};
 use rsolc_span::{sym, BytePos, Pos, Span};
 
 #[rustfmt::skip] // for line breaks
@@ -303,31 +303,31 @@ pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[
 // keeping the substitution token in this table. Ideally, this should be inside `rustc_lexer`.
 // However, we should first remove compound tokens like `<<` from `rustc_lexer`, and then add
 // fancier error recovery to it, as there will be less overall work to do this way.
-const ASCII_ARRAY: &[(&str, &str, Option<token::TokenKind>)] = &[
+const ASCII_ARRAY: &[(&str, &str, Option<TokenKind>)] = &[
     (" ", "Space", None),
-    ("_", "Underscore", Some(token::Ident(sym::underscore))),
-    ("-", "Minus/Hyphen", Some(token::BinOp(token::Minus))),
-    (",", "Comma", Some(token::Comma)),
-    (";", "Semicolon", Some(token::Semi)),
-    (":", "Colon", Some(token::Colon)),
-    ("!", "Exclamation Mark", Some(token::Not)),
-    ("?", "Question Mark", Some(token::Question)),
-    (".", "Period", Some(token::Dot)),
-    ("(", "Left Parenthesis", Some(token::OpenDelim(Delimiter::Parenthesis))),
-    (")", "Right Parenthesis", Some(token::CloseDelim(Delimiter::Parenthesis))),
-    ("[", "Left Square Bracket", Some(token::OpenDelim(Delimiter::Bracket))),
-    ("]", "Right Square Bracket", Some(token::CloseDelim(Delimiter::Bracket))),
-    ("{", "Left Curly Brace", Some(token::OpenDelim(Delimiter::Brace))),
-    ("}", "Right Curly Brace", Some(token::CloseDelim(Delimiter::Brace))),
-    ("*", "Asterisk", Some(token::BinOp(token::Star))),
-    ("/", "Slash", Some(token::BinOp(token::Slash))),
+    ("_", "Underscore", Some(TokenKind::Ident(sym::underscore))),
+    ("-", "Minus/Hyphen", Some(TokenKind::BinOp(BinOpToken::Minus))),
+    (",", "Comma", Some(TokenKind::Comma)),
+    (";", "Semicolon", Some(TokenKind::Semi)),
+    (":", "Colon", Some(TokenKind::Colon)),
+    ("!", "Exclamation Mark", Some(TokenKind::Not)),
+    ("?", "Question Mark", Some(TokenKind::Question)),
+    (".", "Period", Some(TokenKind::Dot)),
+    ("(", "Left Parenthesis", Some(TokenKind::OpenDelim(Delimiter::Parenthesis))),
+    (")", "Right Parenthesis", Some(TokenKind::CloseDelim(Delimiter::Parenthesis))),
+    ("[", "Left Square Bracket", Some(TokenKind::OpenDelim(Delimiter::Bracket))),
+    ("]", "Right Square Bracket", Some(TokenKind::CloseDelim(Delimiter::Bracket))),
+    ("{", "Left Curly Brace", Some(TokenKind::OpenDelim(Delimiter::Brace))),
+    ("}", "Right Curly Brace", Some(TokenKind::CloseDelim(Delimiter::Brace))),
+    ("*", "Asterisk", Some(TokenKind::BinOp(BinOpToken::Star))),
+    ("/", "Slash", Some(TokenKind::BinOp(BinOpToken::Slash))),
     ("\\", "Backslash", None),
-    ("&", "Ampersand", Some(token::BinOp(token::And))),
-    ("+", "Plus Sign", Some(token::BinOp(token::Plus))),
-    ("<", "Less-Than Sign", Some(token::Lt)),
-    ("=", "Equals Sign", Some(token::Eq)),
-    ("==", "Double Equals Sign", Some(token::EqEq)),
-    (">", "Greater-Than Sign", Some(token::Gt)),
+    ("&", "Ampersand", Some(TokenKind::BinOp(BinOpToken::And))),
+    ("+", "Plus Sign", Some(TokenKind::BinOp(BinOpToken::Plus))),
+    ("<", "Less-Than Sign", Some(TokenKind::Lt)),
+    ("=", "Equals Sign", Some(TokenKind::Eq)),
+    ("==", "Double Equals Sign", Some(TokenKind::EqEq)),
+    (">", "Greater-Than Sign", Some(TokenKind::Gt)),
     // FIXME: Literals are already lexed by this point, so we can't recover gracefully just by
     // spitting the correct token out.
     ("\'", "Single Quote", None),
@@ -339,7 +339,7 @@ pub(super) fn check_for_substitution(
     pos: BytePos,
     ch: char,
     count: usize,
-) -> (Option<token::TokenKind>, Option<TokenSubstitution>) {
+) -> (Option<TokenKind>, Option<TokenSubstitution>) {
     let Some(&(_, u_name, ascii_str)) = UNICODE_ARRAY.iter().find(|&&(c, _, _)| c == ch) else {
         return (None, None);
     };

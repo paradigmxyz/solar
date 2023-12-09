@@ -1,4 +1,4 @@
-use rsolc_ast::token::{self, CommentKind, Delimiter, Token, TokenKind};
+use rsolc_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
 use rsolc_span::{sym, BytePos, Pos, Span, Symbol};
 
 mod cursor;
@@ -104,7 +104,7 @@ impl<'a> StringReader<'a> {
                     // TODO
                     // let span = self.mk_sp(start, self.pos);
                     // self.sess.symbol_gallery.insert(sym, span);
-                    token::Ident(sym)
+                    TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::UnknownPrefix => {
                     self.report_unknown_prefix(start);
@@ -112,7 +112,7 @@ impl<'a> StringReader<'a> {
                     // TODO
                     // let span = self.mk_sp(start, self.pos);
                     // self.sess.symbol_gallery.insert(sym, span);
-                    token::Ident(sym)
+                    TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::InvalidIdent
                     // Do not recover an identifier with emoji if the codepoint is a confusable
@@ -129,39 +129,39 @@ impl<'a> StringReader<'a> {
                     // let span = self.mk_sp(start, self.pos);
                     // self.sess.bad_unicode_identifiers.borrow_mut().entry(sym).or_default()
                     //     .push(span);
-                    token::Ident(sym)
+                    TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_lexer_literal(start, self.pos, kind);
-                    token::Literal(token::Lit { kind, symbol })
+                    TokenKind::Literal(Lit { kind, symbol })
                 }
 
-                cursor::TokenKind::Semi => token::Semi,
-                cursor::TokenKind::Comma => token::Comma,
-                cursor::TokenKind::Dot => token::Dot,
-                cursor::TokenKind::OpenParen => token::OpenDelim(Delimiter::Parenthesis),
-                cursor::TokenKind::CloseParen => token::CloseDelim(Delimiter::Parenthesis),
-                cursor::TokenKind::OpenBrace => token::OpenDelim(Delimiter::Brace),
-                cursor::TokenKind::CloseBrace => token::CloseDelim(Delimiter::Brace),
-                cursor::TokenKind::OpenBracket => token::OpenDelim(Delimiter::Bracket),
-                cursor::TokenKind::CloseBracket => token::CloseDelim(Delimiter::Bracket),
-                // cursor::TokenKind::At => token::At,
-                // cursor::TokenKind::Pound => token::Pound,
-                cursor::TokenKind::Tilde => token::Tilde,
-                cursor::TokenKind::Question => token::Question,
-                cursor::TokenKind::Colon => token::Colon,
-                cursor::TokenKind::Eq => token::Eq,
-                cursor::TokenKind::Bang => token::Not,
-                cursor::TokenKind::Lt => token::Lt,
-                cursor::TokenKind::Gt => token::Gt,
-                cursor::TokenKind::Minus => token::BinOp(token::Minus),
-                cursor::TokenKind::And => token::BinOp(token::And),
-                cursor::TokenKind::Or => token::BinOp(token::Or),
-                cursor::TokenKind::Plus => token::BinOp(token::Plus),
-                cursor::TokenKind::Star => token::BinOp(token::Star),
-                cursor::TokenKind::Slash => token::BinOp(token::Slash),
-                cursor::TokenKind::Caret => token::BinOp(token::Caret),
-                cursor::TokenKind::Percent => token::BinOp(token::Percent),
+                cursor::TokenKind::Semi => TokenKind::Semi,
+                cursor::TokenKind::Comma => TokenKind::Comma,
+                cursor::TokenKind::Dot => TokenKind::Dot,
+                cursor::TokenKind::OpenParen => TokenKind::OpenDelim(Delimiter::Parenthesis),
+                cursor::TokenKind::CloseParen => TokenKind::CloseDelim(Delimiter::Parenthesis),
+                cursor::TokenKind::OpenBrace => TokenKind::OpenDelim(Delimiter::Brace),
+                cursor::TokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
+                cursor::TokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
+                cursor::TokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
+                // cursor::TokenKind::At => TokenKind::At,
+                // cursor::TokenKind::Pound => TokenKind::Pound,
+                cursor::TokenKind::Tilde => TokenKind::Tilde,
+                cursor::TokenKind::Question => TokenKind::Question,
+                cursor::TokenKind::Colon => TokenKind::Colon,
+                cursor::TokenKind::Eq => TokenKind::Eq,
+                cursor::TokenKind::Bang => TokenKind::Not,
+                cursor::TokenKind::Lt => TokenKind::Lt,
+                cursor::TokenKind::Gt => TokenKind::Gt,
+                cursor::TokenKind::Minus => TokenKind::BinOp(BinOpToken::Minus),
+                cursor::TokenKind::And => TokenKind::BinOp(BinOpToken::And),
+                cursor::TokenKind::Or => TokenKind::BinOp(BinOpToken::Or),
+                cursor::TokenKind::Plus => TokenKind::BinOp(BinOpToken::Plus),
+                cursor::TokenKind::Star => TokenKind::BinOp(BinOpToken::Star),
+                cursor::TokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
+                cursor::TokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
+                cursor::TokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
 
                 cursor::TokenKind::Unknown | cursor::TokenKind::InvalidIdent => {
                     // Don't emit diagnostics for sequences of the same invalid token
@@ -210,7 +210,7 @@ impl<'a> StringReader<'a> {
                     }
                 }
 
-                cursor::TokenKind::Eof => token::Eof,
+                cursor::TokenKind::Eof => TokenKind::Eof,
             };
             let span = self.mk_sp(start, self.pos);
             return (Token::new(kind, span), preceded_by_whitespace);
@@ -271,7 +271,7 @@ impl<'a> StringReader<'a> {
         }
         */
 
-        token::DocComment(comment_kind, Symbol::intern(content))
+        TokenKind::DocComment(comment_kind, Symbol::intern(content))
     }
 
     fn cook_lexer_literal(
@@ -279,7 +279,7 @@ impl<'a> StringReader<'a> {
         start: BytePos,
         end: BytePos,
         kind: cursor::LiteralKind,
-    ) -> (token::LitKind, Symbol) {
+    ) -> (LitKind, Symbol) {
         match kind {
             cursor::LiteralKind::Str { terminated: _, unicode } => {
                 // TODO
@@ -292,7 +292,7 @@ impl<'a> StringReader<'a> {
                 // }
                 let prefix_len = if unicode { 8 } else { 1 };
                 let mode = if unicode { Mode::UnicodeStr } else { Mode::Str };
-                self.cook_quoted(token::Str(unicode), mode, start, end, prefix_len)
+                self.cook_quoted(LitKind::Str(unicode), mode, start, end, prefix_len)
             }
             cursor::LiteralKind::HexStr { terminated: _ } => {
                 // TODO
@@ -303,16 +303,16 @@ impl<'a> StringReader<'a> {
                 //         error_code!(E0766),
                 //     )
                 // }
-                self.cook_quoted(token::HexStr, Mode::HexStr, start, end, 4)
+                self.cook_quoted(LitKind::HexStr, Mode::HexStr, start, end, 4)
             }
             cursor::LiteralKind::Int { base: _, empty_int } => {
                 if empty_int {
                     // TODO
                     // let span = self.mk_sp(start, end);
                     // self.sess.emit_err(errors::NoDigitsLiteral { span });
-                    (token::Integer, sym::integer(0))
+                    (LitKind::Integer, sym::integer(0))
                 } else {
-                    (token::Integer, self.symbol_from_to(start, end))
+                    (LitKind::Integer, self.symbol_from_to(start, end))
                 }
             }
             cursor::LiteralKind::Rational { base: _, empty_exponent: _ } => {
@@ -329,19 +329,19 @@ impl<'a> StringReader<'a> {
                 //     let span = self.mk_sp(start, end);
                 //     self.sess.emit_err(errors::FloatLiteralUnsupportedBase { span, base });
                 // }
-                (token::Rational, self.symbol_from_to(start, end))
+                (LitKind::Rational, self.symbol_from_to(start, end))
             }
         }
     }
 
     fn cook_quoted(
         &self,
-        kind: token::LitKind,
+        kind: LitKind,
         mode: Mode,
         start: BytePos,
         end: BytePos,
         prefix_len: u32,
-    ) -> (token::LitKind, Symbol) {
+    ) -> (LitKind, Symbol) {
         let content_start = start + BytePos(prefix_len);
         let content_end = end - BytePos(1); // `"` or `'`
         let mut lit_content = self.str_from_to(content_start - 1, content_end).chars();
@@ -376,7 +376,7 @@ impl<'a> StringReader<'a> {
         // We normally exclude the quotes for the symbol, but for errors we
         // include it because it results in clearer error messages.
         if has_fatal_err {
-            (token::Err, self.symbol_from_to(start, end))
+            (LitKind::Err, self.symbol_from_to(start, end))
         } else {
             (kind, Symbol::intern(lit_content))
         }

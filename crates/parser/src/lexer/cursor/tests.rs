@@ -1,6 +1,7 @@
 use super::*;
-use expect_test::*;
+use expect_test::{expect, Expect};
 
+#[allow(clippy::format_collect)]
 fn check_lexing(src: &str, expect: Expect) {
     let actual: String = Cursor::new(src).map(|token| format!("{:?}\n", token)).collect();
     expect.assert_eq(&actual)

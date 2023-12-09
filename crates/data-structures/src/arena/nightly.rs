@@ -42,7 +42,7 @@ pub(super) struct ArenaChunk<T = u8> {
 
 unsafe impl<#[may_dangle] T> Drop for ArenaChunk<T> {
     fn drop(&mut self) {
-        unsafe { Box::from_raw(self.storage.as_mut()) };
+        drop(unsafe { Box::from_raw(self.storage.as_mut()) });
     }
 }
 
