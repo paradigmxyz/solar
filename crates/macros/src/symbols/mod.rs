@@ -19,7 +19,9 @@
 //! ```bash
 //! cargo install cargo-expand          # this is necessary only once
 //! cd compiler/rustc_span
-//! cargo expand > /tmp/rustc_span.rs   # it's a big file
+//! # The specific version number in CFG_RELEASE doesn't matter.
+//! # The output is large.
+//! CFG_RELEASE="0.0.0" cargo +nightly expand > /tmp/rustc_span.rs
 //! ```
 
 use proc_macro2::{Span, TokenStream};
@@ -27,10 +29,9 @@ use quote::quote;
 use std::collections::HashMap;
 use syn::{
     braced,
-    ext::IdentExt,
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
-    Ident, LitStr, Token,
+    Expr, Ident, Lit, LitStr, Macro, Token,
 };
 
 #[cfg(test)]
@@ -52,24 +53,51 @@ impl Parse for Keyword {
         input.parse::<Token![:]>()?;
         let value = input.parse()?;
 
-        Ok(Self { name, value })
+        Ok(Keyword { name, value })
     }
 }
 
 struct Symbol {
     name: Ident,
-    value: Option<LitStr>,
+    value: Value,
+}
+
+enum Value {
+    SameAsName,
+    String(LitStr),
+    Env(LitStr, Macro),
+    Unsupported(Expr),
 }
 
 impl Parse for Symbol {
     fn parse(input: ParseStream<'_>) -> Result<Self> {
-        let name = input.call(Ident::parse_any)?;
-        let value = match input.parse::<Token![:]>() {
-            Ok(_) => Some(input.parse()?),
-            Err(_) => None,
-        };
+        let name = input.parse()?;
+        let colon_token: Option<Token![:]> = input.parse()?;
+        let value = if colon_token.is_some() { input.parse()? } else { Value::SameAsName };
 
-        Ok(Self { name, value })
+        Ok(Symbol { name, value })
+    }
+}
+
+impl Parse for Value {
+    fn parse(input: ParseStream<'_>) -> Result<Self> {
+        let expr: Expr = input.parse()?;
+        match &expr {
+            Expr::Lit(expr) => {
+                if let Lit::Str(lit) = &expr.lit {
+                    return Ok(Value::String(lit.clone()));
+                }
+            }
+            Expr::Macro(expr) => {
+                if expr.mac.path.is_ident("env") {
+                    if let Ok(lit) = expr.mac.parse_body() {
+                        return Ok(Value::Env(lit, expr.mac.clone()));
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(Value::Unsupported(expr))
     }
 }
 
@@ -116,6 +144,37 @@ pub fn symbols(input: TokenStream) -> TokenStream {
     output
 }
 
+struct Preinterned {
+    idx: u32,
+    span_of_name: Span,
+}
+
+struct Entries {
+    map: HashMap<String, Preinterned>,
+}
+
+impl Entries {
+    fn with_capacity(capacity: usize) -> Self {
+        Entries { map: HashMap::with_capacity(capacity) }
+    }
+
+    fn insert(&mut self, span: Span, str: &str, errors: &mut Errors) -> u32 {
+        if let Some(prev) = self.map.get(str) {
+            errors.error(span, format!("Symbol `{str}` is duplicated"));
+            errors.error(prev.span_of_name, "location of previous definition".to_string());
+            prev.idx
+        } else {
+            let idx = self.len();
+            self.map.insert(str.to_string(), Preinterned { idx, span_of_name: span });
+            idx
+        }
+    }
+
+    fn len(&self) -> u32 {
+        u32::try_from(self.map.len().saturating_add(1)).expect("way too many symbols")
+    }
+}
+
 fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut errors = Errors::default();
 
@@ -132,20 +191,8 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut keyword_stream = quote! {};
     let mut symbols_stream = quote! {};
     let mut prefill_stream = quote! {};
-    // start at 1 for NonZeroU32
-    let mut counter = 1u32;
-    let mut keys =
-        HashMap::<String, Span>::with_capacity(input.keywords.len() + input.symbols.len() + 10);
+    let mut entries = Entries::with_capacity(input.keywords.len() + input.symbols.len() + 10);
     let mut prev_key: Option<(Span, String)> = None;
-
-    let mut check_dup = |span: Span, str: &str, errors: &mut Errors| {
-        if let Some(prev_span) = keys.get(str) {
-            errors.error(span, format!("Symbol `{str}` is duplicated"));
-            errors.error(*prev_span, "location of previous definition".to_string());
-        } else {
-            keys.insert(str.to_string(), span);
-        }
-    };
 
     let mut check_order = |span: Span, str: &str, errors: &mut Errors| {
         if let Some((prev_span, ref prev_str)) = prev_key {
@@ -162,49 +209,98 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
         let name = &keyword.name;
         let value = &keyword.value;
         let value_string = value.value();
-        check_dup(keyword.name.span(), &value_string, &mut errors);
+        let idx = entries.insert(keyword.name.span(), &value_string, &mut errors);
         prefill_stream.extend(quote! {
             #value,
         });
         keyword_stream.extend(quote! {
-            pub const #name: Symbol = Symbol::new(#counter);
+            pub const #name: Symbol = Symbol::new(#idx);
         });
-        counter += 1;
     }
 
     // Generate the listed symbols.
     for symbol in input.symbols.iter() {
         let name = &symbol.name;
-        let value = match &symbol.value {
-            Some(value) => value.value(),
-            None => name.to_string(),
-        };
-        check_dup(symbol.name.span(), &value, &mut errors);
         check_order(symbol.name.span(), &name.to_string(), &mut errors);
+
+        let value = match &symbol.value {
+            Value::SameAsName => name.to_string(),
+            Value::String(lit) => lit.value(),
+            Value::Env(..) => continue, // in another loop below
+            Value::Unsupported(expr) => {
+                errors.list.push(syn::Error::new_spanned(
+                    expr,
+                    concat!(
+                        "unsupported expression for symbol value; implement support for this in ",
+                        file!(),
+                    ),
+                ));
+                continue;
+            }
+        };
+        let idx = entries.insert(symbol.name.span(), &value, &mut errors);
 
         prefill_stream.extend(quote! {
             #value,
         });
         symbols_stream.extend(quote! {
-            pub const #name: Symbol = Symbol::new(#counter);
+            pub const #name: Symbol = Symbol::new(#idx);
         });
-        counter += 1;
     }
 
     // Generate symbols for the strings "0", "1", ..., "9".
-    let digits_base = counter;
-    counter += 10;
     for n in 0..10 {
         let n = n.to_string();
-        check_dup(Span::call_site(), &n, &mut errors);
+        entries.insert(Span::call_site(), &n, &mut errors);
         prefill_stream.extend(quote! {
             #n,
         });
     }
 
+    // Symbols whose value comes from an environment variable. It's allowed for
+    // these to have the same value as another symbol.
+    for symbol in &input.symbols {
+        let (env_var, expr) = match &symbol.value {
+            Value::Env(lit, expr) => (lit, expr),
+            Value::SameAsName | Value::String(_) | Value::Unsupported(_) => continue,
+        };
+
+        if !proc_macro::is_available() {
+            errors.error(
+                Span::call_site(),
+                "proc_macro::tracked_env is not available in unit test".to_owned(),
+            );
+            break;
+        }
+
+        let value = match std::env::var(env_var.value()) {
+            Ok(value) => value,
+            Err(err) => {
+                errors.list.push(syn::Error::new_spanned(expr, err));
+                continue;
+            }
+        };
+
+        let idx = if let Some(prev) = entries.map.get(&value) {
+            prev.idx
+        } else {
+            prefill_stream.extend(quote! {
+                #value,
+            });
+            entries.insert(symbol.name.span(), &value, &mut errors)
+        };
+
+        let name = &symbol.name;
+        symbols_stream.extend(quote! {
+            pub const #name: Symbol = Symbol::new(#idx);
+        });
+    }
+
+    let symbol_digits_base = entries.map["0"].idx;
+    let preinterned_symbols_count = entries.len();
     let output = quote! {
-        const SYMBOL_DIGITS_BASE: u32 = #digits_base;
-        const PREINTERNED_SYMBOLS_COUNT: u32 = #counter;
+        const SYMBOL_DIGITS_BASE: u32 = #symbol_digits_base;
+        const PREINTERNED_SYMBOLS_COUNT: u32 = #preinterned_symbols_count;
 
         #[allow(non_upper_case_globals)]
         #[doc(hidden)]
@@ -230,13 +326,4 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     };
 
     (output, errors.list)
-
-    // To see the generated code, use the "cargo expand" command.
-    // Do this once to install:
-    //      cargo install cargo-expand
-    //
-    // Then, cd to rustc_span and run:
-    //      cargo expand > /tmp/rustc_span_expanded.rs
-    //
-    // and read that file.
 }
