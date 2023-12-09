@@ -15,10 +15,10 @@ impl Default for Span {
 }
 
 impl Span {
-    pub const DUMMY: Span = Span { lo: BytePos(0), hi: BytePos(0) };
+    pub const DUMMY: Self = Self { lo: BytePos(0), hi: BytePos(0) };
 
     #[inline]
-    pub fn new(mut lo: BytePos, mut hi: BytePos) -> Span {
+    pub fn new(mut lo: BytePos, mut hi: BytePos) -> Self {
         if lo > hi {
             std::mem::swap(&mut lo, &mut hi);
         }
@@ -47,13 +47,13 @@ impl Span {
 
     /// Returns a new span representing an empty span at the beginning of this span.
     #[inline]
-    pub fn shrink_to_lo(self) -> Span {
+    pub fn shrink_to_lo(self) -> Self {
         Self { lo: self.lo(), hi: self.lo() }
     }
 
     /// Returns a new span representing an empty span at the end of this span.
     #[inline]
-    pub fn shrink_to_hi(self) -> Span {
+    pub fn shrink_to_hi(self) -> Self {
         Self { lo: self.hi(), hi: self.hi() }
     }
 
@@ -83,12 +83,12 @@ impl Span {
 
     /// Splits a span into two composite spans around a certain position.
     #[inline]
-    pub fn split_at(self, pos: u32) -> (Span, Span) {
+    pub fn split_at(self, pos: u32) -> (Self, Self) {
         let len = self.hi().0 - self.lo().0;
         debug_assert!(pos <= len);
 
         let split_pos = BytePos(self.lo().0 + pos);
-        (Span::new(self.lo(), split_pos), Span::new(split_pos, self.hi()))
+        (Self::new(self.lo(), split_pos), Self::new(split_pos, self.hi()))
     }
 
     /// Returns a `Span` that would enclose both `self` and `end`.
@@ -101,8 +101,8 @@ impl Span {
     ///     self lorem ipsum end
     ///     ^^^^^^^^^^^^^^^^^^^^
     /// ```
-    pub fn to(self, end: Span) -> Span {
-        Span::new(
+    pub fn to(self, end: Self) -> Self {
+        Self::new(
             cmp::min(self.lo(), end.lo()),
             cmp::max(self.hi(), end.hi()),
             // if span_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt
@@ -118,8 +118,8 @@ impl Span {
     ///     self lorem ipsum end
     ///         ^^^^^^^^^^^^^
     /// ```
-    pub fn between(self, end: Span) -> Span {
-        Span::new(
+    pub fn between(self, end: Self) -> Self {
+        Self::new(
             self.hi(),
             end.lo(),
             // if end.ctxt == SyntaxContext::root() { end.ctxt } else { span.ctxt },
@@ -134,8 +134,8 @@ impl Span {
     ///     self lorem ipsum end
     ///     ^^^^^^^^^^^^^^^^^
     /// ```
-    pub fn until(self, end: Span) -> Span {
-        Span::new(
+    pub fn until(self, end: Self) -> Self {
+        Self::new(
             self.lo(),
             end.lo(),
             // if end_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt },

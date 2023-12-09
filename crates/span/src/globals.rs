@@ -23,8 +23,8 @@ impl Default for SessionGlobals {
 }
 
 impl SessionGlobals {
-    pub fn new() -> SessionGlobals {
-        SessionGlobals {
+    pub fn new() -> Self {
+        Self {
             symbol_interner: crate::symbol::Interner::fresh(),
             // source_map: RefCell::new(None),
         }

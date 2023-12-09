@@ -26,10 +26,10 @@ impl fmt::Display for StateMutability {
 impl StateMutability {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            StateMutability::Pure => "pure",
-            StateMutability::View => "view",
-            StateMutability::NonPayable => "nonpayable",
-            StateMutability::Payable => "payable",
+            Self::Pure => "pure",
+            Self::View => "view",
+            Self::NonPayable => "nonpayable",
+            Self::Payable => "payable",
         }
     }
 }
@@ -66,9 +66,9 @@ impl fmt::Display for ContractKind {
 impl ContractKind {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            ContractKind::Interface => "interface",
-            ContractKind::Contract => "contract",
-            ContractKind::Library => "library",
+            Self::Interface => "interface",
+            Self::Contract => "contract",
+            Self::Library => "library",
         }
     }
 }

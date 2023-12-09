@@ -61,8 +61,8 @@ pub struct Lit {
 }
 
 impl Lit {
-    pub fn new(kind: LitKind, symbol: Symbol) -> Lit {
-        Lit { kind, symbol }
+    pub fn new(kind: LitKind, symbol: Symbol) -> Self {
+        Self { kind, symbol }
     }
 
     // /// Returns `true` if this is semantically a float literal. This includes
@@ -98,7 +98,7 @@ impl Lit {
 
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Lit { kind, symbol } = self;
+        let Self { kind, symbol } = self;
         match kind {
             LitKind::Str(false) => write!(f, "\"{symbol}\""),
             LitKind::Str(true) => write!(f, "unicode\"{symbol}\""),
@@ -114,7 +114,7 @@ impl LitKind {
     /// An English article for the literal token kind.
     pub fn article(self) -> &'static str {
         match self {
-            LitKind::Integer | LitKind::Err => "an",
+            Self::Integer | Self::Err => "an",
             _ => "a",
         }
     }
@@ -267,16 +267,16 @@ pub struct Token {
 }
 
 impl TokenKind {
-    pub fn lit(kind: LitKind, symbol: Symbol) -> TokenKind {
-        TokenKind::Literal(Lit::new(kind, symbol))
+    pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
+        Self::Literal(Lit::new(kind, symbol))
     }
 
     /// Returns tokens that are likely to be typed accidentally instead of the current token.
     /// Enables better error recovery when the wrong token is found.
-    pub fn similar_tokens(&self) -> Option<Vec<TokenKind>> {
+    pub fn similar_tokens(&self) -> Option<Vec<Self>> {
         match *self {
-            TokenKind::Comma => Some(vec![TokenKind::Dot, TokenKind::Lt, TokenKind::Semi]),
-            TokenKind::Semi => Some(vec![TokenKind::Colon, TokenKind::Comma]),
+            Self::Comma => Some(vec![Self::Dot, Self::Lt, Self::Semi]),
+            Self::Semi => Some(vec![Self::Colon, Self::Comma]),
             // FatArrow => Some(vec![Eq, RArrow]),
             _ => None,
         }
@@ -285,17 +285,17 @@ impl TokenKind {
 
 impl Token {
     pub fn new(kind: TokenKind, span: Span) -> Self {
-        Token { kind, span }
+        Self { kind, span }
     }
 
     /// Some token that will be thrown away later.
     pub fn dummy() -> Self {
-        Token::new(TokenKind::Question, Span::DUMMY)
+        Self::new(TokenKind::Question, Span::DUMMY)
     }
 
     /// Recovers a `Token` from an `Ident`. This creates a raw identifier if necessary.
     pub fn from_ast_ident(ident: Ident) -> Self {
-        Token::new(TokenKind::Ident(ident.name), ident.span)
+        Self::new(TokenKind::Ident(ident.name), ident.span)
     }
 
     pub fn is_op(&self) -> bool {

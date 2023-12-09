@@ -48,8 +48,8 @@ unsafe impl<#[may_dangle] T> Drop for ArenaChunk<T> {
 
 impl<T> ArenaChunk<T> {
     #[inline]
-    unsafe fn new(capacity: usize) -> ArenaChunk<T> {
-        ArenaChunk {
+    unsafe fn new(capacity: usize) -> Self {
+        Self {
             storage: NonNull::new(Box::into_raw(Box::new_uninit_slice(capacity))).unwrap(),
             entries: 0,
         }
@@ -96,8 +96,8 @@ const HUGE_PAGE: usize = 2 * 1024 * 1024;
 
 impl<T> Default for TypedArena<T> {
     /// Creates a new `TypedArena`.
-    fn default() -> TypedArena<T> {
-        TypedArena {
+    fn default() -> Self {
+        Self {
             // We set both `ptr` and `end` to 0 so that the first call to
             // alloc() will trigger a grow().
             ptr: Cell::new(ptr::null_mut()),
@@ -349,8 +349,8 @@ unsafe impl Send for DroplessArena {}
 
 impl Default for DroplessArena {
     #[inline]
-    fn default() -> DroplessArena {
-        DroplessArena {
+    fn default() -> Self {
+        Self {
             start: Cell::new(ptr::null_mut()),
             end: Cell::new(ptr::null_mut()),
             chunks: Default::default(),

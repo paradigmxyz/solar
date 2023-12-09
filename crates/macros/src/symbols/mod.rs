@@ -52,7 +52,7 @@ impl Parse for Keyword {
         input.parse::<Token![:]>()?;
         let value = input.parse()?;
 
-        Ok(Keyword { name, value })
+        Ok(Self { name, value })
     }
 }
 
@@ -69,7 +69,7 @@ impl Parse for Symbol {
             Err(_) => None,
         };
 
-        Ok(Symbol { name, value })
+        Ok(Self { name, value })
     }
 }
 
@@ -90,7 +90,7 @@ impl Parse for Input {
         braced!(content in input);
         let symbols = Punctuated::parse_terminated(&content)?;
 
-        Ok(Input { keywords, symbols })
+        Ok(Self { keywords, symbols })
     }
 }
 

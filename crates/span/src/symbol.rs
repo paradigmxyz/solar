@@ -240,14 +240,14 @@ pub struct Ident {
 impl Ident {
     /// Constructs a new identifier from a symbol and a span.
     #[inline]
-    pub const fn new(name: Symbol, span: Span) -> Ident {
-        Ident { name, span }
+    pub const fn new(name: Symbol, span: Span) -> Self {
+        Self { name, span }
     }
 
     /// Constructs a new identifier with a dummy span.
     #[inline]
-    pub const fn with_dummy_span(name: Symbol) -> Ident {
-        Ident::new(name, Span::DUMMY)
+    pub const fn with_dummy_span(name: Symbol) -> Self {
+        Self::new(name, Span::DUMMY)
     }
 
     // #[inline]
@@ -257,13 +257,13 @@ impl Ident {
 
     /// Maps a string to an identifier with a dummy span.
     #[allow(clippy::should_implement_trait)]
-    pub fn from_str(string: &str) -> Ident {
-        Ident::with_dummy_span(Symbol::intern(string))
+    pub fn from_str(string: &str) -> Self {
+        Self::with_dummy_span(Symbol::intern(string))
     }
 
     /// Maps a string and a span to an identifier.
-    pub fn from_str_and_span(string: &str, span: Span) -> Ident {
-        Ident::new(Symbol::intern(string), span)
+    pub fn from_str_and_span(string: &str, span: Span) -> Self {
+        Self::new(Symbol::intern(string), span)
     }
 
     // /// Replaces `lo` and `hi` with those from `span`, but keep hygiene context.
@@ -271,8 +271,8 @@ impl Ident {
     //     Ident::new(self.name, span.with_ctxt(self.span.ctxt()))
     // }
 
-    pub fn without_first_quote(self) -> Ident {
-        Ident::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
+    pub fn without_first_quote(self) -> Self {
+        Self::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
     }
 
     /// Access the underlying string. This is a slowish operation because it
@@ -326,7 +326,7 @@ pub struct Symbol(NonZeroU32);
 
 impl Symbol {
     const fn new(n: u32) -> Self {
-        Symbol(unsafe { NonZeroU32::new_unchecked(n) })
+        Self(unsafe { NonZeroU32::new_unchecked(n) })
     }
 
     /// Maps a string to its interned representation.
@@ -421,7 +421,7 @@ impl Interner {
     }
 
     fn prefill(init: &[&'static str]) -> Self {
-        Interner(RefCell::new(InternerInner {
+        Self(RefCell::new(InternerInner {
             arena: Default::default(),
             names: init.iter().copied().zip((0..).map(Symbol::new)).collect(),
             strings: init.to_vec(),
