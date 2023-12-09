@@ -1,5 +1,5 @@
 use crate::{with_session_globals, Span};
-use rsolc_data_structures::{fx::FxHashMap, DroplessArena};
+use rsolc_data_structures::fx::FxIndexSet;
 use rsolc_macros::symbols;
 use std::{cell::RefCell, fmt, num::NonZeroU32, str};
 
@@ -315,18 +315,18 @@ impl fmt::Display for Ident {
 /// An interned string.
 ///
 /// Internally, a `Symbol` is implemented as an index, and all operations
-/// (including hashing, equality, and ordering) operate on that index. The use
-/// of `rustc_index::newtype_index!` means that `Option<Symbol>` only takes up 4 bytes,
-/// because `rustc_index::newtype_index!` reserves the last 256 values for tagging purposes.
+/// (including hashing, equality, and ordering) operate on that index.
 ///
-/// Note that `Symbol` cannot directly be a `rustc_index::newtype_index!` because it
-/// implements `fmt::Debug`, `Encodable`, and `Decodable` in special ways.
+/// Note that [`NonZeroU32`] here is actually used as "NonMaxU32".
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(NonZeroU32);
 
 impl Symbol {
     const fn new(n: u32) -> Self {
-        Self(unsafe { NonZeroU32::new_unchecked(n) })
+        match n.checked_add(1) {
+            Some(n) => Self(unsafe { NonZeroU32::new_unchecked(n) }),
+            None => panic!("way too many symbols"),
+        }
     }
 
     /// Maps a string to its interned representation.
@@ -348,10 +348,17 @@ impl Symbol {
         })
     }
 
+    /// Specialization of `as_str`.
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
     /// Returns the internal representation of the symbol.
     #[inline]
     pub const fn as_u32(self) -> u32 {
-        self.0.get()
+        self.0.get() - 1
     }
 
     /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
@@ -396,70 +403,49 @@ pub(crate) struct Interner(RefCell<InternerInner>);
 
 // The `&'static str`s in this type actually point into the arena.
 //
-// The `FxHashMap`+`Vec` pair could be replaced by `FxIndexSet`, but #75278
-// found that to regress performance up to 2% in some cases. This might be
-// revisited after further improvements to `indexmap`.
-//
 // This type is private to prevent accidentally constructing more than one
 // `Interner` on the same thread, which makes it easy to mix up `Symbol`s
 // between `Interner`s.
 struct InternerInner {
-    arena: DroplessArena,
-    names: FxHashMap<&'static str, Symbol>,
-    strings: Vec<&'static str>,
+    arena: bumpalo::Bump,
+    strings: FxIndexSet<&'static str>,
 }
 
 impl Interner {
-    #[cfg(test)]
-    #[allow(clippy::new_without_default)]
-    fn new() -> Self {
-        Self(RefCell::new(InternerInner {
-            arena: Default::default(),
-            names: Default::default(),
-            strings: Default::default(),
-        }))
-    }
-
     fn prefill(init: &[&'static str]) -> Self {
         Self(RefCell::new(InternerInner {
             arena: Default::default(),
-            names: init.iter().copied().zip((0..).map(Symbol::new)).collect(),
-            strings: init.to_vec(),
+            strings: init.iter().copied().collect(),
         }))
     }
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
         let mut inner = self.0.borrow_mut();
-        if let Some(&name) = inner.names.get(string) {
-            return name;
+        if let Some(idx) = inner.strings.get_index_of(string) {
+            return Symbol::new(idx as u32);
         }
 
-        let name = Symbol::new(inner.strings.len() as u32);
-
-        // SAFETY: we convert from `&str` to `&[u8]`, clone it into the arena,
-        // and immediately convert the clone back to `&[u8]`, all because there
-        // is no `inner.arena.alloc_str()` method. This is clearly safe.
-        let string: &str =
-            unsafe { str::from_utf8_unchecked(inner.arena.alloc_slice(string.as_bytes())) };
+        let string: &str = inner.arena.alloc_str(string);
 
         // SAFETY: we can extend the arena allocation to `'static` because we
         // only access these while the arena is still alive.
         let string: &'static str = unsafe { &*(string as *const str) };
-        inner.strings.push(string);
 
         // This second hash table lookup can be avoided by using `RawEntryMut`,
         // but this code path isn't hot enough for it to be worth it. See
         // #91445 for details.
-        inner.names.insert(string, name);
+        let (idx, is_new) = inner.strings.insert_full(string);
+        debug_assert!(is_new); // due to the get_index_of check above
 
-        name
+        Symbol::new(idx as u32)
     }
 
-    // Get the symbol as a string. `Symbol::as_str()` should be used in
-    // preference to this function.
+    /// Get the symbol as a string.
+    ///
+    /// [`Symbol::as_str()`] should be used in preference to this function.
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.borrow().strings[symbol.0.get() as usize]
+        self.0.borrow().strings.get_index(symbol.0.get() as usize).unwrap()
     }
 }
 
@@ -469,7 +455,7 @@ mod tests {
 
     #[test]
     fn interner_tests() {
-        let i = Interner::new();
+        let i = Interner::prefill(&[]);
         // first one is zero:
         assert_eq!(i.intern("dog"), Symbol::new(0));
         // re-use gets the same entry:

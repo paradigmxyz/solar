@@ -171,7 +171,7 @@ impl Entries {
     }
 
     fn len(&self) -> u32 {
-        u32::try_from(self.map.len().saturating_add(1)).expect("way too many symbols")
+        u32::try_from(self.map.len()).expect("way too many symbols")
     }
 }
 

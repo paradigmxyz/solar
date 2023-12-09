@@ -210,14 +210,16 @@ impl<'a> Cursor<'a> {
         match first_char {
             // `hex"01234"`
             'h' => {
-                if let Some(lit) = self.maybe_hex_literal() {
-                    return lit;
+                if let Some(terminated) = self.maybe_string_prefix("hex") {
+                    let kind = LiteralKind::HexStr { terminated };
+                    return TokenKind::Literal { kind };
                 }
             }
             // `unicode"abc"`
             'u' => {
-                if let Some(lit) = self.maybe_unicode_literal() {
-                    return lit;
+                if let Some(terminated) = self.maybe_string_prefix("unicode") {
+                    let kind = LiteralKind::Str { terminated, unicode: true };
+                    return TokenKind::Literal { kind };
                 }
             }
             _ => {}
@@ -225,8 +227,8 @@ impl<'a> Cursor<'a> {
 
         // Start is already eaten, eat the rest of identifier.
         self.eat_while(is_id_continue);
-        // Known prefixes must have been handled earlier. So if
-        // we see a prefix here, it is definitely an unknown prefix.
+        // Known prefixes must have been handled earlier.
+        // So if we see a prefix here, it is definitely an unknown prefix.
         // self.eat_identifier();
         match self.first() {
             '"' | '\'' => TokenKind::UnknownPrefix,
@@ -292,31 +294,17 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    fn maybe_hex_literal(&mut self) -> Option<TokenKind> {
-        debug_assert_eq!(self.prev(), 'h');
+    fn maybe_string_prefix(&mut self, prefix: &str) -> Option<bool> {
+        debug_assert_eq!(self.prev(), prefix.chars().next().unwrap());
+        let prefix = &prefix[1..];
         let s = self.as_str();
-        if s.starts_with("ex") {
-            let Some(quote @ ('"' | '\'')) = s.chars().nth(2) else { return None };
-            self.ignore::<2>();
+        if s.starts_with(prefix) {
+            let skip = prefix.len();
+            let Some(quote @ ('"' | '\'')) = s.chars().nth(skip) else { return None };
+            self.ignore(skip);
             self.bump();
             let terminated = self.eat_string(quote);
-            let kind = LiteralKind::HexStr { terminated };
-            Some(TokenKind::Literal { kind })
-        } else {
-            None
-        }
-    }
-
-    fn maybe_unicode_literal(&mut self) -> Option<TokenKind> {
-        debug_assert_eq!(self.prev(), 'u');
-        let s = self.as_str();
-        if s.starts_with("nicode") {
-            let Some(quote @ ('"' | '\'')) = s.chars().nth(6) else { return None };
-            self.ignore::<6>();
-            self.bump();
-            let terminated = self.eat_string(quote);
-            let kind = LiteralKind::Str { terminated, unicode: true };
-            Some(TokenKind::Literal { kind })
+            Some(terminated)
         } else {
             None
         }
@@ -337,6 +325,7 @@ impl<'a> Cursor<'a> {
         false
     }
 
+    /// Eats characters for a decimal number. Returns whether any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
         let mut has_digits = false;
         loop {
@@ -354,6 +343,7 @@ impl<'a> Cursor<'a> {
         has_digits
     }
 
+    /// Eats characters for a hexadecimal number. Returns whether any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
         let mut has_digits = false;
         loop {
@@ -371,9 +361,7 @@ impl<'a> Cursor<'a> {
         has_digits
     }
 
-    /// Eats the exponent.
-    ///
-    /// Returns true if at least one digit was met, and returns false otherwise.
+    /// Eats the exponent. Returns whether any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
         debug_assert!(self.prev() == 'e' || self.prev() == 'E');
         // '+' is not a valid prefix for an exponent
@@ -449,20 +437,25 @@ impl<'a> Cursor<'a> {
 
     /// Moves to the next character.
     fn bump(&mut self) -> Option<char> {
-        let c = self.chars.next()?;
+        #[cfg(not(debug_assertions))]
+        {
+            self.chars.next()
+        }
 
         #[cfg(debug_assertions)]
         {
-            self.prev = c;
+            let c = self.chars.next();
+            if let Some(c) = c {
+                self.prev = c;
+            }
+            c
         }
-
-        Some(c)
     }
 
-    /// Advances `N` characters, without setting `prev`.
+    /// Advances `n` characters, without setting `prev`.
     #[inline]
-    fn ignore<const N: usize>(&mut self) {
-        for _ in 0..N {
+    fn ignore(&mut self, n: usize) {
+        for _ in 0..n {
             self.chars.next();
         }
     }

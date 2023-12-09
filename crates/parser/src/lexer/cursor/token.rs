@@ -4,19 +4,20 @@
 /// its size.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Token {
+    /// The kind of token.
     pub kind: TokenKind,
+    /// The length of the token in bytes.
     pub len: u32,
 }
 
-// Size assertion.
-const _: [(); 8] = [(); std::mem::size_of::<Token>()];
-
 impl Token {
+    /// Creates a new token.
     #[inline]
     pub fn new(kind: TokenKind, len: u32) -> Self {
         Self { kind, len }
     }
 
+    /// Creates a new [`Eof`](TokenKind::Eof) token, with length 0.
     #[inline]
     pub fn eof() -> Self {
         Self::new(TokenKind::Eof, 0)

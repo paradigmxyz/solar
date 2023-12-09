@@ -16,4 +16,5 @@ categories.workspace = true
 rsolc-data-structures = { path = "../data-structures" }
 rsolc-macros = { path = "../macros" }
 
+bumpalo = "3.14"
 scoped-tls = "1.0"
