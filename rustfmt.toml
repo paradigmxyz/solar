@@ -1,9 +1,12 @@
-use_small_heuristics = "Max"
+reorder_imports = true
 use_field_init_shorthand = true
+use_small_heuristics = "Max"
 
-# unstable - require nightly rustfmt
+# Nightly
+max_width = 100
+comment_width = 100
 imports_granularity = "Crate"
 wrap_comments = true
-comment_width = 100
-
-# See more keys and their definitions at https://rust-lang.github.io/rustfmt
+format_code_in_doc_comments = true
+doc_comment_code_block_width = 100
+format_macro_matchers = true
