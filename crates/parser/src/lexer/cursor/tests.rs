@@ -5,7 +5,7 @@ use std::fmt::Write;
 fn check_lexing(src: &str, expect: Expect) {
     let mut actual = String::new();
     for token in Cursor::new(src) {
-        write!(actual, "{:?}\n", token).unwrap();
+        writeln!(actual, "{token:?}").unwrap();
     }
     expect.assert_eq(&actual)
 }
