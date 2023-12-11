@@ -1,5 +1,4 @@
-//! Utilities for validating string and char literals and turning them into
-//! values they represent.
+//! Utilities for validating string and char literals and turning them into values they represent.
 
 use std::{ops::Range, str::Chars};
 
@@ -73,8 +72,11 @@ pub enum EscapeError {
 /// What kind of literal do we parse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
+    /// Normal string literal (e.g. `"a"`).
     Str,
+    /// Unicode string literal (e.g. `unicode"😀"`).
     UnicodeStr,
+    /// Hex string literal (e.g. `hex"1234"`).
     HexStr,
 }
 

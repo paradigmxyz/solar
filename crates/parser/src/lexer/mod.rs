@@ -1,14 +1,13 @@
 use rsolc_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
 use rsolc_span::{sym, BytePos, Pos, Span, Symbol};
 
-mod cursor;
+pub mod cursor;
 pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, Cursor};
 
 mod unicode_chars;
 use unicode_chars::UNICODE_ARRAY;
 
-mod unescape;
-use unescape::Mode;
+pub mod unescape;
 
 // use self::cursor::Base;
 
@@ -303,9 +302,9 @@ impl<'a> StringReader<'a> {
         prefix_len: u32,
     ) -> (LitKind, Symbol) {
         let mode = match kind {
-            LitKind::Str => Mode::Str,
-            LitKind::UnicodeStr => Mode::UnicodeStr,
-            LitKind::HexStr => Mode::HexStr,
+            LitKind::Str => unescape::Mode::Str,
+            LitKind::UnicodeStr => unescape::Mode::UnicodeStr,
+            LitKind::HexStr => unescape::Mode::HexStr,
             _ => unreachable!(),
         };
         let content_start = start + BytePos(prefix_len);

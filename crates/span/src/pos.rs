@@ -117,8 +117,8 @@ impl_pos! {
     /// A character offset.
     ///
     /// Because of multibyte UTF-8 characters, a byte offset
-    /// is not equivalent to a character offset. The [`SourceMap`] will convert [`BytePos`]
-    /// values to `CharPos` values as necessary.
+    /// is not equivalent to a character offset. The [`SourceMap`](crate::SourceMap) will convert
+    /// [`BytePos`] values to `CharPos` values as necessary.
     #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
     pub struct CharPos(pub usize);
 }
