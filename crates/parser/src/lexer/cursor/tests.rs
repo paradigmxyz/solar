@@ -1,9 +1,12 @@
 use super::*;
 use expect_test::{expect, Expect};
+use std::fmt::Write;
 
-#[allow(clippy::format_collect)]
 fn check_lexing(src: &str, expect: Expect) {
-    let actual: String = Cursor::new(src).map(|token| format!("{:?}\n", token)).collect();
+    let mut actual = String::new();
+    for token in Cursor::new(src) {
+        write!(actual, "{:?}\n", token).unwrap();
+    }
     expect.assert_eq(&actual)
 }
 

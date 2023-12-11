@@ -8,4 +8,4 @@ rust-version = "1.65"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/danipopes/rsolc"
 keywords = ["ethereum", "solidity", "solc", "crypto"]
-categories = ["cryptography", "cryptography::cryptocurrencies"]
+categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]

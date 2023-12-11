@@ -65,7 +65,7 @@ impl<'a> StringReader<'a> {
             let kind = match token.kind {
                 cursor::TokenKind::LineComment { is_doc } => {
                     // Skip non-doc comments
-                    if is_doc {
+                    if !is_doc {
                         self.lint_unicode_text_flow(start);
                         preceded_by_whitespace = true;
                         continue;
@@ -100,35 +100,23 @@ impl<'a> StringReader<'a> {
                     continue;
                 }
                 cursor::TokenKind::Ident => {
-                    let sym = nfc_normalize(self.str_from(start));
-                    // TODO
-                    // let span = self.mk_sp(start, self.pos);
-                    // self.sess.symbol_gallery.insert(sym, span);
+                    let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::UnknownPrefix => {
                     self.report_unknown_prefix(start);
-                    let sym = nfc_normalize(self.str_from(start));
-                    // TODO
-                    // let span = self.mk_sp(start, self.pos);
-                    // self.sess.symbol_gallery.insert(sym, span);
+                    let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
+                // Do not recover an identifier with emoji if the codepoint is a confusable
+                // with a recoverable substitution token, like `➖`.
                 cursor::TokenKind::InvalidIdent
-                    // Do not recover an identifier with emoji if the codepoint is a confusable
-                    // with a recoverable substitution token, like `➖`.
-                    if !UNICODE_ARRAY
-                        .iter()
-                        .any(|&(c, _, _)| {
-                            let sym = self.str_from(start);
-                            sym.chars().count() == 1 && c == sym.chars().next().unwrap()
-                        }) =>
+                    if !UNICODE_ARRAY.iter().any(|&(c, _, _)| {
+                        let sym = self.str_from(start);
+                        sym.chars().count() == 1 && c == sym.chars().next().unwrap()
+                    }) =>
                 {
-                    let sym = nfc_normalize(self.str_from(start));
-                    // TODO
-                    // let span = self.mk_sp(start, self.pos);
-                    // self.sess.bad_unicode_identifiers.borrow_mut().entry(sym).or_default()
-                    //     .push(span);
+                    let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::Literal { kind } => {
@@ -145,8 +133,6 @@ impl<'a> StringReader<'a> {
                 cursor::TokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
                 cursor::TokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
                 cursor::TokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
-                // cursor::TokenKind::At => TokenKind::At,
-                // cursor::TokenKind::Pound => TokenKind::Pound,
                 cursor::TokenKind::Tilde => TokenKind::Tilde,
                 cursor::TokenKind::Question => TokenKind::Question,
                 cursor::TokenKind::Colon => TokenKind::Colon,
@@ -181,7 +167,12 @@ impl<'a> StringReader<'a> {
                         }
                         self.nbsp_is_whitespace = true;
                     }
+
                     let repeats = it.take_while(|c1| *c1 == c).count();
+                    if repeats > 0 {
+                        swallow_next_invalid = repeats;
+                    }
+
                     // FIXME: the lexer could be used to turn the ASCII version of unicode
                     // homoglyphs, instead of keeping a table in `check_for_substitution`into the
                     // token. Ideally, this should be inside `rustc_lexer`. However, we should
@@ -190,17 +181,21 @@ impl<'a> StringReader<'a> {
                     // way.
                     let (token, _sugg) =
                         unicode_chars::check_for_substitution(self, start, c, repeats + 1);
+
                     // TODO
-                    // self.sess.emit_err(errors::UnknownTokenStart {
-                    //     span: self.mk_sp(start, self.pos + Pos::from_usize(repeats * c.len_utf8())),
-                    //     escaped: escaped_char(c),
-                    //     sugg,
-                    //     null: if c == '\x00' {Some(errors::UnknownTokenNull)} else {None},
-                    //     repeat: if repeats > 0 {
-                    //         swallow_next_invalid = repeats;
-                    //         Some(errors::UnknownTokenRepeat { repeats })
-                    //     } else {None}
-                    // });
+                    /*
+                    self.sess.emit_err(errors::UnknownTokenStart {
+                        span: self.mk_sp(start, self.pos + Pos::from_usize(repeats * c.len_utf8())),
+                        escaped: escaped_char(c),
+                        sugg,
+                        null: if c == '\x00' { Some(errors::UnknownTokenNull) } else { None },
+                        repeat: if repeats > 0 {
+                            Some(errors::UnknownTokenRepeat { repeats })
+                        } else {
+                            None
+                        },
+                    });
+                    */
 
                     if let Some(token) = token {
                         token
@@ -215,40 +210,6 @@ impl<'a> StringReader<'a> {
             let span = self.mk_sp(start, self.pos);
             return (Token::new(kind, span), preceded_by_whitespace);
         }
-    }
-
-    #[allow(unused)]
-    fn struct_fatal_span_char(
-        &self,
-        from_pos: BytePos,
-        to_pos: BytePos,
-        m: &str,
-        c: char,
-        // ) -> DiagnosticBuilder<'a, !> {
-    ) {
-        // self.sess
-        //     .span_diagnostic
-        //     .struct_span_fatal(self.mk_sp(from_pos, to_pos), &format!("{}: {}", m,
-        // escaped_char(c)))
-    }
-
-    /// Detect usages of Unicode codepoints changing the direction of the text on screen and loudly
-    /// complain about it.
-    #[allow(unused)]
-    fn lint_unicode_text_flow(&self, start: BytePos) {
-        // // Opening delimiter of the length 2 is not included into the comment text.
-        // let content_start = start + BytePos(2);
-        // let content = self.str_from(content_start);
-        // if contains_text_flow_control_chars(content) {
-        //     let span = self.mk_sp(start, self.pos);
-        //     self.sess.buffer_lint_with_diagnostic(
-        //         &TEXT_DIRECTION_CODEPOINT_IN_COMMENT,
-        //         span,
-        //         ast::CRATE_NODE_ID,
-        //         "unicode codepoint changing visible direction of text present in comment",
-        //         BuiltinLintDiagnostics::UnicodeTextFlow(span, content.to_string()),
-        //     );
-        // }
     }
 
     fn cook_doc_comment(
@@ -291,8 +252,8 @@ impl<'a> StringReader<'a> {
                 //     )
                 // }
                 let prefix_len = if unicode { 8 } else { 1 };
-                let mode = if unicode { Mode::UnicodeStr } else { Mode::Str };
-                self.cook_quoted(LitKind::Str(unicode), mode, start, end, prefix_len)
+                let kind = if unicode { LitKind::UnicodeStr } else { LitKind::Str };
+                self.cook_quoted(kind, start, end, prefix_len)
             }
             cursor::LiteralKind::HexStr { terminated: _ } => {
                 // TODO
@@ -303,7 +264,7 @@ impl<'a> StringReader<'a> {
                 //         error_code!(E0766),
                 //     )
                 // }
-                self.cook_quoted(LitKind::HexStr, Mode::HexStr, start, end, 4)
+                self.cook_quoted(LitKind::HexStr, start, end, 4)
             }
             cursor::LiteralKind::Int { base: _, empty_int } => {
                 if empty_int {
@@ -337,30 +298,33 @@ impl<'a> StringReader<'a> {
     fn cook_quoted(
         &self,
         kind: LitKind,
-        mode: Mode,
         start: BytePos,
         end: BytePos,
         prefix_len: u32,
     ) -> (LitKind, Symbol) {
+        let mode = match kind {
+            LitKind::Str => Mode::Str,
+            LitKind::UnicodeStr => Mode::UnicodeStr,
+            LitKind::HexStr => Mode::HexStr,
+            _ => unreachable!(),
+        };
         let content_start = start + BytePos(prefix_len);
         let content_end = end - BytePos(1); // `"` or `'`
         let mut lit_content = self.str_from_to(content_start - 1, content_end).chars();
-        let quote = lit_content.next().unwrap();
+        let _quote = lit_content.next().unwrap();
         let lit_content = lit_content.as_str();
 
         let mut has_fatal_err = false;
-        unescape::unescape_literal(lit_content, quote, mode, &mut |_range, result| {
+        unescape::unescape_literal(lit_content, mode, &mut |_range, result| {
             // Here we only check for errors. The actual unescaping is done later.
             // TODO
-            if let Err(err) = result {
+            if let Err(_err) = result {
                 // let span_with_quotes = self.mk_sp(start, end);
                 // let (start, end) = (range.start as u32, range.end as u32);
                 // let lo = content_start + BytePos(start);
                 // let hi = lo + BytePos(end - start);
                 // let span = self.mk_sp(lo, hi);
-                if err.is_fatal() {
-                    has_fatal_err = true;
-                }
+                has_fatal_err = true;
                 // emit_unescape_error(
                 //     &self.sess.span_diagnostic,
                 //     lit_content,
@@ -393,11 +357,17 @@ impl<'a> StringReader<'a> {
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
+    fn symbol_from(&self, start: BytePos) -> Symbol {
+        self.symbol_from_to(start, self.pos)
+    }
+
+    /// Slice of the source text from `start` up to but excluding `self.pos`,
+    /// meaning the slice does not include the character `self.ch`.
     fn str_from(&self, start: BytePos) -> &'a str {
         self.str_from_to(start, self.pos)
     }
 
-    /// As symbol_from, with an explicit endpoint.
+    /// Same as `symbol_from`, with an explicit endpoint.
     fn symbol_from_to(&self, start: BytePos, end: BytePos) -> Symbol {
         // debug!("taking an ident from {:?} to {:?}", start, end);
         Symbol::intern(self.str_from_to(start, end))
@@ -411,6 +381,40 @@ impl<'a> StringReader<'a> {
     /// Slice of the source text spanning from `start` until the end.
     fn str_from_to_end(&self, start: BytePos) -> &'a str {
         &self.src[self.src_index(start)..]
+    }
+
+    #[allow(unused)]
+    fn struct_fatal_span_char(
+        &self,
+        from_pos: BytePos,
+        to_pos: BytePos,
+        m: &str,
+        c: char,
+        // ) -> DiagnosticBuilder<'a, !> {
+    ) {
+        // self.sess
+        //     .span_diagnostic
+        //     .struct_span_fatal(self.mk_sp(from_pos, to_pos), &format!("{}: {}", m,
+        // escaped_char(c)))
+    }
+
+    /// Detect usages of Unicode codepoints changing the direction of the text on screen and loudly
+    /// complain about it.
+    #[allow(unused)]
+    fn lint_unicode_text_flow(&self, start: BytePos) {
+        // // Opening delimiter of the length 2 is not included into the comment text.
+        // let content_start = start + BytePos(2);
+        // let content = self.str_from(content_start);
+        // if contains_text_flow_control_chars(content) {
+        //     let span = self.mk_sp(start, self.pos);
+        //     self.sess.buffer_lint_with_diagnostic(
+        //         &TEXT_DIRECTION_CODEPOINT_IN_COMMENT,
+        //         span,
+        //         ast::CRATE_NODE_ID,
+        //         "unicode codepoint changing visible direction of text present in comment",
+        //         BuiltinLintDiagnostics::UnicodeTextFlow(span, content.to_string()),
+        //     );
+        // }
     }
 
     #[allow(unused)]
@@ -503,10 +507,6 @@ impl<'a> StringReader<'a> {
         // err.emit();
     }
 
-    // RFC 3101 introduced the idea of (reserved) prefixes. As of Rust 2021,
-    // using a (unknown) prefix is an error. In earlier editions, however, they
-    // only result in a (allowed by default) lint, and are treated as regular
-    // identifier tokens.
     #[allow(unused)]
     fn report_unknown_prefix(&self, start: BytePos) {
         // let prefix_span = self.mk_sp(start, self.pos);
@@ -534,17 +534,5 @@ impl<'a> StringReader<'a> {
         //         BuiltinLintDiagnostics::ReservedPrefix(prefix_span),
         //     );
         // }
-    }
-}
-
-// FIXME: Idents can't more than ascii, so this needs to go
-pub fn nfc_normalize(string: &str) -> Symbol {
-    use unicode_normalization::{is_nfc_quick, IsNormalized, UnicodeNormalization};
-    match is_nfc_quick(string.chars()) {
-        IsNormalized::Yes => Symbol::intern(string),
-        _ => {
-            let normalized_str: String = string.chars().nfc().collect();
-            Symbol::intern(&normalized_str)
-        }
     }
 }

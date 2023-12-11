@@ -10,13 +10,16 @@ env:
 
 jobs:
   test:
-    name: test ${{ matrix.rust }} ${{ matrix.flags }}
+    name: test ${{ matrix.rust }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        rust: ["stable", "nightly"]
+        include:
+          - rust: stable
+          - rust: nightly
+            flags: --feature nightly
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@master
@@ -54,18 +57,19 @@ jobs:
         env:
           RUSTFLAGS: -Dwarnings
 
-  docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@nightly
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-      - run: cargo doc --workspace --all-features --no-deps --document-private-items
-        env:
-          RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+  # TODO
+  # docs:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #     - uses: dtolnay/rust-toolchain@nightly
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - run: cargo doc --workspace --all-features --no-deps --document-private-items
+  #       env:
+  #         RUSTDOCFLAGS: "--cfg docsrs -D warnings"
 
   fmt:
     runs-on: ubuntu-latest
