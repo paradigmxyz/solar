@@ -1,10 +1,10 @@
 [package]
 name = "rsolc-parser"
-version = "0.0.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = "Solidity parser"
 homepage = "https://github.com/danipopes/rsolc/blob/master/crates/parser"
 
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,11 +13,14 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-ast = { path = "../ast" }
-rsolc-span = { path = "../span" }
+rsolc-ast.workspace = true
+rsolc-span.workspace = true
 
-unicode-ident = "1.0"
-unicode-normalization = "0.1.22"
+unicode-ident.workspace = true
+unicode-normalization.workspace = true
 
 [dev-dependencies]
-expect-test = "1.4"
+expect-test.workspace = true
+
+[features]
+nightly = ["rsolc-ast/nightly", "rsolc-span/nightly"]

@@ -3,9 +3,31 @@ members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
+version = "0.0.0"
+authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.74"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/danipopes/rsolc"
-keywords = ["ethereum", "solidity", "solc", "crypto"]
+keywords = ["ethereum", "solidity", "solc", "crypto", "compiler"]
 categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
+
+[workspace.dependencies]
+rsolc-ast = { version = "0.0.0", path = "crates/ast" }
+rsolc-data-structures = { version = "0.0.0", path = "crates/data-structures" }
+rsolc-macros = { version = "0.0.0", path = "crates/macros" }
+rsolc-parser = { version = "0.0.0", path = "crates/parser" }
+rsolc-span = { version = "0.0.0", path = "crates/span" }
+
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "2.0"
+
+bumpalo = "3.14"
+expect-test = "1.4"
+indexmap = "2.1"
+rustc-hash = "1.1.0"
+scoped-tls = "1.0.1"
+smallvec = "1"
+unicode-ident = "1.0"
+unicode-normalization = "0.1.22"

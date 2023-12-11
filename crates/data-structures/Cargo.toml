@@ -1,22 +1,21 @@
 [package]
 name = "rsolc-data-structures"
-version = "0.0.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = "RSolc common data structures"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/arena"
+homepage = "https://github.com/danipopes/rsolc/blob/master/crates/data-structures"
 
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-# keywords.workspace = true
-# categories.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-smallvec = { version = "1.11", features = ["union"] }
-rustc-hash = "1.1"
-indexmap = "2.1"
+smallvec = { workspace = true, features = ["union"] }
+rustc-hash.workspace = true
+indexmap.workspace = true
 
 [features]
-nightly = []
-nightly-tests = []
+nightly = ["smallvec/specialization", "smallvec/may_dangle"]

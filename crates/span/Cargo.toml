@@ -1,10 +1,10 @@
 [package]
 name = "rsolc-span"
-version = "0.0.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = "RSolc source positions and related helper functions"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
+homepage = "https://github.com/danipopes/rsolc/blob/master/crates/span"
 
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,11 +13,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-data-structures = { path = "../data-structures" }
-rsolc-macros = { path = "../macros" }
+rsolc-data-structures.workspace = true
+rsolc-macros.workspace = true
 
-bumpalo = "3.14"
-scoped-tls = "1.0"
+bumpalo.workspace = true
+scoped-tls.workspace = true
 
 [features]
-nightly = []
+nightly = ["rsolc-data-structures/nightly", "rsolc-macros/nightly"]

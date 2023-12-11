@@ -1,24 +1,24 @@
 [package]
 name = "rsolc-macros"
-version = "0.0.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = "Rsolc macros"
 homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
 
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-# keywords.workspace = true
-# categories.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0"
-quote = "1.0"
-syn = { version = "2.0", features = ["full", "extra-traits"] }
+proc-macro2.workspace = true
+quote.workspace = true
+syn = { workspace = true, features = ["full", "extra-traits"] }
 
 [features]
 nightly = []

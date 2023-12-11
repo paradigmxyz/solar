@@ -1,10 +1,10 @@
 [package]
 name = "rsolc-ast"
-version = "0.0.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = "Solidity Abstract Syntax Tree"
 homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
 
+version.workspace = true
+authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,6 +13,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-data-structures = { path = "../data-structures" }
-rsolc-macros = { path = "../macros" }
-rsolc-span = { path = "../span" }
+rsolc-data-structures.workspace = true
+rsolc-macros.workspace = true
+rsolc-span.workspace = true
+
+[features]
+nightly = ["rsolc-data-structures/nightly", "rsolc-macros/nightly", "rsolc-span/nightly"]
