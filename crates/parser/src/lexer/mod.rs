@@ -9,8 +9,6 @@ use unicode_chars::UNICODE_ARRAY;
 
 pub mod unescape;
 
-// use self::cursor::Base;
-
 pub struct StringReader<'a> {
     // sess: &'a ParseSess,
     /// Initial position, read-only.

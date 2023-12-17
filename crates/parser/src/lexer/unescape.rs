@@ -278,12 +278,16 @@ mod tests {
             (r"\r", "\r", &[]),
             (r"\t", "\t", &[]),
             (r"\n", "\n", &[]),
-            ("\r\n", "", &[(0..1, BareCarriageReturn), (1..2, NewlineInStr)]),
+            (r"\n\n", "\n\n", &[]),
+            (r"\ ", "", &[(0..2, InvalidEscape)]),
+            (r"\?", "", &[(0..2, InvalidEscape)]),
+            ("\r\n", "", &[(0..1, BareCarriageReturn), (1..2, NewlineInStr)]), // TODO: ?
             ("\n", "", &[(0..1, NewlineInStr)]),
             ("\\\n", "", &[]),
             ("\\\na", "a", &[]),
             ("\\\n  a", "a", &[]),
             ("\\\n \t a", "a", &[]),
+            (" \\\n \t a", " a", &[]),
             ("\\\n \t a\n", "a", &[(6..7, NewlineInStr)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
