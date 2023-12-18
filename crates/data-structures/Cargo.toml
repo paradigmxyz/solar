@@ -16,6 +16,7 @@ categories.workspace = true
 smallvec = { workspace = true, features = ["union"] }
 rustc-hash.workspace = true
 indexmap.workspace = true
+index_vec.workspace = true
 
 [features]
 nightly = ["smallvec/specialization", "smallvec/may_dangle"]

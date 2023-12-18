@@ -1,7 +1,7 @@
 use crate::{with_session_globals, Span};
-use rsolc_data_structures::fx::FxIndexSet;
+use rsolc_data_structures::{fx::FxIndexSet, index::BaseIndex32};
 use rsolc_macros::symbols;
-use std::{cell::RefCell, fmt, num::NonZeroU32, str};
+use std::{cell::RefCell, cmp, fmt, hash, str};
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
@@ -231,9 +231,12 @@ pub mod sym {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+/// An identifier.
+#[derive(Clone, Copy)]
 pub struct Ident {
+    /// The identifier's name.
     pub name: Symbol,
+    /// The identifier's span.
     pub span: Span,
 }
 
@@ -285,21 +288,40 @@ impl Ident {
     }
 }
 
-// impl PartialEq for Ident {
-//     #[inline]
-//     fn eq(&self, rhs: &Self) -> bool {
-//         self.name == rhs.name && self.span.eq_ctxt(rhs.span)
-//     }
-// }
+impl PartialEq for Ident {
+    #[inline]
+    fn eq(&self, rhs: &Self) -> bool {
+        self.name == rhs.name
+        // && self.span.eq_ctxt(rhs.span)
+    }
+}
 
-// impl Hash for Ident {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.name.hash(state);
-//         self.span.ctxt().hash(state);
-//     }
-// }
+impl Eq for Ident {}
+
+impl PartialOrd for Ident {
+    #[inline]
+    fn partial_cmp(&self, rhs: &Self) -> Option<cmp::Ordering> {
+        self.name.partial_cmp(&rhs.name)
+    }
+}
+
+impl Ord for Ident {
+    #[inline]
+    fn cmp(&self, rhs: &Self) -> cmp::Ordering {
+        self.name.cmp(&rhs.name)
+    }
+}
+
+impl hash::Hash for Ident {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        // self.span.ctxt().hash(state);
+    }
+}
 
 impl fmt::Debug for Ident {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
         // fmt::Debug::fmt(&self.span.ctxt(), f)
@@ -307,6 +329,7 @@ impl fmt::Debug for Ident {
 }
 
 impl fmt::Display for Ident {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.name.fmt(f)
     }
@@ -316,17 +339,12 @@ impl fmt::Display for Ident {
 ///
 /// Internally, a `Symbol` is implemented as an index, and all operations
 /// (including hashing, equality, and ordering) operate on that index.
-///
-/// Note that [`NonZeroU32`] here is actually used as "NonMaxU32".
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(NonZeroU32);
+pub struct Symbol(BaseIndex32);
 
 impl Symbol {
     const fn new(n: u32) -> Self {
-        match n.checked_add(1) {
-            Some(n) => Self(unsafe { NonZeroU32::new_unchecked(n) }),
-            None => panic!("way too many symbols"),
-        }
+        Self(BaseIndex32::new(n))
     }
 
     /// Maps a string to its interned representation.
@@ -381,12 +399,14 @@ impl Symbol {
 }
 
 impl fmt::Debug for Symbol {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self.as_str(), f)
     }
 }
 
 impl fmt::Display for Symbol {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
     }

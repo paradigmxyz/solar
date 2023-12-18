@@ -11,21 +11,12 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![deny(unused_must_use, rust_2018_idioms)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
-#![cfg_attr(feature = "nightly", feature(allow_internal_unstable))]
-#![cfg_attr(feature = "nightly", allow(internal_features))]
 
 use proc_macro::TokenStream;
 
-mod index;
 mod symbols;
 
 #[proc_macro]
 pub fn symbols(input: TokenStream) -> TokenStream {
     symbols::symbols(input.into()).into()
-}
-
-#[proc_macro]
-#[cfg_attr(feature = "nightly", allow_internal_unstable(step_trait, rustc_attrs, trusted_step))]
-pub fn newtype_index(input: TokenStream) -> TokenStream {
-    index::newtype(input)
 }
