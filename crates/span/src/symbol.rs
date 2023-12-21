@@ -376,7 +376,7 @@ impl Symbol {
     /// Returns the internal representation of the symbol.
     #[inline]
     pub const fn as_u32(self) -> u32 {
-        self.0.get() - 1
+        self.0.get()
     }
 
     /// Returns `true` if the symbol is a weak keyword and can be used in variable names.

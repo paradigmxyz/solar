@@ -108,7 +108,7 @@ impl Lit {
 
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { kind, symbol } = self;
+        let &Self { kind, symbol } = self;
         match kind {
             LitKind::Str => write!(f, "\"{symbol}\""),
             LitKind::UnicodeStr => write!(f, "unicode\"{symbol}\""),

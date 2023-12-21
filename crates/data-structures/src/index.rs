@@ -44,7 +44,7 @@ macro_rules! base_index {
 
             #[inline]
             fn index(self) -> usize {
-                self.value as usize
+                self.get() as usize
             }
         }
 
