@@ -19,7 +19,7 @@ jobs:
         include:
           - rust: stable
           - rust: nightly
-            flags: --feature nightly
+            flags: --features nightly
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
