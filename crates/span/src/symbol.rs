@@ -301,7 +301,7 @@ impl Eq for Ident {}
 impl PartialOrd for Ident {
     #[inline]
     fn partial_cmp(&self, rhs: &Self) -> Option<cmp::Ordering> {
-        self.name.partial_cmp(&rhs.name)
+        Some(self.cmp(rhs))
     }
 }
 
