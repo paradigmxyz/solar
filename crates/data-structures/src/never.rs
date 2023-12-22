@@ -30,6 +30,7 @@ mod tests {
 
     #[test]
     fn test_never_returns() {
+        #[cfg(feature = "nightly")]
         fn test1<F: Fn() -> !>(f: F) {
             let _ = f;
         }
@@ -37,6 +38,7 @@ mod tests {
             let _ = f;
         }
 
+        #[cfg(feature = "nightly")]
         test1(never_returns);
         test2(never_returns);
     }
