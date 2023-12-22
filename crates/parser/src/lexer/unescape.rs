@@ -43,28 +43,28 @@ pub enum EscapeError {
     CannotSkipMultipleLines,
 
     /// Numeric character escape is too short (e.g. '\x1').
-    TooShortHexEscape,
-    /// Invalid character in numeric escape (e.g. '\xz')
-    InvalidCharInHexEscape,
+    HexEscapeTooShort,
+    /// Invalid character in numeric escape (e.g. '\xz1').
+    HexEscapeInvalidChar,
 
     /// Unicode character escape is too short (e.g. '\u1').
-    TooShortUnicodeEscape,
-    /// Non-hexadecimal value in '\uXXXX'.
-    InvalidCharInUnicodeEscape,
-    /// Invalid in-bound unicode character code, e.g. '\u{DFFF}'.
-    LoneSurrogateUnicodeEscape,
+    UnicodeEscapeTooShort,
+    /// Invalid character in unicode character escape (e.g. '\uz111').
+    UnicodeEscapeInvalidChar,
+    /// Invalid in-bound unicode character code (e.g. '\uDFFF').
+    UnicodeEscapeLoneSurrogate,
 
     /// Newline in string literal. These must be escaped.
-    NewlineInStr,
+    StrNewline,
     /// Non-ASCII character in non-unicode literal.
-    NonAsciiCharInNonUnicode,
+    StrNonAsciiChar,
 
     /// Non hex-digit character in hex literal.
-    NonHexDigitInHex,
+    HexNotHexDigit,
     /// Underscore in hex literal.
-    BadUnderscoreInHex,
+    HexBadUnderscore,
     /// Odd number of hex digits in hex literal.
-    OddHexDigits,
+    HexOddDigits,
     /// Hex literal with the `0x` prefix.
     HexPrefix,
 }
@@ -97,13 +97,12 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<char, EscapeError> {
 
         'x' => {
             // Parse hexadecimal character code.
-            let hi = chars.next().ok_or(EscapeError::TooShortHexEscape)?;
-            let hi = hi.to_digit(16).ok_or(EscapeError::InvalidCharInHexEscape)?;
-
-            let lo = chars.next().ok_or(EscapeError::TooShortHexEscape)?;
-            let lo = lo.to_digit(16).ok_or(EscapeError::InvalidCharInHexEscape)?;
-
-            let value = hi * 16 + lo;
+            let mut value = 0;
+            for _ in 0..2 {
+                let d = chars.next().ok_or(EscapeError::HexEscapeTooShort)?;
+                let d = d.to_digit(16).ok_or(EscapeError::HexEscapeInvalidChar)?;
+                value = value * 16 + d;
+            }
             value as u8 as char
         }
 
@@ -111,12 +110,12 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<char, EscapeError> {
             // Parse hexadecimal unicode character code.
             let mut value = 0;
             for _ in 0..4 {
-                let d = chars.next().ok_or(EscapeError::TooShortUnicodeEscape)?;
-                let d = d.to_digit(16).ok_or(EscapeError::InvalidCharInUnicodeEscape)?;
+                let d = chars.next().ok_or(EscapeError::UnicodeEscapeTooShort)?;
+                let d = d.to_digit(16).ok_or(EscapeError::UnicodeEscapeInvalidChar)?;
                 value = value * 16 + d;
             }
-            // FIXME: `'\u{D800}'..='\u{DFFF}'` are valid in Solidity but not in Rust.
-            char::from_u32(value).ok_or(EscapeError::LoneSurrogateUnicodeEscape)?
+            // TODO: `'\u{D800}'..='\u{DFFF}'` are valid in Solidity but not in Rust.
+            char::from_u32(value).ok_or(EscapeError::UnicodeEscapeLoneSurrogate)?
         }
 
         _ => return Err(EscapeError::InvalidEscape),
@@ -144,9 +143,9 @@ where
                 }
                 _ => scan_escape(&mut chars),
             },
-            '\n' => Err(EscapeError::NewlineInStr),
+            '\n' => Err(EscapeError::StrNewline),
             '\r' => Err(EscapeError::BareCarriageReturn),
-            c if !is_unicode && !c.is_ascii() => Err(EscapeError::NonAsciiCharInNonUnicode),
+            c if !is_unicode && !c.is_ascii() => Err(EscapeError::StrNonAsciiChar),
             c => Ok(c),
         };
         let end = src.len() - chars.as_str().len();
@@ -188,7 +187,7 @@ where
 
     let count = chars.clone().filter(|(_, c)| c.is_ascii_hexdigit()).count();
     if count % 2 != 0 {
-        callback(0..src.len(), Err(EscapeError::OddHexDigits));
+        callback(0..src.len(), Err(EscapeError::HexOddDigits));
         return;
     }
 
@@ -201,13 +200,13 @@ where
                 if emit_underscore_errors && (!allow_underscore || !even) {
                     // Don't spam errors for multiple underscores.
                     emit_underscore_errors = false;
-                    Err(EscapeError::BadUnderscoreInHex)
+                    Err(EscapeError::HexBadUnderscore)
                 } else {
                     allow_underscore = false;
                     continue;
                 }
             }
-            c if !c.is_ascii_hexdigit() => Err(EscapeError::NonHexDigitInHex),
+            c if !c.is_ascii_hexdigit() => Err(EscapeError::HexNotHexDigit),
             c => Ok(c),
         };
 
@@ -221,7 +220,7 @@ where
     }
 
     if emit_underscore_errors && src.len() > 1 && src.ends_with('_') {
-        callback(src.len() - 1..src.len(), Err(EscapeError::BadUnderscoreInHex));
+        callback(src.len() - 1..src.len(), Err(EscapeError::HexBadUnderscore));
     }
 }
 
@@ -260,19 +259,19 @@ mod tests {
             (r"\\ ", "\\ ", &[]),
             (r"\\ \", "\\ ", &[(3..4, LoneSlash)]),
             (r"\\ \\", "\\ \\", &[]),
-            (r"\x", "", &[(0..2, TooShortHexEscape)]),
-            (r"\x1", "", &[(0..3, TooShortHexEscape)]),
-            (r"\xz", "", &[(0..3, InvalidCharInHexEscape)]),
-            (r"\xzf", "f", &[(0..3, InvalidCharInHexEscape)]),
-            (r"\xzz", "z", &[(0..3, InvalidCharInHexEscape)]),
+            (r"\x", "", &[(0..2, HexEscapeTooShort)]),
+            (r"\x1", "", &[(0..3, HexEscapeTooShort)]),
+            (r"\xz", "", &[(0..3, HexEscapeInvalidChar)]),
+            (r"\xzf", "f", &[(0..3, HexEscapeInvalidChar)]),
+            (r"\xzz", "z", &[(0..3, HexEscapeInvalidChar)]),
             (r"\x69", "\x69", &[]),
             (r"\xE8", "è", &[]),
-            (r"\u", "", &[(0..2, TooShortUnicodeEscape)]),
-            (r"\u1", "", &[(0..3, TooShortUnicodeEscape)]),
-            (r"\uz", "", &[(0..3, InvalidCharInUnicodeEscape)]),
-            (r"\uzf", "f", &[(0..3, InvalidCharInUnicodeEscape)]),
-            (r"\u12", "", &[(0..4, TooShortUnicodeEscape)]),
-            (r"\u123", "", &[(0..5, TooShortUnicodeEscape)]),
+            (r"\u", "", &[(0..2, UnicodeEscapeTooShort)]),
+            (r"\u1", "", &[(0..3, UnicodeEscapeTooShort)]),
+            (r"\uz", "", &[(0..3, UnicodeEscapeInvalidChar)]),
+            (r"\uzf", "f", &[(0..3, UnicodeEscapeInvalidChar)]),
+            (r"\u12", "", &[(0..4, UnicodeEscapeTooShort)]),
+            (r"\u123", "", &[(0..5, UnicodeEscapeTooShort)]),
             (r"\u1234", "\u{1234}", &[]),
             (r"\u00e8", "è", &[]),
             (r"\r", "\r", &[]),
@@ -281,14 +280,14 @@ mod tests {
             (r"\n\n", "\n\n", &[]),
             (r"\ ", "", &[(0..2, InvalidEscape)]),
             (r"\?", "", &[(0..2, InvalidEscape)]),
-            ("\r\n", "", &[(0..1, BareCarriageReturn), (1..2, NewlineInStr)]), // TODO: ?
-            ("\n", "", &[(0..1, NewlineInStr)]),
+            ("\r\n", "", &[(0..1, BareCarriageReturn), (1..2, StrNewline)]),
+            ("\n", "", &[(0..1, StrNewline)]),
             ("\\\n", "", &[]),
             ("\\\na", "a", &[]),
             ("\\\n  a", "a", &[]),
             ("\\\n \t a", "a", &[]),
             (" \\\n \t a", " a", &[]),
-            ("\\\n \t a\n", "a", &[(6..7, NewlineInStr)]),
+            ("\\\n \t a\n", "a", &[(6..7, StrNewline)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
             check(Mode::Str, src, expected_str, expected_errs);
@@ -299,8 +298,8 @@ mod tests {
     #[test]
     fn unescape_unicode_str() {
         let cases: &[(&str, &str, &[ExErr], &[ExErr])] = &[
-            ("è", "è", &[], &[(0..2, NonAsciiCharInNonUnicode)]),
-            ("😀", "😀", &[], &[(0..4, NonAsciiCharInNonUnicode)]),
+            ("è", "è", &[], &[(0..2, StrNonAsciiChar)]),
+            ("😀", "😀", &[], &[(0..4, StrNonAsciiChar)]),
         ];
         for &(src, expected_str, e1, e2) in cases {
             check(Mode::UnicodeStr, src, expected_str, e1);
@@ -312,25 +311,25 @@ mod tests {
     fn unescape_hex_str() {
         let cases: &[(&str, &str, &[ExErr])] = &[
             ("", "", &[]),
-            ("z", "", &[(0..1, NonHexDigitInHex)]),
-            ("\n", "", &[(0..1, NonHexDigitInHex)]),
-            ("  11", "11", &[(0..1, NonHexDigitInHex), (1..2, NonHexDigitInHex)]),
+            ("z", "", &[(0..1, HexNotHexDigit)]),
+            ("\n", "", &[(0..1, HexNotHexDigit)]),
+            ("  11", "11", &[(0..1, HexNotHexDigit), (1..2, HexNotHexDigit)]),
             ("0x", "", &[(0..2, HexPrefix)]),
             ("0X", "", &[(0..2, HexPrefix)]),
             ("0x11", "11", &[(0..2, HexPrefix)]),
             ("0X11", "11", &[(0..2, HexPrefix)]),
-            ("1", "", &[(0..1, OddHexDigits)]),
+            ("1", "", &[(0..1, HexOddDigits)]),
             ("12", "12", &[]),
-            ("123", "", &[(0..3, OddHexDigits)]),
+            ("123", "", &[(0..3, HexOddDigits)]),
             ("1234", "1234", &[]),
-            ("_", "", &[(0..1, BadUnderscoreInHex)]),
-            ("_11", "11", &[(0..1, BadUnderscoreInHex)]),
-            ("_11_", "11", &[(0..1, BadUnderscoreInHex)]),
-            ("11_", "11", &[(2..3, BadUnderscoreInHex)]),
+            ("_", "", &[(0..1, HexBadUnderscore)]),
+            ("_11", "11", &[(0..1, HexBadUnderscore)]),
+            ("_11_", "11", &[(0..1, HexBadUnderscore)]),
+            ("11_", "11", &[(2..3, HexBadUnderscore)]),
             ("11_22", "1122", &[]),
-            ("11__", "11", &[(3..4, BadUnderscoreInHex)]),
-            ("11__22", "1122", &[(3..4, BadUnderscoreInHex)]),
-            ("1_2", "12", &[(1..2, BadUnderscoreInHex)]),
+            ("11__", "11", &[(3..4, HexBadUnderscore)]),
+            ("11__22", "1122", &[(3..4, HexBadUnderscore)]),
+            ("1_2", "12", &[(1..2, HexBadUnderscore)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
             check(Mode::HexStr, src, expected_str, expected_errs);

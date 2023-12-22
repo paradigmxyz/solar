@@ -299,10 +299,6 @@ pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[
     ('⩵', "Two Consecutive Equals Signs", "==")
 ];
 
-// FIXME: the lexer could be used to turn the ASCII version of unicode homoglyphs, instead of
-// keeping the substitution token in this table. Ideally, this should be inside `rustc_lexer`.
-// However, we should first remove compound tokens like `<<` from `rustc_lexer`, and then add
-// fancier error recovery to it, as there will be less overall work to do this way.
 const ASCII_ARRAY: &[(&str, &str, Option<TokenKind>)] = &[
     (" ", "Space", None),
     ("_", "Underscore", Some(TokenKind::Ident(sym::underscore))),
@@ -347,10 +343,7 @@ pub(super) fn check_for_substitution(
     let span = Span::new(pos, pos + BytePos::from_usize(ch.len_utf8() * count));
 
     let Some((_, ascii_name, token)) = ASCII_ARRAY.iter().find(|&&(s, _, _)| s == ascii_str) else {
-        // TODO
-        // let msg = format!("substitution character not found for '{}'", ch);
-        // reader.sess.span_diagnostic.span_bug_no_panic(span, &msg);
-        return (None, None);
+        panic!("substitution character not found for {ch:?} ({ascii_str:?})");
     };
 
     // special help suggestion for "directed" double quotes

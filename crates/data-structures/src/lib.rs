@@ -26,6 +26,6 @@ pub use never::Never;
 
 pub use smallvec;
 
-// TODO
+// TODO: wait for possible perf improvements upstream
 #[cfg(feature = "parallel")]
 use rayon as _;
