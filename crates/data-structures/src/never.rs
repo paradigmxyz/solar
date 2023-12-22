@@ -24,8 +24,21 @@ pub type Never = !;
 mod tests {
     use super::*;
 
-    fn _never_returns() -> Never {
+    fn never_returns() -> Never {
         panic!();
+    }
+
+    #[test]
+    fn test_never_returns() {
+        fn test1<F: Fn() -> !>(f: F) {
+            let _ = f;
+        }
+        fn test2(f: fn() -> !) {
+            let _ = f;
+        }
+
+        test1(never_returns);
+        test2(never_returns);
     }
 
     #[test]
