@@ -23,10 +23,16 @@ rsolc-macros = { version = "0.0.0", path = "crates/macros" }
 rsolc-parser = { version = "0.0.0", path = "crates/parser" }
 rsolc-span = { version = "0.0.0", path = "crates/span" }
 
+# macros
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0"
 
+# parallel
+rayon = "1.8"
+parking_lot = "0.12"
+
+# misc
 bumpalo = "3.14"
 expect-test = "1.4"
 indexmap = "2.1"

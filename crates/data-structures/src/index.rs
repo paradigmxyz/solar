@@ -38,7 +38,9 @@ macro_rules! base_index {
         impl Idx for $name {
             #[inline]
             fn from_usize(value: usize) -> Self {
-                assert!(value <= Self::MAX_AS as usize);
+                if value > Self::MAX_AS as usize {
+                    index_overflow();
+                }
                 Self::new(value as $primitive)
             }
 
@@ -62,7 +64,9 @@ macro_rules! base_index {
             /// Panics if `value` exceeds `MAX`.
             #[inline]
             pub const fn new(value: $primitive) -> Self {
-                assert!(value <= Self::MAX_AS);
+                if value > Self::MAX_AS {
+                    index_overflow();
+                }
                 unsafe {
                     Self {
                         #[cfg(feature = "nightly")]
@@ -70,7 +74,7 @@ macro_rules! base_index {
                         #[cfg(not(feature = "nightly"))]
                         value: std::num::$non_zero::new_unchecked(match value.checked_add(1) {
                             Some(value) => value,
-                            None => panic!("index overflowed"),
+                            None => index_overflow(),
                         }),
                     }
                 }
@@ -82,12 +86,21 @@ macro_rules! base_index {
                 #[cfg(feature = "nightly")]
                 return self.value;
 
-                // SAFETY: Non-zero.
                 #[cfg(not(feature = "nightly"))]
-                return unsafe { self.value.get().checked_sub(1).unwrap_unchecked() };
+                return match self.value.get().checked_sub(1) {
+                    Some(value) => value,
+                    // SAFETY: Non-zero.
+                    None => unsafe { std::hint::unreachable_unchecked() },
+                };
             }
         }
     };
 }
 
 base_index!(BaseIndex32(u32 || NonZeroU32 <= 0xFFFF_FF00));
+
+#[inline(never)]
+#[cold]
+const fn index_overflow() -> ! {
+    panic!("index overflowed")
+}

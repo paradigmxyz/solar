@@ -1,4 +1,4 @@
-// use std::{cell::RefCell, rc::Rc};
+// use rsolc_data_structures::sync::{Lock, Lrc};
 
 /// Per-session global variables: this struct is stored in thread-local storage
 /// in such a way that it is accessible without any kind of handle to all
@@ -13,7 +13,7 @@ pub struct SessionGlobals {
     // ///
     // /// This field should only be used in places where the `Session` is truly
     // /// not available, such as `<Span as Debug>::fmt`.
-    // source_map: RefCell<Option<Rc<SourceMap>>>,
+    // source_map: Lock<Option<Lrc<SourceMap>>>,
 }
 
 impl Default for SessionGlobals {
@@ -26,7 +26,7 @@ impl SessionGlobals {
     pub fn new() -> Self {
         Self {
             symbol_interner: crate::symbol::Interner::fresh(),
-            // source_map: RefCell::new(None),
+            // source_map: Lock::new(None),
         }
     }
 }

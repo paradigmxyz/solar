@@ -1,7 +1,7 @@
 use crate::{with_session_globals, Span};
-use rsolc_data_structures::{fx::FxIndexSet, index::BaseIndex32};
+use rsolc_data_structures::{fx::FxIndexSet, index::BaseIndex32, sync::Lock};
 use rsolc_macros::symbols;
-use std::{cell::RefCell, cmp, fmt, hash, str};
+use std::{cmp, fmt, hash, str};
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
@@ -419,7 +419,7 @@ impl fmt::Display for Symbol {
 //     }
 // }
 
-pub(crate) struct Interner(RefCell<InternerInner>);
+pub(crate) struct Interner(Lock<InternerInner>);
 
 // The `&'static str`s in this type actually point into the arena.
 //
@@ -433,7 +433,7 @@ struct InternerInner {
 
 impl Interner {
     fn prefill(init: &[&'static str]) -> Self {
-        Self(RefCell::new(InternerInner {
+        Self(Lock::new(InternerInner {
             arena: Default::default(),
             strings: init.iter().copied().collect(),
         }))
