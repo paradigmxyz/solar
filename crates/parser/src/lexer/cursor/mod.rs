@@ -1,8 +1,6 @@
 //! Low-level Solidity lexer.
 //!
-//! Modified from Rust's [rustc_lexer].
-//!
-//! [rustc_lexer]: https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs
+//! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
 use std::str::Chars;
 

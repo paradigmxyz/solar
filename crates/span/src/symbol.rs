@@ -366,7 +366,7 @@ impl Symbol {
         })
     }
 
-    /// Specialization of `as_str`.
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
     pub fn to_string(&self) -> String {
@@ -391,7 +391,7 @@ impl Symbol {
         matches!(self, kw::True | kw::False)
     }
 
-    /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro
+    /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.
     #[inline]
     pub const fn is_preinterned(self) -> bool {
         self.as_u32() < PREINTERNED_SYMBOLS_COUNT
@@ -465,7 +465,7 @@ impl Interner {
     ///
     /// [`Symbol::as_str()`] should be used in preference to this function.
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.borrow().strings.get_index(symbol.0.get() as usize).unwrap()
+        self.0.borrow().strings.get_index(symbol.as_u32() as usize).unwrap()
     }
 }
 

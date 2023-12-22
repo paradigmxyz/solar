@@ -1,6 +1,7 @@
 use crate::BytePos;
 use std::cmp;
 
+/// A source code location.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
     lo: BytePos,
@@ -14,9 +15,18 @@ impl Default for Span {
     }
 }
 
+impl Default for &Span {
+    #[inline(always)]
+    fn default() -> Self {
+        &Span::DUMMY
+    }
+}
+
 impl Span {
+    /// A dummy span.
     pub const DUMMY: Self = Self { lo: BytePos(0), hi: BytePos(0) };
 
+    /// Creates a new span from two byte positions.
     #[inline]
     pub fn new(mut lo: BytePos, mut hi: BytePos) -> Self {
         if lo > hi {
@@ -25,36 +35,40 @@ impl Span {
         Self { lo, hi }
     }
 
+    /// Returns the span's start position.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
         self.lo
     }
 
+    /// Creates a new span with the same hi position as this span and the given lo position.
     #[inline]
     pub fn with_lo(self, lo: BytePos) -> Self {
-        Self { lo, hi: self.hi }
+        Self::new(lo, self.hi())
     }
 
+    /// Returns the span's end position.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
         self.hi
     }
 
+    /// Creates a new span with the same lo position as this span and the given hi position.
     #[inline]
     pub fn with_hi(self, hi: BytePos) -> Self {
-        Self { lo: self.lo(), hi }
+        Self::new(self.lo(), hi)
     }
 
-    /// Returns a new span representing an empty span at the beginning of this span.
+    /// Creates a new span representing an empty span at the beginning of this span.
     #[inline]
     pub fn shrink_to_lo(self) -> Self {
-        Self { lo: self.lo(), hi: self.lo() }
+        Self::new(self.lo(), self.lo())
     }
 
-    /// Returns a new span representing an empty span at the end of this span.
+    /// Creates a new span representing an empty span at the end of this span.
     #[inline]
     pub fn shrink_to_hi(self) -> Self {
-        Self { lo: self.hi(), hi: self.hi() }
+        Self::new(self.hi(), self.hi())
     }
 
     /// Returns `true` if this is a dummy span.

@@ -1,3 +1,5 @@
+//! Solidity source code token.
+
 use rsolc_span::{Ident, Span, Symbol};
 use std::fmt;
 
@@ -142,47 +144,6 @@ impl LitKind {
     }
 }
 
-/*
-pub fn ident_can_begin_expr(name: Symbol, span: Span, is_raw: bool) -> bool {
-    let ident_token = Token::new(Ident(name, is_raw), span);
-
-    !ident_token.is_reserved_ident()
-        || ident_token.is_path_segment_keyword()
-        || [
-            kw::Async,
-            kw::Do,
-            kw::Box,
-            kw::Break,
-            kw::Const,
-            kw::Continue,
-            kw::False,
-            kw::For,
-            kw::If,
-            kw::Let,
-            kw::Loop,
-            kw::Match,
-            kw::Move,
-            kw::Return,
-            kw::True,
-            kw::Try,
-            kw::Unsafe,
-            kw::While,
-            kw::Yield,
-            kw::Static,
-        ]
-        .contains(&name)
-}
-
-fn ident_can_begin_type(name: Symbol, span: Span, is_raw: bool) -> bool {
-    let ident_token = Token::new(Ident(name, is_raw), span);
-
-    !ident_token.is_reserved_ident()
-        || ident_token.is_path_segment_keyword()
-        || [kw::Underscore, kw::For, kw::Impl, kw::Fn, kw::Unsafe, kw::Extern, kw::Typeof, kw::Dyn]
-            .contains(&name)
-}
-*/
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {
     // Expression-operator symbols.
@@ -249,13 +210,17 @@ pub enum TokenKind {
     Eof,
 }
 
+/// A single token.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Token {
+    /// The kind of the token.
     pub kind: TokenKind,
+    /// The full span of the token.
     pub span: Span,
 }
 
 impl TokenKind {
+    /// Creates a new literal token kind.
     pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
         Self::Literal(Lit::new(kind, symbol))
     }
@@ -266,7 +231,7 @@ impl TokenKind {
         match *self {
             Self::Comma => Some(vec![Self::Dot, Self::Lt, Self::Semi]),
             Self::Semi => Some(vec![Self::Colon, Self::Comma]),
-            // FatArrow => Some(vec![Eq, RArrow]),
+            Self::FatArrow => Some(vec![Self::Eq, Self::Arrow]),
             _ => None,
         }
     }

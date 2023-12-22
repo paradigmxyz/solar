@@ -61,7 +61,6 @@ macro_rules! base_index {
             ///
             /// Panics if `value` exceeds `MAX`.
             #[inline]
-            #[track_caller]
             pub const fn new(value: $primitive) -> Self {
                 assert!(value <= Self::MAX_AS);
                 unsafe {
@@ -82,8 +81,10 @@ macro_rules! base_index {
             pub const fn get(self) -> $primitive {
                 #[cfg(feature = "nightly")]
                 return self.value;
+
+                // SAFETY: Non-zero.
                 #[cfg(not(feature = "nightly"))]
-                return self.value.get();
+                return unsafe { self.value.get().checked_sub(1).unwrap_unchecked() };
             }
         }
     };

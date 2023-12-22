@@ -1,4 +1,4 @@
-//! Stolen from [rustc_data_structures](https://github.com/rust-lang/rust/blob/661b33f5247debc4e0cd948caa388997e18e9cb8/compiler/rustc_data_structures/src/fx.rs).
+//! Modified from [`rustc_data_structures`](https://github.com/rust-lang/rust/blob/661b33f5247debc4e0cd948caa388997e18e9cb8/compiler/rustc_data_structures/src/fx.rs).
 
 use std::hash::BuildHasherDefault;
 
