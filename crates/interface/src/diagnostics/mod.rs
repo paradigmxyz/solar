@@ -269,7 +269,7 @@ impl Diagnostic {
             &self.level,
             &self.messages,
             // self.args().collect(),
-            // &self.code,
+            &self.code,
             &self.span,
             // &self.suggestions,
             // (if self.is_lint { None } else { Some(&self.children) }),
