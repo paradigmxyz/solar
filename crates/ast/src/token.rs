@@ -1,7 +1,7 @@
 //! Solidity source code token.
 
-use sulk_interface::{Ident, Span, Symbol};
 use std::fmt;
+use sulk_interface::{Ident, Span, Symbol};
 
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

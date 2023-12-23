@@ -1,7 +1,7 @@
 use crate::{with_session_globals, Span};
+use std::{cmp, fmt, hash, str};
 use sulk_data_structures::{index::BaseIndex32, map::FxIndexSet, sync::Lock};
 use sulk_macros::symbols;
-use std::{cmp, fmt, hash, str};
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
