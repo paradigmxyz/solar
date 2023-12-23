@@ -209,7 +209,9 @@ mod no_sync {
             self.0.try_borrow_mut().ok()
         }
 
-        // This is unsafe to match the API for the `parallel` case.
+        /// # Safety
+        ///
+        /// This is unsafe to match the API for the `parallel` case.
         #[inline(always)]
         #[track_caller]
         pub unsafe fn lock_assume(&self, _mode: Mode) -> LockGuard<'_, T> {
