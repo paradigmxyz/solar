@@ -1,7 +1,7 @@
 /// Hack to access the never type on stable.
 #[cfg(not(feature = "nightly"))]
 #[doc(hidden)]
-trait GetReturnType {
+pub trait GetReturnType {
     type ReturnType;
 }
 
