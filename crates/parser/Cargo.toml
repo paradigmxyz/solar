@@ -14,7 +14,7 @@ categories.workspace = true
 
 [dependencies]
 rsolc-ast.workspace = true
-rsolc-span.workspace = true
+rsolc-interface.workspace = true
 
 hex.workspace = true
 unicode-ident.workspace = true
@@ -24,4 +24,4 @@ unicode-normalization.workspace = true
 expect-test.workspace = true
 
 [features]
-nightly = ["rsolc-ast/nightly", "rsolc-span/nightly"]
+nightly = ["rsolc-ast/nightly", "rsolc-interface/nightly"]

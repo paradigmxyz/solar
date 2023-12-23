@@ -361,8 +361,8 @@ name = "rsolc-ast"
 version = "0.0.0"
 dependencies = [
  "rsolc-data-structures",
+ "rsolc-interface",
  "rsolc-macros",
- "rsolc-span",
 ]
 
 [[package]]
@@ -376,6 +376,16 @@ dependencies = [
  "rayon",
  "rustc-hash",
  "smallvec",
+]
+
+[[package]]
+name = "rsolc-interface"
+version = "0.0.0"
+dependencies = [
+ "bumpalo",
+ "rsolc-data-structures",
+ "rsolc-macros",
+ "scoped-tls",
 ]
 
 [[package]]
@@ -394,19 +404,9 @@ dependencies = [
  "const-hex",
  "expect-test",
  "rsolc-ast",
- "rsolc-span",
+ "rsolc-interface",
  "unicode-ident",
  "unicode-normalization",
-]
-
-[[package]]
-name = "rsolc-span"
-version = "0.0.0"
-dependencies = [
- "bumpalo",
- "rsolc-data-structures",
- "rsolc-macros",
- "scoped-tls",
 ]
 
 [[package]]

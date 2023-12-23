@@ -15,7 +15,7 @@ categories.workspace = true
 [dependencies]
 rsolc-data-structures.workspace = true
 rsolc-macros.workspace = true
-rsolc-span.workspace = true
+rsolc-interface.workspace = true
 
 [features]
-nightly = ["rsolc-data-structures/nightly", "rsolc-macros/nightly", "rsolc-span/nightly"]
+nightly = ["rsolc-data-structures/nightly", "rsolc-macros/nightly", "rsolc-interface/nightly"]

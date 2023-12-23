@@ -1,4 +1,4 @@
-//! Proc macro which builds the Symbol table
+//! Proc macro which builds the Symbol table.
 //!
 //! # Debugging
 //!
@@ -6,22 +6,23 @@
 //! This proc-macro can be invoked as an ordinary unit test, like so:
 //!
 //! ```bash
-//! cd compiler/rustc_macros
+//! cd crates/macros
 //! cargo test symbols::test_symbols -- --nocapture
 //! ```
 //!
-//! This unit test finds the `symbols!` invocation in `compiler/rustc_span/src/symbol.rs`
-//! and runs it. It verifies that the output token stream can be parsed as valid module
-//! items and that no errors were produced.
+//! This unit test finds the `symbols!` invocation in `crates/interface/src/symbol.rs` and runs it.
+//! It verifies that the output token stream can be parsed as valid module items and that no errors
+//! were produced.
 //!
 //! You can also view the generated code by using `cargo expand`:
 //!
 //! ```bash
-//! cargo install cargo-expand          # this is necessary only once
-//! cd compiler/rustc_span
-//! # The specific version number in CFG_RELEASE doesn't matter.
+//! # this is necessary only once
+//! cargo install cargo-expand
+//!
+//! cd crates/interface
 //! # The output is large.
-//! CFG_RELEASE="0.0.0" cargo +nightly expand > /tmp/rustc_span.rs
+//! cargo +nightly expand > /tmp/rsolc_interface.rs
 //! ```
 
 use proc_macro2::{Span, TokenStream};

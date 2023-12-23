@@ -4,7 +4,7 @@
 use super::StringReader;
 use crate::errors::TokenSubstitution;
 use rsolc_ast::token::{BinOpToken, Delimiter, TokenKind};
-use rsolc_span::{sym, BytePos, Pos, Span};
+use rsolc_interface::{sym, BytePos, Pos, Span};
 
 #[rustfmt::skip] // for line breaks
 pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[

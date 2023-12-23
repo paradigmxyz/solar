@@ -1,6 +1,6 @@
 //! Solidity source code token.
 
-use rsolc_span::{Ident, Span, Symbol};
+use rsolc_interface::{Ident, Span, Symbol};
 use std::fmt;
 
 /// The type of a comment.

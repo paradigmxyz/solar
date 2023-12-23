@@ -19,9 +19,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 [workspace.dependencies]
 rsolc-ast = { version = "0.0.0", path = "crates/ast" }
 rsolc-data-structures = { version = "0.0.0", path = "crates/data-structures" }
+rsolc-interface = { version = "0.0.0", path = "crates/interface" }
 rsolc-macros = { version = "0.0.0", path = "crates/macros" }
 rsolc-parser = { version = "0.0.0", path = "crates/parser" }
-rsolc-span = { version = "0.0.0", path = "crates/span" }
 
 alloy-primitives = "0.5"
 
@@ -31,8 +31,8 @@ quote = "1.0"
 syn = "2.0"
 
 # parallel
-rayon = "1.8"
 parking_lot = "0.12"
+rayon = "1.8"
 
 # testing
 criterion = "0.5"
@@ -43,10 +43,10 @@ ahash = "0.8"
 bumpalo = "3.14"
 expect-test = "1.4"
 hex = { package = "const-hex", version = "1.10" }
+index_vec = "0.1.3"
 indexmap = "2.1"
 rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"
 smallvec = "1"
 unicode-ident = "1.0"
 unicode-normalization = "0.1.22"
-index_vec = "0.1.3"
