@@ -106,6 +106,7 @@ mod no_sync {
 }
 
 #[cfg(feature = "parallel")]
+#[allow(clippy::module_inception)]
 mod sync {
     pub use parking_lot::{
         MappedMutexGuard as MappedLockGuard, MappedRwLockReadGuard as MappedReadGuard,
@@ -156,6 +157,7 @@ impl<T> RwLock<T> {
     }
 
     #[inline(always)]
+    #[allow(clippy::result_unit_err)]
     pub fn try_write(&self) -> Result<WriteGuard<'_, T>, ()> {
         #[cfg(not(feature = "parallel"))]
         return self.0.try_borrow_mut().map_err(drop);
