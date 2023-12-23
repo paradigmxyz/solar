@@ -1,6 +1,6 @@
 use super::{
-    DiagCtxt, Diagnostic, DiagnosticMessage, ErrorGuaranteed, FatalAbort, FatalError, Level,
-    MultiSpan, Style,
+    DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, FatalAbort, FatalError,
+    Level, MultiSpan, Style,
 };
 use core::fmt;
 use rsolc_data_structures::Never;
@@ -73,7 +73,7 @@ impl EmissionGuarantee for FatalError {
 ///
 /// **Note:** Incorrect usage of this type results in a panic when dropped.
 /// This is to ensure that all errors are either emitted or cancelled.
-#[must_use]
+#[must_use = "diagnostics must be emitted or cancelled"]
 #[derive(Clone)]
 pub struct DiagnosticBuilder<'a, G: EmissionGuarantee> {
     dcx: &'a DiagCtxt,
@@ -117,7 +117,7 @@ impl<'a, G: EmissionGuarantee> Drop for DiagnosticBuilder<'a, G> {
         }
 
         self.dcx.emit_diagnostic(Diagnostic::new(
-            Level::Bug,
+            Level::Fatal,
             "the following error was constructed but not emitted",
         ));
         self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic);
@@ -195,6 +195,7 @@ macro_rules! forward {
 impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     forward! {
         pub fn span(span: impl Into<MultiSpan>);
+        pub fn code(code: impl Into<DiagnosticId>);
 
         pub fn warn(message: impl Into<DiagnosticMessage>);
         pub fn span_warn(span: impl Into<MultiSpan>, message: impl Into<DiagnosticMessage>);

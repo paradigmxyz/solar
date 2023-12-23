@@ -21,6 +21,11 @@ pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ErrorGuaranteed(());
 
+/// Marker type which enables implementation of `create_bug` and `emit_bug` functions for
+/// bug diagnostics.
+#[derive(Copy, Clone)]
+pub struct BugAbort;
+
 /// Marker type which enables implementation of fatal diagnostics.
 pub struct FatalAbort(());
 
@@ -46,22 +51,22 @@ impl FatalError {
     }
 }
 
+/// Diagnostic ID.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DiagnosticId {
+    /// A diagnostic with a fixed ID.
+    Int(u32),
+}
+
+impl From<u32> for DiagnosticId {
+    fn from(id: u32) -> Self {
+        Self::Int(id)
+    }
+}
+
 /// Diagnostic level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Level {
-    /// For bugs in the compiler. Manifests as an ICE (internal compiler error) panic.
-    ///
-    /// Its `EmissionGuarantee` is `BugAbort`.
-    Bug,
-
-    /// This is a strange one: lets you register an error without emitting it. If compilation ends
-    /// without any other errors occurring, this will be emitted as a bug. Otherwise, it will be
-    /// silently dropped. I.e. "expect other errors are emitted" semantics. Useful on code paths
-    /// that should only be reached when compiling erroneous code.
-    ///
-    /// Its `EmissionGuarantee` is `ErrorGuaranteed`.
-    DelayedBug,
-
     /// An error that causes an immediate abort. Used for things like configuration errors,
     /// internal overflows, some file operation errors.
     ///
@@ -118,7 +123,6 @@ impl Level {
     /// Returns the string representation of the level.
     pub fn to_str(self) -> &'static str {
         match self {
-            Self::Bug | Self::DelayedBug => "error: internal compiler error",
             Self::Fatal | Self::Error => "error",
             Self::Warning => "warning",
             Self::Note | Self::OnceNote => "note",
@@ -134,21 +138,14 @@ impl Level {
     #[inline]
     pub fn is_error(self) -> bool {
         match self {
-            Self::Bug
-            | Self::DelayedBug
-            | Self::Fatal
-            | Self::Error
-            | Self::FailureNote
-            => true,
+            Self::Fatal | Self::Error | Self::FailureNote => true,
 
             Self::Warning
             | Self::Note
             | Self::OnceNote
             | Self::Help
             | Self::OnceHelp
-            | Self::Allow
-            // | Self::Expect(_)
-            => false,
+            | Self::Allow => false,
         }
     }
 }
@@ -174,11 +171,12 @@ pub enum Style {
 #[must_use]
 #[derive(Clone, Debug)]
 pub struct Diagnostic {
-    pub level: Level,
+    pub(crate) level: Level,
 
     pub messages: Vec<(DiagnosticMessage, Style)>,
     pub span: MultiSpan,
     pub children: Vec<SubDiagnostic>,
+    pub code: Option<DiagnosticId>,
 
     pub emitted_at: DiagnosticLocation,
 }
@@ -238,7 +236,7 @@ impl Diagnostic {
         Self {
             level,
             messages,
-            // code: None,
+            code: None,
             span: MultiSpan::new(),
             children: vec![],
             // suggestions: Ok(vec![]),
@@ -260,6 +258,11 @@ impl Diagnostic {
         &self.messages
     }
 
+    /// Returns the level of this diagnostic.
+    pub fn level(&self) -> Level {
+        self.level
+    }
+
     /// Fields used for `PartialEq` and `Hash` implementations.
     fn keys(&self) -> impl PartialEq + std::hash::Hash + '_ {
         (
@@ -279,6 +282,12 @@ impl Diagnostic {
     /// Sets the span of this diagnostic.
     pub fn span(&mut self, span: impl Into<MultiSpan>) -> &mut Self {
         self.span = span.into();
+        self
+    }
+
+    /// Sets the code of this diagnostic.
+    pub fn code(&mut self, code: impl Into<DiagnosticId>) -> &mut Self {
+        self.code = Some(code.into());
         self
     }
 }

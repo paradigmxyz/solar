@@ -61,6 +61,12 @@ pub struct LocalEmitter {
     diagnostics: Vec<Diagnostic>,
 }
 
+impl Default for LocalEmitter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LocalEmitter {
     /// Creates a new `LocalEmitter`.
     pub fn new() -> Self {
