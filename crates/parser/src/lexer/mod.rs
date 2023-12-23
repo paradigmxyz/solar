@@ -4,10 +4,12 @@ use rsolc_span::{sym, BytePos, Pos, Span, Symbol};
 pub mod cursor;
 pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, Cursor};
 
+pub mod unescape;
+
 mod unicode_chars;
 use unicode_chars::UNICODE_ARRAY;
 
-pub mod unescape;
+mod utf8;
 
 pub struct StringReader<'a> {
     // sess: &'a ParseSess,

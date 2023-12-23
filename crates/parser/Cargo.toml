@@ -16,6 +16,7 @@ categories.workspace = true
 rsolc-ast.workspace = true
 rsolc-span.workspace = true
 
+hex.workspace = true
 unicode-ident.workspace = true
 unicode-normalization.workspace = true
 

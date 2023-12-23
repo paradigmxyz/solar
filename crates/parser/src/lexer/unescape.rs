@@ -1,21 +1,6 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
-use std::{ops::Range, str::Chars};
-
-/// Takes a contents of a literal (without quotes) and produces a
-/// sequence of escaped characters or errors.
-///
-/// Values are returned through invoking of the provided callback.
-pub fn unescape_literal<F>(src: &str, mode: Mode, callback: &mut F)
-where
-    F: FnMut(Range<usize>, Result<char, EscapeError>),
-{
-    match mode {
-        Mode::Str => unescape_str(src, false, callback),
-        Mode::UnicodeStr => unescape_str(src, true, callback),
-        Mode::HexStr => unescape_hex_str(src, callback),
-    }
-}
+use std::{ops::Range, slice, str::Chars};
 
 /// Errors and warnings that can occur during string unescaping.
 #[derive(Debug, PartialEq, Eq)]
@@ -80,20 +65,86 @@ pub enum Mode {
     HexStr,
 }
 
-fn scan_escape(chars: &mut Chars<'_>) -> Result<char, EscapeError> {
+/// Parses a string literal (without quotes) into a byte array.
+pub fn parse_literal(src: &str, mode: Mode, f: impl FnMut(Range<usize>, EscapeError)) -> Vec<u8> {
+    // Avoid unescaping if possible.
+    const CHRS: &[char] = &['\\', '\n', '\r'];
+    let do_unescape = match mode {
+        Mode::Str => src.contains(|c: char| CHRS.contains(&c) || !c.is_ascii()),
+        Mode::UnicodeStr => src.contains(CHRS),
+        Mode::HexStr => src.len() % 2 != 0 || src.contains(|c: char| !c.is_ascii_hexdigit()),
+    };
+    let mut bytes = if do_unescape {
+        let mut bytes = Vec::with_capacity(src.len());
+        parse_literal_unescape(src, mode, f, &mut bytes);
+        bytes
+    } else {
+        src.as_bytes().to_vec()
+    };
+    if mode == Mode::HexStr {
+        // This fails when the hex string is invalid, which is fine since we already emitted the
+        // errors during unescaping.
+        if let Ok(decoded) = hex::decode(&bytes) {
+            bytes = decoded;
+        }
+    }
+    bytes
+}
+
+#[inline]
+fn parse_literal_unescape(
+    src: &str,
+    mode: Mode,
+    mut f: impl FnMut(Range<usize>, EscapeError),
+    dst_buf: &mut Vec<u8>,
+) {
+    // `src.len()` is enough capacity for the unescaped string, so we can just use a slice.
+    // SAFETY: The buffer is never read from.
+    let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
+    unescape_literal(src, mode, |range, res| match res {
+        Ok(c) => {
+            let written = super::utf8::encode_utf8_raw(c, dst).len();
+
+            // SAFETY: Unescaping guarantees that the final unescaped byte array is shorter than
+            // the initial string.
+            debug_assert!(dst.len() >= written);
+            let advanced = unsafe { dst.get_unchecked_mut(written..) };
+
+            // SAFETY: I don't know why this triggers E0521.
+            dst = unsafe { std::mem::transmute::<&mut [u8], &mut [u8]>(advanced) };
+        }
+        Err(e) => f(range, e),
+    });
+    unsafe { dst_buf.set_len(dst_buf.capacity() - dst.len()) };
+}
+
+/// Unescapes the contents of a string literal (without quotes).
+/// Values are returned through invoking of the provided callback.
+pub fn unescape_literal<F>(src: &str, mode: Mode, callback: F)
+where
+    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+{
+    match mode {
+        Mode::Str => unescape_str(src, false, callback),
+        Mode::UnicodeStr => unescape_str(src, true, callback),
+        Mode::HexStr => unescape_hex_str(src, callback),
+    }
+}
+
+fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
     // Previous character was '\\', unescape what follows.
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.EscapeSequence
-    // Hex and unicode escapes are not validated.
-    let res = match chars.next().ok_or(EscapeError::LoneSlash)? {
-        // Both quotes are valid escapes for both string literals in Solidity,
-        // e.g escaping single in a double, or double in a single is ok.
-        '\'' => '\'',
-        '"' => '"',
+    // Note that hex and unicode escape codes are not validated since string literals are allowed
+    // to contain invalid UTF-8.
+    Ok(match chars.next().ok_or(EscapeError::LoneSlash)? {
+        // Both quotes are always valid escapes.
+        '\'' => '\'' as u32,
+        '"' => '"' as u32,
 
-        '\\' => '\\',
-        'n' => '\n',
-        'r' => '\r',
-        't' => '\t',
+        '\\' => '\\' as u32,
+        'n' => '\n' as u32,
+        'r' => '\r' as u32,
+        't' => '\t' as u32,
 
         'x' => {
             // Parse hexadecimal character code.
@@ -103,7 +154,7 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<char, EscapeError> {
                 let d = d.to_digit(16).ok_or(EscapeError::HexEscapeInvalidChar)?;
                 value = value * 16 + d;
             }
-            value as u8 as char
+            value
         }
 
         'u' => {
@@ -114,20 +165,18 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<char, EscapeError> {
                 let d = d.to_digit(16).ok_or(EscapeError::UnicodeEscapeInvalidChar)?;
                 value = value * 16 + d;
             }
-            // TODO: `'\u{D800}'..='\u{DFFF}'` are valid in Solidity but not in Rust.
-            char::from_u32(value).ok_or(EscapeError::UnicodeEscapeLoneSurrogate)?
+            value
         }
 
         _ => return Err(EscapeError::InvalidEscape),
-    };
-    Ok(res)
+    })
 }
 
 /// Takes a contents of a string literal (without quotes) and produces a sequence of escaped
 /// characters or errors.
-fn unescape_str<F>(src: &str, is_unicode: bool, callback: &mut F)
+fn unescape_str<F>(src: &str, is_unicode: bool, mut callback: F)
 where
-    F: FnMut(Range<usize>, Result<char, EscapeError>),
+    F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     let mut chars = src.chars();
     // The `start` and `end` computation here is complicated because
@@ -138,7 +187,7 @@ where
         let res = match c {
             '\\' => match chars.clone().next() {
                 Some('\n') => {
-                    skip_ascii_whitespace(&mut chars, start, callback);
+                    skip_ascii_whitespace(&mut chars, start, &mut callback);
                     continue;
                 }
                 _ => scan_escape(&mut chars),
@@ -146,7 +195,7 @@ where
             '\n' => Err(EscapeError::StrNewline),
             '\r' => Err(EscapeError::BareCarriageReturn),
             c if !is_unicode && !c.is_ascii() => Err(EscapeError::StrNonAsciiChar),
-            c => Ok(c),
+            c => Ok(c as u32),
         };
         let end = src.len() - chars.as_str().len();
         callback(start..end, res);
@@ -155,7 +204,7 @@ where
 
 fn skip_ascii_whitespace<F>(chars: &mut Chars<'_>, start: usize, callback: &mut F)
 where
-    F: FnMut(Range<usize>, Result<char, EscapeError>),
+    F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     // Skip the first newline.
     let tail = &chars.as_str()[1..];
@@ -174,9 +223,9 @@ where
 
 /// Takes a contents of a hex literal (without quotes) and produces a sequence of escaped characters
 /// or errors.
-fn unescape_hex_str<F>(src: &str, callback: &mut F)
+fn unescape_hex_str<F>(src: &str, mut callback: F)
 where
-    F: FnMut(Range<usize>, Result<char, EscapeError>),
+    F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     let mut chars = src.char_indices();
     if src.starts_with("0x") || src.starts_with("0X") {
@@ -207,7 +256,7 @@ where
                 }
             }
             c if !c.is_ascii_hexdigit() => Err(EscapeError::HexNotHexDigit),
-            c => Ok(c),
+            c => Ok(c as u32),
         };
 
         if res.is_ok() {
@@ -231,16 +280,28 @@ mod tests {
 
     type ExErr = (Range<usize>, EscapeError);
 
-    #[track_caller]
     fn check(mode: Mode, src: &str, expected_str: &str, expected_errs: &[ExErr]) {
+        let panic_str = format!("{mode:?}: {src:?}");
+
         let mut ok = String::with_capacity(src.len());
-        let mut errs = Vec::new();
-        unescape_literal(src, mode, &mut |range, c| match c {
-            Ok(c) => ok.push(c),
+        let mut errs = Vec::with_capacity(expected_errs.len());
+        unescape_literal(src, mode, |range, c| match c {
+            Ok(c) => ok.push(char::try_from(c).unwrap()),
             Err(e) => errs.push((range, e)),
         });
-        assert_eq!(errs, expected_errs, "{mode:?}: {src:?}");
-        assert_eq!(ok, expected_str, "{mode:?}: {src:?}");
+        assert_eq!(errs, expected_errs, "{panic_str}");
+        assert_eq!(ok, expected_str, "{panic_str}");
+
+        let mut errs2 = Vec::with_capacity(errs.len());
+        let out = parse_literal(src, mode, |range, e| {
+            errs2.push((range, e));
+        });
+        assert_eq!(errs2, errs, "{panic_str}");
+        if mode == Mode::HexStr {
+            assert_eq!(hex::encode(out), expected_str, "{panic_str}");
+        } else {
+            assert_eq!(hex::encode(out), hex::encode(expected_str), "{panic_str}");
+        }
     }
 
     #[test]
