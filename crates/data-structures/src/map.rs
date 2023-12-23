@@ -6,14 +6,13 @@
 //!     primitives and small (<=16 bytes, if not more) strings and byte arrays
 
 use indexmap::{IndexMap, IndexSet};
-use rustc_hash::FxHasher;
 use std::{
     collections::{HashMap, HashSet},
     hash::BuildHasherDefault,
 };
 
-#[allow(unused_imports)] // For docs.
-use ahash::AHasher;
+pub use ahash::{self, AHasher};
+pub use rustc_hash::{self, FxHasher};
 
 /// [`HashMap`] entry type.
 pub type StdEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
