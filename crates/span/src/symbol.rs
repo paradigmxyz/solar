@@ -441,7 +441,7 @@ impl Interner {
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        let mut inner = self.0.borrow_mut();
+        let mut inner = self.0.lock();
         if let Some(idx) = inner.strings.get_index_of(string) {
             return Symbol::new(idx as u32);
         }
@@ -465,7 +465,7 @@ impl Interner {
     ///
     /// [`Symbol::as_str()`] should be used in preference to this function.
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.borrow().strings.get_index(symbol.as_u32() as usize).unwrap()
+        self.0.lock().strings.get_index(symbol.as_u32() as usize).unwrap()
     }
 }
 

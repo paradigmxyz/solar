@@ -229,20 +229,8 @@ mod no_sync {
 impl<T> Lock<T> {
     #[inline(always)]
     #[track_caller]
-    pub fn with_lock<F: FnOnce(&mut T) -> R, R>(&self, f: F) -> R {
+    pub fn with_lock<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         f(&mut *self.lock())
-    }
-
-    #[inline(always)]
-    #[track_caller]
-    pub fn borrow(&self) -> LockGuard<'_, T> {
-        self.lock()
-    }
-
-    #[inline(always)]
-    #[track_caller]
-    pub fn borrow_mut(&self) -> LockGuard<'_, T> {
-        self.lock()
     }
 }
 
@@ -255,18 +243,11 @@ impl<T: Default> Default for Lock<T> {
 
 impl<T: fmt::Debug> fmt::Debug for Lock<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("Lock");
         match self.try_lock() {
-            Some(guard) => f.debug_struct("Lock").field("data", &&*guard).finish(),
-            None => {
-                struct LockedPlaceholder;
-                impl fmt::Debug for LockedPlaceholder {
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                        f.write_str("<locked>")
-                    }
-                }
-
-                f.debug_struct("Lock").field("data", &LockedPlaceholder).finish()
-            }
-        }
+            Some(guard) => s.field("data", &&*guard),
+            None => s.field("data", &format_args!("<locked")),
+        };
+        s.finish()
     }
 }

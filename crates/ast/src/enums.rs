@@ -19,12 +19,13 @@ pub enum StateMutability {
 
 impl fmt::Display for StateMutability {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.to_str())
     }
 }
 
 impl StateMutability {
-    pub const fn as_str(&self) -> &'static str {
+    /// Returns the string representation of the state mutability.
+    pub const fn to_str(self) -> &'static str {
         match self {
             Self::Pure => "pure",
             Self::View => "view",
@@ -59,12 +60,13 @@ pub enum ContractKind {
 
 impl fmt::Display for ContractKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        f.write_str(self.to_str())
     }
 }
 
 impl ContractKind {
-    pub const fn as_str(&self) -> &'static str {
+    /// Returns the string representation of the contract kind.
+    pub const fn to_str(self) -> &'static str {
         match self {
             Self::Interface => "interface",
             Self::Contract => "contract",
