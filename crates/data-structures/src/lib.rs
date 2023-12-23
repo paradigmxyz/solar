@@ -16,9 +16,9 @@
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
 #![cfg_attr(feature = "nightly", allow(internal_features))]
 
-pub mod fx;
 pub mod hint;
 pub mod index;
+pub mod map;
 pub mod sync;
 
 mod never;

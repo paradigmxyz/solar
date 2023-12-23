@@ -23,6 +23,8 @@ rsolc-macros = { version = "0.0.0", path = "crates/macros" }
 rsolc-parser = { version = "0.0.0", path = "crates/parser" }
 rsolc-span = { version = "0.0.0", path = "crates/span" }
 
+alloy-primitives = "0.5"
+
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -32,9 +34,15 @@ syn = "2.0"
 rayon = "1.8"
 parking_lot = "0.12"
 
+# testing
+criterion = "0.5"
+rand = "0.8"
+
 # misc
+ahash = "0.8"
 bumpalo = "3.14"
 expect-test = "1.4"
+hex = { package = "const-hex", version = "1.10" }
 indexmap = "2.1"
 rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"

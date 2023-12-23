@@ -13,6 +13,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+ahash.workspace = true
 smallvec = { workspace = true, features = ["union"] }
 rustc-hash.workspace = true
 indexmap.workspace = true

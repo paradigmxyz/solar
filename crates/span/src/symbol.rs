@@ -1,5 +1,5 @@
 use crate::{with_session_globals, Span};
-use rsolc_data_structures::{fx::FxIndexSet, index::BaseIndex32, sync::Lock};
+use rsolc_data_structures::{index::BaseIndex32, map::FxIndexSet, sync::Lock};
 use rsolc_macros::symbols;
 use std::{cmp, fmt, hash, str};
 
