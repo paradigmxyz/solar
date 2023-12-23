@@ -1,11 +1,11 @@
-//! Shared macros for `rsolc`.
+//! Shared macros for `sulk`.
 //!
 //! Modified from [`rustc_macros`](https://github.com/rust-lang/rust/blob/661b33f5247debc4e0cd948caa388997e18e9cb8/compiler/rustc_macros/src/lib.rs)
 //! and [`rustc_index_macros`](https://github.com/rust-lang/rust/blob/f1eee2843fd3e62c71d993f732082b28cb5b22a0/compiler/rustc_index_macros).
 
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/danipopes/rsolc/main/assets/logo.jpg",
-    html_favicon_url = "https://raw.githubusercontent.com/danipopes/rsolc/main/assets/favicon.ico"
+    html_logo_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/logo.jpg",
+    html_favicon_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/favicon.ico"
 )]
 #![warn(rustdoc::all)]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]

@@ -1,5 +1,5 @@
-use rsolc_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
-use rsolc_interface::{sym, BytePos, Pos, Span, Symbol};
+use sulk_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
+use sulk_interface::{sym, BytePos, Pos, Span, Symbol};
 
 pub mod cursor;
 pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, Cursor};

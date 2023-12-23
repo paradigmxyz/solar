@@ -22,7 +22,7 @@
 //!
 //! cd crates/interface
 //! # The output is large.
-//! cargo +nightly expand > /tmp/rsolc_interface.rs
+//! cargo +nightly expand > /tmp/sulk_interface.rs
 //! ```
 
 use proc_macro2::{Span, TokenStream};

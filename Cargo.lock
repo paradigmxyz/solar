@@ -357,59 +357,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
 
 [[package]]
-name = "rsolc-ast"
-version = "0.0.0"
-dependencies = [
- "rsolc-data-structures",
- "rsolc-interface",
- "rsolc-macros",
-]
-
-[[package]]
-name = "rsolc-data-structures"
-version = "0.0.0"
-dependencies = [
- "ahash",
- "index_vec",
- "indexmap",
- "parking_lot",
- "rayon",
- "rustc-hash",
- "smallvec",
-]
-
-[[package]]
-name = "rsolc-interface"
-version = "0.0.0"
-dependencies = [
- "bumpalo",
- "rsolc-data-structures",
- "rsolc-macros",
- "scoped-tls",
-]
-
-[[package]]
-name = "rsolc-macros"
-version = "0.0.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "rsolc-parser"
-version = "0.0.0"
-dependencies = [
- "const-hex",
- "expect-test",
- "rsolc-ast",
- "rsolc-interface",
- "unicode-ident",
- "unicode-normalization",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -452,6 +399,59 @@ name = "smallvec"
 version = "1.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4dccd0940a2dcdf68d092b8cbab7dc0ad8fa938bf95787e1b916b0e3d0e8e970"
+
+[[package]]
+name = "sulk-ast"
+version = "0.0.0"
+dependencies = [
+ "sulk-data-structures",
+ "sulk-interface",
+ "sulk-macros",
+]
+
+[[package]]
+name = "sulk-data-structures"
+version = "0.0.0"
+dependencies = [
+ "ahash",
+ "index_vec",
+ "indexmap",
+ "parking_lot",
+ "rayon",
+ "rustc-hash",
+ "smallvec",
+]
+
+[[package]]
+name = "sulk-interface"
+version = "0.0.0"
+dependencies = [
+ "bumpalo",
+ "scoped-tls",
+ "sulk-data-structures",
+ "sulk-macros",
+]
+
+[[package]]
+name = "sulk-macros"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "sulk-parser"
+version = "0.0.0"
+dependencies = [
+ "const-hex",
+ "expect-test",
+ "sulk-ast",
+ "sulk-interface",
+ "unicode-ident",
+ "unicode-normalization",
+]
 
 [[package]]
 name = "syn"

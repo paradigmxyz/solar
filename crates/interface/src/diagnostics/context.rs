@@ -2,7 +2,7 @@ use super::{
     Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter, EmissionGuarantee,
     ErrorGuaranteed, FatalAbort, Level,
 };
-use rsolc_data_structures::{map::FxHashSet, sync::Lock};
+use sulk_data_structures::{map::FxHashSet, sync::Lock};
 
 /// A handler deals with errors and other compiler output.
 /// Certain errors (fatal, bug, unimpl) may cause immediate exit,
@@ -174,7 +174,7 @@ impl DiagCtxtInner {
     /// Inserts the given diagnostic into the set of emitted diagnostics.
     /// Returns `true` if the diagnostic was already emitted.
     fn insert_diagnostic<H: std::hash::Hash>(&mut self, diag: &H) -> bool {
-        let hash = rsolc_data_structures::map::ahash::RandomState::new().hash_one(diag);
+        let hash = sulk_data_structures::map::ahash::RandomState::new().hash_one(diag);
         !self.emitted_diagnostics.insert(hash)
     }
 

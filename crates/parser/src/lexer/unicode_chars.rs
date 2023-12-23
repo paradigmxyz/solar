@@ -3,8 +3,8 @@
 
 use super::StringReader;
 use crate::errors::TokenSubstitution;
-use rsolc_ast::token::{BinOpToken, Delimiter, TokenKind};
-use rsolc_interface::{sym, BytePos, Pos, Span};
+use sulk_ast::token::{BinOpToken, Delimiter, TokenKind};
+use sulk_interface::{sym, BytePos, Pos, Span};
 
 #[rustfmt::skip] // for line breaks
 pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[

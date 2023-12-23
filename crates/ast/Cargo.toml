@@ -1,7 +1,7 @@
 [package]
-name = "rsolc-ast"
+name = "sulk-ast"
 description = "Solidity Abstract Syntax Tree"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/ast"
+homepage = "https://github.com/danipopes/sulk/blob/master/crates/ast"
 
 version.workspace = true
 authors.workspace = true
@@ -13,9 +13,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-data-structures.workspace = true
-rsolc-macros.workspace = true
-rsolc-interface.workspace = true
+sulk-data-structures.workspace = true
+sulk-macros.workspace = true
+sulk-interface.workspace = true
 
 [features]
-nightly = ["rsolc-data-structures/nightly", "rsolc-macros/nightly", "rsolc-interface/nightly"]
+nightly = ["sulk-data-structures/nightly", "sulk-macros/nightly", "sulk-interface/nightly"]

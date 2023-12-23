@@ -3,7 +3,7 @@ use super::{
     Level, MultiSpan, Style,
 };
 use core::fmt;
-use rsolc_data_structures::Never;
+use sulk_data_structures::Never;
 use std::{
     marker::PhantomData,
     mem::ManuallyDrop,

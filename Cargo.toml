@@ -8,7 +8,7 @@ edition = "2021"
 rust-version = "1.74"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/danipopes/rsolc"
+repository = "https://github.com/danipopes/sulk"
 keywords = ["ethereum", "solidity", "solc", "crypto", "compiler"]
 categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
 
@@ -17,11 +17,11 @@ all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.dependencies]
-rsolc-ast = { version = "0.0.0", path = "crates/ast" }
-rsolc-data-structures = { version = "0.0.0", path = "crates/data-structures" }
-rsolc-interface = { version = "0.0.0", path = "crates/interface" }
-rsolc-macros = { version = "0.0.0", path = "crates/macros" }
-rsolc-parser = { version = "0.0.0", path = "crates/parser" }
+sulk-ast = { version = "0.0.0", path = "crates/ast" }
+sulk-data-structures = { version = "0.0.0", path = "crates/data-structures" }
+sulk-interface = { version = "0.0.0", path = "crates/interface" }
+sulk-macros = { version = "0.0.0", path = "crates/macros" }
+sulk-parser = { version = "0.0.0", path = "crates/parser" }
 
 alloy-primitives = "0.5"
 

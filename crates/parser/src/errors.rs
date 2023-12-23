@@ -1,4 +1,4 @@
-use rsolc_interface::Span;
+use sulk_interface::Span;
 
 // #[derive(Subdiagnostic)]
 pub enum TokenSubstitution {

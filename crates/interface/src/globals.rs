@@ -1,4 +1,4 @@
-// use rsolc_data_structures::sync::{Lock, Lrc};
+// use sulk_data_structures::sync::{Lock, Lrc};
 
 /// Per-session global variables: this struct is stored in thread-local storage
 /// in such a way that it is accessible without any kind of handle to all

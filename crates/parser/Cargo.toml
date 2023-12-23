@@ -1,7 +1,7 @@
 [package]
-name = "rsolc-parser"
+name = "sulk-parser"
 description = "Solidity parser"
-homepage = "https://github.com/danipopes/rsolc/blob/master/crates/parser"
+homepage = "https://github.com/danipopes/sulk/blob/master/crates/parser"
 
 version.workspace = true
 authors.workspace = true
@@ -13,8 +13,8 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-rsolc-ast.workspace = true
-rsolc-interface.workspace = true
+sulk-ast.workspace = true
+sulk-interface.workspace = true
 
 hex.workspace = true
 unicode-ident.workspace = true
@@ -24,4 +24,4 @@ unicode-normalization.workspace = true
 expect-test.workspace = true
 
 [features]
-nightly = ["rsolc-ast/nightly", "rsolc-interface/nightly"]
+nightly = ["sulk-ast/nightly", "sulk-interface/nightly"]

@@ -1,6 +1,6 @@
 use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
-use rsolc_data_structures::sync::Lrc;
+use sulk_data_structures::sync::Lrc;
 
 /// Dynamic diagnostic emitter. See [`Emitter`].
 pub type DynEmitter = dyn Emitter + Send;
