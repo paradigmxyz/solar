@@ -119,7 +119,8 @@ fn parse_literal_unescape(
 }
 
 /// Unescapes the contents of a string literal (without quotes).
-/// Values are returned through invoking of the provided callback.
+///
+/// The callback is invoked with a range and either a unicode code point or an error.
 pub fn unescape_literal<F>(src: &str, mode: Mode, callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
@@ -172,8 +173,9 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
     })
 }
 
-/// Takes a contents of a string literal (without quotes) and produces a sequence of escaped
-/// characters or errors.
+/// Unescape characters in a string literal.
+///
+/// See [`unescape_literal`] for more details.
 fn unescape_str<F>(src: &str, is_unicode: bool, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
@@ -187,7 +189,8 @@ where
         let res = match c {
             '\\' => match chars.clone().next() {
                 Some('\n') => {
-                    skip_ascii_whitespace(&mut chars, start, &mut callback);
+                    // +1 for the '\\' character.
+                    skip_ascii_whitespace(&mut chars, start + 1, &mut callback);
                     continue;
                 }
                 _ => scan_escape(&mut chars),
@@ -202,27 +205,38 @@ where
     }
 }
 
-fn skip_ascii_whitespace<F>(chars: &mut Chars<'_>, start: usize, callback: &mut F)
+/// Skips over whitespace after a "\\\n" escape sequence.
+///
+/// Reports errors if multiple newlines are encountered.
+fn skip_ascii_whitespace<F>(chars: &mut Chars<'_>, mut start: usize, callback: &mut F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     // Skip the first newline.
-    let tail = &chars.as_str()[1..];
-    let first_non_space =
-        tail.bytes().position(|b| !matches!(b, b' ' | b'\t')).unwrap_or(tail.len());
-    let mut tail = &tail[first_non_space..];
-    if let Some(tail2) = tail.strip_prefix('\n').or_else(|| tail.strip_prefix("\r\n")) {
-        tail = tail2;
-        // +1 for the first newline.
-        let start = start + 1 + first_non_space;
-        let end = start + 1;
-        callback(start..end, Err(EscapeError::CannotSkipMultipleLines));
+    let nl = chars.next();
+    debug_assert_eq!(nl, Some('\n'));
+    let mut tail = chars.as_str();
+    start += 1;
+
+    while tail.starts_with(|c: char| c.is_ascii_whitespace()) {
+        let first_non_space =
+            tail.bytes().position(|b| !matches!(b, b' ' | b'\t')).unwrap_or(tail.len());
+        tail = &tail[first_non_space..];
+        start += first_non_space;
+
+        if let Some(tail2) = tail.strip_prefix('\n').or_else(|| tail.strip_prefix("\r\n")) {
+            let skipped = tail.len() - tail2.len();
+            tail = tail2;
+            callback(start..start + skipped, Err(EscapeError::CannotSkipMultipleLines));
+            start += skipped;
+        }
     }
     *chars = tail.chars();
 }
 
-/// Takes a contents of a hex literal (without quotes) and produces a sequence of escaped characters
-/// or errors.
+/// Unescape characters in a hex string literal.
+///
+/// See [`unescape_literal`] for more details.
 fn unescape_hex_str<F>(src: &str, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
@@ -346,9 +360,30 @@ mod tests {
             ("\\\n", "", &[]),
             ("\\\na", "a", &[]),
             ("\\\n  a", "a", &[]),
+            ("a \\\n  b", "a b", &[]),
+            ("a\\n\\\n  b", "a\nb", &[]),
+            ("a\\t\\\n  b", "a\tb", &[]),
+            ("a\\n \\\n  b", "a\n b", &[]),
+            ("a\\n \\\n \tb", "a\n b", &[]),
+            ("a\\t \\\n  b", "a\t b", &[]),
             ("\\\n \t a", "a", &[]),
             (" \\\n \t a", " a", &[]),
             ("\\\n \t a\n", "a", &[(6..7, StrNewline)]),
+            ("\\\n   \t   ", "", &[]),
+            (" \\\n   \t   ", " ", &[]),
+            (" he\\\n \\\nllo \\\n wor\\\nld", " hello world", &[]),
+            ("\\\n\na\\\nb", "ab", &[(2..3, CannotSkipMultipleLines)]),
+            ("\\\n \na\\\nb", "ab", &[(3..4, CannotSkipMultipleLines)]),
+            (
+                "\\\n \n\na\\\nb",
+                "ab",
+                &[(3..4, CannotSkipMultipleLines), (4..5, CannotSkipMultipleLines)],
+            ),
+            (
+                "a\\\n \n \t \nb\\\nc",
+                "abc",
+                &[(4..5, CannotSkipMultipleLines), (8..9, CannotSkipMultipleLines)],
+            ),
         ];
         for &(src, expected_str, expected_errs) in cases {
             check(Mode::Str, src, expected_str, expected_errs);
