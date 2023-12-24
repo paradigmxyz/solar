@@ -18,18 +18,19 @@ pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
 
 /// Useful type to use with [`Result`] indicate that an error has already been reported to the user,
 /// so no need to continue checking.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ErrorGuaranteed(());
 
 /// Marker type which enables implementation of `create_bug` and `emit_bug` functions for
 /// bug diagnostics.
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BugAbort;
 
 /// Marker type which enables implementation of fatal diagnostics.
 pub struct FatalAbort(());
 
 /// Used as a return value to signify that a fatal error occurred.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[must_use]
 pub struct FatalError;
 

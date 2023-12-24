@@ -111,7 +111,7 @@ impl_pos! {
     /// A byte offset.
     ///
     /// Keep this small (currently 32-bits), as AST contains a lot of them.
-    #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct BytePos(pub u32);
 
     /// A character offset.
@@ -119,6 +119,6 @@ impl_pos! {
     /// Because of multibyte UTF-8 characters, a byte offset
     /// is not equivalent to a character offset. The [`SourceMap`](crate::SourceMap) will convert
     /// [`BytePos`] values to `CharPos` values as necessary.
-    #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CharPos(pub usize);
 }
