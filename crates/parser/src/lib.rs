@@ -9,11 +9,7 @@
 #![deny(unused_must_use, rust_2018_idioms)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-// TODO
-use unicode_ident as _;
-use unicode_normalization as _;
-
-pub mod errors;
 pub mod lexer;
 
-// TODO: Parser
+mod session;
+pub use session::ParseSess;

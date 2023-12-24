@@ -52,16 +52,56 @@ impl FatalError {
 }
 
 /// Diagnostic ID.
+///
+/// Use [`error_code!`] to create an error code diagnostic ID.
+///
+/// # Examples
+///
+/// ```
+/// # use sulk_interface::error_code;
+/// assert_eq!(error_code!(E1234).id(), 1234);
+/// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DiagnosticId {
-    /// A diagnostic with a fixed ID.
-    Int(u32),
+pub struct DiagnosticId {
+    /// The ID of the diagnostic.
+    id: u32,
 }
 
-impl From<u32> for DiagnosticId {
-    fn from(id: u32) -> Self {
-        Self::Int(id)
+impl DiagnosticId {
+    /// Creates an error code diagnostic ID.
+    ///
+    /// Use [`error_code!`] instead.
+    #[doc(hidden)]
+    #[track_caller]
+    pub const fn new_from_macro(s: &'static str) -> Self {
+        let [b'E', bytes @ ..] = s.as_bytes() else { panic!("error codes must start with 'E'") };
+        assert!(bytes.len() == 4, "error codes must be exactly 4 digits long");
+
+        let mut bytes = bytes;
+        let mut id = 0;
+        while let &[byte, ref rest @ ..] = bytes {
+            assert!(byte.is_ascii_digit(), "error codes must be decimal");
+            id = id * 10 + (byte - b'0') as u32;
+            bytes = rest;
+        }
+        Self { id }
     }
+
+    /// Returns the internal ID.
+    #[inline]
+    pub const fn id(&self) -> u32 {
+        self.id
+    }
+}
+
+/// Used for creating an error code.
+#[macro_export]
+macro_rules! error_code {
+    ($id:ident) => {{
+        const $id: $crate::diagnostics::DiagnosticId =
+            $crate::diagnostics::DiagnosticId::new_from_macro(stringify!($id));
+        $id
+    }};
 }
 
 /// Diagnostic level.
@@ -226,8 +266,8 @@ impl std::hash::Hash for Diagnostic {
 impl Diagnostic {
     /// Creates a new `Diagnostic` with a single message.
     #[track_caller]
-    pub fn new<M: Into<DiagnosticMessage>>(level: Level, message: M) -> Self {
-        Self::new_with_messages(level, vec![(message.into(), Style::NoStyle)])
+    pub fn new<M: Into<DiagnosticMessage>>(level: Level, msg: M) -> Self {
+        Self::new_with_messages(level, vec![(msg.into(), Style::NoStyle)])
     }
 
     /// Creates a new `Diagnostic` with multiple messages.
@@ -295,8 +335,8 @@ impl Diagnostic {
 /// Sub-diagnostics.
 impl Diagnostic {
     /// Add a warning attached to this diagnostic.
-    pub fn warn(&mut self, message: impl Into<DiagnosticMessage>) -> &mut Self {
-        self.sub(Level::Warning, message, MultiSpan::new())
+    pub fn warn(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.sub(Level::Warning, msg, MultiSpan::new())
     }
 
     /// Prints the span with a warning above it.
@@ -304,14 +344,14 @@ impl Diagnostic {
     pub fn span_warn(
         &mut self,
         span: impl Into<MultiSpan>,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
     ) -> &mut Self {
-        self.sub(Level::Warning, message, span)
+        self.sub(Level::Warning, msg, span)
     }
 
     /// Add a note to this diagnostic.
-    pub fn note(&mut self, message: impl Into<DiagnosticMessage>) -> &mut Self {
-        self.sub(Level::Note, message, MultiSpan::new())
+    pub fn note(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.sub(Level::Note, msg, MultiSpan::new())
     }
 
     /// Prints the span with a note above it.
@@ -319,9 +359,9 @@ impl Diagnostic {
     pub fn span_note(
         &mut self,
         span: impl Into<MultiSpan>,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
     ) -> &mut Self {
-        self.sub(Level::Note, message, span)
+        self.sub(Level::Note, msg, span)
     }
 
     pub fn highlighted_note(
@@ -333,8 +373,8 @@ impl Diagnostic {
 
     /// Prints the span with a note above it.
     /// This is like [`Diagnostic::note()`], but it gets emitted only once.
-    pub fn note_once(&mut self, message: impl Into<DiagnosticMessage>) -> &mut Self {
-        self.sub(Level::OnceNote, message, MultiSpan::new())
+    pub fn note_once(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.sub(Level::OnceNote, msg, MultiSpan::new())
     }
 
     /// Prints the span with a note above it.
@@ -342,28 +382,28 @@ impl Diagnostic {
     pub fn span_note_once(
         &mut self,
         span: impl Into<MultiSpan>,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
     ) -> &mut Self {
-        self.sub(Level::OnceNote, message, span)
+        self.sub(Level::OnceNote, msg, span)
     }
 
     /// Add a help message attached to this diagnostic.
-    pub fn help(&mut self, message: impl Into<DiagnosticMessage>) -> &mut Self {
-        self.sub(Level::Help, message, MultiSpan::new())
+    pub fn help(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.sub(Level::Help, msg, MultiSpan::new())
     }
 
     /// Prints the span with a help above it.
     /// This is like [`Diagnostic::help()`], but it gets its own span.
-    pub fn help_once(&mut self, message: impl Into<DiagnosticMessage>) -> &mut Self {
-        self.sub(Level::OnceHelp, message, MultiSpan::new())
+    pub fn help_once(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.sub(Level::OnceHelp, msg, MultiSpan::new())
     }
 
     /// Add a help message attached to this diagnostic with a customizable highlighted message.
     pub fn highlighted_help(
         &mut self,
-        messages: Vec<(impl Into<DiagnosticMessage>, Style)>,
+        msgs: Vec<(impl Into<DiagnosticMessage>, Style)>,
     ) -> &mut Self {
-        self.sub_with_highlights(Level::Help, messages, MultiSpan::new())
+        self.sub_with_highlights(Level::Help, msgs, MultiSpan::new())
     }
 
     /// Prints the span with some help above it.
@@ -371,20 +411,20 @@ impl Diagnostic {
     pub fn span_help(
         &mut self,
         span: impl Into<MultiSpan>,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
     ) -> &mut Self {
-        self.sub(Level::Help, message, span)
+        self.sub(Level::Help, msg, span)
     }
 
     fn sub(
         &mut self,
         level: Level,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
         span: impl Into<MultiSpan>,
     ) -> &mut Self {
         self.children.push(SubDiagnostic {
             level,
-            messages: vec![(message.into(), Style::NoStyle)],
+            messages: vec![(msg.into(), Style::NoStyle)],
             span: span.into(),
         });
         self

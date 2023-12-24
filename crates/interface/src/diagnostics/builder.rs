@@ -128,8 +128,8 @@ impl<'a, G: EmissionGuarantee> Drop for DiagnosticBuilder<'a, G> {
 impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     /// Creates a new `DiagnosticBuilder`.
     #[track_caller]
-    pub fn new<M: Into<DiagnosticMessage>>(dcx: &'a DiagCtxt, level: Level, message: M) -> Self {
-        Self::new_diagnostic(dcx, Diagnostic::new(level, message))
+    pub fn new<M: Into<DiagnosticMessage>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
+        Self::new_diagnostic(dcx, Diagnostic::new(level, msg))
     }
 
     /// Creates a new `DiagnosticBuilder` with an already constructed diagnostic.
@@ -197,18 +197,18 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
         pub fn span(span: impl Into<MultiSpan>);
         pub fn code(code: impl Into<DiagnosticId>);
 
-        pub fn warn(message: impl Into<DiagnosticMessage>);
-        pub fn span_warn(span: impl Into<MultiSpan>, message: impl Into<DiagnosticMessage>);
+        pub fn warn(msg: impl Into<DiagnosticMessage>);
+        pub fn span_warn(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
 
-        pub fn note(message: impl Into<DiagnosticMessage>);
-        pub fn span_note(span: impl Into<MultiSpan>, message: impl Into<DiagnosticMessage>);
+        pub fn note(msg: impl Into<DiagnosticMessage>);
+        pub fn span_note(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
         pub fn highlighted_note(messages: Vec<(impl Into<DiagnosticMessage>, Style)>);
-        pub fn note_once(message: impl Into<DiagnosticMessage>);
-        pub fn span_note_once(span: impl Into<MultiSpan>, message: impl Into<DiagnosticMessage>);
+        pub fn note_once(msg: impl Into<DiagnosticMessage>);
+        pub fn span_note_once(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
 
-        pub fn help(message: impl Into<DiagnosticMessage>);
-        pub fn help_once(message: impl Into<DiagnosticMessage>);
+        pub fn help(msg: impl Into<DiagnosticMessage>);
+        pub fn help_once(msg: impl Into<DiagnosticMessage>);
         pub fn highlighted_help(messages: Vec<(impl Into<DiagnosticMessage>, Style)>);
-        pub fn span_help(span: impl Into<MultiSpan>, message: impl Into<DiagnosticMessage>);
+        pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
     }
 }

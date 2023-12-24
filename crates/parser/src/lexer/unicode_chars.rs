@@ -1,8 +1,9 @@
 //! Characters and their corresponding confusables were collected from
 //! <https://www.unicode.org/Public/security/10.0.0/confusables.txt>
 
-use super::StringReader;
-use crate::errors::TokenSubstitution;
+#![allow(unused_imports, dead_code)]
+
+use super::Lexer;
 use sulk_ast::token::{BinOpToken, Delimiter, TokenKind};
 use sulk_interface::{sym, BytePos, Pos, Span};
 
@@ -330,8 +331,9 @@ const ASCII_ARRAY: &[(&str, &str, Option<TokenKind>)] = &[
     ("\"", "Quotation Mark", None),
 ];
 
+#[cfg(TODO)]
 pub(super) fn check_for_substitution(
-    reader: &StringReader<'_>,
+    reader: &Lexer<'_>,
     pos: BytePos,
     ch: char,
     count: usize,

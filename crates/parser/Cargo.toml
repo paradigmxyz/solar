@@ -17,8 +17,8 @@ sulk-ast.workspace = true
 sulk-interface.workspace = true
 
 hex.workspace = true
-unicode-ident.workspace = true
-unicode-normalization.workspace = true
+# unicode-ident.workspace = true
+# unicode-normalization.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true

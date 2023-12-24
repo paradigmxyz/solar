@@ -227,7 +227,6 @@ impl<'a> Cursor<'a> {
         self.eat_while(is_id_continue);
         // Known prefixes must have been handled earlier.
         // So if we see a prefix here, it is definitely an unknown prefix.
-        // self.eat_identifier();
         match self.first() {
             '"' | '\'' => TokenKind::UnknownPrefix,
             _ => TokenKind::Ident,
@@ -240,6 +239,16 @@ impl<'a> Cursor<'a> {
         if first_digit == '0' {
             // Attempt to parse encoding base.
             let has_digits = match self.first() {
+                'b' => {
+                    base = Base::Binary;
+                    self.bump();
+                    self.eat_decimal_digits()
+                }
+                'o' => {
+                    base = Base::Octal;
+                    self.bump();
+                    self.eat_decimal_digits()
+                }
                 'x' => {
                     base = Base::Hexadecimal;
                     self.bump();
@@ -253,8 +262,7 @@ impl<'a> Cursor<'a> {
                 // Just a 0.
                 _ => return LiteralKind::Int { base, empty_int: false },
             };
-            // Base prefix was provided, but there were no digits
-            // after it, e.g. "0x".
+            // Base prefix was provided, but there were no digits after it, e.g. "0x".
             if !has_digits {
                 return LiteralKind::Int { base, empty_int: true };
             }
@@ -308,6 +316,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// Eats a string until the given quote character. Returns whether the string was terminated.
     fn eat_string(&mut self, quote: char) -> bool {
         debug_assert_eq!(self.prev(), quote);
         while let Some(c) = self.bump() {
@@ -362,24 +371,11 @@ impl<'a> Cursor<'a> {
     /// Eats the exponent. Returns whether any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
         debug_assert!(self.prev() == 'e' || self.prev() == 'E');
-        // '+' is not a valid prefix for an exponent
+        // '+' is not a valid prefix for an exponent.
         if self.first() == '-' {
             self.bump();
         }
         self.eat_decimal_digits()
-    }
-
-    /// Eats the identifier.
-    ///
-    /// Note: succeeds on `_`, which isn't a valid identifier.
-    #[allow(dead_code)]
-    fn eat_identifier(&mut self) {
-        if !is_id_start(self.first()) {
-            return;
-        }
-        self.bump();
-
-        self.eat_while(is_id_continue);
     }
 
     /// Returns the remaining input as a string slice.
@@ -387,18 +383,10 @@ impl<'a> Cursor<'a> {
         self.chars.as_str()
     }
 
-    /// Returns the last eaten symbol (or `'\0'` in release builds).
-    /// (For debug assertions only.)
+    /// Returns the last eaten symbol.
+    #[cfg(debug_assertions)]
     fn prev(&self) -> char {
-        #[cfg(debug_assertions)]
-        {
-            self.prev
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            EOF_CHAR
-        }
+        self.prev
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
@@ -451,7 +439,6 @@ impl<'a> Cursor<'a> {
     }
 
     /// Advances `n` characters, without setting `prev`.
-    #[inline]
     fn ignore(&mut self, n: usize) {
         for _ in 0..n {
             self.chars.next();

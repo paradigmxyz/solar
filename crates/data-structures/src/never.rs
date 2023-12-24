@@ -13,7 +13,6 @@ impl<T> GetReturnType for fn() -> T {
 
 /// The [`!` (never)](primitive@never) type.
 #[cfg(not(feature = "nightly"))]
-#[allow(private_interfaces)]
 pub type Never = <fn() -> ! as GetReturnType>::ReturnType;
 
 /// The [`!` (never)](primitive@never) type.

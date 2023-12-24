@@ -75,52 +75,46 @@ impl DiagCtxt {
 ///
 /// Note that methods returning a [`DiagnosticBuilder`] must also marked with `#[track_caller]`.
 impl DiagCtxt {
-    /// Creates a builder at the given `level` with the given `message`.
+    /// Creates a builder at the given `level` with the given `msg`.
     #[track_caller]
     pub fn diag<G: EmissionGuarantee>(
         &self,
         level: Level,
-        message: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagnosticMessage>,
     ) -> DiagnosticBuilder<'_, G> {
-        DiagnosticBuilder::new(self, level, message)
+        DiagnosticBuilder::new(self, level, msg)
     }
 
-    /// Creates a builder at the `Fatal` level with the given `message`.
+    /// Creates a builder at the `Fatal` level with the given `msg`.
     #[track_caller]
-    pub fn fatal(
-        &self,
-        message: impl Into<DiagnosticMessage>,
-    ) -> DiagnosticBuilder<'_, FatalAbort> {
-        self.diag(Level::Fatal, message)
+    pub fn fatal(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
+        self.diag(Level::Fatal, msg)
     }
 
-    /// Creates a builder at the `Error` level with the given `message`.
+    /// Creates a builder at the `Error` level with the given `msg`.
     #[track_caller]
-    pub fn err(
-        &self,
-        message: impl Into<DiagnosticMessage>,
-    ) -> DiagnosticBuilder<'_, ErrorGuaranteed> {
-        self.diag(Level::Error, message)
+    pub fn err(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ErrorGuaranteed> {
+        self.diag(Level::Error, msg)
     }
 
-    /// Creates a builder at the `Warning` level with the given `message`.
+    /// Creates a builder at the `Warning` level with the given `msg`.
     ///
     /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
     #[track_caller]
-    pub fn warn(&self, message: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
-        self.diag(Level::Warning, message)
+    pub fn warn(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+        self.diag(Level::Warning, msg)
     }
 
-    /// Creates a builder at the `Help` level with the given `message`.
+    /// Creates a builder at the `Help` level with the given `msg`.
     #[track_caller]
-    pub fn help(&self, message: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
-        self.diag(Level::Help, message)
+    pub fn help(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+        self.diag(Level::Help, msg)
     }
 
-    /// Creates a builder at the `Note` level with the given `message`.
+    /// Creates a builder at the `Note` level with the given `msg`.
     #[track_caller]
-    pub fn note(&self, message: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
-        self.diag(Level::Note, message)
+    pub fn note(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+        self.diag(Level::Note, msg)
     }
 }
 

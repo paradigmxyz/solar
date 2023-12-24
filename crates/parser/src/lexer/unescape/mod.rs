@@ -2,57 +2,9 @@
 
 use std::{ops::Range, slice, str::Chars};
 
-/// Errors and warnings that can occur during string unescaping.
-#[derive(Debug, PartialEq, Eq)]
-pub enum EscapeError {
-    /// Escaped '\' character without continuation.
-    LoneSlash,
-    /// Invalid escape character (e.g. '\z').
-    InvalidEscape,
-    /// Raw '\r' encountered.
-    BareCarriageReturn,
-    /// Can only skip one line of whitespace.
-    ///
-    /// ```text
-    /// "this is \
-    ///  ok" == "this is ok";
-    ///
-    /// "this is \
-    ///  \
-    ///  also ok" == "this is also ok";
-    ///
-    /// "this is \
-    ///  
-    ///  not ok"; // error: cannot skip multiple lines
-    /// ```
-    CannotSkipMultipleLines,
-
-    /// Numeric character escape is too short (e.g. '\x1').
-    HexEscapeTooShort,
-    /// Invalid character in numeric escape (e.g. '\xz1').
-    HexEscapeInvalidChar,
-
-    /// Unicode character escape is too short (e.g. '\u1').
-    UnicodeEscapeTooShort,
-    /// Invalid character in unicode character escape (e.g. '\uz111').
-    UnicodeEscapeInvalidChar,
-    /// Invalid in-bound unicode character code (e.g. '\uDFFF').
-    UnicodeEscapeLoneSurrogate,
-
-    /// Newline in string literal. These must be escaped.
-    StrNewline,
-    /// Non-ASCII character in non-unicode literal.
-    StrNonAsciiChar,
-
-    /// Non hex-digit character in hex literal.
-    HexNotHexDigit,
-    /// Underscore in hex literal.
-    HexBadUnderscore,
-    /// Odd number of hex digits in hex literal.
-    HexOddDigits,
-    /// Hex literal with the `0x` prefix.
-    HexPrefix,
-}
+mod errors;
+pub(crate) use errors::emit_unescape_error;
+pub use errors::EscapeError;
 
 /// What kind of literal do we parse.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -152,7 +104,7 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
             let mut value = 0;
             for _ in 0..2 {
                 let d = chars.next().ok_or(EscapeError::HexEscapeTooShort)?;
-                let d = d.to_digit(16).ok_or(EscapeError::HexEscapeInvalidChar)?;
+                let d = d.to_digit(16).ok_or(EscapeError::InvalidHexEscape)?;
                 value = value * 16 + d;
             }
             value
@@ -163,7 +115,7 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
             let mut value = 0;
             for _ in 0..4 {
                 let d = chars.next().ok_or(EscapeError::UnicodeEscapeTooShort)?;
-                let d = d.to_digit(16).ok_or(EscapeError::UnicodeEscapeInvalidChar)?;
+                let d = d.to_digit(16).ok_or(EscapeError::InvalidUnicodeEscape)?;
                 value = value * 16 + d;
             }
             value
@@ -336,15 +288,15 @@ mod tests {
             (r"\\ \\", "\\ \\", &[]),
             (r"\x", "", &[(0..2, HexEscapeTooShort)]),
             (r"\x1", "", &[(0..3, HexEscapeTooShort)]),
-            (r"\xz", "", &[(0..3, HexEscapeInvalidChar)]),
-            (r"\xzf", "f", &[(0..3, HexEscapeInvalidChar)]),
-            (r"\xzz", "z", &[(0..3, HexEscapeInvalidChar)]),
+            (r"\xz", "", &[(0..3, InvalidHexEscape)]),
+            (r"\xzf", "f", &[(0..3, InvalidHexEscape)]),
+            (r"\xzz", "z", &[(0..3, InvalidHexEscape)]),
             (r"\x69", "\x69", &[]),
             (r"\xE8", "è", &[]),
             (r"\u", "", &[(0..2, UnicodeEscapeTooShort)]),
             (r"\u1", "", &[(0..3, UnicodeEscapeTooShort)]),
-            (r"\uz", "", &[(0..3, UnicodeEscapeInvalidChar)]),
-            (r"\uzf", "f", &[(0..3, UnicodeEscapeInvalidChar)]),
+            (r"\uz", "", &[(0..3, InvalidUnicodeEscape)]),
+            (r"\uzf", "f", &[(0..3, InvalidUnicodeEscape)]),
             (r"\u12", "", &[(0..4, UnicodeEscapeTooShort)]),
             (r"\u123", "", &[(0..5, UnicodeEscapeTooShort)]),
             (r"\u1234", "\u{1234}", &[]),
