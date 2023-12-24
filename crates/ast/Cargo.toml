@@ -21,8 +21,7 @@ workspace = true
 
 [dependencies]
 sulk-data-structures.workspace = true
-sulk-macros.workspace = true
 sulk-interface.workspace = true
 
 [features]
-nightly = ["sulk-data-structures/nightly", "sulk-macros/nightly", "sulk-interface/nightly"]
+nightly = ["sulk-data-structures/nightly", "sulk-interface/nightly"]

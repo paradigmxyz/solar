@@ -16,10 +16,13 @@ categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[workspace.lints.clippy]
+dbg-macro = "warn"
+
 [workspace.lints.rust]
-unreachable_pub = "warn"
-unused_must_use = "deny"
-rust_2018_idioms = "deny"
+unreachable-pub = "warn"
+unused-must-use = "deny"
+rust-2018-idioms = "deny"
 
 [workspace.lints.rustdoc]
 all = "warn"
