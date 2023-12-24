@@ -53,7 +53,7 @@ impl FatalError {
 
 /// Diagnostic ID.
 ///
-/// Use [`error_code!`] to create an error code diagnostic ID.
+/// Use [`error_code!`](crate::error_code) to create an error code diagnostic ID.
 ///
 /// # Examples
 ///
@@ -70,7 +70,7 @@ pub struct DiagnosticId {
 impl DiagnosticId {
     /// Creates an error code diagnostic ID.
     ///
-    /// Use [`error_code!`] instead.
+    /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
     #[track_caller]
     pub const fn new_from_macro(s: &'static str) -> Self {
