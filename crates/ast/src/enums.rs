@@ -8,43 +8,6 @@ pub enum VirtualLookup {
     Super,
 }
 
-// How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum StateMutability {
-    Pure,
-    View,
-    NonPayable,
-    Payable,
-}
-
-impl fmt::Display for StateMutability {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.to_str())
-    }
-}
-
-impl StateMutability {
-    /// Returns the string representation of the state mutability.
-    pub const fn to_str(self) -> &'static str {
-        match self {
-            Self::Pure => "pure",
-            Self::View => "view",
-            Self::NonPayable => "nonpayable",
-            Self::Payable => "payable",
-        }
-    }
-}
-
-/// Visibility ordered from restricted to unrestricted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Visibility {
-    Default,
-    Private,
-    Internal,
-    Public,
-    External,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Arithmetic {
     Checked,

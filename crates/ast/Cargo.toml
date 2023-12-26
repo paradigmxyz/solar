@@ -23,5 +23,7 @@ workspace = true
 sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
+semver.workspace = true
+
 [features]
 nightly = ["sulk-data-structures/nightly", "sulk-interface/nightly"]
