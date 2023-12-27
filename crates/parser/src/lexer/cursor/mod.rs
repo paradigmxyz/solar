@@ -5,7 +5,9 @@
 use std::str::Chars;
 
 mod token;
-pub use token::{Base, LiteralKind, Token, TokenKind};
+pub use token::{LiteralKind, Token, TokenKind};
+
+pub use sulk_ast::ast::Base;
 
 #[cfg(test)]
 mod tests;

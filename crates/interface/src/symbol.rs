@@ -203,8 +203,47 @@ symbols! {
 /// Given that `kw` is imported, use them like `kw::keyword_name`.
 /// For example `kw::For` or `kw::Break`.
 pub mod kw {
+    use crate::Symbol;
+
     #[doc(inline)]
     pub use super::kw_generated::*;
+
+    /// Returns the `int` keyword for the given byte (**not bit**) size.
+    ///
+    /// If `n` is 0, returns [`kw::Uint`](Int).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is greater than 32.
+    #[inline]
+    pub fn int(n: u8) -> Symbol {
+        assert!(n <= 32);
+        Symbol::new(Int.as_u32() + n as u32)
+    }
+
+    /// Returns the `uint` keyword for the given byte (**not bit**) size.
+    ///
+    /// If `n` is 0, returns [`kw::Uint`](Uint).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is greater than 32.
+    #[inline]
+    pub fn uint(n: u8) -> Symbol {
+        assert!(n <= 32);
+        Symbol::new(Uint.as_u32() + n as u32)
+    }
+
+    /// Returns the `bytes` keyword for the given byte size.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is 0 or is greater than 32.
+    #[inline]
+    pub fn fixed_bytes(n: u8) -> Symbol {
+        assert!(n > 0 && n <= 32);
+        Symbol::new(Bytes.as_u32() + n as u32)
+    }
 }
 
 // This module has a very short name because it's used a lot.

@@ -9,6 +9,9 @@ pub use expr::*;
 mod item;
 pub use item::*;
 
+mod lit;
+pub use lit::*;
+
 mod stmt;
 pub use stmt::*;
 

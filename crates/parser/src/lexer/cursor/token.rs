@@ -1,4 +1,4 @@
-use std::fmt;
+use sulk_ast::ast::Base;
 
 /// A raw token.
 ///
@@ -132,35 +132,4 @@ pub enum LiteralKind {
     Str { terminated: bool, unicode: bool },
     /// `hex"abc"`, `hex"abc`
     HexStr { terminated: bool },
-}
-
-/// Base of numeric literal encoding according to its prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Base {
-    /// Literal starts with "0b".
-    Binary = 2,
-    /// Literal starts with "0o".
-    Octal = 8,
-    /// Literal doesn't contain a prefix.
-    Decimal = 10,
-    /// Literal starts with "0x".
-    Hexadecimal = 16,
-}
-
-impl fmt::Display for Base {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name().fmt(f)
-    }
-}
-
-impl Base {
-    /// Returns the name of the base as a string.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Binary => "binary",
-            Self::Octal => "octal",
-            Self::Decimal => "decimal",
-            Self::Hexadecimal => "hexadecimal",
-        }
-    }
 }

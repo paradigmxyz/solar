@@ -134,7 +134,7 @@ impl<'a> Lexer<'a> {
                     TokenKind::Ident(sym)
                 }
                 cursor::TokenKind::Literal { kind } => {
-                    let (kind, symbol) = self.cook_lexer_literal(start, self.pos, kind);
+                    let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(Lit { kind, symbol })
                 }
 
@@ -258,7 +258,7 @@ impl<'a> Lexer<'a> {
         TokenKind::DocComment(comment_kind, Symbol::intern(content))
     }
 
-    fn cook_lexer_literal(
+    fn cook_literal(
         &self,
         start: BytePos,
         end: BytePos,

@@ -48,21 +48,6 @@ pub enum Delimiter {
     Bracket,
 }
 
-// Note that the suffix is *not* considered when deciding the `LitKind` in this
-// type. This means that float literals like `1f32` are classified by this type
-// as `Int`. Only upon conversion to `ast::LitKind` will such a literal be
-// given the `Float` kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LitKind {
-    Bool,
-    Integer,
-    Rational,
-    Str,
-    UnicodeStr,
-    HexStr,
-    Err,
-}
-
 /// A literal token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Lit {
@@ -115,11 +100,21 @@ impl fmt::Display for Lit {
             LitKind::Str => write!(f, "\"{symbol}\""),
             LitKind::UnicodeStr => write!(f, "unicode\"{symbol}\""),
             LitKind::HexStr => write!(f, "hex\"{symbol}\""),
-            LitKind::Integer | LitKind::Rational | LitKind::Bool | LitKind::Err => {
+            LitKind::Integer | LitKind::Rational | LitKind::Err => {
                 write!(f, "{symbol}")
             }
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LitKind {
+    Integer,
+    Rational,
+    Str,
+    UnicodeStr,
+    HexStr,
+    Err,
 }
 
 impl LitKind {
@@ -133,7 +128,6 @@ impl LitKind {
 
     pub fn descr(self) -> &'static str {
         match self {
-            Self::Bool => panic!("literal token contains `Lit::Bool`"),
             Self::Integer => "integer",
             Self::Rational => "rational",
             Self::Str => "string",

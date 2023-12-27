@@ -1,4 +1,4 @@
-use super::{Expr, ParameterList, Path, VariableDeclaration};
+use super::{Expr, LitStr, ParameterList, Path, VariableDeclaration};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -8,13 +8,14 @@ pub type Block = Vec<Stmt>;
 ///
 /// Solidity reference:
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.statement>
+#[derive(Clone, Debug)]
 pub struct Stmt {
     pub span: Span,
     pub kind: StmtKind,
 }
 
 /// A kind of statement.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum StmtKind {
     /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
     Assembly(StmtAssembly),
@@ -29,23 +30,23 @@ pub enum StmtKind {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Block, Box<Expr>),
+    DoWhile(Block, Expr),
 
     /// An emit statement: `emit FooBar(42);`.
     Emit(Path, ParameterList),
 
     /// An expression with a trailing semicolon.
-    Expr(Box<Expr>),
+    Expr(Expr),
 
     /// A for statement: `for (uint256 i; i < 42; ++i) { ... }`.
-    For { init: Box<Stmt>, cond: Option<Box<Expr>>, next: Option<Box<Stmt>>, block: Block },
+    For { init: Box<Stmt>, cond: Option<Expr>, next: Option<Box<Stmt>>, block: Block },
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else
     /// { ... }`.
-    If(Box<Expr>, Block, Option<Box<Stmt>>),
+    If(Expr, Block, Option<Box<Stmt>>),
 
     /// A return statement: `return 42;`.
-    Return(Box<Expr>),
+    Return(Expr),
 
     /// A revert statement: `revert Custom.Error(...);`.
     Revert(Path, ParameterList),
@@ -57,16 +58,17 @@ pub enum StmtKind {
     UncheckedBlock(Block),
 
     /// A variable declaration statement: `uint256 foo = 42;`.
-    VarDecl(VarDeclKind, Option<Box<Expr>>),
+    VarDecl(VarDeclKind, Option<Expr>),
 
     /// A while statement: `while (i < 42) { ... }`.
-    While(Box<Expr>, Block),
+    While(Expr, Block),
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
+#[derive(Clone, Debug)]
 pub struct StmtAssembly {
     /// The assembly block dialect.
-    pub dialect: LitStr,
+    pub dialect: Option<LitStr>,
     /// Additional flags.
     pub flags: Vec<LitStr>,
     /// The assembly block.
@@ -77,9 +79,9 @@ pub struct StmtAssembly {
 ///
 /// Solidity reference:
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StmtTry {
-    pub expr: Box<Expr>,
+    pub expr: Expr,
     pub returns: ParameterList,
     /// The try block.
     pub block: Block,
@@ -91,6 +93,7 @@ pub struct StmtTry {
 ///
 /// Solidity reference:
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+#[derive(Clone, Debug)]
 pub struct CatchClause {
     pub name: Option<Ident>,
     pub list: ParameterList,
@@ -98,18 +101,10 @@ pub struct CatchClause {
 }
 
 /// A kind of variable declaration statement.
+#[derive(Clone, Debug)]
 pub enum VarDeclKind {
     /// A single variable declaration: `uint x ...`.
     Single(VariableDeclaration),
     /// A tuple of variable declarations: `(uint x, uint y) ...`.
     Tuple(Vec<Option<VariableDeclaration>>),
-}
-
-impl VarDeclKind {
-    pub fn list(&self) -> &[Option<VariableDeclaration>] {
-        match self {
-            VarDeclKind::Single(decl) => std::slice::from_ref(Some(decl)),
-            VarDeclKind::Tuple(list) => list,
-        }
-    }
 }
