@@ -289,7 +289,7 @@ pub struct VariableDeclaration {
     /// Whether the variable is indexed.
     pub indexed: bool,
     /// The name of the variable.
-    /// This is always `Some` if parsed as part of [`ParameterList`] or a [`Stmt`].
+    /// This is always `Some` if parsed as part of [`ParameterList`] or a [`Stmt`](super::Stmt).
     pub name: Option<Ident>,
 }
 
