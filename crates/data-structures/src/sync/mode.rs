@@ -6,7 +6,7 @@ const DYN_THREAD_SAFE: u8 = 2;
 
 static DYN_THREAD_SAFE_MODE: AtomicU8 = AtomicU8::new(UNINITIALIZED);
 
-/// Returns whether thread safety is enabled (due to running under multiple threads).
+/// Returns `true` if thread safety is enabled (due to running under multiple threads).
 #[inline]
 pub fn is_dyn_thread_safe() -> bool {
     match DYN_THREAD_SAFE_MODE.load(Ordering::Relaxed) {
@@ -16,7 +16,7 @@ pub fn is_dyn_thread_safe() -> bool {
     }
 }
 
-/// Returns whether thread safety might be enabled.
+/// Returns `true` if thread safety might be enabled.
 #[inline]
 pub fn might_be_dyn_thread_safe() -> bool {
     DYN_THREAD_SAFE_MODE.load(Ordering::Relaxed) != DYN_NOT_THREAD_SAFE

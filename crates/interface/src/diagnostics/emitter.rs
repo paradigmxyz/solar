@@ -10,7 +10,7 @@ pub trait Emitter {
     /// Emits a diagnostic.
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic);
 
-    /// Returns whether we can use colors in the current output stream.
+    /// Returns `true` if we can use colors in the current output stream.
     fn supports_color(&self) -> bool {
         false
     }

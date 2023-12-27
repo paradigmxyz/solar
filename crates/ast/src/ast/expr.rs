@@ -154,7 +154,7 @@ impl BinOpKind {
         }
     }
 
-    /// Returns whether the operator is able to be used in an assignment.
+    /// Returns `true` if the operator is able to be used in an assignment.
     pub const fn assignable(self) -> bool {
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression
         match self {
@@ -230,7 +230,7 @@ impl UnOpKind {
         }
     }
 
-    /// Returns whether the operator is a prefix operator.
+    /// Returns `true` if the operator is a prefix operator.
     pub const fn is_prefix(self) -> bool {
         match self {
             Self::PrefixInc | Self::PrefixDec | Self::Not | Self::Neg | Self::BitNot => true,
@@ -238,7 +238,7 @@ impl UnOpKind {
         }
     }
 
-    /// Returns whether the operator is a postfix operator.
+    /// Returns `true` if the operator is a postfix operator.
     pub const fn is_postfix(self) -> bool {
         !self.is_prefix()
     }

@@ -319,7 +319,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Eats a string until the given quote character. Returns whether the string was terminated.
+    /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: char) -> bool {
         debug_assert_eq!(self.prev(), quote);
         while let Some(c) = self.bump() {
@@ -335,7 +335,7 @@ impl<'a> Cursor<'a> {
         false
     }
 
-    /// Eats characters for a decimal number. Returns whether any digits were encountered.
+    /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
         let mut has_digits = false;
         loop {
@@ -353,7 +353,7 @@ impl<'a> Cursor<'a> {
         has_digits
     }
 
-    /// Eats characters for a hexadecimal number. Returns whether any digits were encountered.
+    /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
         let mut has_digits = false;
         loop {
@@ -371,7 +371,7 @@ impl<'a> Cursor<'a> {
         has_digits
     }
 
-    /// Eats the exponent. Returns whether any digits were encountered.
+    /// Eats the exponent. Returns `true` if any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
         debug_assert!(self.prev() == 'e' || self.prev() == 'E');
         // '+' is not a valid prefix for an exponent.

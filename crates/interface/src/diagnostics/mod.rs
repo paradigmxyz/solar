@@ -174,7 +174,7 @@ impl Level {
         }
     }
 
-    /// Returns whether this level is an error.
+    /// Returns `true` if this level is an error.
     #[inline]
     pub fn is_error(self) -> bool {
         match self {
@@ -287,7 +287,7 @@ impl Diagnostic {
         }
     }
 
-    /// Returns whether this diagnostic is an error.
+    /// Returns `true` if this diagnostic is an error.
     #[inline]
     pub fn is_error(&self) -> bool {
         self.level.is_error()

@@ -101,7 +101,7 @@ impl MultiSpan {
     }
 
     /// Replaces all occurrences of one Span with another. Used to move `Span`s in areas that don't
-    /// display well (like std macros). Returns whether replacements occurred.
+    /// display well (like std macros). Returns `true` if replacements occurred.
     pub fn replace(&mut self, before: Span, after: Span) -> bool {
         let mut replacements_occurred = false;
         for primary_span in &mut self.primary_spans {
