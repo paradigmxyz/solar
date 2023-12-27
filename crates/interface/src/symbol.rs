@@ -5,55 +5,20 @@ use sulk_macros::symbols;
 
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
+    // Solidity keywords.
+    // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
     Keywords {
         Abstract:    "abstract",
-        Address:     "address",
         Anonymous:   "anonymous",
         As:          "as",
         Assembly:    "assembly",
-        Bool:        "bool",
         Break:       "break",
-        Byte:        "byte",
-        Bytes:       "bytes",
-        Bytes1:      "bytes1",
-        Bytes2:      "bytes2",
-        Bytes3:      "bytes3",
-        Bytes4:      "bytes4",
-        Bytes5:      "bytes5",
-        Bytes6:      "bytes6",
-        Bytes7:      "bytes7",
-        Bytes8:      "bytes8",
-        Bytes9:      "bytes9",
-        Bytes10:     "bytes10",
-        Bytes11:     "bytes11",
-        Bytes12:     "bytes12",
-        Bytes13:     "bytes13",
-        Bytes14:     "bytes14",
-        Bytes15:     "bytes15",
-        Bytes16:     "bytes16",
-        Bytes17:     "bytes17",
-        Bytes18:     "bytes18",
-        Bytes19:     "bytes19",
-        Bytes20:     "bytes20",
-        Bytes21:     "bytes21",
-        Bytes22:     "bytes22",
-        Bytes23:     "bytes23",
-        Bytes24:     "bytes24",
-        Bytes25:     "bytes25",
-        Bytes26:     "bytes26",
-        Bytes27:     "bytes27",
-        Bytes28:     "bytes28",
-        Bytes29:     "bytes29",
-        Bytes30:     "bytes30",
-        Bytes31:     "bytes31",
-        Bytes32:     "bytes32",
-        Calldata:    "calldata",
+        CallData:    "calldata",
         Catch:       "catch",
         Constant:    "constant",
         Constructor: "constructor",
         Continue:    "continue",
         Contract:    "contract",
-        Delete:      "delete",
         Do:          "do",
         Else:        "else",
         Emit:        "emit",
@@ -61,13 +26,43 @@ symbols! {
         Event:       "event",
         External:    "external",
         Fallback:    "fallback",
-        False:       "false",
         For:         "for",
         Function:    "function",
+        Hex:         "hex",
         If:          "if",
         Immutable:   "immutable",
         Import:      "import",
         Indexed:     "indexed",
+        Interface:   "interface",
+        Internal:    "internal",
+        Is:          "is",
+        Library:     "library",
+        Mapping:     "mapping",
+        Memory:      "memory",
+        Modifier:    "modifier",
+        New:         "new",
+        Override:    "override",
+        Payable:     "payable",
+        Pragma:      "pragma",
+        Private:     "private",
+        Public:      "public",
+        Pure:        "pure",
+        Receive:     "receive",
+        Return:      "return",
+        Returns:     "returns",
+        Storage:     "storage",
+        Struct:      "struct",
+        Throw:       "throw",
+        Try:         "try",
+        Type:        "type",
+        Unchecked:   "unchecked",
+        Unicode:     "unicode",
+        Using:       "using",
+        View:        "view",
+        Virtual:     "virtual",
+        While:       "while",
+
+        // Types.
         Int:         "int",
         Int8:        "int8",
         Int16:       "int16",
@@ -101,77 +96,140 @@ symbols! {
         Int240:      "int240",
         Int248:      "int248",
         Int256:      "int256",
-        Interface:   "interface",
-        Internal:    "internal",
-        Is:          "is",
-        Let:         "let",
-        Library:     "library",
-        Mapping:     "mapping",
-        Memory:      "memory",
-        Modifier:    "modifier",
-        New:         "new",
-        Override:    "override",
-        Payable:     "payable",
-        Pragma:      "pragma",
-        Private:     "private",
-        Public:      "public",
-        Pure:        "pure",
-        Receive:     "receive",
-        Return:      "return",
-        Returns:     "returns",
-        Storage:     "storage",
+        UInt:        "uint",
+        UInt8:       "uint8",
+        UInt16:      "uint16",
+        UInt24:      "uint24",
+        UInt32:      "uint32",
+        UInt40:      "uint40",
+        UInt48:      "uint48",
+        UInt56:      "uint56",
+        UInt64:      "uint64",
+        UInt72:      "uint72",
+        UInt80:      "uint80",
+        UInt88:      "uint88",
+        UInt96:      "uint96",
+        UInt104:     "uint104",
+        UInt112:     "uint112",
+        UInt120:     "uint120",
+        UInt128:     "uint128",
+        UInt136:     "uint136",
+        UInt144:     "uint144",
+        UInt152:     "uint152",
+        UInt160:     "uint160",
+        UInt168:     "uint168",
+        UInt176:     "uint176",
+        UInt184:     "uint184",
+        UInt192:     "uint192",
+        UInt200:     "uint200",
+        UInt208:     "uint208",
+        UInt216:     "uint216",
+        UInt224:     "uint224",
+        UInt232:     "uint232",
+        UInt240:     "uint240",
+        UInt248:     "uint248",
+        UInt256:     "uint256",
+        Bytes:       "bytes",
+        Bytes1:      "bytes1",
+        Bytes2:      "bytes2",
+        Bytes3:      "bytes3",
+        Bytes4:      "bytes4",
+        Bytes5:      "bytes5",
+        Bytes6:      "bytes6",
+        Bytes7:      "bytes7",
+        Bytes8:      "bytes8",
+        Bytes9:      "bytes9",
+        Bytes10:     "bytes10",
+        Bytes11:     "bytes11",
+        Bytes12:     "bytes12",
+        Bytes13:     "bytes13",
+        Bytes14:     "bytes14",
+        Bytes15:     "bytes15",
+        Bytes16:     "bytes16",
+        Bytes17:     "bytes17",
+        Bytes18:     "bytes18",
+        Bytes19:     "bytes19",
+        Bytes20:     "bytes20",
+        Bytes21:     "bytes21",
+        Bytes22:     "bytes22",
+        Bytes23:     "bytes23",
+        Bytes24:     "bytes24",
+        Bytes25:     "bytes25",
+        Bytes26:     "bytes26",
+        Bytes27:     "bytes27",
+        Bytes28:     "bytes28",
+        Bytes29:     "bytes29",
+        Bytes30:     "bytes30",
+        Bytes31:     "bytes31",
+        Bytes32:     "bytes32",
         String:      "string",
-        Struct:      "struct",
-        This:        "this",
-        Throw:       "throw",
-        True:        "true",
-        Try:         "try",
-        Type:        "type",
-        Uint:        "uint",
-        Uint8:       "uint8",
-        Uint16:      "uint16",
-        Uint24:      "uint24",
-        Uint32:      "uint32",
-        Uint40:      "uint40",
-        Uint48:      "uint48",
-        Uint56:      "uint56",
-        Uint64:      "uint64",
-        Uint72:      "uint72",
-        Uint80:      "uint80",
-        Uint88:      "uint88",
-        Uint96:      "uint96",
-        Uint104:     "uint104",
-        Uint112:     "uint112",
-        Uint120:     "uint120",
-        Uint128:     "uint128",
-        Uint136:     "uint136",
-        Uint144:     "uint144",
-        Uint152:     "uint152",
-        Uint160:     "uint160",
-        Uint168:     "uint168",
-        Uint176:     "uint176",
-        Uint184:     "uint184",
-        Uint192:     "uint192",
-        Uint200:     "uint200",
-        Uint208:     "uint208",
-        Uint216:     "uint216",
-        Uint224:     "uint224",
-        Uint232:     "uint232",
-        Uint240:     "uint240",
-        Uint248:     "uint248",
-        Uint256:     "uint256",
-        Unchecked:   "unchecked",
-        Using:       "using",
-        View:        "view",
-        Virtual:     "virtual",
-        While:       "while",
+        Address:     "address",
+        Bool:        "bool",
+        Fixed:       "fixed",
+        UFixed:      "ufixed",
 
-        // Weak keywords, can be used as variable names
+        // Number subdenominations.
+        Wei:         "wei",
+        Gwei:        "gwei",
+        Ether:       "ether",
+        Seconds:     "seconds",
+        Minutes:     "minutes",
+        Hours:       "hours",
+        Days:        "days",
+        Weeks:       "weeks",
+        Years:       "years",
+
+        // Literals.
+        False:       "false",
+        True:        "true",
+
+        // Reserved for future use.
+        After:       "after",
+        Alias:       "alias",
+        Apply:       "apply",
+        Auto:        "auto",
+        Byte:        "byte",
         Case:        "case",
+        CopyOf:      "copyof",
         Default:     "default",
+        Define:      "define",
+        Final:       "final",
+        Implements:  "implements",
+        In:          "in",
+        Inline:      "inline",
+        Let:         "let",
+        Macro:       "macro",
+        Match:       "match",
+        Mutable:     "mutable",
+        NullLiteral: "null",
+        Of:          "of",
+        Partial:     "partial",
+        Promise:     "promise",
+        Reference:   "reference",
+        Relocatable: "relocatable",
+        Sealed:      "sealed",
+        Sizeof:      "sizeof",
+        Static:      "static",
+        Supports:    "supports",
+        Switch:      "switch",
+        Typedef:     "typedef",
+        TypeOf:      "typeof",
+        Var:         "var",
+
+        // All the following keywords are 'weak' keywords,
+        // which means they can be used as variable names.
+
+        // Yul specific keywords.
         Leave:       "leave",
         Revert:      "revert",
-        Switch:      "switch",
+
+        // Experimental Solidity specific keywords.
+        Class:         "class",
+        Instantiation: "instantiation",
+        Integer:       "Integer",
+        Itself:        "itself",
+        StaticAssert:  "static_assert",
+        Builtin:       "__builtin",
     }
 
     // Pre-interned symbols that can be referred to with `sym::*`.
@@ -208,6 +266,16 @@ pub mod kw {
     #[doc(inline)]
     pub use super::kw_generated::*;
 
+    /// Returns the boolean keyword for the given value.
+    #[inline]
+    pub const fn boolean(b: bool) -> Symbol {
+        if b {
+            True
+        } else {
+            False
+        }
+    }
+
     /// Returns the `int` keyword for the given byte (**not bit**) size.
     ///
     /// If `n` is 0, returns [`kw::Uint`](Int).
@@ -216,7 +284,7 @@ pub mod kw {
     ///
     /// Panics if `n` is greater than 32.
     #[inline]
-    pub fn int(n: u8) -> Symbol {
+    pub const fn int(n: u8) -> Symbol {
         assert!(n <= 32);
         Symbol::new(Int.as_u32() + n as u32)
     }
@@ -229,9 +297,9 @@ pub mod kw {
     ///
     /// Panics if `n` is greater than 32.
     #[inline]
-    pub fn uint(n: u8) -> Symbol {
+    pub const fn uint(n: u8) -> Symbol {
         assert!(n <= 32);
-        Symbol::new(Uint.as_u32() + n as u32)
+        Symbol::new(UInt.as_u32() + n as u32)
     }
 
     /// Returns the `bytes` keyword for the given byte size.
@@ -240,7 +308,7 @@ pub mod kw {
     ///
     /// Panics if `n` is 0 or is greater than 32.
     #[inline]
-    pub fn fixed_bytes(n: u8) -> Symbol {
+    pub const fn fixed_bytes(n: u8) -> Symbol {
         assert!(n > 0 && n <= 32);
         Symbol::new(Bytes.as_u32() + n as u32)
     }
@@ -374,6 +442,14 @@ impl fmt::Display for Ident {
     }
 }
 
+#[cfg(feature = "nightly")]
+impl ToString for Ident {
+    #[inline]
+    fn to_string(&self) -> String {
+        self.name.to_string()
+    }
+}
+
 /// An interned string.
 ///
 /// Internally, a `Symbol` is implemented as an index, and all operations
@@ -408,6 +484,7 @@ impl Symbol {
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
     pub fn to_string(&self) -> String {
         self.as_str().to_string()
     }
@@ -418,16 +495,22 @@ impl Symbol {
         self.0.get()
     }
 
+    /// Returns `true` if the symbol is a keyword reserved for possible future use.
+    #[inline]
+    pub fn is_unused_keyword(self) -> bool {
+        self >= kw::After && self <= kw::Var
+    }
+
     /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
     #[inline]
-    pub const fn is_weak_keyword(self) -> bool {
-        matches!(self, kw::Case | kw::Default | kw::Leave | kw::Revert | kw::Switch)
+    pub fn is_weak_keyword(self) -> bool {
+        self >= kw::Leave && self <= kw::Builtin
     }
 
     /// Returns `true` if the symbol is `true` or `false`.
     #[inline]
-    pub const fn is_bool_lit(self) -> bool {
-        matches!(self, kw::True | kw::False)
+    pub fn is_bool_lit(self) -> bool {
+        self == kw::True || self == kw::False
     }
 
     /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.
@@ -451,12 +534,13 @@ impl fmt::Display for Symbol {
     }
 }
 
-// no spec
-// impl ToString for Symbol {
-//     fn to_string(&self) -> String {
-//         self.as_str().to_string()
-//     }
-// }
+#[cfg(feature = "nightly")]
+impl ToString for Symbol {
+    #[inline]
+    fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
 
 pub(crate) struct Interner(Lock<InternerInner>);
 

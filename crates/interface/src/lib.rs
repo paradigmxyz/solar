@@ -17,6 +17,7 @@
 )]
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(feature = "nightly", feature(min_specialization))]
 
 pub mod diagnostics;
 mod globals;
