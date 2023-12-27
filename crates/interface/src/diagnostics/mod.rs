@@ -159,7 +159,6 @@ pub enum Level {
     Allow,
 }
 
-#[allow(clippy::match_like_matches_macro)]
 impl Level {
     /// Returns the string representation of the level.
     pub fn to_str(self) -> &'static str {

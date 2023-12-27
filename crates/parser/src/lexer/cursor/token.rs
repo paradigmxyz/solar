@@ -13,16 +13,13 @@ pub struct Token {
 }
 
 impl Token {
+    /// The [`EOF`](TokenKind::Eof) token with length 0.
+    pub const EOF: Self = Self::new(TokenKind::Eof, 0);
+
     /// Creates a new token.
     #[inline]
-    pub fn new(kind: TokenKind, len: u32) -> Self {
+    pub const fn new(kind: TokenKind, len: u32) -> Self {
         Self { kind, len }
-    }
-
-    /// Creates a new [`Eof`](TokenKind::Eof) token, with length 0.
-    #[inline]
-    pub fn eof() -> Self {
-        Self::new(TokenKind::Eof, 0)
     }
 }
 
@@ -126,7 +123,7 @@ pub enum TokenKind {
 pub enum LiteralKind {
     /// `123`, `0x123`; empty_int: `0x`
     Int { base: Base, empty_int: bool },
-    /// `123.321`, `1.2e3`; empty_int: `0x`
+    /// `123.321`, `1.2e3`; empty_exponent: `2.3e`
     Rational { base: Base, empty_exponent: bool },
     /// `"abc"`, `"abc`; `unicode"abc"`, `unicode"abc`
     Str { terminated: bool, unicode: bool },

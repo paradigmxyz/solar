@@ -1,3 +1,5 @@
+//! Solidity lexer.
+
 use crate::ParseSess;
 use sulk_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
 use sulk_interface::{diagnostics::DiagCtxt, sym, BytePos, Pos, Span, Symbol};
@@ -61,6 +63,19 @@ impl<'a> Lexer<'a> {
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
         &self.sess.dcx
+    }
+
+    /// Consumes the lexer and collects the remaining tokens into a vector.
+    pub fn into_tokens(mut self) -> Vec<Token> {
+        let mut tokens = Vec::new();
+        loop {
+            let (token, _) = self.next_token();
+            if token.kind == TokenKind::Eof {
+                break;
+            }
+            tokens.push(token);
+        }
+        tokens
     }
 
     /// Returns the next token, paired with a bool indicating if the token was

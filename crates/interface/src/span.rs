@@ -74,7 +74,7 @@ impl Span {
     /// Returns `true` if this is a dummy span.
     #[inline]
     pub fn is_dummy(self) -> bool {
-        self.lo().0 == 0 && self.hi().0 == 0
+        self == Self::DUMMY
     }
 
     /// Returns `true` if `self` fully encloses `other`.

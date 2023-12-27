@@ -1,6 +1,6 @@
 //! Solidity source code token.
 
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use sulk_interface::{Ident, Span, Symbol};
 
 /// The type of a comment.
@@ -35,6 +35,47 @@ pub enum BinOpToken {
     Shl,
     /// `>>`
     Shr,
+}
+
+impl fmt::Display for BinOpToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.to_str())
+    }
+}
+
+impl BinOpToken {
+    /// Returns the string representation of the binary operator token.
+    pub const fn to_str(self) -> &'static str {
+        match self {
+            Self::Plus => "+",
+            Self::Minus => "-",
+            Self::Star => "*",
+            Self::Slash => "/",
+            Self::Percent => "%",
+            Self::Caret => "^",
+            Self::And => "&",
+            Self::Or => "|",
+            Self::Shl => "<<",
+            Self::Shr => ">>",
+        }
+    }
+
+    /// Returns the string representation of the binary operator token followed by an equals sign
+    /// (`=`).
+    pub const fn to_str_with_eq(self) -> &'static str {
+        match self {
+            Self::Plus => "+=",
+            Self::Minus => "-=",
+            Self::Star => "*=",
+            Self::Slash => "/=",
+            Self::Percent => "%=",
+            Self::Caret => "^=",
+            Self::And => "&=",
+            Self::Or => "|=",
+            Self::Shl => "<<=",
+            Self::Shr => ">>=",
+        }
+    }
 }
 
 /// Describes how a sequence of token trees is delimited.
@@ -204,16 +245,58 @@ pub enum TokenKind {
     Eof,
 }
 
-/// A single token.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Token {
-    /// The kind of the token.
-    pub kind: TokenKind,
-    /// The full span of the token.
-    pub span: Span,
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Literal(lit) => lit.fmt(f),
+            Self::Ident(ident) => ident.fmt(f),
+            _ => f.write_str(&self.as_str()),
+        }
+    }
 }
 
 impl TokenKind {
+    /// Returns the string representation of the token kind.
+    pub fn as_str(&self) -> Cow<'static, str> {
+        match self {
+            Self::Eq => "=",
+            Self::Lt => "<",
+            Self::Le => "<=",
+            Self::EqEq => "==",
+            Self::Ne => "!=",
+            Self::Ge => ">=",
+            Self::Gt => ">",
+            Self::AndAnd => "&&",
+            Self::OrOr => "||",
+            Self::Not => "!",
+            Self::Tilde => "~",
+            Self::BinOp(op) => op.to_str(),
+            Self::BinOpEq(op) => op.to_str_with_eq(),
+
+            Self::At => "@",
+            Self::Dot => ".",
+            Self::Comma => ",",
+            Self::Semi => ";",
+            Self::Colon => ":",
+            Self::Arrow => "->",
+            Self::FatArrow => "=>",
+            Self::Question => "?",
+            Self::OpenDelim(Delimiter::Parenthesis) => "(",
+            Self::CloseDelim(Delimiter::Parenthesis) => ")",
+            Self::OpenDelim(Delimiter::Brace) => "{",
+            Self::CloseDelim(Delimiter::Brace) => "}",
+            Self::OpenDelim(Delimiter::Bracket) => "[",
+            Self::CloseDelim(Delimiter::Bracket) => "]",
+
+            Self::Literal(lit) => return lit.to_string().into(),
+            Self::Ident(ident) => return ident.as_str().to_string().into(),
+            Self::DocComment(CommentKind::Block, _symbol) => "<block doc-comment>",
+            Self::DocComment(CommentKind::Line, _symbol) => "<line doc-comment>",
+            Self::Eof => "<eof>",
+        }
+        .into()
+    }
+
     /// Creates a new literal token kind.
     pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
         Self::Literal(Lit::new(kind, symbol))
@@ -231,19 +314,39 @@ impl TokenKind {
     }
 }
 
+/// A single token.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Token {
+    /// The kind of the token.
+    pub kind: TokenKind,
+    /// The full span of the token.
+    pub span: Span,
+}
+
 impl Token {
-    pub fn new(kind: TokenKind, span: Span) -> Self {
+    /// The [EOF](TokenKind::Eof) token.
+    pub const EOF: Self = Self::new(TokenKind::Eof, Span::DUMMY);
+
+    /// A dummy token that will be thrown away later.
+    pub const DUMMY: Self = Self::new(TokenKind::Question, Span::DUMMY);
+
+    /// Creates a new token.
+    pub const fn new(kind: TokenKind, span: Span) -> Self {
         Self { kind, span }
     }
 
-    /// Some token that will be thrown away later.
-    pub fn dummy() -> Self {
-        Self::new(TokenKind::Question, Span::DUMMY)
-    }
-
-    /// Recovers a `Token` from an `Ident`. This creates a raw identifier if necessary.
+    /// Recovers a `Token` from an `Ident`.
     pub fn from_ast_ident(ident: Ident) -> Self {
         Self::new(TokenKind::Ident(ident.name), ident.span)
+    }
+
+    /// Creates a new identifier if the kind is [`TokenKind::Ident`].
+    #[inline]
+    pub const fn ident(&self) -> Option<Ident> {
+        match self.kind {
+            TokenKind::Ident(ident) => Some(Ident::new(ident, self.span)),
+            _ => None,
+        }
     }
 
     pub fn is_op(&self) -> bool {

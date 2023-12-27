@@ -127,7 +127,6 @@ impl fmt::Display for BinOp {
     }
 }
 
-#[allow(clippy::match_like_matches_macro)]
 impl BinOpKind {
     /// Returns the string representation of the operator.
     pub const fn to_str(self) -> &'static str {
@@ -217,7 +216,6 @@ impl fmt::Display for UnOp {
     }
 }
 
-#[allow(clippy::match_like_matches_macro)]
 impl UnOpKind {
     /// Returns the string representation of the operator.
     pub const fn to_str(self) -> &'static str {

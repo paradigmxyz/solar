@@ -65,6 +65,7 @@ const EOF_CHAR: char = '\0';
 ///
 /// Next characters can be peeked via `first` method,
 /// and position can be shifted forward via `bump` method.
+#[derive(Clone, Debug)]
 pub struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
@@ -88,7 +89,7 @@ impl<'a> Cursor<'a> {
     pub fn advance_token(&mut self) -> Token {
         let first_char = match self.bump() {
             Some(c) => c,
-            None => return Token::eof(),
+            None => return Token::EOF,
         };
 
         let token_kind = match first_char {
