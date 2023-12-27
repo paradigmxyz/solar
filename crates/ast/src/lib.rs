@@ -11,5 +11,4 @@
 use sulk_data_structures as _;
 
 pub mod ast;
-pub mod enums;
 pub mod token;
