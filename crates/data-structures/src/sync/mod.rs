@@ -24,7 +24,7 @@ mod no_sync {
     impl<T: Copy> Atomic<T> {
         #[inline]
         pub fn new(v: T) -> Self {
-            Atomic(Cell::new(v))
+            Self(Cell::new(v))
         }
 
         #[inline]
@@ -128,7 +128,7 @@ pub struct RwLock<T>(InnerRwLock<T>);
 impl<T> RwLock<T> {
     #[inline(always)]
     pub fn new(inner: T) -> Self {
-        RwLock(InnerRwLock::new(inner))
+        Self(InnerRwLock::new(inner))
     }
 
     #[inline(always)]

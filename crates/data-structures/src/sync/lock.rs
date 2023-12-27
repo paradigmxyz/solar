@@ -109,7 +109,7 @@ mod maybe_sync {
                 // Create the lock with synchronization disabled.
                 (Mode::NoSync, ModeUnion { no_sync: ManuallyDrop::new(Cell::new(!LOCKED)) })
             };
-            Lock { mode, mode_union, data: UnsafeCell::new(inner) }
+            Self { mode, mode_union, data: UnsafeCell::new(inner) }
         }
 
         #[inline(always)]
@@ -237,7 +237,7 @@ impl<T> Lock<T> {
 impl<T: Default> Default for Lock<T> {
     #[inline]
     fn default() -> Self {
-        Lock::new(T::default())
+        Self::new(T::default())
     }
 }
 

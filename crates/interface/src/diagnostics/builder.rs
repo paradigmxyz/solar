@@ -65,7 +65,7 @@ impl EmissionGuarantee for FatalError {
 
     fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
-        FatalError
+        Self
     }
 }
 

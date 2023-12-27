@@ -248,7 +248,7 @@ impl DiagnosticLocation {
     #[track_caller]
     fn caller() -> Self {
         let loc = std::panic::Location::caller();
-        DiagnosticLocation { file: loc.file().into(), line: loc.line(), col: loc.column() }
+        Self { file: loc.file().into(), line: loc.line(), col: loc.column() }
     }
 }
 

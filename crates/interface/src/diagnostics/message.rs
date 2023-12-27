@@ -63,17 +63,17 @@ pub struct MultiSpan {
 
 impl MultiSpan {
     #[inline]
-    pub fn new() -> MultiSpan {
-        MultiSpan { primary_spans: vec![], span_labels: vec![] }
+    pub fn new() -> Self {
+        Self { primary_spans: vec![], span_labels: vec![] }
     }
 
-    pub fn from_span(primary_span: Span) -> MultiSpan {
-        MultiSpan { primary_spans: vec![primary_span], span_labels: vec![] }
+    pub fn from_span(primary_span: Span) -> Self {
+        Self { primary_spans: vec![primary_span], span_labels: vec![] }
     }
 
-    pub fn from_spans(mut vec: Vec<Span>) -> MultiSpan {
+    pub fn from_spans(mut vec: Vec<Span>) -> Self {
         vec.sort();
-        MultiSpan { primary_spans: vec, span_labels: vec![] }
+        Self { primary_spans: vec, span_labels: vec![] }
     }
 
     pub fn push_span_label(&mut self, span: Span, label: impl Into<DiagnosticMessage>) {
@@ -160,7 +160,7 @@ impl MultiSpan {
     /// messages. These translated messages would fail to translate without their diagnostic
     /// arguments which are unlikely to be cloned alongside the `Span`.
     pub fn clone_ignoring_labels(&self) -> Self {
-        Self { primary_spans: self.primary_spans.clone(), ..MultiSpan::new() }
+        Self { primary_spans: self.primary_spans.clone(), ..Self::new() }
     }
 }
 
@@ -171,13 +171,13 @@ impl Default for MultiSpan {
 }
 
 impl From<Span> for MultiSpan {
-    fn from(span: Span) -> MultiSpan {
-        MultiSpan::from_span(span)
+    fn from(span: Span) -> Self {
+        Self::from_span(span)
     }
 }
 
 impl From<Vec<Span>> for MultiSpan {
-    fn from(spans: Vec<Span>) -> MultiSpan {
-        MultiSpan::from_spans(spans)
+    fn from(spans: Vec<Span>) -> Self {
+        Self::from_spans(spans)
     }
 }

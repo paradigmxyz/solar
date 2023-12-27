@@ -54,7 +54,7 @@ impl Parse for Keyword {
         input.parse::<Token![:]>()?;
         let value = input.parse()?;
 
-        Ok(Keyword { name, value })
+        Ok(Self { name, value })
     }
 }
 
@@ -76,7 +76,7 @@ impl Parse for Symbol {
         let colon_token: Option<Token![:]> = input.parse()?;
         let value = if colon_token.is_some() { input.parse()? } else { Value::SameAsName };
 
-        Ok(Symbol { name, value })
+        Ok(Self { name, value })
     }
 }
 
@@ -86,19 +86,19 @@ impl Parse for Value {
         match &expr {
             Expr::Lit(expr) => {
                 if let Lit::Str(lit) = &expr.lit {
-                    return Ok(Value::String(lit.clone()));
+                    return Ok(Self::String(lit.clone()));
                 }
             }
             Expr::Macro(expr) => {
                 if expr.mac.path.is_ident("env") {
                     if let Ok(lit) = expr.mac.parse_body() {
-                        return Ok(Value::Env(lit, expr.mac.clone()));
+                        return Ok(Self::Env(lit, expr.mac.clone()));
                     }
                 }
             }
             _ => {}
         }
-        Ok(Value::Unsupported(expr))
+        Ok(Self::Unsupported(expr))
     }
 }
 
@@ -156,7 +156,7 @@ struct Entries {
 
 impl Entries {
     fn with_capacity(capacity: usize) -> Self {
-        Entries { map: HashMap::with_capacity(capacity) }
+        Self { map: HashMap::with_capacity(capacity) }
     }
 
     fn insert(&mut self, span: Span, str: &str, errors: &mut Errors) -> u32 {

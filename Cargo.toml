@@ -18,6 +18,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace.lints.clippy]
 dbg-macro = "warn"
+use-self = "warn"
+uninlined-format-args = "warn"
+manual-string-new = "warn"
 
 [workspace.lints.rust]
 unreachable-pub = "warn"
