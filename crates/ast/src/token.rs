@@ -349,6 +349,12 @@ impl Token {
         }
     }
 
+    /// Returns `true` if the token is an identifier.
+    #[inline]
+    pub const fn is_ident(&self) -> bool {
+        matches!(self.kind, TokenKind::Ident(_))
+    }
+
     pub fn is_op(&self) -> bool {
         match self.kind {
             TokenKind::Eq

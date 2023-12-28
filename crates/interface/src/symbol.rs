@@ -6,6 +6,7 @@ use sulk_macros::symbols;
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
     // Solidity keywords.
+    // When modifying this, also update all the `is_keyword` functions in this file.
     // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
     Keywords {
         Abstract:    "abstract",
@@ -360,11 +361,6 @@ impl Ident {
         Self::new(name, Span::DUMMY)
     }
 
-    // #[inline]
-    // pub fn empty() -> Ident {
-    //     Ident::with_dummy_span(kw::Empty)
-    // }
-
     /// Maps a string to an identifier with a dummy span.
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(string: &str) -> Self {
@@ -376,22 +372,66 @@ impl Ident {
         Self::new(Symbol::intern(string), span)
     }
 
-    // /// Replaces `lo` and `hi` with those from `span`, but keep hygiene context.
-    // pub fn with_span_pos(self, span: Span) -> Ident {
-    //     Ident::new(self.name, span.with_ctxt(self.span.ctxt()))
-    // }
+    /// Replaces `lo` and `hi` with those from `span`, but keeps the context.
+    pub fn with_span_pos(mut self, span: Span) -> Ident {
+        self.span = span /* .with_ctxt(self.span.ctxt()) */; // TODO
+        self
+    }
 
     pub fn without_first_quote(self) -> Self {
         Self::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
     }
 
-    /// Access the underlying string. This is a slowish operation because it
-    /// requires locking the symbol interner.
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
+    /// Access the underlying string. This is a slowish operation because it requires locking the
+    /// symbol interner.
     ///
-    /// Note that the lifetime of the return value is a lie. See
-    /// [`Symbol::as_str()`] for details.
+    /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
     pub fn as_str(&self) -> &str {
         self.name.as_str()
+    }
+
+    /// Returns `true` if the symbol is a keyword used in the language.
+    #[inline]
+    pub fn is_used_keyword(self) -> bool {
+        self.name.is_used_keyword()
+    }
+
+    /// Returns `true` if the symbol is a keyword reserved for possible future use.
+    #[inline]
+    pub fn is_unused_keyword(self) -> bool {
+        self.name.is_unused_keyword()
+    }
+
+    /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
+    #[inline]
+    pub fn is_weak_keyword(self) -> bool {
+        self.name.is_weak_keyword()
+    }
+
+    /// Returns `true` if the symbol is a keyword only in a Yul context.
+    #[inline]
+    pub fn is_yul_keyword(self) -> bool {
+        self.name.is_yul_keyword()
+    }
+
+    /// Returns `true` if the symbol is either a special identifier or a keyword.
+    #[inline]
+    pub fn is_reserved(self, in_yul: bool) -> bool {
+        self.name.is_reserved(in_yul)
+    }
+
+    /// Returns `true` if the symbol is `true` or `false`.
+    #[inline]
+    pub fn is_bool_lit(self) -> bool {
+        self.name.is_bool_lit()
     }
 }
 
@@ -467,6 +507,14 @@ impl Symbol {
         with_session_globals(|session_globals| session_globals.symbol_interner.intern(string))
     }
 
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
     /// Access the underlying string. This is a slowish operation because it
     /// requires locking the symbol interner.
     ///
@@ -481,18 +529,16 @@ impl Symbol {
         })
     }
 
-    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
-    #[inline]
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-
     /// Returns the internal representation of the symbol.
     #[inline]
     pub const fn as_u32(self) -> u32 {
         self.0.get()
+    }
+
+    /// Returns `true` if the symbol is a keyword used in the language.
+    #[inline]
+    pub fn is_used_keyword(self) -> bool {
+        self < kw::After
     }
 
     /// Returns `true` if the symbol is a keyword reserved for possible future use.
@@ -505,6 +551,18 @@ impl Symbol {
     #[inline]
     pub fn is_weak_keyword(self) -> bool {
         self >= kw::Leave && self <= kw::Builtin
+    }
+
+    /// Returns `true` if the symbol is a keyword only in a Yul context.
+    #[inline]
+    pub fn is_yul_keyword(self) -> bool {
+        self == kw::Leave || self == kw::Revert
+    }
+
+    /// Returns `true` if the symbol is either a special identifier or a keyword.
+    #[inline]
+    pub fn is_reserved(self, in_yul: bool) -> bool {
+        self.is_used_keyword() || self.is_unused_keyword() || (in_yul && self.is_yul_keyword())
     }
 
     /// Returns `true` if the symbol is `true` or `false`.
