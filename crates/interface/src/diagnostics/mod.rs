@@ -2,7 +2,8 @@
 //!
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
-use std::{borrow::Cow, fmt, panic};
+use crate::Span;
+use std::{borrow::Cow, fmt, panic, process::ExitCode};
 
 mod builder;
 pub use builder::{DiagnosticBuilder, EmissionGuarantee};
@@ -49,6 +50,17 @@ impl FatalError {
                 panic::resume_unwind(value)
             }
         })
+    }
+
+    /// Catches a fatal error that was raised by [`raise`](Self::raise).
+    ///
+    /// Returns [`FAILURE`](ExitCode::FAILURE) if an error was caught,
+    /// [`SUCCESS`](ExitCode::SUCCESS) otherwise.
+    pub fn catch_with_exit_code(f: impl FnOnce() -> Result<(), ErrorGuaranteed>) -> ExitCode {
+        match Self::catch(f).and_then(std::convert::identity) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(ErrorGuaranteed(())) => ExitCode::FAILURE,
+        }
     }
 }
 
@@ -328,6 +340,33 @@ impl Diagnostic {
     /// Sets the code of this diagnostic.
     pub fn code(&mut self, code: impl Into<DiagnosticId>) -> &mut Self {
         self.code = Some(code.into());
+        self
+    }
+
+    /// Adds a span/label to be included in the resulting snippet.
+    ///
+    /// This is pushed onto the [`MultiSpan`] that was created when the diagnostic
+    /// was first built. That means it will be shown together with the original
+    /// span/label, *not* a span added by one of the `span_{note,warn,help,suggestions}` methods.
+    ///
+    /// This span is *not* considered a ["primary span"][`MultiSpan`]; only
+    /// the `Span` supplied when creating the diagnostic is primary.
+    pub fn span_label(&mut self, span: Span, label: impl Into<DiagnosticMessage>) -> &mut Self {
+        self.span.push_span_label(span, label);
+        self
+    }
+
+    /// Labels all the given spans with the provided label.
+    /// See [`Self::span_label()`] for more information.
+    pub fn span_labels(
+        &mut self,
+        spans: impl IntoIterator<Item = Span>,
+        label: impl Into<DiagnosticMessage>,
+    ) -> &mut Self {
+        let label = label.into();
+        for span in spans {
+            self.span_label(span, label.clone());
+        }
         self
     }
 }

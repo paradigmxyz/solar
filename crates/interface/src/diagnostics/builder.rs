@@ -2,6 +2,7 @@ use super::{
     DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, FatalAbort, FatalError,
     Level, MultiSpan, Style,
 };
+use crate::Span;
 use core::fmt;
 use std::{
     marker::PhantomData,
@@ -173,7 +174,7 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     }
 }
 
-/// Forwards methods to `Diagnostic`.
+/// Forwards methods to [`Diagnostic`].
 macro_rules! forward {
     (
         $(
@@ -192,10 +193,14 @@ macro_rules! forward {
     };
 }
 
+/// Forwarded methods to [`Diagnostic`].
 impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     forward! {
         pub fn span(span: impl Into<MultiSpan>);
         pub fn code(code: impl Into<DiagnosticId>);
+
+        pub fn span_label(span: Span, label: impl Into<DiagnosticMessage>);
+        pub fn span_labels(spans: impl IntoIterator<Item = Span>, label: impl Into<DiagnosticMessage>);
 
         pub fn warn(msg: impl Into<DiagnosticMessage>);
         pub fn span_warn(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);

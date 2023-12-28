@@ -75,7 +75,7 @@ pub struct BinOp {
 }
 
 /// A kind of binary operation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BinOpKind {
     /// `<`
     Lt,
@@ -191,7 +191,7 @@ pub struct UnOp {
 }
 
 /// A kind of unary operation.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnOpKind {
     /// `++x`
     PrefixInc,

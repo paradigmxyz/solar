@@ -159,7 +159,7 @@ impl LitKind {
 }
 
 /// A kind of token.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     // Expression-operator symbols.
     /// `=`
@@ -297,7 +297,7 @@ impl TokenKind {
 }
 
 /// A single token.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Token {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -329,12 +329,6 @@ impl Token {
             TokenKind::Ident(ident) => Some(Ident::new(ident, self.span)),
             _ => None,
         }
-    }
-
-    /// Returns `true` if the token is an identifier.
-    #[inline]
-    pub const fn is_ident(&self) -> bool {
-        matches!(self.kind, TokenKind::Ident(_))
     }
 
     pub fn is_op(&self) -> bool {
@@ -375,5 +369,115 @@ impl Token {
             self.kind,
             TokenKind::BinOp(BinOpToken::Plus) | TokenKind::BinOpEq(BinOpToken::Plus)
         )
+    }
+
+    /// Returns `true` if the token is an identifier.
+    #[inline]
+    pub const fn is_ident(&self) -> bool {
+        matches!(self.kind, TokenKind::Ident(_))
+    }
+
+    /// Returns `true` if the token is a given keyword, `kw`.
+    pub fn is_keyword(&self, kw: Symbol) -> bool {
+        self.is_ident_where(|id| id.name == kw)
+    }
+
+    /// Returns `true` if the token is a keyword used in the language.
+    pub fn is_used_keyword(&self) -> bool {
+        self.is_ident_where(Ident::is_used_keyword)
+    }
+
+    /// Returns `true` if the token is a keyword reserved for possible future use.
+    pub fn is_unused_keyword(&self) -> bool {
+        self.is_ident_where(Ident::is_unused_keyword)
+    }
+
+    /// Returns `true` if the token is either a special identifier or a keyword.
+    pub fn is_reserved_ident(&self, in_yul: bool) -> bool {
+        self.is_ident_where(|i| i.is_reserved(in_yul))
+    }
+
+    /// Returns `true` if the token is the identifier `true` or `false`.
+    pub fn is_bool_lit(&self) -> bool {
+        self.is_ident_where(|id| id.name.is_bool_lit())
+    }
+
+    /// Returns `true` if the token is a numeric literal.
+    pub fn is_numeric_lit(&self) -> bool {
+        matches!(
+            self.kind,
+            TokenKind::Literal(Lit { kind: LitKind::Integer, .. })
+                | TokenKind::Literal(Lit { kind: LitKind::Rational, .. })
+        )
+    }
+
+    /// Returns `true` if the token is the integer literal.
+    pub fn is_integer_lit(&self) -> bool {
+        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Integer, .. }))
+    }
+
+    /// Returns `true` if the token is an identifier for which `pred` holds.
+    pub fn is_ident_where(&self, pred: impl FnOnce(Ident) -> bool) -> bool {
+        self.ident().map(pred).unwrap_or(false)
+    }
+
+    /// Returns this token's full description: `{self.description()} '{self.kind}'`.
+    pub fn full_description(&self) -> String {
+        // https://github.com/rust-lang/rust/blob/44bf2a32a52467c45582c3355a893400e620d010/compiler/rustc_parse/src/parser/mod.rs#L378
+        if let Some(description) = self.description() {
+            format!("{description} `{}`", self.kind)
+        } else {
+            format!("`{}`", self.kind)
+        }
+    }
+
+    /// Returns this token's description.
+    pub fn description(&self) -> Option<TokenDescription> {
+        TokenDescription::from_token(self)
+    }
+}
+
+/// A description of a token.
+///
+/// Precedes the token string in error messages like `keyword 'for'` in `expected identifier, got
+/// keyword 'for'`. See [`full_description`](Token::full_description).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenDescription {
+    // /// A reserved identifier.
+    // ReservedIdentifier,
+    /// A keyword.
+    Keyword,
+    /// A reserved keyword.
+    ReservedKeyword,
+    /// A doc comment.
+    DocComment,
+}
+
+impl fmt::Display for TokenDescription {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.to_str())
+    }
+}
+
+impl TokenDescription {
+    /// Returns the description of the given token.
+    pub fn from_token(token: &Token) -> Option<Self> {
+        match token.kind {
+            // _ if token.is_special_ident() => Some(TokenDescription::ReservedIdentifier),
+            _ if token.is_used_keyword() => Some(Self::Keyword),
+            _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),
+            TokenKind::DocComment(..) => Some(Self::DocComment),
+            _ => None,
+        }
+    }
+
+    /// Returns the string representation of the token description.
+    pub const fn to_str(self) -> &'static str {
+        match self {
+            // Self::ReservedIdentifier => "reserved identifier",
+            Self::Keyword => "keyword",
+            Self::ReservedKeyword => "reserved keyword",
+            Self::DocComment => "doc comment",
+        }
     }
 }

@@ -1,8 +1,12 @@
 use super::{
     Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter, EmissionGuarantee,
-    ErrorGuaranteed, FatalAbort, Level,
+    ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
-use sulk_data_structures::{map::FxHashSet, sync::Lock};
+use crate::SourceMap;
+use sulk_data_structures::{
+    map::FxHashSet,
+    sync::{Lock, Lrc},
+};
 
 /// A handler deals with errors and other compiler output.
 /// Certain errors (fatal, bug, unimpl) may cause immediate exit,
@@ -45,6 +49,18 @@ impl DiagCtxt {
                 can_emit_warnings: true,
             }),
         }
+    }
+
+    /// Creates a new `DiagCtxt` with a TTY emitter.
+    pub fn with_tty_emitter(sm: Option<Lrc<SourceMap>>) -> Self {
+        let _ = sm;
+        todo!("tty emitter")
+    }
+
+    /// Creates a new `DiagCtxt` with a silent emitter.
+    pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
+        let fatal_dcx = Self::with_tty_emitter(None).disable_warnings();
+        Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
     }
 
     /// Disables emitting warnings.

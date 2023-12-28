@@ -32,8 +32,8 @@ impl SilentEmitter {
     }
 
     /// Sets the note to be emitted for fatal diagnostics.
-    pub fn with_note(mut self, note: String) -> Self {
-        self.note = Some(note);
+    pub fn with_note(mut self, note: Option<String>) -> Self {
+        self.note = note;
         self
     }
 }

@@ -292,7 +292,7 @@ pub mod kw {
 
     /// Returns the `uint` keyword for the given byte (**not bit**) size.
     ///
-    /// If `n` is 0, returns [`kw::Uint`](Uint).
+    /// If `n` is 0, returns [`kw::UInt`](UInt).
     ///
     /// # Panics
     ///
@@ -373,7 +373,7 @@ impl Ident {
     }
 
     /// Replaces `lo` and `hi` with those from `span`, but keeps the context.
-    pub fn with_span_pos(mut self, span: Span) -> Ident {
+    pub fn with_span_pos(mut self, span: Span) -> Self {
         self.span = span /* .with_ctxt(self.span.ctxt()) */; // TODO
         self
     }

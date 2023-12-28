@@ -20,7 +20,7 @@ pub struct LitStr {
 }
 
 /// A string literal kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StrKind {
     /// A regular string literal.
     Str,
@@ -31,7 +31,7 @@ pub enum StrKind {
 }
 
 /// A number sub-denomination.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SubDenomination {
     /// An ether sub-denomination.
     Ether(EtherSubDenomination),
@@ -67,7 +67,7 @@ impl SubDenomination {
 }
 
 /// An ether [`SubDenomination`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EtherSubDenomination {
     /// `wei`
     Wei,
@@ -105,7 +105,7 @@ impl EtherSubDenomination {
 }
 
 /// A time [`SubDenomination`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TimeSubDenomination {
     /// `second`
     Second,

@@ -128,7 +128,7 @@ pub enum UsingList {
 ///
 /// Solidity reference:
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinableOperator>
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UserDefinableOperator {
     /// `&`
     BitAnd,
@@ -176,7 +176,7 @@ pub struct ItemContract {
 }
 
 /// The kind of contract.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ContractKind {
     /// `contract`
     Contract,
@@ -229,7 +229,7 @@ pub struct ItemFunction {
 }
 
 /// The kind of function.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FunctionKind {
     /// `constructor`
     Constructor,
@@ -294,7 +294,7 @@ pub struct VariableDeclaration {
 }
 
 /// A storage location.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Storage {
     /// `memory`
     Memory,
@@ -322,7 +322,7 @@ impl Storage {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StateMutability {
     /// `pure`
     Pure,
@@ -353,7 +353,7 @@ impl StateMutability {
 }
 
 /// Visibility ordered from restricted to unrestricted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Visibility {
     /// `private`
     Private,
@@ -398,7 +398,7 @@ pub struct VariableDefinition {
 }
 
 /// The mutability of a variable.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum VariableMutability {
     /// `immutable`
     Immutable,
