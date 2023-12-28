@@ -99,39 +99,11 @@ pub struct Lit {
 }
 
 impl Lit {
-    pub fn new(kind: LitKind, symbol: Symbol) -> Self {
+    /// Creates a new literal token.
+    #[inline]
+    pub const fn new(kind: LitKind, symbol: Symbol) -> Self {
         Self { kind, symbol }
     }
-
-    // /// Returns `true` if this is semantically a float literal. This includes
-    // /// ones like `1f32` that have an `Integer` kind but a float suffix.
-    // pub fn is_semantic_float(&self) -> bool {
-    //     match self.kind {
-    //         LitKind::Rational => true,
-    //         LitKind::Integer => match self.suffix {
-    //             Some(sym) => sym == sym::f32 || sym == sym::f64,
-    //             None => false,
-    //         },
-    //         _ => false,
-    //     }
-    // }
-
-    // /// Keep this in sync with `Token::can_begin_literal_or_bool` excluding unary negation.
-    // pub fn from_token(token: &Token) -> Option<Lit> {
-    //     match token.uninterpolate().kind {
-    //         Ident(name, false) if name.is_bool_lit() => {
-    //             Some(Lit::new(Bool, name, None))
-    //         }
-    //         Literal(token_lit) => Some(token_lit),
-    //         Interpolated(ref nt)
-    //             if let NtExpr(expr) | NtLiteral(expr) = &**nt
-    //             && let ast::ExprKind::Lit(token_lit) = expr.kind =>
-    //         {
-    //             Some(token_lit)
-    //         }
-    //         _ => None,
-    //     }
-    // }
 }
 
 impl fmt::Display for Lit {
@@ -148,13 +120,20 @@ impl fmt::Display for Lit {
     }
 }
 
+/// A kind of literal token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum LitKind {
+    /// An integer literal token.
     Integer,
+    /// A rational literal token.
     Rational,
+    /// A string literal token.
     Str,
+    /// A unicode string literal token.
     UnicodeStr,
+    /// A hex string literal token.
     HexStr,
+    /// An error occurred while lexing the literal token.
     Err,
 }
 
@@ -179,6 +158,7 @@ impl LitKind {
     }
 }
 
+/// A kind of token.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenKind {
     // Expression-operator symbols.
@@ -204,7 +184,9 @@ pub enum TokenKind {
     Not,
     /// `~`
     Tilde,
+    /// A binary operator token.
     BinOp(BinOpToken),
+    /// A binary operator token, followed by an equals sign (`=`).
     BinOpEq(BinOpToken),
 
     // Structural symbols.
@@ -256,6 +238,11 @@ impl fmt::Display for TokenKind {
 }
 
 impl TokenKind {
+    /// Creates a new literal token kind.
+    pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
+        Self::Literal(Lit::new(kind, symbol))
+    }
+
     /// Returns the string representation of the token kind.
     pub fn as_str(&self) -> Cow<'static, str> {
         match self {
@@ -289,17 +276,12 @@ impl TokenKind {
             Self::CloseDelim(Delimiter::Bracket) => "]",
 
             Self::Literal(lit) => return lit.to_string().into(),
-            Self::Ident(ident) => return ident.as_str().to_string().into(),
+            Self::Ident(ident) => return ident.to_string().into(),
             Self::DocComment(CommentKind::Block, _symbol) => "<block doc-comment>",
             Self::DocComment(CommentKind::Line, _symbol) => "<line doc-comment>",
             Self::Eof => "<eof>",
         }
         .into()
-    }
-
-    /// Creates a new literal token kind.
-    pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
-        Self::Literal(Lit::new(kind, symbol))
     }
 
     /// Returns tokens that are likely to be typed accidentally instead of the current token.
