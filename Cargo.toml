@@ -25,6 +25,7 @@ manual-string-new = "warn"
 [workspace.lints.rust]
 unreachable-pub = "warn"
 unused-must-use = "deny"
+unused-crate-dependencies = "warn"
 rust-2018-idioms = "deny"
 
 [workspace.lints.rustdoc]

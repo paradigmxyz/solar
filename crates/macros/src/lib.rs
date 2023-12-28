@@ -8,7 +8,6 @@
     html_favicon_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/favicon.ico"
 )]
 #![allow(unreachable_pub)]
-#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use proc_macro::TokenStream;

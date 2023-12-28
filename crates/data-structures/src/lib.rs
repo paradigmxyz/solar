@@ -6,7 +6,6 @@
     html_logo_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/logo.jpg",
     html_favicon_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/favicon.ico"
 )]
-#![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(feature = "nightly", feature(cell_leak))]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
@@ -23,7 +22,3 @@ mod never;
 pub use never::Never;
 
 pub use smallvec;
-
-// TODO: wait for possible perf improvements upstream
-#[cfg(feature = "parallel")]
-use rayon as _;
