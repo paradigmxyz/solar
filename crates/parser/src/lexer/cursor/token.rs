@@ -5,27 +5,27 @@ use sulk_ast::ast::Base;
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Token {
+pub(crate) struct Token {
     /// The kind of token.
-    pub kind: TokenKind,
+    pub(crate) kind: TokenKind,
     /// The length of the token in bytes.
-    pub len: u32,
+    pub(crate) len: u32,
 }
 
 impl Token {
     /// The [`EOF`](TokenKind::Eof) token with length 0.
-    pub const EOF: Self = Self::new(TokenKind::Eof, 0);
+    pub(crate) const EOF: Self = Self::new(TokenKind::Eof, 0);
 
     /// Creates a new token.
     #[inline]
-    pub const fn new(kind: TokenKind, len: u32) -> Self {
+    pub(crate) const fn new(kind: TokenKind, len: u32) -> Self {
         Self { kind, len }
     }
 }
 
 /// Common lexeme types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TokenKind {
+pub(crate) enum TokenKind {
     // Multi-char tokens:
     /// `// comment`
     ///
@@ -44,9 +44,6 @@ pub enum TokenKind {
     ///
     /// At this step, keywords are also considered identifiers.
     Ident,
-
-    /// Like the above, but containing invalid unicode codepoints.
-    InvalidIdent,
 
     /// An unknown prefix, like `foo'`, `foo"`.
     ///
@@ -120,7 +117,7 @@ pub enum TokenKind {
 
 /// The literal types supported by the lexer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum LiteralKind {
+pub(crate) enum LiteralKind {
     /// `123`, `0x123`; empty_int: `0x`
     Int { base: Base, empty_int: bool },
     /// `123.321`, `1.2e3`; empty_exponent: `2.3e`

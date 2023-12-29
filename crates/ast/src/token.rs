@@ -35,6 +35,8 @@ pub enum BinOpToken {
     Shl,
     /// `>>`
     Shr,
+    /// `>>>`
+    Sar,
 }
 
 impl fmt::Display for BinOpToken {
@@ -57,6 +59,7 @@ impl BinOpToken {
             Self::Or => "|",
             Self::Shl => "<<",
             Self::Shr => ">>",
+            Self::Sar => ">>>",
         }
     }
 
@@ -74,6 +77,7 @@ impl BinOpToken {
             Self::Or => "|=",
             Self::Shl => "<<=",
             Self::Shr => ">>=",
+            Self::Sar => ">>>=",
         }
     }
 }
@@ -184,6 +188,12 @@ pub enum TokenKind {
     Not,
     /// `~`
     Tilde,
+    /// `++`
+    PlusPlus,
+    /// `--`
+    MinusMinus,
+    /// `**`
+    StarStar,
     /// A binary operator token.
     BinOp(BinOpToken),
     /// A binary operator token, followed by an equals sign (`=`).
@@ -219,7 +229,7 @@ pub enum TokenKind {
     Ident(Symbol),
 
     /// A doc comment token.
-    /// `Symbol` is the doc comment's data excluding its "quotes" (`///`, `/**`, etc)
+    /// `Symbol` is the doc comment's data excluding its "quotes" (`///`, `/**`)
     /// similarly to symbols in string literal tokens.
     DocComment(CommentKind, Symbol),
 
@@ -257,6 +267,9 @@ impl TokenKind {
             Self::OrOr => "||",
             Self::Not => "!",
             Self::Tilde => "~",
+            Self::PlusPlus => "++",
+            Self::MinusMinus => "--",
+            Self::StarStar => "**",
             Self::BinOp(op) => op.to_str(),
             Self::BinOpEq(op) => op.to_str_with_eq(),
 
@@ -284,6 +297,20 @@ impl TokenKind {
         .into()
     }
 
+    /// Returns `true` if the token kind is an operator.
+    pub const fn is_op(&self) -> bool {
+        use TokenKind::*;
+        match self {
+            Eq | Lt | Le | EqEq | Ne | Ge | Gt | AndAnd | OrOr | Not | Tilde | PlusPlus
+            | MinusMinus | StarStar | BinOp(_) | BinOpEq(_) | At | Dot | Comma | Semi | Colon
+            | Arrow | FatArrow | Question => true,
+
+            OpenDelim(..) | CloseDelim(..) | Literal(..) | DocComment(..) | Ident(..) | Eof => {
+                false
+            }
+        }
+    }
+
     /// Returns tokens that are likely to be typed accidentally instead of the current token.
     /// Enables better error recovery when the wrong token is found.
     pub fn similar_tokens(&self) -> Option<Vec<Self>> {
@@ -293,6 +320,55 @@ impl TokenKind {
             Self::FatArrow => Some(vec![Self::Eq, Self::Arrow]),
             _ => None,
         }
+    }
+
+    /// Glues two token kinds together.
+    pub const fn glue(&self, other: &Self) -> Option<Self> {
+        use BinOpToken::*;
+        use TokenKind::*;
+        Some(match *self {
+            Eq => match other {
+                Eq => EqEq,
+                Gt => FatArrow,
+                _ => return None,
+            },
+            Lt => match other {
+                Eq => Le,
+                Lt => BinOp(Shl),
+                Le => BinOpEq(Shl),
+                _ => return None,
+            },
+            Gt => match other {
+                Eq => Ge,
+                Gt => BinOp(Shr),
+                Ge => BinOpEq(Shr),
+                BinOp(Shr) => BinOp(Sar),
+                BinOpEq(Shr) => BinOpEq(Sar),
+                _ => return None,
+            },
+            Not => match other {
+                Eq => Ne,
+                _ => return None,
+            },
+            BinOp(op) => match (op, other) {
+                (op, Eq) => BinOpEq(op),
+                (And, BinOp(And)) => AndAnd,
+                (Or, BinOp(Or)) => OrOr,
+                (Minus, Gt) => Arrow,
+                (Shr, Gt) => BinOp(Sar),
+                (Shr, Ge) => BinOpEq(Sar),
+                (Plus, BinOp(Plus)) => PlusPlus,
+                (Minus, BinOp(Minus)) => MinusMinus,
+                (Star, BinOp(Star)) => StarStar,
+                _ => return None,
+            },
+
+            Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | PlusPlus | MinusMinus | StarStar
+            | BinOpEq(_) | At | Dot | Comma | Semi | Colon | Arrow | FatArrow | Question
+            | OpenDelim(_) | CloseDelim(_) | Literal(_) | Ident(_) | DocComment(..) | Eof => {
+                return None
+            }
+        })
     }
 }
 
@@ -331,44 +407,9 @@ impl Token {
         }
     }
 
-    pub fn is_op(&self) -> bool {
-        match self.kind {
-            TokenKind::Eq
-            | TokenKind::Lt
-            | TokenKind::Le
-            | TokenKind::EqEq
-            | TokenKind::Ne
-            | TokenKind::Ge
-            | TokenKind::Gt
-            | TokenKind::AndAnd
-            | TokenKind::OrOr
-            | TokenKind::Not
-            | TokenKind::Tilde
-            | TokenKind::BinOp(_)
-            | TokenKind::BinOpEq(_)
-            | TokenKind::At
-            | TokenKind::Dot
-            | TokenKind::Comma
-            | TokenKind::Semi
-            | TokenKind::Colon
-            | TokenKind::Arrow
-            | TokenKind::FatArrow
-            | TokenKind::Question => true,
-
-            TokenKind::OpenDelim(..)
-            | TokenKind::CloseDelim(..)
-            | TokenKind::Literal(..)
-            | TokenKind::DocComment(..)
-            | TokenKind::Ident(..)
-            | TokenKind::Eof => false,
-        }
-    }
-
-    pub fn is_like_plus(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::BinOp(BinOpToken::Plus) | TokenKind::BinOpEq(BinOpToken::Plus)
-        )
+    /// Returns `true` if the token is an operator.
+    pub const fn is_op(&self) -> bool {
+        self.kind.is_op()
     }
 
     /// Returns `true` if the token is an identifier.
@@ -434,6 +475,11 @@ impl Token {
     /// Returns this token's description.
     pub fn description(&self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
+    }
+
+    /// Glues two tokens together.
+    pub fn glue(&self, other: &Self) -> Option<Self> {
+        self.kind.glue(&other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
     }
 }
 

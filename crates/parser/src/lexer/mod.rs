@@ -1,17 +1,19 @@
 //! Solidity lexer.
 
 use crate::ParseSess;
-use sulk_ast::token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind};
+use sulk_ast::{
+    ast::Base,
+    token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind},
+};
 use sulk_interface::{diagnostics::DiagCtxt, sym, BytePos, Pos, Span, Symbol};
 
-pub mod cursor;
-use cursor::Base;
-pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, Cursor};
+mod cursor;
+use cursor::Cursor;
+pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace};
 
 pub mod unescape;
 
 mod unicode_chars;
-use unicode_chars::UNICODE_ARRAY;
 
 mod utf8;
 
@@ -32,6 +34,9 @@ pub struct Lexer<'a> {
     /// Cursor for getting lexer tokens.
     cursor: Cursor<'a>,
 
+    /// The current token which has not been processed by `next_token` yet.
+    token: Token,
+
     override_span: Option<Span>,
 
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
@@ -48,15 +53,18 @@ impl<'a> Lexer<'a> {
         start_pos: BytePos,
         override_span: Option<Span>,
     ) -> Self {
-        Self {
+        let mut lexer = Self {
             sess,
             start_pos,
             pos: start_pos,
             src,
             cursor: Cursor::new(src),
+            token: Token::DUMMY,
             override_span,
             nbsp_is_whitespace: false,
-        }
+        };
+        (lexer.token, _) = lexer.bump();
+        lexer
     }
 
     /// Returns a reference to the diagnostic context.
@@ -69,7 +77,7 @@ impl<'a> Lexer<'a> {
     pub fn into_tokens(mut self) -> Vec<Token> {
         let mut tokens = Vec::new();
         loop {
-            let (token, _) = self.next_token();
+            let token = self.next_token();
             if token.kind == TokenKind::Eof {
                 break;
             }
@@ -78,22 +86,32 @@ impl<'a> Lexer<'a> {
         tokens
     }
 
-    /// Returns the next token, paired with a bool indicating if the token was
-    /// preceded by whitespace.
-    pub fn next_token(&mut self) -> (Token, bool) {
+    /// Returns the next token, advancing the lexer.
+    pub fn next_token(&mut self) -> Token {
+        let mut next_token;
+        loop {
+            next_token = self.bump().0;
+            if let Some(glued) = self.token.glue(&next_token) {
+                self.token = glued;
+            } else {
+                break;
+            }
+        }
+        std::mem::replace(&mut self.token, next_token)
+    }
+
+    fn bump(&mut self) -> (Token, bool) {
         let mut preceded_by_whitespace = false;
         let mut swallow_next_invalid = 0;
         loop {
-            let token = self.cursor.advance_token();
+            let cursor::Token { kind: raw_kind, len } = self.cursor.advance_token();
             let start = self.pos;
-            self.pos += token.len;
-
-            // debug!("next_token: {:?}({:?})", token.kind, self.str_from(start));
+            self.pos += len;
 
             // Now "cook" the token, converting the simple `cursor::TokenKind` enum into a
             // rich `ast::TokenKind`. This turns strings into interned symbols and runs
             // additional validation.
-            let kind = match token.kind {
+            let kind = match raw_kind {
                 cursor::TokenKind::LineComment { is_doc } => {
                     // Skip non-doc comments.
                     if !is_doc {
@@ -137,17 +155,6 @@ impl<'a> Lexer<'a> {
                     let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
-                // Do not recover an identifier with emoji if the codepoint is a confusable
-                // with a recoverable substitution token, like `➖`.
-                cursor::TokenKind::InvalidIdent
-                    if !UNICODE_ARRAY.iter().any(|&(c, _, _)| {
-                        let sym = self.str_from(start);
-                        sym.chars().count() == 1 && c == sym.chars().next().unwrap()
-                    }) =>
-                {
-                    let sym = self.symbol_from(start);
-                    TokenKind::Ident(sym)
-                }
                 cursor::TokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(Lit { kind, symbol })
@@ -178,7 +185,7 @@ impl<'a> Lexer<'a> {
                 cursor::TokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
                 cursor::TokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
 
-                cursor::TokenKind::Unknown | cursor::TokenKind::InvalidIdent => {
+                cursor::TokenKind::Unknown => {
                     // Don't emit diagnostics for sequences of the same invalid token
                     if swallow_next_invalid > 0 {
                         swallow_next_invalid -= 1;

@@ -3,11 +3,10 @@
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
 use std::str::Chars;
+use sulk_ast::ast::Base;
 
 mod token;
-pub use token::{LiteralKind, Token, TokenKind};
-
-pub use sulk_ast::ast::Base;
+pub(crate) use token::{LiteralKind, Token, TokenKind};
 
 #[cfg(test)]
 mod tests;
@@ -66,7 +65,7 @@ const EOF_CHAR: char = '\0';
 /// Next characters can be peeked via `first` method,
 /// and position can be shifted forward via `bump` method.
 #[derive(Clone, Debug)]
-pub struct Cursor<'a> {
+pub(crate) struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
     chars: Chars<'a>,
@@ -76,7 +75,7 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
-    pub fn new(input: &'a str) -> Cursor<'a> {
+    pub(crate) fn new(input: &'a str) -> Cursor<'a> {
         Cursor {
             len_remaining: input.len(),
             chars: input.chars(),
@@ -86,7 +85,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> Token {
+    pub(crate) fn advance_token(&mut self) -> Token {
         let first_char = match self.bump() {
             Some(c) => c,
             None => return Token::EOF,
