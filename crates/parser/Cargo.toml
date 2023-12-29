@@ -21,6 +21,7 @@ workspace = true
 
 [dependencies]
 sulk-ast.workspace = true
+sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
 hex.workspace = true

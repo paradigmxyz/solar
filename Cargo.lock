@@ -386,6 +386,7 @@ dependencies = [
  "const-hex",
  "expect-test",
  "sulk-ast",
+ "sulk-data-structures",
  "sulk-interface",
 ]
 
