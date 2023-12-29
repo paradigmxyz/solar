@@ -12,7 +12,9 @@ pub enum CommentKind {
     Block,
 }
 
-/// A **bin**ary **op**eration token.
+/// A binary operation token.
+///
+/// Note that this enum contains only binary operators that can also be used in assignments.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BinOpToken {
     /// `+`
@@ -472,7 +474,7 @@ impl Token {
         }
     }
 
-    /// Returns this token's description.
+    /// Returns this token's description, if any.
     pub fn description(&self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
     }

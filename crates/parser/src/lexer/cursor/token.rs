@@ -55,7 +55,7 @@ pub(crate) enum TokenKind {
     /// suffix, but may be present here on string and float literals. Users of
     /// this type will need to check for and reject that case.
     ///
-    /// See [LiteralKind] for more details.
+    /// See [`LiteralKind`] for more details.
     Literal { kind: LiteralKind },
 
     // One-char tokens:

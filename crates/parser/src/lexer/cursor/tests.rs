@@ -2,17 +2,17 @@ use super::*;
 use expect_test::{expect, Expect};
 use std::fmt::Write;
 
-fn check_lexing(src: &str, expect: Expect) {
+fn check(src: &str, expect: Expect) {
     let mut actual = String::new();
     for token in Cursor::new(src) {
         writeln!(actual, "{token:?}").unwrap();
     }
-    expect.assert_eq(&actual)
+    expect.assert_eq(&actual);
 }
 
 #[test]
 fn smoke_test() {
-    check_lexing(
+    check(
         "/* my source file */ fn main() { print(\"zebra\"); }\n",
         expect![[r#"
             Token { kind: BlockComment { is_doc: false, terminated: true }, len: 20 }
@@ -34,12 +34,12 @@ fn smoke_test() {
             Token { kind: CloseBrace, len: 1 }
             Token { kind: Whitespace, len: 1 }
         "#]],
-    )
+    );
 }
 
 #[test]
 fn comment_flavors() {
-    check_lexing(
+    check(
         r"
 // line
 //// line as well
@@ -71,18 +71,18 @@ fn comment_flavors() {
 
 #[test]
 fn nested_block_comments() {
-    check_lexing(
+    check(
         "/* /* */ */'a'",
         expect![[r#"
             Token { kind: BlockComment { is_doc: false, terminated: true }, len: 11 }
             Token { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
         "#]],
-    )
+    );
 }
 
 #[test]
 fn single_str() {
-    check_lexing(
+    check(
         "'a' ' ' '\\n'",
         expect![[r#"
             Token { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
@@ -96,7 +96,7 @@ fn single_str() {
 
 #[test]
 fn double_str() {
-    check_lexing(
+    check(
         r#""a" " " "\n""#,
         expect![[r#"
             Token { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
@@ -110,7 +110,7 @@ fn double_str() {
 
 #[test]
 fn hex_str() {
-    check_lexing(
+    check(
         r#"hex'' hex"ab" h"a" he"a"#,
         expect![[r#"
             Token { kind: Literal { kind: HexStr { terminated: true } }, len: 5 }
@@ -128,7 +128,7 @@ fn hex_str() {
 
 #[test]
 fn unicode_str() {
-    check_lexing(
+    check(
         r#"unicode'' unicode"ab" u"a" uni"a"#,
         expect![[r#"
             Token { kind: Literal { kind: Str { terminated: true, unicode: true } }, len: 9 }

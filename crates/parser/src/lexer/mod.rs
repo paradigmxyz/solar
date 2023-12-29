@@ -1,6 +1,5 @@
 //! Solidity lexer.
 
-use crate::ParseSess;
 use sulk_ast::{
     ast::Base,
     token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind},
@@ -19,8 +18,8 @@ mod utf8;
 
 /// Solidity lexer.
 pub struct Lexer<'a> {
-    /// The current parser session.
-    sess: &'a ParseSess,
+    /// The diagnostic context.
+    dcx: &'a DiagCtxt,
 
     /// Initial position, read-only.
     start_pos: BytePos,
@@ -48,13 +47,13 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     /// Creates a new `Lexer` for the given source string.
     pub fn new(
-        sess: &'a ParseSess,
+        dcx: &'a DiagCtxt,
         src: &'a str,
         start_pos: BytePos,
         override_span: Option<Span>,
     ) -> Self {
         let mut lexer = Self {
-            sess,
+            dcx,
             start_pos,
             pos: start_pos,
             src,
@@ -70,7 +69,7 @@ impl<'a> Lexer<'a> {
     /// Returns a reference to the diagnostic context.
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
-        &self.sess.dcx
+        &self.dcx
     }
 
     /// Consumes the lexer and collects the remaining tokens into a vector.
@@ -90,8 +89,11 @@ impl<'a> Lexer<'a> {
     pub fn next_token(&mut self) -> Token {
         let mut next_token;
         loop {
-            next_token = self.bump().0;
-            if let Some(glued) = self.token.glue(&next_token) {
+            let preceded_by_whitespace;
+            (next_token, preceded_by_whitespace) = self.bump();
+            if preceded_by_whitespace {
+                break;
+            } else if let Some(glued) = self.token.glue(&next_token) {
                 self.token = glued;
             } else {
                 break;
@@ -441,6 +443,22 @@ impl<'a> Lexer<'a> {
     }
 }
 
+impl Iterator for Lexer<'_> {
+    type Item = Token;
+
+    #[inline]
+    fn next(&mut self) -> Option<Token> {
+        let token = self.next_token();
+        if token.kind == TokenKind::Eof {
+            None
+        } else {
+            Some(token)
+        }
+    }
+}
+
+impl std::iter::FusedIterator for Lexer<'_> {}
+
 /// Pushes a character to a message string for error reporting
 fn escaped_char(c: char) -> String {
     match c {
@@ -449,5 +467,82 @@ fn escaped_char(c: char) -> String {
             c.to_string()
         }
         _ => c.escape_default().to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ops::Range;
+    use BinOpToken::*;
+    use TokenKind::*;
+
+    fn check(src: &str, expected: &[(Range<usize>, TokenKind)]) {
+        let dcx = DiagCtxt::with_silent_emitter(None);
+        let tokens: Vec<_> = Lexer::new(&dcx, src, BytePos(0), None)
+            .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
+            .collect();
+        assert_eq!(tokens, expected, "{src:?}");
+    }
+
+    fn checks(tests: &[(&str, &[(Range<usize>, TokenKind)])]) {
+        for &(src, expected) in tests {
+            check(src, expected);
+        }
+    }
+
+    #[test]
+    fn basic() {
+        checks(&[
+            ("", &[]),
+            ("   ", &[]),
+            (" \t ", &[]),
+            //
+        ]);
+    }
+
+    #[test]
+    fn glueing() {
+        checks(&[
+            ("=", &[(0..1, Eq)]),
+            ("==", &[(0..2, EqEq)]),
+            ("= =", &[(0..1, Eq), (2..3, Eq)]),
+            ("===", &[(0..2, EqEq), (2..3, Eq)]),
+            ("== =", &[(0..2, EqEq), (3..4, Eq)]),
+            ("= ==", &[(0..1, Eq), (2..4, EqEq)]),
+            ("====", &[(0..2, EqEq), (2..4, EqEq)]),
+            ("== ==", &[(0..2, EqEq), (3..5, EqEq)]),
+            ("= ===", &[(0..1, Eq), (2..4, EqEq), (4..5, Eq)]),
+            ("=====", &[(0..2, EqEq), (2..4, EqEq), (4..5, Eq)]),
+            //
+            (" <", &[(1..2, Lt)]),
+            (" <=", &[(1..3, Le)]),
+            (" < =", &[(1..2, Lt), (3..4, Eq)]),
+            (" <<", &[(1..3, BinOp(Shl))]),
+            (" <<=", &[(1..4, BinOpEq(Shl))]),
+            //
+            (" >", &[(1..2, Gt)]),
+            (" >=", &[(1..3, Ge)]),
+            (" > =", &[(1..2, Gt), (3..4, Eq)]),
+            (" >>", &[(1..3, BinOp(Shr))]),
+            (" >>>", &[(1..4, BinOp(Sar))]),
+            (" >>>=", &[(1..5, BinOpEq(Sar))]),
+            //
+            ("+", &[(0..1, BinOp(Plus))]),
+            ("++", &[(0..2, PlusPlus)]),
+            ("+++", &[(0..2, PlusPlus), (2..3, BinOp(Plus))]),
+            ("+ =", &[(0..1, BinOp(Plus)), (2..3, Eq)]),
+            ("+ +=", &[(0..1, BinOp(Plus)), (2..4, BinOpEq(Plus))]),
+            ("+++=", &[(0..2, PlusPlus), (2..4, BinOpEq(Plus))]),
+            ("+ +", &[(0..1, BinOp(Plus)), (2..3, BinOp(Plus))]),
+            //
+            ("-", &[(0..1, BinOp(Minus))]),
+            ("--", &[(0..2, MinusMinus)]),
+            ("---", &[(0..2, MinusMinus), (2..3, BinOp(Minus))]),
+            ("- =", &[(0..1, BinOp(Minus)), (2..3, Eq)]),
+            ("- -=", &[(0..1, BinOp(Minus)), (2..4, BinOpEq(Minus))]),
+            ("---=", &[(0..2, MinusMinus), (2..4, BinOpEq(Minus))]),
+            ("- -", &[(0..1, BinOp(Minus)), (2..3, BinOp(Minus))]),
+        ]);
     }
 }

@@ -119,9 +119,10 @@ impl Span {
         Self::new(
             cmp::min(self.lo(), end.lo()),
             cmp::max(self.hi(), end.hi()),
-            // if span_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt
-            // }, if span_data.parent == end_data.parent { span_data.parent } else {
-            // None },
+            /*
+            if span_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt },
+            if span_data.parent == end_data.parent { span_data.parent } else { None },
+            */
         )
     }
 
