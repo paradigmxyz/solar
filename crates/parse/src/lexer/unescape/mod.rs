@@ -78,8 +78,9 @@ where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     match mode {
-        Mode::Str => unescape_str(src, false, callback),
-        Mode::UnicodeStr => unescape_str(src, true, callback),
+        Mode::Str | Mode::UnicodeStr => {
+            unescape_str(src, matches!(mode, Mode::UnicodeStr), callback)
+        }
         Mode::HexStr => unescape_hex_str(src, callback),
     }
 }

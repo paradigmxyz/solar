@@ -9,6 +9,7 @@
 use sulk_interface::diagnostics::{DiagnosticBuilder, ErrorGuaranteed};
 
 pub mod lexer;
+pub use lexer::Lexer;
 
 mod parser;
 pub use parser::Parser;

@@ -36,7 +36,7 @@ sulk-ast = { version = "0.0.0", path = "crates/ast" }
 sulk-data-structures = { version = "0.0.0", path = "crates/data-structures" }
 sulk-interface = { version = "0.0.0", path = "crates/interface" }
 sulk-macros = { version = "0.0.0", path = "crates/macros" }
-sulk-parser = { version = "0.0.0", path = "crates/parser" }
+sulk-parse = { version = "0.0.0", path = "crates/parse" }
 
 alloy-primitives = "0.5"
 

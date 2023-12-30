@@ -472,7 +472,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sulk-parser"
+name = "sulk-parse"
 version = "0.0.0"
 dependencies = [
  "const-hex",
