@@ -51,6 +51,11 @@ impl DiagCtxt {
         }
     }
 
+    /// Creates a new `DiagCtxt` with a test emitter.
+    pub fn with_test_emitter(ui: bool) -> Self {
+        Self::new(Box::new(EmitterWriter::test(ui)))
+    }
+
     /// Creates a new `DiagCtxt` with a TTY emitter.
     pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
         Self::new(Box::new(EmitterWriter::stderr(ColorConfig::Auto).source_map(source_map)))

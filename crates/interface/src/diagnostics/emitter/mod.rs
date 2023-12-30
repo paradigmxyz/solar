@@ -105,3 +105,9 @@ impl Emitter for LocalEmitter {
         None
     }
 }
+
+#[cold]
+#[inline(never)]
+fn io_panic(error: std::io::Error) -> ! {
+    panic!("failed to emit diagnostic: {error}");
+}

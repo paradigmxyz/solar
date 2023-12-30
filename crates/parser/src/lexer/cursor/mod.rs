@@ -173,28 +173,16 @@ impl<'a> Cursor<'a> {
         // `/**/` is not considered a doc comment.
         let is_doc = matches!(self.first(), '*' if !matches!(self.second(), '*' | '/'));
 
-        let mut depth = 1usize;
+        let mut terminated = false;
         while let Some(c) = self.bump() {
-            match c {
-                '/' if self.first() == '*' => {
-                    self.bump();
-                    depth += 1;
-                }
-                '*' if self.first() == '/' => {
-                    self.bump();
-                    depth -= 1;
-                    if depth == 0 {
-                        // This block comment is closed, so for a construction like "/* */ */"
-                        // there will be a successfully parsed block comment "/* */"
-                        // and " */" will be processed separately.
-                        break;
-                    }
-                }
-                _ => (),
+            if c == '*' && self.first() == '/' {
+                terminated = true;
+                self.bump();
+                break;
             }
         }
 
-        TokenKind::BlockComment { is_doc, terminated: depth == 0 }
+        TokenKind::BlockComment { is_doc, terminated }
     }
 
     fn whitespace(&mut self) -> TokenKind {
@@ -325,9 +313,12 @@ impl<'a> Cursor<'a> {
             if c == quote {
                 return true;
             }
-            if c == '\\' && (self.first() == '\\' || self.first() == quote) {
-                // Bump again to skip escaped character.
-                self.bump();
+            if c == '\\' {
+                let first = self.first();
+                if first == '\\' || first == quote {
+                    // Bump again to skip escaped character.
+                    self.bump();
+                }
             }
         }
         // End of file reached.

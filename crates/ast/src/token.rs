@@ -190,6 +190,8 @@ pub enum TokenKind {
     Not,
     /// `~`
     Tilde,
+    /// `:=`
+    Walrus,
     /// `++`
     PlusPlus,
     /// `--`
@@ -269,6 +271,7 @@ impl TokenKind {
             Self::OrOr => "||",
             Self::Not => "!",
             Self::Tilde => "~",
+            Self::Walrus => ":=",
             Self::PlusPlus => "++",
             Self::MinusMinus => "--",
             Self::StarStar => "**",
@@ -303,9 +306,9 @@ impl TokenKind {
     pub const fn is_op(&self) -> bool {
         use TokenKind::*;
         match self {
-            Eq | Lt | Le | EqEq | Ne | Ge | Gt | AndAnd | OrOr | Not | Tilde | PlusPlus
-            | MinusMinus | StarStar | BinOp(_) | BinOpEq(_) | At | Dot | Comma | Semi | Colon
-            | Arrow | FatArrow | Question => true,
+            Eq | Lt | Le | EqEq | Ne | Ge | Gt | AndAnd | OrOr | Not | Tilde | Walrus
+            | PlusPlus | MinusMinus | StarStar | BinOp(_) | BinOpEq(_) | At | Dot | Comma
+            | Semi | Colon | Arrow | FatArrow | Question => true,
 
             OpenDelim(..) | CloseDelim(..) | Literal(..) | DocComment(..) | Ident(..) | Eof => {
                 false
@@ -352,6 +355,10 @@ impl TokenKind {
                 Eq => Ne,
                 _ => return None,
             },
+            Colon => match other {
+                Eq => Walrus,
+                _ => return None,
+            },
             BinOp(op) => match (op, other) {
                 (op, Eq) => BinOpEq(op),
                 (And, BinOp(And)) => AndAnd,
@@ -365,8 +372,8 @@ impl TokenKind {
                 _ => return None,
             },
 
-            Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | PlusPlus | MinusMinus | StarStar
-            | BinOpEq(_) | At | Dot | Comma | Semi | Colon | Arrow | FatArrow | Question
+            Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
+            | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
             | OpenDelim(_) | CloseDelim(_) | Literal(_) | Ident(_) | DocComment(..) | Eof => {
                 return None
             }

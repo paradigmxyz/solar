@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::{Emitter, EmitterWriter};
+use super::{io_panic, Emitter, EmitterWriter};
 use crate::{
     diagnostics::{ColorConfig, MultiSpan, SpanLabel},
     SourceMap, Span,
@@ -18,9 +18,8 @@ pub struct JsonEmitter {
 
 impl Emitter for JsonEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) {
-        if let Err(e) = self.emit(&EmitTyped::Diagnostic(self.diagnostic(diagnostic))) {
-            panic!("failed to emit diagnostic: {e}");
-        }
+        self.emit(&EmitTyped::Diagnostic(self.diagnostic(diagnostic)))
+            .unwrap_or_else(|e| io_panic(e));
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {

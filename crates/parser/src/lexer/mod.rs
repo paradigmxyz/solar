@@ -132,7 +132,7 @@ impl<'a> Lexer<'a> {
                     }
 
                     // Skip non-doc comments.
-                    if is_doc {
+                    if !is_doc {
                         preceded_by_whitespace = true;
                         continue;
                     }
@@ -480,7 +480,7 @@ mod tests {
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
     fn check(src: &str, expected: Expected<'_>) {
-        let dcx = DiagCtxt::with_silent_emitter(None);
+        let dcx = DiagCtxt::with_test_emitter(false);
         let tokens: Vec<_> = Lexer::new(&dcx, src, BytePos(0), None)
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
@@ -493,13 +493,176 @@ mod tests {
         }
     }
 
+    fn lit(kind: LitKind, symbol: &str) -> TokenKind {
+        Literal(Lit { kind, symbol: sym(symbol) })
+    }
+
+    fn id(symbol: &str) -> TokenKind {
+        Ident(sym(symbol))
+    }
+
+    fn sym(s: &str) -> Symbol {
+        Symbol::intern(s)
+    }
+
     #[test]
-    fn basic() {
+    fn empty() {
         checks(&[
             ("", &[]),
-            ("   ", &[]),
-            (" \t ", &[]),
-            //
+            (" ", &[]),
+            (" \n", &[]),
+            ("\n", &[]),
+            ("\n\t", &[]),
+            ("\n \t", &[]),
+            ("\n \t ", &[]),
+            (" \n \t \t", &[]),
+        ]);
+    }
+
+    #[test]
+    fn literals() {
+        use LitKind::*;
+        sulk_interface::create_session_globals_then(|| {
+            checks(&[
+                ("\"\"", &[(0..2, lit(Str, ""))]),
+                ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
+                ("\"\" \"\"", &[(0..2, lit(Str, "")), (3..5, lit(Str, ""))]),
+                ("\"\\\"\"", &[(0..4, lit(Str, "\\\""))]),
+                ("unicode\"\"", &[(0..9, lit(UnicodeStr, ""))]),
+                ("unicode \"\"", &[(0..7, id("unicode")), (8..10, lit(Str, ""))]),
+                ("hex\"\"", &[(0..5, lit(HexStr, ""))]),
+                ("hex \"\"", &[(0..3, id("hex")), (4..6, lit(Str, ""))]),
+                //
+                ("0", &[(0..1, lit(Integer, "0"))]),
+                ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
+                ("0xa", &[(0..3, lit(Integer, "0xa"))]),
+                ("0.", &[(0..2, lit(Rational, "0."))]),
+                ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
+                (
+                    "0.e-1",
+                    &[
+                        (0..1, lit(Integer, "0")),
+                        (1..2, Dot),
+                        (2..3, id("e")),
+                        (3..4, BinOp(Minus)),
+                        (4..5, lit(Integer, "1")),
+                    ],
+                ),
+                ("0.0", &[(0..3, lit(Rational, "0.0"))]),
+                ("0.0e1", &[(0..5, lit(Rational, "0.0e1"))]),
+                ("0.0e-1", &[(0..6, lit(Rational, "0.0e-1"))]),
+                ("0e1", &[(0..3, lit(Rational, "0e1"))]),
+                ("0e1.", &[(0..3, lit(Rational, "0e1")), (3..4, Dot)]),
+            ]);
+        });
+    }
+
+    #[test]
+    fn idents() {
+        sulk_interface::create_session_globals_then(|| {
+            checks(&[
+                ("$", &[(0..1, id("$"))]),
+                ("a$", &[(0..2, id("a$"))]),
+                ("a_$123_", &[(0..7, id("a_$123_"))]),
+                ("   b", &[(3..4, id("b"))]),
+                (" c\t ", &[(1..2, id("c"))]),
+                (" \td ", &[(2..3, id("d"))]),
+                (" \t\nef ", &[(3..5, id("ef"))]),
+                (" \t\n\tghi ", &[(4..7, id("ghi"))]),
+            ]);
+        });
+    }
+
+    #[test]
+    fn doc_comments() {
+        use CommentKind::*;
+        sulk_interface::create_session_globals_then(|| {
+            checks(&[
+                ("// line comment", &[]),
+                ("// / line comment", &[]),
+                ("// ! line comment", &[]),
+                ("// /* line comment", &[]), // */ <-- aaron-bond.better-comments doesn't like this
+                ("/// line doc-comment", &[(0..20, DocComment(Line, sym(" line doc-comment")))]),
+                ("//// invalid doc-comment", &[]),
+                ("///// invalid doc-comment", &[]),
+                //
+                ("/**/", &[]),
+                ("/* /**/", &[]),
+                ("/* /*/", &[]),
+                ("/*/*/", &[]),
+                ("/* normal block comment */", &[]),
+                ("/* /* normal block comment */", &[]),
+                (
+                    "/** block doc-comment */",
+                    &[(0..24, DocComment(Block, sym(" block doc-comment ")))],
+                ),
+                (
+                    "/** /* block doc-comment */",
+                    &[(0..27, DocComment(Block, sym(" /* block doc-comment ")))],
+                ),
+                (
+                    "/** block doc-comment /*/",
+                    &[(0..25, DocComment(Block, sym(" block doc-comment /")))],
+                ),
+            ]);
+        });
+    }
+
+    #[test]
+    fn operators() {
+        use Delimiter::*;
+        // From Solc `TOKEN_LIST`: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
+        checks(&[
+            (")", &[(0..1, CloseDelim(Parenthesis))]),
+            ("(", &[(0..1, OpenDelim(Parenthesis))]),
+            ("[", &[(0..1, OpenDelim(Bracket))]),
+            ("]", &[(0..1, CloseDelim(Bracket))]),
+            ("{", &[(0..1, OpenDelim(Brace))]),
+            ("}", &[(0..1, CloseDelim(Brace))]),
+            (":", &[(0..1, Colon)]),
+            (";", &[(0..1, Semi)]),
+            (".", &[(0..1, Dot)]),
+            ("?", &[(0..1, Question)]),
+            ("=>", &[(0..2, FatArrow)]),
+            ("->", &[(0..2, Arrow)]),
+            ("=", &[(0..1, Eq)]),
+            ("|=", &[(0..2, BinOpEq(Or))]),
+            ("^=", &[(0..2, BinOpEq(Caret))]),
+            ("&=", &[(0..2, BinOpEq(And))]),
+            ("<<=", &[(0..3, BinOpEq(Shl))]),
+            (">>=", &[(0..3, BinOpEq(Shr))]),
+            (">>>=", &[(0..4, BinOpEq(Sar))]),
+            ("+=", &[(0..2, BinOpEq(Plus))]),
+            ("-=", &[(0..2, BinOpEq(Minus))]),
+            ("*=", &[(0..2, BinOpEq(Star))]),
+            ("/=", &[(0..2, BinOpEq(Slash))]),
+            ("%=", &[(0..2, BinOpEq(Percent))]),
+            (",", &[(0..1, Comma)]),
+            ("||", &[(0..2, OrOr)]),
+            ("&&", &[(0..2, AndAnd)]),
+            ("|", &[(0..1, BinOp(Or))]),
+            ("^", &[(0..1, BinOp(Caret))]),
+            ("&", &[(0..1, BinOp(And))]),
+            ("<<", &[(0..2, BinOp(Shl))]),
+            (">>", &[(0..2, BinOp(Shr))]),
+            (">>>", &[(0..3, BinOp(Sar))]),
+            ("+", &[(0..1, BinOp(Plus))]),
+            ("-", &[(0..1, BinOp(Minus))]),
+            ("*", &[(0..1, BinOp(Star))]),
+            ("/", &[(0..1, BinOp(Slash))]),
+            ("%", &[(0..1, BinOp(Percent))]),
+            ("**", &[(0..2, StarStar)]),
+            ("==", &[(0..2, EqEq)]),
+            ("!=", &[(0..2, Ne)]),
+            ("<", &[(0..1, Lt)]),
+            (">", &[(0..1, Gt)]),
+            ("<=", &[(0..2, Le)]),
+            (">=", &[(0..2, Ge)]),
+            ("!", &[(0..1, Not)]),
+            ("~", &[(0..1, Tilde)]),
+            ("++", &[(0..2, PlusPlus)]),
+            ("--", &[(0..2, MinusMinus)]),
+            (":=", &[(0..2, Walrus)]),
         ]);
     }
 

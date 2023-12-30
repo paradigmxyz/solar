@@ -1,4 +1,4 @@
-use super::Diagnostic;
+use super::{io_panic, Diagnostic};
 use crate::{
     diagnostics::{ColorConfig, Level, Style},
     SourceMap,
@@ -24,9 +24,9 @@ const fn make_renderer(anonymize: bool) -> Renderer {
 static DEFAULT_RENDERER: Renderer = make_renderer(false);
 static ANON_RENDERER: Renderer = make_renderer(true);
 
-/// Diagnostic emitter that emits to an arbitrary [`std::io::Write`] writer.
+/// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer.
 pub struct EmitterWriter {
-    writer: AutoStream<Box<dyn io::Write>>,
+    writer: AutoStream<Box<dyn Write>>,
     source_map: Option<Lrc<SourceMap>>,
     renderer: &'static Renderer,
 }
@@ -34,10 +34,10 @@ pub struct EmitterWriter {
 impl crate::diagnostics::Emitter for EmitterWriter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         self.snippet(diagnostic, |this, snippet| {
-            if let Err(e) = write!(this.writer, "{}", this.renderer.render(snippet)) {
-                panic!("failed to emit diagnostic: {e}");
-            }
-        });
+            writeln!(this.writer, "{}", this.renderer.render(snippet))?;
+            this.writer.flush()
+        })
+        .unwrap_or_else(|e| io_panic(e));
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {
@@ -54,9 +54,34 @@ impl crate::diagnostics::Emitter for EmitterWriter {
 
 impl EmitterWriter {
     /// Creates a new `EmitterWriter` that writes to given writer.
-    pub fn new(writer: Box<dyn io::Write>, color: ColorConfig) -> Self {
+    pub fn new(writer: Box<dyn Write>, color: ColorConfig) -> Self {
         let writer = AutoStream::new(writer, color.to_color_choice());
         Self { writer, source_map: None, renderer: &DEFAULT_RENDERER }
+    }
+
+    /// Creates a new `EmitterWriter` that writes to stderr, for use in tests.
+    pub fn test(ui: bool) -> Self {
+        struct TestWriter(io::Stderr);
+
+        impl Write for TestWriter {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                // The main difference between `stderr`: use the `eprint!` macro so that the output
+                // can get captured by the test harness.
+                eprint!("{}", String::from_utf8_lossy(buf));
+                Ok(buf.len())
+            }
+
+            fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+                self.write(buf).map(drop)
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                self.0.flush()
+            }
+        }
+
+        let color = if ui { ColorConfig::Never } else { ColorConfig::Always };
+        Self::new(Box::new(TestWriter(io::stderr())), color).anonymized_line_numbers(ui)
     }
 
     /// Creates a new `EmitterWriter` that writes to stderr.
@@ -77,7 +102,11 @@ impl EmitterWriter {
     }
 
     /// Formats the given `diagnostic` into a [`Snippet`] suitable for use with the renderer.
-    fn snippet(&mut self, diagnostic: &Diagnostic, f: impl FnOnce(&mut Self, Snippet<'_>)) {
+    fn snippet<R>(
+        &mut self,
+        diagnostic: &Diagnostic,
+        f: impl FnOnce(&mut Self, Snippet<'_>) -> R,
+    ) -> R {
         // Current format (annotate-snippets 0.10.0) (comments in <...>):
         /*
         title.annotation_type[title.id]: title.label
@@ -130,7 +159,7 @@ impl EmitterWriter {
                 })
                 .collect(),
         };
-        f(self, snippet);
+        f(self, snippet)
     }
 }
 

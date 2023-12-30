@@ -70,17 +70,6 @@ fn comment_flavors() {
 }
 
 #[test]
-fn nested_block_comments() {
-    check(
-        "/* /* */ */'a'",
-        expect![[r#"
-            Token { kind: BlockComment { is_doc: false, terminated: true }, len: 11 }
-            Token { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-        "#]],
-    );
-}
-
-#[test]
 fn single_str() {
     check(
         "'a' ' ' '\\n'",
