@@ -473,8 +473,12 @@ impl Diagnostic {
 
     /// Adds a note with the location where this diagnostic was created and emitted.
     pub(crate) fn locations_note(&mut self, emitted_at: &Location<'_>) -> &mut Self {
-        self.note(format!("created at {}", self.created_at))
-            .note(format!("emitted at {}", *emitted_at))
+        let msg = format!(
+            "created at {},\n\
+             emitted at {}",
+            self.created_at, emitted_at
+        );
+        self.note(msg)
     }
 }
 
