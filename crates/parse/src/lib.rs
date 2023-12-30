@@ -1,4 +1,4 @@
-//! Solidity parser.
+//! Solidity lexer and parser.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/logo.jpg",

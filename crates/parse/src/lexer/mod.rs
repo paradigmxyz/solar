@@ -7,8 +7,8 @@ use sulk_ast::{
 use sulk_interface::{diagnostics::DiagCtxt, sym, BytePos, Pos, Span, Symbol};
 
 mod cursor;
-use cursor::Cursor;
 pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace};
+use cursor::{Cursor, RawLiteralKind, RawToken, RawTokenKind};
 
 pub mod unescape;
 
@@ -106,15 +106,14 @@ impl<'a> Lexer<'a> {
         let mut preceded_by_whitespace = false;
         let mut swallow_next_invalid = 0;
         loop {
-            let cursor::Token { kind: raw_kind, len } = self.cursor.advance_token();
+            let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
             let start = self.pos;
             self.pos += len;
 
-            // Now "cook" the token, converting the simple `cursor::TokenKind` enum into a
-            // rich `ast::TokenKind`. This turns strings into interned symbols and runs
-            // additional validation.
+            // Now "cook" the token, converting the simple `RawTokenKind` into a rich `TokenKind`.
+            // This turns strings into interned symbols and runs additional validation.
             let kind = match raw_kind {
-                cursor::TokenKind::LineComment { is_doc } => {
+                RawTokenKind::LineComment { is_doc } => {
                     // Skip non-doc comments.
                     if !is_doc {
                         preceded_by_whitespace = true;
@@ -126,7 +125,7 @@ impl<'a> Lexer<'a> {
                     let content = self.str_from(content_start);
                     self.cook_doc_comment(content_start, content, CommentKind::Line)
                 }
-                cursor::TokenKind::BlockComment { is_doc, terminated } => {
+                RawTokenKind::BlockComment { is_doc, terminated } => {
                     if !terminated {
                         self.report_unterminated_block_comment(start, is_doc);
                     }
@@ -144,50 +143,50 @@ impl<'a> Lexer<'a> {
                     let content = self.str_from_to(content_start, content_end);
                     self.cook_doc_comment(content_start, content, CommentKind::Block)
                 }
-                cursor::TokenKind::Whitespace => {
+                RawTokenKind::Whitespace => {
                     preceded_by_whitespace = true;
                     continue;
                 }
-                cursor::TokenKind::Ident => {
+                RawTokenKind::Ident => {
                     let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
-                cursor::TokenKind::UnknownPrefix => {
+                RawTokenKind::UnknownPrefix => {
                     self.report_unknown_prefix(start);
                     let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
-                cursor::TokenKind::Literal { kind } => {
+                RawTokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(Lit { kind, symbol })
                 }
 
-                cursor::TokenKind::Semi => TokenKind::Semi,
-                cursor::TokenKind::Comma => TokenKind::Comma,
-                cursor::TokenKind::Dot => TokenKind::Dot,
-                cursor::TokenKind::OpenParen => TokenKind::OpenDelim(Delimiter::Parenthesis),
-                cursor::TokenKind::CloseParen => TokenKind::CloseDelim(Delimiter::Parenthesis),
-                cursor::TokenKind::OpenBrace => TokenKind::OpenDelim(Delimiter::Brace),
-                cursor::TokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
-                cursor::TokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
-                cursor::TokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
-                cursor::TokenKind::Tilde => TokenKind::Tilde,
-                cursor::TokenKind::Question => TokenKind::Question,
-                cursor::TokenKind::Colon => TokenKind::Colon,
-                cursor::TokenKind::Eq => TokenKind::Eq,
-                cursor::TokenKind::Bang => TokenKind::Not,
-                cursor::TokenKind::Lt => TokenKind::Lt,
-                cursor::TokenKind::Gt => TokenKind::Gt,
-                cursor::TokenKind::Minus => TokenKind::BinOp(BinOpToken::Minus),
-                cursor::TokenKind::And => TokenKind::BinOp(BinOpToken::And),
-                cursor::TokenKind::Or => TokenKind::BinOp(BinOpToken::Or),
-                cursor::TokenKind::Plus => TokenKind::BinOp(BinOpToken::Plus),
-                cursor::TokenKind::Star => TokenKind::BinOp(BinOpToken::Star),
-                cursor::TokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
-                cursor::TokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
-                cursor::TokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
+                RawTokenKind::Semi => TokenKind::Semi,
+                RawTokenKind::Comma => TokenKind::Comma,
+                RawTokenKind::Dot => TokenKind::Dot,
+                RawTokenKind::OpenParen => TokenKind::OpenDelim(Delimiter::Parenthesis),
+                RawTokenKind::CloseParen => TokenKind::CloseDelim(Delimiter::Parenthesis),
+                RawTokenKind::OpenBrace => TokenKind::OpenDelim(Delimiter::Brace),
+                RawTokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
+                RawTokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
+                RawTokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
+                RawTokenKind::Tilde => TokenKind::Tilde,
+                RawTokenKind::Question => TokenKind::Question,
+                RawTokenKind::Colon => TokenKind::Colon,
+                RawTokenKind::Eq => TokenKind::Eq,
+                RawTokenKind::Bang => TokenKind::Not,
+                RawTokenKind::Lt => TokenKind::Lt,
+                RawTokenKind::Gt => TokenKind::Gt,
+                RawTokenKind::Minus => TokenKind::BinOp(BinOpToken::Minus),
+                RawTokenKind::And => TokenKind::BinOp(BinOpToken::And),
+                RawTokenKind::Or => TokenKind::BinOp(BinOpToken::Or),
+                RawTokenKind::Plus => TokenKind::BinOp(BinOpToken::Plus),
+                RawTokenKind::Star => TokenKind::BinOp(BinOpToken::Star),
+                RawTokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
+                RawTokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
+                RawTokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
 
-                cursor::TokenKind::Unknown => {
+                RawTokenKind::Unknown => {
                     // Don't emit diagnostics for sequences of the same invalid token
                     if swallow_next_invalid > 0 {
                         swallow_next_invalid -= 1;
@@ -227,7 +226,7 @@ impl<'a> Lexer<'a> {
                     }
                     diag.emit();
 
-                    // preceded_by_whitespace = true;
+                    preceded_by_whitespace = true;
                     continue;
                     // TODO
                     /*
@@ -254,7 +253,7 @@ impl<'a> Lexer<'a> {
                     */
                 }
 
-                cursor::TokenKind::Eof => TokenKind::Eof,
+                RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
             return (Token::new(kind, span), preceded_by_whitespace);
@@ -286,10 +285,10 @@ impl<'a> Lexer<'a> {
         &self,
         start: BytePos,
         end: BytePos,
-        kind: cursor::LiteralKind,
+        kind: RawLiteralKind,
     ) -> (LitKind, Symbol) {
         match kind {
-            cursor::LiteralKind::Str { terminated, unicode } => {
+            RawLiteralKind::Str { terminated, unicode } => {
                 if !terminated {
                     let span = self.new_span(start, end);
                     self.dcx().fatal("unterminated string").span(span).emit();
@@ -298,7 +297,7 @@ impl<'a> Lexer<'a> {
                 let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
                 self.cook_quoted(kind, start, end, prefix_len)
             }
-            cursor::LiteralKind::HexStr { terminated } => {
+            RawLiteralKind::HexStr { terminated } => {
                 if !terminated {
                     let span = self.new_span(start, end);
                     self.dcx().fatal("unterminated hex string").span(span).emit();
@@ -306,7 +305,7 @@ impl<'a> Lexer<'a> {
                 let prefix_len = 3; // `hex`
                 self.cook_quoted(LitKind::HexStr, start, end, prefix_len)
             }
-            cursor::LiteralKind::Int { base, empty_int } => {
+            RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
                     let span = self.new_span(start, end);
                     self.dcx().err("no valid digits found for number").span(span).emit();
@@ -334,7 +333,7 @@ impl<'a> Lexer<'a> {
                     (LitKind::Integer, self.symbol_from_to(start, end))
                 }
             }
-            cursor::LiteralKind::Rational { base, empty_exponent } => {
+            RawLiteralKind::Rational { base, empty_exponent } => {
                 if empty_exponent {
                     let span = self.new_span(start, self.pos);
                     self.dcx().err("expected at least one digit in exponent").span(span).emit();

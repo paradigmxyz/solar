@@ -5,27 +5,27 @@ use sulk_ast::ast::Base;
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Token {
+pub(crate) struct RawToken {
     /// The kind of token.
-    pub(crate) kind: TokenKind,
+    pub(crate) kind: RawTokenKind,
     /// The length of the token in bytes.
     pub(crate) len: u32,
 }
 
-impl Token {
+impl RawToken {
     /// The [`EOF`](TokenKind::Eof) token with length 0.
-    pub(crate) const EOF: Self = Self::new(TokenKind::Eof, 0);
+    pub(crate) const EOF: Self = Self::new(RawTokenKind::Eof, 0);
 
     /// Creates a new token.
     #[inline]
-    pub(crate) const fn new(kind: TokenKind, len: u32) -> Self {
+    pub(crate) const fn new(kind: RawTokenKind, len: u32) -> Self {
         Self { kind, len }
     }
 }
 
 /// Common lexeme types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum TokenKind {
+pub(crate) enum RawTokenKind {
     // Multi-char tokens:
     /// `// comment`
     ///
@@ -56,7 +56,7 @@ pub(crate) enum TokenKind {
     /// this type will need to check for and reject that case.
     ///
     /// See [`LiteralKind`] for more details.
-    Literal { kind: LiteralKind },
+    Literal { kind: RawLiteralKind },
 
     // One-char tokens:
     /// `;`
@@ -117,7 +117,7 @@ pub(crate) enum TokenKind {
 
 /// The literal types supported by the lexer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum LiteralKind {
+pub(crate) enum RawLiteralKind {
     /// `123`, `0x123`; empty_int: `0x`
     Int { base: Base, empty_int: bool },
     /// `123.321`, `1.2e3`; empty_exponent: `2.3e`

@@ -6,7 +6,7 @@ use std::str::Chars;
 use sulk_ast::ast::Base;
 
 mod token;
-pub(crate) use token::{LiteralKind, Token, TokenKind};
+pub(crate) use token::{RawLiteralKind, RawToken, RawTokenKind};
 
 #[cfg(test)]
 mod tests;
@@ -85,10 +85,10 @@ impl<'a> Cursor<'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&mut self) -> Token {
+    pub(crate) fn advance_token(&mut self) -> RawToken {
         let first_char = match self.bump() {
             Some(c) => c,
-            None => return Token::EOF,
+            None => return RawToken::EOF,
         };
 
         let token_kind = match first_char {
@@ -96,7 +96,7 @@ impl<'a> Cursor<'a> {
             '/' => match self.first() {
                 '/' => self.line_comment(),
                 '*' => self.block_comment(),
-                _ => TokenKind::Slash,
+                _ => RawTokenKind::Slash,
             },
 
             // Whitespace sequence.
@@ -108,53 +108,53 @@ impl<'a> Cursor<'a> {
             // Numeric literal.
             c @ '0'..='9' => {
                 let kind = self.number(c);
-                TokenKind::Literal { kind }
+                RawTokenKind::Literal { kind }
             }
 
             // One-symbol tokens.
-            ';' => TokenKind::Semi,
-            ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
-            '(' => TokenKind::OpenParen,
-            ')' => TokenKind::CloseParen,
-            '{' => TokenKind::OpenBrace,
-            '}' => TokenKind::CloseBrace,
-            '[' => TokenKind::OpenBracket,
-            ']' => TokenKind::CloseBracket,
-            '~' => TokenKind::Tilde,
-            '?' => TokenKind::Question,
-            ':' => TokenKind::Colon,
-            '=' => TokenKind::Eq,
-            '!' => TokenKind::Bang,
-            '<' => TokenKind::Lt,
-            '>' => TokenKind::Gt,
-            '-' => TokenKind::Minus,
-            '&' => TokenKind::And,
-            '|' => TokenKind::Or,
-            '+' => TokenKind::Plus,
-            '*' => TokenKind::Star,
-            '^' => TokenKind::Caret,
-            '%' => TokenKind::Percent,
+            ';' => RawTokenKind::Semi,
+            ',' => RawTokenKind::Comma,
+            '.' => RawTokenKind::Dot,
+            '(' => RawTokenKind::OpenParen,
+            ')' => RawTokenKind::CloseParen,
+            '{' => RawTokenKind::OpenBrace,
+            '}' => RawTokenKind::CloseBrace,
+            '[' => RawTokenKind::OpenBracket,
+            ']' => RawTokenKind::CloseBracket,
+            '~' => RawTokenKind::Tilde,
+            '?' => RawTokenKind::Question,
+            ':' => RawTokenKind::Colon,
+            '=' => RawTokenKind::Eq,
+            '!' => RawTokenKind::Bang,
+            '<' => RawTokenKind::Lt,
+            '>' => RawTokenKind::Gt,
+            '-' => RawTokenKind::Minus,
+            '&' => RawTokenKind::And,
+            '|' => RawTokenKind::Or,
+            '+' => RawTokenKind::Plus,
+            '*' => RawTokenKind::Star,
+            '^' => RawTokenKind::Caret,
+            '%' => RawTokenKind::Percent,
 
             // String literal.
             c @ ('\'' | '"') => {
                 let terminated = self.eat_string(c);
-                let kind = LiteralKind::Str { terminated, unicode: false };
-                TokenKind::Literal { kind }
+                let kind = RawLiteralKind::Str { terminated, unicode: false };
+                RawTokenKind::Literal { kind }
             }
 
             // Identifier starting with an emoji. Only lexed for graceful error recovery.
             // c if !c.is_ascii() && unic_emoji_char::is_emoji(c) => {
             //     self.fake_ident_or_unknown_prefix()
             // }
-            _ => TokenKind::Unknown,
+            _ => RawTokenKind::Unknown,
         };
-        let res = Token::new(token_kind, self.pos_within_token());
+        let res = RawToken::new(token_kind, self.pos_within_token());
         self.reset_pos_within_token();
         res
     }
 
-    fn line_comment(&mut self) -> TokenKind {
+    fn line_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == '/' && self.first() == '/');
         self.bump();
 
@@ -162,10 +162,10 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), '/' if self.second() != '/');
 
         self.eat_while(|c| c != '\n');
-        TokenKind::LineComment { is_doc }
+        RawTokenKind::LineComment { is_doc }
     }
 
-    fn block_comment(&mut self) -> TokenKind {
+    fn block_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == '/' && self.first() == '*');
         self.bump();
 
@@ -182,16 +182,16 @@ impl<'a> Cursor<'a> {
             }
         }
 
-        TokenKind::BlockComment { is_doc, terminated }
+        RawTokenKind::BlockComment { is_doc, terminated }
     }
 
-    fn whitespace(&mut self) -> TokenKind {
+    fn whitespace(&mut self) -> RawTokenKind {
         debug_assert!(is_whitespace(self.prev()));
         self.eat_while(is_whitespace);
-        TokenKind::Whitespace
+        RawTokenKind::Whitespace
     }
 
-    fn ident_or_prefixed_literal(&mut self, first_char: char) -> TokenKind {
+    fn ident_or_prefixed_literal(&mut self, first_char: char) -> RawTokenKind {
         debug_assert!(is_id_start(self.prev()));
 
         // Check for potential prefixed literals.
@@ -199,15 +199,15 @@ impl<'a> Cursor<'a> {
             // `hex"01234"`
             'h' => {
                 if let Some(terminated) = self.maybe_string_prefix("hex") {
-                    let kind = LiteralKind::HexStr { terminated };
-                    return TokenKind::Literal { kind };
+                    let kind = RawLiteralKind::HexStr { terminated };
+                    return RawTokenKind::Literal { kind };
                 }
             }
             // `unicode"abc"`
             'u' => {
                 if let Some(terminated) = self.maybe_string_prefix("unicode") {
-                    let kind = LiteralKind::Str { terminated, unicode: true };
-                    return TokenKind::Literal { kind };
+                    let kind = RawLiteralKind::Str { terminated, unicode: true };
+                    return RawTokenKind::Literal { kind };
                 }
             }
             _ => {}
@@ -218,12 +218,12 @@ impl<'a> Cursor<'a> {
         // Known prefixes must have been handled earlier.
         // So if we see a prefix here, it is definitely an unknown prefix.
         match self.first() {
-            '"' | '\'' => TokenKind::UnknownPrefix,
-            _ => TokenKind::Ident,
+            '"' | '\'' => RawTokenKind::UnknownPrefix,
+            _ => RawTokenKind::Ident,
         }
     }
 
-    fn number(&mut self, first_digit: char) -> LiteralKind {
+    fn number(&mut self, first_digit: char) -> RawLiteralKind {
         debug_assert!('0' <= self.prev() && self.prev() <= '9');
         let mut base = Base::Decimal;
         if first_digit == '0' {
@@ -250,11 +250,11 @@ impl<'a> Cursor<'a> {
                     true
                 }
                 // Just a 0.
-                _ => return LiteralKind::Int { base, empty_int: false },
+                _ => return RawLiteralKind::Int { base, empty_int: false },
             };
             // Base prefix was provided, but there were no digits after it, e.g. "0x".
             if !has_digits {
-                return LiteralKind::Int { base, empty_int: true };
+                return RawLiteralKind::Int { base, empty_int: true };
             }
         } else {
             // No base prefix, parse number in the usual way.
@@ -279,14 +279,14 @@ impl<'a> Cursor<'a> {
                         _ => (),
                     }
                 }
-                LiteralKind::Rational { base, empty_exponent }
+                RawLiteralKind::Rational { base, empty_exponent }
             }
             'e' | 'E' => {
                 self.bump();
                 let empty_exponent = !self.eat_exponent();
-                LiteralKind::Rational { base, empty_exponent }
+                RawLiteralKind::Rational { base, empty_exponent }
             }
-            _ => LiteralKind::Int { base, empty_int: false },
+            _ => RawLiteralKind::Int { base, empty_int: false },
         }
     }
 
@@ -449,11 +449,11 @@ impl<'a> Cursor<'a> {
 }
 
 impl Iterator for Cursor<'_> {
-    type Item = Token;
+    type Item = RawToken;
 
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        if token.kind == TokenKind::Eof {
+        if token.kind == RawTokenKind::Eof {
             None
         } else {
             Some(token)
