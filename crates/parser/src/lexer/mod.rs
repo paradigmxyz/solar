@@ -69,7 +69,7 @@ impl<'a> Lexer<'a> {
     /// Returns a reference to the diagnostic context.
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
-        &self.dcx
+        self.dcx
     }
 
     /// Consumes the lexer and collects the remaining tokens into a vector.
@@ -477,7 +477,9 @@ mod tests {
     use BinOpToken::*;
     use TokenKind::*;
 
-    fn check(src: &str, expected: &[(Range<usize>, TokenKind)]) {
+    type Expected<'a> = &'a [(Range<usize>, TokenKind)];
+
+    fn check(src: &str, expected: Expected<'_>) {
         let dcx = DiagCtxt::with_silent_emitter(None);
         let tokens: Vec<_> = Lexer::new(&dcx, src, BytePos(0), None)
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
@@ -485,7 +487,7 @@ mod tests {
         assert_eq!(tokens, expected, "{src:?}");
     }
 
-    fn checks(tests: &[(&str, &[(Range<usize>, TokenKind)])]) {
+    fn checks(tests: &[(&str, Expected<'_>)]) {
         for &(src, expected) in tests {
             check(src, expected);
         }

@@ -40,6 +40,16 @@ sulk-parser = { version = "0.0.0", path = "crates/parser" }
 
 alloy-primitives = "0.5"
 
+# diagnostics
+anstream = "0.6"
+anstyle = "1.0"
+# ariadne = "0.3"
+annotate-snippets = "0.10"
+
+# serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
 # macros
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -51,12 +61,12 @@ rayon = "1.8"
 
 # testing
 criterion = "0.5"
+expect-test = "1.4"
 rand = "0.8"
 
 # misc
 ahash = "0.8"
 bumpalo = "3.14"
-expect-test = "1.4"
 hex = { package = "const-hex", version = "1.10" }
 index_vec = "0.1.3"
 indexmap = "2.1"

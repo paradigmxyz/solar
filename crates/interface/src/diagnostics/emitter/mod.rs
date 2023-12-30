@@ -2,21 +2,33 @@ use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
 use sulk_data_structures::sync::Lrc;
 
+#[cfg(feature = "json")]
+mod json;
+#[cfg(feature = "json")]
+pub use json::JsonEmitter;
+
+mod writer;
+pub use writer::EmitterWriter;
+
 /// Dynamic diagnostic emitter. See [`Emitter`].
-pub type DynEmitter = dyn Emitter + Send;
+pub type DynEmitter = dyn Emitter;
 
 /// Diagnostic emitter.
 pub trait Emitter {
     /// Emits a diagnostic.
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic);
 
+    /// Returns a reference to the source map, if any.
+    #[inline]
+    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
+        None
+    }
+
     /// Returns `true` if we can use colors in the current output stream.
+    #[inline]
     fn supports_color(&self) -> bool {
         false
     }
-
-    /// Returns a reference to the source map, if any.
-    fn source_map(&self) -> Option<&Lrc<SourceMap>>;
 }
 
 /// Diagnostic emitter that only emits fatal diagnostics.
@@ -26,9 +38,9 @@ pub struct SilentEmitter {
 }
 
 impl SilentEmitter {
-    /// Creates a new `SilentEmitter`.
-    pub fn new(dcx: DiagCtxt) -> Self {
-        Self { fatal_dcx: dcx, note: None }
+    /// Creates a new `SilentEmitter`. `fatal_dcx` is only used to emit fatal diagnostics.
+    pub fn new(fatal_dcx: DiagCtxt) -> Self {
+        Self { fatal_dcx, note: None }
     }
 
     /// Sets the note to be emitted for fatal diagnostics.

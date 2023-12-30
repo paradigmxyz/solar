@@ -3,7 +3,12 @@
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
 use crate::Span;
-use std::{borrow::Cow, fmt, panic, process::ExitCode};
+use anstyle::{Ansi256Color, AnsiColor, Color};
+use std::{
+    borrow::Cow,
+    panic::{self, Location},
+    process::ExitCode,
+};
 
 mod builder;
 pub use builder::{DiagnosticBuilder, EmissionGuarantee};
@@ -12,7 +17,9 @@ mod context;
 pub use context::DiagCtxt;
 
 mod emitter;
-pub use emitter::{DynEmitter, Emitter, LocalEmitter, SilentEmitter};
+#[cfg(feature = "json")]
+pub use emitter::JsonEmitter;
+pub use emitter::{DynEmitter, Emitter, EmitterWriter, LocalEmitter, SilentEmitter};
 
 mod message;
 pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
@@ -21,6 +28,17 @@ pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
 /// so no need to continue checking.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ErrorGuaranteed(());
+
+impl ErrorGuaranteed {
+    /// Creates a new `ErrorGuaranteed`.
+    ///
+    /// Use of this method is discouraged.
+    #[inline]
+    #[allow(deprecated)]
+    pub const fn new_unchecked() -> Self {
+        Self(())
+    }
+}
 
 /// Marker type which enables implementation of `create_bug` and `emit_bug` functions for
 /// bug diagnostics.
@@ -45,7 +63,8 @@ impl FatalError {
     pub fn catch<R>(f: impl FnOnce() -> R) -> Result<R, ErrorGuaranteed> {
         panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|value| {
             if value.is::<Self>() {
-                ErrorGuaranteed(())
+                #[allow(deprecated)]
+                ErrorGuaranteed::new_unchecked()
             } else {
                 panic::resume_unwind(value)
             }
@@ -59,7 +78,7 @@ impl FatalError {
     pub fn catch_with_exit_code(f: impl FnOnce() -> Result<(), ErrorGuaranteed>) -> ExitCode {
         match Self::catch(f).and_then(std::convert::identity) {
             Ok(()) => ExitCode::SUCCESS,
-            Err(ErrorGuaranteed(())) => ExitCode::FAILURE,
+            Err(_) => ExitCode::FAILURE,
         }
     }
 }
@@ -71,13 +90,12 @@ impl FatalError {
 /// # Examples
 ///
 /// ```
-/// # use sulk_interface::error_code;
-/// assert_eq!(error_code!(E1234).id(), 1234);
+/// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
+/// let id: DiagnosticId = error_code!(E1234);
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagnosticId {
-    /// The ID of the diagnostic.
-    id: u32,
+    id: &'static str,
 }
 
 impl DiagnosticId {
@@ -86,28 +104,29 @@ impl DiagnosticId {
     /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
     #[track_caller]
-    pub const fn new_from_macro(s: &'static str) -> Self {
-        let [b'E', bytes @ ..] = s.as_bytes() else { panic!("error codes must start with 'E'") };
+    pub const fn new_from_macro(id: &'static str) -> Self {
+        let [b'E', bytes @ ..] = id.as_bytes() else { panic!("error codes must start with 'E'") };
         assert!(bytes.len() == 4, "error codes must be exactly 4 digits long");
 
         let mut bytes = bytes;
-        let mut id = 0;
         while let &[byte, ref rest @ ..] = bytes {
             assert!(byte.is_ascii_digit(), "error codes must be decimal");
-            id = id * 10 + (byte - b'0') as u32;
             bytes = rest;
         }
-        Self { id }
-    }
 
-    /// Returns the internal ID.
-    #[inline]
-    pub const fn id(&self) -> u32 {
-        self.id
+        Self { id }
     }
 }
 
-/// Used for creating an error code.
+/// Used for creating an error code. The input must be exactly one 'E' character followed by four
+/// decimal digits.
+///
+/// # Examples
+///
+/// ```
+/// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
+/// let code: DiagnosticId = error_code!(E1234);
+/// ```
 #[macro_export]
 macro_rules! error_code {
     ($id:ident) => {{
@@ -115,6 +134,36 @@ macro_rules! error_code {
             $crate::diagnostics::DiagnosticId::new_from_macro(stringify!($id));
         $id
     }};
+}
+
+/// Whether messages should use color output.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ColorConfig {
+    /// Force color output.
+    Always,
+    /// Force disable color output.
+    Never,
+    /// Intelligently guess whether to use color output.
+    Auto,
+}
+
+impl ColorConfig {
+    /// Returns the color choice.
+    pub fn to_color_choice(self) -> anstream::ColorChoice {
+        use std::io::{self, IsTerminal};
+        match self {
+            Self::Always => {
+                if io::stderr().is_terminal() {
+                    anstream::ColorChoice::Always
+                } else {
+                    anstream::ColorChoice::AlwaysAnsi
+                }
+            }
+            Self::Never => anstream::ColorChoice::Never,
+            Self::Auto if io::stderr().is_terminal() => anstream::ColorChoice::Auto,
+            Self::Auto => anstream::ColorChoice::Never,
+        }
+    }
 }
 
 /// Diagnostic level.
@@ -200,6 +249,34 @@ impl Level {
             | Self::Allow => false,
         }
     }
+
+    /// Returns the style of this level.
+    #[inline]
+    pub const fn style(self) -> anstyle::Style {
+        anstyle::Style::new().fg_color(self.color()).bold()
+    }
+
+    /// Returns the color of this level.
+    #[inline]
+    pub const fn color(self) -> Option<Color> {
+        match self.ansi_color() {
+            Some(c) => Some(intense(c)),
+            None => None,
+        }
+    }
+
+    /// Returns the ANSI color of this level.
+    #[inline]
+    pub const fn ansi_color(self) -> Option<AnsiColor> {
+        // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
+        match self {
+            Self::Fatal | Self::Error => Some(AnsiColor::Red),
+            Self::Warning => Some(AnsiColor::Yellow),
+            Self::Note | Self::OnceNote => Some(AnsiColor::Green),
+            Self::Help | Self::OnceHelp => Some(AnsiColor::Cyan),
+            Self::FailureNote | Self::Allow => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -220,17 +297,35 @@ pub enum Style {
     Removal,
 }
 
-#[must_use]
-#[derive(Clone, Debug)]
-pub struct Diagnostic {
-    pub(crate) level: Level,
+impl Style {
+    /// Converts the style to an [`anstyle::Style`].
+    pub const fn to_color_spec(self, level: Level) -> anstyle::Style {
+        use AnsiColor::*;
 
-    pub messages: Vec<(DiagnosticMessage, Style)>,
-    pub span: MultiSpan,
-    pub children: Vec<SubDiagnostic>,
-    pub code: Option<DiagnosticId>,
+        /// On Windows, BRIGHT_BLUE is hard to read on black. Use cyan instead.
+        ///
+        /// See [rust-lang/rust#36178](https://github.com/rust-lang/rust/pull/36178).
+        const BRIGHT_BLUE: Color = intense(if cfg!(windows) { Cyan } else { Blue });
+        const GREEN: Color = intense(Green);
+        const MAGENTA: Color = intense(Magenta);
+        const RED: Color = intense(Red);
+        const WHITE: Color = intense(White);
 
-    pub emitted_at: DiagnosticLocation,
+        let s = anstyle::Style::new();
+        match self {
+            Self::Addition => s.fg_color(Some(GREEN)),
+            Self::Removal => s.fg_color(Some(RED)),
+            Self::LineAndColumn => s,
+            Self::LineNumber => s.fg_color(Some(BRIGHT_BLUE)).bold(),
+            Self::Quotation => s,
+            Self::MainHeaderMsg => if cfg!(windows) { s.fg_color(Some(WHITE)) } else { s }.bold(),
+            Self::UnderlinePrimary | Self::LabelPrimary => s.fg_color(level.color()).bold(),
+            Self::UnderlineSecondary | Self::LabelSecondary => s.fg_color(Some(BRIGHT_BLUE)).bold(),
+            Self::HeaderMsg | Self::NoStyle => s,
+            Self::Level(level2) => s.fg_color(level2.color()).bold(),
+            Self::Highlight => s.fg_color(Some(MAGENTA)).bold(),
+        }
+    }
 }
 
 /// A "sub"-diagnostic attached to a parent diagnostic.
@@ -242,25 +337,25 @@ pub struct SubDiagnostic {
     pub span: MultiSpan,
 }
 
+impl SubDiagnostic {
+    /// Formats the diagnostic messages into a single string.
+    pub fn label(&self) -> Cow<'_, str> {
+        flatten_messages(&self.messages)
+    }
+}
+
+/// A compiler diagnostic.
+#[must_use]
 #[derive(Clone, Debug)]
-pub struct DiagnosticLocation {
-    file: Cow<'static, str>,
-    line: u32,
-    col: u32,
-}
+pub struct Diagnostic {
+    pub(crate) level: Level,
 
-impl fmt::Display for DiagnosticLocation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}:{}", self.file, self.line, self.col)
-    }
-}
+    pub messages: Vec<(DiagnosticMessage, Style)>,
+    pub span: MultiSpan,
+    pub children: Vec<SubDiagnostic>,
+    pub code: Option<DiagnosticId>,
 
-impl DiagnosticLocation {
-    #[track_caller]
-    fn caller() -> Self {
-        let loc = std::panic::Location::caller();
-        Self { file: loc.file().into(), line: loc.line(), col: loc.column() }
-    }
+    pub created_at: &'static Location<'static>,
 }
 
 impl PartialEq for Diagnostic {
@@ -295,7 +390,7 @@ impl Diagnostic {
             // args: Default::default(),
             // sort_span: DUMMY_SP,
             // is_lint: false,
-            emitted_at: DiagnosticLocation::caller(),
+            created_at: Location::caller(),
         }
     }
 
@@ -303,6 +398,11 @@ impl Diagnostic {
     #[inline]
     pub fn is_error(&self) -> bool {
         self.level.is_error()
+    }
+
+    /// Formats the diagnostic messages into a single string.
+    pub fn label(&self) -> Cow<'_, str> {
+        flatten_messages(&self.messages)
     }
 
     /// Returns the messages of this diagnostic.
@@ -330,6 +430,7 @@ impl Diagnostic {
     }
 }
 
+/// Setters.
 impl Diagnostic {
     /// Sets the span of this diagnostic.
     pub fn span(&mut self, span: impl Into<MultiSpan>) -> &mut Self {
@@ -368,6 +469,12 @@ impl Diagnostic {
             self.span_label(span, label.clone());
         }
         self
+    }
+
+    /// Adds a note with the location where this diagnostic was created and emitted.
+    pub(crate) fn locations_note(&mut self, emitted_at: &Location<'_>) -> &mut Self {
+        self.note(format!("created at {}", self.created_at))
+            .note(format!("emitted at {}", *emitted_at))
     }
 }
 
@@ -479,4 +586,19 @@ impl Diagnostic {
         self.children.push(SubDiagnostic { level, messages, span });
         self
     }
+}
+
+// TODO: Styles?
+fn flatten_messages(messages: &[(DiagnosticMessage, Style)]) -> Cow<'_, str> {
+    match messages {
+        [] => Cow::Borrowed(""),
+        [(message, _)] => Cow::Borrowed(message.as_str()),
+        messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
+    }
+}
+
+// https://github.com/rust-lang/rust/blob/ce0f703554f3828f2d470679cd1e83b52667bf20/compiler/rustc_errors/src/emitter.rs#L2682
+/// Ansi -> Ansi256
+const fn intense(ansi: AnsiColor) -> Color {
+    Color::Ansi256(Ansi256Color::from_ansi(ansi))
 }

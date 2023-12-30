@@ -8,6 +8,7 @@ use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
+    panic::Location,
 };
 use sulk_data_structures::Never;
 
@@ -146,7 +147,11 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
 
     /// Emits the diagnostic.
     #[track_caller]
-    pub fn emit(self) -> G::EmitResult {
+    pub fn emit(mut self) -> G::EmitResult {
+        // TODO: Check on some flag in dcx
+        if cfg!(debug_assertions) {
+            self.diagnostic.locations_note(Location::caller());
+        }
         self.consume_no_panic(G::emit_producing_guarantee)
     }
 

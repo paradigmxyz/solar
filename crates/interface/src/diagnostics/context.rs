@@ -1,6 +1,6 @@
 use super::{
-    Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter, EmissionGuarantee,
-    ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
+    emitter::EmitterWriter, ColorConfig, Diagnostic, DiagnosticBuilder, DiagnosticMessage,
+    DynEmitter, EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
 use crate::SourceMap;
 use sulk_data_structures::{
@@ -52,9 +52,8 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a TTY emitter.
-    pub fn with_tty_emitter(sm: Option<Lrc<SourceMap>>) -> Self {
-        let _ = sm;
-        todo!("tty emitter")
+    pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
+        Self::new(Box::new(EmitterWriter::stderr(ColorConfig::Auto).source_map(source_map)))
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.
@@ -174,7 +173,8 @@ impl DiagCtxtInner {
 
         if diagnostic.is_error() {
             self.bump_err_count();
-            Some(ErrorGuaranteed(()))
+            #[allow(deprecated)]
+            Some(ErrorGuaranteed::new_unchecked())
         } else {
             self.bump_warn_count();
             None

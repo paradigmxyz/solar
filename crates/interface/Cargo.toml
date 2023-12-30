@@ -26,5 +26,15 @@ sulk-macros.workspace = true
 bumpalo.workspace = true
 scoped-tls.workspace = true
 
+# diagnostics
+anstream.workspace = true
+anstyle.workspace = true
+annotate-snippets.workspace = true
+
+# json
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
 [features]
 nightly = ["sulk-data-structures/nightly", "sulk-macros/nightly"]
+json = ["dep:serde", "dep:serde_json"]
