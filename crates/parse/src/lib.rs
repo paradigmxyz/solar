@@ -8,8 +8,8 @@
 
 use sulk_interface::diagnostics::{DiagnosticBuilder, ErrorGuaranteed};
 
-pub mod lexer;
-pub use lexer::Lexer;
+mod lexer;
+pub use lexer::{is_id_continue, is_id_start, is_ident, is_whitespace, unescape, Lexer};
 
 mod parser;
 pub use parser::Parser;
