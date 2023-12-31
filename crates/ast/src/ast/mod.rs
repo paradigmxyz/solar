@@ -19,6 +19,8 @@ mod ty;
 pub use ty::*;
 
 /// A qualified identifier: `foo.bar.baz`.
+///
+/// This is a list of identifiers, and is never empty.
 #[derive(Clone, Debug)]
 pub struct Path(SmallVec<[Ident; 1]>);
 

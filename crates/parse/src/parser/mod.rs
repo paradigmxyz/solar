@@ -1,20 +1,28 @@
 use crate::{PErr, PResult, ParseSess};
 use std::fmt::{self, Write};
-use sulk_ast::token::{Token, TokenKind};
+use sulk_ast::{
+    ast::Path,
+    token::{Delimiter, Token, TokenKind},
+};
 use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
     Ident, Span, Symbol,
 };
 
+mod expr;
+mod item;
+mod stmt;
+mod ty;
+
 /// Solidity parser.
 pub struct Parser<'a> {
     /// The parser session.
-    sess: &'a ParseSess,
+    pub sess: &'a ParseSess,
 
     /// The current token.
-    token: Token,
+    pub token: Token,
     /// The previous token.
-    prev_token: Token,
+    pub prev_token: Token,
     /// List of expected tokens. Cleared after each `bump` call.
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
@@ -24,6 +32,8 @@ pub struct Parser<'a> {
     ///
     /// Currently, this can only happen when parsing a Yul "assembly" block.
     in_yul: bool,
+    /// Whether the parser is in a contract.
+    in_contract: bool,
 
     /// The token stream.
     stream: std::vec::IntoIter<Token>,
@@ -83,6 +93,36 @@ impl ExpectedToken {
     }
 }
 
+/// Used by [`Parser::expect_any_with_type`].
+#[derive(Copy, Clone, Debug)]
+enum TokenExpectType {
+    /// Unencountered tokens are inserted into [`Parser::expected_tokens`].
+    /// See [`Parser::check`].
+    Expect,
+
+    /// Unencountered tokens are not inserted into [`Parser::expected_tokens`].
+    /// See [`Parser::check_noexpect`].
+    NoExpect,
+}
+
+/// A sequence separator.
+struct SeqSep {
+    /// The separator token.
+    sep: Option<TokenKind>,
+    /// `true` if a trailing separator is allowed.
+    trailing_sep_allowed: bool,
+}
+
+impl SeqSep {
+    fn trailing_allowed(t: TokenKind) -> SeqSep {
+        SeqSep { sep: Some(t), trailing_sep_allowed: true }
+    }
+
+    fn none() -> SeqSep {
+        SeqSep { sep: None, trailing_sep_allowed: false }
+    }
+}
+
 impl<'a> Parser<'a> {
     /// Creates a new parser.
     pub fn new(sess: &'a ParseSess, stream: Vec<Token>) -> Self {
@@ -93,6 +133,7 @@ impl<'a> Parser<'a> {
             expected_tokens: Vec::new(),
             last_unexpected_token_span: None,
             in_yul: false,
+            in_contract: false,
             stream: stream.into_iter(),
         };
         parser.bump();
@@ -130,7 +171,7 @@ impl<'a> Parser<'a> {
             // We don't want to point at the following span after a dummy span.
             // This happens when the parser finds an empty token stream.
             self.token.span
-        } else if self.token.kind == TokenKind::Eof {
+        } else if self.token.is_eof() {
             // EOF, don't want to point at the following char, but rather the last token.
             self.prev_token.span
         } else {
@@ -240,7 +281,7 @@ impl<'a> Parser<'a> {
                 (fmt, (s, format!("expected one of {short_expect}")))
             }
         };
-        if self.token.kind == TokenKind::Eof {
+        if self.token.is_eof() {
             // This is EOF; don't want to point at the following char, but rather the last token.
             label_span = self.prev_token.span;
         };
@@ -265,9 +306,385 @@ impl<'a> Parser<'a> {
         Err(err)
     }
 
+    /// Checks if the next token is `tok`, and returns `true` if so.
+    ///
+    /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
+    /// encountered.
+    fn check(&mut self, tok: &TokenKind) -> bool {
+        let is_present = self.token.kind == *tok;
+        if !is_present {
+            self.expected_tokens.push(ExpectedToken::Token(tok.clone()));
+        }
+        is_present
+    }
+
+    fn check_noexpect(&self, tok: &TokenKind) -> bool {
+        self.token.kind == *tok
+    }
+
+    /// Consumes a token 'tok' if it exists. Returns whether the given token was present.
+    ///
+    /// the main purpose of this function is to reduce the cluttering of the suggestions list
+    /// which using the normal eat method could introduce in some cases.
+    pub fn eat_noexpect(&mut self, tok: &TokenKind) -> bool {
+        let is_present = self.check_noexpect(tok);
+        if is_present {
+            self.bump()
+        }
+        is_present
+    }
+
+    /// Consumes a token 'tok' if it exists. Returns whether the given token was present.
+    pub fn eat(&mut self, tok: &TokenKind) -> bool {
+        let is_present = self.check(tok);
+        if is_present {
+            self.bump()
+        }
+        is_present
+    }
+
+    /// If the next token is the given keyword, returns `true` without eating it.
+    /// An expectation is also added for diagnostics purposes.
+    fn check_keyword(&mut self, kw: Symbol) -> bool {
+        self.expected_tokens.push(ExpectedToken::Keyword(kw));
+        self.token.is_keyword(kw)
+    }
+
+    /// If the next token is the given keyword, eats it and returns `true`.
+    /// Otherwise, returns `false`. An expectation is also added for diagnostics purposes.
+    pub fn eat_keyword(&mut self, kw: Symbol) -> bool {
+        if self.check_keyword(kw) {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn eat_keyword_noexpect(&mut self, kw: Symbol) -> bool {
+        if self.token.is_keyword(kw) {
+            self.bump();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// If the given word is not a keyword, signals an error.
+    /// If the next token is not the given word, signals an error.
+    /// Otherwise, eats it.
+    fn expect_keyword(&mut self, kw: Symbol) -> PResult<'a, ()> {
+        if !self.eat_keyword(kw) {
+            self.unexpected()
+        } else {
+            Ok(())
+        }
+    }
+
+    /*
+    /// Is the given keyword `kw` followed by a non-reserved identifier?
+    fn is_kw_followed_by_ident(&self, kw: Symbol) -> bool {
+        self.token.is_keyword(kw) && self.look_ahead_with(1, |t| t.is_ident())
+    }
+
+    fn check_ident(&mut self) -> bool {
+        self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
+    }
+
+    fn check_path(&mut self) -> bool {
+        self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
+    }
+
+    fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
+        if !ok {
+            self.expected_tokens.push(t);
+        }
+        ok
+    }
+    */
+
+    /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
+    /// The function `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_paren_comma_seq<T>(
+        &mut self,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        self.parse_delim_comma_seq(Delimiter::Parenthesis, f)
+    }
+
+    /// Parses a comma-separated sequence, including both delimiters.
+    /// The function `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_delim_comma_seq<T>(
+        &mut self,
+        delim: Delimiter,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        self.parse_delim_seq(delim, SeqSep::trailing_allowed(TokenKind::Comma), f)
+    }
+
+    /// Parses a `sep`-separated sequence, including both delimiters.
+    /// The function `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_delim_seq<T>(
+        &mut self,
+        delim: Delimiter,
+        sep: SeqSep,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        self.parse_unspanned_seq(
+            &TokenKind::OpenDelim(delim),
+            &TokenKind::CloseDelim(delim),
+            sep,
+            f,
+        )
+    }
+
+    /// Parses a sequence, including both delimiters. The function
+    /// `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_unspanned_seq<T>(
+        &mut self,
+        bra: &TokenKind,
+        ket: &TokenKind,
+        sep: SeqSep,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        self.expect(bra)?;
+        self.parse_seq_to_end(ket, sep, f)
+    }
+
+    /// Parses a sequence, including only the closing delimiter. The function
+    /// `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_seq_to_end<T>(
+        &mut self,
+        ket: &TokenKind,
+        sep: SeqSep,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, f)?;
+        if !recovered {
+            self.eat(ket);
+        }
+        Ok((val, trailing))
+    }
+
+    /// Parses a sequence, not including the delimiters. The function
+    /// `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_seq_to_before_end<T>(
+        &mut self,
+        ket: &TokenKind,
+        sep: SeqSep,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+        self.parse_seq_to_before_tokens(&[ket], sep, TokenExpectType::Expect, f)
+    }
+
+    /// Checks if the next token is contained within `kets`, and returns `true` if so.
+    fn expect_any_with_type(&mut self, kets: &[&TokenKind], expect: TokenExpectType) -> bool {
+        kets.iter().any(|k| match expect {
+            TokenExpectType::Expect => self.check(k),
+            TokenExpectType::NoExpect => self.check_noexpect(k),
+        })
+    }
+
+    /// Parses a sequence until the specified delimiters. The function
+    /// `f` must consume tokens until reaching the next separator or
+    /// closing bracket.
+    fn parse_seq_to_before_tokens<T>(
+        &mut self,
+        kets: &[&TokenKind],
+        sep: SeqSep,
+        expect: TokenExpectType,
+        mut f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+        let mut first = true;
+        let mut recovered = false;
+        let mut trailing = false;
+        let mut v = Vec::new();
+
+        while !self.expect_any_with_type(kets, expect) {
+            if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
+                break;
+            }
+
+            if let Some(tk) = &sep.sep {
+                if first {
+                    // no separator for the first element
+                    first = false;
+                } else {
+                    // check for separator
+                    match self.expect(tk) {
+                        Ok(recovered_) => {
+                            if recovered_ {
+                                recovered = true;
+                                break;
+                            }
+                        }
+                        Err(mut expect_err) => {
+                            let sp = self.prev_token.span.shrink_to_hi();
+
+                            // Attempt to keep parsing if it was an omitted separator.
+                            match f(self) {
+                                Ok(t) => {
+                                    // Parsed successfully, therefore most probably the code only
+                                    // misses a separator.
+                                    let token_str = tk.to_string();
+                                    /* expect_err
+                                        .span_suggestion_short(
+                                            sp,
+                                            format!("missing `{token_str}`"),
+                                            token_str,
+                                            Applicability::MaybeIncorrect,
+                                        )
+                                        .emit();
+                                    */
+                                    expect_err
+                                        .span_help(sp, format!("missing `{token_str}`"))
+                                        .emit();
+
+                                    v.push(t);
+                                    continue;
+                                }
+                                Err(e) => {
+                                    // Parsing failed, therefore it must be something more serious
+                                    // than just a missing separator.
+                                    for xx in &e.children {
+                                        // propagate the help message from sub error 'e' to main
+                                        // error 'expect_err;
+                                        expect_err.children.push(xx.clone());
+                                    }
+                                    e.cancel();
+                                    if self.token.kind == TokenKind::Colon {
+                                        // we will try to recover in
+                                        // `maybe_recover_struct_lit_bad_delims`
+                                        return Err(expect_err);
+                                    } else if let [TokenKind::CloseDelim(Delimiter::Parenthesis)] =
+                                        kets
+                                    {
+                                        return Err(expect_err);
+                                    } else {
+                                        expect_err.emit();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if sep.trailing_sep_allowed && self.expect_any_with_type(kets, expect) {
+                trailing = true;
+                break;
+            }
+
+            let t = f(self)?;
+            v.push(t);
+        }
+
+        Ok((v, trailing, recovered))
+    }
+
+    /// Advance the parser by one token.
+    pub fn bump(&mut self) {
+        let next = self.stream.next().unwrap_or(Token::EOF);
+        // TODO
+        // if next.span.is_dummy() {
+        //     // Tweak the location for better diagnostics, but keep syntactic context intact.
+        //     let fallback_span = self.token.span;
+        //     next.span = fallback_span.with_ctxt(next.span.ctxt());
+        // }
+        self.inlined_bump_with(next);
+    }
+
+    /// Advance the parser by one token using provided token as the next one.
+    pub fn bump_with(&mut self, next: Token) {
+        self.inlined_bump_with(next);
+    }
+
+    /// This always-inlined version should only be used on hot code paths.
+    #[inline(always)]
+    fn inlined_bump_with(&mut self, next_token: Token) {
+        self.prev_token = std::mem::replace(&mut self.token, next_token);
+        self.expected_tokens.clear();
+    }
+
+    /// Returns the token `dist` tokens ahead of the current one.
+    ///
+    /// [`Eof`](Token::EOF) will be returned if the look-ahead is any distance past the end of the
+    /// tokens.
+    pub fn look_ahead(&self, dist: usize) -> &Token {
+        self.stream.as_slice().get(dist).unwrap_or(&Token::EOF)
+    }
+
+    /// Calls `f` with the token `dist` tokens ahead of the current one.
+    ///
+    /// See [`look_ahead`](Self::look_ahead) for more information.
+    pub fn look_ahead_with<R>(&self, dist: usize, f: impl FnOnce(&Token) -> R) -> R {
+        f(self.look_ahead(dist))
+    }
+
+    /// Returns whether any of the given keywords are `dist` tokens ahead of the current one.
+    fn is_keyword_ahead(&self, dist: usize, kws: &[Symbol]) -> bool {
+        self.look_ahead_with(dist, |t| kws.iter().any(|&kw| t.is_keyword(kw)))
+    }
+
+    /// Runs `f` with the parser in a contract context.
+    fn in_contract<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let old = std::mem::replace(&mut self.in_contract, true);
+        let res = f(self);
+        self.in_contract = old;
+        res
+    }
+
+    /// Runs `f` with the parser in a Yul context.
+    fn in_yul<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
+        let old = std::mem::replace(&mut self.in_yul, true);
+        let res = f(self);
+        self.in_yul = old;
+        res
+    }
+}
+
+/// Common parsing methods.
+impl<'a> Parser<'a> {
+    /// Parses a qualified identifier: `foo.bar.baz`.
+    pub fn parse_path(&mut self) -> PResult<'a, Path> {
+        let first = self.parse_ident()?;
+        self.parse_path_with(first)
+    }
+
+    /// Parses a qualified identifier starting with the given identifier.
+    pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
+        let has_at_least_one_sep = self.look_ahead(1).kind == TokenKind::Dot;
+        if !has_at_least_one_sep {
+            return Ok(Path::single(first));
+        }
+
+        let mut path = Vec::with_capacity(4);
+        path.push(first);
+        while self.eat(&TokenKind::Dot) {
+            path.push(self.parse_ident()?);
+        }
+        Ok(Path::new(path))
+    }
+
     /// Parses an identifier.
     pub fn parse_ident(&mut self) -> PResult<'a, Ident> {
         self.parse_ident_maybe_recover(true)
+    }
+
+    /// Parses an optional identifier.
+    pub fn parse_ident_opt(&mut self) -> PResult<'a, Option<Ident>> {
+        if self.token.is_ident() {
+            self.parse_ident().map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     fn parse_ident_maybe_recover(&mut self, recover: bool) -> PResult<'a, Ident> {
@@ -320,45 +737,6 @@ impl<'a> Parser<'a> {
 
     fn expected_ident_found_err(&mut self) -> PErr<'a> {
         self.expected_ident_found(false).unwrap_err()
-    }
-
-    /// Advance the parser by one token.
-    pub fn bump(&mut self) {
-        let next = self.stream.next().unwrap_or(Token::EOF);
-        // TODO
-        // if next.span.is_dummy() {
-        //     // Tweak the location for better diagnostics, but keep syntactic context intact.
-        //     let fallback_span = self.token.span;
-        //     next.span = fallback_span.with_ctxt(next.span.ctxt());
-        // }
-        self.inlined_bump_with(next);
-    }
-
-    /// Advance the parser by one token using provided token as the next one.
-    pub fn bump_with(&mut self, next: Token) {
-        self.inlined_bump_with(next);
-    }
-
-    /// This always-inlined version should only be used on hot code paths.
-    #[inline(always)]
-    fn inlined_bump_with(&mut self, next_token: Token) {
-        self.prev_token = std::mem::replace(&mut self.token, next_token);
-        self.expected_tokens.clear();
-    }
-
-    /// Returns the token `dist` tokens ahead of the current one.
-    ///
-    /// [`Eof`](Token::EOF) will be returned if the look-ahead is any distance past the end of the
-    /// tokens.
-    pub fn look_ahead(&self, dist: usize) -> &Token {
-        self.stream.as_slice().get(dist).unwrap_or(&Token::EOF)
-    }
-
-    /// Calls `f` with the token `dist` tokens ahead of the current one.
-    ///
-    /// See [`look_ahead`](Self::look_ahead) for more information.
-    pub fn look_ahead_with<R>(&self, dist: usize, f: impl FnOnce(&Token) -> R) -> R {
-        f(self.look_ahead(dist))
     }
 }
 

@@ -1,4 +1,4 @@
-use super::{Block, Expr, Path, Ty};
+use super::{Block, CallArgs, Expr, Path, Ty};
 use crate::token::Token;
 use std::fmt;
 use sulk_interface::{Ident, Span, Symbol};
@@ -9,6 +9,7 @@ pub type ParameterList = Vec<VariableDeclaration>;
 /// A top-level item in a Solidity source file.
 #[derive(Clone, Debug)]
 pub struct Item {
+    pub span: Span,
     /// The item's kind.
     pub kind: ItemKind,
 }
@@ -58,7 +59,6 @@ pub enum ItemKind {
 /// A pragma directive: `pragma solidity ^0.8.0;`.
 #[derive(Clone, Debug)]
 pub struct PragmaDirective {
-    pub span: Span,
     /// The parsed or unparsed tokens of the pragma directive.
     pub tokens: PragmaTokens,
 }
@@ -84,7 +84,6 @@ pub enum PragmaTokens {
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective>
 #[derive(Clone, Debug)]
 pub struct ImportDirective {
-    pub span: Span,
     /// The path string literal value.
     pub path: Symbol,
     pub path_span: Span,
@@ -260,23 +259,66 @@ impl FunctionKind {
             Self::Modifier => "modifier",
         }
     }
+
+    /// Returns `true` if the function item requires a name.
+    #[inline]
+    pub const fn requires_name(self) -> bool {
+        matches!(self, Self::Function | Self::Modifier)
+    }
+
+    /// Returns `true` if the function item can omit parentheses for the parameter list.
+    #[inline]
+    pub const fn can_omit_parens(self) -> bool {
+        matches!(self, Self::Modifier)
+    }
+
+    /// Returns `true` if the function item can have attributes.
+    #[inline]
+    pub const fn can_have_attributes(&self) -> bool {
+        matches!(self, Self::Function | Self::Modifier)
+    }
+
+    /// Returns `true` if the function item can have a return type.
+    #[inline]
+    pub fn can_have_returns(&self) -> bool {
+        matches!(self, Self::Function | Self::Modifier)
+    }
 }
 
 /// The attributes of a function.
 #[derive(Clone, Debug)]
 pub struct FunctionAttributes {
+    pub span: Span,
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
     pub modifiers: Vec<Modifier>,
     pub virtual_: bool,
-    pub overrides: Vec<Path>,
+    pub overrides: Vec<Override>,
+}
+
+impl FunctionAttributes {
+    /// Returns `true` if the attributes are empty.
+    pub fn is_empty(&self) -> bool {
+        self.visibility.is_none()
+            && self.state_mutability.is_none()
+            && self.modifiers.is_empty()
+            && !self.virtual_
+            && self.overrides.is_empty()
+    }
 }
 
 /// A modifier invocation, or an inheritance specifier.
 #[derive(Clone, Debug)]
 pub struct Modifier {
     pub name: Path,
-    pub arguments: Vec<Expr>,
+    pub arguments: CallArgs,
+}
+
+/// An override specifier: `override(a, b.c)`.
+#[derive(Clone, Debug)]
+pub struct Override {
+    pub span: Span,
+    pub paths: Vec<Path>,
 }
 
 /// A variable declaration: `string memory hello`.
@@ -328,8 +370,6 @@ pub enum StateMutability {
     Pure,
     /// `view`
     View,
-    /// `nonpayable`
-    NonPayable,
     /// `payable`
     Payable,
 }
@@ -346,7 +386,6 @@ impl StateMutability {
         match self {
             Self::Pure => "pure",
             Self::View => "view",
-            Self::NonPayable => "nonpayable",
             Self::Payable => "payable",
         }
     }
@@ -391,7 +430,7 @@ impl Visibility {
 pub struct VariableDefinition {
     pub ty: Ty,
     pub visibility: Option<Visibility>,
-    pub mutability: Option<VariableMutability>,
+    pub mutability: Option<VarMut>,
     pub storage: Option<Storage>,
     pub name: Ident,
     pub initializer: Option<Expr>,
@@ -399,20 +438,20 @@ pub struct VariableDefinition {
 
 /// The mutability of a variable.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum VariableMutability {
+pub enum VarMut {
     /// `immutable`
     Immutable,
     /// `constant`
     Constant,
 }
 
-impl fmt::Display for VariableMutability {
+impl fmt::Display for VarMut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.to_str())
     }
 }
 
-impl VariableMutability {
+impl VarMut {
     /// Returns the string representation of the variable mutability.
     pub const fn to_str(self) -> &'static str {
         match self {

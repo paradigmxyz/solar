@@ -77,7 +77,7 @@ impl<'a> Lexer<'a> {
         let mut tokens = Vec::new();
         loop {
             let token = self.next_token();
-            if token.kind == TokenKind::Eof {
+            if token.is_eof() {
                 break;
             }
             tokens.push(token);
@@ -448,7 +448,7 @@ impl Iterator for Lexer<'_> {
     #[inline]
     fn next(&mut self) -> Option<Token> {
         let token = self.next_token();
-        if token.kind == TokenKind::Eof {
+        if token.is_eof() {
             None
         } else {
             Some(token)

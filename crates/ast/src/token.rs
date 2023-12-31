@@ -166,6 +166,7 @@ impl LitKind {
 
 /// A kind of token.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(missing_copy_implementations)] // Future-proofing.
 pub enum TokenKind {
     // Expression-operator symbols.
     /// `=`
@@ -383,6 +384,7 @@ impl TokenKind {
 
 /// A single token.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[allow(missing_copy_implementations)] // Future-proofing.
 pub struct Token {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -398,11 +400,13 @@ impl Token {
     pub const DUMMY: Self = Self::new(TokenKind::Question, Span::DUMMY);
 
     /// Creates a new token.
+    #[inline]
     pub const fn new(kind: TokenKind, span: Span) -> Self {
         Self { kind, span }
     }
 
     /// Recovers a `Token` from an `Ident`.
+    #[inline]
     pub fn from_ast_ident(ident: Ident) -> Self {
         Self::new(TokenKind::Ident(ident.name), ident.span)
     }
@@ -417,6 +421,7 @@ impl Token {
     }
 
     /// Returns `true` if the token is an operator.
+    #[inline]
     pub const fn is_op(&self) -> bool {
         self.kind.is_op()
     }
@@ -428,8 +433,15 @@ impl Token {
     }
 
     /// Returns `true` if the token is a given keyword, `kw`.
+    #[inline]
     pub fn is_keyword(&self, kw: Symbol) -> bool {
         self.is_ident_where(|id| id.name == kw)
+    }
+
+    /// Returns `true` if the token is any of the given keywords.
+    #[inline]
+    pub fn is_keyword_any(&self, kws: &[Symbol]) -> bool {
+        self.is_ident_where(|id| kws.iter().any(|kw| id.name == *kw))
     }
 
     /// Returns `true` if the token is a keyword used in the language.
@@ -442,9 +454,25 @@ impl Token {
         self.is_ident_where(Ident::is_unused_keyword)
     }
 
-    /// Returns `true` if the token is either a special identifier or a keyword.
+    /// Returns `true` if the token is a keyword.
     pub fn is_reserved_ident(&self, in_yul: bool) -> bool {
         self.is_ident_where(|i| i.is_reserved(in_yul))
+    }
+
+    /// Returns `true` if the token is an identifier, but not a keyword.
+    pub fn is_non_reserved_ident(&self, in_yul: bool) -> bool {
+        self.is_ident_where(|i| i.is_non_reserved(in_yul))
+    }
+
+    /// Returns `true` if the token is an elementary type name.
+    pub fn is_elementary_type(&self) -> bool {
+        self.is_ident_where(Ident::is_elementary_type) || self.is_fixed()
+    }
+
+    /// Returns `true` if the token is a `[u]fixedMxN` type name, excluding `fixed` and `ufixed`.
+    // TODO
+    fn is_fixed(&self) -> bool {
+        false
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
@@ -471,8 +499,26 @@ impl Token {
         self.ident().map(pred).unwrap_or(false)
     }
 
+    /// Returns `true` if the token is an end-of-file marker.
+    #[inline]
+    pub fn is_eof(&self) -> bool {
+        self.kind == TokenKind::Eof
+    }
+
+    /// Returns `true` if the token is the given open delimiter.
+    #[inline]
+    pub fn is_open_delim(&self, d: Delimiter) -> bool {
+        self.kind == TokenKind::OpenDelim(d)
+    }
+
+    /// Returns `true` if the token is the given close delimiter.
+    #[inline]
+    pub fn is_close_delim(&self, d: Delimiter) -> bool {
+        self.kind == TokenKind::CloseDelim(d)
+    }
+
     /// Returns this token's full description: `{self.description()} '{self.kind}'`.
-    pub fn full_description(&self) -> String {
+    pub fn full_description(&self) -> impl fmt::Display + '_ {
         // https://github.com/rust-lang/rust/blob/44bf2a32a52467c45582c3355a893400e620d010/compiler/rustc_parse/src/parser/mod.rs#L378
         if let Some(description) = self.description() {
             format!("{description} `{}`", self.kind)
@@ -482,6 +528,7 @@ impl Token {
     }
 
     /// Returns this token's description, if any.
+    #[inline]
     pub fn description(&self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
     }

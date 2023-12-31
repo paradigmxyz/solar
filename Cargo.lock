@@ -477,6 +477,7 @@ version = "0.0.0"
 dependencies = [
  "const-hex",
  "expect-test",
+ "semver",
  "sulk-ast",
  "sulk-data-structures",
  "sulk-interface",

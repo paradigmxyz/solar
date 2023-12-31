@@ -14,7 +14,7 @@ symbols! {
         As:          "as",
         Assembly:    "assembly",
         Break:       "break",
-        CallData:    "calldata",
+        Calldata:    "calldata",
         Catch:       "catch",
         Constant:    "constant",
         Constructor: "constructor",
@@ -252,6 +252,7 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
+        error: "error",
         underscore: "_",
     }
 }
@@ -348,93 +349,6 @@ pub struct Ident {
     pub span: Span,
 }
 
-impl Ident {
-    /// Constructs a new identifier from a symbol and a span.
-    #[inline]
-    pub const fn new(name: Symbol, span: Span) -> Self {
-        Self { name, span }
-    }
-
-    /// Constructs a new identifier with a dummy span.
-    #[inline]
-    pub const fn with_dummy_span(name: Symbol) -> Self {
-        Self::new(name, Span::DUMMY)
-    }
-
-    /// Maps a string to an identifier with a dummy span.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(string: &str) -> Self {
-        Self::with_dummy_span(Symbol::intern(string))
-    }
-
-    /// Maps a string and a span to an identifier.
-    pub fn from_str_and_span(string: &str, span: Span) -> Self {
-        Self::new(Symbol::intern(string), span)
-    }
-
-    /// Replaces `lo` and `hi` with those from `span`, but keeps the context.
-    pub fn with_span_pos(mut self, span: Span) -> Self {
-        self.span = span /* .with_ctxt(self.span.ctxt()) */; // TODO
-        self
-    }
-
-    pub fn without_first_quote(self) -> Self {
-        Self::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
-    }
-
-    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
-    #[inline]
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-
-    /// Access the underlying string. This is a slowish operation because it requires locking the
-    /// symbol interner.
-    ///
-    /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
-    pub fn as_str(&self) -> &str {
-        self.name.as_str()
-    }
-
-    /// Returns `true` if the symbol is a keyword used in the language.
-    #[inline]
-    pub fn is_used_keyword(self) -> bool {
-        self.name.is_used_keyword()
-    }
-
-    /// Returns `true` if the symbol is a keyword reserved for possible future use.
-    #[inline]
-    pub fn is_unused_keyword(self) -> bool {
-        self.name.is_unused_keyword()
-    }
-
-    /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
-    #[inline]
-    pub fn is_weak_keyword(self) -> bool {
-        self.name.is_weak_keyword()
-    }
-
-    /// Returns `true` if the symbol is a keyword only in a Yul context.
-    #[inline]
-    pub fn is_yul_keyword(self) -> bool {
-        self.name.is_yul_keyword()
-    }
-
-    /// Returns `true` if the symbol is either a special identifier or a keyword.
-    #[inline]
-    pub fn is_reserved(self, in_yul: bool) -> bool {
-        self.name.is_reserved(in_yul)
-    }
-
-    /// Returns `true` if the symbol is `true` or `false`.
-    #[inline]
-    pub fn is_bool_lit(self) -> bool {
-        self.name.is_bool_lit()
-    }
-}
-
 impl PartialEq for Ident {
     #[inline]
     fn eq(&self, rhs: &Self) -> bool {
@@ -490,6 +404,109 @@ impl ToString for Ident {
     }
 }
 
+impl Ident {
+    /// Constructs a new identifier from a symbol and a span.
+    #[inline]
+    pub const fn new(name: Symbol, span: Span) -> Self {
+        Self { name, span }
+    }
+
+    /// Constructs a new identifier with a dummy span.
+    #[inline]
+    pub const fn with_dummy_span(name: Symbol) -> Self {
+        Self::new(name, Span::DUMMY)
+    }
+
+    /// Maps a string to an identifier with a dummy span.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(string: &str) -> Self {
+        Self::with_dummy_span(Symbol::intern(string))
+    }
+
+    /// Maps a string and a span to an identifier.
+    pub fn from_str_and_span(string: &str, span: Span) -> Self {
+        Self::new(Symbol::intern(string), span)
+    }
+
+    /// Replaces `lo` and `hi` with those from `span`, but keeps the context.
+    pub fn with_span_pos(mut self, span: Span) -> Self {
+        self.span = span /* .with_ctxt(self.span.ctxt()) */; // TODO
+        self
+    }
+
+    pub fn without_first_quote(self) -> Self {
+        Self::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
+    }
+
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
+    /// Access the underlying string. This is a slowish operation because it requires locking the
+    /// symbol interner.
+    ///
+    /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
+    pub fn as_str(&self) -> &str {
+        self.name.as_str()
+    }
+
+    /// Returns `true` if the identifier is a keyword used in the language.
+    #[inline]
+    pub fn is_used_keyword(self) -> bool {
+        self.name.is_used_keyword()
+    }
+
+    /// Returns `true` if the identifier is a keyword reserved for possible future use.
+    #[inline]
+    pub fn is_unused_keyword(self) -> bool {
+        self.name.is_unused_keyword()
+    }
+
+    /// Returns `true` if the identifier is a weak keyword and can be used in variable names.
+    #[inline]
+    pub fn is_weak_keyword(self) -> bool {
+        self.name.is_weak_keyword()
+    }
+
+    /// Returns `true` if the identifier is a keyword only in a Yul context.
+    #[inline]
+    pub fn is_yul_keyword(self) -> bool {
+        self.name.is_yul_keyword()
+    }
+
+    /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
+    /// for possible future use.
+    #[inline]
+    pub fn is_reserved(self, in_yul: bool) -> bool {
+        self.name.is_reserved(in_yul)
+    }
+
+    /// Returns `true` if the identifier is not a reserved keyword.
+    /// See [`is_reserved`](Self::is_reserved).
+    #[inline]
+    pub fn is_non_reserved(self, in_yul: bool) -> bool {
+        self.name.is_non_reserved(in_yul)
+    }
+
+    /// Returns `true` if the identifier is an elementary type name.
+    ///
+    /// Note that this does not include `[u]fixedMxN` types.
+    #[inline]
+    pub fn is_elementary_type(self) -> bool {
+        self.name.is_elementary_type()
+    }
+
+    /// Returns `true` if the identifier is `true` or `false`.
+    #[inline]
+    pub fn is_bool_lit(self) -> bool {
+        self.name.is_bool_lit()
+    }
+}
+
 /// An interned string.
 ///
 /// Internally, a `Symbol` is implemented as an index, and all operations
@@ -535,7 +552,9 @@ impl Symbol {
         self.0.get()
     }
 
-    /// Returns `true` if the symbol is a keyword used in the language.
+    /// Returns `true` if the symbol is a keyword used in the Solidity language.
+    ///
+    /// For Yul keywords, use [`is_yul_keyword`](Self::is_yul_keyword).
     #[inline]
     pub fn is_used_keyword(self) -> bool {
         self < kw::After
@@ -559,10 +578,26 @@ impl Symbol {
         self == kw::Leave || self == kw::Revert
     }
 
-    /// Returns `true` if the symbol is either a special identifier or a keyword.
+    /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
+    /// possible future use.
     #[inline]
     pub fn is_reserved(self, in_yul: bool) -> bool {
         self.is_used_keyword() || self.is_unused_keyword() || (in_yul && self.is_yul_keyword())
+    }
+
+    /// Returns `true` if the symbol is not a reserved keyword.
+    /// See [`is_reserved`](Self::is_reserved).
+    #[inline]
+    pub fn is_non_reserved(self, in_yul: bool) -> bool {
+        !self.is_reserved(in_yul)
+    }
+
+    /// Returns `true` if the symbol is an elementary type name.
+    ///
+    /// Note that this does not include `[u]fixedMxN` types.
+    #[inline]
+    pub fn is_elementary_type(self) -> bool {
+        self >= kw::Int && self <= kw::UFixed
     }
 
     /// Returns `true` if the symbol is `true` or `false`.

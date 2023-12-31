@@ -254,6 +254,14 @@ pub enum CallArgs {
     Named(NamedArgList),
 }
 
+impl CallArgs {
+    /// Creates a new empty list of unnamed arguments.
+    #[inline]
+    pub fn empty() -> Self {
+        Self::Unnamed(Vec::new())
+    }
+}
+
 /// A named argument: `name: value`.
 #[derive(Clone, Debug)]
 pub struct NamedArg {

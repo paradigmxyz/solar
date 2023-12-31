@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use super::{io_panic, Emitter, EmitterWriter};
 use crate::{
     diagnostics::{ColorConfig, MultiSpan, SpanLabel},
@@ -89,6 +87,7 @@ impl JsonEmitter {
         */
     }
 
+    #[allow(dead_code)]
     fn span_line(&self, span: Span) -> DiagnosticSpanLine {
         // TODO
         let _ = span;

@@ -25,9 +25,7 @@ sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
 hex.workspace = true
-# TODO
-# unicode-ident.workspace = true
-# unicode-normalization.workspace = true
+semver.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true
