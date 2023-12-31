@@ -293,6 +293,7 @@ pub mod kw {
     ///
     /// Panics if `n` is greater than 32.
     #[inline]
+    #[track_caller]
     pub const fn int(n: u8) -> Symbol {
         assert!(n <= 32);
         Symbol::new(Int.as_u32() + n as u32)
@@ -306,6 +307,7 @@ pub mod kw {
     ///
     /// Panics if `n` is greater than 32.
     #[inline]
+    #[track_caller]
     pub const fn uint(n: u8) -> Symbol {
         assert!(n <= 32);
         Symbol::new(UInt.as_u32() + n as u32)
@@ -317,6 +319,7 @@ pub mod kw {
     ///
     /// Panics if `n` is 0 or is greater than 32.
     #[inline]
+    #[track_caller]
     pub const fn fixed_bytes(n: u8) -> Symbol {
         assert!(n > 0 && n <= 32);
         Symbol::new(Bytes.as_u32() + n as u32)

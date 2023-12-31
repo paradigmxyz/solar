@@ -4,7 +4,7 @@ use sulk_ast::{
     ast::*,
     token::{LitKind, *},
 };
-use sulk_interface::{kw, sym, Ident};
+use sulk_interface::{error_code, kw, sym, Ident};
 
 impl<'a> Parser<'a> {
     /// Parses a source unit.
@@ -111,6 +111,8 @@ impl<'a> Parser<'a> {
     // These functions expect that the keyword has already been eaten unless otherwise noted.
 
     /// Parses a function definition.
+    ///
+    /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'a, ItemFunction> {
         let TokenKind::Ident(kw) = self.token.kind else {
             unreachable!("parse_function called without function-like keyword");
@@ -128,7 +130,7 @@ impl<'a> Parser<'a> {
             if kind.can_omit_parens() && !self.token.is_open_delim(Delimiter::Parenthesis) {
                 Vec::new()
             } else {
-                self.parse_parameter_list(VarDeclMode::OnlyStorage)?
+                self.parse_parameter_list(VarDeclMode::AllowStorage)?
             };
         let attributes = self.parse_function_attributes()?;
         if !kind.can_have_attributes() && !attributes.is_empty() {
@@ -136,7 +138,7 @@ impl<'a> Parser<'a> {
             self.dcx().err(msg).span(attributes.span).emit();
         }
         let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_parameter_list(VarDeclMode::OnlyStorage)?
+            self.parse_parameter_list(VarDeclMode::AllowStorage)?
         } else {
             Vec::new()
         };
@@ -166,18 +168,18 @@ impl<'a> Parser<'a> {
     /// Parses a struct definition.
     fn parse_struct(&mut self) -> PResult<'a, ItemStruct> {
         let name = self.parse_ident()?;
-        let (fields, _) = self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), |this| {
-            let var = this.parse_variable_declaration(VarDeclMode::None)?;
-            this.expect(&TokenKind::Semi)?;
-            Ok(var)
-        })?;
+        let (fields, _) = self.parse_delim_seq(
+            Delimiter::Brace,
+            SeqSep::trailing_enforced(TokenKind::Semi),
+            |this| this.parse_variable_declaration(VarDeclMode::RequireName),
+        )?;
         Ok(ItemStruct { name, fields })
     }
 
     /// Parses an event definition.
     fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
         let name = self.parse_ident()?;
-        let parameters = self.parse_parameter_list(VarDeclMode::OnlyIndexed)?;
+        let parameters = self.parse_parameter_list(VarDeclMode::AllowIndexed)?;
         self.expect(&TokenKind::Semi)?;
         Ok(ItemEvent { name, parameters })
     }
@@ -269,7 +271,7 @@ impl<'a> Parser<'a> {
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
     fn parse_solidity_req(&mut self) -> PResult<'a, SemverReq> {
-        if self.token.kind == TokenKind::Semi {
+        if self.check_noexpect(&TokenKind::Semi) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
             return Err(self.dcx().err(msg).span(span));
@@ -293,7 +295,7 @@ impl<'a> Parser<'a> {
             if self.eat(&TokenKind::OrOr) {
                 continue;
             }
-            if self.token.kind == TokenKind::Eof || self.token.kind == TokenKind::Semi {
+            if self.check_noexpect(&TokenKind::Eof) || self.check_noexpect(&TokenKind::Semi) {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -381,7 +383,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_semver_number(&mut self) -> PResult<'a, u32> {
-        if self.token.kind == TokenKind::BinOp(BinOpToken::Star)
+        if self.check_noexpect(&TokenKind::BinOp(BinOpToken::Star))
             || self.token.is_keyword_any(&[sym::x, sym::X])
         {
             self.bump();
@@ -536,25 +538,41 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a variable declaration: `type storage? indexed? name`.
-    fn parse_variable_declaration(
+    pub(super) fn parse_variable_declaration(
         &mut self,
         mode: VarDeclMode,
     ) -> PResult<'a, VariableDeclaration> {
+        let lo = self.token.span;
+
         let ty = self.parse_type()?;
+
         let mut storage = self.parse_storage();
         if mode.no_storage() && storage.is_some() {
             storage = None;
             let msg = "storage specifiers are not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
         }
-        let name = self.parse_ident_opt()?;
+
         let mut indexed = self.eat_keyword(kw::Indexed);
         if mode.no_indexed() && indexed {
             indexed = false;
             let msg = "`indexed` is not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
         }
-        Ok(VariableDeclaration { ty, storage, name, indexed })
+
+        let name = self.parse_ident_opt()?;
+        if mode.warn_on_name() && name.is_some() {
+            let msg = "named function type parameters are deprecated";
+            self.dcx().warn(msg).code(error_code!(E6162)).span(self.prev_token.span).emit();
+        }
+        if mode.name_required() && name.is_none() {
+            // Have to return the error here.
+            let msg = "parameter must have a name";
+            let span = lo.to(self.prev_token.span);
+            return Err(self.dcx().err(msg).span(span));
+        }
+
+        Ok(VariableDeclaration { ty, storage, indexed, name })
     }
 
     /// Parses a list of modifier invocations.
@@ -632,7 +650,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a storage location: `storage | memory | calldata`.
-    fn parse_storage(&mut self) -> Option<Storage> {
+    pub(super) fn parse_storage(&mut self) -> Option<Storage> {
         if self.eat_keyword(kw::Storage) {
             Some(Storage::Storage)
         } else if self.eat_keyword(kw::Memory) {
@@ -645,7 +663,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a visibility: `public | private | internal | external`.
-    fn parse_visibility(&mut self) -> Option<Visibility> {
+    pub(super) fn parse_visibility(&mut self) -> Option<Visibility> {
         if self.eat_keyword(kw::Public) {
             Some(Visibility::Public)
         } else if self.eat_keyword(kw::Private) {
@@ -660,7 +678,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses state mutability: `payable | pure | view`.
-    fn parse_state_mutability(&mut self) -> Option<StateMutability> {
+    pub(super) fn parse_state_mutability(&mut self) -> Option<StateMutability> {
         if self.eat_keyword(kw::Payable) {
             Some(StateMutability::Payable)
         } else if self.eat_keyword(kw::Pure) {
@@ -675,18 +693,36 @@ impl<'a> Parser<'a> {
 
 /// Options for parsing variable declarations.
 #[derive(Clone, Copy)]
-enum VarDeclMode {
-    OnlyIndexed, // events
-    OnlyStorage, // functions
-    None,        // structs, errors
+pub(super) enum VarDeclMode {
+    // Name is optional.
+    /// `ty indexed? name?`; parsed in events.
+    AllowIndexed,
+    /// `ty storage? name?`; parsed in functions.
+    AllowStorage,
+    /// `ty storage? [name?]` (names issue a warning); parsed in function types.
+    AllowStorageWithWarning,
+    /// `ty name?`; parsed in errors.
+    None,
+
+    // Name is required.
+    /// `ty name`; parsed in structs.
+    RequireName,
 }
 
 impl VarDeclMode {
     fn no_storage(&self) -> bool {
-        !matches!(self, Self::OnlyStorage)
+        !matches!(self, Self::AllowStorage)
     }
 
     fn no_indexed(&self) -> bool {
-        !matches!(self, Self::OnlyIndexed)
+        !matches!(self, Self::AllowIndexed)
+    }
+
+    fn name_required(&self) -> bool {
+        matches!(self, Self::RequireName)
+    }
+
+    fn warn_on_name(&self) -> bool {
+        matches!(self, Self::AllowStorageWithWarning)
     }
 }

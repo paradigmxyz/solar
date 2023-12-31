@@ -1,5 +1,5 @@
-use super::{Expr, Path, StateMutability, Visibility};
-use sulk_interface::{Ident, Span};
+use super::{Expr, ParameterList, Path, StateMutability, Visibility};
+use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
 ///
@@ -23,23 +23,25 @@ pub enum TyKind {
     String,
     /// `bytes`
     Bytes,
-    /// `fixed`
-    Fixed,
-    /// `ufixed`
-    Ufixed,
+    /// Signed fixed-point number.
+    /// `fixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
+    Fixed(TySize, TyFixedSize),
+    /// Unsigned fixed-point number.
+    /// `ufixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
+    UFixed(TySize, TyFixedSize),
     /// Signed integer. The number is the number of bytes, **not bits**.
     /// `0 => int`
     /// `size @ 1..=32 => int{size*8}`
     /// `33.. => unreachable!()`
-    Int(u8),
+    Int(TySize),
     /// Unsigned integer. The number is the number of bytes, **not bits**.
     /// `0 => uint`
     /// `size @ 1..=32 => uint{size*8}`
     /// `33.. => unreachable!()`
-    Uint(u8),
+    UInt(TySize),
     /// `size @ 1..=32 => bytes{size}`
     /// `0 | 33.. => unreachable!()`
-    FixedBytes(u8),
+    FixedBytes(TySize),
 
     /// `$element[$($size)?]`
     Array(Box<TypeArray>),
@@ -50,6 +52,81 @@ pub enum TyKind {
 
     /// A custom type.
     Custom(Path),
+}
+
+/// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TySize(u8);
+
+impl TySize {
+    /// The value zero. Note that this is not a valid size for a fixed-bytes type.
+    pub const ZERO: TySize = TySize(0);
+
+    /// The maximum value of a `TySize`.
+    pub const MAX: u8 = 32;
+
+    /// Creates a new `TySize` from a `u8`.
+    pub const fn new(value: u8) -> Option<TySize> {
+        if value > Self::MAX {
+            None
+        } else {
+            Some(Self(value))
+        }
+    }
+
+    /// Returns the value.
+    pub const fn get(self) -> u8 {
+        self.0
+    }
+
+    /// Returns the `int` symbol for the type name.
+    #[inline]
+    pub const fn int_keyword(self) -> Symbol {
+        kw::int(self.0)
+    }
+
+    /// Returns the `uint` symbol for the type name.
+    #[inline]
+    pub const fn uint_keyword(self) -> Symbol {
+        kw::uint(self.0)
+    }
+
+    /// Returns the `bytesN` symbol for the type name.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self` is 0.
+    #[inline]
+    #[track_caller]
+    pub const fn bytes_keyword(self) -> Symbol {
+        kw::fixed_bytes(self.0)
+    }
+}
+
+/// Size of a fixed-point number (N) type. Valid values: 0..=80.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TyFixedSize(u8);
+
+impl TyFixedSize {
+    /// The value zero.
+    pub const ZERO: TyFixedSize = TyFixedSize(0);
+
+    /// The maximum value of a `TyFixedSize`.
+    pub const MAX: u8 = 80;
+
+    /// Creates a new `TyFixedSize` from a `u8`.
+    pub const fn new(value: u8) -> Option<TyFixedSize> {
+        if value > Self::MAX {
+            None
+        } else {
+            Some(Self(value))
+        }
+    }
+
+    /// Returns the value.
+    pub const fn get(self) -> u8 {
+        self.0
+    }
 }
 
 /// An array type.
@@ -65,10 +142,10 @@ pub struct TypeArray {
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName>
 #[derive(Clone, Debug)]
 pub struct TypeFunction {
-    pub parameters: Vec<Ty>,
+    pub parameters: ParameterList,
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
-    pub returns: Vec<Ty>,
+    pub returns: ParameterList,
 }
 
 /// A mapping type.
@@ -77,8 +154,8 @@ pub struct TypeFunction {
 /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType>
 #[derive(Clone, Debug)]
 pub struct TypeMapping {
-    pub key: Box<Ty>,
+    pub key: Ty,
     pub key_name: Option<Ident>,
-    pub value: Box<Ty>,
+    pub value: Ty,
     pub value_name: Option<Ident>,
 }

@@ -49,7 +49,7 @@ enum ExpectedToken {
     Operator,
     Ident,
     Path,
-    Type,
+    ElementaryType,
     Const,
 }
 
@@ -63,7 +63,7 @@ impl fmt::Display for ExpectedToken {
             Self::Operator => "an operator",
             Self::Ident => "an identifier",
             Self::Path => "a path",
-            Self::Type => "a type",
+            Self::ElementaryType => "an elementary type name",
             Self::Const => "a const expression",
         })
     }
@@ -101,19 +101,24 @@ struct SeqSep {
     sep: Option<TokenKind>,
     /// `true` if a trailing separator is allowed.
     trailing_sep_allowed: bool,
+    /// `true` if a trailing separator is required.
+    trailing_sep_required: bool,
 }
 
 impl SeqSep {
+    fn trailing_enforced(t: TokenKind) -> Self {
+        Self { sep: Some(t), trailing_sep_required: true, trailing_sep_allowed: true }
+    }
+
     fn trailing_allowed(t: TokenKind) -> Self {
-        Self { sep: Some(t), trailing_sep_allowed: true }
+        Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: true }
     }
 
     fn none() -> Self {
-        Self { sep: None, trailing_sep_allowed: false }
+        Self { sep: None, trailing_sep_required: false, trailing_sep_allowed: false }
     }
 }
 
-#[allow(dead_code)] // TODO
 impl<'a> Parser<'a> {
     /// Creates a new parser.
     pub fn new(sess: &'a ParseSess, stream: Vec<Token>) -> Self {
@@ -137,30 +142,34 @@ impl<'a> Parser<'a> {
         &self.sess.dcx
     }
 
+    #[allow(dead_code)] // TODO
     fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
         self.sess.source_map().span_to_snippet(span)
     }
 
     /// Returns an "unexpected token" error for the current token.
+    #[track_caller]
     pub fn unexpected<T>(&mut self) -> PResult<'a, T> {
-        self.expect_one_of(&[], &[]).map(|_| unreachable!())
+        self.expect_one_of(&[], &[]).map(|b| unreachable!("`unexpected()` return Ok({b})"))
     }
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
-    pub fn expect(&mut self, t: &TokenKind) -> PResult<'a, bool /* recovered */> {
+    #[track_caller]
+    pub fn expect(&mut self, tok: &TokenKind) -> PResult<'a, bool /* recovered */> {
         if self.expected_tokens.is_empty() {
-            if self.token.kind == *t {
+            if self.check_noexpect(tok) {
                 self.bump();
                 Ok(false)
             } else {
-                Err(self.unexpected_error(t))
+                Err(self.unexpected_error(tok))
             }
         } else {
-            self.expect_one_of(std::slice::from_ref(t), &[])
+            self.expect_one_of(std::slice::from_ref(tok), &[])
         }
     }
 
     /// Creates a [`PErr`] for an unexpected token `t`.
+    #[track_caller]
     fn unexpected_error(&mut self, t: &TokenKind) -> PErr<'a> {
         let prev_span = if self.prev_token.span.is_dummy() {
             // We don't want to point at the following span after a dummy span.
@@ -192,6 +201,7 @@ impl<'a> Parser<'a> {
     /// Expect next token to be edible or inedible token. If edible,
     /// then consume it; if inedible, then return without consuming
     /// anything. Signal a fatal error if next token is unexpected.
+    #[track_caller]
     pub fn expect_one_of(
         &mut self,
         edible: &[TokenKind],
@@ -212,6 +222,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[track_caller]
     fn expected_one_of_not_found(
         &mut self,
         edible: &[TokenKind],
@@ -306,7 +317,7 @@ impl<'a> Parser<'a> {
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
     /// encountered.
     fn check(&mut self, tok: &TokenKind) -> bool {
-        let is_present = self.token.kind == *tok;
+        let is_present = self.check_noexpect(tok);
         if !is_present {
             self.expected_tokens.push(ExpectedToken::Token(tok.clone()));
         }
@@ -356,15 +367,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn eat_keyword_noexpect(&mut self, kw: Symbol) -> bool {
-        if self.token.is_keyword(kw) {
-            self.bump();
-            true
-        } else {
-            false
-        }
-    }
-
     /// If the given word is not a keyword, signals an error.
     /// If the next token is not the given word, signals an error.
     /// Otherwise, eats it.
@@ -376,7 +378,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /*
     /// Is the given keyword `kw` followed by a non-reserved identifier?
     fn is_kw_followed_by_ident(&self, kw: Symbol) -> bool {
         self.token.is_keyword(kw) && self.look_ahead_with(1, |t| t.is_ident())
@@ -390,13 +391,16 @@ impl<'a> Parser<'a> {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
     }
 
+    fn check_elementary_type(&mut self) -> bool {
+        self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
+    }
+
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
         if !ok {
             self.expected_tokens.push(t);
         }
         ok
     }
-    */
 
     /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
     /// The function `f` must consume tokens until reaching the next separator or
@@ -572,6 +576,14 @@ impl<'a> Parser<'a> {
                 }
             }
 
+            if sep.trailing_sep_required {
+                for ket in kets {
+                    self.expect(ket)?;
+                }
+                trailing = true;
+                break;
+            }
+
             if sep.trailing_sep_allowed && self.expect_any_with_type(kets, expect) {
                 trailing = true;
                 break;
@@ -625,7 +637,7 @@ impl<'a> Parser<'a> {
 
     /// Returns whether any of the given keywords are `dist` tokens ahead of the current one.
     fn is_keyword_ahead(&self, dist: usize, kws: &[Symbol]) -> bool {
-        self.look_ahead_with(dist, |t| kws.iter().any(|&kw| t.is_keyword(kw)))
+        self.look_ahead_with(dist, |t| t.is_keyword_any(kws))
     }
 
     /// Runs `f` with the parser in a contract context.
