@@ -194,6 +194,12 @@ pub struct SourceMap {
     file_loader: Box<dyn FileLoader + Sync + Send>,
 }
 
+impl Default for SourceMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SourceMap {
     pub fn new() -> Self {
         Self { files: Default::default(), file_loader: Box::new(RealFileLoader) }

@@ -290,7 +290,10 @@ impl<'a> Parser<'a> {
         let mut dis = Vec::new();
         loop {
             dis.push(self.parse_semver_req_components_con()?);
-            if !self.eat(&TokenKind::OrOr) {
+            if self.eat(&TokenKind::OrOr) {
+                continue;
+            }
+            if self.token.kind == TokenKind::Eof || self.token.kind == TokenKind::Semi {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -680,10 +683,10 @@ enum VarDeclMode {
 
 impl VarDeclMode {
     fn no_storage(&self) -> bool {
-        !matches!(self, VarDeclMode::OnlyStorage)
+        !matches!(self, Self::OnlyStorage)
     }
 
     fn no_indexed(&self) -> bool {
-        !matches!(self, VarDeclMode::OnlyIndexed)
+        !matches!(self, Self::OnlyIndexed)
     }
 }

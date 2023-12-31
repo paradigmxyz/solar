@@ -91,6 +91,7 @@ enum TokenExpectType {
 
     /// Unencountered tokens are not inserted into [`Parser::expected_tokens`].
     /// See [`Parser::check_noexpect`].
+    #[allow(dead_code)] // TODO
     NoExpect,
 }
 
@@ -103,15 +104,16 @@ struct SeqSep {
 }
 
 impl SeqSep {
-    fn trailing_allowed(t: TokenKind) -> SeqSep {
-        SeqSep { sep: Some(t), trailing_sep_allowed: true }
+    fn trailing_allowed(t: TokenKind) -> Self {
+        Self { sep: Some(t), trailing_sep_allowed: true }
     }
 
-    fn none() -> SeqSep {
-        SeqSep { sep: None, trailing_sep_allowed: false }
+    fn none() -> Self {
+        Self { sep: None, trailing_sep_allowed: false }
     }
 }
 
+#[allow(dead_code)] // TODO
 impl<'a> Parser<'a> {
     /// Creates a new parser.
     pub fn new(sess: &'a ParseSess, stream: Vec<Token>) -> Self {

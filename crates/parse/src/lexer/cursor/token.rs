@@ -13,7 +13,7 @@ pub(crate) struct RawToken {
 }
 
 impl RawToken {
-    /// The [`EOF`](TokenKind::Eof) token with length 0.
+    /// The [`EOF`](RawTokenKind::Eof) token with length 0.
     pub(crate) const EOF: Self = Self::new(RawTokenKind::Eof, 0);
 
     /// Creates a new token.
@@ -55,7 +55,7 @@ pub(crate) enum RawTokenKind {
     /// suffix, but may be present here on string and float literals. Users of
     /// this type will need to check for and reject that case.
     ///
-    /// See [`LiteralKind`] for more details.
+    /// See [`RawLiteralKind`] for more details.
     Literal { kind: RawLiteralKind },
 
     // One-char tokens:
