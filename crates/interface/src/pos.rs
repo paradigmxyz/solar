@@ -114,6 +114,10 @@ impl_pos! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct BytePos(pub u32);
 
+    /// A byte offset relative to file beginning.
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
+    pub struct RelativeBytePos(pub u32);
+
     /// A character offset.
     ///
     /// Because of multibyte UTF-8 characters, a byte offset

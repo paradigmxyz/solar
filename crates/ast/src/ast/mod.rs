@@ -12,6 +12,9 @@ pub use item::*;
 mod lit;
 pub use lit::*;
 
+mod semver;
+pub use semver::*;
+
 mod stmt;
 pub use stmt::*;
 

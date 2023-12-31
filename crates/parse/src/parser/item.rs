@@ -1,21 +1,41 @@
+use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
-use sulk_ast::{ast::*, token::*};
-use sulk_interface::{kw, sym};
-
-use super::SeqSep;
+use sulk_ast::{
+    ast::*,
+    token::{LitKind, *},
+};
+use sulk_interface::{kw, sym, Ident};
 
 impl<'a> Parser<'a> {
     /// Parses a source unit.
     pub fn parse_file(&mut self) -> PResult<'a, SourceUnit> {
+        let items = self.parse_items(&TokenKind::Eof)?;
+        Ok(SourceUnit { items })
+    }
+
+    /// Parses a list of items until the given token is encountered.
+    fn parse_items(&mut self, end: &TokenKind) -> PResult<'a, Vec<Item>> {
         let mut items = Vec::new();
         while let Some(item) = self.parse_item()? {
             items.push(item);
         }
-        if !self.eat(&TokenKind::Eof) {
-            let msg = format!("expected item, found {}", self.token.full_description());
-            return Err(self.dcx().err(msg).span(self.token.span));
+        if !self.eat(end) {
+            let (prefix, list, link);
+            if self.in_contract {
+                prefix = "contract";
+                list = "function, variable, struct, or modifier declaration";
+                link = "contractDefinition";
+            } else {
+                prefix = "global";
+                list = "pragma, import directive, or contract/interface/library/struct/enum/constant/function/error definition";
+                link = "contractBodyElement";
+            }
+            let msg =
+                format!("expected {prefix} item ({list}), found {}", self.token.full_description());
+            let note = format!("for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>");
+            return Err(self.dcx().err(msg).span(self.token.span).note(note));
         }
-        Ok(SourceUnit { items })
+        Ok(items)
     }
 
     /// Parses an item.
@@ -189,44 +209,303 @@ impl<'a> Parser<'a> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let inheritance =
-            if self.eat_keyword(kw::Is) { self.parse_modifiers()? } else { Vec::new() };
-        let body = self.in_contract(|this| this.parse_items())?;
+        let inheritance;
+        if self.eat_keyword(kw::Is) {
+            inheritance = self.parse_inheritance()?;
+            if inheritance.is_empty() {
+                let msg = "expected at least one base contract";
+                self.dcx().err(msg).span(self.prev_token.span).emit();
+            }
+        } else {
+            inheritance = Vec::new();
+        }
+        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+        let body =
+            self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
         Ok(ItemContract { kind, name, inheritance, body })
     }
 
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
-        todo!()
+        let name = self.parse_ident()?;
+        let (variants, _) =
+            self.parse_delim_comma_seq(Delimiter::Brace, |this| this.parse_ident())?;
+        Ok(ItemEnum { name, variants })
     }
 
     /// Parses a user-defined value type.
     fn parse_udvt(&mut self) -> PResult<'a, ItemUdvt> {
+        let name = self.parse_ident()?;
+        self.expect_keyword(kw::Is)?;
+        let ty = self.parse_type()?;
         self.expect(&TokenKind::Semi)?;
-        todo!()
+        Ok(ItemUdvt { name, ty })
     }
 
     /// Parses a pragma directive.
     fn parse_pragma(&mut self) -> PResult<'a, PragmaDirective> {
-        self.expect(&TokenKind::Semi)?;
-        todo!()
+        let tokens = if self.eat_keyword(sym::solidity) {
+            PragmaTokens::Solidity(self.parse_solidity_req()?)
+        } else if self.eat_keyword(sym::abicoder) {
+            PragmaTokens::Abicoder(self.parse_ident()?)
+        } else if self.eat_keyword(sym::experimental) {
+            PragmaTokens::Experimental(self.parse_ident()?)
+        } else {
+            let mut tokens = Vec::new();
+            while self.token.kind != TokenKind::Semi {
+                tokens.push(self.token.clone());
+                self.bump();
+            }
+            if tokens.is_empty() {
+                let msg = "expected at least one token in pragma directive";
+                self.dcx().err(msg).span(self.prev_token.span).emit();
+            }
+            PragmaTokens::Verbatim(tokens)
+        };
+        Ok(PragmaDirective { tokens })
+    }
+
+    /// Parses a Solidity version requirement.
+    ///
+    /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
+    fn parse_solidity_req(&mut self) -> PResult<'a, SemverReq> {
+        if self.token.kind == TokenKind::Semi {
+            let msg = "empty version requirement";
+            let span = self.prev_token.span.to(self.token.span);
+            return Err(self.dcx().err(msg).span(span));
+        }
+
+        let lo = self.token.span;
+        let dis = self.parse_semver_req_components_dis();
+        let span = lo.to(self.prev_token.span);
+        match dis {
+            Ok(dis) => Ok(SemverReq { dis }),
+            Err(e) => Err(e.span_note(span, "while parsing this version requirement")),
+        }
+    }
+
+    /// `any(c)`
+    fn parse_semver_req_components_dis(&mut self) -> PResult<'a, Vec<SemverReqCon>> {
+        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
+        let mut dis = Vec::new();
+        loop {
+            dis.push(self.parse_semver_req_components_con()?);
+            if !self.eat(&TokenKind::OrOr) {
+                break;
+            }
+            // `parse_semver_req_components_con` parses a single range,
+            // or all the values until `||`.
+            debug_assert!(
+                matches!(
+                    dis.last().map(|x| x.components.as_slice()),
+                    Some([
+                        ..,
+                        SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }
+                    ])
+                ),
+                "not a range: last={:?}",
+                dis.last()
+            );
+            return Err(self.dcx().err("ranges can only be combined using the || operator"));
+        }
+        Ok(dis)
+    }
+
+    /// `all(c)`
+    fn parse_semver_req_components_con(&mut self) -> PResult<'a, SemverReqCon> {
+        // component - component (range)
+        // or component component* (conjunction)
+
+        let mut components = Vec::new();
+        let lo = self.token.span;
+        let (op, v) = self.parse_semver_component()?;
+        if self.eat(&TokenKind::BinOp(BinOpToken::Minus)) {
+            // range
+            // Ops are parsed and overwritten: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
+            let _ = op;
+            let (_second_op, right) = self.parse_semver_component()?;
+            let kind = SemverReqComponentKind::Range(v, right);
+            let span = lo.to(self.prev_token.span);
+            components.push(SemverReqComponent { span, kind });
+        } else {
+            // conjuction; first is already parsed
+            let span = lo.to(self.prev_token.span);
+            let kind = SemverReqComponentKind::Op(op, v);
+            components.push(SemverReqComponent { span, kind });
+            // others
+            while !matches!(self.token.kind, TokenKind::OrOr | TokenKind::Eof | TokenKind::Semi) {
+                let lo = self.token.span;
+                let (op, v) = self.parse_semver_component()?;
+                let span = lo.to(self.prev_token.span);
+                let kind = SemverReqComponentKind::Op(op, v);
+                components.push(SemverReqComponent { span, kind });
+            }
+        }
+        let span = lo.to(self.prev_token.span);
+        Ok(SemverReqCon { span, components })
+    }
+
+    fn parse_semver_component(&mut self) -> PResult<'a, (Option<SemverOp>, SemverVersion)> {
+        let op = self.parse_semver_op();
+        let v = self.parse_semver_version()?;
+        Ok((op, v))
+    }
+
+    fn parse_semver_op(&mut self) -> Option<SemverOp> {
+        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
+        let op = match self.token.kind {
+            TokenKind::Eq => SemverOp::Greater,
+            TokenKind::Ge => SemverOp::GreaterEq,
+            TokenKind::Lt => SemverOp::Less,
+            TokenKind::Le => SemverOp::LessEq,
+            TokenKind::Tilde => SemverOp::Tilde,
+            TokenKind::BinOp(BinOpToken::Caret) => SemverOp::Caret,
+            _ => return None,
+        };
+        self.bump();
+        Some(op)
+    }
+
+    fn parse_semver_version(&mut self) -> PResult<'a, SemverVersion> {
+        let lo = self.token.span;
+        let major = self.parse_semver_number()?;
+        let minor =
+            if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
+        let patch =
+            if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
+        let span = lo.to(self.prev_token.span);
+        Ok(SemverVersion::new(span, major, minor, patch))
+    }
+
+    fn parse_semver_number(&mut self) -> PResult<'a, u32> {
+        if self.token.kind == TokenKind::BinOp(BinOpToken::Star)
+            || self.token.is_keyword_any(&[sym::x, sym::X])
+        {
+            self.bump();
+            return Ok(u32::MAX);
+        }
+
+        let Token { kind: TokenKind::Literal(Lit { kind: LitKind::Integer, symbol }), span } =
+            self.token
+        else {
+            self.expected_tokens.push(ExpectedToken::IntLit);
+            return self.unexpected();
+        };
+        let value =
+            symbol.as_str().parse::<u32>().map_err(|e| self.dcx().err(e.to_string()).span(span))?;
+        self.bump();
+        Ok(value)
     }
 
     /// Parses an import directive.
     fn parse_import(&mut self) -> PResult<'a, ImportDirective> {
-        self.expect(&TokenKind::Semi)?;
-        todo!()
+        let path;
+        let items = if self.check(&TokenKind::BinOp(BinOpToken::Star)) {
+            // * as alias from ""
+            self.bump(); // *
+            let alias = self.parse_as_alias()?;
+            self.expect_keyword(sym::from)?;
+            path = self.parse_str_lit()?;
+            ImportItems::Glob(alias)
+        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+            // { x as y, ... } from ""
+            let (list, _) = self.parse_delim_comma_seq(Delimiter::Brace, |this| {
+                let name = this.parse_ident()?;
+                let alias = this.parse_as_alias()?;
+                Ok((name, alias))
+            })?;
+            self.expect_keyword(sym::from)?;
+            path = self.parse_str_lit()?;
+            ImportItems::Aliases(list)
+        } else {
+            // "" as alias
+            path = self.parse_str_lit()?;
+            let alias = self.parse_as_alias()?;
+            ImportItems::Plain(alias)
+        };
+        Ok(ImportDirective { path, items })
     }
 
+    /// Parses an `as` alias identifier.
+    fn parse_as_alias(&mut self) -> PResult<'a, Option<Ident>> {
+        if self.eat_keyword(kw::As) {
+            self.parse_ident().map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Parses a using directive.
     fn parse_using(&mut self) -> PResult<'a, UsingDirective> {
+        let list = self.parse_using_list()?;
+        self.expect_keyword(kw::For)?;
+        let ty = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
+            None
+        } else {
+            Some(self.parse_type()?)
+        };
+        let global = self.eat_keyword(sym::global);
         self.expect(&TokenKind::Semi)?;
-        todo!()
+        Ok(UsingDirective { list, ty, global })
+    }
+
+    fn parse_using_list(&mut self) -> PResult<'a, UsingList> {
+        if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+            let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, |this| {
+                let path = this.parse_path()?;
+                let op = if this.eat_keyword(kw::As) {
+                    Some(this.parse_user_definable_operator()?)
+                } else {
+                    None
+                };
+                Ok((path, op))
+            })?;
+            Ok(UsingList::Multiple(paths))
+        } else {
+            self.parse_path().map(UsingList::Single)
+        }
+    }
+
+    fn parse_user_definable_operator(&mut self) -> PResult<'a, UserDefinableOperator> {
+        use BinOpToken::*;
+        use TokenKind::*;
+        use UserDefinableOperator as Op;
+        macro_rules! user_op {
+            ($($tok1:tt $(($tok2:tt))? => $op:expr),* $(,)?) => {
+                match self.token.kind {
+                    $($tok1 $(($tok2))? => $op,)*
+                    _ => {
+                        self.expected_tokens.extend_from_slice(&[$(ExpectedToken::Token($tok1 $(($tok2))?)),*]);
+                        return self.unexpected();
+                    }
+                }
+            };
+        }
+        let op = user_op! {
+            BinOp(And) => Op::BitAnd,
+            Tilde => Op::BitNot,
+            BinOp(Or) => Op::BitOr,
+            BinOp(Caret) => Op::BitXor,
+            BinOp(Plus) => Op::Add,
+            BinOp(Slash) => Op::Div,
+            BinOp(Percent) => Op::Rem,
+            BinOp(Star) => Op::Mul,
+            BinOp(Minus) => Op::Sub,
+            Eq => Op::Eq,
+            Ge => Op::Ge,
+            Gt => Op::Gt,
+            Le => Op::Le,
+            Lt => Op::Lt,
+            Ne => Op::Ne,
+        };
+        self.bump();
+        Ok(op)
     }
 
     /* ----------------------------------------- Common ----------------------------------------- */
 
     /// Parses a variable definition.
-    pub(super) fn parse_variable_definition(&mut self) -> PResult<'a, VariableDefinition> {
+    fn parse_variable_definition(&mut self) -> PResult<'a, VariableDefinition> {
         let ty = self.parse_type()?;
         let storage = self.parse_storage();
         let visibility = self.parse_visibility();
@@ -238,7 +517,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses mutability of a variable: `constant | immutable`.
-    pub(super) fn parse_variable_mutability(&mut self) -> Option<VarMut> {
+    fn parse_variable_mutability(&mut self) -> Option<VarMut> {
         if self.eat_keyword(kw::Constant) {
             Some(VarMut::Constant)
         } else if self.eat_keyword(kw::Immutable) {
@@ -249,25 +528,25 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a parameter list: `($(vardecl),*)`.
-    pub(super) fn parse_parameter_list(&mut self, opts: VarDeclMode) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(|this| this.parse_variable_declaration(opts)).map(|(x, _)| x)
+    fn parse_parameter_list(&mut self, mode: VarDeclMode) -> PResult<'a, ParameterList> {
+        self.parse_paren_comma_seq(|this| this.parse_variable_declaration(mode)).map(|(x, _)| x)
     }
 
     /// Parses a variable declaration: `type storage? indexed? name`.
-    pub(super) fn parse_variable_declaration(
+    fn parse_variable_declaration(
         &mut self,
-        opts: VarDeclMode,
+        mode: VarDeclMode,
     ) -> PResult<'a, VariableDeclaration> {
         let ty = self.parse_type()?;
         let mut storage = self.parse_storage();
-        if opts.no_storage() && storage.is_some() {
+        if mode.no_storage() && storage.is_some() {
             storage = None;
             let msg = "storage specifiers are not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
         }
         let name = self.parse_ident_opt()?;
         let mut indexed = self.eat_keyword(kw::Indexed);
-        if opts.no_indexed() && indexed {
+        if mode.no_indexed() && indexed {
             indexed = false;
             let msg = "`indexed` is not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
@@ -276,23 +555,37 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a list of modifier invocations.
-    pub(super) fn parse_modifiers(&mut self) -> PResult<'a, Vec<Modifier>> {
+    fn parse_modifiers(&mut self) -> PResult<'a, Vec<Modifier>> {
         let mut modifiers = Vec::new();
-        while let Some(name) = self.parse_ident_maybe_recover(false).map_err(|e| e.cancel()).ok() {
-            let name = self.parse_path_with(name)?;
-            let arguments =
-                if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
-                    self.parse_call_args()?
-                } else {
-                    CallArgs::empty()
-                };
-            modifiers.push(Modifier { name, arguments });
+        while self.token.is_non_reserved_ident(false) {
+            modifiers.push(self.parse_modifier()?);
         }
         Ok(modifiers)
     }
 
+    /// Parses a list of inheritance specifiers.
+    fn parse_inheritance(&mut self) -> PResult<'a, Vec<Modifier>> {
+        self.parse_seq_to_before_end(
+            &TokenKind::CloseDelim(Delimiter::Brace),
+            SeqSep::trailing_allowed(TokenKind::Comma),
+            |this| this.parse_modifier(),
+        )
+        .map(|(x, _, _)| x)
+    }
+
+    /// Parses a single modifier invocation.
+    fn parse_modifier(&mut self) -> PResult<'a, Modifier> {
+        let name = self.parse_path()?;
+        let arguments = if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
+            self.parse_call_args()?
+        } else {
+            CallArgs::empty()
+        };
+        Ok(Modifier { name, arguments })
+    }
+
     /// Parses a list of function overrides.
-    pub(super) fn parse_overrides(&mut self) -> PResult<'a, Vec<Override>> {
+    fn parse_overrides(&mut self) -> PResult<'a, Vec<Override>> {
         let mut overrides = Vec::new();
         while self.eat_keyword(kw::Override) {
             overrides.push(self.parse_override()?);
@@ -311,8 +604,32 @@ impl<'a> Parser<'a> {
         Ok(Override { span, paths })
     }
 
+    /// Parses a single string literal. This is only used in import paths and statements, not
+    /// expressions.
+    fn parse_str_lit(&mut self) -> PResult<'a, StrLit> {
+        match self.parse_str_lit_opt() {
+            Some(lit) => Ok(lit),
+            None => {
+                self.expected_tokens.push(ExpectedToken::StrLit);
+                self.unexpected()
+            }
+        }
+    }
+
+    /// Parses a single string literal. This is only used in import paths and statements, not
+    /// expressions.
+    fn parse_str_lit_opt(&mut self) -> Option<StrLit> {
+        let Token { kind: TokenKind::Literal(Lit { kind: LitKind::Str, symbol }), span } =
+            self.token
+        else {
+            return None;
+        };
+        self.bump();
+        Some(StrLit { span, value: symbol })
+    }
+
     /// Parses a storage location: `storage | memory | calldata`.
-    pub(super) fn parse_storage(&mut self) -> Option<Storage> {
+    fn parse_storage(&mut self) -> Option<Storage> {
         if self.eat_keyword(kw::Storage) {
             Some(Storage::Storage)
         } else if self.eat_keyword(kw::Memory) {
@@ -325,7 +642,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a visibility: `public | private | internal | external`.
-    pub(super) fn parse_visibility(&mut self) -> Option<Visibility> {
+    fn parse_visibility(&mut self) -> Option<Visibility> {
         if self.eat_keyword(kw::Public) {
             Some(Visibility::Public)
         } else if self.eat_keyword(kw::Private) {
@@ -340,7 +657,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses state mutability: `payable | pure | view`.
-    pub(super) fn parse_state_mutability(&mut self) -> Option<StateMutability> {
+    fn parse_state_mutability(&mut self) -> Option<StateMutability> {
         if self.eat_keyword(kw::Payable) {
             Some(StateMutability::Payable)
         } else if self.eat_keyword(kw::Pure) {
@@ -355,18 +672,18 @@ impl<'a> Parser<'a> {
 
 /// Options for parsing variable declarations.
 #[derive(Clone, Copy)]
-pub(super) enum VarDeclMode {
+enum VarDeclMode {
     OnlyIndexed, // events
     OnlyStorage, // functions
     None,        // structs, errors
 }
 
 impl VarDeclMode {
-    pub(super) fn no_storage(&self) -> bool {
+    fn no_storage(&self) -> bool {
         !matches!(self, VarDeclMode::OnlyStorage)
     }
 
-    pub(super) fn no_indexed(&self) -> bool {
+    fn no_indexed(&self) -> bool {
         !matches!(self, VarDeclMode::OnlyIndexed)
     }
 }

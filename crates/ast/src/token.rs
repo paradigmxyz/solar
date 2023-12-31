@@ -104,14 +104,6 @@ pub struct Lit {
     pub symbol: Symbol,
 }
 
-impl Lit {
-    /// Creates a new literal token.
-    #[inline]
-    pub const fn new(kind: LitKind, symbol: Symbol) -> Self {
-        Self { kind, symbol }
-    }
-}
-
 impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let &Self { kind, symbol } = self;
@@ -123,6 +115,19 @@ impl fmt::Display for Lit {
                 write!(f, "{symbol}")
             }
         }
+    }
+}
+
+impl Lit {
+    /// Creates a new literal token.
+    #[inline]
+    pub const fn new(kind: LitKind, symbol: Symbol) -> Self {
+        Self { kind, symbol }
+    }
+
+    /// Returns a description of the literal.
+    pub const fn description(self) -> &'static str {
+        self.kind.description()
     }
 }
 
@@ -144,15 +149,8 @@ pub enum LitKind {
 }
 
 impl LitKind {
-    /// An English article for the literal token kind.
-    pub fn article(self) -> &'static str {
-        match self {
-            Self::Integer | Self::Err => "an",
-            _ => "a",
-        }
-    }
-
-    pub fn descr(self) -> &'static str {
+    /// Returns the description of the literal kind.
+    pub const fn description(self) -> &'static str {
         match self {
             Self::Integer => "integer",
             Self::Rational => "rational",
@@ -244,11 +242,7 @@ pub enum TokenKind {
 
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Literal(lit) => lit.fmt(f),
-            Self::Ident(ident) => ident.fmt(f),
-            _ => f.write_str(&self.as_str()),
-        }
+        f.write_str(&self.as_str())
     }
 }
 
@@ -294,8 +288,8 @@ impl TokenKind {
             Self::OpenDelim(Delimiter::Bracket) => "[",
             Self::CloseDelim(Delimiter::Bracket) => "]",
 
-            Self::Literal(lit) => return lit.to_string().into(),
-            Self::Ident(ident) => return ident.to_string().into(),
+            Self::Literal(lit) => return format!("<{}>", lit.description()).into(),
+            Self::Ident(symbol) => return symbol.to_string().into(),
             Self::DocComment(CommentKind::Block, _symbol) => "<block doc-comment>",
             Self::DocComment(CommentKind::Line, _symbol) => "<line doc-comment>",
             Self::Eof => "<eof>",
@@ -545,14 +539,10 @@ impl Token {
 /// keyword 'for'`. See [`full_description`](Token::full_description).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenDescription {
-    // /// A reserved identifier.
-    // ReservedIdentifier,
     /// A keyword.
     Keyword,
     /// A reserved keyword.
     ReservedKeyword,
-    /// A doc comment.
-    DocComment,
 }
 
 impl fmt::Display for TokenDescription {
@@ -565,10 +555,8 @@ impl TokenDescription {
     /// Returns the description of the given token.
     pub fn from_token(token: &Token) -> Option<Self> {
         match token.kind {
-            // _ if token.is_special_ident() => Some(TokenDescription::ReservedIdentifier),
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),
-            TokenKind::DocComment(..) => Some(Self::DocComment),
             _ => None,
         }
     }
@@ -576,10 +564,8 @@ impl TokenDescription {
     /// Returns the string representation of the token description.
     pub const fn to_str(self) -> &'static str {
         match self {
-            // Self::ReservedIdentifier => "reserved identifier",
             Self::Keyword => "keyword",
             Self::ReservedKeyword => "reserved keyword",
-            Self::DocComment => "doc comment",
         }
     }
 }

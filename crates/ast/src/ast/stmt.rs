@@ -1,4 +1,4 @@
-use super::{Expr, LitStr, ParameterList, Path, VariableDeclaration};
+use super::{Expr, ParameterList, Path, StrLit, VariableDeclaration};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -68,9 +68,9 @@ pub enum StmtKind {
 #[derive(Clone, Debug)]
 pub struct StmtAssembly {
     /// The assembly block dialect.
-    pub dialect: Option<LitStr>,
+    pub dialect: Option<StrLit>,
     /// Additional flags.
-    pub flags: Vec<LitStr>,
+    pub flags: Vec<StrLit>,
     /// The assembly block.
     pub block: Block,
 }

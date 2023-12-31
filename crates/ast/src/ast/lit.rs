@@ -14,7 +14,7 @@ pub enum LitKind {
 
 /// A single UTF-8 string literal. Only used in import paths and statements, not expressions.
 #[derive(Clone, Debug)]
-pub struct LitStr {
+pub struct StrLit {
     pub span: Span,
     pub value: Symbol,
 }

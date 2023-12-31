@@ -1,7 +1,7 @@
-use super::{Block, CallArgs, Expr, Path, Ty};
+use super::{Block, CallArgs, Expr, Path, SemverReq, StrLit, Ty};
 use crate::token::Token;
 use std::fmt;
-use sulk_interface::{Ident, Span, Symbol};
+use sulk_interface::{Ident, Span};
 
 /// A list of variable declarations.
 pub type ParameterList = Vec<VariableDeclaration>;
@@ -69,7 +69,7 @@ pub enum PragmaTokens {
     ///
     /// Note that this is parsed differently from the [`semver`] crate, but we still make use of
     /// the [`VersionReq`](semver::VersionReq) type.
-    Solidity(semver::VersionReq),
+    Solidity(SemverReq),
     /// `pragma abicoder <ident>;`
     Abicoder(Ident),
     /// `pragma experimental <ident>;`
@@ -85,8 +85,7 @@ pub enum PragmaTokens {
 #[derive(Clone, Debug)]
 pub struct ImportDirective {
     /// The path string literal value.
-    pub path: Symbol,
-    pub path_span: Span,
+    pub path: StrLit,
     pub items: ImportItems,
 }
 
@@ -307,7 +306,10 @@ impl FunctionAttributes {
     }
 }
 
-/// A modifier invocation, or an inheritance specifier.
+/// A [modifier invocation][m], or an [inheritance specifier][i].
+///
+/// [m]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierInvocation
+/// [i]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.inheritanceSpecifier
 #[derive(Clone, Debug)]
 pub struct Modifier {
     pub name: Path,

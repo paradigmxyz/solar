@@ -6,7 +6,7 @@ use sulk_ast::{
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
-    Ident, Span, Symbol,
+    Ident, Span, SpanSnippetError, Symbol,
 };
 
 mod expr;
@@ -44,6 +44,8 @@ pub struct Parser<'a> {
 enum ExpectedToken {
     Token(TokenKind),
     Keyword(Symbol),
+    StrLit,
+    IntLit,
     Operator,
     Ident,
     Path,
@@ -56,6 +58,8 @@ impl fmt::Display for ExpectedToken {
         f.write_str(match self {
             Self::Token(t) => return write!(f, "`{t}`"),
             Self::Keyword(kw) => return write!(f, "`{kw}`"),
+            Self::StrLit => "a string literal",
+            Self::IntLit => "a decimal integer literal",
             Self::Operator => "an operator",
             Self::Ident => "an identifier",
             Self::Path => "a path",
@@ -67,22 +71,7 @@ impl fmt::Display for ExpectedToken {
 
 impl ExpectedToken {
     fn to_string_many(tokens: &[Self]) -> String {
-        let len = tokens.len();
-        let mut s = String::with_capacity(16 * len);
-        for (i, token) in tokens.iter().enumerate() {
-            if i > 0 {
-                let is_last = i == len - 1;
-                s.push_str(if len > 2 && is_last {
-                    ", or "
-                } else if len == 2 && is_last {
-                    " or "
-                } else {
-                    ", "
-                });
-            }
-            let _ = write!(s, "{token}");
-        }
-        s
+        or_list(tokens)
     }
 
     fn eq_kind(&self, other: &TokenKind) -> bool {
@@ -144,6 +133,10 @@ impl<'a> Parser<'a> {
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
         &self.sess.dcx
+    }
+
+    fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
+        self.sess.source_map().span_to_snippet(span)
     }
 
     /// Returns an "unexpected token" error for the current token.
@@ -738,6 +731,25 @@ impl<'a> Parser<'a> {
     fn expected_ident_found_err(&mut self) -> PErr<'a> {
         self.expected_ident_found(false).unwrap_err()
     }
+}
+
+fn or_list<T: fmt::Display>(list: &[T]) -> String {
+    let len = list.len();
+    let mut s = String::with_capacity(16 * len);
+    for (i, t) in list.iter().enumerate() {
+        if i > 0 {
+            let is_last = i == len - 1;
+            s.push_str(if len > 2 && is_last {
+                ", or "
+            } else if len == 2 && is_last {
+                " or "
+            } else {
+                ", "
+            });
+        }
+        let _ = write!(s, "{t}");
+    }
+    s
 }
 
 #[cfg(test)]

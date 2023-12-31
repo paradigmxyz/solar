@@ -252,8 +252,15 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
-        error: "error",
+        X,
+        abicoder,
+        error,
+        experimental,
+        from,
+        global,
+        solidity,
         underscore: "_",
+        x,
     }
 }
 

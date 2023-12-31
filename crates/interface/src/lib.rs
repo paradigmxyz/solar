@@ -19,36 +19,25 @@
 #![cfg_attr(feature = "nightly", feature(min_specialization))]
 
 pub mod diagnostics;
-mod globals;
-mod pos;
-mod span;
-mod symbol;
 
+mod globals;
 use diagnostics::{ErrorGuaranteed, FatalError};
 pub use globals::{
     create_default_session_if_not_set_then, create_session_globals_then, set_session_globals_then,
     with_session_globals, SessionGlobals,
 };
+
+mod pos;
 pub use pos::{BytePos, CharPos, Pos};
+
+mod source_map;
+pub use source_map::*;
+
+mod span;
 pub use span::Span;
+
+mod symbol;
 pub use symbol::{kw, sym, Ident, Symbol};
-
-/// TODO
-pub struct SourceMap(());
-
-impl SourceMap {
-    /// Creates a new empty source map.
-    pub fn empty() -> Self {
-        Self(())
-    }
-
-    /// Returns `true` if the given span is multi-line.
-    pub fn is_multiline(&self, span: Span) -> bool {
-        // TODO
-        let _ = span;
-        false
-    }
-}
 
 /// Creates a new compiler session on the current thread if it doesn't exist already and then
 /// executes the given closure. Catching fatal errors and returning them as [`ErrorGuaranteed`].
