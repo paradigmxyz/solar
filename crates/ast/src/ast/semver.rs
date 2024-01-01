@@ -10,7 +10,7 @@ pub use semver::Op as SemverOp;
 // Solc implementation notes:
 // - uses `unsigned` (`u32`) for version integers: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L258
 // - version numbers can be `*/x/X`, which are represented as `u32::MAX`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L263
-// - ranges are parsed as `>= start, <= end`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
+// - ranges are parsed as `>=start, <=end`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
 //   we however dedicate a separate node for this: [`SemverReqComponentKind::Range`]
 
 /// A SemVer version. `u32::MAX` values represent `*` (or `x`/`X`, which behaves the same) in source
