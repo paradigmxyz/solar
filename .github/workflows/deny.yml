@@ -1,0 +1,23 @@
+name: deps
+
+on:
+  # TODO
+  # push:
+  #   branches: [master]
+  #   paths: [Cargo.lock]
+  # pull_request:
+  #   branches: [master]
+  #   paths: [Cargo.lock]
+  # schedule: [cron: "00 00 * * *"]
+  workflow_dispatch:
+    # Needed so we can run it manually
+
+jobs:
+  cargo-deny:
+    name: cargo deny check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          command: check all
