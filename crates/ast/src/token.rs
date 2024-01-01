@@ -414,6 +414,24 @@ impl Token {
         }
     }
 
+    /// Returns the literal if the kind is [`TokenKind::Literal`].
+    #[inline]
+    pub const fn lit(&self) -> Option<Lit> {
+        match self.kind {
+            TokenKind::Literal(lit) => Some(lit),
+            _ => None,
+        }
+    }
+
+    /// Returns this token's literal kind, if any.
+    #[inline]
+    pub const fn lit_kind(&self) -> Option<LitKind> {
+        match self.kind {
+            TokenKind::Literal(Lit { kind, .. }) => Some(kind),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the token is an operator.
     #[inline]
     pub const fn is_op(&self) -> bool {
@@ -486,6 +504,16 @@ impl Token {
     /// Returns `true` if the token is the integer literal.
     pub fn is_integer_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Integer, .. }))
+    }
+
+    /// Returns `true` if the token is the rational literal.
+    pub fn is_rational_lit(&self) -> bool {
+        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Rational, .. }))
+    }
+
+    /// Returns `true` if the token is a string literal.
+    pub fn is_str_lit(&self) -> bool {
+        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Str, .. }))
     }
 
     /// Returns `true` if the token is an identifier for which `pred` holds.

@@ -254,6 +254,13 @@ pub enum CallArgs {
     Named(NamedArgList),
 }
 
+impl Default for CallArgs {
+    #[inline]
+    fn default() -> Self {
+        Self::Unnamed(Vec::new())
+    }
+}
+
 impl CallArgs {
     /// Creates a new empty list of unnamed arguments.
     #[inline]

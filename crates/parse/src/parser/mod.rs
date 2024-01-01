@@ -13,6 +13,7 @@ mod expr;
 mod item;
 mod stmt;
 mod ty;
+mod yul;
 
 /// Solidity parser.
 pub struct Parser<'a> {
@@ -32,7 +33,7 @@ pub struct Parser<'a> {
     ///
     /// Currently, this can only happen when parsing a Yul "assembly" block.
     in_yul: bool,
-    /// Whether the parser is in a contract.
+    /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
 
     /// The token stream.
@@ -148,9 +149,15 @@ impl<'a> Parser<'a> {
     }
 
     /// Returns an "unexpected token" error for the current token.
+    #[inline]
     #[track_caller]
     pub fn unexpected<T>(&mut self) -> PResult<'a, T> {
-        self.expect_one_of(&[], &[]).map(|b| unreachable!("`unexpected()` return Ok({b})"))
+        #[cold]
+        #[inline(never)]
+        fn unexpected_ok(b: bool) -> ! {
+            unreachable!("`unexpected()` return Ok({b})")
+        }
+        self.expect_one_of(&[], &[]).map(|x| unexpected_ok(x))
     }
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
@@ -312,6 +319,11 @@ impl<'a> Parser<'a> {
         Err(err)
     }
 
+    /// Expects and consumes a semicolon.
+    fn expect_semi(&mut self) -> PResult<'a, ()> {
+        self.expect(&TokenKind::Semi).map(drop)
+    }
+
     /// Checks if the next token is `tok`, and returns `true` if so.
     ///
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
@@ -378,11 +390,6 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// Is the given keyword `kw` followed by a non-reserved identifier?
-    fn is_kw_followed_by_ident(&self, kw: Symbol) -> bool {
-        self.token.is_keyword(kw) && self.look_ahead_with(1, |t| t.is_ident())
-    }
-
     fn check_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
     }
@@ -393,6 +400,10 @@ impl<'a> Parser<'a> {
 
     fn check_elementary_type(&mut self) -> bool {
         self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
+    }
+
+    fn check_str_lit(&mut self) -> bool {
+        self.check_or_expected(self.token.is_str_lit(), ExpectedToken::ElementaryType)
     }
 
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
@@ -633,11 +644,6 @@ impl<'a> Parser<'a> {
     /// See [`look_ahead`](Self::look_ahead) for more information.
     pub fn look_ahead_with<R>(&self, dist: usize, f: impl FnOnce(&Token) -> R) -> R {
         f(self.look_ahead(dist))
-    }
-
-    /// Returns whether any of the given keywords are `dist` tokens ahead of the current one.
-    fn is_keyword_ahead(&self, dist: usize, kws: &[Symbol]) -> bool {
-        self.look_ahead_with(dist, |t| t.is_keyword_any(kws))
     }
 
     /// Runs `f` with the parser in a contract context.

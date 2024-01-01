@@ -1,4 +1,4 @@
-use super::{Expr, ParameterList, Path, StrLit, VariableDeclaration};
+use super::{yul, CallArgs, Expr, ParameterList, Path, StrLit, VariableDeclaration};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -32,24 +32,24 @@ pub enum StmtKind {
     /// A do-while statement: `do { ... } while (condition);`.
     DoWhile(Block, Expr),
 
-    /// An emit statement: `emit FooBar(42);`.
-    Emit(Path, ParameterList),
+    /// An emit statement: `emit Foo.bar(42);`.
+    Emit(Path, CallArgs),
 
     /// An expression with a trailing semicolon.
     Expr(Expr),
 
     /// A for statement: `for (uint256 i; i < 42; ++i) { ... }`.
-    For { init: Box<Stmt>, cond: Option<Expr>, next: Option<Box<Stmt>>, block: Block },
+    For { init: Option<Box<Stmt>>, cond: Option<Expr>, next: Option<Expr>, body: Box<Stmt> },
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else
     /// { ... }`.
-    If(Expr, Block, Option<Box<Stmt>>),
+    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
 
     /// A return statement: `return 42;`.
     Return(Expr),
 
-    /// A revert statement: `revert Custom.Error(...);`.
-    Revert(Path, ParameterList),
+    /// A revert statement: `revert Foo.bar(42);`.
+    Revert(Path, CallArgs),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
     Try(StmtTry),
@@ -61,7 +61,7 @@ pub enum StmtKind {
     VarDecl(VarDeclKind, Option<Expr>),
 
     /// A while statement: `while (i < 42) { ... }`.
-    While(Expr, Block),
+    While(Expr, Box<Stmt>),
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
@@ -72,7 +72,7 @@ pub struct StmtAssembly {
     /// Additional flags.
     pub flags: Vec<StrLit>,
     /// The assembly block.
-    pub block: Block,
+    pub block: yul::YulBlock,
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -96,7 +96,7 @@ pub struct StmtTry {
 #[derive(Clone, Debug)]
 pub struct CatchClause {
     pub name: Option<Ident>,
-    pub list: ParameterList,
+    pub args: CallArgs,
     pub block: Block,
 }
 

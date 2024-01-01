@@ -60,13 +60,13 @@ pub struct TySize(u8);
 
 impl TySize {
     /// The value zero. Note that this is not a valid size for a fixed-bytes type.
-    pub const ZERO: TySize = TySize(0);
+    pub const ZERO: Self = Self(0);
 
     /// The maximum value of a `TySize`.
     pub const MAX: u8 = 32;
 
     /// Creates a new `TySize` from a `u8`.
-    pub const fn new(value: u8) -> Option<TySize> {
+    pub const fn new(value: u8) -> Option<Self> {
         if value > Self::MAX {
             None
         } else {
@@ -109,13 +109,13 @@ pub struct TyFixedSize(u8);
 
 impl TyFixedSize {
     /// The value zero.
-    pub const ZERO: TyFixedSize = TyFixedSize(0);
+    pub const ZERO: Self = Self(0);
 
     /// The maximum value of a `TyFixedSize`.
     pub const MAX: u8 = 80;
 
     /// Creates a new `TyFixedSize` from a `u8`.
-    pub const fn new(value: u8) -> Option<TyFixedSize> {
+    pub const fn new(value: u8) -> Option<Self> {
         if value > Self::MAX {
             None
         } else {

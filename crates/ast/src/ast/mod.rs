@@ -21,6 +21,8 @@ pub use stmt::*;
 mod ty;
 pub use ty::*;
 
+pub mod yul;
+
 /// A qualified identifier: `foo.bar.baz`.
 ///
 /// This is a list of identifiers, and is never empty.

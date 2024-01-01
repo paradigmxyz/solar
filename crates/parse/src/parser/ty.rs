@@ -192,22 +192,25 @@ fn parse_ty_size_u8(
     to_bytes: bool,
 ) -> Result<u8, ParseTySizeError> {
     let mut n = s.parse::<u16>().map_err(ParseTySizeError::Parse)?;
+
     if to_bytes {
         if n % 8 != 0 {
             return Err(ParseTySizeError::NotMultipleOf8);
         }
         n /= 8;
     }
+
     let n = u8::try_from(n).map_err(ParseTySizeError::TryFrom)?;
 
-    let display_range = if to_bytes {
-        *real_range.start() as u16 * 8..=*real_range.end() as u16 * 8
-    } else {
-        *real_range.start() as u16..=*real_range.end() as u16
-    };
     if !real_range.contains(&n) {
+        let display_range = if to_bytes {
+            *real_range.start() as u16 * 8..=*real_range.end() as u16 * 8
+        } else {
+            *real_range.start() as u16..=*real_range.end() as u16
+        };
         return Err(ParseTySizeError::OutOfRange(display_range));
     }
+
     Ok(n)
 }
 

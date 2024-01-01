@@ -180,7 +180,7 @@ impl<'a> Parser<'a> {
     fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(VarDeclMode::AllowIndexed)?;
-        self.expect(&TokenKind::Semi)?;
+        self.expect_semi()?;
         Ok(ItemEvent { name, parameters })
     }
 
@@ -188,7 +188,7 @@ impl<'a> Parser<'a> {
     fn parse_error(&mut self) -> PResult<'a, ItemError> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(VarDeclMode::None)?;
-        self.expect(&TokenKind::Semi)?;
+        self.expect_semi()?;
         Ok(ItemError { name, parameters })
     }
 
@@ -240,7 +240,7 @@ impl<'a> Parser<'a> {
         let name = self.parse_ident()?;
         self.expect_keyword(kw::Is)?;
         let ty = self.parse_type()?;
-        self.expect(&TokenKind::Semi)?;
+        self.expect_semi()?;
         Ok(ItemUdvt { name, ty })
     }
 
@@ -450,7 +450,7 @@ impl<'a> Parser<'a> {
             Some(self.parse_type()?)
         };
         let global = self.eat_keyword(sym::global);
-        self.expect(&TokenKind::Semi)?;
+        self.expect_semi()?;
         Ok(UsingDirective { list, ty, global })
     }
 
@@ -517,7 +517,7 @@ impl<'a> Parser<'a> {
         let mutability = self.parse_variable_mutability();
         let name = self.parse_ident()?;
         let initializer = if self.eat(&TokenKind::Eq) { Some(self.parse_expr()?) } else { None };
-        self.expect(&TokenKind::Semi)?;
+        self.expect_semi()?;
         Ok(VariableDefinition { ty, storage, visibility, mutability, name, initializer })
     }
 
@@ -533,7 +533,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a parameter list: `($(vardecl),*)`.
-    fn parse_parameter_list(&mut self, mode: VarDeclMode) -> PResult<'a, ParameterList> {
+    pub(super) fn parse_parameter_list(&mut self, mode: VarDeclMode) -> PResult<'a, ParameterList> {
         self.parse_paren_comma_seq(|this| this.parse_variable_declaration(mode)).map(|(x, _)| x)
     }
 
@@ -627,23 +627,23 @@ impl<'a> Parser<'a> {
 
     /// Parses a single string literal. This is only used in import paths and statements, not
     /// expressions.
-    fn parse_str_lit(&mut self) -> PResult<'a, StrLit> {
+    pub(super) fn parse_str_lit(&mut self) -> PResult<'a, StrLit> {
         match self.parse_str_lit_opt() {
             Some(lit) => Ok(lit),
-            None => {
-                self.expected_tokens.push(ExpectedToken::StrLit);
-                self.unexpected()
-            }
+            None => self.unexpected(),
         }
     }
 
-    /// Parses a single string literal. This is only used in import paths and statements, not
-    /// expressions.
-    fn parse_str_lit_opt(&mut self) -> Option<StrLit> {
+    /// Parses a single optional string literal. This is only used in import paths and statements,
+    /// not expressions.
+    pub(super) fn parse_str_lit_opt(&mut self) -> Option<StrLit> {
+        if !self.check_str_lit() {
+            return None;
+        }
         let Token { kind: TokenKind::Literal(Lit { kind: LitKind::Str, symbol }), span } =
             self.token
         else {
-            return None;
+            unreachable!()
         };
         self.bump();
         Some(StrLit { span, value: symbol })
