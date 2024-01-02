@@ -3,8 +3,7 @@ use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.typeName>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.typeName>
 #[derive(Clone, Debug)]
 pub struct Ty {
     pub span: Span,
@@ -138,8 +137,7 @@ pub struct TypeArray {
 
 /// A function type name.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName>
 #[derive(Clone, Debug)]
 pub struct TypeFunction {
     pub parameters: ParameterList,
@@ -150,8 +148,7 @@ pub struct TypeFunction {
 
 /// A mapping type.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType>
 #[derive(Clone, Debug)]
 pub struct TypeMapping {
     pub key: Ty,

@@ -80,8 +80,7 @@ pub enum PragmaTokens {
 
 /// An import directive: `import "foo.sol";`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective>
 #[derive(Clone, Debug)]
 pub struct ImportDirective {
     /// The path string literal value.
@@ -102,8 +101,7 @@ pub enum ImportItems {
 
 /// A `using` directive: `using { A, B.add as + } for uint256 global;`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.usingDirective>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.usingDirective>
 #[derive(Clone, Debug)]
 pub struct UsingDirective {
     /// The list of paths.
@@ -124,8 +122,7 @@ pub enum UsingList {
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinableOperator>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinableOperator>
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UserDefinableOperator {
     /// `&`
@@ -163,8 +160,7 @@ pub enum UserDefinableOperator {
 /// A contract, abstract contract, interface, or library definition:
 /// `contract Foo is Bar("foo"), Baz { ... }`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemContract {
     pub kind: ContractKind,
@@ -207,8 +203,7 @@ impl ContractKind {
 /// A function, constructor, fallback, receive, or modifier definition:
 /// `function helloWorld() external pure returns(string memory);`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemFunction {
     pub kind: FunctionKind,
@@ -426,8 +421,7 @@ impl Visibility {
 
 /// A state variable or constant definition: `uint256 constant FOO = 42;`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
 #[derive(Clone, Debug)]
 pub struct VariableDefinition {
     pub ty: Ty,
@@ -465,8 +459,7 @@ impl VarMut {
 
 /// A struct definition: `struct Foo { uint256 bar; }`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.structDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.structDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemStruct {
     pub name: Ident,
@@ -475,8 +468,7 @@ pub struct ItemStruct {
 
 /// An enum definition: `enum Foo { A, B, C }`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.enumDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.enumDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemEnum {
     pub name: Ident,
@@ -485,8 +477,7 @@ pub struct ItemEnum {
 
 /// A user-defined value type definition: `type Foo is uint256;`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinedValueTypeDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinedValueTypeDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemUdvt {
     pub name: Ident,
@@ -495,8 +486,7 @@ pub struct ItemUdvt {
 
 /// An error definition: `error Foo(uint256 a, uint256 b);`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemError {
     pub name: Ident,
@@ -506,8 +496,7 @@ pub struct ItemError {
 /// An event definition:
 /// `event Transfer(address indexed from, address indexed to, uint256 value);`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.eventDefinition>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.eventDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemEvent {
     pub name: Ident,

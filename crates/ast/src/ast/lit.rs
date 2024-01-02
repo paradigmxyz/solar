@@ -1,13 +1,45 @@
 use std::fmt;
+use sulk_data_structures::sync::Lrc;
 use sulk_interface::{Span, Symbol};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.literal>
+#[derive(Clone, Debug)]
+pub struct Lit {
+    /// The span of the literal.
+    pub span: Span,
+    /// The original literal as written in the source code.
+    pub symbol: Symbol,
+    /// The "semantic" representation of the literal lowered from the original tokens.
+    /// Strings are unescaped, hexadecimal forms are eliminated, etc.
+    pub kind: LitKind,
+}
+
+/// A kind of literal.
 #[derive(Clone, Debug)]
 pub enum LitKind {
-    /// A string literal. Contains the unescaped contents of the string.
-    Str(Symbol, StrKind),
-    /// A number literal. Contains the parsed contents of the number in base 10.
-    Number(Symbol, Base, /* is_sign_negative: */ bool, Option<SubDenomination>),
+    /// A string, unicode string, or hex string literal. Note that
+    Str {
+        /// The kind of string literal.
+        kind: StrKind,
+        /// The unescaped contents of the strings.
+        ///
+        /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
+        /// are allowed, and as such this cannot be a `str` or `Symbol`.
+        value: Lrc<[u8]>,
+    },
+    /// A number literal.
+    Number {
+        /// The original base of the number literal.
+        base: Base,
+        /// Whether the literal was prefixed with a minus.
+        is_sign_negative: bool,
+        /// The original sub-denomination of the number literal, if any.
+        sub_denomination: Option<SubDenomination>,
+        /// The unescaped contents of the number literal in base 10.
+        value: Symbol,
+    },
     /// A boolean literal.
     Bool(bool),
 }
@@ -15,7 +47,9 @@ pub enum LitKind {
 /// A single UTF-8 string literal. Only used in import paths and statements, not expressions.
 #[derive(Clone, Debug)]
 pub struct StrLit {
+    /// The span of the literal.
     pub span: Span,
+    /// The contents of the string. Not unescaped.
     pub value: Symbol,
 }
 

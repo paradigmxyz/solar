@@ -2,7 +2,7 @@ use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use sulk_ast::{
     ast::*,
-    token::{LitKind, *},
+    token::{TokenLit, TokenLitKind, *},
 };
 use sulk_interface::{error_code, kw, sym, Ident};
 
@@ -390,8 +390,10 @@ impl<'a> Parser<'a> {
             return Ok(u32::MAX);
         }
 
-        let Token { kind: TokenKind::Literal(Lit { kind: LitKind::Integer, symbol }), span } =
-            self.token
+        let Token {
+            kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, symbol }),
+            span,
+        } = self.token
         else {
             self.expected_tokens.push(ExpectedToken::IntLit);
             return self.unexpected();
@@ -640,7 +642,7 @@ impl<'a> Parser<'a> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(Lit { kind: LitKind::Str, symbol }), span } =
+        let Token { kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Str, symbol }), span } =
             self.token
         else {
             unreachable!()

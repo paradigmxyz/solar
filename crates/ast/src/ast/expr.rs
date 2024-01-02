@@ -7,8 +7,7 @@ pub type NamedArgList = Vec<NamedArg>;
 
 /// An expression.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression>
 #[derive(Clone, Debug)]
 pub struct Expr {
     pub span: Span,

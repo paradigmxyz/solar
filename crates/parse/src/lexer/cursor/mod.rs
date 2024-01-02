@@ -34,8 +34,7 @@ pub const fn is_id_continue(c: char) -> bool {
 /// An identifier in Solidity has to start with a letter, a dollar-sign or an underscore and may
 /// additionally contain numbers after the first symbol.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier>
 pub const fn is_ident(s: &str) -> bool {
     // Note: valid idents can only contain ASCII characters, so we can
     // use the byte representation here.

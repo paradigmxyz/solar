@@ -6,11 +6,13 @@ use sulk_ast::{
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
-    Ident, Span, SpanSnippetError, Symbol,
+    source_map::SpanSnippetError,
+    Ident, Span, Symbol,
 };
 
 mod expr;
 mod item;
+mod lit;
 mod stmt;
 mod ty;
 mod yul;
@@ -84,7 +86,7 @@ impl ExpectedToken {
 }
 
 /// Used by [`Parser::expect_any_with_type`].
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 enum TokenExpectType {
     /// Unencountered tokens are inserted into [`Parser::expected_tokens`].
     /// See [`Parser::check`].
@@ -432,6 +434,23 @@ impl<'a> Parser<'a> {
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_delim_seq(delim, SeqSep::trailing_allowed(TokenKind::Comma), f)
+    }
+
+    /// Parses a comma-separated sequence.
+    /// The function `f` must consume tokens until reaching the next separator.
+    fn parse_nodelim_comma_seq<T>(
+        &mut self,
+        stop: &TokenKind,
+        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        self.parse_seq_to_before_end(stop, SeqSep::trailing_allowed(TokenKind::Comma), f).map(
+            |(v, trailing, recovered)| {
+                if !recovered {
+                    self.eat(stop);
+                }
+                (v, trailing)
+            },
+        )
     }
 
     /// Parses a `sep`-separated sequence, including both delimiters.

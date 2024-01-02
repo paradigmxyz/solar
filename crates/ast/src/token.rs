@@ -95,33 +95,34 @@ pub enum Delimiter {
     Bracket,
 }
 
-/// A literal token.
+/// A literal token. Different from an AST literal as this is unparsed and only contains the raw
+/// contents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Lit {
+pub struct TokenLit {
     /// The literal kind.
-    pub kind: LitKind,
+    pub kind: TokenLitKind,
     /// The symbol of the literal token, excluding any quotes.
     pub symbol: Symbol,
 }
 
-impl fmt::Display for Lit {
+impl fmt::Display for TokenLit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let &Self { kind, symbol } = self;
         match kind {
-            LitKind::Str => write!(f, "\"{symbol}\""),
-            LitKind::UnicodeStr => write!(f, "unicode\"{symbol}\""),
-            LitKind::HexStr => write!(f, "hex\"{symbol}\""),
-            LitKind::Integer | LitKind::Rational | LitKind::Err => {
+            TokenLitKind::Str => write!(f, "\"{symbol}\""),
+            TokenLitKind::UnicodeStr => write!(f, "unicode\"{symbol}\""),
+            TokenLitKind::HexStr => write!(f, "hex\"{symbol}\""),
+            TokenLitKind::Integer | TokenLitKind::Rational | TokenLitKind::Err => {
                 write!(f, "{symbol}")
             }
         }
     }
 }
 
-impl Lit {
+impl TokenLit {
     /// Creates a new literal token.
     #[inline]
-    pub const fn new(kind: LitKind, symbol: Symbol) -> Self {
+    pub const fn new(kind: TokenLitKind, symbol: Symbol) -> Self {
         Self { kind, symbol }
     }
 
@@ -133,7 +134,7 @@ impl Lit {
 
 /// A kind of literal token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LitKind {
+pub enum TokenLitKind {
     /// An integer literal token.
     Integer,
     /// A rational literal token.
@@ -148,7 +149,7 @@ pub enum LitKind {
     Err,
 }
 
-impl LitKind {
+impl TokenLitKind {
     /// Returns the description of the literal kind.
     pub const fn description(self) -> &'static str {
         match self {
@@ -226,7 +227,7 @@ pub enum TokenKind {
 
     // Literals.
     /// A literal token.
-    Literal(Lit),
+    Literal(TokenLit),
 
     /// Identifier token.
     Ident(Symbol),
@@ -248,8 +249,8 @@ impl fmt::Display for TokenKind {
 
 impl TokenKind {
     /// Creates a new literal token kind.
-    pub fn lit(kind: LitKind, symbol: Symbol) -> Self {
-        Self::Literal(Lit::new(kind, symbol))
+    pub fn lit(kind: TokenLitKind, symbol: Symbol) -> Self {
+        Self::Literal(TokenLit::new(kind, symbol))
     }
 
     /// Returns the string representation of the token kind.
@@ -416,7 +417,7 @@ impl Token {
 
     /// Returns the literal if the kind is [`TokenKind::Literal`].
     #[inline]
-    pub const fn lit(&self) -> Option<Lit> {
+    pub const fn lit(&self) -> Option<TokenLit> {
         match self.kind {
             TokenKind::Literal(lit) => Some(lit),
             _ => None,
@@ -425,9 +426,9 @@ impl Token {
 
     /// Returns this token's literal kind, if any.
     #[inline]
-    pub const fn lit_kind(&self) -> Option<LitKind> {
+    pub const fn lit_kind(&self) -> Option<TokenLitKind> {
         match self.kind {
-            TokenKind::Literal(Lit { kind, .. }) => Some(kind),
+            TokenKind::Literal(TokenLit { kind, .. }) => Some(kind),
             _ => None,
         }
     }
@@ -496,24 +497,24 @@ impl Token {
     pub fn is_numeric_lit(&self) -> bool {
         matches!(
             self.kind,
-            TokenKind::Literal(Lit { kind: LitKind::Integer, .. })
-                | TokenKind::Literal(Lit { kind: LitKind::Rational, .. })
+            TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, .. })
+                | TokenKind::Literal(TokenLit { kind: TokenLitKind::Rational, .. })
         )
     }
 
     /// Returns `true` if the token is the integer literal.
     pub fn is_integer_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Integer, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, .. }))
     }
 
     /// Returns `true` if the token is the rational literal.
     pub fn is_rational_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Rational, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Rational, .. }))
     }
 
     /// Returns `true` if the token is a string literal.
     pub fn is_str_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(Lit { kind: LitKind::Str, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Str, .. }))
     }
 
     /// Returns `true` if the token is an identifier for which `pred` holds.

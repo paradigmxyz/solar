@@ -6,8 +6,7 @@ pub type Block = Vec<Stmt>;
 
 /// A statement, usually ending in a semicolon.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.statement>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.statement>
 #[derive(Clone, Debug)]
 pub struct Stmt {
     pub span: Span,
@@ -72,13 +71,12 @@ pub struct StmtAssembly {
     /// Additional flags.
     pub flags: Vec<StrLit>,
     /// The assembly block.
-    pub block: yul::YulBlock,
+    pub block: yul::Block,
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Clone, Debug)]
 pub struct StmtTry {
     pub expr: Expr,
@@ -91,8 +89,7 @@ pub struct StmtTry {
 
 /// A catch clause: `catch (...) { ... }`.
 ///
-/// Solidity reference:
-/// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Clone, Debug)]
 pub struct CatchClause {
     pub name: Option<Ident>,

@@ -2,7 +2,7 @@
 
 use sulk_ast::{
     ast::Base,
-    token::{BinOpToken, CommentKind, Delimiter, Lit, LitKind, Token, TokenKind},
+    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLit, TokenLitKind},
 };
 use sulk_interface::{diagnostics::DiagCtxt, sym, BytePos, Pos, Span, Symbol};
 
@@ -158,7 +158,7 @@ impl<'a> Lexer<'a> {
                 }
                 RawTokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
-                    TokenKind::Literal(Lit { kind, symbol })
+                    TokenKind::Literal(TokenLit { kind, symbol })
                 }
 
                 RawTokenKind::Semi => TokenKind::Semi,
@@ -286,14 +286,14 @@ impl<'a> Lexer<'a> {
         start: BytePos,
         end: BytePos,
         kind: RawLiteralKind,
-    ) -> (LitKind, Symbol) {
+    ) -> (TokenLitKind, Symbol) {
         match kind {
             RawLiteralKind::Str { terminated, unicode } => {
                 if !terminated {
                     let span = self.new_span(start, end);
                     self.dcx().fatal("unterminated string").span(span).emit();
                 }
-                let kind = if unicode { LitKind::UnicodeStr } else { LitKind::Str };
+                let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
                 let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
                 self.cook_quoted(kind, start, end, prefix_len)
             }
@@ -303,13 +303,13 @@ impl<'a> Lexer<'a> {
                     self.dcx().fatal("unterminated hex string").span(span).emit();
                 }
                 let prefix_len = 3; // `hex`
-                self.cook_quoted(LitKind::HexStr, start, end, prefix_len)
+                self.cook_quoted(TokenLitKind::HexStr, start, end, prefix_len)
             }
             RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
                     let span = self.new_span(start, end);
                     self.dcx().err("no valid digits found for number").span(span).emit();
-                    (LitKind::Integer, sym::integer(0))
+                    (TokenLitKind::Integer, sym::integer(0))
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
                         let start = start + 2;
@@ -330,7 +330,7 @@ impl<'a> Lexer<'a> {
                         let msg = format!("integers in base {base} are not supported");
                         self.dcx().err(msg).span(self.new_span(start, end)).emit();
                     }
-                    (LitKind::Integer, self.symbol_from_to(start, end))
+                    (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 }
             }
             RawLiteralKind::Rational { base, empty_exponent } => {
@@ -346,22 +346,22 @@ impl<'a> Lexer<'a> {
                     self.dcx().err(msg).span(self.new_span(start, end)).emit();
                 }
 
-                (LitKind::Rational, self.symbol_from_to(start, end))
+                (TokenLitKind::Rational, self.symbol_from_to(start, end))
             }
         }
     }
 
     fn cook_quoted(
         &self,
-        kind: LitKind,
+        kind: TokenLitKind,
         start: BytePos,
         end: BytePos,
         prefix_len: u32,
-    ) -> (LitKind, Symbol) {
+    ) -> (TokenLitKind, Symbol) {
         let mode = match kind {
-            LitKind::Str => unescape::Mode::Str,
-            LitKind::UnicodeStr => unescape::Mode::UnicodeStr,
-            LitKind::HexStr => unescape::Mode::HexStr,
+            TokenLitKind::Str => unescape::Mode::Str,
+            TokenLitKind::UnicodeStr => unescape::Mode::UnicodeStr,
+            TokenLitKind::HexStr => unescape::Mode::HexStr,
             _ => unreachable!(),
         };
 
@@ -386,7 +386,7 @@ impl<'a> Lexer<'a> {
         // We normally exclude the quotes for the symbol, but for errors we
         // include it because it results in clearer error messages.
         if has_fatal_err {
-            (LitKind::Err, self.symbol_from_to(start, end))
+            (TokenLitKind::Err, self.symbol_from_to(start, end))
         } else {
             (kind, Symbol::intern(lit_content))
         }
@@ -492,8 +492,8 @@ mod tests {
         }
     }
 
-    fn lit(kind: LitKind, symbol: &str) -> TokenKind {
-        Literal(Lit { kind, symbol: sym(symbol) })
+    fn lit(kind: TokenLitKind, symbol: &str) -> TokenKind {
+        Literal(TokenLit { kind, symbol: sym(symbol) })
     }
 
     fn id(symbol: &str) -> TokenKind {
@@ -520,7 +520,7 @@ mod tests {
 
     #[test]
     fn literals() {
-        use LitKind::*;
+        use TokenLitKind::*;
         sulk_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("\"\"", &[(0..2, lit(Str, ""))]),
