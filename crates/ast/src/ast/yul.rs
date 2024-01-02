@@ -99,7 +99,7 @@ pub struct StmtSwitch {
 
 /// Represents a non-default case of a Yul switch statement.
 ///
-/// See [`YulSwitch`] for more information.
+/// See [`StmtSwitch`] for more information.
 #[derive(Clone, Debug)]
 pub struct StmtSwitchCase {
     pub constant: Lit,

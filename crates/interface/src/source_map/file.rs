@@ -169,7 +169,7 @@ impl StableSourceFileId {
 #[derive(Debug)]
 pub struct OffsetOverflowError;
 
-/// A single source in the [`SourceMap`].
+/// A single source in the `SourceMap`.
 #[derive(Clone, Debug)]
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
