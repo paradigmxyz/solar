@@ -123,8 +123,8 @@ impl SourceMap {
         file_loader: Box<dyn FileLoader + Sync + Send>,
         filename_display_for_diagnostics: FileNameDisplayPreference,
         hash_kind: SourceFileHashAlgorithm,
-    ) -> SourceMap {
-        SourceMap {
+    ) -> Self {
+        Self {
             files: Default::default(),
             file_loader,
             // path_mapping,

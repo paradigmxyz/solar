@@ -293,8 +293,7 @@ impl SourceMapExtension for SourceMap {
         loop {
             let offset = source_text[hi..].find(substring).unwrap_or_else(|| {
                 panic!(
-                    "source_text `{}` does not have {} occurrences of `{}`, only {}",
-                    source_text, n, substring, i
+                    "source_text `{source_text}` does not have {n} occurrences of `{substring}`, only {i}"
                 );
             });
             let lo = hi + offset;

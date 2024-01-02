@@ -25,9 +25,9 @@ pub enum NonNarrowChar {
 impl NonNarrowChar {
     pub(crate) fn new(pos: RelativeBytePos, width: usize) -> Self {
         match width {
-            0 => NonNarrowChar::ZeroWidth(pos),
-            2 => NonNarrowChar::Wide(pos),
-            4 => NonNarrowChar::Tab(pos),
+            0 => Self::ZeroWidth(pos),
+            2 => Self::Wide(pos),
+            4 => Self::Tab(pos),
             _ => panic!("width {width} given for non-narrow character"),
         }
     }
@@ -35,16 +35,16 @@ impl NonNarrowChar {
     /// Returns the relative offset of the character in the `SourceFile`.
     pub fn pos(&self) -> RelativeBytePos {
         match *self {
-            NonNarrowChar::ZeroWidth(p) | NonNarrowChar::Wide(p) | NonNarrowChar::Tab(p) => p,
+            Self::ZeroWidth(p) | Self::Wide(p) | Self::Tab(p) => p,
         }
     }
 
     /// Returns the width of the character, 0 (zero-width) or 2 (wide).
     pub fn width(&self) -> usize {
         match *self {
-            NonNarrowChar::ZeroWidth(_) => 0,
-            NonNarrowChar::Wide(_) => 2,
-            NonNarrowChar::Tab(_) => 4,
+            Self::ZeroWidth(_) => 0,
+            Self::Wide(_) => 2,
+            Self::Tab(_) => 4,
         }
     }
 }
@@ -54,9 +54,9 @@ impl std::ops::Add<RelativeBytePos> for NonNarrowChar {
 
     fn add(self, rhs: RelativeBytePos) -> Self {
         match self {
-            NonNarrowChar::ZeroWidth(pos) => NonNarrowChar::ZeroWidth(pos + rhs),
-            NonNarrowChar::Wide(pos) => NonNarrowChar::Wide(pos + rhs),
-            NonNarrowChar::Tab(pos) => NonNarrowChar::Tab(pos + rhs),
+            Self::ZeroWidth(pos) => Self::ZeroWidth(pos + rhs),
+            Self::Wide(pos) => Self::Wide(pos + rhs),
+            Self::Tab(pos) => Self::Tab(pos + rhs),
         }
     }
 }
@@ -66,9 +66,9 @@ impl std::ops::Sub<RelativeBytePos> for NonNarrowChar {
 
     fn sub(self, rhs: RelativeBytePos) -> Self {
         match self {
-            NonNarrowChar::ZeroWidth(pos) => NonNarrowChar::ZeroWidth(pos - rhs),
-            NonNarrowChar::Wide(pos) => NonNarrowChar::Wide(pos - rhs),
-            NonNarrowChar::Tab(pos) => NonNarrowChar::Tab(pos - rhs),
+            Self::ZeroWidth(pos) => Self::ZeroWidth(pos - rhs),
+            Self::Wide(pos) => Self::Wide(pos - rhs),
+            Self::Tab(pos) => Self::Tab(pos - rhs),
         }
     }
 }
@@ -96,7 +96,7 @@ pub enum FileName {
 
 impl From<PathBuf> for FileName {
     fn from(p: PathBuf) -> Self {
-        FileName::Real(p)
+        Self::Real(p)
     }
 }
 
@@ -107,11 +107,11 @@ impl FileName {
         FileNameDisplay { inner: self, _pref: pref }
     }
 
-    pub fn anon_source_code(src: &str) -> FileName {
+    pub fn anon_source_code(src: &str) -> Self {
         use std::hash::{Hash, Hasher};
         let mut hasher = sulk_data_structures::map::AHasher::default();
         src.hash(&mut hasher);
-        FileName::Anon(hasher.finish())
+        Self::Anon(hasher.finish())
     }
 }
 
@@ -162,7 +162,7 @@ impl StableSourceFileId {
         let mut hasher = sulk_data_structures::map::FxHasher::default();
         filename.hash(&mut hasher);
         // stable_crate_id.hash(&mut hasher);
-        StableSourceFileId(hasher.finish())
+        Self(hasher.finish())
     }
 }
 
@@ -216,7 +216,7 @@ impl SourceFile {
 
         let (lines, multibyte_chars, non_narrow_chars) = super::analyze::analyze_source_file(&src);
 
-        Ok(SourceFile {
+        Ok(Self {
             name,
             src: Some(Lrc::new(src)),
             src_hash,
@@ -366,15 +366,7 @@ impl SourceFile {
             line.to_usize()
         };
 
-        if let Some(src) = &self.src {
-            Some(Cow::from(get_until_newline(src, begin)))
-        } else {
-            None
-            // self.external_src
-            //     .borrow()
-            //     .get_source()
-            //     .map(|src| Cow::Owned(String::from(get_until_newline(src, begin))))
-        }
+        self.src.as_ref().map(|src| Cow::from(get_until_newline(src, begin)))
     }
 }
 
@@ -393,8 +385,8 @@ pub struct SourceFileHash {
 }
 
 impl SourceFileHash {
-    pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> SourceFileHash {
-        let mut hash = SourceFileHash { kind, value: Default::default() };
+    pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> Self {
+        let mut hash = Self { kind, value: Default::default() };
         let len = hash.hash_len();
         let _value = &mut hash.value[..len];
         let _data = src.as_bytes();

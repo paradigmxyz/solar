@@ -1,5 +1,5 @@
 use crate::{PResult, Parser};
-use sulk_ast::{ast::*, token::*};
+use sulk_ast::{ast::*};
 use sulk_interface::Symbol;
 
 impl<'a> Parser<'a> {
