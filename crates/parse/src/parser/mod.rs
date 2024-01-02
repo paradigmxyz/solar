@@ -42,18 +42,16 @@ pub struct Parser<'a> {
     stream: std::vec::IntoIter<Token>,
 }
 
-#[allow(dead_code)] // TODO
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ExpectedToken {
     Token(TokenKind),
     Keyword(Symbol),
+    Lit,
     StrLit,
     IntLit,
-    Operator,
     Ident,
     Path,
     ElementaryType,
-    Const,
 }
 
 impl fmt::Display for ExpectedToken {
@@ -63,11 +61,10 @@ impl fmt::Display for ExpectedToken {
             Self::Keyword(kw) => return write!(f, "`{kw}`"),
             Self::StrLit => "a string literal",
             Self::IntLit => "a decimal integer literal",
-            Self::Operator => "an operator",
+            Self::Lit => "a literal",
             Self::Ident => "an identifier",
             Self::Path => "a path",
             Self::ElementaryType => "an elementary type name",
-            Self::Const => "a const expression",
         })
     }
 }
@@ -113,8 +110,14 @@ impl SeqSep {
         Self { sep: Some(t), trailing_sep_required: true, trailing_sep_allowed: true }
     }
 
+    #[allow(dead_code)]
     fn trailing_allowed(t: TokenKind) -> Self {
         Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: true }
+    }
+
+    #[allow(dead_code)]
+    fn trailing_disallowed(t: TokenKind) -> Self {
+        Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: false }
     }
 
     fn none() -> Self {
@@ -400,12 +403,16 @@ impl<'a> Parser<'a> {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
     }
 
-    fn check_elementary_type(&mut self) -> bool {
-        self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
+    fn check_lit(&mut self) -> bool {
+        self.check_or_expected(self.token.is_lit(), ExpectedToken::Lit)
     }
 
     fn check_str_lit(&mut self) -> bool {
-        self.check_or_expected(self.token.is_str_lit(), ExpectedToken::ElementaryType)
+        self.check_or_expected(self.token.is_str_lit(), ExpectedToken::StrLit)
+    }
+
+    fn check_elementary_type(&mut self) -> bool {
+        self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
     }
 
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
@@ -433,7 +440,7 @@ impl<'a> Parser<'a> {
         delim: Delimiter,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_delim_seq(delim, SeqSep::trailing_allowed(TokenKind::Comma), f)
+        self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), f)
     }
 
     /// Parses a comma-separated sequence.
@@ -443,7 +450,7 @@ impl<'a> Parser<'a> {
         stop: &TokenKind,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_seq_to_before_end(stop, SeqSep::trailing_allowed(TokenKind::Comma), f).map(
+        self.parse_seq_to_before_end(stop, SeqSep::trailing_disallowed(TokenKind::Comma), f).map(
             |(v, trailing, recovered)| {
                 if !recovered {
                     self.eat(stop);
@@ -803,8 +810,8 @@ mod tests {
         let tests: &[(&[ExpectedToken], &str)] = &[
             (&[], ""),
             (&[Token(TK::Eof)], "`<eof>`"),
-            (&[Operator, Ident], "an operator or an identifier"),
-            (&[Path, Const, Token(TK::AndAnd)], "a path, a const expression, or `&&`"),
+            (&[IntLit, Ident], "a decimal integer literal or an identifier"),
+            (&[Path, StrLit, Token(TK::AndAnd)], "a path, a string literal, or `&&`"),
             (
                 &[Token(TK::AndAnd), Token(TK::OrOr), Token(TK::AndAnd), Token(TK::OrOr)],
                 "`&&`, `||`, `&&`, or `||`",

@@ -27,20 +27,20 @@ pub enum StmtKind {
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
     Block(Block),
 
-    /// A variable declaration statement: `let x := 0`.
-    ///
-    /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
-    VarDecl(Vec<Ident>, Option<Expr>),
-
-    /// A variable assignment statement: `x := 1`.
+    /// A single-variable assignment statement: `x := 1`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    Assign(Vec<Path>, Expr),
+    AssignSingle(Path, Expr),
 
-    /// A function call statement: `foo(a, b)`.
+    /// A multiple-variable assignment statement: `x, y, z := foo(1, 2)`.
     ///
-    /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionCall>
-    Call(ExprCall),
+    /// Multi-assignments require a function call on the right-hand side.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
+    AssignMulti(Vec<Path>, ExprCall),
+
+    /// An expression statement. This can only be a function call.
+    Expr(ExprCall),
 
     /// An if statement: `if lt(a, b) { ... }`.
     ///
@@ -70,6 +70,11 @@ pub enum StmtKind {
 
     /// A function definition statement: `function f() { ... }`.
     FunctionDef(Function),
+
+    /// A variable declaration statement: `let x := 0`.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
+    VarDecl(Vec<Ident>, Option<Expr>),
 }
 
 /// A Yul switch statement can consist of only a default-case or one
@@ -138,5 +143,5 @@ pub enum ExprKind {
 #[derive(Clone, Debug)]
 pub struct ExprCall {
     pub name: Ident,
-    pub parameters: Vec<Expr>,
+    pub arguments: Vec<Expr>,
 }

@@ -224,6 +224,80 @@ symbols! {
         Leave:       "leave",
         Revert:      "revert",
 
+        // Yul builtin functions.
+        // Some builtins have already been previously declared, so they can't be redeclared here.
+        // See `is_yul_builtin`.
+        Add:            "add",
+        Addmod:         "addmod",
+        And:            "and",
+        Balance:        "balance",
+        Basefee:        "basefee",
+        Blockhash:      "blockhash",
+        Call:           "call",
+        Callcode:       "callcode",
+        Calldatacopy:   "calldatacopy",
+        Calldataload:   "calldataload",
+        Calldatasize:   "calldatasize",
+        Caller:         "caller",
+        Callvalue:      "callvalue",
+        Chainid:        "chainid",
+        Coinbase:       "coinbase",
+        Create:         "create",
+        Create2:        "create2",
+        Delegatecall:   "delegatecall",
+        Difficulty:     "difficulty",
+        Div:            "div",
+        Eq:             "eq",
+        Exp:            "exp",
+        Extcodecopy:    "extcodecopy",
+        Extcodehash:    "extcodehash",
+        Extcodesize:    "extcodesize",
+        Gas:            "gas",
+        Gaslimit:       "gaslimit",
+        Gasprice:       "gasprice",
+        Gt:             "gt",
+        Invalid:        "invalid",
+        Iszero:         "iszero",
+        Keccak256:      "keccak256",
+        Log0:           "log0",
+        Log1:           "log1",
+        Log2:           "log2",
+        Log3:           "log3",
+        Log4:           "log4",
+        Lt:             "lt",
+        Mload:          "mload",
+        Mod:            "mod",
+        Msize:          "msize",
+        Mstore:         "mstore",
+        Mstore8:        "mstore8",
+        Mul:            "mul",
+        Mulmod:         "mulmod",
+        Not:            "not",
+        Number:         "number",
+        Or:             "or",
+        Origin:         "origin",
+        Pop:            "pop",
+        Prevrandao:     "prevrandao",
+        Returndatacopy: "returndatacopy",
+        Returndatasize: "returndatasize",
+        Sar:            "sar",
+        Sdiv:           "sdiv",
+        Selfbalance:    "selfbalance",
+        Selfdestruct:   "selfdestruct",
+        Sgt:            "sgt",
+        Shl:            "shl",
+        Shr:            "shr",
+        Signextend:     "signextend",
+        Sload:          "sload",
+        Slt:            "slt",
+        Smod:           "smod",
+        Sstore:         "sstore",
+        Staticcall:     "staticcall",
+        Stop:           "stop",
+        Sub:            "sub",
+        Timestamp:      "timestamp",
+        Xor:            "xor",
+
         // Experimental Solidity specific keywords.
         Class:         "class",
         Instantiation: "instantiation",
@@ -557,7 +631,7 @@ impl Symbol {
     }
 
     /// Returns the internal representation of the symbol.
-    #[inline]
+    #[inline(always)]
     pub const fn as_u32(self) -> u32 {
         self.0.get()
     }
@@ -585,7 +659,17 @@ impl Symbol {
     /// Returns `true` if the symbol is a keyword only in a Yul context.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
-        self == kw::Leave || self == kw::Revert
+        self >= kw::Leave && self <= kw::Xor
+    }
+
+    /// Returns `true` if the symbol is a Yul builtin keyword.
+    #[inline]
+    pub fn is_yul_builtin(self) -> bool {
+        (self >= kw::Add && self <= kw::Xor)
+            || self == kw::Address
+            || self == kw::Byte
+            || self == kw::Return
+            || self == kw::Revert
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for

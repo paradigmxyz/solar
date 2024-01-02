@@ -22,21 +22,21 @@ macro_rules! base_index {
         }
 
         impl fmt::Display for $name {
-            #[inline]
+            #[inline(always)]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.value.fmt(f)
             }
         }
 
         impl fmt::Debug for $name {
-            #[inline]
+            #[inline(always)]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.value.fmt(f)
             }
         }
 
         impl Idx for $name {
-            #[inline]
+            #[inline(always)]
             fn from_usize(value: usize) -> Self {
                 if value > Self::MAX_AS as usize {
                     index_overflow();
@@ -44,7 +44,7 @@ macro_rules! base_index {
                 Self::new(value as $primitive)
             }
 
-            #[inline]
+            #[inline(always)]
             fn index(self) -> usize {
                 self.get() as usize
             }
@@ -81,7 +81,7 @@ macro_rules! base_index {
             }
 
             /// Gets the underlying index value.
-            #[inline]
+            #[inline(always)]
             pub const fn get(self) -> $primitive {
                 #[cfg(feature = "nightly")]
                 return self.value;

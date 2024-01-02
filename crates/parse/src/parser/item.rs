@@ -590,7 +590,7 @@ impl<'a> Parser<'a> {
     fn parse_inheritance(&mut self) -> PResult<'a, Vec<Modifier>> {
         self.parse_seq_to_before_end(
             &TokenKind::CloseDelim(Delimiter::Brace),
-            SeqSep::trailing_allowed(TokenKind::Comma),
+            SeqSep::trailing_disallowed(TokenKind::Comma),
             |this| this.parse_modifier(),
         )
         .map(|(x, _, _)| x)

@@ -445,6 +445,12 @@ impl Token {
         matches!(self.kind, TokenKind::Ident(_))
     }
 
+    /// Returns `true` if the token is a literal.
+    #[inline]
+    pub const fn is_lit(&self) -> bool {
+        matches!(self.kind, TokenKind::Literal(_))
+    }
+
     /// Returns `true` if the token is a given keyword, `kw`.
     #[inline]
     pub fn is_keyword(&self, kw: Symbol) -> bool {
