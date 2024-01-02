@@ -1,4 +1,4 @@
-use crate::{with_session_globals, Span};
+use crate::{SessionGlobals, Span};
 use std::{cmp, fmt, hash, str};
 use sulk_data_structures::{index::BaseIndex32, map::FxIndexSet, sync::Lock};
 use sulk_macros::symbols;
@@ -531,7 +531,7 @@ impl Symbol {
 
     /// Maps a string to its interned representation.
     pub fn intern(string: &str) -> Self {
-        with_session_globals(|session_globals| session_globals.symbol_interner.intern(string))
+        SessionGlobals::with(|g| g.symbol_interner.intern(string))
     }
 
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
@@ -551,8 +551,8 @@ impl Symbol {
     /// this function is typically used for short-lived things, so in practice
     /// it works out ok.
     pub fn as_str(&self) -> &str {
-        with_session_globals(|session_globals| unsafe {
-            std::mem::transmute::<&str, &str>(session_globals.symbol_interner.get(*self))
+        SessionGlobals::with(|g| unsafe {
+            std::mem::transmute::<&str, &str>(g.symbol_interner.get(*self))
         })
     }
 
@@ -604,7 +604,7 @@ impl Symbol {
 
     /// Returns `true` if the symbol is an elementary type name.
     ///
-    /// Note that this does not include `[u]fixedMxN` types.
+    /// Note that this does not include `[u]fixedMxN` types as they are not pre-interned.
     #[inline]
     pub fn is_elementary_type(self) -> bool {
         self >= kw::Int && self <= kw::UFixed

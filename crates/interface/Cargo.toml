@@ -24,7 +24,9 @@ sulk-data-structures.workspace = true
 sulk-macros.workspace = true
 
 bumpalo.workspace = true
+match_cfg.workspace = true
 scoped-tls.workspace = true
+unicode-width.workspace = true
 
 # diagnostics
 anstream.workspace = true

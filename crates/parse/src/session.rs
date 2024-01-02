@@ -24,8 +24,8 @@ impl ParseSess {
     /// Creates a new parser session with a silent emitter.
     pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
         let dcx = DiagCtxt::with_silent_emitter(fatal_note);
-        let sm = Lrc::new(SourceMap::empty());
-        Self::new(dcx, sm)
+        let source_map = Lrc::new(SourceMap::empty());
+        Self::new(dcx, source_map)
     }
 
     /// Returns a reference to the source map.

@@ -227,6 +227,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "match_cfg"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
+
+[[package]]
 name = "num-traits"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -455,11 +461,13 @@ dependencies = [
  "anstream",
  "anstyle",
  "bumpalo",
+ "match_cfg",
  "scoped-tls",
  "serde",
  "serde_json",
  "sulk-data-structures",
  "sulk-macros",
+ "unicode-width",
 ]
 
 [[package]]

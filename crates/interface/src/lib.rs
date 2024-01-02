@@ -19,19 +19,16 @@
 #![cfg_attr(feature = "nightly", feature(min_specialization))]
 
 pub mod diagnostics;
+use diagnostics::{ErrorGuaranteed, FatalError};
 
 mod globals;
-use diagnostics::{ErrorGuaranteed, FatalError};
-pub use globals::{
-    create_default_session_if_not_set_then, create_session_globals_then, set_session_globals_then,
-    with_session_globals, SessionGlobals,
-};
+pub use globals::SessionGlobals;
 
 mod pos;
 pub use pos::{BytePos, CharPos, Pos};
 
-mod source_map;
-pub use source_map::*;
+pub mod source_map;
+pub use source_map::SourceMap;
 
 mod span;
 pub use span::Span;
@@ -46,5 +43,5 @@ pub use symbol::{kw, sym, Ident, Symbol};
 ///
 /// Returns [`ErrorGuaranteed`] if a [`FatalError`] was caught. Other panics are propagated.
 pub fn enter<R>(f: impl FnOnce() -> R) -> Result<R, ErrorGuaranteed> {
-    create_default_session_if_not_set_then(|_| FatalError::catch(f))
+    SessionGlobals::with_or_default(|_| FatalError::catch(f))
 }

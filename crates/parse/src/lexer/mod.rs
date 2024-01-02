@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn literals() {
         use LitKind::*;
-        sulk_interface::create_session_globals_then(|| {
+        sulk_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("\"\"", &[(0..2, lit(Str, ""))]),
                 ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn idents() {
-        sulk_interface::create_session_globals_then(|| {
+        sulk_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("$", &[(0..1, id("$"))]),
                 ("a$", &[(0..2, id("a$"))]),
@@ -575,7 +575,7 @@ mod tests {
     #[test]
     fn doc_comments() {
         use CommentKind::*;
-        sulk_interface::create_session_globals_then(|| {
+        sulk_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("// line comment", &[]),
                 ("// / line comment", &[]),

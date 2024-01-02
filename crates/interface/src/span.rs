@@ -1,8 +1,8 @@
-use crate::BytePos;
-use std::cmp;
+use crate::{BytePos, SessionGlobals};
+use std::{cmp, fmt};
 
 /// A source code location.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
     lo: BytePos,
     hi: BytePos,
@@ -22,6 +22,33 @@ impl Default for &Span {
     }
 }
 
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Use the global `SourceMap` to print the span. If that's not
+        // available, fall back to printing the raw values.
+
+        fn fallback(span: Span, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Span")
+                .field("lo", &span.lo())
+                .field("hi", &span.hi())
+                // .field("ctxt", &span.ctxt())
+                .finish()
+        }
+
+        if SessionGlobals::is_set() {
+            SessionGlobals::with(|g| {
+                if let Some(source_map) = &*g.source_map.lock() {
+                    write!(f, "{}", source_map.span_to_diagnostic_string(*self))
+                } else {
+                    fallback(*self, f)
+                }
+            })
+        } else {
+            fallback(*self, f)
+        }
+    }
+}
+
 impl Span {
     /// A dummy span.
     pub const DUMMY: Self = Self { lo: BytePos(0), hi: BytePos(0) };
@@ -33,6 +60,13 @@ impl Span {
             std::mem::swap(&mut lo, &mut hi);
         }
         Self { lo, hi }
+    }
+
+    /// Creates a new span from two byte positions with the root context.
+    #[inline]
+    pub fn with_root_ctxt(lo: BytePos, hi: BytePos) -> Self {
+        Self::new(lo, hi)
+        // Self::new(lo, hi, SyntaxContext::root(), None)
     }
 
     /// Returns the span's start position.
