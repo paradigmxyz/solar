@@ -691,6 +691,21 @@ impl<'a> Parser<'a> {
 
 /// Common parsing methods.
 impl<'a> Parser<'a> {
+    /// Provides a spanned parser.
+    pub fn parse_spanned<T>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> PResult<'a, T>,
+    ) -> PResult<'a, (Span, T)> {
+        let lo = self.token.span;
+        let res = f(self);
+        let span = lo.to(self.prev_token.span);
+        match res {
+            Ok(t) => Ok((span, t)),
+            Err(e) if e.span.is_dummy() => Err(e.span(span)),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Parses a qualified identifier: `foo.bar.baz`.
     pub fn parse_path(&mut self) -> PResult<'a, Path> {
         let first = self.parse_ident()?;

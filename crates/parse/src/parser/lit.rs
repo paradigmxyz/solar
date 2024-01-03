@@ -10,11 +10,11 @@ use sulk_interface::{kw, Symbol};
 impl<'a> Parser<'a> {
     /// Parses a literal.
     pub fn parse_lit(&mut self) -> PResult<'a, Lit> {
-        let lo = self.token.span;
-        let res = self.parse_lit_inner();
-        let span = lo.to(self.prev_token.span);
-        let (symbol, kind) = res.map_err(|e| if e.span.is_dummy() { e.span(span) } else { e })?;
-        Ok(Lit { span, symbol, kind })
+        self.parse_spanned(|p| p.parse_lit_inner()).map(|(span, (symbol, kind))| Lit {
+            span,
+            symbol,
+            kind,
+        })
     }
 
     /// Parses a literal with an optional subdenomination.

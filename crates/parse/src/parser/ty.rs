@@ -7,10 +7,9 @@ use sulk_interface::kw;
 impl<'a> Parser<'a> {
     /// Parses a type.
     pub fn parse_type(&mut self) -> PResult<'a, Ty> {
-        let lo = self.token.span;
-        let kind = self.parse_basic_ty_kind()?;
-        let span = lo.to(self.prev_token.span);
-        let mut ty = Ty { span, kind };
+        let mut ty = self
+            .parse_spanned(|this| this.parse_basic_ty_kind())
+            .map(|(span, kind)| Ty { span, kind })?;
 
         // Parse suffixes.
         while self.eat(&TokenKind::OpenDelim(Delimiter::Bracket)) {

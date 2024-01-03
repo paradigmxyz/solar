@@ -40,12 +40,8 @@ impl<'a> Parser<'a> {
 
     /// Parses an item.
     pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
-        let lo = self.token.span;
-        let kind = self.parse_item_kind()?;
-        Ok(kind.map(|kind| {
-            let span = lo.to(self.prev_token.span);
-            Item { span, kind }
-        }))
+        self.parse_spanned(|this| this.parse_item_kind())
+            .map(|(span, kind)| kind.map(|kind| Item { span, kind }))
     }
 
     fn parse_item_kind(&mut self) -> PResult<'a, Option<ItemKind>> {
@@ -339,9 +335,7 @@ impl<'a> Parser<'a> {
             components.push(SemverReqComponent { span, kind });
             // others
             while !matches!(self.token.kind, TokenKind::OrOr | TokenKind::Eof | TokenKind::Semi) {
-                let lo = self.token.span;
-                let (op, v) = self.parse_semver_component()?;
-                let span = lo.to(self.prev_token.span);
+                let (span, (op, v)) = self.parse_spanned(|this| this.parse_semver_component())?;
                 let kind = SemverReqComponentKind::Op(op, v);
                 components.push(SemverReqComponent { span, kind });
             }

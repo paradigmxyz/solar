@@ -9,10 +9,8 @@ use sulk_interface::{kw, Ident};
 impl<'a> Parser<'a> {
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
-        let lo = self.token.span;
-        let kind = self.parse_yul_stmt_kind()?;
-        let span = lo.to(self.prev_token.span);
-        Ok(Stmt { span, kind })
+        self.parse_spanned(|this| this.parse_yul_stmt_kind())
+            .map(|(span, kind)| Stmt { span, kind })
     }
 
     /// Parses a Yul block.
@@ -137,10 +135,8 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'a, Expr> {
-        let lo = self.token.span;
-        let kind = self.parse_yul_expr_kind()?;
-        let span = lo.to(self.prev_token.span);
-        Ok(Expr { span, kind })
+        self.parse_spanned(|this| this.parse_yul_expr_kind())
+            .map(|(span, kind)| Expr { span, kind })
     }
 
     /// Parses a Yul expression kind.
