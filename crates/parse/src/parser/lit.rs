@@ -56,12 +56,12 @@ impl<'a> Parser<'a> {
             kw::Gwei => Some(SubDenomination::Ether(EtherSubDenomination::Gwei)),
             kw::Ether => Some(SubDenomination::Ether(EtherSubDenomination::Ether)),
 
-            kw::Seconds => Some(SubDenomination::Time(TimeSubDenomination::Second)),
-            kw::Minutes => Some(SubDenomination::Time(TimeSubDenomination::Minute)),
-            kw::Hours => Some(SubDenomination::Time(TimeSubDenomination::Hour)),
-            kw::Days => Some(SubDenomination::Time(TimeSubDenomination::Day)),
-            kw::Weeks => Some(SubDenomination::Time(TimeSubDenomination::Week)),
-            kw::Years => Some(SubDenomination::Time(TimeSubDenomination::Year)),
+            kw::Seconds => Some(SubDenomination::Time(TimeSubDenomination::Seconds)),
+            kw::Minutes => Some(SubDenomination::Time(TimeSubDenomination::Minutes)),
+            kw::Hours => Some(SubDenomination::Time(TimeSubDenomination::Hours)),
+            kw::Days => Some(SubDenomination::Time(TimeSubDenomination::Days)),
+            kw::Weeks => Some(SubDenomination::Time(TimeSubDenomination::Weeks)),
+            kw::Years => Some(SubDenomination::Time(TimeSubDenomination::Years)),
 
             _ => None,
         };

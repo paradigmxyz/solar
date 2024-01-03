@@ -1,7 +1,7 @@
 use alloy_primitives::Address;
 use std::fmt;
 use sulk_data_structures::sync::Lrc;
-use sulk_interface::{Span, Symbol};
+use sulk_interface::{kw, Span, Symbol};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
 ///
@@ -88,6 +88,14 @@ impl SubDenomination {
         }
     }
 
+    /// Returns the symbol of this sub-denomination.
+    pub const fn to_symbol(self) -> Symbol {
+        match self {
+            Self::Ether(sub_denomination) => sub_denomination.to_symbol(),
+            Self::Time(sub_denomination) => sub_denomination.to_symbol(),
+        }
+    }
+
     /// Returns the value of this sub-denomination.
     pub const fn value(self) -> u64 {
         match self {
@@ -124,6 +132,15 @@ impl EtherSubDenomination {
         }
     }
 
+    /// Returns the symbol of this sub-denomination.
+    pub const fn to_symbol(self) -> Symbol {
+        match self {
+            Self::Wei => kw::Wei,
+            Self::Gwei => kw::Gwei,
+            Self::Ether => kw::Ether,
+        }
+    }
+
     /// Returns the number of wei in this sub-denomination.
     pub const fn wei(self) -> u64 {
         // https://github.com/ethereum/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
@@ -138,18 +155,18 @@ impl EtherSubDenomination {
 /// A time [`SubDenomination`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TimeSubDenomination {
-    /// `second`
-    Second,
-    /// `minute`
-    Minute,
-    /// `hour`
-    Hour,
-    /// `day`
-    Day,
-    /// `week`
-    Week,
-    /// `year`
-    Year,
+    /// `seconds`
+    Seconds,
+    /// `minutes`
+    Minutes,
+    /// `hours`
+    Hours,
+    /// `days`
+    Days,
+    /// `weeks`
+    Weeks,
+    /// `years`
+    Years,
 }
 
 impl fmt::Display for TimeSubDenomination {
@@ -162,12 +179,24 @@ impl TimeSubDenomination {
     /// Returns the name of this sub-denomination as a string.
     pub const fn to_str(self) -> &'static str {
         match self {
-            Self::Second => "second",
-            Self::Minute => "minute",
-            Self::Hour => "hour",
-            Self::Day => "day",
-            Self::Week => "week",
-            Self::Year => "year",
+            Self::Seconds => "seconds",
+            Self::Minutes => "minutes",
+            Self::Hours => "hours",
+            Self::Days => "days",
+            Self::Weeks => "weeks",
+            Self::Years => "years",
+        }
+    }
+
+    /// Returns the symbol of this sub-denomination.
+    pub const fn to_symbol(self) -> Symbol {
+        match self {
+            Self::Seconds => kw::Seconds,
+            Self::Minutes => kw::Minutes,
+            Self::Hours => kw::Hours,
+            Self::Days => kw::Days,
+            Self::Weeks => kw::Weeks,
+            Self::Years => kw::Years,
         }
     }
 
@@ -175,12 +204,12 @@ impl TimeSubDenomination {
     pub const fn seconds(self) -> u64 {
         // https://github.com/ethereum/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
         match self {
-            Self::Second => 1,
-            Self::Minute => 60,
-            Self::Hour => 3_600,
-            Self::Day => 86_400,
-            Self::Week => 604_800,
-            Self::Year => 31_536_000,
+            Self::Seconds => 1,
+            Self::Minutes => 60,
+            Self::Hours => 3_600,
+            Self::Days => 86_400,
+            Self::Weeks => 604_800,
+            Self::Years => 31_536_000,
         }
     }
 }
