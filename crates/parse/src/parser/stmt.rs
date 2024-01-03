@@ -6,7 +6,7 @@ use sulk_interface::kw;
 impl<'a> Parser<'a> {
     /// Parses a statement.
     pub fn parse_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(|this| this.parse_stmt_kind()).map(|(span, kind)| Stmt { kind, span })
+        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { kind, span })
     }
 
     /// Parses a statement kind.
@@ -61,8 +61,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'a, Block> {
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), |this| this.parse_stmt())
-            .map(|(x, _)| x)
+        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), Self::parse_stmt).map(|(x, _)| x)
     }
 
     /// Parses an if statement.
@@ -142,18 +141,17 @@ impl<'a> Parser<'a> {
     fn parse_stmt_assembly(&mut self) -> PResult<'a, StmtAssembly> {
         let dialect = self.parse_str_lit_opt();
         let flags = if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parse_paren_comma_seq(|this| this.parse_str_lit())?.0
+            self.parse_paren_comma_seq(Self::parse_str_lit)?.0
         } else {
             Vec::new()
         };
-        let block = self.in_yul(|this| this.parse_yul_block())?;
+        let block = self.in_yul(Self::parse_yul_block)?;
         Ok(StmtAssembly { dialect, flags, block })
     }
 
     /// Parses a simple statement. These are just variable declarations and expressions.
     fn parse_simple_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(|this| this.parse_simple_stmt_kind())
-            .map(|(span, kind)| Stmt { kind, span })
+        self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt { kind, span })
     }
 
     /// Parses a simple statement kind. These are just variable declarations and expressions.

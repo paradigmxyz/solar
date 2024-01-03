@@ -18,7 +18,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of named arguments: `({a: b, c: d, ...})`
     pub(super) fn parse_named_args(&mut self) -> PResult<'a, NamedArgList> {
-        self.parse_paren_comma_seq(|this| this.parse_named_arg()).map(|(x, _)| x)
+        self.parse_paren_comma_seq(Self::parse_named_arg).map(|(x, _)| x)
     }
 
     /// Parses a single named argument: `a: b`.
@@ -31,6 +31,6 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of expressions: `(a, b, c, ...)`.
     pub(super) fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Expr>> {
-        self.parse_paren_comma_seq(|this| this.parse_expr()).map(|(x, _)| x)
+        self.parse_paren_comma_seq(Self::parse_expr).map(|(x, _)| x)
     }
 }

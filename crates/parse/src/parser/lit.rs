@@ -10,7 +10,7 @@ use sulk_interface::{kw, Symbol};
 impl<'a> Parser<'a> {
     /// Parses a literal.
     pub fn parse_lit(&mut self) -> PResult<'a, Lit> {
-        self.parse_spanned(|p| p.parse_lit_inner()).map(|(span, (symbol, kind))| Lit {
+        self.parse_spanned(Self::parse_lit_inner).map(|(span, (symbol, kind))| Lit {
             span,
             symbol,
             kind,
@@ -207,7 +207,7 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     }
 
     // Address literal.
-    if base == 16 && matches!(s.len(), 41 | 42 | 43) {
+    if base == 16 && s.len() == 42 {
         match Address::parse_checksummed(s, None) {
             Ok(address) => return Ok(LitKind::Address(address)),
             // Continue parsing as a number to emit better errors.
@@ -267,10 +267,10 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     if int.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    if rat.is_some_and(|rat| rat.is_empty()) {
+    if rat.is_some_and(str::is_empty) {
         return Err(LitError::EmptyRational);
     }
-    if exp.is_some_and(|exp| exp.is_empty()) {
+    if exp.is_some_and(str::is_empty) {
         return Err(LitError::EmptyExponent);
     }
 
@@ -289,7 +289,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
         None => BigInt::from_str_radix(int, 10).map_err(LitError::ParseInteger),
     }?;
 
-    let fract_len = rat.map_or(0, |rat| rat.len());
+    let fract_len = rat.map_or(0, str::len);
     let fract_len = u16::try_from(fract_len).map_err(|_| LitError::RationalTooLarge)?;
     let denominator = BigInt::from(10u64).pow(fract_len as u32);
     let mut number = BigRational::new(int, denominator);

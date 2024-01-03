@@ -9,14 +9,12 @@ use sulk_interface::{kw, Ident};
 impl<'a> Parser<'a> {
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(|this| this.parse_yul_stmt_kind())
-            .map(|(span, kind)| Stmt { span, kind })
+        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { span, kind })
     }
 
     /// Parses a Yul block.
     pub fn parse_yul_block(&mut self) -> PResult<'a, Block> {
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), |this| this.parse_yul_stmt())
-            .map(|(x, _)| x)
+        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), Self::parse_yul_stmt).map(|(x, _)| x)
     }
 
     /// Parses a Yul statement kind.
@@ -85,7 +83,7 @@ impl<'a> Parser<'a> {
     /// Parses a Yul function definition.
     fn parse_yul_function(&mut self) -> PResult<'a, StmtKind> {
         let name = self.parse_ident()?;
-        let (parameters, _) = self.parse_paren_comma_seq(|this| this.parse_ident())?;
+        let (parameters, _) = self.parse_paren_comma_seq(Self::parse_ident)?;
         let returns = if self.eat(&TokenKind::Arrow) {
             self.check_ident();
             let (returns, _) = self.parse_nodelim_comma_seq(
@@ -135,8 +133,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'a, Expr> {
-        self.parse_spanned(|this| this.parse_yul_expr_kind())
-            .map(|(span, kind)| Expr { span, kind })
+        self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
     }
 
     /// Parses a Yul expression kind.
@@ -157,7 +154,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'a, ExprCall> {
-        let (parameters, _) = self.parse_paren_comma_seq(|this| this.parse_yul_expr())?;
+        let (parameters, _) = self.parse_paren_comma_seq(Self::parse_yul_expr)?;
         Ok(ExprCall { name, arguments: parameters })
     }
 

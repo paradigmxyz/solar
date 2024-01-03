@@ -40,7 +40,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an item.
     pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
-        self.parse_spanned(|this| this.parse_item_kind())
+        self.parse_spanned(Self::parse_item_kind)
             .map(|(span, kind)| kind.map(|kind| Item { span, kind }))
     }
 
@@ -226,8 +226,7 @@ impl<'a> Parser<'a> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
         let name = self.parse_ident()?;
-        let (variants, _) =
-            self.parse_delim_comma_seq(Delimiter::Brace, |this| this.parse_ident())?;
+        let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, Self::parse_ident)?;
         Ok(ItemEnum { name, variants })
     }
 
@@ -335,7 +334,7 @@ impl<'a> Parser<'a> {
             components.push(SemverReqComponent { span, kind });
             // others
             while !matches!(self.token.kind, TokenKind::OrOr | TokenKind::Eof | TokenKind::Semi) {
-                let (span, (op, v)) = self.parse_spanned(|this| this.parse_semver_component())?;
+                let (span, (op, v)) = self.parse_spanned(Self::parse_semver_component)?;
                 let kind = SemverReqComponentKind::Op(op, v);
                 components.push(SemverReqComponent { span, kind });
             }
@@ -585,7 +584,7 @@ impl<'a> Parser<'a> {
         self.parse_seq_to_before_end(
             &TokenKind::CloseDelim(Delimiter::Brace),
             SeqSep::trailing_disallowed(TokenKind::Comma),
-            |this| this.parse_modifier(),
+            Self::parse_modifier,
         )
         .map(|(x, _, _)| x)
     }
@@ -616,7 +615,7 @@ impl<'a> Parser<'a> {
     fn parse_override(&mut self) -> PResult<'a, Override> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
-        let (paths, _) = self.parse_paren_comma_seq(|this| this.parse_path())?;
+        let (paths, _) = self.parse_paren_comma_seq(Self::parse_path)?;
         let span = lo.to(self.prev_token.span);
         Ok(Override { span, paths })
     }
