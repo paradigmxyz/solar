@@ -699,15 +699,17 @@ impl<'a> Parser<'a> {
 
     /// Parses a qualified identifier starting with the given identifier.
     pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
-        let has_at_least_one_sep = self.look_ahead(1).kind == TokenKind::Dot;
-        if !has_at_least_one_sep {
-            return Ok(Path::single(first));
+        if !self.check_noexpect(&TokenKind::Dot) {
+            return Ok(Path::new_single(first));
         }
 
         let mut path = Vec::with_capacity(4);
         path.push(first);
-        while self.eat(&TokenKind::Dot) {
+        loop {
             path.push(self.parse_ident()?);
+            if !self.eat(&TokenKind::Dot) {
+                break;
+            }
         }
         Ok(Path::new(path))
     }

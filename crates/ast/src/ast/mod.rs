@@ -26,7 +26,7 @@ pub mod yul;
 /// A qualified identifier: `foo.bar.baz`.
 ///
 /// This is a list of identifiers, and is never empty.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Path(SmallVec<[Ident; 1]>);
 
 impl PartialEq<Ident> for Path {
@@ -48,11 +48,6 @@ impl PartialEq<Symbol> for Path {
 }
 
 impl Path {
-    /// Creates a new path from a single ident.
-    pub fn single(ident: Ident) -> Self {
-        Self(SmallVec::from_buf_and_len([ident], 1))
-    }
-
     /// Creates a new path from a list of segments.
     ///
     /// # Panics
@@ -61,6 +56,11 @@ impl Path {
     pub fn new(segments: Vec<Ident>) -> Self {
         assert!(!segments.is_empty());
         Self(SmallVec::from(segments))
+    }
+
+    /// Creates a new path from a single ident.
+    pub fn new_single(ident: Ident) -> Self {
+        Self(SmallVec::from_buf_and_len([ident], 1))
     }
 
     /// Returns the path's span.

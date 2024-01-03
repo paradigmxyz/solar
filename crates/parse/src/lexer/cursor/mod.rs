@@ -264,26 +264,21 @@ impl<'a> Cursor<'a> {
             // Don't be greedy if this is actually an integer literal followed
             // by field/method access (`12.foo()`)
             '.' if !is_id_start(self.second()) => {
-                // might have stuff after the ., and if it does,
-                // it needs to start with a number
                 self.bump();
-                let mut empty_exponent = false;
-                if self.first().is_ascii_digit() {
-                    self.eat_decimal_digits();
-                    match self.first() {
-                        'e' | 'E' => {
-                            self.bump();
-                            empty_exponent = !self.eat_exponent();
-                        }
-                        _ => (),
+                let empty_fraction = !self.eat_decimal_digits();
+                let empty_exponent = match self.first() {
+                    'e' | 'E' => {
+                        self.bump();
+                        !self.eat_exponent()
                     }
-                }
-                RawLiteralKind::Rational { base, empty_exponent }
+                    _ => false,
+                };
+                RawLiteralKind::Rational { base, empty_fraction, empty_exponent }
             }
             'e' | 'E' => {
                 self.bump();
                 let empty_exponent = !self.eat_exponent();
-                RawLiteralKind::Rational { base, empty_exponent }
+                RawLiteralKind::Rational { base, empty_fraction: false, empty_exponent }
             }
             _ => RawLiteralKind::Int { base, empty_int: false },
         }
@@ -376,9 +371,11 @@ impl<'a> Cursor<'a> {
     }
 
     /// Returns the last eaten symbol.
-    #[cfg(debug_assertions)]
     fn prev(&self) -> char {
-        self.prev
+        #[cfg(debug_assertions)]
+        return self.prev;
+        #[cfg(not(debug_assertions))]
+        return EOF_CHAR;
     }
 
     /// Peeks the next symbol from the input stream without consuming it.

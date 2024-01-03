@@ -99,10 +99,10 @@ pub enum Delimiter {
 /// contents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct TokenLit {
-    /// The literal kind.
-    pub kind: TokenLitKind,
     /// The symbol of the literal token, excluding any quotes.
     pub symbol: Symbol,
+    /// The literal kind.
+    pub kind: TokenLitKind,
 }
 
 impl fmt::Display for TokenLit {

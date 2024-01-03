@@ -23,7 +23,10 @@ workspace = true
 sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
+alloy-primitives.workspace = true
 semver.workspace = true
+num-bigint.workspace = true
+num-rational.workspace = true
 
 [features]
 nightly = ["sulk-data-structures/nightly", "sulk-interface/nightly"]

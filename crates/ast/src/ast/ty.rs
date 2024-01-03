@@ -65,6 +65,7 @@ impl TySize {
     pub const MAX: u8 = 32;
 
     /// Creates a new `TySize` from a `u8`.
+    #[inline]
     pub const fn new(value: u8) -> Option<Self> {
         if value > Self::MAX {
             None
@@ -74,6 +75,7 @@ impl TySize {
     }
 
     /// Returns the value.
+    #[inline]
     pub const fn get(self) -> u8 {
         self.0
     }
@@ -114,6 +116,7 @@ impl TyFixedSize {
     pub const MAX: u8 = 80;
 
     /// Creates a new `TyFixedSize` from a `u8`.
+    #[inline]
     pub const fn new(value: u8) -> Option<Self> {
         if value > Self::MAX {
             None
@@ -123,6 +126,7 @@ impl TyFixedSize {
     }
 
     /// Returns the value.
+    #[inline]
     pub const fn get(self) -> u8 {
         self.0
     }

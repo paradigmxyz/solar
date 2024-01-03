@@ -1,3 +1,4 @@
+use alloy_primitives::Address;
 use std::fmt;
 use sulk_data_structures::sync::Lrc;
 use sulk_interface::{Span, Symbol};
@@ -19,29 +20,25 @@ pub struct Lit {
 /// A kind of literal.
 #[derive(Clone, Debug)]
 pub enum LitKind {
-    /// A string, unicode string, or hex string literal. Note that
-    Str {
-        /// The kind of string literal.
-        kind: StrKind,
-        /// The unescaped contents of the strings.
-        ///
-        /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
-        /// are allowed, and as such this cannot be a `str` or `Symbol`.
-        value: Lrc<[u8]>,
-    },
-    /// A number literal.
-    Number {
-        /// The original base of the number literal.
-        base: Base,
-        /// Whether the literal was prefixed with a minus.
-        is_sign_negative: bool,
-        /// The original sub-denomination of the number literal, if any.
-        sub_denomination: Option<SubDenomination>,
-        /// The unescaped contents of the number literal in base 10.
-        value: Symbol,
-    },
+    /// A string, unicode string, or hex string literal. Contains the kind and the unescaped
+    /// contents of the string.
+    ///
+    /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
+    /// are allowed, and as such this cannot be a `str` or `Symbol`.
+    Str(StrKind, Lrc<[u8]>),
+    /// A decimal or hexadecimal number literal.
+    Number(num_bigint::BigInt),
+    /// A rational number literal.
+    ///
+    /// Note that rational literals that evaluate to integers are represented as
+    /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
+    Rational(num_rational::BigRational),
+    /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
+    Address(Address),
     /// A boolean literal.
     Bool(bool),
+    /// An error occurred while parsing the literal, which has been emitted.
+    Err,
 }
 
 /// A single UTF-8 string literal. Only used in import paths and statements, not expressions.
@@ -189,7 +186,7 @@ impl TimeSubDenomination {
 }
 
 /// Base of numeric literal encoding according to its prefix.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Base {
     /// Literal starts with "0b".
     Binary = 2,

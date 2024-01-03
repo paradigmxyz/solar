@@ -24,7 +24,11 @@ sulk-ast.workspace = true
 sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
+alloy-primitives.workspace = true
 hex.workspace = true
+num-bigint.workspace = true
+num-traits.workspace = true
+num-rational.workspace = true
 
 [dev-dependencies]
 expect-test.workspace = true

@@ -7,20 +7,18 @@ use sulk_ast::{
 use sulk_interface::{kw, Ident};
 
 impl<'a> Parser<'a> {
-    /// Parses a Yul block.
-    ///
-    /// Yul "assembly" block entry point.
-    pub fn parse_yul_block(&mut self) -> PResult<'a, Block> {
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), |this| this.parse_yul_stmt())
-            .map(|(x, _)| x)
-    }
-
     /// Parses a Yul statement.
-    fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
+    pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
         let lo = self.token.span;
         let kind = self.parse_yul_stmt_kind()?;
         let span = lo.to(self.prev_token.span);
         Ok(Stmt { span, kind })
+    }
+
+    /// Parses a Yul block.
+    pub fn parse_yul_block(&mut self) -> PResult<'a, Block> {
+        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), |this| this.parse_yul_stmt())
+            .map(|(x, _)| x)
     }
 
     /// Parses a Yul statement kind.

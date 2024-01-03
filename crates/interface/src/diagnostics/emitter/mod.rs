@@ -1,5 +1,6 @@
 use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
+use std::sync::{Arc, Mutex, PoisonError};
 use sulk_data_structures::sync::Lrc;
 
 #[cfg(feature = "json")]
@@ -69,8 +70,9 @@ impl Emitter for SilentEmitter {
 }
 
 /// Diagnostic emitter that only stores emitted diagnostics.
+#[derive(Clone, Debug)]
 pub struct LocalEmitter {
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Arc<Mutex<Vec<Diagnostic>>>,
 }
 
 impl Default for LocalEmitter {
@@ -82,23 +84,26 @@ impl Default for LocalEmitter {
 impl LocalEmitter {
     /// Creates a new `LocalEmitter`.
     pub fn new() -> Self {
-        Self { diagnostics: vec![] }
+        Self { diagnostics: Arc::new(Mutex::new(Vec::new())) }
     }
 
-    /// Returns the emitted diagnostics.
-    pub fn diagnostics(&self) -> &[Diagnostic] {
+    /// Returns a reference to the emitted diagnostics.
+    pub fn diagnostics(&self) -> &Mutex<Vec<Diagnostic>> {
         &self.diagnostics
     }
 
     /// Consumes the emitter and returns the emitted diagnostics.
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
-        self.diagnostics
+        Arc::try_unwrap(self.diagnostics)
+            .unwrap()
+            .into_inner()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 impl Emitter for LocalEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
-        self.diagnostics.push(diagnostic.clone());
+        self.diagnostics.lock().unwrap_or_else(PoisonError::into_inner).push(diagnostic.clone());
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {

@@ -333,7 +333,12 @@ impl<'a> Lexer<'a> {
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 }
             }
-            RawLiteralKind::Rational { base, empty_exponent } => {
+            RawLiteralKind::Rational { base, empty_fraction, empty_exponent } => {
+                if empty_fraction {
+                    let span = self.new_span(start, self.pos);
+                    self.dcx().err("expected at least one digit in fraction").span(span).emit();
+                }
+
                 if empty_exponent {
                     let span = self.new_span(start, self.pos);
                     self.dcx().err("expected at least one digit in exponent").span(span).emit();

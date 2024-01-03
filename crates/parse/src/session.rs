@@ -15,6 +15,16 @@ impl ParseSess {
         Self { dcx, source_map }
     }
 
+    /// Creates a new parser session with an empty source map.
+    pub fn empty(dcx: DiagCtxt) -> Self {
+        Self::new(dcx, Lrc::new(SourceMap::empty()))
+    }
+
+    /// Creates a new parser session with a test emitter.
+    pub fn with_test_emitter(ui: bool) -> Self {
+        Self::empty(DiagCtxt::with_test_emitter(ui))
+    }
+
     /// Creates a new parser session with a TTY emitter.
     pub fn with_tty_emitter(source_map: Lrc<SourceMap>) -> Self {
         let dcx = DiagCtxt::with_tty_emitter(Some(source_map.clone()));
