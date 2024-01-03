@@ -158,11 +158,110 @@ impl<'a> Parser<'a> {
     ///
     /// Also used in the for loop initializer.
     fn parse_simple_stmt_kind(&mut self) -> PResult<'a, StmtKind> {
+        // TODO: This is probably wrong.
         if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            todo!()
+            let (span, (tuple, _)) = self.parse_spanned(|this| {
+                this.parse_delim_seq(
+                    Delimiter::Parenthesis,
+                    SeqSep::trailing_allowed(TokenKind::Comma),
+                    |this| {
+                        if this.check(&TokenKind::Comma)
+                            || this.check(&TokenKind::CloseDelim(Delimiter::Parenthesis))
+                        {
+                            Ok(None)
+                        } else {
+                            this.parse_expr_or_var(true).map(Some)
+                        }
+                    },
+                )
+            })?;
+            if self.eat(&TokenKind::Semi) {
+                // (,,a.b[c],);
+                if tuple.iter().any(Option::is_none) {
+                    let msg = "elements in tuple expressions cannot be empty";
+                    self.dcx().err(msg).span(span).emit();
+                }
+                let exprs = self.map_option_list(tuple, ExprOrVar::into_expr)?;
+                Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Tuple(exprs) }))
+            } else if self.eat(&TokenKind::Eq) {
+                // (,,a.b[c],) = call(...);
+                // Can't mix exprs and vars.
+                let rhs = self.parse_expr()?;
+                self.expect_semi()?;
+                let is_expr = tuple
+                    .iter()
+                    .flatten()
+                    .map(|x| matches!(x, ExprOrVar::Expr(_)))
+                    .next()
+                    .unwrap_or(false);
+                if is_expr {
+                    let exprs = self.map_option_list(tuple, ExprOrVar::into_expr)?;
+                    let lhs = Expr { span, kind: ExprKind::Tuple(exprs) };
+                    let kind = ExprKind::Assign(Box::new(lhs), None, Box::new(rhs));
+                    Ok(StmtKind::Expr(Expr { span, kind }))
+                } else {
+                    let lhs = self.map_option_list(tuple, ExprOrVar::into_var)?;
+                    Ok(StmtKind::DeclMulti(lhs, rhs))
+                }
+            } else {
+                self.unexpected()
+            }
         } else {
-            todo!()
+            let e = self.parse_expr_or_var(false)?;
+            if self.eat(&TokenKind::Semi) {
+                match e {
+                    ExprOrVar::Expr(expr) => Ok(StmtKind::Expr(expr)),
+                    ExprOrVar::Var(var) => Ok(StmtKind::DeclSingle(var, None)),
+                }
+            } else if self.eat(&TokenKind::Eq) {
+                let rhs = self.parse_expr()?;
+                self.expect_semi()?;
+                match e {
+                    ExprOrVar::Expr(expr) => Ok(StmtKind::Expr(Expr {
+                        span: expr.span,
+                        kind: ExprKind::Assign(Box::new(expr), None, Box::new(rhs)),
+                    })),
+                    ExprOrVar::Var(var) => {
+                        let expr = self.parse_expr()?;
+                        Ok(StmtKind::DeclSingle(var, Some(expr)))
+                    }
+                }
+            } else {
+                self.unexpected()
+            }
         }
+    }
+
+    fn parse_expr_or_var(&mut self, in_list: bool) -> PResult<'a, ExprOrVar> {
+        if self.token.is_ident()
+            && (self.token.is_elementary_type()
+                || self.look_ahead_with(1, |t| {
+                    t.is_ident()
+                        || (in_list
+                            && matches!(
+                                t.kind,
+                                TokenKind::Comma | TokenKind::CloseDelim(Delimiter::Parenthesis)
+                            ))
+                }))
+        {
+            self.parse_variable_declaration(VarDeclMode::AllowStorage).map(ExprOrVar::Var)
+        } else {
+            self.parse_expr().map(ExprOrVar::Expr)
+        }
+    }
+
+    fn map_option_list<T>(
+        &mut self,
+        exprs: Vec<Option<ExprOrVar>>,
+        mut f: impl FnMut(ExprOrVar, &mut Self) -> PResult<'a, T>,
+    ) -> PResult<'a, Vec<Option<T>>> {
+        exprs
+            .into_iter()
+            .map(|x| match x {
+                Some(x) => f(x, self).map(Some),
+                None => Ok(None),
+            })
+            .collect()
     }
 
     /// Parses a path and a list of call arguments.
@@ -170,5 +269,36 @@ impl<'a> Parser<'a> {
         let path = self.parse_path()?;
         let params = self.parse_call_args()?;
         Ok((path, params))
+    }
+}
+
+enum ExprOrVar {
+    Expr(Expr),
+    Var(VariableDeclaration),
+}
+
+impl ExprOrVar {
+    fn into_expr<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, Expr> {
+        match self {
+            Self::Expr(expr) => Ok(expr),
+            Self::Var(var) => match var.name {
+                Some(name) => Err(parser
+                    .dcx()
+                    .err("expected expression, found variable declaration")
+                    .span(name.span)),
+                // TODO: may need to convert `Ty::Array` to `Expr::Index`
+                None => Ok(Expr { span: var.ty.span, kind: ExprKind::Type(var.ty) }),
+            },
+        }
+    }
+
+    fn into_var<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, VariableDeclaration> {
+        match self {
+            Self::Expr(expr) => Err(parser
+                .dcx()
+                .err("expected variable declaration, found expression")
+                .span(expr.span)),
+            Self::Var(var) => Ok(var),
+        }
     }
 }

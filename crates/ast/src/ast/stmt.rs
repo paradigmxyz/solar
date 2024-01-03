@@ -19,6 +19,14 @@ pub enum StmtKind {
     /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
     Assembly(StmtAssembly),
 
+    /// A single-variable declaration statement: `uint256 foo = 42;`.
+    DeclSingle(VariableDeclaration, Option<Expr>),
+
+    /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
+    ///
+    /// Multi-assignments require an expression on the right-hand side.
+    DeclMulti(Vec<Option<VariableDeclaration>>, Expr),
+
     /// A blocked scope: `{ ... }`.
     Block(Block),
 
@@ -55,9 +63,6 @@ pub enum StmtKind {
 
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block),
-
-    /// A variable declaration statement: `uint256 foo = 42;`.
-    VarDecl(VarDeclKind, Option<Expr>),
 
     /// A while statement: `while (i < 42) { ... }`.
     While(Expr, Box<Stmt>),

@@ -692,7 +692,7 @@ pub(super) enum VarDeclMode {
     // Name is optional.
     /// `ty indexed? name?`; parsed in events.
     AllowIndexed,
-    /// `ty storage? name?`; parsed in functions.
+    /// `ty storage? name?`; parsed in functions and variable declaration statements.
     AllowStorage,
     /// `ty storage? [name?]` (names issue a warning); parsed in function types.
     AllowStorageWithWarning,

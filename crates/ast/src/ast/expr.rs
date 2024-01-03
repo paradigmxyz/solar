@@ -56,11 +56,14 @@ pub enum ExprKind {
     /// A ternary (AKA conditional) expression: `foo ? bar : baz`.
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
 
-    /// A tuple expression: `(a, b, c, d)`.
-    Tuple(Vec<Expr>),
+    /// A tuple expression: `(a,,, b, c, d)`.
+    Tuple(Vec<Option<Expr>>),
 
     /// A `type()` expression: `type(uint256)`
     TypeCall(Ty),
+
+    /// An elementary type name: `uint256`.
+    Type(Ty),
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, Box<Expr>),
