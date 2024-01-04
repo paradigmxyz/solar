@@ -1,7 +1,7 @@
 //! Annotation collector for displaying diagnostics vendored from Rustc.
 
 use crate::{
-    diagnostics::{MultiSpan, SpanLabel},
+    diagnostics::{Level, MultiSpan, SpanLabel},
     source_map::{Loc, SourceFile},
     SourceMap,
 };
@@ -12,6 +12,14 @@ use sulk_data_structures::sync::Lrc;
 pub(crate) struct Line {
     pub(crate) line_index: usize,
     pub(crate) annotations: Vec<Annotation>,
+}
+
+impl Line {
+    pub(crate) fn set_level(&mut self, level: Level) {
+        for ann in &mut self.annotations {
+            ann.level = Some(level);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Default)]
@@ -77,6 +85,7 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: None,
             annotation_type: AnnotationType::MultilineStart(self.depth),
+            level: None,
         }
     }
 
@@ -92,6 +101,7 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: self.label.clone(),
             annotation_type: AnnotationType::MultilineEnd(self.depth),
+            level: None,
         }
     }
 
@@ -102,6 +112,7 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: None,
             annotation_type: AnnotationType::MultilineLine(self.depth),
+            level: None,
         }
     }
 }
@@ -152,6 +163,8 @@ pub(crate) struct Annotation {
     /// Is this a single line, multiline or multiline span minimized down to a
     /// smaller span.
     pub(crate) annotation_type: AnnotationType,
+
+    pub(crate) level: Option<Level>,
 }
 
 #[derive(Debug)]
@@ -243,6 +256,7 @@ impl FileWithAnnotatedLines {
                     is_primary,
                     label,
                     annotation_type: AnnotationType::Singleline,
+                    level: None,
                 };
                 add_annotation_to_file(&mut output, lo.file, lo.line, ann);
             };
@@ -322,6 +336,12 @@ impl FileWithAnnotatedLines {
             file_vec.multiline_depth = max_depth;
         }
         output
+    }
+
+    pub(crate) fn set_level(&mut self, level: Level) {
+        for line in &mut self.lines {
+            line.set_level(level);
+        }
     }
 }
 

@@ -140,10 +140,10 @@ impl EmitterWriter {
         let owned_slices = self
             .source_map
             .as_deref()
-            .map(|sm| OwnedSlice::collect(sm, &diagnostic.span, diagnostic.level))
+            .map(|sm| OwnedSlice::collect(sm, diagnostic))
             .unwrap_or_default();
 
-        // Dummy subdiagnostics go in the footer.
+        // Dummy subdiagnostics go in the footer, while non-dummy ones go in the slices.
         let dummy_subs: Vec<_> = diagnostic
             .children
             .iter()
@@ -219,10 +219,47 @@ struct OwnedSlice {
 }
 
 impl OwnedSlice {
-    fn collect(sm: &SourceMap, msp: &MultiSpan, level: Level) -> Vec<Self> {
+    fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
+        let mut main_files = Self::collect_files(sm, &diagnostic.span);
+        main_files.iter_mut().for_each(|file| file.set_level(diagnostic.level));
+
+        // Collect subdiagnostics.
+        for sub in &diagnostic.children {
+            let label = sub.label();
+            let files = Self::collect_files(sm, &sub.span);
+            for mut sub_file in files {
+                for line in &mut sub_file.lines {
+                    for ann in &mut line.annotations {
+                        ann.level = Some(sub.level);
+                        // TODO: Is this right?
+                        if ann.is_primary && ann.label.is_none() {
+                            ann.label = Some(label.to_string());
+                        }
+                    }
+                }
+
+                if let Some(main_file) = main_files
+                    .iter_mut()
+                    .find(|main_file| Lrc::ptr_eq(&main_file.file, &sub_file.file))
+                {
+                    main_file.lines.extend(sub_file.lines);
+                    main_file.lines.sort();
+                } else {
+                    main_files.push(sub_file);
+                }
+            }
+        }
+
+        main_files
+            .iter()
+            .map(|file| file_to_slice(sm, &file.file, &file.lines, diagnostic.level))
+            .collect()
+    }
+
+    fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines> {
         let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
         if let Some(primary_span) = msp.primary_span() {
-            if !primary_span.is_dummy() {
+            if !primary_span.is_dummy() && annotated_files.len() > 1 {
                 let primary_lo = sm.lookup_char_pos(primary_span.lo());
                 if let Ok(pos) =
                     annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
@@ -232,9 +269,6 @@ impl OwnedSlice {
             }
         }
         annotated_files
-            .iter()
-            .map(|file| file_to_slice(sm, &file.file, &file.lines, level))
-            .collect()
     }
 
     fn as_ref(&self) -> Slice<'_> {
@@ -256,7 +290,7 @@ fn file_to_slice(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
-    level: Level,
+    default_level: Level,
 ) -> OwnedSlice {
     let first_line = lines.first().map(|l| l.line_index).unwrap_or(1);
     let last_line = lines.last().map(|l| l.line_index).unwrap_or(1);
@@ -280,7 +314,7 @@ fn file_to_slice(
                     slice.annotations.push(OwnedSourceAnnotation {
                         range: (relative_idx + ann.start_col.file, relative_idx + ann.end_col.file),
                         label: ann.label.clone().unwrap_or_default(),
-                        annotation_type: to_annotation_type(level),
+                        annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
                     })
                 }
                 super::rustc::AnnotationType::MultilineStart(_) => {
@@ -293,7 +327,7 @@ fn file_to_slice(
                     slice.annotations.push(OwnedSourceAnnotation {
                         range: (multiline_start_idx, relative_idx + ann.end_col.file),
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
-                        annotation_type: to_annotation_type(level),
+                        annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
                     });
                 }
             }

@@ -137,7 +137,7 @@ macro_rules! error_code {
 }
 
 /// Diagnostic level.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Level {
     /// An error that causes an immediate abort. Used for things like configuration errors,
     /// internal overflows, some file operation errors.
