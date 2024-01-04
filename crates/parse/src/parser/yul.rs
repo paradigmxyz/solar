@@ -40,14 +40,13 @@ impl<'a> Parser<'a> {
         } else if self.check_ident() {
             let path = self.parse_path()?;
             if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                let name = self.expect_single_ident_path(path)?;
-                let expr = self.parse_yul_expr_call_with(name)?;
-                Ok(StmtKind::Expr(expr))
+                let name = self.expect_single_ident_path(path);
+                self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
             } else if self.eat(&TokenKind::Walrus) {
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
             } else if self.check(&TokenKind::Comma) {
-                let mut paths = Vec::with_capacity(2);
+                let mut paths = Vec::with_capacity(4);
                 paths.push(path);
                 while self.eat(&TokenKind::Comma) {
                     paths.push(self.parse_path()?);
@@ -87,7 +86,7 @@ impl<'a> Parser<'a> {
         let returns = if self.eat(&TokenKind::Arrow) {
             self.check_ident();
             let (returns, _) = self.parse_nodelim_comma_seq(
-                &TokenKind::CloseDelim(Delimiter::Brace),
+                &TokenKind::OpenDelim(Delimiter::Brace),
                 Self::parse_ident,
             )?;
             if returns.is_empty() {
@@ -139,11 +138,15 @@ impl<'a> Parser<'a> {
     /// Parses a Yul expression kind.
     fn parse_yul_expr_kind(&mut self) -> PResult<'a, ExprKind> {
         if self.check_ident() {
-            let ident = self.parse_ident()?;
-            if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            if self.look_ahead(1).is_open_delim(Delimiter::Parenthesis) {
+                let ident = self.ident_or_err(true)?;
+                if ident.is_yul_keyword() && !ident.is_yul_builtin() {
+                    self.expected_ident_found_err().emit();
+                }
+                self.bump(); // ident
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
-                Ok(ExprKind::Ident(ident))
+                self.parse_ident().map(ExprKind::Ident)
             }
         } else if self.check_lit() {
             self.parse_lit().map(ExprKind::Lit)
@@ -159,10 +162,11 @@ impl<'a> Parser<'a> {
     }
 
     /// Expects a single identifier path and returns the identifier.
-    fn expect_single_ident_path(&mut self, path: Path) -> PResult<'a, Ident> {
-        match path.get_ident() {
-            Some(ident) => Ok(*ident),
-            None => Err(self.dcx().err("dotted paths aren't allowed here").span(path.span())),
+    fn expect_single_ident_path(&mut self, path: Path) -> Ident {
+        let ident = *path.segments().last().unwrap();
+        if path.segments().len() > 1 {
+            self.dcx().err("dotted paths aren't allowed here").span(path.span()).emit();
         }
+        ident
     }
 }

@@ -44,7 +44,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an elementary type.
     fn parse_elementary_type(&mut self) -> PResult<'a, TyKind> {
-        let id = self.parse_ident_maybe_recover(false)?;
+        let id = self.parse_ident_any()?;
         let kind = match id.name {
             kw::Address => TyKind::Address(self.eat_keyword(kw::Payable)),
             kw::Bool => TyKind::Bool,

@@ -23,12 +23,12 @@ impl<'a> Parser<'a> {
             let (prefix, list, link);
             if self.in_contract {
                 prefix = "contract";
-                list = "function, variable, struct, or modifier declaration";
-                link = "contractDefinition";
+                list = "function, variable, struct, or modifier definition";
+                link = "contractBodyElement";
             } else {
                 prefix = "global";
-                list = "pragma, import directive, or contract/interface/library/struct/enum/constant/function/error definition";
-                link = "contractBodyElement";
+                list = "pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition";
+                link = "sourceUnit";
             }
             let msg =
                 format!("expected {prefix} item ({list}), found {}", self.token.full_description());
@@ -63,10 +63,11 @@ impl<'a> Parser<'a> {
             self.parse_import().map(ItemKind::Import)
         } else if self.eat_keyword(kw::Using) {
             self.parse_using().map(ItemKind::Using)
-        } else if self.eat_keyword(sym::error)
+        } else if self.check_keyword(sym::error)
             && self.look_ahead(1).is_ident()
             && self.look_ahead(2).is_open_delim(Delimiter::Parenthesis)
         {
+            self.bump(); // error
             self.parse_error().map(ItemKind::Error)
         } else if self.is_variable_declaration() {
             self.parse_variable_definition().map(ItemKind::Variable)
@@ -113,6 +114,8 @@ impl<'a> Parser<'a> {
         let TokenKind::Ident(kw) = self.token.kind else {
             unreachable!("parse_function called without function-like keyword");
         };
+        self.bump(); // kw
+
         let kind = match kw {
             kw::Constructor => FunctionKind::Constructor,
             kw::Function => FunctionKind::Function,
@@ -195,7 +198,8 @@ impl<'a> Parser<'a> {
         let TokenKind::Ident(kw) = self.token.kind else {
             unreachable!("parse_contract called without contract-like keyword");
         };
-        self.bump();
+        self.bump(); // kw
+
         let kind = match kw {
             kw::Abstract => {
                 self.expect_keyword(kw::Contract)?;
@@ -249,16 +253,17 @@ impl<'a> Parser<'a> {
             PragmaTokens::Experimental(self.parse_ident()?)
         } else {
             let mut tokens = Vec::new();
-            while self.token.kind != TokenKind::Semi {
+            while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
                 tokens.push(self.token.clone());
                 self.bump();
             }
-            if tokens.is_empty() {
+            if !self.token.is_eof() && tokens.is_empty() {
                 let msg = "expected at least one token in pragma directive";
                 self.dcx().err(msg).span(self.prev_token.span).emit();
             }
             PragmaTokens::Verbatim(tokens)
         };
+        self.expect_semi()?;
         Ok(PragmaDirective { tokens })
     }
 
@@ -271,14 +276,7 @@ impl<'a> Parser<'a> {
             let span = self.prev_token.span.to(self.token.span);
             return Err(self.dcx().err(msg).span(span));
         }
-
-        let lo = self.token.span;
-        let dis = self.parse_semver_req_components_dis();
-        let span = lo.to(self.prev_token.span);
-        match dis {
-            Ok(dis) => Ok(SemverReq { dis }),
-            Err(e) => Err(e.span_note(span, "while parsing this version requirement")),
-        }
+        self.parse_semver_req_components_dis().map(|dis| SemverReq { dis })
     }
 
     /// `any(c)`
@@ -352,7 +350,8 @@ impl<'a> Parser<'a> {
     fn parse_semver_op(&mut self) -> Option<SemverOp> {
         // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
         let op = match self.token.kind {
-            TokenKind::Eq => SemverOp::Greater,
+            TokenKind::Eq => SemverOp::Exact,
+            TokenKind::Gt => SemverOp::Greater,
             TokenKind::Ge => SemverOp::GreaterEq,
             TokenKind::Lt => SemverOp::Less,
             TokenKind::Le => SemverOp::LessEq,
@@ -388,7 +387,7 @@ impl<'a> Parser<'a> {
             span,
         } = self.token
         else {
-            self.expected_tokens.push(ExpectedToken::IntLit);
+            self.expected_tokens.push(ExpectedToken::VersionNumber);
             return self.unexpected();
         };
         let value =

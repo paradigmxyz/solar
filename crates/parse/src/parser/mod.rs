@@ -48,7 +48,7 @@ enum ExpectedToken {
     Keyword(Symbol),
     Lit,
     StrLit,
-    IntLit,
+    VersionNumber,
     Ident,
     Path,
     ElementaryType,
@@ -59,12 +59,12 @@ impl fmt::Display for ExpectedToken {
         f.write_str(match self {
             Self::Token(t) => return write!(f, "`{t}`"),
             Self::Keyword(kw) => return write!(f, "`{kw}`"),
-            Self::StrLit => "a string literal",
-            Self::IntLit => "a decimal integer literal",
-            Self::Lit => "a literal",
-            Self::Ident => "an identifier",
-            Self::Path => "a path",
-            Self::ElementaryType => "an elementary type name",
+            Self::StrLit => "string literal",
+            Self::VersionNumber => "`*`, `X`, `x`, decimal integer literal",
+            Self::Lit => "literal",
+            Self::Ident => "identifier",
+            Self::Path => "path",
+            Self::ElementaryType => "elementary type name",
         })
     }
 }
@@ -153,16 +153,26 @@ impl<'a> Parser<'a> {
         self.sess.source_map().span_to_snippet(span)
     }
 
-    /// Returns an "unexpected token" error for the current token.
+    /// Returns an "unexpected token" error in a [`PResult`] for the current token.
     #[inline]
     #[track_caller]
     pub fn unexpected<T>(&mut self) -> PResult<'a, T> {
+        Err(self.unexpected_error())
+    }
+
+    /// Returns an "unexpected token" error for the current token.
+    #[inline]
+    #[track_caller]
+    pub fn unexpected_error(&mut self) -> PErr<'a> {
         #[cold]
         #[inline(never)]
         fn unexpected_ok(b: bool) -> ! {
             unreachable!("`unexpected()` return Ok({b})")
         }
-        self.expect_one_of(&[], &[]).map(|x| unexpected_ok(x))
+        match self.expect_one_of(&[], &[]) {
+            Ok(b) => unexpected_ok(b),
+            Err(e) => e,
+        }
     }
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
@@ -173,7 +183,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 Ok(false)
             } else {
-                Err(self.unexpected_error(tok))
+                Err(self.unexpected_error_with(tok))
             }
         } else {
             self.expect_one_of(std::slice::from_ref(tok), &[])
@@ -182,7 +192,7 @@ impl<'a> Parser<'a> {
 
     /// Creates a [`PErr`] for an unexpected token `t`.
     #[track_caller]
-    fn unexpected_error(&mut self, t: &TokenKind) -> PErr<'a> {
+    fn unexpected_error_with(&mut self, t: &TokenKind) -> PErr<'a> {
         let prev_span = if self.prev_token.span.is_dummy() {
             // We don't want to point at the following span after a dummy span.
             // This happens when the parser finds an empty token stream.
@@ -425,6 +435,7 @@ impl<'a> Parser<'a> {
     /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_paren_comma_seq<T>(
         &mut self,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
@@ -435,6 +446,7 @@ impl<'a> Parser<'a> {
     /// Parses a comma-separated sequence, including both delimiters.
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_delim_comma_seq<T>(
         &mut self,
         delim: Delimiter,
@@ -445,24 +457,20 @@ impl<'a> Parser<'a> {
 
     /// Parses a comma-separated sequence.
     /// The function `f` must consume tokens until reaching the next separator.
+    #[track_caller]
     fn parse_nodelim_comma_seq<T>(
         &mut self,
         stop: &TokenKind,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_seq_to_before_end(stop, SeqSep::trailing_disallowed(TokenKind::Comma), f).map(
-            |(v, trailing, recovered)| {
-                if !recovered {
-                    self.eat(stop);
-                }
-                (v, trailing)
-            },
-        )
+        self.parse_seq_to_before_end(stop, SeqSep::trailing_disallowed(TokenKind::Comma), f)
+            .map(|(v, trailing, _recovered)| (v, trailing))
     }
 
     /// Parses a `sep`-separated sequence, including both delimiters.
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_delim_seq<T>(
         &mut self,
         delim: Delimiter,
@@ -480,6 +488,7 @@ impl<'a> Parser<'a> {
     /// Parses a sequence, including both delimiters. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_unspanned_seq<T>(
         &mut self,
         bra: &TokenKind,
@@ -494,6 +503,7 @@ impl<'a> Parser<'a> {
     /// Parses a sequence, including only the closing delimiter. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_seq_to_end<T>(
         &mut self,
         ket: &TokenKind,
@@ -510,6 +520,7 @@ impl<'a> Parser<'a> {
     /// Parses a sequence, not including the delimiters. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_seq_to_before_end<T>(
         &mut self,
         ket: &TokenKind,
@@ -530,6 +541,7 @@ impl<'a> Parser<'a> {
     /// Parses a sequence until the specified delimiters. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
+    #[track_caller]
     fn parse_seq_to_before_tokens<T>(
         &mut self,
         kets: &[&TokenKind],
@@ -662,7 +674,11 @@ impl<'a> Parser<'a> {
     /// [`Eof`](Token::EOF) will be returned if the look-ahead is any distance past the end of the
     /// tokens.
     pub fn look_ahead(&self, dist: usize) -> &Token {
-        self.tokens.as_slice().get(dist).unwrap_or(&Token::EOF)
+        if dist == 0 {
+            &self.token
+        } else {
+            self.tokens.as_slice().get(dist - 1).unwrap_or(&Token::EOF)
+        }
     }
 
     /// Calls `f` with the token `dist` tokens ahead of the current one.
@@ -692,6 +708,7 @@ impl<'a> Parser<'a> {
 /// Common parsing methods.
 impl<'a> Parser<'a> {
     /// Provides a spanned parser.
+    #[track_caller]
     pub fn parse_spanned<T>(
         &mut self,
         f: impl FnOnce(&mut Self) -> PResult<'a, T>,
@@ -707,12 +724,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
+    #[track_caller]
     pub fn parse_path(&mut self) -> PResult<'a, Path> {
         let first = self.parse_ident()?;
         self.parse_path_with(first)
     }
 
     /// Parses a qualified identifier starting with the given identifier.
+    #[track_caller]
     pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
         if !self.check_noexpect(&TokenKind::Dot) {
             return Ok(Path::new_single(first));
@@ -720,21 +739,28 @@ impl<'a> Parser<'a> {
 
         let mut path = Vec::with_capacity(4);
         path.push(first);
-        loop {
+        while self.eat(&TokenKind::Dot) {
             path.push(self.parse_ident()?);
-            if !self.eat(&TokenKind::Dot) {
-                break;
-            }
         }
         Ok(Path::new(path))
     }
 
     /// Parses an identifier.
+    #[track_caller]
     pub fn parse_ident(&mut self) -> PResult<'a, Ident> {
-        self.parse_ident_maybe_recover(true)
+        self.parse_ident_common(true)
+    }
+
+    /// Parses an identifier. Does not check if the identifier is a reserved keyword.
+    #[track_caller]
+    pub fn parse_ident_any(&mut self) -> PResult<'a, Ident> {
+        let ident = self.ident_or_err(true)?;
+        self.bump();
+        Ok(ident)
     }
 
     /// Parses an optional identifier.
+    #[track_caller]
     pub fn parse_ident_opt(&mut self) -> PResult<'a, Option<Ident>> {
         if self.token.is_ident() {
             self.parse_ident().map(Some)
@@ -743,7 +769,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_ident_maybe_recover(&mut self, recover: bool) -> PResult<'a, Ident> {
+    #[track_caller]
+    fn parse_ident_common(&mut self, recover: bool) -> PResult<'a, Ident> {
         let ident = self.ident_or_err(recover)?;
         if ident.is_reserved(self.in_yul) {
             let err = self.expected_ident_found_err();
@@ -753,9 +780,12 @@ impl<'a> Parser<'a> {
                 return Err(err);
             }
         }
+        self.bump();
         Ok(ident)
     }
 
+    /// Returns Ok if the current token is an identifier. Does not advance the parser.
+    #[track_caller]
     fn ident_or_err(&mut self, recover: bool) -> PResult<'a, Ident> {
         match self.token.ident() {
             Some(ident) => Ok(ident),
@@ -763,14 +793,13 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[track_caller]
     fn expected_ident_found(&mut self, recover: bool) -> PResult<'a, Ident> {
         let msg = format!("expected identifier, found {}", self.token.full_description());
-        let mut err = self.dcx().err(msg);
+        let span = self.token.span;
+        let mut err = self.dcx().err(msg).span(span);
 
         let mut recovered_ident = None;
-        // We take this here so that the correct original token is retained in the diagnostic,
-        // regardless of eager recovery.
-        let bad_token = self.token.clone();
 
         let suggest_remove_comma =
             self.token.kind == TokenKind::Comma && self.look_ahead(1).is_ident();
@@ -779,7 +808,7 @@ impl<'a> Parser<'a> {
                 self.bump();
                 recovered_ident = self.ident_or_err(false).ok();
             }
-            err = err.span_help(bad_token.span, "remove this comma");
+            err = err.span_help(span, "remove this comma");
         }
 
         if recover {
@@ -791,6 +820,7 @@ impl<'a> Parser<'a> {
         Err(err)
     }
 
+    #[track_caller]
     fn expected_ident_found_err(&mut self) -> PErr<'a> {
         self.expected_ident_found(false).unwrap_err()
     }
@@ -827,7 +857,7 @@ mod tests {
         let tests: &[(&[ExpectedToken], &str)] = &[
             (&[], ""),
             (&[Token(TK::Eof)], "`<eof>`"),
-            (&[IntLit, Ident], "a decimal integer literal or an identifier"),
+            (&[VersionNumber, Ident], "a decimal integer literal or an identifier"),
             (&[Path, StrLit, Token(TK::AndAnd)], "a path, a string literal, or `&&`"),
             (
                 &[Token(TK::AndAnd), Token(TK::OrOr), Token(TK::AndAnd), Token(TK::OrOr)],

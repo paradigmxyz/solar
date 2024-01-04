@@ -312,17 +312,6 @@ impl TokenKind {
         }
     }
 
-    /// Returns tokens that are likely to be typed accidentally instead of the current token.
-    /// Enables better error recovery when the wrong token is found.
-    pub fn similar_tokens(&self) -> Option<Vec<Self>> {
-        match *self {
-            Self::Comma => Some(vec![Self::Dot, Self::Lt, Self::Semi]),
-            Self::Semi => Some(vec![Self::Colon, Self::Comma]),
-            Self::FatArrow => Some(vec![Self::Eq, Self::Arrow]),
-            _ => None,
-        }
-    }
-
     /// Glues two token kinds together.
     pub const fn glue(&self, other: &Self) -> Option<Self> {
         use BinOpToken::*;
@@ -474,13 +463,13 @@ impl Token {
     }
 
     /// Returns `true` if the token is a keyword.
-    pub fn is_reserved_ident(&self, in_yul: bool) -> bool {
-        self.is_ident_where(|i| i.is_reserved(in_yul))
+    pub fn is_reserved_ident(&self, yul: bool) -> bool {
+        self.is_ident_where(|i| i.is_reserved(yul))
     }
 
     /// Returns `true` if the token is an identifier, but not a keyword.
-    pub fn is_non_reserved_ident(&self, in_yul: bool) -> bool {
-        self.is_ident_where(|i| i.is_non_reserved(in_yul))
+    pub fn is_non_reserved_ident(&self, yul: bool) -> bool {
+        self.is_ident_where(|i| i.is_non_reserved(yul))
     }
 
     /// Returns `true` if the token is an elementary type name.
@@ -578,6 +567,10 @@ pub enum TokenDescription {
     Keyword,
     /// A reserved keyword.
     ReservedKeyword,
+    /// A Yul keyword.
+    YulKeyword,
+    /// A Yul builtin function.
+    YulBuiltin,
 }
 
 impl fmt::Display for TokenDescription {
@@ -592,6 +585,8 @@ impl TokenDescription {
         match token.kind {
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),
+            _ if token.is_ident_where(|id| id.is_yul_keyword()) => Some(Self::YulKeyword),
+            _ if token.is_ident_where(|id| id.is_yul_builtin()) => Some(Self::YulBuiltin),
             _ => None,
         }
     }
@@ -601,6 +596,8 @@ impl TokenDescription {
         match self {
             Self::Keyword => "keyword",
             Self::ReservedKeyword => "reserved keyword",
+            Self::YulKeyword => "Yul keyword",
+            Self::YulBuiltin => "Yul builtin function keyword",
         }
     }
 }

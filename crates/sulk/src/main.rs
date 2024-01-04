@@ -25,7 +25,8 @@ fn main() -> ExitCode {
         let mut parser = Parser::new(&sess, tokens);
         let file = parser.parse_file().map_err(|e| e.emit())?;
         sess.dcx.has_errors()?;
-        eprintln!("file: {file:#?}");
+        let _ = file;
+        // eprintln!("file: {file:#?}");
 
         Ok(())
     })

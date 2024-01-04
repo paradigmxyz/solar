@@ -556,24 +556,30 @@ impl Ident {
         self.name.is_weak_keyword()
     }
 
-    /// Returns `true` if the identifier is a keyword only in a Yul context.
+    /// Returns `true` if the identifier is a keyword in a Yul context.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
         self.name.is_yul_keyword()
     }
 
+    /// Returns `true` if the identifier is a Yul builtin function keyword.
+    #[inline]
+    pub fn is_yul_builtin(self) -> bool {
+        self.name.is_yul_builtin()
+    }
+
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
     /// for possible future use.
     #[inline]
-    pub fn is_reserved(self, in_yul: bool) -> bool {
-        self.name.is_reserved(in_yul)
+    pub fn is_reserved(self, yul: bool) -> bool {
+        self.name.is_reserved(yul)
     }
 
     /// Returns `true` if the identifier is not a reserved keyword.
     /// See [`is_reserved`](Self::is_reserved).
     #[inline]
-    pub fn is_non_reserved(self, in_yul: bool) -> bool {
-        self.name.is_non_reserved(in_yul)
+    pub fn is_non_reserved(self, yul: bool) -> bool {
+        self.name.is_non_reserved(yul)
     }
 
     /// Returns `true` if the identifier is an elementary type name.
@@ -656,34 +662,50 @@ impl Symbol {
         self >= kw::Leave && self <= kw::Builtin
     }
 
-    /// Returns `true` if the symbol is a keyword only in a Yul context.
+    /// Returns `true` if the symbol is a keyword in a Yul context. Excludes builtin functions.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
-        self >= kw::Leave && self <= kw::Xor
+        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
+        matches!(
+            self,
+            kw::Function
+                | kw::Let
+                | kw::If
+                | kw::Switch
+                | kw::Case
+                | kw::Default
+                | kw::For
+                | kw::Break
+                | kw::Continue
+                | kw::Leave
+                | kw::True
+                | kw::False
+        )
     }
 
-    /// Returns `true` if the symbol is a Yul builtin keyword.
+    /// Returns `true` if the symbol is a Yul builtin function keyword.
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            || self == kw::Address
-            || self == kw::Byte
-            || self == kw::Return
-            || self == kw::Revert
+            | matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
     /// possible future use.
     #[inline]
-    pub fn is_reserved(self, in_yul: bool) -> bool {
-        self.is_used_keyword() || self.is_unused_keyword() || (in_yul && self.is_yul_keyword())
+    pub fn is_reserved(self, yul: bool) -> bool {
+        if yul {
+            self.is_yul_keyword() | self.is_yul_builtin()
+        } else {
+            self.is_used_keyword() | self.is_unused_keyword()
+        }
     }
 
     /// Returns `true` if the symbol is not a reserved keyword.
     /// See [`is_reserved`](Self::is_reserved).
     #[inline]
-    pub fn is_non_reserved(self, in_yul: bool) -> bool {
-        !self.is_reserved(in_yul)
+    pub fn is_non_reserved(self, yul: bool) -> bool {
+        !self.is_reserved(yul)
     }
 
     /// Returns `true` if the symbol is an elementary type name.
@@ -697,7 +719,7 @@ impl Symbol {
     /// Returns `true` if the symbol is `true` or `false`.
     #[inline]
     pub fn is_bool_lit(self) -> bool {
-        self == kw::True || self == kw::False
+        self == kw::False || self == kw::True
     }
 
     /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.
