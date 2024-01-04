@@ -850,22 +850,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn expected_token_to_string_many() {
-        use ExpectedToken::*;
-        use TokenKind as TK;
-
-        let tests: &[(&[ExpectedToken], &str)] = &[
+    fn test_or_list() {
+        let tests: &[(&[&str], &str)] = &[
             (&[], ""),
-            (&[Token(TK::Eof)], "`<eof>`"),
-            (&[VersionNumber, Ident], "a decimal integer literal or an identifier"),
-            (&[Path, StrLit, Token(TK::AndAnd)], "a path, a string literal, or `&&`"),
-            (
-                &[Token(TK::AndAnd), Token(TK::OrOr), Token(TK::AndAnd), Token(TK::OrOr)],
-                "`&&`, `||`, `&&`, or `||`",
-            ),
+            (&["`<eof>`"], "`<eof>`"),
+            (&["integer", "identifier"], "integer or identifier"),
+            (&["path", "string literal", "`&&`"], "path, string literal, or `&&`"),
+            (&["`&&`", "`||`", "`&&`", "`||`"], "`&&`, `||`, `&&`, or `||`"),
         ];
         for &(tokens, expected) in tests {
-            assert_eq!(ExpectedToken::to_string_many(tokens), expected, "{tokens:?}");
+            assert_eq!(or_list(tokens), expected, "{tokens:?}");
         }
     }
 }
