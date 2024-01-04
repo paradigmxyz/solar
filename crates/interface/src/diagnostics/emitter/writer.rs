@@ -294,10 +294,11 @@ fn file_to_slice(
 ) -> OwnedSlice {
     let first_line = lines.first().map(|l| l.line_index).unwrap_or(1);
     let last_line = lines.last().map(|l| l.line_index).unwrap_or(1);
+    debug_assert!(last_line >= first_line);
     let first_line_idx = file.lines().get(first_line - 1).map(|l| l.0).unwrap_or(0);
     let mut slice = OwnedSlice {
         origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
-        source: file.get_lines(first_line - 1, last_line - 1).unwrap_or_default().into_owned(),
+        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into_owned(),
         line_start: first_line,
         fold: true,
         annotations: Vec::new(),

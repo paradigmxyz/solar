@@ -1,5 +1,5 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
-use std::{borrow::Cow, fmt, path::PathBuf};
+use std::{borrow::Cow, fmt, ops::RangeInclusive, path::PathBuf};
 use sulk_data_structures::sync::Lrc;
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
@@ -361,19 +361,27 @@ impl SourceFile {
             }
         }
 
-        let begin = self.lines().get(line_number)?.to_usize();
-        self.src.as_ref().map(|src| Cow::from(get_until_newline(src, begin)))
+        let src = self.src.as_deref()?;
+        let start = self.lines().get(line_number)?.to_usize();
+        Some(Cow::from(get_until_newline(src, start)))
     }
 
-    pub fn get_lines(&self, start: usize, end: usize) -> Option<Cow<'_, str>> {
-        let (start, end) = match start.cmp(&end) {
-            std::cmp::Ordering::Less => (start, end),
-            std::cmp::Ordering::Equal => return self.get_line(start),
-            std::cmp::Ordering::Greater => (end, start),
-        };
-        let start = self.lines().get(start)?.to_usize();
-        let end = self.lines().get(end)?.to_usize();
-        self.src.as_ref().map(|src| Cow::from(&src[start..end]))
+    /// Gets a slice of the source text between two lines, including the
+    /// terminator of the second line (if any).
+    pub fn get_lines(&self, range: RangeInclusive<usize>) -> Option<Cow<'_, str>> {
+        fn get_until_newline(src: &str, start: usize, end: usize) -> &str {
+            match src[end..].find('\n') {
+                Some(e) => &src[start..end + e],
+                None => &src[start..],
+            }
+        }
+
+        let src = self.src.as_deref()?;
+        let (start, end) = range.into_inner();
+        let lines = self.lines();
+        let start = lines.get(start)?.to_usize();
+        let end = lines.get(end)?.to_usize();
+        Some(Cow::from(get_until_newline(src, start, end)))
     }
 }
 
