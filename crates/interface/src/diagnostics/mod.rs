@@ -109,7 +109,7 @@ impl DiagnosticId {
         assert!(bytes.len() == 4, "error codes must be exactly 4 digits long");
 
         let mut bytes = bytes;
-        while let &[byte, ref rest @ ..] = bytes {
+        while let [byte, rest @ ..] = bytes {
             assert!(byte.is_ascii_digit(), "error codes must be decimal");
             bytes = rest;
         }
