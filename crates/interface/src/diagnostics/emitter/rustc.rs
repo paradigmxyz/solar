@@ -43,8 +43,8 @@ pub(crate) struct AnnotationColumn {
 }
 
 impl AnnotationColumn {
-    pub(crate) fn from_loc(loc: &Loc) -> AnnotationColumn {
-        AnnotationColumn { display: loc.col_display, file: loc.col.0 }
+    pub(crate) fn from_loc(loc: &Loc) -> Self {
+        Self { display: loc.col_display, file: loc.col.0 }
     }
 }
 
@@ -66,7 +66,7 @@ impl MultilineAnnotation {
     }
 
     /// Compare two `MultilineAnnotation`s considering only the `Span` they cover.
-    pub(crate) fn same_span(&self, other: &MultilineAnnotation) -> bool {
+    pub(crate) fn same_span(&self, other: &Self) -> bool {
         self.line_start == other.line_start
             && self.line_end == other.line_end
             && self.start_col == other.start_col
@@ -180,7 +180,7 @@ impl FileWithAnnotatedLines {
     pub(crate) fn collect_annotations(
         sm: &SourceMap,
         msp: &MultiSpan,
-    ) -> Vec<FileWithAnnotatedLines> {
+    ) -> Vec<Self> {
         fn add_annotation_to_file(
             file_vec: &mut Vec<FileWithAnnotatedLines>,
             file: Lrc<SourceFile>,

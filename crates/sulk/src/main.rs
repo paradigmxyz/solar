@@ -1,3 +1,5 @@
+//! The main entry point for the Sulk compiler.
+
 use std::{path::Path, process::ExitCode};
 use sulk_interface::SourceMap;
 use sulk_parse::{Lexer, ParseSess, Parser};
