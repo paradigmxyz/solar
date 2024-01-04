@@ -136,36 +136,6 @@ macro_rules! error_code {
     }};
 }
 
-/// Whether messages should use color output.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ColorConfig {
-    /// Force color output.
-    Always,
-    /// Force disable color output.
-    Never,
-    /// Intelligently guess whether to use color output.
-    Auto,
-}
-
-impl ColorConfig {
-    /// Returns the color choice.
-    pub fn to_color_choice(self) -> anstream::ColorChoice {
-        use std::io::{self, IsTerminal};
-        match self {
-            Self::Always => {
-                if io::stderr().is_terminal() {
-                    anstream::ColorChoice::Always
-                } else {
-                    anstream::ColorChoice::AlwaysAnsi
-                }
-            }
-            Self::Never => anstream::ColorChoice::Never,
-            Self::Auto if io::stderr().is_terminal() => anstream::ColorChoice::Auto,
-            Self::Auto => anstream::ColorChoice::Never,
-        }
-    }
-}
-
 /// Diagnostic level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Level {

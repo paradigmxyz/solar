@@ -1,8 +1,9 @@
 use super::{
-    emitter::EmitterWriter, ColorConfig, Diagnostic, DiagnosticBuilder, DiagnosticMessage,
-    DynEmitter, EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
+    emitter::EmitterWriter, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
+    EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
 use crate::SourceMap;
+use anstream::ColorChoice;
 use sulk_data_structures::{
     map::FxHashSet,
     sync::{Lock, Lrc},
@@ -58,7 +59,7 @@ impl DiagCtxt {
 
     /// Creates a new `DiagCtxt` with a TTY emitter.
     pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
-        Self::new(Box::new(EmitterWriter::stderr(ColorConfig::Auto).source_map(source_map)))
+        Self::new(Box::new(EmitterWriter::stderr(ColorChoice::Auto).source_map(source_map)))
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.
@@ -88,6 +89,22 @@ impl DiagCtxt {
         diagnostic: &mut Diagnostic,
     ) -> Option<ErrorGuaranteed> {
         self.inner.lock().emit_diagnostic_without_consuming(diagnostic)
+    }
+
+    /// Returns the number of errors that have been emitted, including duplicates.
+    #[inline]
+    pub fn err_count(&self) -> usize {
+        self.inner.lock().err_count
+    }
+
+    /// Returns `true` if any errors have been emitted.
+    pub fn has_errors(&self) -> Result<(), ErrorGuaranteed> {
+        if self.inner.lock().has_errors() {
+            #[allow(deprecated)]
+            Err(ErrorGuaranteed::new_unchecked())
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -200,5 +217,9 @@ impl DiagCtxtInner {
 
     fn bump_warn_count(&mut self) {
         self.warn_count += 1;
+    }
+
+    fn has_errors(&self) -> bool {
+        self.err_count > 0
     }
 }

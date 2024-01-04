@@ -1,0 +1,20 @@
+[package]
+name = "sulk"
+description = "Solidity compiler"
+homepage = "https://github.com/danipopes/sulk/"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sulk-interface.workspace = true
+sulk-parse.workspace = true

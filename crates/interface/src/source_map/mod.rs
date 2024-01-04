@@ -188,7 +188,7 @@ impl SourceMap {
     /// unmodified.
     pub fn new_source_file(&self, filename: FileName, src: String) -> Lrc<SourceFile> {
         self.try_new_source_file(filename, src).unwrap_or_else(|OffsetOverflowError| {
-            eprintln!("fatal error: rustc does not support files larger than 4GB");
+            eprintln!("fatal error: files larger than 4GiB are not supported");
             crate::FatalError.raise()
         })
     }
@@ -216,6 +216,10 @@ impl SourceMap {
                 self.register_source_file(stable_id, source_file)
             }
         }
+    }
+
+    pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
+        filename.display(self.filename_display_for_diagnostics)
     }
 
     /// Returns `true` if the given span is multi-line.

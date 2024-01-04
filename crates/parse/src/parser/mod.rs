@@ -39,7 +39,7 @@ pub struct Parser<'a> {
     in_contract: bool,
 
     /// The token stream.
-    stream: std::vec::IntoIter<Token>,
+    tokens: std::vec::IntoIter<Token>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -127,7 +127,7 @@ impl SeqSep {
 
 impl<'a> Parser<'a> {
     /// Creates a new parser.
-    pub fn new(sess: &'a ParseSess, stream: Vec<Token>) -> Self {
+    pub fn new(sess: &'a ParseSess, tokens: Vec<Token>) -> Self {
         let mut parser = Self {
             sess,
             token: Token::DUMMY,
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
             last_unexpected_token_span: None,
             in_yul: false,
             in_contract: false,
-            stream: stream.into_iter(),
+            tokens: tokens.into_iter(),
         };
         parser.bump();
         parser
@@ -635,7 +635,7 @@ impl<'a> Parser<'a> {
 
     /// Advance the parser by one token.
     pub fn bump(&mut self) {
-        let next = self.stream.next().unwrap_or(Token::EOF);
+        let next = self.tokens.next().unwrap_or(Token::EOF);
         // TODO
         // if next.span.is_dummy() {
         //     // Tweak the location for better diagnostics, but keep syntactic context intact.
@@ -662,7 +662,7 @@ impl<'a> Parser<'a> {
     /// [`Eof`](Token::EOF) will be returned if the look-ahead is any distance past the end of the
     /// tokens.
     pub fn look_ahead(&self, dist: usize) -> &Token {
-        self.stream.as_slice().get(dist).unwrap_or(&Token::EOF)
+        self.tokens.as_slice().get(dist).unwrap_or(&Token::EOF)
     }
 
     /// Calls `f` with the token `dist` tokens ahead of the current one.

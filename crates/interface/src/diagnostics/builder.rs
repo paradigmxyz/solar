@@ -76,7 +76,6 @@ impl EmissionGuarantee for FatalError {
 /// **Note:** Incorrect usage of this type results in a panic when dropped.
 /// This is to ensure that all errors are either emitted or cancelled.
 #[must_use = "diagnostics must be emitted or cancelled"]
-#[derive(Clone)]
 pub struct DiagnosticBuilder<'a, G: EmissionGuarantee> {
     dcx: &'a DiagCtxt,
 
@@ -89,13 +88,20 @@ pub struct DiagnosticBuilder<'a, G: EmissionGuarantee> {
     _marker: PhantomData<G>,
 }
 
+impl<G: EmissionGuarantee> Clone for DiagnosticBuilder<'_, G> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self { dcx: self.dcx, diagnostic: self.diagnostic.clone(), _marker: PhantomData }
+    }
+}
+
 impl<G: EmissionGuarantee> fmt::Debug for DiagnosticBuilder<'_, G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.diagnostic.fmt(f)
     }
 }
 
-impl<'a, G: EmissionGuarantee> Deref for DiagnosticBuilder<'a, G> {
+impl<G: EmissionGuarantee> Deref for DiagnosticBuilder<'_, G> {
     type Target = Diagnostic;
 
     #[inline]
@@ -104,14 +110,14 @@ impl<'a, G: EmissionGuarantee> Deref for DiagnosticBuilder<'a, G> {
     }
 }
 
-impl<'a, G: EmissionGuarantee> DerefMut for DiagnosticBuilder<'a, G> {
+impl<G: EmissionGuarantee> DerefMut for DiagnosticBuilder<'_, G> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.diagnostic
     }
 }
 
-impl<'a, G: EmissionGuarantee> Drop for DiagnosticBuilder<'a, G> {
+impl<G: EmissionGuarantee> Drop for DiagnosticBuilder<'_, G> {
     #[track_caller]
     fn drop(&mut self) {
         if std::thread::panicking() {

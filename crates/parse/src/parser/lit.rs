@@ -336,10 +336,7 @@ mod tests {
     use crate::Lexer;
     use alloy_primitives::address;
     use num_rational::BigRational;
-    use sulk_interface::{
-        diagnostics::{DiagCtxt, LocalEmitter},
-        BytePos,
-    };
+    use sulk_interface::diagnostics::{DiagCtxt, LocalEmitter};
 
     // String literal parsing is tested in ../lexer/mod.rs.
 
@@ -348,7 +345,7 @@ mod tests {
     fn lex_literal(src: &str) -> Symbol {
         let emitter = LocalEmitter::new();
         let dcx = DiagCtxt::new(Box::new(emitter.clone()));
-        let tokens = Lexer::new(&dcx, src, BytePos(0), None).into_tokens();
+        let tokens = Lexer::new(&dcx, src).into_tokens();
         drop(dcx);
         assert_eq!(tokens.len(), 1, "{tokens:?}");
         assert_eq!(emitter.into_diagnostics(), []);

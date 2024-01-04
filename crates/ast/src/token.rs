@@ -570,7 +570,7 @@ impl Token {
 
 /// A description of a token.
 ///
-/// Precedes the token string in error messages like `keyword 'for'` in `expected identifier, got
+/// Precedes the token string in error messages like `keyword 'for'` in `expected identifier, found
 /// keyword 'for'`. See [`full_description`](Token::full_description).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenDescription {

@@ -3,6 +3,8 @@ use crate::SourceMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use sulk_data_structures::sync::Lrc;
 
+mod rustc;
+
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "json")]

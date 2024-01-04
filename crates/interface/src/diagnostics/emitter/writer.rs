@@ -1,9 +1,10 @@
-use super::{io_panic, Diagnostic};
+use super::{io_panic, rustc::FileWithAnnotatedLines, Diagnostic, Emitter};
 use crate::{
-    diagnostics::{ColorConfig, Level, Style},
+    diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
+    source_map::SourceFile,
     SourceMap,
 };
-use annotate_snippets::{Annotation, AnnotationType, Renderer, Snippet};
+use annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
 use anstream::{AutoStream, ColorChoice};
 use std::io::{self, Write};
 use sulk_data_structures::sync::Lrc;
@@ -31,7 +32,7 @@ pub struct EmitterWriter {
     renderer: &'static Renderer,
 }
 
-impl crate::diagnostics::Emitter for EmitterWriter {
+impl Emitter for EmitterWriter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}", this.renderer.render(snippet))?;
@@ -54,9 +55,12 @@ impl crate::diagnostics::Emitter for EmitterWriter {
 
 impl EmitterWriter {
     /// Creates a new `EmitterWriter` that writes to given writer.
-    pub fn new(writer: Box<dyn Write>, color: ColorConfig) -> Self {
-        let writer = AutoStream::new(writer, color.to_color_choice());
-        Self { writer, source_map: None, renderer: &DEFAULT_RENDERER }
+    pub fn new(writer: Box<dyn Write>, color: ColorChoice) -> Self {
+        Self {
+            writer: AutoStream::new(writer, color),
+            source_map: None,
+            renderer: &DEFAULT_RENDERER,
+        }
     }
 
     /// Creates a new `EmitterWriter` that writes to stderr, for use in tests.
@@ -80,13 +84,18 @@ impl EmitterWriter {
             }
         }
 
-        let color = if ui { ColorConfig::Never } else { ColorConfig::Always };
+        let color = if ui { ColorChoice::Never } else { ColorChoice::Always };
         Self::new(Box::new(TestWriter(io::stderr())), color).anonymized_line_numbers(ui)
     }
 
     /// Creates a new `EmitterWriter` that writes to stderr.
-    pub fn stderr(color_choice: ColorConfig) -> Self {
-        Self::new(Box::new(io::stderr()), color_choice)
+    pub fn stderr(mut color_choice: ColorChoice) -> Self {
+        let stderr = io::stderr();
+        // Call `AutoStream::choice` on `io::Stderr` rather than later on `Box<dyn Write>`.
+        if color_choice == ColorChoice::Auto {
+            color_choice = AutoStream::choice(&stderr);
+        }
+        Self::new(Box::new(stderr), color_choice)
     }
 
     /// Sets the source map.
@@ -126,41 +135,171 @@ impl EmitterWriter {
             = ...
         */
 
+        let title = OwnedAnnotation::from_diagnostic(diagnostic);
+
+        let owned_slices = self
+            .source_map
+            .as_deref()
+            .map(|sm| OwnedSlice::collect(sm, &diagnostic.span, diagnostic.level))
+            .unwrap_or_default();
+
         // Dummy subdiagnostics go in the footer.
-        // We have to allocate here for the labels.
-        let (dummy_subs, subs) = diagnostic
+        let dummy_subs: Vec<_> = diagnostic
             .children
             .iter()
-            .map(|sub| (sub.label(), sub))
-            .partition::<Vec<_>, _>(|(_, s)| s.span.is_dummy());
+            .filter(|sub| sub.span.is_dummy())
+            .map(OwnedAnnotation::from_subdiagnostic)
+            .collect();
 
-        // TODO: `FileWithAnnotatedLines::collect_annotations` and then make `Slice`s.
-        // https://github.com/rust-lang/rust/blob/824667f75357bb394c55ef3b0e2095af62e68a19/compiler/rustc_errors/src/annotate_snippet_emitter_writer.rs#L138
-
-        // TODO: Add `:{line}:{col}` to `origin`, since it doesn't look like `annotate-snippets`
-        // does it.
-
-        let _ = subs;
-
-        let label = diagnostic.label();
         let snippet = Snippet {
-            title: Some(Annotation {
-                label: Some(&label),
-                id: diagnostic.code.as_ref().map(|s| s.id),
-                annotation_type: to_annotation_type(diagnostic.level),
-            }),
-            slices: vec![],
-            footer: dummy_subs
-                .iter()
-                .map(|(label, sub)| Annotation {
-                    label: Some(label),
-                    id: None,
-                    annotation_type: to_annotation_type(sub.level),
-                })
-                .collect(),
+            title: Some(title.as_ref()),
+            slices: owned_slices.iter().map(OwnedSlice::as_ref).collect(),
+            footer: dummy_subs.iter().map(OwnedAnnotation::as_ref).collect(),
         };
         f(self, snippet)
     }
+}
+
+struct OwnedAnnotation {
+    id: Option<String>,
+    label: Option<String>,
+    annotation_type: AnnotationType,
+}
+
+impl OwnedAnnotation {
+    fn from_diagnostic(diag: &Diagnostic) -> Self {
+        Self {
+            id: diag.code.as_ref().map(|s| s.id.to_string()),
+            label: Some(diag.label().into_owned()),
+            annotation_type: to_annotation_type(diag.level),
+        }
+    }
+
+    fn from_subdiagnostic(sub: &SubDiagnostic) -> Self {
+        Self {
+            id: None,
+            label: Some(sub.label().into_owned()),
+            annotation_type: to_annotation_type(sub.level),
+        }
+    }
+
+    fn as_ref(&self) -> Annotation<'_> {
+        Annotation {
+            id: self.id.as_deref(),
+            label: self.label.as_deref(),
+            annotation_type: self.annotation_type,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct OwnedSourceAnnotation {
+    range: (usize, usize),
+    label: String,
+    annotation_type: AnnotationType,
+}
+
+impl OwnedSourceAnnotation {
+    fn as_ref(&self) -> SourceAnnotation<'_> {
+        SourceAnnotation {
+            range: self.range,
+            label: &self.label,
+            annotation_type: self.annotation_type,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct OwnedSlice {
+    origin: Option<String>,
+    source: String,
+    line_start: usize,
+    fold: bool,
+    annotations: Vec<OwnedSourceAnnotation>,
+}
+
+impl OwnedSlice {
+    fn collect(sm: &SourceMap, msp: &MultiSpan, level: Level) -> Vec<Self> {
+        let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
+        if let Some(primary_span) = msp.primary_span() {
+            if !primary_span.is_dummy() {
+                let primary_lo = sm.lookup_char_pos(primary_span.lo());
+                if let Ok(pos) =
+                    annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
+                {
+                    annotated_files.swap(0, pos);
+                }
+            }
+        }
+        annotated_files
+            .iter()
+            .map(|file| file_to_slice(sm, &file.file, &file.lines, level))
+            .collect()
+    }
+
+    fn as_ref(&self) -> Slice<'_> {
+        Slice {
+            source: &self.source,
+            line_start: self.line_start,
+            origin: self.origin.as_deref(),
+            fold: self.fold,
+            annotations: self.annotations.iter().map(OwnedSourceAnnotation::as_ref).collect(),
+        }
+    }
+}
+
+/// Merges back multi-line annotations that were split across multiple lines into a single
+/// annotation that's suitable for `annotate-snippets`.
+///
+/// Assumes that lines are sorted.
+fn file_to_slice(
+    sm: &SourceMap,
+    file: &SourceFile,
+    lines: &[super::rustc::Line],
+    level: Level,
+) -> OwnedSlice {
+    let first_line = lines.first().map(|l| l.line_index).unwrap_or(1);
+    let last_line = lines.last().map(|l| l.line_index).unwrap_or(1);
+    let first_line_idx = file.lines().get(first_line - 1).map(|l| l.0).unwrap_or(0);
+    let mut slice = OwnedSlice {
+        origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
+        source: file.get_lines(first_line - 1, last_line - 1).unwrap_or_default().into_owned(),
+        line_start: first_line,
+        fold: true,
+        annotations: Vec::new(),
+    };
+    let mut multiline_start = None;
+    for line in lines {
+        // Relative to the first line.
+        let absolute_idx = file.lines().get(line.line_index - 1).map(|l| l.0).unwrap_or(0);
+        let relative_idx = (absolute_idx - first_line_idx) as usize;
+
+        for ann in &line.annotations {
+            match ann.annotation_type {
+                super::rustc::AnnotationType::Singleline => {
+                    slice.annotations.push(OwnedSourceAnnotation {
+                        range: (relative_idx + ann.start_col.file, relative_idx + ann.end_col.file),
+                        label: ann.label.clone().unwrap_or_default(),
+                        annotation_type: to_annotation_type(level),
+                    })
+                }
+                super::rustc::AnnotationType::MultilineStart(_) => {
+                    debug_assert!(multiline_start.is_none());
+                    multiline_start = Some((ann.label.as_ref(), relative_idx + ann.start_col.file));
+                }
+                super::rustc::AnnotationType::MultilineLine(_) => {}
+                super::rustc::AnnotationType::MultilineEnd(_) => {
+                    let (label, multiline_start_idx) = multiline_start.take().unwrap();
+                    slice.annotations.push(OwnedSourceAnnotation {
+                        range: (multiline_start_idx, relative_idx + ann.end_col.file),
+                        label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
+                        annotation_type: to_annotation_type(level),
+                    });
+                }
+            }
+        }
+    }
+    slice
 }
 
 fn to_annotation_type(level: Level) -> AnnotationType {

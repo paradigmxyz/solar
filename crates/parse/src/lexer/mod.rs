@@ -36,8 +36,6 @@ pub struct Lexer<'a> {
     /// The current token which has not been processed by `next_token` yet.
     token: Token,
 
-    override_span: Option<Span>,
-
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
     /// space character as whitespace.
@@ -46,12 +44,12 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Creates a new `Lexer` for the given source string.
-    pub fn new(
-        dcx: &'a DiagCtxt,
-        src: &'a str,
-        start_pos: BytePos,
-        override_span: Option<Span>,
-    ) -> Self {
+    pub fn new(dcx: &'a DiagCtxt, src: &'a str) -> Self {
+        Self::with_start_pos(dcx, src, BytePos(0))
+    }
+
+    /// Creates a new `Lexer` for the given source string and starting position.
+    pub fn with_start_pos(dcx: &'a DiagCtxt, src: &'a str, start_pos: BytePos) -> Self {
         let mut lexer = Self {
             dcx,
             start_pos,
@@ -59,7 +57,6 @@ impl<'a> Lexer<'a> {
             src,
             cursor: Cursor::new(src),
             token: Token::DUMMY,
-            override_span,
             nbsp_is_whitespace: false,
         };
         (lexer.token, _) = lexer.bump();
@@ -397,8 +394,9 @@ impl<'a> Lexer<'a> {
         }
     }
 
+    #[inline]
     fn new_span(&self, lo: BytePos, hi: BytePos) -> Span {
-        self.override_span.unwrap_or_else(|| Span::new(lo, hi))
+        Span::new(lo, hi)
     }
 
     #[inline]
@@ -485,7 +483,7 @@ mod tests {
 
     fn check(src: &str, expected: Expected<'_>) {
         let dcx = DiagCtxt::with_test_emitter(false);
-        let tokens: Vec<_> = Lexer::new(&dcx, src, BytePos(0), None)
+        let tokens: Vec<_> = Lexer::new(&dcx, src)
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
         assert_eq!(tokens, expected, "{src:?}");

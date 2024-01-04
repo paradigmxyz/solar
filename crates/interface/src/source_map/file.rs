@@ -88,7 +88,7 @@ pub enum FileNameDisplayPreference {
     Short,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     Real(PathBuf),
     Anon(u64),
@@ -174,7 +174,7 @@ pub struct OffsetOverflowError;
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
-    /// (e.g., `<stdin>`).
+    /// (e.g., `<anon>`).
     pub name: FileName,
     /// The complete source code.
     pub src: Option<Lrc<String>>,
@@ -361,12 +361,19 @@ impl SourceFile {
             }
         }
 
-        let begin = {
-            let line = self.lines().get(line_number).copied()?;
-            line.to_usize()
-        };
-
+        let begin = self.lines().get(line_number)?.to_usize();
         self.src.as_ref().map(|src| Cow::from(get_until_newline(src, begin)))
+    }
+
+    pub fn get_lines(&self, start: usize, end: usize) -> Option<Cow<'_, str>> {
+        let (start, end) = match start.cmp(&end) {
+            std::cmp::Ordering::Less => (start, end),
+            std::cmp::Ordering::Equal => return self.get_line(start),
+            std::cmp::Ordering::Greater => (end, start),
+        };
+        let start = self.lines().get(start)?.to_usize();
+        let end = self.lines().get(end)?.to_usize();
+        self.src.as_ref().map(|src| Cow::from(&src[start..end]))
     }
 }
 

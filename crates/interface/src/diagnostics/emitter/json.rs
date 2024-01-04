@@ -1,8 +1,9 @@
 use super::{io_panic, Emitter, EmitterWriter};
 use crate::{
-    diagnostics::{ColorConfig, MultiSpan, SpanLabel},
+    diagnostics::{MultiSpan, SpanLabel},
     SourceMap, Span,
 };
+use anstream::ColorChoice;
 use serde::Serialize;
 use std::{cell::RefCell, io, rc::Rc};
 use sulk_data_structures::sync::Lrc;
@@ -138,7 +139,7 @@ impl JsonEmitter {
         }
 
         let buffer = LocalBuffer::new();
-        EmitterWriter::new(Box::new(buffer.clone()), ColorConfig::Never)
+        EmitterWriter::new(Box::new(buffer.clone()), ColorChoice::Never)
             .source_map(Some(self.source_map.clone()))
             .emit_diagnostic(diagnostic);
         let buffer = buffer.unwrap();
