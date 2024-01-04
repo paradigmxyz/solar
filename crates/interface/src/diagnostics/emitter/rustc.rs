@@ -177,10 +177,7 @@ pub(crate) struct FileWithAnnotatedLines {
 impl FileWithAnnotatedLines {
     /// Preprocess all the annotations so that they are grouped by file and by line number
     /// This helps us quickly iterate over the whole message (including secondary file spans)
-    pub(crate) fn collect_annotations(
-        sm: &SourceMap,
-        msp: &MultiSpan,
-    ) -> Vec<Self> {
+    pub(crate) fn collect_annotations(sm: &SourceMap, msp: &MultiSpan) -> Vec<Self> {
         fn add_annotation_to_file(
             file_vec: &mut Vec<FileWithAnnotatedLines>,
             file: Lrc<SourceFile>,
