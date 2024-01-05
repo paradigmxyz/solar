@@ -2,6 +2,10 @@ use crate::{BytePos, SessionGlobals};
 use std::{cmp, fmt};
 
 /// A source code location.
+///
+/// Essentially a `lo..hi` range into a `SourceMap` file's source code.
+///
+/// Both `lo` and `hi` are offset by the file's starting position.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
     lo: BytePos,
@@ -139,14 +143,7 @@ impl Span {
     ///     ^^^^^^^^^^^^^^^^^^^^
     /// ```
     pub fn to(self, end: Self) -> Self {
-        Self::new(
-            cmp::min(self.lo(), end.lo()),
-            cmp::max(self.hi(), end.hi()),
-            /*
-            if span_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt },
-            if span_data.parent == end_data.parent { span_data.parent } else { None },
-            */
-        )
+        Self::new(cmp::min(self.lo(), end.lo()), cmp::max(self.hi(), end.hi()))
     }
 
     /// Returns a `Span` between the end of `self` to the beginning of `end`.
@@ -157,12 +154,7 @@ impl Span {
     ///         ^^^^^^^^^^^^^
     /// ```
     pub fn between(self, end: Self) -> Self {
-        Self::new(
-            self.hi(),
-            end.lo(),
-            // if end.ctxt == SyntaxContext::root() { end.ctxt } else { span.ctxt },
-            // if span.parent == end.parent { span.parent } else { None },
-        )
+        Self::new(self.hi(), end.lo())
     }
 
     /// Returns a `Span` from the beginning of `self` until the beginning of `end`.
@@ -173,11 +165,6 @@ impl Span {
     ///     ^^^^^^^^^^^^^^^^^
     /// ```
     pub fn until(self, end: Self) -> Self {
-        Self::new(
-            self.lo(),
-            end.lo(),
-            // if end_data.ctxt == SyntaxContext::root() { end_data.ctxt } else { span_data.ctxt },
-            // if span_data.parent == end_data.parent { span_data.parent } else { None },
-        )
+        Self::new(self.lo(), end.lo())
     }
 }

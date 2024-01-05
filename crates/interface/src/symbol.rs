@@ -318,6 +318,8 @@ impl ToString for Symbol {
 }
 
 /// Symbol interner.
+///
+/// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
 pub(crate) struct Interner(Lock<InternerInner>);
 
 // The `&'static str`s in this type actually point into the arena.
