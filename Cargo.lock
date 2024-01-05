@@ -1174,6 +1174,7 @@ name = "sulk"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "sulk-data-structures",
  "sulk-interface",
  "sulk-parse",
 ]

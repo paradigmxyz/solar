@@ -232,10 +232,10 @@ pub enum TokenKind {
     /// Identifier token.
     Ident(Symbol),
 
-    /// A doc comment token.
-    /// `Symbol` is the doc comment's data excluding its "quotes" (`///`, `/**`)
+    /// A comment or doc-comment token.
+    /// `Symbol` is the comment's data excluding its "quotes" (`//`, `/**`)
     /// similarly to symbols in string literal tokens.
-    DocComment(CommentKind, Symbol),
+    Comment(bool /* is_doc */, CommentKind, Symbol),
 
     /// End of file marker.
     Eof,
@@ -291,8 +291,10 @@ impl TokenKind {
 
             Self::Literal(lit) => return format!("<{}>", lit.description()).into(),
             Self::Ident(symbol) => return symbol.to_string().into(),
-            Self::DocComment(CommentKind::Block, _symbol) => "<block doc-comment>",
-            Self::DocComment(CommentKind::Line, _symbol) => "<line doc-comment>",
+            Self::Comment(false, CommentKind::Block, _symbol) => "<block comment>",
+            Self::Comment(true, CommentKind::Block, _symbol) => "<block doc-comment>",
+            Self::Comment(false, CommentKind::Line, _symbol) => "<line comment>",
+            Self::Comment(true, CommentKind::Line, _symbol) => "<line doc-comment>",
             Self::Eof => "<eof>",
         }
         .into()
@@ -306,10 +308,14 @@ impl TokenKind {
             | PlusPlus | MinusMinus | StarStar | BinOp(_) | BinOpEq(_) | At | Dot | Comma
             | Semi | Colon | Arrow | FatArrow | Question => true,
 
-            OpenDelim(..) | CloseDelim(..) | Literal(..) | DocComment(..) | Ident(..) | Eof => {
-                false
-            }
+            OpenDelim(..) | CloseDelim(..) | Literal(..) | Comment(..) | Ident(..) | Eof => false,
         }
+    }
+
+    /// Returns `true` if the token kind is a normal comment (not a doc-comment).
+    #[inline]
+    pub const fn is_comment(&self) -> bool {
+        matches!(self, Self::Comment(true, ..))
     }
 
     /// Glues two token kinds together.
@@ -359,7 +365,7 @@ impl TokenKind {
 
             Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
             | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
-            | OpenDelim(_) | CloseDelim(_) | Literal(_) | Ident(_) | DocComment(..) | Eof => {
+            | OpenDelim(_) | CloseDelim(_) | Literal(_) | Ident(_) | Comment(..) | Eof => {
                 return None
             }
         })
@@ -519,8 +525,8 @@ impl Token {
 
     /// Returns `true` if the token is an end-of-file marker.
     #[inline]
-    pub fn is_eof(&self) -> bool {
-        self.kind == TokenKind::Eof
+    pub const fn is_eof(&self) -> bool {
+        matches!(self.kind, TokenKind::Eof)
     }
 
     /// Returns `true` if the token is the given open delimiter.
@@ -533,6 +539,12 @@ impl Token {
     #[inline]
     pub fn is_close_delim(&self, d: Delimiter) -> bool {
         self.kind == TokenKind::CloseDelim(d)
+    }
+
+    /// Returns `true` if the token is a normal comment (not a doc-comment).
+    #[inline]
+    pub const fn is_comment(&self) -> bool {
+        self.kind.is_comment()
     }
 
     /// Returns this token's full description: `{self.description()} '{self.kind}'`.

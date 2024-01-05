@@ -141,7 +141,7 @@ pub struct StableSourceFileId(u64);
 
 impl StableSourceFileId {
     pub(super) fn from_filename_in_current_crate(filename: &FileName) -> Self {
-        Self::from_filename_and_stable_crate_id(
+        Self::new(
             filename,
             // None
         )
@@ -151,10 +151,10 @@ impl StableSourceFileId {
     //     filename: &FileName,
     //     local_crate_stable_crate_id: StableCrateId,
     // ) -> Self {
-    //     Self::from_filename_and_stable_crate_id(filename, Some(local_crate_stable_crate_id))
+    //     Self::new(filename, Some(local_crate_stable_crate_id))
     // }
 
-    fn from_filename_and_stable_crate_id(
+    fn new(
         filename: &FileName,
         // stable_crate_id: Option<StableCrateId>,
     ) -> Self {

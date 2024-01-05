@@ -16,6 +16,7 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 sulk-parse.workspace = true
 

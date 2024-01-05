@@ -70,12 +70,17 @@ impl<'a> Lexer<'a> {
     }
 
     /// Consumes the lexer and collects the remaining tokens into a vector.
+    ///
+    /// Note that this skips comments, as [required by the parser](crate::Parser::new).
     pub fn into_tokens(mut self) -> Vec<Token> {
-        let mut tokens = Vec::new();
+        let mut tokens = Vec::with_capacity(16);
         loop {
             let token = self.next_token();
             if token.is_eof() {
                 break;
+            }
+            if token.is_comment() {
+                continue;
             }
             tokens.push(token);
         }
@@ -111,26 +116,18 @@ impl<'a> Lexer<'a> {
             // This turns strings into interned symbols and runs additional validation.
             let kind = match raw_kind {
                 RawTokenKind::LineComment { is_doc } => {
-                    // Skip non-doc comments.
-                    if !is_doc {
-                        preceded_by_whitespace = true;
-                        continue;
-                    }
+                    preceded_by_whitespace = true;
 
                     // Opening delimiter of the length 3 is not included into the symbol.
                     let content_start = start + BytePos(3);
                     let content = self.str_from(content_start);
-                    self.cook_doc_comment(content_start, content, CommentKind::Line)
+                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
+                    preceded_by_whitespace = true;
+
                     if !terminated {
                         self.report_unterminated_block_comment(start, is_doc);
-                    }
-
-                    // Skip non-doc comments.
-                    if !is_doc {
-                        preceded_by_whitespace = true;
-                        continue;
                     }
 
                     // Opening delimiter of the length 3 and closing delimiter of the length 2
@@ -138,7 +135,7 @@ impl<'a> Lexer<'a> {
                     let content_start = start + BytePos(3);
                     let content_end = self.pos - (terminated as u32) * 2;
                     let content = self.str_from_to(content_start, content_end);
-                    self.cook_doc_comment(content_start, content, CommentKind::Block)
+                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
                 }
                 RawTokenKind::Whitespace => {
                     preceded_by_whitespace = true;
@@ -268,6 +265,7 @@ impl<'a> Lexer<'a> {
         &self,
         content_start: BytePos,
         content: &str,
+        is_doc: bool,
         comment_kind: CommentKind,
     ) -> TokenKind {
         if content.contains('\r') {
@@ -282,7 +280,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        TokenKind::DocComment(comment_kind, Symbol::intern(content))
+        TokenKind::Comment(is_doc, comment_kind, Symbol::intern(content))
     }
 
     fn cook_literal(
@@ -491,6 +489,7 @@ mod tests {
     fn check(src: &str, expected: Expected<'_>) {
         let dcx = DiagCtxt::with_test_emitter(false);
         let tokens: Vec<_> = Lexer::new(&dcx, src)
+            .filter(|t| t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
         assert_eq!(tokens, expected, "{src:?}");
@@ -585,13 +584,18 @@ mod tests {
     #[test]
     fn doc_comments() {
         use CommentKind::*;
+
+        fn doc(kind: CommentKind, symbol: &str) -> TokenKind {
+            Comment(true, kind, sym(symbol))
+        }
+
         sulk_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("// line comment", &[]),
                 ("// / line comment", &[]),
                 ("// ! line comment", &[]),
                 ("// /* line comment", &[]), // */ <-- aaron-bond.better-comments doesn't like this
-                ("/// line doc-comment", &[(0..20, DocComment(Line, sym(" line doc-comment")))]),
+                ("/// line doc-comment", &[(0..20, doc(Line, " line doc-comment"))]),
                 ("//// invalid doc-comment", &[]),
                 ("///// invalid doc-comment", &[]),
                 //
@@ -604,18 +608,9 @@ mod tests {
                 ("/* /**/", &[]),
                 ("/* normal block comment */", &[]),
                 ("/* /* normal block comment */", &[]),
-                (
-                    "/** block doc-comment */",
-                    &[(0..24, DocComment(Block, sym(" block doc-comment ")))],
-                ),
-                (
-                    "/** /* block doc-comment */",
-                    &[(0..27, DocComment(Block, sym(" /* block doc-comment ")))],
-                ),
-                (
-                    "/** block doc-comment /*/",
-                    &[(0..25, DocComment(Block, sym(" block doc-comment /")))],
-                ),
+                ("/** block doc-comment */", &[(0..24, doc(Block, " block doc-comment "))]),
+                ("/** /* block doc-comment */", &[(0..27, doc(Block, " /* block doc-comment "))]),
+                ("/** block doc-comment /*/", &[(0..25, doc(Block, " block doc-comment /"))]),
             ]);
         });
     }

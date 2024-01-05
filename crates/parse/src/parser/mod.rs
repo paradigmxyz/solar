@@ -127,7 +127,15 @@ impl SeqSep {
 
 impl<'a> Parser<'a> {
     /// Creates a new parser.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the tokens are comments.
     pub fn new(sess: &'a ParseSess, tokens: Vec<Token>) -> Self {
+        debug_assert!(
+            tokens.iter().all(|t| !t.is_comment()),
+            "comments should be stripped before parsing"
+        );
         let mut parser = Self {
             sess,
             token: Token::DUMMY,
