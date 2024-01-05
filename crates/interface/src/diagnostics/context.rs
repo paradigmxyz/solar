@@ -276,7 +276,7 @@ impl DiagCtxtInner {
         };
 
         match (self.deduplicated_err_count, self.deduplicated_warn_count) {
-            (0, 0) => return,
+            (0, 0) => {}
             (0, w) => self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w))),
             (e, 0) => {
                 let _ = self.emit_diagnostic(Diagnostic::new(Level::Fatal, errors(e)));
