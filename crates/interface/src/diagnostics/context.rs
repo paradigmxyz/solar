@@ -111,7 +111,7 @@ impl DiagCtxt {
 
     /// Emits the given diagnostic with this context.
     #[inline]
-    pub fn emit_diagnostic(&self, mut diagnostic: Diagnostic) -> Option<ErrorGuaranteed> {
+    pub fn emit_diagnostic(&self, mut diagnostic: Diagnostic) -> Result<(), ErrorGuaranteed> {
         self.emit_diagnostic_without_consuming(&mut diagnostic)
     }
 
@@ -122,7 +122,7 @@ impl DiagCtxt {
     pub(super) fn emit_diagnostic_without_consuming(
         &self,
         diagnostic: &mut Diagnostic,
-    ) -> Option<ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         self.inner.lock().emit_diagnostic_without_consuming(diagnostic)
     }
 
@@ -202,20 +202,20 @@ impl DiagCtxt {
 }
 
 impl DiagCtxtInner {
-    fn emit_diagnostic(&mut self, mut diagnostic: Diagnostic) -> Option<ErrorGuaranteed> {
+    fn emit_diagnostic(&mut self, mut diagnostic: Diagnostic) -> Result<(), ErrorGuaranteed> {
         self.emit_diagnostic_without_consuming(&mut diagnostic)
     }
 
     fn emit_diagnostic_without_consuming(
         &mut self,
         diagnostic: &mut Diagnostic,
-    ) -> Option<ErrorGuaranteed> {
+    ) -> Result<(), ErrorGuaranteed> {
         if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
-            return None;
+            return Ok(());
         }
 
         if diagnostic.level == Level::Allow {
-            return None;
+            return Ok(());
         }
 
         if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_err_as_bug() {
@@ -250,10 +250,10 @@ impl DiagCtxtInner {
         if diagnostic.is_error() {
             self.bump_err_count();
             #[allow(deprecated)]
-            Some(ErrorGuaranteed::new_unchecked())
+            Err(ErrorGuaranteed::new_unchecked())
         } else {
             self.bump_warn_count();
-            None
+            Ok(())
         }
     }
 
@@ -279,10 +279,10 @@ impl DiagCtxtInner {
             (0, 0) => return,
             (0, w) => self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w))),
             (e, 0) => {
-                self.emit_diagnostic(Diagnostic::new(Level::Fatal, errors(e)));
+                let _ = self.emit_diagnostic(Diagnostic::new(Level::Fatal, errors(e)));
             }
             (e, w) => {
-                self.emit_diagnostic(Diagnostic::new(
+                let _ = self.emit_diagnostic(Diagnostic::new(
                     Level::Fatal,
                     format!("{}; {}", errors(e), warnings(w)),
                 ));

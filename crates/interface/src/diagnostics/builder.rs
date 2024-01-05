@@ -41,7 +41,7 @@ impl EmissionGuarantee for ErrorGuaranteed {
             db.diagnostic.level,
         );
 
-        guar.unwrap()
+        guar.unwrap_err()
     }
 }
 
@@ -124,11 +124,11 @@ impl<G: EmissionGuarantee> Drop for DiagnosticBuilder<'_, G> {
             return;
         }
 
-        self.dcx.emit_diagnostic(Diagnostic::new(
+        let _ = self.dcx.emit_diagnostic(Diagnostic::new(
             Level::Fatal,
             "the following error was constructed but not emitted",
         ));
-        self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic);
+        let _ = self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic);
         panic!("error was constructed but not emitted");
     }
 }
@@ -159,7 +159,7 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
         let _ = self.emit_producing_error_guaranteed();
     }
 
-    fn emit_producing_error_guaranteed(&mut self) -> Option<ErrorGuaranteed> {
+    fn emit_producing_error_guaranteed(&mut self) -> Result<(), ErrorGuaranteed> {
         self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic)
     }
 

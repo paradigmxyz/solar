@@ -63,7 +63,7 @@ impl Emitter for SilentEmitter {
         if let Some(note) = &self.note {
             diagnostic.note(note.clone());
         }
-        self.fatal_dcx.emit_diagnostic(diagnostic);
+        let _ = self.fatal_dcx.emit_diagnostic(diagnostic);
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {
