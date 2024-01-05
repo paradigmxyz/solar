@@ -167,7 +167,7 @@ impl<'a> Parser<'a> {
         #[cold]
         #[inline(never)]
         fn unexpected_ok(b: bool) -> ! {
-            unreachable!("`unexpected()` return Ok({b})")
+            unreachable!("`unexpected()` returned Ok({b})")
         }
         match self.expect_one_of(&[], &[]) {
             Ok(b) => unexpected_ok(b),
