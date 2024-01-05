@@ -117,7 +117,7 @@ macro_rules! impl_pos {
 }
 
 impl_pos! {
-    /// A byte offset.
+    /// A byte offset relative to the global source map.
     ///
     /// Keep this small (currently 32-bits), as AST contains a lot of them.
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

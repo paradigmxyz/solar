@@ -333,7 +333,7 @@ fn strip_underscores(symbol: Symbol) -> Symbol {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Lexer;
+    use crate::{Lexer, ParseSess};
     use alloy_primitives::address;
     use num_rational::BigRational;
     use sulk_interface::diagnostics::{DiagCtxt, LocalEmitter};
@@ -344,9 +344,9 @@ mod tests {
     #[track_caller]
     fn lex_literal(src: &str) -> Symbol {
         let emitter = LocalEmitter::new();
-        let dcx = DiagCtxt::new(Box::new(emitter.clone()));
-        let tokens = Lexer::new(&dcx, src).into_tokens();
-        drop(dcx);
+        let sess = ParseSess::empty(DiagCtxt::new(Box::new(emitter.clone())));
+        let tokens = Lexer::new(&sess, src).into_tokens();
+        drop(sess);
         assert_eq!(tokens.len(), 1, "{tokens:?}");
         assert_eq!(emitter.into_diagnostics(), []);
         tokens[0].lit().expect("not a literal").symbol

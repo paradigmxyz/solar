@@ -177,7 +177,7 @@ pub struct SourceFile {
     /// (e.g., `<anon>`).
     pub name: FileName,
     /// The complete source code.
-    pub src: Option<Lrc<String>>,
+    pub src: Lrc<String>,
     /// The source code's hash.
     pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
@@ -218,7 +218,7 @@ impl SourceFile {
 
         Ok(Self {
             name,
-            src: Some(Lrc::new(src)),
+            src: Lrc::new(src),
             src_hash,
             // external_src: FreezeLock::frozen(ExternalSource::Unneeded),
             start_pos: BytePos::from_u32(0),
@@ -361,9 +361,8 @@ impl SourceFile {
             }
         }
 
-        let src = self.src.as_deref()?;
         let start = self.lines().get(line_number)?.to_usize();
-        Some(get_until_newline(src, start))
+        Some(get_until_newline(&self.src, start))
     }
 
     /// Gets a slice of the source text between two lines, including the
@@ -376,12 +375,11 @@ impl SourceFile {
             }
         }
 
-        let src = self.src.as_deref()?;
         let (start, end) = range.into_inner();
         let lines = self.lines();
         let start = lines.get(start)?.to_usize();
         let end = lines.get(end)?.to_usize();
-        Some(get_until_newline(src, start, end))
+        Some(get_until_newline(&self.src, start, end))
     }
 
     /// Returns whether or not the file contains the given `SourceMap` byte

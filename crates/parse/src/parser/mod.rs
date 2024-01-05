@@ -1,4 +1,4 @@
-use crate::{PErr, PResult, ParseSess};
+use crate::{Lexer, PErr, PResult, ParseSess};
 use std::fmt::{self, Write};
 use sulk_ast::{
     ast::Path,
@@ -6,7 +6,7 @@ use sulk_ast::{
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
-    source_map::SpanSnippetError,
+    source_map::{SourceFile, SpanSnippetError},
     Ident, Span, Symbol,
 };
 
@@ -148,6 +148,16 @@ impl<'a> Parser<'a> {
         };
         parser.bump();
         parser
+    }
+
+    /// Creates a new parser from a source file.
+    pub fn from_source_file(sess: &'a ParseSess, file: &'a SourceFile) -> Self {
+        Self::from_lexer(Lexer::from_source_file(sess, file))
+    }
+
+    /// Creates a new parser from a lexer.
+    pub fn from_lexer(lexer: Lexer<'a>) -> Self {
+        Self::new(lexer.sess, lexer.into_tokens())
     }
 
     /// Returns the diagnostic context.

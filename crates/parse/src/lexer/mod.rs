@@ -1,10 +1,13 @@
 //! Solidity lexer.
 
+use crate::ParseSess;
 use sulk_ast::{
     ast::Base,
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLit, TokenLitKind},
 };
-use sulk_interface::{diagnostics::DiagCtxt, sym, BytePos, Pos, Span, Symbol};
+use sulk_interface::{
+    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Span, Symbol,
+};
 
 mod cursor;
 pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace};
@@ -18,8 +21,8 @@ mod utf8;
 
 /// Solidity lexer.
 pub struct Lexer<'a> {
-    /// The diagnostic context.
-    dcx: &'a DiagCtxt,
+    /// The parsing context.
+    pub(crate) sess: &'a ParseSess,
 
     /// Initial position, read-only.
     start_pos: BytePos,
@@ -44,14 +47,19 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Creates a new `Lexer` for the given source string.
-    pub fn new(dcx: &'a DiagCtxt, src: &'a str) -> Self {
-        Self::with_start_pos(dcx, src, BytePos(0))
+    pub fn new(sess: &'a ParseSess, src: &'a str) -> Self {
+        Self::with_start_pos(sess, src, BytePos(0))
+    }
+
+    /// Creates a new `Lexer` for the given source file.
+    pub fn from_source_file(sess: &'a ParseSess, file: &'a SourceFile) -> Self {
+        Self::with_start_pos(sess, &file.src, file.start_pos)
     }
 
     /// Creates a new `Lexer` for the given source string and starting position.
-    pub fn with_start_pos(dcx: &'a DiagCtxt, src: &'a str, start_pos: BytePos) -> Self {
+    pub fn with_start_pos(sess: &'a ParseSess, src: &'a str, start_pos: BytePos) -> Self {
         let mut lexer = Self {
-            dcx,
+            sess,
             start_pos,
             pos: start_pos,
             src,
@@ -66,7 +74,7 @@ impl<'a> Lexer<'a> {
     /// Returns a reference to the diagnostic context.
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
-        self.dcx
+        &self.sess.dcx
     }
 
     /// Consumes the lexer and collects the remaining tokens into a vector.
@@ -487,8 +495,8 @@ mod tests {
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
     fn check(src: &str, expected: Expected<'_>) {
-        let dcx = DiagCtxt::with_test_emitter(false);
-        let tokens: Vec<_> = Lexer::new(&dcx, src)
+        let sess = ParseSess::with_test_emitter(false);
+        let tokens: Vec<_> = Lexer::new(&sess, src)
             .filter(|t| t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();

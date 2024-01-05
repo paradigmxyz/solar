@@ -377,13 +377,7 @@ impl SourceMap {
                 }));
             }
 
-            if let Some(ref src) = local_begin.sf.src {
-                extract_source(src, start_index, end_index)
-            // } else if let Some(src) = local_begin.sf.external_src.read().get_source() {
-            //     extract_source(src, start_index, end_index)
-            } else {
-                Err(SpanSnippetError::SourceNotAvailable { filename: local_begin.sf.name.clone() })
-            }
+            extract_source(&local_begin.sf.src, start_index, end_index)
         }
     }
 
