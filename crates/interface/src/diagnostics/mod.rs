@@ -3,7 +3,7 @@
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
 use crate::Span;
-use anstyle::{Ansi256Color, AnsiColor, Color};
+use anstyle::{AnsiColor, Color};
 use std::{
     borrow::Cow,
     panic::{self, Location},
@@ -230,7 +230,7 @@ impl Level {
     #[inline]
     pub const fn color(self) -> Option<Color> {
         match self.ansi_color() {
-            Some(c) => Some(intense(c)),
+            Some(c) => Some(Color::Ansi(c)),
             None => None,
         }
     }
@@ -240,10 +240,10 @@ impl Level {
     pub const fn ansi_color(self) -> Option<AnsiColor> {
         // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
         match self {
-            Self::Fatal | Self::Error => Some(AnsiColor::Red),
-            Self::Warning => Some(AnsiColor::Yellow),
-            Self::Note | Self::OnceNote => Some(AnsiColor::Green),
-            Self::Help | Self::OnceHelp => Some(AnsiColor::Cyan),
+            Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
+            Self::Warning => Some(AnsiColor::BrightYellow),
+            Self::Note | Self::OnceNote => Some(AnsiColor::BrightGreen),
+            Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),
             Self::FailureNote | Self::Allow => None,
         }
     }
@@ -275,11 +275,11 @@ impl Style {
         /// On Windows, BRIGHT_BLUE is hard to read on black. Use cyan instead.
         ///
         /// See [rust-lang/rust#36178](https://github.com/rust-lang/rust/pull/36178).
-        const BRIGHT_BLUE: Color = intense(if cfg!(windows) { Cyan } else { Blue });
-        const GREEN: Color = intense(Green);
-        const MAGENTA: Color = intense(Magenta);
-        const RED: Color = intense(Red);
-        const WHITE: Color = intense(White);
+        const BRIGHT_BLUE: Color = Color::Ansi(if cfg!(windows) { BrightCyan } else { BrightBlue });
+        const GREEN: Color = Color::Ansi(BrightGreen);
+        const MAGENTA: Color = Color::Ansi(BrightMagenta);
+        const RED: Color = Color::Ansi(BrightRed);
+        const WHITE: Color = Color::Ansi(BrightWhite);
 
         let s = anstyle::Style::new();
         match self {
@@ -569,10 +569,4 @@ fn flatten_messages(messages: &[(DiagnosticMessage, Style)]) -> Cow<'_, str> {
         [(message, _)] => Cow::Borrowed(message.as_str()),
         messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
     }
-}
-
-// https://github.com/rust-lang/rust/blob/ce0f703554f3828f2d470679cd1e83b52667bf20/compiler/rustc_errors/src/emitter.rs#L2682
-/// Ansi -> Ansi256
-const fn intense(ansi: AnsiColor) -> Color {
-    Color::Ansi256(Ansi256Color::from_ansi(ansi))
 }
