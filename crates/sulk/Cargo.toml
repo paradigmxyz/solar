@@ -18,3 +18,5 @@ workspace = true
 [dependencies]
 sulk-interface.workspace = true
 sulk-parse.workspace = true
+
+clap = { workspace = true, features = ["derive"] }

@@ -1,15 +1,19 @@
 //! The main entry point for the Sulk compiler.
 
-use std::{path::Path, process::ExitCode};
+use clap::Parser as _;
+use std::process::ExitCode;
 use sulk_interface::SourceMap;
 use sulk_parse::{Lexer, ParseSess, Parser};
 
+pub mod cli;
+
 fn main() -> ExitCode {
-    let Some(path) = std::env::args().nth(1) else {
-        eprintln!("usage: {} <path>", std::env::args().next().unwrap());
+    let opts = cli::Opts::parse();
+    if opts.paths.len() != 1 {
+        eprintln!("multiple files are not yet supported");
         return ExitCode::FAILURE;
-    };
-    let path = Path::new(&path);
+    }
+    let path = &opts.paths[0];
     if !path.exists() {
         eprintln!("file {} does not exist", path.display());
         return ExitCode::FAILURE;
