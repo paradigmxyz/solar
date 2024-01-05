@@ -9,30 +9,24 @@ use anstream::{AutoStream, ColorChoice};
 use std::io::{self, Write};
 use sulk_data_structures::sync::Lrc;
 
-const fn make_renderer(anonymize: bool) -> Renderer {
-    Renderer::plain()
-        .anonymized_line_numbers(anonymize)
-        .error(Level::Error.style())
-        .warning(Level::Warning.style())
-        .info(Level::Note.style())
-        .note(Level::Note.style())
-        .help(Level::Help.style())
-        .line_no(Style::LineNumber.to_color_spec(Level::Note))
-        .emphasis(anstyle::Style::new().bold())
-        .none(anstyle::Style::new())
-}
+const DEFAULT_RENDERER: Renderer = Renderer::plain()
+    .error(Level::Error.style())
+    .warning(Level::Warning.style())
+    .info(Level::Note.style())
+    .note(Level::Note.style())
+    .help(Level::Help.style())
+    .line_no(Style::LineNumber.to_color_spec(Level::Note))
+    .emphasis(anstyle::Style::new().bold())
+    .none(anstyle::Style::new());
 
-static DEFAULT_RENDERER: Renderer = make_renderer(false);
-static ANON_RENDERER: Renderer = make_renderer(true);
-
-/// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer.
-pub struct EmitterWriter {
+/// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
+pub struct HumanEmitter {
     writer: AutoStream<Box<dyn Write>>,
     source_map: Option<Lrc<SourceMap>>,
-    renderer: &'static Renderer,
+    renderer: Renderer,
 }
 
-impl Emitter for EmitterWriter {
+impl Emitter for HumanEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}", this.renderer.render(snippet))?;
@@ -53,17 +47,17 @@ impl Emitter for EmitterWriter {
     }
 }
 
-impl EmitterWriter {
-    /// Creates a new `EmitterWriter` that writes to given writer.
+impl HumanEmitter {
+    /// Creates a new `HumanEmitter` that writes to given writer.
     pub fn new(writer: Box<dyn Write>, color: ColorChoice) -> Self {
         Self {
             writer: AutoStream::new(writer, color),
             source_map: None,
-            renderer: &DEFAULT_RENDERER,
+            renderer: DEFAULT_RENDERER,
         }
     }
 
-    /// Creates a new `EmitterWriter` that writes to stderr, for use in tests.
+    /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
     pub fn test(ui: bool) -> Self {
         struct TestWriter(io::Stderr);
 
@@ -88,7 +82,7 @@ impl EmitterWriter {
         Self::new(Box::new(TestWriter(io::stderr())), color).anonymized_line_numbers(ui)
     }
 
-    /// Creates a new `EmitterWriter` that writes to stderr.
+    /// Creates a new `HumanEmitter` that writes to stderr.
     pub fn stderr(mut color_choice: ColorChoice) -> Self {
         let stderr = io::stderr();
         // Call `AutoStream::choice` on `io::Stderr` rather than later on `Box<dyn Write>`.
@@ -106,7 +100,7 @@ impl EmitterWriter {
 
     /// Sets whether to anonymize line numbers.
     pub fn anonymized_line_numbers(mut self, anonymized_line_numbers: bool) -> Self {
-        self.renderer = if anonymized_line_numbers { &DEFAULT_RENDERER } else { &ANON_RENDERER };
+        self.renderer = self.renderer.anonymized_line_numbers(anonymized_line_numbers);
         self
     }
 

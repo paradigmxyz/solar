@@ -1,5 +1,5 @@
 use super::{
-    emitter::EmitterWriter, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
+    emitter::HumanEmitter, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
     EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
 use crate::SourceMap;
@@ -54,12 +54,12 @@ impl DiagCtxt {
 
     /// Creates a new `DiagCtxt` with a test emitter.
     pub fn with_test_emitter(ui: bool) -> Self {
-        Self::new(Box::new(EmitterWriter::test(ui)))
+        Self::new(Box::new(HumanEmitter::test(ui)))
     }
 
     /// Creates a new `DiagCtxt` with a TTY emitter.
     pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
-        Self::new(Box::new(EmitterWriter::stderr(ColorChoice::Auto).source_map(source_map)))
+        Self::new(Box::new(HumanEmitter::stderr(ColorChoice::Auto).source_map(source_map)))
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.

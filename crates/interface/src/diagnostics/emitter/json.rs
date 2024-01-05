@@ -1,4 +1,4 @@
-use super::{io_panic, Emitter, EmitterWriter};
+use super::{io_panic, Emitter, HumanEmitter};
 use crate::{
     diagnostics::{MultiSpan, SpanLabel},
     SourceMap, Span,
@@ -139,11 +139,11 @@ impl JsonEmitter {
         }
 
         let buffer = LocalBuffer::new();
-        EmitterWriter::new(Box::new(buffer.clone()), ColorChoice::Never)
+        HumanEmitter::new(Box::new(buffer.clone()), ColorChoice::Never)
             .source_map(Some(self.source_map.clone()))
             .emit_diagnostic(diagnostic);
         let buffer = buffer.unwrap();
-        String::from_utf8(buffer).expect("EmitterWriter wrote invalid UTF-8")
+        String::from_utf8(buffer).expect("HumanEmitter wrote invalid UTF-8")
     }
 
     fn emit(&mut self, value: &EmitTyped) -> io::Result<()> {

@@ -3,15 +3,15 @@ use crate::SourceMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use sulk_data_structures::sync::Lrc;
 
-mod rustc;
+mod human;
+pub use human::HumanEmitter;
 
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "json")]
 pub use json::JsonEmitter;
 
-mod writer;
-pub use writer::EmitterWriter;
+mod rustc;
 
 /// Dynamic diagnostic emitter. See [`Emitter`].
 pub type DynEmitter = dyn Emitter;

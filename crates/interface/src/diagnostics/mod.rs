@@ -19,7 +19,7 @@ pub use context::DiagCtxt;
 mod emitter;
 #[cfg(feature = "json")]
 pub use emitter::JsonEmitter;
-pub use emitter::{DynEmitter, Emitter, EmitterWriter, LocalEmitter, SilentEmitter};
+pub use emitter::{DynEmitter, Emitter, HumanEmitter, LocalEmitter, SilentEmitter};
 
 mod message;
 pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
