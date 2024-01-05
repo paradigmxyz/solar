@@ -337,7 +337,7 @@ fn file_to_slice(
 
 fn to_annotation_type(level: Level) -> AnnotationType {
     match level {
-        Level::Fatal | Level::Error => AnnotationType::Error,
+        Level::Bug | Level::Fatal | Level::Error => AnnotationType::Error,
         Level::Warning => AnnotationType::Warning,
         Level::Note | Level::OnceNote | Level::FailureNote => AnnotationType::Note,
         Level::Help | Level::OnceHelp => AnnotationType::Help,

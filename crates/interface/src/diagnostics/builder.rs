@@ -154,8 +154,7 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     /// Emits the diagnostic.
     #[track_caller]
     pub fn emit(mut self) -> G::EmitResult {
-        // TODO: Check on some flag in dcx
-        if cfg!(debug_assertions) {
+        if self.dcx.track_diagnostics() {
             self.diagnostic.locations_note(Location::caller());
         }
         self.consume_no_panic(G::emit_producing_guarantee)

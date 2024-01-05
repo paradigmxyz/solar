@@ -4,10 +4,35 @@ use super::{
 };
 use crate::SourceMap;
 use anstream::ColorChoice;
+use std::{borrow::Cow, num::NonZeroUsize};
 use sulk_data_structures::{
     map::FxHashSet,
     sync::{Lock, Lrc},
 };
+
+/// Flags that control the behaviour of a [`DiagCtxt`].
+#[derive(Clone, Copy)]
+pub struct DiagCtxtFlags {
+    /// If false, warning-level lints are suppressed.
+    pub can_emit_warnings: bool,
+    /// If Some, the Nth error-level diagnostic is upgraded to bug-level.
+    pub treat_err_as_bug: Option<NonZeroUsize>,
+    /// If true, identical diagnostics are reported only once.
+    pub deduplicate_diagnostics: bool,
+    /// Track where errors are created. Enabled with `-Ztrack-diagnostics`.
+    pub track_diagnostics: bool,
+}
+
+impl Default for DiagCtxtFlags {
+    fn default() -> Self {
+        Self {
+            can_emit_warnings: true,
+            treat_err_as_bug: None,
+            deduplicate_diagnostics: true,
+            track_diagnostics: cfg!(debug_assertions),
+        }
+    }
+}
 
 /// A handler deals with errors and other compiler output.
 /// Certain errors (fatal, bug, unimpl) may cause immediate exit,
@@ -18,6 +43,8 @@ pub struct DiagCtxt {
 
 struct DiagCtxtInner {
     emitter: Box<DynEmitter>,
+
+    flags: DiagCtxtFlags,
 
     /// The number of errors that have been emitted, including duplicates.
     ///
@@ -32,8 +59,6 @@ struct DiagCtxtInner {
     /// This set contains a hash of every diagnostic that has been emitted by this `DiagCtxt`.
     /// These hashes are used to avoid emitting the same error twice.
     emitted_diagnostics: FxHashSet<u64>,
-
-    can_emit_warnings: bool,
 }
 
 impl DiagCtxt {
@@ -42,12 +67,12 @@ impl DiagCtxt {
         Self {
             inner: Lock::new(DiagCtxtInner {
                 emitter,
+                flags: DiagCtxtFlags::default(),
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
                 deduplicated_warn_count: 0,
                 emitted_diagnostics: FxHashSet::default(),
-                can_emit_warnings: true,
             }),
         }
     }
@@ -68,10 +93,20 @@ impl DiagCtxt {
         Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
     }
 
-    /// Disables emitting warnings.
-    pub fn disable_warnings(mut self) -> Self {
-        self.inner.get_mut().can_emit_warnings = false;
+    /// Sets whether to include created and emitted locations in diagnostics.
+    pub fn set_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
+        f(&mut self.inner.get_mut().flags);
         self
+    }
+
+    /// Disables emitting warnings.
+    pub fn disable_warnings(self) -> Self {
+        self.set_flags(|f| f.can_emit_warnings = false)
+    }
+
+    /// Returns `true` if diagnostics are being tracked.
+    pub fn track_diagnostics(&self) -> bool {
+        self.inner.lock().flags.track_diagnostics
     }
 
     /// Emits the given diagnostic with this context.
@@ -97,7 +132,7 @@ impl DiagCtxt {
         self.inner.lock().err_count
     }
 
-    /// Returns `true` if any errors have been emitted.
+    /// Returns `Err` if any errors have been emitted.
     pub fn has_errors(&self) -> Result<(), ErrorGuaranteed> {
         if self.inner.lock().has_errors() {
             #[allow(deprecated)]
@@ -105,6 +140,11 @@ impl DiagCtxt {
         } else {
             Ok(())
         }
+    }
+
+    /// Emits a diagnostic if any warnings or errors have been emitted.
+    pub fn print_error_count(&self) {
+        self.inner.lock().print_error_count();
     }
 }
 
@@ -156,11 +196,15 @@ impl DiagCtxt {
 }
 
 impl DiagCtxtInner {
+    fn emit_diagnostic(&mut self, mut diagnostic: Diagnostic) -> Option<ErrorGuaranteed> {
+        self.emit_diagnostic_without_consuming(&mut diagnostic)
+    }
+
     fn emit_diagnostic_without_consuming(
         &mut self,
         diagnostic: &mut Diagnostic,
     ) -> Option<ErrorGuaranteed> {
-        if diagnostic.level == Level::Warning && !self.can_emit_warnings {
+        if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
             return None;
         }
 
@@ -168,10 +212,14 @@ impl DiagCtxtInner {
             return None;
         }
 
+        if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_err_as_bug() {
+            diagnostic.level = Level::Bug;
+        }
+
         let already_emitted = self.insert_diagnostic(diagnostic);
-        if !already_emitted {
+        if !(self.flags.deduplicate_diagnostics && already_emitted) {
             // Remove duplicate `Once*` subdiagnostics.
-            diagnostic.children.retain_mut(|sub| {
+            diagnostic.children.retain(|sub| {
                 if !matches!(sub.level, Level::OnceNote | Level::OnceHelp) {
                     return true;
                 }
@@ -203,6 +251,39 @@ impl DiagCtxtInner {
         }
     }
 
+    fn print_error_count(&mut self) {
+        // self.emit_stashed_diagnostics();
+
+        if self.treat_err_as_bug() {
+            return;
+        }
+
+        let warnings = |count| match count {
+            0 => unreachable!(),
+            1 => Cow::from("1 warning emitted"),
+            count => Cow::from(format!("{count} warnings emitted")),
+        };
+        let errors = |count| match count {
+            0 => unreachable!(),
+            1 => Cow::from("aborting due to 1 previous error"),
+            count => Cow::from(format!("aborting due to {count} previous errors")),
+        };
+
+        match (self.deduplicated_err_count, self.deduplicated_warn_count) {
+            (0, 0) => return,
+            (0, w) => self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w))),
+            (e, 0) => {
+                self.emit_diagnostic(Diagnostic::new(Level::Fatal, errors(e)));
+            }
+            (e, w) => {
+                self.emit_diagnostic(Diagnostic::new(
+                    Level::Fatal,
+                    format!("{}; {}", errors(e), warnings(w)),
+                ));
+            }
+        }
+    }
+
     /// Inserts the given diagnostic into the set of emitted diagnostics.
     /// Returns `true` if the diagnostic was already emitted.
     fn insert_diagnostic<H: std::hash::Hash>(&mut self, diag: &H) -> bool {
@@ -210,9 +291,13 @@ impl DiagCtxtInner {
         !self.emitted_diagnostics.insert(hash)
     }
 
+    fn treat_err_as_bug(&self) -> bool {
+        self.flags.treat_err_as_bug.is_some_and(|c| self.err_count >= c.get())
+    }
+
     fn bump_err_count(&mut self) {
         self.err_count += 1;
-        // self.panic_if_treat_err_as_bug();
+        self.panic_if_treat_err_as_bug();
     }
 
     fn bump_warn_count(&mut self) {
@@ -221,5 +306,16 @@ impl DiagCtxtInner {
 
     fn has_errors(&self) -> bool {
         self.err_count > 0
+    }
+
+    fn panic_if_treat_err_as_bug(&self) {
+        if self.treat_err_as_bug() {
+            match (self.err_count, self.flags.treat_err_as_bug.unwrap().get()) {
+                (1, 1) => panic!("aborting due to `-Z treat-err-as-bug=1`"),
+                (count, val) => {
+                    panic!("aborting after {count} errors due to `-Z treat-err-as-bug={val}`")
+                }
+            }
+        }
     }
 }
