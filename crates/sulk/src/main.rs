@@ -31,7 +31,7 @@ fn main() -> ExitCode {
         let mut result = Ok(());
         for file in source_map.files().iter() {
             let sess = ParseSess::with_tty_emitter(source_map.clone());
-            let tokens = Lexer::from_source_file(&sess, &file).into_tokens();
+            let tokens = Lexer::from_source_file(&sess, file).into_tokens();
             if let Err(e) = sess.dcx.has_errors() {
                 result = Err(e);
                 continue;
