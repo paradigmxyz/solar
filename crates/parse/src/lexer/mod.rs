@@ -205,49 +205,56 @@ impl<'a> Lexer<'a> {
                     let repeats = it.take_while(|c1| *c1 == c).count();
                     swallow_next_invalid = repeats;
 
+                    let (token, sugg) =
+                        unicode_chars::check_for_substitution(self, start, c, repeats + 1);
+
                     let span = self
                         .new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
-                    let escaped = escaped_char(c);
-                    let message = format!("unknown start of token: {escaped}");
-                    let mut diag = self.dcx().err(message).span(span);
+                    let msg = format!("unknown start of token: {}", escaped_char(c));
+                    let mut err = self.dcx().err(msg).span(span);
+                    if let Some(sugg) = sugg {
+                        match sugg {
+                            unicode_chars::TokenSubstitution::DirectedQuotes {
+                                span,
+                                suggestion: _,
+                                ascii_str,
+                                ascii_name,
+                            } => {
+                                let msg = format!("Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not");
+                                err = err.span_help(span, msg);
+                            }
+                            unicode_chars::TokenSubstitution::Other {
+                                span,
+                                suggestion: _,
+                                ch,
+                                u_name,
+                                ascii_str,
+                                ascii_name,
+                            } => {
+                                let msg = format!("Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not");
+                                err = err.span_help(span, msg);
+                            }
+                        }
+                    }
                     if c == '\0' {
                         let help = "source files must contain UTF-8 encoded text, unexpected null bytes might occur when a different encoding is used";
-                        diag = diag.help(help);
+                        err = err.help(help);
                     }
                     if repeats > 0 {
                         let note = match repeats {
                             1 => "once more".to_string(),
                             _ => format!("{repeats} more times"),
                         };
-                        diag = diag.note(format!("character repeats {note}"));
+                        err = err.note(format!("character repeats {note}"));
                     }
-                    diag.emit();
+                    err.emit();
 
-                    preceded_by_whitespace = true;
-                    continue;
-                    // TODO
-                    /*
-                    let (token, _sugg) =
-                        unicode_chars::check_for_substitution(self, start, c, repeats + 1);
-
-                    self.sess.emit_err(errors::UnknownTokenStart {
-                        span,
-                        escaped: escaped_char(c),
-                        sugg,
-                        null: if c == '\x00' { Some(errors::UnknownTokenNull) } else { None },
-                        repeat: if repeats > 0 {
-                            Some(errors::UnknownTokenRepeat { repeats })
-                        } else {
-                            None
-                        },
-                    });
                     if let Some(token) = token {
                         token
                     } else {
                         preceded_by_whitespace = true;
                         continue;
                     }
-                    */
                 }
 
                 RawTokenKind::Eof => TokenKind::Eof,

@@ -331,7 +331,23 @@ const ASCII_ARRAY: &[(&str, &str, Option<TokenKind>)] = &[
     ("\"", "Quotation Mark", None),
 ];
 
-#[cfg(TODO)]
+pub(super) enum TokenSubstitution {
+    DirectedQuotes {
+        span: Span,
+        suggestion: String,
+        ascii_str: &'static str,
+        ascii_name: &'static str,
+    },
+    Other {
+        span: Span,
+        suggestion: String,
+        ch: String,
+        u_name: &'static str,
+        ascii_str: &'static str,
+        ascii_name: &'static str,
+    },
+}
+
 pub(super) fn check_for_substitution(
     reader: &Lexer<'_>,
     pos: BytePos,
