@@ -1,6 +1,7 @@
 use super::{io_panic, Emitter, HumanEmitter};
 use crate::{
     diagnostics::{MultiSpan, SpanLabel},
+    source_map::{LineInfo, SourceFile},
     SourceMap, Span,
 };
 use anstream::ColorChoice;
@@ -64,17 +65,16 @@ impl JsonEmitter {
     }
 
     fn spans(&self, msp: &MultiSpan) -> Vec<DiagnosticSpan> {
-        msp.span_labels().into_iter().map(|label| self.span(&label)).collect()
+        msp.span_labels().iter().map(|label| self.span(label)).collect()
     }
 
     fn span(&self, label: &SpanLabel) -> DiagnosticSpan {
-        // TODO
-        let _ = label;
-        todo!()
-        /*
+        let sm = &*self.source_map;
         let span = label.span;
+        let start = sm.lookup_char_pos(span.lo());
+        let end = sm.lookup_char_pos(span.hi());
         DiagnosticSpan {
-            file_name: je.sm.filename_for_diagnostics(&start.file.name).to_string(),
+            file_name: sm.filename_for_diagnostics(&start.file.name).to_string(),
             byte_start: start.file.original_relative_byte_pos(span.lo()).0,
             byte_end: start.file.original_relative_byte_pos(span.hi()).0,
             line_start: start.line,
@@ -82,24 +82,23 @@ impl JsonEmitter {
             column_start: start.col.0 + 1,
             column_end: end.col.0 + 1,
             is_primary: label.is_primary,
-            text: self.span_line(span),
+            text: self.span_lines(span),
             label: label.label.as_ref().map(|msg| msg.as_str().into()),
         }
-        */
     }
 
-    #[allow(dead_code)]
-    fn span_line(&self, span: Span) -> DiagnosticSpanLine {
-        // TODO
-        let _ = span;
-        todo!()
-        /*
+    fn span_lines(&self, span: Span) -> Vec<DiagnosticSpanLine> {
+        let Ok(f) = self.source_map.span_to_lines(span) else { return Vec::new() };
+        let sf = &*f.file;
+        f.lines.iter().map(|line| self.span_line(sf, line)).collect()
+    }
+
+    fn span_line(&self, sf: &SourceFile, line: &LineInfo) -> DiagnosticSpanLine {
         DiagnosticSpanLine {
-            text: sf.get_line(index).map_or_else(String::new, |l| l.into_owned()),
-            highlight_start: h_start,
-            highlight_end: h_end,
+            text: sf.get_line(line.line_index).map_or_else(String::new, |l| l.into_owned()),
+            highlight_start: line.start_col.0 + 1,
+            highlight_end: line.end_col.0 + 1,
         }
-        */
     }
 
     fn emit_diagnostic_to_buffer(&self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
@@ -197,9 +196,9 @@ struct DiagnosticSpan {
     text: Vec<DiagnosticSpanLine>,
     /// Label that should be placed at this location (if any)
     label: Option<String>,
-    /// If we are suggesting a replacement, this will contain text
-    /// that should be sliced in atop this span.
-    suggested_replacement: Option<String>,
+    // /// If we are suggesting a replacement, this will contain text
+    // /// that should be sliced in atop this span.
+    // suggested_replacement: Option<String>,
 }
 
 #[derive(Serialize)]

@@ -383,6 +383,38 @@ impl SourceFile {
         let end = lines.get(end)?.to_usize();
         Some(Cow::from(get_until_newline(src, start, end)))
     }
+
+    /// Returns whether or not the file contains the given `SourceMap` byte
+    /// position. The position one past the end of the file is considered to be
+    /// contained by the file. This implies that files for which `is_empty`
+    /// returns true still contain one byte position according to this function.
+    #[inline]
+    pub fn contains(&self, byte_pos: BytePos) -> bool {
+        byte_pos >= self.start_pos && byte_pos <= self.end_position()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.source_len.to_u32() == 0
+    }
+
+    /// Calculates the original byte position relative to the start of the file
+    /// based on the given byte position.
+    pub fn original_relative_byte_pos(&self, pos: BytePos) -> RelativeBytePos {
+        let pos = self.relative_position(pos);
+
+        // // Diff before any records is 0. Otherwise use the previously recorded
+        // // diff as that applies to the following characters until a new diff
+        // // is recorded.
+        // let diff = match self.normalized_pos.binary_search_by(|np| np.pos.cmp(&pos)) {
+        //     Ok(i) => self.normalized_pos[i].diff,
+        //     Err(0) => 0,
+        //     Err(i) => self.normalized_pos[i - 1].diff,
+        // };
+
+        // + diff
+        RelativeBytePos::from_u32(pos.0)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -49,6 +49,10 @@ impl Emitter for HumanEmitter {
 
 impl HumanEmitter {
     /// Creates a new `HumanEmitter` that writes to given writer.
+    ///
+    /// Note that a color choice of `Auto` will be treated as `Never` because the writer opaque
+    /// at this point. Prefer calling [`AutoStream::choice`] on the writer if it is known
+    /// before-hand.
     pub fn new(writer: Box<dyn Write>, color: ColorChoice) -> Self {
         Self {
             writer: AutoStream::new(writer, color),
@@ -78,8 +82,11 @@ impl HumanEmitter {
             }
         }
 
-        let color = if ui { ColorChoice::Never } else { ColorChoice::Always };
-        Self::new(Box::new(TestWriter(io::stderr())), color).anonymized_line_numbers(ui)
+        if ui {
+            Self::stderr(ColorChoice::Never).anonymized_line_numbers(true)
+        } else {
+            Self::new(Box::new(TestWriter(io::stderr())), ColorChoice::Always)
+        }
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
