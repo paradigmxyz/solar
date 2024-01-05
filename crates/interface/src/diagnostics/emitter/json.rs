@@ -95,7 +95,7 @@ impl JsonEmitter {
 
     fn span_line(&self, sf: &SourceFile, line: &LineInfo) -> DiagnosticSpanLine {
         DiagnosticSpanLine {
-            text: sf.get_line(line.line_index).map_or_else(String::new, |l| l.into_owned()),
+            text: sf.get_line(line.line_index).map_or_else(String::new, |l| l.to_string()),
             highlight_start: line.start_col.0 + 1,
             highlight_end: line.end_col.0 + 1,
         }

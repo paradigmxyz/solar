@@ -1,5 +1,5 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
-use std::{borrow::Cow, fmt, ops::RangeInclusive, path::PathBuf};
+use std::{fmt, ops::RangeInclusive, path::PathBuf};
 use sulk_data_structures::sync::Lrc;
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
@@ -349,7 +349,7 @@ impl SourceFile {
 
     /// Gets a line from the list of pre-computed line-beginnings.
     /// The line number here is 0-based.
-    pub fn get_line(&self, line_number: usize) -> Option<Cow<'_, str>> {
+    pub fn get_line(&self, line_number: usize) -> Option<&str> {
         fn get_until_newline(src: &str, begin: usize) -> &str {
             // We can't use `lines.get(line_number+1)` because we might
             // be parsing when we call this function and thus the current
@@ -363,12 +363,12 @@ impl SourceFile {
 
         let src = self.src.as_deref()?;
         let start = self.lines().get(line_number)?.to_usize();
-        Some(Cow::from(get_until_newline(src, start)))
+        Some(get_until_newline(src, start))
     }
 
     /// Gets a slice of the source text between two lines, including the
     /// terminator of the second line (if any).
-    pub fn get_lines(&self, range: RangeInclusive<usize>) -> Option<Cow<'_, str>> {
+    pub fn get_lines(&self, range: RangeInclusive<usize>) -> Option<&str> {
         fn get_until_newline(src: &str, start: usize, end: usize) -> &str {
             match src[end..].find('\n') {
                 Some(e) => &src[start..end + e],
@@ -381,7 +381,7 @@ impl SourceFile {
         let lines = self.lines();
         let start = lines.get(start)?.to_usize();
         let end = lines.get(end)?.to_usize();
-        Some(Cow::from(get_until_newline(src, start, end)))
+        Some(get_until_newline(src, start, end))
     }
 
     /// Returns whether or not the file contains the given `SourceMap` byte

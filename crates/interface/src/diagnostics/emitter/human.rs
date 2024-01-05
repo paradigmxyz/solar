@@ -193,7 +193,6 @@ impl OwnedAnnotation {
     }
 }
 
-#[derive(Debug)]
 struct OwnedSourceAnnotation {
     range: (usize, usize),
     label: String,
@@ -210,7 +209,6 @@ impl OwnedSourceAnnotation {
     }
 }
 
-#[derive(Debug)]
 struct OwnedSlice {
     origin: Option<String>,
     source: String,
@@ -221,14 +219,14 @@ struct OwnedSlice {
 
 impl OwnedSlice {
     fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
-        let mut main_files = Self::collect_files(sm, &diagnostic.span);
-        main_files.iter_mut().for_each(|file| file.set_level(diagnostic.level));
+        // Collect main diagnostic.
+        let mut files = Self::collect_files(sm, &diagnostic.span);
+        files.iter_mut().for_each(|file| file.set_level(diagnostic.level));
 
         // Collect subdiagnostics.
         for sub in &diagnostic.children {
             let label = sub.label();
-            let files = Self::collect_files(sm, &sub.span);
-            for mut sub_file in files {
+            for mut sub_file in Self::collect_files(sm, &sub.span) {
                 for line in &mut sub_file.lines {
                     for ann in &mut line.annotations {
                         ann.level = Some(sub.level);
@@ -239,19 +237,18 @@ impl OwnedSlice {
                     }
                 }
 
-                if let Some(main_file) = main_files
-                    .iter_mut()
-                    .find(|main_file| Lrc::ptr_eq(&main_file.file, &sub_file.file))
+                if let Some(main_file) =
+                    files.iter_mut().find(|main_file| Lrc::ptr_eq(&main_file.file, &sub_file.file))
                 {
                     main_file.lines.extend(sub_file.lines);
                     main_file.lines.sort();
                 } else {
-                    main_files.push(sub_file);
+                    files.push(sub_file);
                 }
             }
         }
 
-        main_files
+        files
             .iter()
             .map(|file| file_to_slice(sm, &file.file, &file.lines, diagnostic.level))
             .collect()
@@ -299,7 +296,7 @@ fn file_to_slice(
     let first_line_idx = file.lines().get(first_line - 1).map(|l| l.0).unwrap_or(0);
     let mut slice = OwnedSlice {
         origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
-        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into_owned(),
+        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().to_string(),
         line_start: first_line,
         fold: true,
         annotations: Vec::new(),
