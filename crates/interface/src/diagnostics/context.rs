@@ -162,6 +162,12 @@ impl DiagCtxt {
         DiagnosticBuilder::new(self, level, msg)
     }
 
+    /// Creates a builder at the `Bug` level with the given `msg`.
+    #[track_caller]
+    pub fn bug(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
+        self.diag(Level::Bug, msg)
+    }
+
     /// Creates a builder at the `Fatal` level with the given `msg`.
     #[track_caller]
     pub fn fatal(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {

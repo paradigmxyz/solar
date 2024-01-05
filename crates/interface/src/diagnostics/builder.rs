@@ -137,12 +137,7 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     /// Creates a new `DiagnosticBuilder`.
     #[track_caller]
     pub fn new<M: Into<DiagnosticMessage>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
-        Self::new_diagnostic(dcx, Diagnostic::new(level, msg))
-    }
-
-    /// Creates a new `DiagnosticBuilder` with an already constructed diagnostic.
-    pub(crate) fn new_diagnostic(dcx: &'a DiagCtxt, diagnostic: Diagnostic) -> Self {
-        Self { dcx, diagnostic: Box::new(diagnostic), _marker: PhantomData }
+        Self { dcx, diagnostic: Box::new(Diagnostic::new(level, msg)), _marker: PhantomData }
     }
 
     /// Returns the [`DiagCtxt`].
