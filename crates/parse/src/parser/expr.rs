@@ -9,7 +9,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an expression kind.
     fn parse_expr_kind(&mut self) -> PResult<'a, ExprKind> {
-        todo!()
+        todo!("parsing expressions")
     }
 
     /// Parses a list of function call arguments.

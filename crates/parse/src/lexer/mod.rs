@@ -323,7 +323,7 @@ impl<'a> Lexer<'a> {
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
                         let start = start + 2;
-                        // TODO: enable if binary and octal literals are ever supported.
+                        // To uncomment if binary and octal literals are ever supported.
                         /*
                         let base = base as u32;
                         let s = self.str_from_to(start, end);

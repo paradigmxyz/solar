@@ -6,7 +6,7 @@ use sulk_ast::{
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
-    source_map::{SourceFile, SpanSnippetError},
+    source_map::SourceFile,
     Ident, Span, Symbol,
 };
 
@@ -164,11 +164,6 @@ impl<'a> Parser<'a> {
     #[inline]
     pub fn dcx(&self) -> &'a DiagCtxt {
         &self.sess.dcx
-    }
-
-    #[allow(dead_code)] // TODO
-    fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
-        self.sess.source_map().span_to_snippet(span)
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.

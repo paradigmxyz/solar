@@ -415,57 +415,87 @@ impl SourceFile {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SourceFileHashAlgorithm {
+    #[default]
     Md5,
-    Sha1,
-    Sha256,
+    // Sha1,
+    // Sha256,
 }
+
+impl std::str::FromStr for SourceFileHashAlgorithm {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "md5" => Ok(Self::Md5),
+            // "sha1" => Ok(Self::Sha1),
+            // "sha256" => Ok(Self::Sha256),
+            _ => Err(()),
+        }
+    }
+}
+
+impl SourceFileHashAlgorithm {
+    /// The length of the hash in bytes.
+    #[inline]
+    pub const fn hash_len(self) -> usize {
+        match self {
+            Self::Md5 => 16,
+            // Self::Sha1 => 20,
+            // Self::Sha256 => 32,
+        }
+    }
+}
+
+const MAX_HASH_SIZE: usize = 16;
 
 /// The hash of the on-disk source file used for debug info.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct SourceFileHash {
-    pub kind: SourceFileHashAlgorithm,
-    value: [u8; 32],
+    kind: SourceFileHashAlgorithm,
+    value: [u8; MAX_HASH_SIZE],
 }
 
 impl SourceFileHash {
     pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> Self {
+        use md5::digest::{typenum::Unsigned, Digest, OutputSizeUser};
+
+        fn digest_into<D: Digest>(data: &[u8], out: &mut [u8; MAX_HASH_SIZE]) {
+            let mut hasher = D::new();
+            hasher.update(data);
+            hasher.finalize_into((&mut out[..<D as OutputSizeUser>::OutputSize::USIZE]).into());
+        }
+
         let mut hash = Self { kind, value: Default::default() };
-        let len = hash.hash_len();
-        let _value = &mut hash.value[..len];
-        let _data = src.as_bytes();
-        // TODO
+        let value = &mut hash.value;
+        let data = src.as_bytes();
         match kind {
-            SourceFileHashAlgorithm::Md5 => {
-                // value.copy_from_slice(&Md5::digest(data));
-            }
-            SourceFileHashAlgorithm::Sha1 => {
-                // value.copy_from_slice(&Sha1::digest(data));
-            }
-            SourceFileHashAlgorithm::Sha256 => {
-                // value.copy_from_slice(&Sha256::digest(data));
-            }
+            SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
+            // SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
+            // SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
         }
         hash
     }
 
     /// Check if the stored hash matches the hash of the string.
     pub fn matches(&self, src: &str) -> bool {
-        Self::new(self.kind, src) == *self
+        Self::new(self.kind, src).hash_bytes() == self.hash_bytes()
     }
 
     /// The bytes of the hash.
     pub fn hash_bytes(&self) -> &[u8] {
-        let len = self.hash_len();
-        &self.value[..len]
+        &self.value[..self.hash_len()]
     }
 
-    fn hash_len(&self) -> usize {
-        match self.kind {
-            SourceFileHashAlgorithm::Md5 => 16,
-            SourceFileHashAlgorithm::Sha1 => 20,
-            SourceFileHashAlgorithm::Sha256 => 32,
-        }
+    /// The hash algorithm used.
+    pub const fn kind(&self) -> SourceFileHashAlgorithm {
+        self.kind
+    }
+
+    /// Returns the length of the hash in bytes.
+    #[inline]
+    pub const fn hash_len(&self) -> usize {
+        self.kind.hash_len()
     }
 }
