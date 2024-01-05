@@ -3,6 +3,457 @@ use std::{cmp, fmt, hash, str};
 use sulk_data_structures::{index::BaseIndex32, map::FxIndexSet, sync::Lock};
 use sulk_macros::symbols;
 
+/// An identifier.
+#[derive(Clone, Copy)]
+pub struct Ident {
+    /// The identifier's name.
+    pub name: Symbol,
+    /// The identifier's span.
+    pub span: Span,
+}
+
+impl PartialEq for Ident {
+    #[inline]
+    fn eq(&self, rhs: &Self) -> bool {
+        self.name == rhs.name
+    }
+}
+
+impl Eq for Ident {}
+
+impl PartialOrd for Ident {
+    #[inline]
+    fn partial_cmp(&self, rhs: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(rhs))
+    }
+}
+
+impl Ord for Ident {
+    #[inline]
+    fn cmp(&self, rhs: &Self) -> cmp::Ordering {
+        self.name.cmp(&rhs.name)
+    }
+}
+
+impl hash::Hash for Ident {
+    #[inline]
+    fn hash<H: hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
+}
+
+impl fmt::Debug for Ident {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Ident {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.name.fmt(f)
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl ToString for Ident {
+    #[inline]
+    fn to_string(&self) -> String {
+        self.name.to_string()
+    }
+}
+
+impl Ident {
+    /// Constructs a new identifier from a symbol and a span.
+    #[inline]
+    pub const fn new(name: Symbol, span: Span) -> Self {
+        Self { name, span }
+    }
+
+    /// Constructs a new identifier with a dummy span.
+    #[inline]
+    pub const fn with_dummy_span(name: Symbol) -> Self {
+        Self::new(name, Span::DUMMY)
+    }
+
+    /// Maps a string to an identifier with a dummy span.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(string: &str) -> Self {
+        Self::with_dummy_span(Symbol::intern(string))
+    }
+
+    /// Maps a string and a span to an identifier.
+    pub fn from_str_and_span(string: &str, span: Span) -> Self {
+        Self::new(Symbol::intern(string), span)
+    }
+
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
+    /// Access the underlying string. This is a slowish operation because it requires locking the
+    /// symbol interner.
+    ///
+    /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
+    pub fn as_str(&self) -> &str {
+        self.name.as_str()
+    }
+
+    /// Returns `true` if the identifier is a keyword used in the language.
+    #[inline]
+    pub fn is_used_keyword(self) -> bool {
+        self.name.is_used_keyword()
+    }
+
+    /// Returns `true` if the identifier is a keyword reserved for possible future use.
+    #[inline]
+    pub fn is_unused_keyword(self) -> bool {
+        self.name.is_unused_keyword()
+    }
+
+    /// Returns `true` if the identifier is a weak keyword and can be used in variable names.
+    #[inline]
+    pub fn is_weak_keyword(self) -> bool {
+        self.name.is_weak_keyword()
+    }
+
+    /// Returns `true` if the identifier is a keyword in a Yul context.
+    #[inline]
+    pub fn is_yul_keyword(self) -> bool {
+        self.name.is_yul_keyword()
+    }
+
+    /// Returns `true` if the identifier is a Yul builtin function keyword.
+    #[inline]
+    pub fn is_yul_builtin(self) -> bool {
+        self.name.is_yul_builtin()
+    }
+
+    /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
+    /// for possible future use.
+    #[inline]
+    pub fn is_reserved(self, yul: bool) -> bool {
+        self.name.is_reserved(yul)
+    }
+
+    /// Returns `true` if the identifier is not a reserved keyword.
+    /// See [`is_reserved`](Self::is_reserved).
+    #[inline]
+    pub fn is_non_reserved(self, yul: bool) -> bool {
+        self.name.is_non_reserved(yul)
+    }
+
+    /// Returns `true` if the identifier is an elementary type name.
+    ///
+    /// Note that this does not include `[u]fixedMxN` types.
+    #[inline]
+    pub fn is_elementary_type(self) -> bool {
+        self.name.is_elementary_type()
+    }
+
+    /// Returns `true` if the identifier is `true` or `false`.
+    #[inline]
+    pub fn is_bool_lit(self) -> bool {
+        self.name.is_bool_lit()
+    }
+}
+
+/// An interned string.
+///
+/// Internally, a `Symbol` is implemented as an index, and all operations
+/// (including hashing, equality, and ordering) operate on that index.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Symbol(BaseIndex32);
+
+impl Symbol {
+    const fn new(n: u32) -> Self {
+        Self(BaseIndex32::new(n))
+    }
+
+    /// Maps a string to its interned representation.
+    pub fn intern(string: &str) -> Self {
+        SessionGlobals::with(|g| g.symbol_interner.intern(string))
+    }
+
+    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
+    #[inline]
+    #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg(not(feature = "nightly"))]
+    pub fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+
+    /// Access the underlying string. This is a slowish operation because it
+    /// requires locking the symbol interner.
+    ///
+    /// Note that the lifetime of the return value is a lie. It's not the same
+    /// as `&self`, but actually tied to the lifetime of the underlying
+    /// interner. Interners are long-lived, and there are very few of them, and
+    /// this function is typically used for short-lived things, so in practice
+    /// it works out ok.
+    pub fn as_str(&self) -> &str {
+        SessionGlobals::with(|g| unsafe {
+            std::mem::transmute::<&str, &str>(g.symbol_interner.get(*self))
+        })
+    }
+
+    /// Returns the internal representation of the symbol.
+    #[inline(always)]
+    pub const fn as_u32(self) -> u32 {
+        self.0.get()
+    }
+
+    /// Returns `true` if the symbol is a keyword used in the Solidity language.
+    ///
+    /// For Yul keywords, use [`is_yul_keyword`](Self::is_yul_keyword).
+    #[inline]
+    pub fn is_used_keyword(self) -> bool {
+        self < kw::After
+    }
+
+    /// Returns `true` if the symbol is a keyword reserved for possible future use.
+    #[inline]
+    pub fn is_unused_keyword(self) -> bool {
+        self >= kw::After && self <= kw::Var
+    }
+
+    /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
+    #[inline]
+    pub fn is_weak_keyword(self) -> bool {
+        self >= kw::Leave && self <= kw::Builtin
+    }
+
+    /// Returns `true` if the symbol is a keyword in a Yul context. Excludes builtin functions.
+    #[inline]
+    pub fn is_yul_keyword(self) -> bool {
+        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
+        matches!(
+            self,
+            kw::Function
+                | kw::Let
+                | kw::If
+                | kw::Switch
+                | kw::Case
+                | kw::Default
+                | kw::For
+                | kw::Break
+                | kw::Continue
+                | kw::Leave
+                | kw::True
+                | kw::False
+        )
+    }
+
+    /// Returns `true` if the symbol is a Yul builtin function keyword.
+    #[inline]
+    pub fn is_yul_builtin(self) -> bool {
+        (self >= kw::Add && self <= kw::Xor)
+            | matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+    }
+
+    /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
+    /// possible future use.
+    #[inline]
+    pub fn is_reserved(self, yul: bool) -> bool {
+        if yul {
+            self.is_yul_keyword() | self.is_yul_builtin()
+        } else {
+            self.is_used_keyword() | self.is_unused_keyword()
+        }
+    }
+
+    /// Returns `true` if the symbol is not a reserved keyword.
+    /// See [`is_reserved`](Self::is_reserved).
+    #[inline]
+    pub fn is_non_reserved(self, yul: bool) -> bool {
+        !self.is_reserved(yul)
+    }
+
+    /// Returns `true` if the symbol is an elementary type name.
+    ///
+    /// Note that this does not include `[u]fixedMxN` types as they are not pre-interned.
+    #[inline]
+    pub fn is_elementary_type(self) -> bool {
+        self >= kw::Int && self <= kw::UFixed
+    }
+
+    /// Returns `true` if the symbol is `true` or `false`.
+    #[inline]
+    pub fn is_bool_lit(self) -> bool {
+        self == kw::False || self == kw::True
+    }
+
+    /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.
+    #[inline]
+    pub const fn is_preinterned(self) -> bool {
+        self.as_u32() < PREINTERNED_SYMBOLS_COUNT
+    }
+}
+
+impl fmt::Debug for Symbol {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_str(), f)
+    }
+}
+
+impl fmt::Display for Symbol {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.as_str(), f)
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl ToString for Symbol {
+    #[inline]
+    fn to_string(&self) -> String {
+        self.as_str().to_string()
+    }
+}
+
+/// Symbol interner.
+pub(crate) struct Interner(Lock<InternerInner>);
+
+// The `&'static str`s in this type actually point into the arena.
+//
+// This type is private to prevent accidentally constructing more than one
+// `Interner` on the same thread, which makes it easy to mix up `Symbol`s
+// between `Interner`s.
+struct InternerInner {
+    arena: bumpalo::Bump,
+    strings: FxIndexSet<&'static str>,
+}
+
+impl Interner {
+    fn prefill(init: &[&'static str]) -> Self {
+        Self(Lock::new(InternerInner {
+            arena: bumpalo::Bump::new(),
+            strings: init.iter().copied().collect(),
+        }))
+    }
+
+    #[inline]
+    fn intern(&self, string: &str) -> Symbol {
+        let mut inner = self.0.lock();
+        if let Some(idx) = inner.strings.get_index_of(string) {
+            return Symbol::new(idx as u32);
+        }
+
+        let string: &str = inner.arena.alloc_str(string);
+
+        // SAFETY: we can extend the arena allocation to `'static` because we
+        // only access these while the arena is still alive.
+        let string: &'static str = unsafe { &*(string as *const str) };
+
+        // This second hash table lookup can be avoided by using `RawEntryMut`,
+        // but this code path isn't hot enough for it to be worth it. See
+        // #91445 for details.
+        let (idx, is_new) = inner.strings.insert_full(string);
+        debug_assert!(is_new); // due to the get_index_of check above
+
+        Symbol::new(idx as u32)
+    }
+
+    /// Get the symbol as a string.
+    ///
+    /// [`Symbol::as_str()`] should be used in preference to this function.
+    fn get(&self, symbol: Symbol) -> &str {
+        self.0.lock().strings.get_index(symbol.as_u32() as usize).unwrap()
+    }
+}
+
+// This module has a very short name because it's used a lot.
+/// This module contains all the defined keyword `Symbol`s.
+///
+/// Given that `kw` is imported, use them like `kw::keyword_name`.
+/// For example `kw::For` or `kw::Break`.
+pub mod kw {
+    use crate::Symbol;
+
+    #[doc(inline)]
+    pub use super::kw_generated::*;
+
+    /// Returns the boolean keyword for the given value.
+    #[inline]
+    pub const fn boolean(b: bool) -> Symbol {
+        if b {
+            True
+        } else {
+            False
+        }
+    }
+
+    /// Returns the `int` keyword for the given byte (**not bit**) size.
+    ///
+    /// If `n` is 0, returns [`kw::Uint`](Int).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is greater than 32.
+    #[inline]
+    #[track_caller]
+    pub const fn int(n: u8) -> Symbol {
+        assert!(n <= 32);
+        Symbol::new(Int.as_u32() + n as u32)
+    }
+
+    /// Returns the `uint` keyword for the given byte (**not bit**) size.
+    ///
+    /// If `n` is 0, returns [`kw::UInt`](UInt).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is greater than 32.
+    #[inline]
+    #[track_caller]
+    pub const fn uint(n: u8) -> Symbol {
+        assert!(n <= 32);
+        Symbol::new(UInt.as_u32() + n as u32)
+    }
+
+    /// Returns the `bytes` keyword for the given byte size.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `n` is 0 or is greater than 32.
+    #[inline]
+    #[track_caller]
+    pub const fn fixed_bytes(n: u8) -> Symbol {
+        assert!(n > 0 && n <= 32);
+        Symbol::new(Bytes.as_u32() + n as u32)
+    }
+}
+
+// This module has a very short name because it's used a lot.
+/// This module contains all the defined non-keyword `Symbol`s.
+///
+/// Given that `sym` is imported, use them like `sym::symbol_name`.
+/// For example `sym::rustfmt` or `sym::u8`.
+pub mod sym {
+    use super::Symbol;
+
+    #[doc(inline)]
+    pub use super::sym_generated::*;
+
+    /// Get the symbol for an integer.
+    ///
+    /// The first few non-negative integers each have a static symbol and therefore are fast.
+    pub fn integer<N: TryInto<usize> + Copy + ToString>(n: N) -> Symbol {
+        if let Ok(idx) = n.try_into() {
+            if idx < 10 {
+                return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
+            }
+        }
+        Symbol::intern(&n.to_string())
+    }
+}
+
 // The proc macro code for this is in `crates/macros/src/symbols/mod.rs`.
 symbols! {
     // Solidity keywords.
@@ -335,469 +786,6 @@ symbols! {
         solidity,
         underscore: "_",
         x,
-    }
-}
-
-// This module has a very short name because it's used a lot.
-/// This module contains all the defined keyword `Symbol`s.
-///
-/// Given that `kw` is imported, use them like `kw::keyword_name`.
-/// For example `kw::For` or `kw::Break`.
-pub mod kw {
-    use crate::Symbol;
-
-    #[doc(inline)]
-    pub use super::kw_generated::*;
-
-    /// Returns the boolean keyword for the given value.
-    #[inline]
-    pub const fn boolean(b: bool) -> Symbol {
-        if b {
-            True
-        } else {
-            False
-        }
-    }
-
-    /// Returns the `int` keyword for the given byte (**not bit**) size.
-    ///
-    /// If `n` is 0, returns [`kw::Uint`](Int).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `n` is greater than 32.
-    #[inline]
-    #[track_caller]
-    pub const fn int(n: u8) -> Symbol {
-        assert!(n <= 32);
-        Symbol::new(Int.as_u32() + n as u32)
-    }
-
-    /// Returns the `uint` keyword for the given byte (**not bit**) size.
-    ///
-    /// If `n` is 0, returns [`kw::UInt`](UInt).
-    ///
-    /// # Panics
-    ///
-    /// Panics if `n` is greater than 32.
-    #[inline]
-    #[track_caller]
-    pub const fn uint(n: u8) -> Symbol {
-        assert!(n <= 32);
-        Symbol::new(UInt.as_u32() + n as u32)
-    }
-
-    /// Returns the `bytes` keyword for the given byte size.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `n` is 0 or is greater than 32.
-    #[inline]
-    #[track_caller]
-    pub const fn fixed_bytes(n: u8) -> Symbol {
-        assert!(n > 0 && n <= 32);
-        Symbol::new(Bytes.as_u32() + n as u32)
-    }
-}
-
-// This module has a very short name because it's used a lot.
-/// This module contains all the defined non-keyword `Symbol`s.
-///
-/// Given that `sym` is imported, use them like `sym::symbol_name`.
-/// For example `sym::rustfmt` or `sym::u8`.
-pub mod sym {
-    use super::Symbol;
-
-    #[doc(inline)]
-    pub use super::sym_generated::*;
-
-    /// Get the symbol for an integer.
-    ///
-    /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer<N: TryInto<usize> + Copy + ToString>(n: N) -> Symbol {
-        if let Ok(idx) = n.try_into() {
-            if idx < 10 {
-                return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
-            }
-        }
-        Symbol::intern(&n.to_string())
-    }
-}
-
-/// An identifier.
-#[derive(Clone, Copy)]
-pub struct Ident {
-    /// The identifier's name.
-    pub name: Symbol,
-    /// The identifier's span.
-    pub span: Span,
-}
-
-impl PartialEq for Ident {
-    #[inline]
-    fn eq(&self, rhs: &Self) -> bool {
-        self.name == rhs.name
-        // && self.span.eq_ctxt(rhs.span)
-    }
-}
-
-impl Eq for Ident {}
-
-impl PartialOrd for Ident {
-    #[inline]
-    fn partial_cmp(&self, rhs: &Self) -> Option<cmp::Ordering> {
-        Some(self.cmp(rhs))
-    }
-}
-
-impl Ord for Ident {
-    #[inline]
-    fn cmp(&self, rhs: &Self) -> cmp::Ordering {
-        self.name.cmp(&rhs.name)
-    }
-}
-
-impl hash::Hash for Ident {
-    #[inline]
-    fn hash<H: hash::Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-        // self.span.ctxt().hash(state);
-    }
-}
-
-impl fmt::Debug for Ident {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-        // fmt::Debug::fmt(&self.span.ctxt(), f)
-    }
-}
-
-impl fmt::Display for Ident {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.name.fmt(f)
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl ToString for Ident {
-    #[inline]
-    fn to_string(&self) -> String {
-        self.name.to_string()
-    }
-}
-
-impl Ident {
-    /// Constructs a new identifier from a symbol and a span.
-    #[inline]
-    pub const fn new(name: Symbol, span: Span) -> Self {
-        Self { name, span }
-    }
-
-    /// Constructs a new identifier with a dummy span.
-    #[inline]
-    pub const fn with_dummy_span(name: Symbol) -> Self {
-        Self::new(name, Span::DUMMY)
-    }
-
-    /// Maps a string to an identifier with a dummy span.
-    #[allow(clippy::should_implement_trait)]
-    pub fn from_str(string: &str) -> Self {
-        Self::with_dummy_span(Symbol::intern(string))
-    }
-
-    /// Maps a string and a span to an identifier.
-    pub fn from_str_and_span(string: &str, span: Span) -> Self {
-        Self::new(Symbol::intern(string), span)
-    }
-
-    /// Replaces `lo` and `hi` with those from `span`, but keeps the context.
-    pub fn with_span_pos(mut self, span: Span) -> Self {
-        self.span = span /* .with_ctxt(self.span.ctxt()) */; // TODO
-        self
-    }
-
-    pub fn without_first_quote(self) -> Self {
-        Self::new(Symbol::intern(self.as_str().trim_start_matches('\'')), self.span)
-    }
-
-    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
-    #[inline]
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-
-    /// Access the underlying string. This is a slowish operation because it requires locking the
-    /// symbol interner.
-    ///
-    /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
-    pub fn as_str(&self) -> &str {
-        self.name.as_str()
-    }
-
-    /// Returns `true` if the identifier is a keyword used in the language.
-    #[inline]
-    pub fn is_used_keyword(self) -> bool {
-        self.name.is_used_keyword()
-    }
-
-    /// Returns `true` if the identifier is a keyword reserved for possible future use.
-    #[inline]
-    pub fn is_unused_keyword(self) -> bool {
-        self.name.is_unused_keyword()
-    }
-
-    /// Returns `true` if the identifier is a weak keyword and can be used in variable names.
-    #[inline]
-    pub fn is_weak_keyword(self) -> bool {
-        self.name.is_weak_keyword()
-    }
-
-    /// Returns `true` if the identifier is a keyword in a Yul context.
-    #[inline]
-    pub fn is_yul_keyword(self) -> bool {
-        self.name.is_yul_keyword()
-    }
-
-    /// Returns `true` if the identifier is a Yul builtin function keyword.
-    #[inline]
-    pub fn is_yul_builtin(self) -> bool {
-        self.name.is_yul_builtin()
-    }
-
-    /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
-    /// for possible future use.
-    #[inline]
-    pub fn is_reserved(self, yul: bool) -> bool {
-        self.name.is_reserved(yul)
-    }
-
-    /// Returns `true` if the identifier is not a reserved keyword.
-    /// See [`is_reserved`](Self::is_reserved).
-    #[inline]
-    pub fn is_non_reserved(self, yul: bool) -> bool {
-        self.name.is_non_reserved(yul)
-    }
-
-    /// Returns `true` if the identifier is an elementary type name.
-    ///
-    /// Note that this does not include `[u]fixedMxN` types.
-    #[inline]
-    pub fn is_elementary_type(self) -> bool {
-        self.name.is_elementary_type()
-    }
-
-    /// Returns `true` if the identifier is `true` or `false`.
-    #[inline]
-    pub fn is_bool_lit(self) -> bool {
-        self.name.is_bool_lit()
-    }
-}
-
-/// An interned string.
-///
-/// Internally, a `Symbol` is implemented as an index, and all operations
-/// (including hashing, equality, and ordering) operate on that index.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(BaseIndex32);
-
-impl Symbol {
-    const fn new(n: u32) -> Self {
-        Self(BaseIndex32::new(n))
-    }
-
-    /// Maps a string to its interned representation.
-    pub fn intern(string: &str) -> Self {
-        SessionGlobals::with(|g| g.symbol_interner.intern(string))
-    }
-
-    /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
-    #[inline]
-    #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-
-    /// Access the underlying string. This is a slowish operation because it
-    /// requires locking the symbol interner.
-    ///
-    /// Note that the lifetime of the return value is a lie. It's not the same
-    /// as `&self`, but actually tied to the lifetime of the underlying
-    /// interner. Interners are long-lived, and there are very few of them, and
-    /// this function is typically used for short-lived things, so in practice
-    /// it works out ok.
-    pub fn as_str(&self) -> &str {
-        SessionGlobals::with(|g| unsafe {
-            std::mem::transmute::<&str, &str>(g.symbol_interner.get(*self))
-        })
-    }
-
-    /// Returns the internal representation of the symbol.
-    #[inline(always)]
-    pub const fn as_u32(self) -> u32 {
-        self.0.get()
-    }
-
-    /// Returns `true` if the symbol is a keyword used in the Solidity language.
-    ///
-    /// For Yul keywords, use [`is_yul_keyword`](Self::is_yul_keyword).
-    #[inline]
-    pub fn is_used_keyword(self) -> bool {
-        self < kw::After
-    }
-
-    /// Returns `true` if the symbol is a keyword reserved for possible future use.
-    #[inline]
-    pub fn is_unused_keyword(self) -> bool {
-        self >= kw::After && self <= kw::Var
-    }
-
-    /// Returns `true` if the symbol is a weak keyword and can be used in variable names.
-    #[inline]
-    pub fn is_weak_keyword(self) -> bool {
-        self >= kw::Leave && self <= kw::Builtin
-    }
-
-    /// Returns `true` if the symbol is a keyword in a Yul context. Excludes builtin functions.
-    #[inline]
-    pub fn is_yul_keyword(self) -> bool {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
-        matches!(
-            self,
-            kw::Function
-                | kw::Let
-                | kw::If
-                | kw::Switch
-                | kw::Case
-                | kw::Default
-                | kw::For
-                | kw::Break
-                | kw::Continue
-                | kw::Leave
-                | kw::True
-                | kw::False
-        )
-    }
-
-    /// Returns `true` if the symbol is a Yul builtin function keyword.
-    #[inline]
-    pub fn is_yul_builtin(self) -> bool {
-        (self >= kw::Add && self <= kw::Xor)
-            | matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
-    }
-
-    /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
-    /// possible future use.
-    #[inline]
-    pub fn is_reserved(self, yul: bool) -> bool {
-        if yul {
-            self.is_yul_keyword() | self.is_yul_builtin()
-        } else {
-            self.is_used_keyword() | self.is_unused_keyword()
-        }
-    }
-
-    /// Returns `true` if the symbol is not a reserved keyword.
-    /// See [`is_reserved`](Self::is_reserved).
-    #[inline]
-    pub fn is_non_reserved(self, yul: bool) -> bool {
-        !self.is_reserved(yul)
-    }
-
-    /// Returns `true` if the symbol is an elementary type name.
-    ///
-    /// Note that this does not include `[u]fixedMxN` types as they are not pre-interned.
-    #[inline]
-    pub fn is_elementary_type(self) -> bool {
-        self >= kw::Int && self <= kw::UFixed
-    }
-
-    /// Returns `true` if the symbol is `true` or `false`.
-    #[inline]
-    pub fn is_bool_lit(self) -> bool {
-        self == kw::False || self == kw::True
-    }
-
-    /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.
-    #[inline]
-    pub const fn is_preinterned(self) -> bool {
-        self.as_u32() < PREINTERNED_SYMBOLS_COUNT
-    }
-}
-
-impl fmt::Debug for Symbol {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self.as_str(), f)
-    }
-}
-
-impl fmt::Display for Symbol {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.as_str(), f)
-    }
-}
-
-#[cfg(feature = "nightly")]
-impl ToString for Symbol {
-    #[inline]
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-}
-
-pub(crate) struct Interner(Lock<InternerInner>);
-
-// The `&'static str`s in this type actually point into the arena.
-//
-// This type is private to prevent accidentally constructing more than one
-// `Interner` on the same thread, which makes it easy to mix up `Symbol`s
-// between `Interner`s.
-struct InternerInner {
-    arena: bumpalo::Bump,
-    strings: FxIndexSet<&'static str>,
-}
-
-impl Interner {
-    fn prefill(init: &[&'static str]) -> Self {
-        Self(Lock::new(InternerInner {
-            arena: Default::default(),
-            strings: init.iter().copied().collect(),
-        }))
-    }
-
-    #[inline]
-    fn intern(&self, string: &str) -> Symbol {
-        let mut inner = self.0.lock();
-        if let Some(idx) = inner.strings.get_index_of(string) {
-            return Symbol::new(idx as u32);
-        }
-
-        let string: &str = inner.arena.alloc_str(string);
-
-        // SAFETY: we can extend the arena allocation to `'static` because we
-        // only access these while the arena is still alive.
-        let string: &'static str = unsafe { &*(string as *const str) };
-
-        // This second hash table lookup can be avoided by using `RawEntryMut`,
-        // but this code path isn't hot enough for it to be worth it. See
-        // #91445 for details.
-        let (idx, is_new) = inner.strings.insert_full(string);
-        debug_assert!(is_new); // due to the get_index_of check above
-
-        Symbol::new(idx as u32)
-    }
-
-    /// Get the symbol as a string.
-    ///
-    /// [`Symbol::as_str()`] should be used in preference to this function.
-    fn get(&self, symbol: Symbol) -> &str {
-        self.0.lock().strings.get_index(symbol.as_u32() as usize).unwrap()
     }
 }
 

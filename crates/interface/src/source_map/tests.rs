@@ -136,7 +136,7 @@ fn t6() {
 #[test]
 fn t7() {
     let sm = init_source_map();
-    let span = Span::with_root_ctxt(BytePos(12), BytePos(23));
+    let span = Span::new(BytePos(12), BytePos(23));
     let file_lines = sm.span_to_lines(span).unwrap();
 
     assert_eq!(file_lines.file.name, PathBuf::from("blork.rs").into());
@@ -152,7 +152,7 @@ fn span_from_selection(input: &str, selection: &str) -> Span {
     assert_eq!(input.len(), selection.len());
     let left_index = selection.find('~').unwrap() as u32;
     let right_index = selection.rfind('~').map_or(left_index, |x| x as u32);
-    Span::with_root_ctxt(BytePos(left_index), BytePos(right_index + 1))
+    Span::new(BytePos(left_index), BytePos(right_index + 1))
 }
 
 /// Tests `span_to_snippet` and `span_to_lines` for a span converting 3
@@ -182,7 +182,7 @@ fn span_to_snippet_and_lines_spanning_multiple_lines() {
 #[test]
 fn t8() {
     let sm = init_source_map();
-    let span = Span::with_root_ctxt(BytePos(12), BytePos(23));
+    let span = Span::new(BytePos(12), BytePos(23));
     let snippet = sm.span_to_snippet(span);
 
     assert_eq!(snippet, Ok("second line".to_string()));
@@ -192,7 +192,7 @@ fn t8() {
 #[test]
 fn t9() {
     let sm = init_source_map();
-    let span = Span::with_root_ctxt(BytePos(12), BytePos(23));
+    let span = Span::new(BytePos(12), BytePos(23));
     let sstr = sm.span_to_diagnostic_string(span);
 
     assert_eq!(sstr, "blork.rs:2:1: 2:12");
@@ -299,7 +299,7 @@ impl SourceMapExtension for SourceMap {
             let lo = hi + offset;
             hi = lo + substring.len();
             if i == n {
-                let span = Span::with_root_ctxt(
+                let span = Span::new(
                     BytePos(lo as u32 + file.start_pos.0),
                     BytePos(hi as u32 + file.start_pos.0),
                 );
@@ -557,7 +557,7 @@ fn test_next_point() {
     assert_eq!(span.hi().0, 0);
 
     // Span advance respect multi-byte character
-    let span = Span::with_root_ctxt(BytePos(0), BytePos(1));
+    let span = Span::new(BytePos(0), BytePos(1));
     assert_eq!(sm.span_to_snippet(span), Ok("a".to_string()));
     let span = sm.next_point(span);
     assert_eq!(sm.span_to_snippet(span), Ok("…".to_string()));
@@ -566,25 +566,25 @@ fn test_next_point() {
 
     // An empty span pointing just before a multi-byte character should
     // advance to contain the multi-byte character.
-    let span = Span::with_root_ctxt(BytePos(1), BytePos(1));
+    let span = Span::new(BytePos(1), BytePos(1));
     let span = sm.next_point(span);
     assert_eq!(span.lo().0, 1);
     assert_eq!(span.hi().0, 4);
 
-    let span = Span::with_root_ctxt(BytePos(1), BytePos(4));
+    let span = Span::new(BytePos(1), BytePos(4));
     let span = sm.next_point(span);
     assert_eq!(span.lo().0, 4);
     assert_eq!(span.hi().0, 5);
 
     // Reaching to the end of file, return a span that will get error with `span_to_snippet`
-    let span = Span::with_root_ctxt(BytePos(4), BytePos(5));
+    let span = Span::new(BytePos(4), BytePos(5));
     let span = sm.next_point(span);
     assert_eq!(span.lo().0, 5);
     assert_eq!(span.hi().0, 6);
     assert!(sm.span_to_snippet(span).is_err());
 
     // Reaching to the end of file, return a span that will get error with `span_to_snippet`
-    let span = Span::with_root_ctxt(BytePos(5), BytePos(5));
+    let span = Span::new(BytePos(5), BytePos(5));
     let span = sm.next_point(span);
     assert_eq!(span.lo().0, 5);
     assert_eq!(span.hi().0, 6);

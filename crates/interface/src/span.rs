@@ -28,11 +28,7 @@ impl fmt::Debug for Span {
         // available, fall back to printing the raw values.
 
         fn fallback(span: Span, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("Span")
-                .field("lo", &span.lo())
-                .field("hi", &span.hi())
-                // .field("ctxt", &span.ctxt())
-                .finish()
+            f.debug_struct("Span").field("lo", &span.lo()).field("hi", &span.hi()).finish()
         }
 
         if SessionGlobals::is_set() {
@@ -60,13 +56,6 @@ impl Span {
             std::mem::swap(&mut lo, &mut hi);
         }
         Self { lo, hi }
-    }
-
-    /// Creates a new span from two byte positions with the root context.
-    #[inline]
-    pub fn with_root_ctxt(lo: BytePos, hi: BytePos) -> Self {
-        Self::new(lo, hi)
-        // Self::new(lo, hi, SyntaxContext::root(), None)
     }
 
     /// Returns the span's start position.

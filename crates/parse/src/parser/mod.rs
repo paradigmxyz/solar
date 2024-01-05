@@ -647,13 +647,11 @@ impl<'a> Parser<'a> {
 
     /// Advance the parser by one token.
     pub fn bump(&mut self) {
-        let next = self.tokens.next().unwrap_or(Token::EOF);
-        // TODO
-        // if next.span.is_dummy() {
-        //     // Tweak the location for better diagnostics, but keep syntactic context intact.
-        //     let fallback_span = self.token.span;
-        //     next.span = fallback_span.with_ctxt(next.span.ctxt());
-        // }
+        let mut next = self.tokens.next().unwrap_or(Token::EOF);
+        if next.span.is_dummy() {
+            // Tweak the location for better diagnostics.
+            next.span = self.token.span;
+        }
         self.inlined_bump_with(next);
     }
 
