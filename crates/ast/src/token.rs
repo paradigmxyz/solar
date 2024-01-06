@@ -315,7 +315,7 @@ impl TokenKind {
     /// Returns `true` if the token kind is a normal comment (not a doc-comment).
     #[inline]
     pub const fn is_comment(&self) -> bool {
-        matches!(self, Self::Comment(true, ..))
+        matches!(self, Self::Comment(false, ..))
     }
 
     /// Glues two token kinds together.

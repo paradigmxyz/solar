@@ -126,8 +126,8 @@ impl<'a> Lexer<'a> {
                 RawTokenKind::LineComment { is_doc } => {
                     preceded_by_whitespace = true;
 
-                    // Opening delimiter of the length 3 is not included into the symbol.
-                    let content_start = start + BytePos(3);
+                    // Opening delimiter is not included into the symbol.
+                    let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
                 }
@@ -138,9 +138,8 @@ impl<'a> Lexer<'a> {
                         self.report_unterminated_block_comment(start, is_doc);
                     }
 
-                    // Opening delimiter of the length 3 and closing delimiter of the length 2
-                    // are not included into the symbol.
-                    let content_start = start + BytePos(3);
+                    // Opening delimiter and closing delimiter are not included into the symbol.
+                    let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content_end = self.pos - (terminated as u32) * 2;
                     let content = self.str_from_to(content_start, content_end);
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
@@ -436,6 +435,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// Slice of the source text spanning from `start` up to but excluding `end`.
+    #[track_caller]
     fn str_from_to(&self, start: BytePos, end: BytePos) -> &'a str {
         &self.src[self.src_index(start)..self.src_index(end)]
     }
@@ -497,7 +497,7 @@ mod tests {
     fn check(src: &str, expected: Expected<'_>) {
         let sess = ParseSess::with_test_emitter(false);
         let tokens: Vec<_> = Lexer::new(&sess, src)
-            .filter(|t| t.is_comment())
+            .filter(|t| !t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
         assert_eq!(tokens, expected, "{src:?}");
