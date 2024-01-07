@@ -227,6 +227,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a list of expressions: `(a, b, c, ...)`.
+    #[allow(clippy::vec_box)]
     fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Box<Expr>>> {
         self.parse_paren_comma_seq(Self::parse_expr).map(|(x, _)| x)
     }

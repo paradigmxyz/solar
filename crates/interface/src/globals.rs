@@ -54,7 +54,7 @@ impl SessionGlobals {
         Self::with(|g| *g.source_map.lock() = Some(source_map));
 
         let _clear = defer(|| {
-            SessionGlobals::with(|g| g.source_map.lock().take());
+            Self::with(|g| g.source_map.lock().take());
         });
         f()
     }
