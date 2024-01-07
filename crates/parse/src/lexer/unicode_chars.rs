@@ -349,7 +349,7 @@ pub(super) enum TokenSubstitution {
 }
 
 pub(super) fn check_for_substitution(
-    reader: &Lexer<'_>,
+    reader: &Lexer<'_, '_>,
     pos: BytePos,
     ch: char,
     count: usize,

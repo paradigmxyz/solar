@@ -20,9 +20,9 @@ mod unicode_chars;
 mod utf8;
 
 /// Solidity lexer.
-pub struct Lexer<'a> {
+pub struct Lexer<'sess, 'src> {
     /// The parsing context.
-    pub(crate) sess: &'a ParseSess,
+    pub(crate) sess: &'sess ParseSess,
 
     /// Initial position, read-only.
     start_pos: BytePos,
@@ -31,10 +31,10 @@ pub struct Lexer<'a> {
     pos: BytePos,
 
     /// Source text to tokenize.
-    src: &'a str,
+    src: &'src str,
 
     /// Cursor for getting lexer tokens.
-    cursor: Cursor<'a>,
+    cursor: Cursor<'src>,
 
     /// The current token which has not been processed by `next_token` yet.
     token: Token,
@@ -45,19 +45,19 @@ pub struct Lexer<'a> {
     nbsp_is_whitespace: bool,
 }
 
-impl<'a> Lexer<'a> {
+impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Creates a new `Lexer` for the given source string.
-    pub fn new(sess: &'a ParseSess, src: &'a str) -> Self {
+    pub fn new(sess: &'sess ParseSess, src: &'src str) -> Self {
         Self::with_start_pos(sess, src, BytePos(0))
     }
 
     /// Creates a new `Lexer` for the given source file.
-    pub fn from_source_file(sess: &'a ParseSess, file: &'a SourceFile) -> Self {
+    pub fn from_source_file(sess: &'sess ParseSess, file: &'src SourceFile) -> Self {
         Self::with_start_pos(sess, &file.src, file.start_pos)
     }
 
     /// Creates a new `Lexer` for the given source string and starting position.
-    pub fn with_start_pos(sess: &'a ParseSess, src: &'a str, start_pos: BytePos) -> Self {
+    pub fn with_start_pos(sess: &'sess ParseSess, src: &'src str, start_pos: BytePos) -> Self {
         let mut lexer = Self {
             sess,
             start_pos,
@@ -73,7 +73,7 @@ impl<'a> Lexer<'a> {
 
     /// Returns a reference to the diagnostic context.
     #[inline]
-    pub fn dcx(&self) -> &'a DiagCtxt {
+    pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
     }
 
@@ -424,7 +424,7 @@ impl<'a> Lexer<'a> {
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
-    fn str_from(&self, start: BytePos) -> &'a str {
+    fn str_from(&self, start: BytePos) -> &'src str {
         self.str_from_to(start, self.pos)
     }
 
@@ -436,12 +436,12 @@ impl<'a> Lexer<'a> {
 
     /// Slice of the source text spanning from `start` up to but excluding `end`.
     #[track_caller]
-    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'a str {
+    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
         &self.src[self.src_index(start)..self.src_index(end)]
     }
 
     /// Slice of the source text spanning from `start` until the end.
-    fn str_from_to_end(&self, start: BytePos) -> &'a str {
+    fn str_from_to_end(&self, start: BytePos) -> &'src str {
         &self.src[self.src_index(start)..]
     }
 
@@ -458,7 +458,7 @@ impl<'a> Lexer<'a> {
     }
 }
 
-impl Iterator for Lexer<'_> {
+impl Iterator for Lexer<'_, '_> {
     type Item = Token;
 
     #[inline]
@@ -472,7 +472,7 @@ impl Iterator for Lexer<'_> {
     }
 }
 
-impl std::iter::FusedIterator for Lexer<'_> {}
+impl std::iter::FusedIterator for Lexer<'_, '_> {}
 
 /// Pushes a character to a message string for error reporting
 fn escaped_char(c: char) -> String {
