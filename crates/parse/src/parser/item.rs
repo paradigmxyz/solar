@@ -365,11 +365,43 @@ impl<'a> Parser<'a> {
 
     fn parse_semver_version(&mut self) -> PResult<'a, SemverVersion> {
         let lo = self.token.span;
-        let major = self.parse_semver_number()?;
-        let minor =
-            if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
-        let patch =
-            if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
+        let major;
+        let mut minor = None;
+        let mut patch = None;
+        // Special case: `number.number` gets lexed as a rational literal.
+        // In the comments `*` also represents `x` or `X`.
+        if self.token.is_rational_lit() {
+            // 0.1 .2
+            let lit = self.token.lit().unwrap();
+            let (mj, mn) = lit.symbol.as_str().split_once('.').unwrap();
+            major = self.parse_u32(mj)?;
+            minor = Some(self.parse_u32(mn)?);
+            self.bump();
+
+            patch =
+                if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
+        } else {
+            // (0 )|\*\.1 ?\.2
+            major = self.parse_semver_number()?;
+            if self.eat(&TokenKind::Dot) {
+                if self.token.is_rational_lit() {
+                    // *. 1.2
+                    let lit = self.token.lit().unwrap();
+                    let (mn, p) = lit.symbol.as_str().split_once('.').unwrap();
+                    minor = Some(self.parse_u32(mn)?);
+                    patch = Some(self.parse_u32(p)?);
+                    self.bump();
+                } else {
+                    // *.1 .2
+                    minor = Some(self.parse_semver_number()?);
+                    patch = if self.eat(&TokenKind::Dot) {
+                        Some(self.parse_semver_number()?)
+                    } else {
+                        None
+                    };
+                }
+            }
+        }
         let span = lo.to(self.prev_token.span);
         Ok(SemverVersion::new(span, major, minor, patch))
     }
@@ -390,10 +422,13 @@ impl<'a> Parser<'a> {
             self.expected_tokens.push(ExpectedToken::VersionNumber);
             return self.unexpected();
         };
-        let value =
-            symbol.as_str().parse::<u32>().map_err(|e| self.dcx().err(e.to_string()).span(span))?;
+        let value = self.parse_u32(symbol.as_str()).map_err(|e| e.span(span))?;
         self.bump();
         Ok(value)
+    }
+
+    fn parse_u32(&mut self, s: &str) -> PResult<'a, u32> {
+        s.parse::<u32>().map_err(|e| self.dcx().err(e.to_string()))
     }
 
     /// Parses an import directive.
