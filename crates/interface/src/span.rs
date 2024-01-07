@@ -32,13 +32,13 @@ impl fmt::Debug for Span {
         // available, fall back to printing the raw values.
 
         fn fallback(span: Span, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            f.debug_struct("Span").field("lo", &span.lo()).field("hi", &span.hi()).finish()
+            write!(f, "Span({lo}..{hi})", lo = span.lo().0, hi = span.hi().0)
         }
 
         if SessionGlobals::is_set() {
             SessionGlobals::with(|g| {
                 if let Some(source_map) = &*g.source_map.lock() {
-                    write!(f, "{}", source_map.span_to_diagnostic_string(*self))
+                    f.write_str(&source_map.span_to_diagnostic_string(*self))
                 } else {
                     fallback(*self, f)
                 }

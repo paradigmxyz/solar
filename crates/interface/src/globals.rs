@@ -1,5 +1,8 @@
 use crate::SourceMap;
-use sulk_data_structures::sync::{Lock, Lrc};
+use sulk_data_structures::{
+    defer,
+    sync::{Lock, Lrc},
+};
 
 scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 
@@ -38,6 +41,22 @@ impl SessionGlobals {
             panic_overwrite();
         }
         SESSION_GLOBALS.set(self, f)
+    }
+
+    /// Sets the source map in the session globals.
+    pub fn set_source_map(&mut self, source_map: Option<Lrc<SourceMap>>) {
+        *self.source_map.get_mut() = source_map;
+    }
+
+    /// Insert `source_map` into the session globals for the duration of the
+    /// closure's execution.
+    pub fn with_source_map<R>(source_map: Lrc<SourceMap>, f: impl FnOnce() -> R) -> R {
+        Self::with(|g| *g.source_map.lock() = Some(source_map));
+
+        let _clear = defer(|| {
+            SessionGlobals::with(|g| g.source_map.lock().take());
+        });
+        f()
     }
 
     /// Calls the given closure with the current session globals.

@@ -21,3 +21,6 @@ sulk-interface.workspace = true
 sulk-parse.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
+tracing-error.workspace = true
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter", "fmt"] }
+# tracing.workspace = true

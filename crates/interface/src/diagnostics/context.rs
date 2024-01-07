@@ -1,5 +1,5 @@
 use super::{
-    emitter::HumanEmitter, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
+    emitter::HumanEmitter, BugAbort, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
     EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
 use crate::SourceMap;
@@ -164,7 +164,7 @@ impl DiagCtxt {
 
     /// Creates a builder at the `Bug` level with the given `msg`.
     #[track_caller]
-    pub fn bug(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
+    pub fn bug(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, BugAbort> {
         self.diag(Level::Bug, msg)
     }
 

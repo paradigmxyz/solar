@@ -473,6 +473,7 @@ symbols! {
         Constructor: "constructor",
         Continue:    "continue",
         Contract:    "contract",
+        Delete:      "delete",
         Do:          "do",
         Else:        "else",
         Emit:        "emit",

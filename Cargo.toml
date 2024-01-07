@@ -68,6 +68,11 @@ syn = "2.0"
 parking_lot = "0.12"
 rayon = "1.8"
 
+# tracing
+tracing-error = "0.2"
+tracing-subscriber = "0.3"
+tracing = "0.1"
+
 # testing
 criterion = "0.5"
 expect-test = "1.4"

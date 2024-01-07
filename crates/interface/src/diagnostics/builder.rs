@@ -1,6 +1,6 @@
 use super::{
-    DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, FatalAbort, FatalError,
-    Level, MultiSpan, Style,
+    BugAbort, DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, ExplicitBug,
+    FatalAbort, FatalError, Level, MultiSpan, Style,
 };
 use crate::Span;
 use core::fmt;
@@ -50,6 +50,15 @@ impl EmissionGuarantee for () {
 
     fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
+    }
+}
+
+impl EmissionGuarantee for BugAbort {
+    type EmitResult = Never;
+
+    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
+        db.emit_producing_nothing();
+        std::panic::panic_any(ExplicitBug);
     }
 }
 

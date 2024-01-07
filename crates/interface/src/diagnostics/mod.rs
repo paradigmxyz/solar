@@ -2,7 +2,7 @@
 //!
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
-use crate::Span;
+use crate::{Result, Span};
 use anstyle::{AnsiColor, Color};
 use std::{
     borrow::Cow,
@@ -45,6 +45,11 @@ impl ErrorGuaranteed {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BugAbort;
 
+// TODO: Catch in panic hook.
+/// Signifies that the compiler died with an explicit call to `.bug` rather than a failed assertion,
+/// etc.
+pub struct ExplicitBug;
+
 /// Marker type which enables implementation of fatal diagnostics.
 pub struct FatalAbort(());
 
@@ -60,7 +65,7 @@ impl FatalError {
     }
 
     /// Catches a fatal error that was raised by [`raise`](Self::raise).
-    pub fn catch<R>(f: impl FnOnce() -> R) -> Result<R, ErrorGuaranteed> {
+    pub fn catch<R>(f: impl FnOnce() -> R) -> Result<R> {
         panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|value| {
             if value.is::<Self>() {
                 #[allow(deprecated)]
@@ -75,7 +80,7 @@ impl FatalError {
     ///
     /// Returns [`FAILURE`](ExitCode::FAILURE) if an error was caught,
     /// [`SUCCESS`](ExitCode::SUCCESS) otherwise.
-    pub fn catch_with_exit_code(f: impl FnOnce() -> Result<(), ErrorGuaranteed>) -> ExitCode {
+    pub fn catch_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
         match Self::catch(f).and_then(std::convert::identity) {
             Ok(()) => ExitCode::SUCCESS,
             Err(_) => ExitCode::FAILURE,

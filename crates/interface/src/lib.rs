@@ -40,18 +40,21 @@ pub use symbol::{kw, sym, Ident, Symbol};
 
 pub use anstream::ColorChoice;
 
+/// Compiler result type.
+pub type Result<T> = std::result::Result<T, ErrorGuaranteed>;
+
 /// Creates a new compiler session on the current thread if it doesn't exist already and then
 /// executes the given closure, catching fatal errors and returning them as [`ErrorGuaranteed`].
 ///
 /// # Errors
 ///
 /// Returns [`ErrorGuaranteed`] if a [`FatalError`] was caught. Other panics are propagated.
-pub fn enter<R>(f: impl FnOnce() -> R) -> Result<R, ErrorGuaranteed> {
+pub fn enter<R>(f: impl FnOnce() -> R) -> Result<R> {
     SessionGlobals::with_or_default(|_| FatalError::catch(f))
 }
 
 /// Creates a new compiler session on the current thread if it doesn't exist already and then
 /// executes the given closure, catching fatal errors and returning them as [`ExitCode::FAILURE`].
-pub fn enter_with_exit_code(f: impl FnOnce() -> Result<(), ErrorGuaranteed>) -> ExitCode {
+pub fn enter_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
     SessionGlobals::with_or_default(|_| FatalError::catch_with_exit_code(f))
 }
