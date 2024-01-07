@@ -429,7 +429,7 @@ pub struct VariableDefinition {
     pub mutability: Option<VarMut>,
     pub storage: Option<Storage>,
     pub name: Ident,
-    pub initializer: Option<Expr>,
+    pub initializer: Option<Box<Expr>>,
 }
 
 /// The mutability of a variable.

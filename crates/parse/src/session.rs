@@ -43,4 +43,9 @@ impl ParseSess {
     pub fn source_map(&self) -> &SourceMap {
         &self.source_map
     }
+
+    /// Clones the source map.
+    pub fn clone_source_map(&self) -> Lrc<SourceMap> {
+        self.source_map.clone()
+    }
 }

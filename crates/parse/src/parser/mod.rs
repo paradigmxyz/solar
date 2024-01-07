@@ -82,19 +82,6 @@ impl ExpectedToken {
     }
 }
 
-/// Used by [`Parser::expect_any_with_type`].
-#[derive(Clone, Copy, Debug)]
-enum TokenExpectType {
-    /// Unencountered tokens are inserted into [`Parser::expected_tokens`].
-    /// See [`Parser::check`].
-    Expect,
-
-    /// Unencountered tokens are not inserted into [`Parser::expected_tokens`].
-    /// See [`Parser::check_noexpect`].
-    #[allow(dead_code)] // TODO
-    NoExpect,
-}
-
 /// A sequence separator.
 struct SeqSep {
     /// The separator token.
@@ -540,15 +527,12 @@ impl<'a> Parser<'a> {
         sep: SeqSep,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
-        self.parse_seq_to_before_tokens(&[ket], sep, TokenExpectType::Expect, f)
+        self.parse_seq_to_before_tokens(&[ket], sep, f)
     }
 
     /// Checks if the next token is contained within `kets`, and returns `true` if so.
-    fn expect_any_with_type(&mut self, kets: &[&TokenKind], expect: TokenExpectType) -> bool {
-        kets.iter().any(|k| match expect {
-            TokenExpectType::Expect => self.check(k),
-            TokenExpectType::NoExpect => self.check_noexpect(k),
-        })
+    fn expect_any(&mut self, kets: &[&TokenKind]) -> bool {
+        kets.iter().any(|k| self.check(k))
     }
 
     /// Parses a sequence until the specified delimiters. The function
@@ -559,7 +543,6 @@ impl<'a> Parser<'a> {
         &mut self,
         kets: &[&TokenKind],
         sep: SeqSep,
-        expect: TokenExpectType,
         mut f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
         let mut first = true;
@@ -567,7 +550,7 @@ impl<'a> Parser<'a> {
         let mut trailing = false;
         let mut v = Vec::new();
 
-        while !self.expect_any_with_type(kets, expect) {
+        while !self.expect_any(kets) {
             if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
                 break;
             }
@@ -646,7 +629,7 @@ impl<'a> Parser<'a> {
                 break;
             }
 
-            if sep.trailing_sep_allowed && self.expect_any_with_type(kets, expect) {
+            if sep.trailing_sep_allowed && self.expect_any(kets) {
                 trailing = true;
                 break;
             }

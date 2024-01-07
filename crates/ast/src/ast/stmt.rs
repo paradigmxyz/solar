@@ -20,12 +20,12 @@ pub enum StmtKind {
     Assembly(StmtAssembly),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDeclaration, Option<Expr>),
+    DeclSingle(VariableDeclaration, Option<Box<Expr>>),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Vec<Option<VariableDeclaration>>, Expr),
+    DeclMulti(Vec<Option<VariableDeclaration>>, Box<Expr>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block),
@@ -37,23 +37,28 @@ pub enum StmtKind {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Block, Expr),
+    DoWhile(Block, Box<Expr>),
 
     /// An emit statement: `emit Foo.bar(42);`.
     Emit(Path, CallArgs),
 
     /// An expression with a trailing semicolon.
-    Expr(Expr),
+    Expr(Box<Expr>),
 
     /// A for statement: `for (uint256 i; i < 42; ++i) { ... }`.
-    For { init: Option<Box<Stmt>>, cond: Option<Expr>, next: Option<Expr>, body: Box<Stmt> },
+    For {
+        init: Option<Box<Stmt>>,
+        cond: Option<Box<Expr>>,
+        next: Option<Box<Expr>>,
+        body: Box<Stmt>,
+    },
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else
     /// { ... }`.
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
+    If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
 
     /// A return statement: `return 42;`.
-    Return(Expr),
+    Return(Box<Expr>),
 
     /// A revert statement: `revert Foo.bar(42);`.
     Revert(Path, CallArgs),
@@ -65,7 +70,7 @@ pub enum StmtKind {
     UncheckedBlock(Block),
 
     /// A while statement: `while (i < 42) { ... }`.
-    While(Expr, Box<Stmt>),
+    While(Box<Expr>, Box<Stmt>),
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
@@ -84,7 +89,7 @@ pub struct StmtAssembly {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Clone, Debug)]
 pub struct StmtTry {
-    pub expr: Expr,
+    pub expr: Box<Expr>,
     pub returns: ParameterList,
     /// The try block.
     pub block: Block,

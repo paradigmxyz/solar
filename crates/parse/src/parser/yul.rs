@@ -113,6 +113,7 @@ impl<'a> Parser<'a> {
         let mut branches = Vec::new();
         while self.eat_keyword(kw::Case) {
             let constant = self.parse_lit()?;
+            self.expect_no_subdenomination();
             let body = self.parse_yul_block()?;
             branches.push(StmtSwitchCase { constant, body });
         }
@@ -149,6 +150,7 @@ impl<'a> Parser<'a> {
                 self.parse_ident().map(ExprKind::Ident)
             }
         } else if self.check_lit() {
+            // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
             self.parse_lit().map(ExprKind::Lit)
         } else {
             self.unexpected()

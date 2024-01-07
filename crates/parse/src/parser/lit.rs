@@ -1,4 +1,4 @@
-use crate::{unescape, PResult, Parser};
+use crate::{unescape, PErr, PResult, Parser};
 use alloy_primitives::Address;
 use num_bigint::BigInt;
 use num_rational::BigRational;
@@ -69,6 +69,18 @@ impl<'a> Parser<'a> {
             self.bump();
         }
         sub
+    }
+
+    /// Emits an error if a subdenomination was parsed.
+    pub(crate) fn expect_no_subdenomination(&mut self) {
+        if let Some(_sub) = self.parse_subdenomination() {
+            self.no_subdenomination_error().emit();
+        }
+    }
+
+    pub(crate) fn no_subdenomination_error(&mut self) -> PErr<'a> {
+        let span = self.prev_token.span;
+        self.dcx().err("subdenominations aren't allowed here").span(span)
     }
 
     fn parse_lit_inner(&mut self) -> PResult<'a, (Symbol, LitKind)> {

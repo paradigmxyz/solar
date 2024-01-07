@@ -136,7 +136,7 @@ impl TyFixedSize {
 #[derive(Clone, Debug)]
 pub struct TypeArray {
     pub element: Ty,
-    pub size: Option<Expr>,
+    pub size: Option<Box<Expr>>,
 }
 
 /// A function type name.

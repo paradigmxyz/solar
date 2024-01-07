@@ -1,4 +1,4 @@
-use super::{LitKind, Ty};
+use super::{Lit, SubDenomination, Ty};
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -18,7 +18,7 @@ pub struct Expr {
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     /// An array literal expression: `[a, b, c, d]`.
-    Array(Vec<Expr>),
+    Array(Vec<Box<Expr>>),
 
     /// An assignment: `a = b`, `a += b`.
     Assign(Box<Expr>, Option<BinOp>, Box<Expr>),
@@ -38,11 +38,11 @@ pub enum ExprKind {
     /// An identifier: `foo`.
     Ident(Ident),
 
-    /// A square bracketed indexing expression: `vector[2]`, `slice[42:69]`.
-    Index(Box<Expr>, Option<Box<Expr>>, Option<Box<Expr>>),
+    /// A square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
+    Index(Box<Expr>, IndexKind),
 
     /// A literal: `hex"1234"`, `5.6 ether`.
-    Lit(LitKind),
+    Lit(Lit, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
     Member(Box<Expr>, Ident),
@@ -51,13 +51,14 @@ pub enum ExprKind {
     New(Ty),
 
     /// A `payable` expression: `payable(address(0x...))`.
-    Payable(Box<Expr>),
+    // Payable(Box<Expr>),
+    Payable,
 
     /// A ternary (AKA conditional) expression: `foo ? bar : baz`.
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(Vec<Option<Expr>>),
+    Tuple(Vec<Option<Box<Expr>>>),
 
     /// A `type()` expression: `type(uint256)`
     TypeCall(Ty),
@@ -96,12 +97,12 @@ pub enum BinOpKind {
     /// `&&`
     And,
 
-    /// `>>>`
-    Sar,
     /// `>>`
     Shr,
     /// `<<`
     Shl,
+    /// `>>>`
+    Sar,
     /// `&`
     BitAnd,
     /// `|`
@@ -196,9 +197,9 @@ pub struct UnOp {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum UnOpKind {
     /// `++x`
-    PrefixInc,
+    PreInc,
     /// `--x`
-    PrefixDec,
+    PreDec,
     /// `!`
     Not,
     /// `-`
@@ -207,9 +208,9 @@ pub enum UnOpKind {
     BitNot,
 
     /// `x++`
-    PostfixInc,
+    PostInc,
     /// `x--`
-    PostfixDec,
+    PostDec,
 }
 
 impl fmt::Display for UnOp {
@@ -222,21 +223,21 @@ impl UnOpKind {
     /// Returns the string representation of the operator.
     pub const fn to_str(self) -> &'static str {
         match self {
-            Self::PrefixInc => "++",
-            Self::PrefixDec => "--",
+            Self::PreInc => "++",
+            Self::PreDec => "--",
             Self::Not => "!",
             Self::Neg => "-",
             Self::BitNot => "~",
-            Self::PostfixInc => "++",
-            Self::PostfixDec => "--",
+            Self::PostInc => "++",
+            Self::PostDec => "--",
         }
     }
 
     /// Returns `true` if the operator is a prefix operator.
     pub const fn is_prefix(self) -> bool {
         match self {
-            Self::PrefixInc | Self::PrefixDec | Self::Not | Self::Neg | Self::BitNot => true,
-            Self::PostfixInc | Self::PostfixDec => false,
+            Self::PreInc | Self::PreDec | Self::Not | Self::Neg | Self::BitNot => true,
+            Self::PostInc | Self::PostDec => false,
         }
     }
 
@@ -250,7 +251,7 @@ impl UnOpKind {
 #[derive(Clone, Debug)]
 pub enum CallArgs {
     /// A list of unnamed arguments: `(1, 2, 3)`.
-    Unnamed(Vec<Expr>),
+    Unnamed(Vec<Box<Expr>>),
 
     /// A list of named arguments: `({x: 1, y: 2, z: 3})`.
     Named(NamedArgList),
@@ -275,5 +276,15 @@ impl CallArgs {
 #[derive(Clone, Debug)]
 pub struct NamedArg {
     pub name: Ident,
-    pub value: Expr,
+    pub value: Box<Expr>,
+}
+
+/// A kind of square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
+#[derive(Clone, Debug)]
+pub enum IndexKind {
+    /// A single index: `vector[index]`.
+    Index(Option<Box<Expr>>),
+
+    /// A slice: `slice[l:r]`.
+    Range(Option<Box<Expr>>, Option<Box<Expr>>),
 }

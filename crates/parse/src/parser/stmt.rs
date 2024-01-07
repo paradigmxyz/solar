@@ -160,20 +160,10 @@ impl<'a> Parser<'a> {
     fn parse_simple_stmt_kind(&mut self) -> PResult<'a, StmtKind> {
         // TODO: This is probably wrong.
         if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            let (span, (tuple, _)) = self.parse_spanned(|this| {
-                this.parse_delim_seq(
-                    Delimiter::Parenthesis,
-                    SeqSep::trailing_allowed(TokenKind::Comma),
-                    |this| {
-                        if this.check(&TokenKind::Comma)
-                            || this.check(&TokenKind::CloseDelim(Delimiter::Parenthesis))
-                        {
-                            Ok(None)
-                        } else {
-                            this.parse_expr_or_var(true).map(Some)
-                        }
-                    },
-                )
+            let (span, tuple) = self.parse_spanned(|this| {
+                this.parse_seq_optional_items(Delimiter::Parenthesis, |this| {
+                    this.parse_expr_or_var(true)
+                })
             })?;
             if self.eat(&TokenKind::Semi) {
                 // (,,a.b[c],);
@@ -182,7 +172,7 @@ impl<'a> Parser<'a> {
                     self.dcx().err(msg).span(span).emit();
                 }
                 let exprs = self.map_option_list(tuple, ExprOrVar::into_expr)?;
-                Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Tuple(exprs) }))
+                Ok(StmtKind::Expr(Box::new(Expr { span, kind: ExprKind::Tuple(exprs) })))
             } else if self.eat(&TokenKind::Eq) {
                 // (,,a.b[c],) = call(...);
                 // Can't mix exprs and vars.
@@ -197,8 +187,8 @@ impl<'a> Parser<'a> {
                 if is_expr {
                     let exprs = self.map_option_list(tuple, ExprOrVar::into_expr)?;
                     let lhs = Expr { span, kind: ExprKind::Tuple(exprs) };
-                    let kind = ExprKind::Assign(Box::new(lhs), None, Box::new(rhs));
-                    Ok(StmtKind::Expr(Expr { span, kind }))
+                    let kind = ExprKind::Assign(Box::new(lhs), None, rhs);
+                    Ok(StmtKind::Expr(Box::new(Expr { span, kind })))
                 } else {
                     let lhs = self.map_option_list(tuple, ExprOrVar::into_var)?;
                     Ok(StmtKind::DeclMulti(lhs, rhs))
@@ -217,19 +207,42 @@ impl<'a> Parser<'a> {
                 let rhs = self.parse_expr()?;
                 self.expect_semi()?;
                 match e {
-                    ExprOrVar::Expr(expr) => Ok(StmtKind::Expr(Expr {
+                    ExprOrVar::Expr(expr) => Ok(StmtKind::Expr(Box::new(Expr {
                         span: expr.span,
-                        kind: ExprKind::Assign(Box::new(expr), None, Box::new(rhs)),
-                    })),
-                    ExprOrVar::Var(var) => {
-                        let expr = self.parse_expr()?;
-                        Ok(StmtKind::DeclSingle(var, Some(expr)))
-                    }
+                        kind: ExprKind::Assign(expr, None, rhs),
+                    }))),
+                    ExprOrVar::Var(var) => Ok(StmtKind::DeclSingle(var, Some(rhs))),
                 }
             } else {
                 self.unexpected()
             }
         }
+    }
+
+    /// Parses a `delim`-delimited, comma-separated list of maybe-optional items.
+    /// E.g. `(a, b) => [Some, Some]`, `(, a,, b) => [None, Some, None, Some]`.
+    ///
+    /// Returns `(items, trailing_comma)`.
+    pub(crate) fn parse_seq_optional_items<T>(
+        &mut self,
+        delim: Delimiter,
+        mut f: impl FnMut(&mut Self) -> PResult<'a, T>,
+    ) -> PResult<'a, Vec<Option<T>>> {
+        self.expect(&TokenKind::OpenDelim(delim))?;
+        let mut out = Vec::new();
+        loop {
+            if self.token.kind != TokenKind::Comma
+                && self.token.kind != TokenKind::CloseDelim(delim)
+            {
+                out.push(Some(f(self)?));
+            } else {
+                out.push(None);
+            }
+            if self.eat(&TokenKind::CloseDelim(delim)) {
+                break;
+            }
+        }
+        Ok(out)
     }
 
     fn parse_expr_or_var(&mut self, in_list: bool) -> PResult<'a, ExprOrVar> {
@@ -273,12 +286,12 @@ impl<'a> Parser<'a> {
 }
 
 enum ExprOrVar {
-    Expr(Expr),
+    Expr(Box<Expr>),
     Var(VariableDeclaration),
 }
 
 impl ExprOrVar {
-    fn into_expr<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, Expr> {
+    fn into_expr<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, Box<Expr>> {
         match self {
             Self::Expr(expr) => Ok(expr),
             Self::Var(var) => match var.name {
@@ -287,7 +300,7 @@ impl ExprOrVar {
                     .err("expected expression, found variable declaration")
                     .span(name.span)),
                 // TODO: may need to convert `Ty::Array` to `Expr::Index`
-                None => Ok(Expr { span: var.ty.span, kind: ExprKind::Type(var.ty) }),
+                None => Ok(Box::new(Expr { span: var.ty.span, kind: ExprKind::Type(var.ty) })),
             },
         }
     }

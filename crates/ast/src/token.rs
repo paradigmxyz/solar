@@ -1,5 +1,6 @@
 //! Solidity source code token.
 
+use crate::ast::{BinOp, BinOpKind, UnOp, UnOpKind};
 use std::{borrow::Cow, fmt};
 use sulk_interface::{Ident, Span, Symbol};
 
@@ -80,6 +81,24 @@ impl BinOpToken {
             Self::Shl => "<<=",
             Self::Shr => ">>=",
             Self::Sar => ">>>=",
+        }
+    }
+
+    /// Returns the binary operator kind.
+    #[inline]
+    pub const fn as_binop(self) -> BinOpKind {
+        match self {
+            Self::Plus => BinOpKind::Add,
+            Self::Minus => BinOpKind::Sub,
+            Self::Star => BinOpKind::Mul,
+            Self::Slash => BinOpKind::Div,
+            Self::Percent => BinOpKind::Rem,
+            Self::Caret => BinOpKind::Pow,
+            Self::And => BinOpKind::BitAnd,
+            Self::Or => BinOpKind::BitOr,
+            Self::Shl => BinOpKind::Shl,
+            Self::Shr => BinOpKind::Shr,
+            Self::Sar => BinOpKind::Sar,
         }
     }
 }
@@ -312,6 +331,56 @@ impl TokenKind {
         }
     }
 
+    /// Returns the token kind as a unary operator, if any.
+    pub fn as_unop(&self, is_postfix: bool) -> Option<UnOpKind> {
+        let kind = if is_postfix {
+            match self {
+                Self::PlusPlus => UnOpKind::PostInc,
+                Self::MinusMinus => UnOpKind::PostDec,
+                _ => return None,
+            }
+        } else {
+            match self {
+                Self::PlusPlus => UnOpKind::PreInc,
+                Self::MinusMinus => UnOpKind::PreDec,
+                Self::Not => UnOpKind::Not,
+                Self::Tilde => UnOpKind::BitNot,
+                Self::BinOp(BinOpToken::Minus) => UnOpKind::Neg,
+                _ => return None,
+            }
+        };
+        debug_assert_eq!(kind.is_postfix(), is_postfix);
+        Some(kind)
+    }
+
+    /// Returns the token kind as a binary operator, if any.
+    #[inline]
+    pub fn as_binop(&self) -> Option<BinOpKind> {
+        match self {
+            Self::Eq => Some(BinOpKind::Eq),
+            Self::Lt => Some(BinOpKind::Lt),
+            Self::Le => Some(BinOpKind::Le),
+            Self::EqEq => Some(BinOpKind::Eq),
+            Self::Ne => Some(BinOpKind::Ne),
+            Self::Ge => Some(BinOpKind::Ge),
+            Self::Gt => Some(BinOpKind::Gt),
+            Self::AndAnd => Some(BinOpKind::And),
+            Self::OrOr => Some(BinOpKind::Or),
+            Self::StarStar => Some(BinOpKind::Pow),
+            Self::BinOp(op) => Some(op.as_binop()),
+            _ => None,
+        }
+    }
+
+    /// Returns the token kind as a binary operator, if any.
+    #[inline]
+    pub fn as_binop_eq(&self) -> Option<BinOpKind> {
+        match self {
+            Self::BinOpEq(op) => Some(op.as_binop()),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the token kind is a normal comment (not a doc-comment).
     #[inline]
     pub const fn is_comment(&self) -> bool {
@@ -434,6 +503,24 @@ impl Token {
         self.kind.is_op()
     }
 
+    /// Returns the token as a unary operator, if any.
+    #[inline]
+    pub fn as_unop(&self, is_postfix: bool) -> Option<UnOp> {
+        self.kind.as_unop(is_postfix).map(|kind| UnOp { span: self.span, kind })
+    }
+
+    /// Returns the token as a binary operator, if any.
+    #[inline]
+    pub fn as_binop(&self) -> Option<BinOp> {
+        self.kind.as_binop().map(|kind| BinOp { span: self.span, kind })
+    }
+
+    /// Returns the token as a binary operator, if any.
+    #[inline]
+    pub fn as_binop_eq(&self) -> Option<BinOp> {
+        self.kind.as_binop_eq().map(|kind| BinOp { span: self.span, kind })
+    }
+
     /// Returns `true` if the token is an identifier.
     #[inline]
     pub const fn is_ident(&self) -> bool {
@@ -441,6 +528,8 @@ impl Token {
     }
 
     /// Returns `true` if the token is a literal.
+    ///
+    /// Note that this does not include boolean literals. See [`is_bool_lit`](Self::is_bool_lit).
     #[inline]
     pub const fn is_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(_))

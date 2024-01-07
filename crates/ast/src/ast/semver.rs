@@ -35,9 +35,10 @@ impl PartialOrd for SemverVersion {
 
 impl Ord for SemverVersion {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let Self { major: major1, minor: minor1, patch: patch1, .. } = self;
-        let Self { major: major2, minor: minor2, patch: patch2, .. } = other;
-        major1.cmp(major2).then_with(|| minor1.cmp(minor2)).then_with(|| patch1.cmp(patch2))
+        self.major
+            .cmp(&other.major)
+            .then_with(|| self.minor.cmp(&other.minor))
+            .then_with(|| self.patch.cmp(&other.patch))
     }
 }
 
@@ -80,9 +81,9 @@ impl From<semver::Version> for SemverVersion {
     fn from(version: semver::Version) -> Self {
         Self {
             span: Span::DUMMY,
-            major: version.major as u32,
-            minor: Some(version.minor as u32),
-            patch: Some(version.patch as u32),
+            major: version.major.try_into().unwrap_or(u32::MAX),
+            minor: Some(version.minor.try_into().unwrap_or(u32::MAX)),
+            patch: Some(version.patch.try_into().unwrap_or(u32::MAX)),
         }
     }
 }
