@@ -19,7 +19,6 @@ impl<'a> Parser<'a> {
             semi = false;
             self.parse_stmt_while()
         } else if self.eat_keyword(kw::Do) {
-            semi = false;
             self.parse_stmt_do_while()
         } else if self.eat_keyword(kw::For) {
             semi = false;
@@ -35,7 +34,8 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Break) {
             Ok(StmtKind::Break)
         } else if self.eat_keyword(kw::Return) {
-            self.parse_expr().map(StmtKind::Return)
+            let expr = if self.check(&TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
+            Ok(StmtKind::Return(expr))
         } else if self.eat_keyword(kw::Throw) {
             let msg = "`throw` statements have been removed; use `revert`, `require`, or `assert` instead";
             Err(self.dcx().err(msg).span(self.prev_token.span))
@@ -48,6 +48,7 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Emit) {
             self.parse_path_call().map(|(path, params)| StmtKind::Emit(path, params))
         } else if self.check_keyword(kw::Revert) && self.look_ahead(1).is_ident() {
+            self.bump(); // `revert`
             self.parse_path_call().map(|(path, params)| StmtKind::Revert(path, params))
         } else {
             semi = false;
@@ -127,9 +128,9 @@ impl<'a> Parser<'a> {
         while self.eat_keyword(kw::Catch) {
             let name = self.parse_ident_opt()?;
             let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                self.parse_call_args()?
+                self.parse_parameter_list(VarDeclMode::AllowStorage)?
             } else {
-                CallArgs::empty()
+                Vec::new()
             };
             let block = self.parse_block()?;
             catch.push(CatchClause { name, args, block })
@@ -247,19 +248,25 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expr_or_var(&mut self, in_list: bool) -> PResult<'a, ExprOrVar> {
-        if self.token.is_ident()
-            && (self.is_non_custom_variable_declaration()
-                || (self.token.is_non_reserved_ident(self.in_yul)
-                    && self.look_ahead_with(1, |t| {
-                        t.is_ident()
-                            || (in_list
-                                && matches!(
-                                    t.kind,
-                                    TokenKind::Comma
-                                        | TokenKind::CloseDelim(Delimiter::Parenthesis)
-                                ))
-                    })))
-        {
+        let next_is_ok = |this: &mut Self| {
+            this.look_ahead_with(1, |t| {
+                t.is_ident()
+                    || (in_list
+                        && matches!(
+                            t.kind,
+                            TokenKind::Comma | TokenKind::CloseDelim(Delimiter::Parenthesis)
+                        ))
+            })
+        };
+        let is_var = |this: &mut Self| {
+            this.token.is_keyword(kw::Mapping)
+                || (this.token.is_keyword(kw::Function)
+                    && this.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
+                || ((this.token.is_elementary_type()
+                    || this.token.is_non_reserved_ident(this.in_yul))
+                    && next_is_ok(this))
+        };
+        if self.token.is_ident() && is_var(self) {
             self.parse_variable_declaration(VarDeclMode::AllowStorage).map(ExprOrVar::Var)
         } else {
             self.parse_expr().map(ExprOrVar::Expr)

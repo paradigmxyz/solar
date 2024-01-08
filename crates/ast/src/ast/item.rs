@@ -324,7 +324,7 @@ impl FunctionKind {
     /// Returns `true` if the function item can have attributes.
     #[inline]
     pub const fn can_have_attributes(&self) -> bool {
-        matches!(self, Self::Function | Self::Modifier)
+        matches!(self, Self::Function | Self::Fallback | Self::Receive | Self::Constructor)
     }
 
     /// Returns `true` if the function item can have a return type.
@@ -483,6 +483,7 @@ pub struct VariableDefinition {
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
     pub storage: Option<Storage>,
+    pub override_: Option<Override>,
     pub name: Ident,
     pub initializer: Option<Box<Expr>>,
 }
@@ -556,4 +557,5 @@ pub struct ItemError {
 pub struct ItemEvent {
     pub name: Ident,
     pub parameters: ParameterList,
+    pub anonymous: bool,
 }

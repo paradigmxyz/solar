@@ -201,6 +201,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a list of function call arguments.
+    #[track_caller]
     pub(super) fn parse_call_args(&mut self) -> PResult<'a, CallArgs> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
@@ -213,11 +214,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
+    #[track_caller]
     fn parse_named_args(&mut self) -> PResult<'a, NamedArgList> {
         self.parse_delim_comma_seq(Delimiter::Brace, Self::parse_named_arg).map(|(x, _)| x)
     }
 
     /// Parses a single named argument: `a: b`.
+    #[track_caller]
     fn parse_named_arg(&mut self) -> PResult<'a, NamedArg> {
         let name = self.parse_ident()?;
         self.expect(&TokenKind::Colon)?;
@@ -227,6 +230,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of expressions: `(a, b, c, ...)`.
     #[allow(clippy::vec_box)]
+    #[track_caller]
     fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Box<Expr>>> {
         self.parse_paren_comma_seq(Self::parse_expr).map(|(x, _)| x)
     }
@@ -252,7 +256,7 @@ fn token_precedence(t: &Token) -> usize {
         BinOp(Slash) => 13,
         BinOp(Percent) => 13,
         StarStar => 4,
-        Eq => 6,
+        EqEq => 6,
         Ne => 6,
         Lt => 7,
         Gt => 7,

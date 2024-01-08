@@ -8,7 +8,7 @@ use sulk_interface::{
     diagnostics::{DiagCtxt, FatalError},
     Result, SessionGlobals, SourceMap,
 };
-use sulk_parse::{Lexer, ParseSess, Parser};
+use sulk_parse::{ParseSess, Parser};
 
 pub mod cli;
 mod utils;
@@ -43,19 +43,15 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
         let sess = &compiler.sess.parse_sess;
         let args = &compiler.sess.args;
 
-        let _ = sess.source_map().load_file(&args.input).map_err(|e| {
+        let file = sess.source_map().load_file(&args.input).map_err(|e| {
             let msg = format!("couldn't read {}: {}", args.input.display(), e);
             sess.dcx.err(msg).emit()
         })?;
 
-        for file in sess.source_map().files().iter() {
-            let tokens = Lexer::from_source_file(sess, file).into_tokens();
-
-            let mut parser = Parser::new(sess, tokens);
-            let file = parser.parse_file().map_err(|e| e.emit())?;
-            let _ = file;
-            // eprintln!("file: {file:#?}");
-        }
+        let mut parser = Parser::from_source_file(sess, &file);
+        let file = parser.parse_file().map_err(|e| e.emit())?;
+        let _ = file;
+        // eprintln!("file: {file:#?}");
 
         Ok(())
     })

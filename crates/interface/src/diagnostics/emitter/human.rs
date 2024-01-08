@@ -11,7 +11,6 @@ use std::{
     io::{self, Write},
 };
 use sulk_data_structures::sync::Lrc;
-use unicode_width::UnicodeWidthChar;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .error(Level::Error.style())
@@ -318,7 +317,20 @@ fn file_to_slice(
     };
     let mut multiline_start = None;
     let mut current_i = 0;
+    let mut prev_line_no = first_line - 1;
     for line in lines {
+        if let Some(i) = line.line_index.checked_sub(2) {
+            if i >= prev_line_no {
+                current_i += file
+                    .get_lines(prev_line_no..=i)
+                    .unwrap_or("")
+                    .chars()
+                    .map(|c| if c == '\t' { 4 } else { 1 })
+                    .sum::<usize>()
+                    + 1;
+            }
+        }
+
         // Returns the position of the given column in the local snippet.
         let get_pos = |c: &super::rustc::AnnotationColumn| current_i + c.display;
 
@@ -339,7 +351,7 @@ fn file_to_slice(
                 super::rustc::AnnotationType::MultilineEnd(_) => {
                     let (label, multiline_start_idx) = multiline_start.take().unwrap();
                     let end_idx = get_pos(&ann.end_col);
-                    debug_assert!(multiline_start_idx >= end_idx);
+                    debug_assert!(end_idx >= multiline_start_idx);
                     slice.annotations.push(OwnedSourceAnnotation {
                         range: (multiline_start_idx, end_idx),
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
@@ -349,12 +361,19 @@ fn file_to_slice(
             }
         }
 
-        current_i += file
-            .get_line(line.line_index - 1)
-            .unwrap_or("")
-            .chars()
-            .map(|c| if c == '\t' { 4 } else { c.width().unwrap_or(0) })
-            .sum::<usize>() + 1 /* nl */;
+        if let Some(i) = line.line_index.checked_sub(1) {
+            if i >= prev_line_no {
+                current_i += file
+                    .get_lines(prev_line_no..=i)
+                    .unwrap_or("")
+                    .chars()
+                    .map(|c| if c == '\t' { 4 } else { 1 })
+                    .sum::<usize>()
+                    + 1;
+            }
+        }
+
+        prev_line_no = line.line_index;
     }
     slice
 }

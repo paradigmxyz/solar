@@ -5,7 +5,7 @@ use sulk_ast::{
     token::{Delimiter, Token, TokenKind},
 };
 use sulk_interface::{
-    diagnostics::{DiagCtxt, FatalError},
+    diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
     Ident, Span, Symbol,
 };
@@ -244,7 +244,7 @@ impl<'a> Parser<'a> {
         } else if self.token.kind != TokenKind::Eof
             && self.last_unexpected_token_span == Some(self.token.span)
         {
-            FatalError.raise();
+            panic!("called unexpected twice on the same token");
         } else {
             self.expected_one_of_not_found(edible, inedible)
         }
@@ -341,6 +341,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Expects and consumes a semicolon.
+    #[track_caller]
     fn expect_semi(&mut self) -> PResult<'a, ()> {
         self.expect(&TokenKind::Semi).map(drop)
     }

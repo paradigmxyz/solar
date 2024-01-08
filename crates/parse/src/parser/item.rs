@@ -95,7 +95,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Returns `true` if the current token is the start of a variable declaration.
-    fn is_variable_declaration(&self) -> bool {
+    pub(crate) fn is_variable_declaration(&self) -> bool {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
         self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
@@ -221,8 +221,9 @@ impl<'a> Parser<'a> {
     fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(VarDeclMode::AllowIndexed)?;
+        let anonymous = self.eat_keyword(kw::Anonymous);
         self.expect_semi()?;
-        Ok(ItemEvent { name, parameters })
+        Ok(ItemEvent { name, parameters, anonymous })
     }
 
     /// Parses an error definition.
@@ -611,13 +612,47 @@ impl<'a> Parser<'a> {
     /// Parses a variable definition.
     fn parse_variable_definition(&mut self) -> PResult<'a, VariableDefinition> {
         let ty = self.parse_type()?;
-        let storage = self.parse_storage();
-        let visibility = self.parse_visibility();
-        let mutability = self.parse_variable_mutability();
+        let mut storage = None;
+        let mut visibility = None;
+        let mut mutability = None;
+        let mut override_ = None;
+        loop {
+            if let Some(s) = self.parse_storage() {
+                if storage.is_some() {
+                    let msg = "storage already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    storage = Some(s);
+                }
+            } else if let Some(v) = self.parse_visibility() {
+                if visibility.is_some() {
+                    let msg = "visibility already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    visibility = Some(v);
+                }
+            } else if let Some(m) = self.parse_variable_mutability() {
+                if mutability.is_some() {
+                    let msg = "mutability already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    mutability = Some(m);
+                }
+            } else if self.eat_keyword(kw::Override) {
+                if override_.is_some() {
+                    let msg = "override already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    override_ = Some(self.parse_override()?);
+                }
+            } else {
+                break;
+            }
+        }
         let name = self.parse_ident()?;
         let initializer = if self.eat(&TokenKind::Eq) { Some(self.parse_expr()?) } else { None };
         self.expect_semi()?;
-        Ok(VariableDefinition { ty, storage, visibility, mutability, name, initializer })
+        Ok(VariableDefinition { ty, storage, visibility, mutability, override_, name, initializer })
     }
 
     /// Parses mutability of a variable: `constant | immutable`.

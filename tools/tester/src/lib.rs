@@ -6,6 +6,7 @@ use assert_cmd::Command;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{
+    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     process::Output,
@@ -49,7 +50,6 @@ impl Runner {
             .into_iter()
             .map(|entry| entry.unwrap())
             .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
-            .filter(|entry| !skip_solc_test(entry.path()))
             .collect();
         let collect_time = stopwatch.elapsed();
         let total = paths.len();
@@ -66,18 +66,27 @@ impl Runner {
             // }
 
             let path = entry.path();
+            let skip = |reason: &str| {
+                let _ = reason;
+                // eprintln!("---- skipping {} ({reason}) ----", path.display());
+                skipped_count.fetch_add(1, Ordering::Relaxed);
+            };
+
+            if let Some(reason) = solc_test_skip_reason(path) {
+                skip(reason);
+                return;
+            }
+
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
             let Ok(src) = fs::read_to_string(path) else {
-                eprintln!("---- skipping {} (invalid UTF-8) ----", rel_path.display());
-                skipped_count.fetch_add(1, Ordering::Relaxed);
+                skip("invalid UTF-8");
                 return;
             };
             let src = src.as_str();
 
             if source_delimiter.is_match(src) || external_source_delimiter.is_match(src) {
-                eprintln!("---- skipping {} (matched delimiters) ----", rel_path.display());
-                skipped_count.fetch_add(1, Ordering::Relaxed);
+                skip("matched delimiters");
                 return;
             }
 
@@ -147,12 +156,25 @@ impl Runner {
     }
 }
 
-fn skip_solc_test(path: &Path) -> bool {
-    let file_name = path.file_name().unwrap().to_str().unwrap();
-    matches!(file_name,
+fn solc_test_skip_reason(path: &Path) -> Option<&str> {
+    if path.components().any(|c| c.as_os_str() == OsStr::new("experimental")) {
+        return Some("solidity experimental");
+    }
+
+    if path.components().any(|c| c.as_os_str() == OsStr::new("license")) {
+        return Some("license test");
+    }
+
+    let stem = path.file_stem().unwrap().to_str().unwrap();
+    if matches!(
+        stem,
         // Exponent is too large, but apparently it's fine in Solc because the result is 0.
-        | "rational_number_exp_limit_fine"
-    )
+        "rational_number_exp_limit_fine"
+    ) {
+        return Some("manually skipped");
+    }
+
+    None
 }
 
 fn dump_output(output: &Output) {

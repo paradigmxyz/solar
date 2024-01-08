@@ -62,7 +62,6 @@ impl<'a> Parser<'a> {
                 self.unexpected()
             }
         } else {
-            eprintln!("{}", std::backtrace::Backtrace::force_capture());
             self.unexpected()
         }
     }

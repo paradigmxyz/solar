@@ -58,7 +58,7 @@ pub enum StmtKind {
     If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
 
     /// A return statement: `return 42;`.
-    Return(Box<Expr>),
+    Return(Option<Box<Expr>>),
 
     /// A revert statement: `revert Foo.bar(42);`.
     Revert(Path, CallArgs),
@@ -103,7 +103,7 @@ pub struct StmtTry {
 #[derive(Clone, Debug)]
 pub struct CatchClause {
     pub name: Option<Ident>,
-    pub args: CallArgs,
+    pub args: ParameterList,
     pub block: Block,
 }
 
