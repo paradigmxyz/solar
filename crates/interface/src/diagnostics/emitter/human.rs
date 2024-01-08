@@ -246,8 +246,7 @@ impl OwnedSlice {
                 if let Some(main_file) =
                     files.iter_mut().find(|main_file| Lrc::ptr_eq(&main_file.file, &sub_file.file))
                 {
-                    main_file.lines.extend(sub_file.lines);
-                    main_file.lines.sort();
+                    main_file.add_lines(sub_file.lines);
                 } else {
                     files.push(sub_file);
                 }

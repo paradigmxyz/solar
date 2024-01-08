@@ -529,6 +529,7 @@ impl<'a> Parser<'a> {
             let alias = self.parse_as_alias()?;
             ImportItems::Plain(alias)
         };
+        self.expect_semi()?;
         Ok(ImportDirective { path, items })
     }
 
@@ -597,7 +598,7 @@ impl<'a> Parser<'a> {
             BinOp(Percent) => Op::Rem,
             BinOp(Star) => Op::Mul,
             BinOp(Minus) => Op::Sub,
-            Eq => Op::Eq,
+            EqEq => Op::Eq,
             Ge => Op::Ge,
             Gt => Op::Gt,
             Le => Op::Le,

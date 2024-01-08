@@ -247,6 +247,7 @@ fn token_precedence(t: &Token) -> usize {
         AndAnd => 5,
         BinOp(Or) => 8,
         BinOp(Caret) => 9,
+        BinOp(And) => 10,
         BinOp(Shl) => 11,
         BinOp(Sar) => 11,
         BinOp(Shr) => 11,

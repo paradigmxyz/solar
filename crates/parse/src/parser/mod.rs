@@ -579,59 +579,7 @@ impl<'a> Parser<'a> {
                                 break;
                             }
                         }
-                        Err(mut expect_err) => {
-                            if sep.trailing_sep_required {
-                                return Err(expect_err);
-                            }
-
-                            let sp = self.prev_token.span.shrink_to_hi();
-
-                            // Attempt to keep parsing if it was an omitted separator.
-                            match f(self) {
-                                Ok(t) => {
-                                    // Parsed successfully, therefore most probably the code only
-                                    // misses a separator.
-                                    let token_str = tk.to_string();
-                                    /* expect_err
-                                        .span_suggestion_short(
-                                            sp,
-                                            format!("missing `{token_str}`"),
-                                            token_str,
-                                            Applicability::MaybeIncorrect,
-                                        )
-                                        .emit();
-                                    */
-                                    expect_err
-                                        .span_help(sp, format!("missing `{token_str}`"))
-                                        .emit();
-
-                                    v.push(t);
-                                    continue;
-                                }
-                                Err(e) => {
-                                    // Parsing failed, therefore it must be something more serious
-                                    // than just a missing separator.
-                                    for xx in &e.children {
-                                        // propagate the help message from sub error 'e' to main
-                                        // error 'expect_err;
-                                        expect_err.children.push(xx.clone());
-                                    }
-                                    e.cancel();
-                                    if self.token.kind == TokenKind::Colon {
-                                        // we will try to recover in
-                                        // `maybe_recover_struct_lit_bad_delims`
-                                        return Err(expect_err);
-                                    } else if let [TokenKind::CloseDelim(Delimiter::Parenthesis)] =
-                                        kets
-                                    {
-                                        return Err(expect_err);
-                                    } else {
-                                        expect_err.emit();
-                                        break;
-                                    }
-                                }
-                            }
-                        }
+                        Err(e) => return Err(e),
                     }
                 }
             }
@@ -643,6 +591,12 @@ impl<'a> Parser<'a> {
 
             let t = f(self)?;
             v.push(t);
+        }
+
+        if sep.trailing_sep_required && !trailing {
+            if let Some(tk) = &sep.sep {
+                self.expect(tk)?;
+            }
         }
 
         Ok((v, trailing, recovered))
@@ -824,14 +778,18 @@ impl<'a> Parser<'a> {
 
     #[track_caller]
     fn expected_ident_found(&mut self, recover: bool) -> PResult<'a, Ident> {
-        let msg = format!("expected identifier, found {}", self.token.full_description());
-        let span = self.token.span;
+        self.expected_ident_found_other(self.token.clone(), recover)
+    }
+
+    #[track_caller]
+    fn expected_ident_found_other(&mut self, token: Token, recover: bool) -> PResult<'a, Ident> {
+        let msg = format!("expected identifier, found {}", token.full_description());
+        let span = token.span;
         let mut err = self.dcx().err(msg).span(span);
 
         let mut recovered_ident = None;
 
-        let suggest_remove_comma =
-            self.token.kind == TokenKind::Comma && self.look_ahead(1).is_ident();
+        let suggest_remove_comma = token.kind == TokenKind::Comma && self.look_ahead(1).is_ident();
         if suggest_remove_comma {
             if recover {
                 self.bump();
