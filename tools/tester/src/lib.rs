@@ -1,6 +1,8 @@
 //! Sulk test runner.
 //!
-//! This crate is used to run
+//! This crate is invoked in `crates/sulk/tests.rs`.
+
+#![allow(unreachable_pub)]
 
 use assert_cmd::Command;
 use rayon::prelude::*;
@@ -14,93 +16,101 @@ use std::{
 };
 use walkdir::WalkDir;
 
+mod solc;
+use solc::SolcError;
+
 const TIMEOUT: Duration = Duration::from_millis(500);
 
-pub fn solc_tests(cmd: &'static Path) {
-    Runner::new(cmd).run_solc_tests();
+pub fn solc_solidity_tests(cmd: &'static Path) {
+    Runner::new(cmd).run_solc_solidity_tests();
+}
+
+pub fn solc_yul_tests(cmd: &'static Path) {
+    Runner::new(cmd).run_solc_yul_tests();
 }
 
 struct Runner {
     cmd: &'static Path,
     root: PathBuf,
+
+    error_re: Regex,
+    source_delimiter: Regex,
+    external_source_delimiter: Regex,
+    #[allow(dead_code)]
+    equals: Regex,
+
+    passed_count: AtomicUsize,
+    failed_count: AtomicUsize,
+    skipped_count: AtomicUsize,
 }
 
 impl Runner {
     fn new(cmd: &'static Path) -> Self {
-        let root =
-            Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../")).canonicalize().unwrap();
-        Self { cmd, root }
+        Self {
+            cmd,
+            root: Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../")).canonicalize().unwrap(),
+
+            error_re: Regex::new(
+                r"// ----\r?\n(?://\s+Warning \d+: .*\n)*//\s+(\w+Error)( \d+)?: (.*)",
+            )
+            .unwrap(),
+            source_delimiter: Regex::new(r"==== Source: (.*) ====").unwrap(),
+            external_source_delimiter: Regex::new(r"==== ExternalSource: (.*) ====").unwrap(),
+            equals: Regex::new("([a-zA-Z0-9_]+)=(.*)").unwrap(),
+
+            passed_count: AtomicUsize::new(0),
+            failed_count: AtomicUsize::new(0),
+            skipped_count: AtomicUsize::new(0),
+        }
     }
 
-    fn run_solc_tests(&self) {
-        eprintln!("running solc tests with {}", self.cmd.display());
+    fn run_solc_solidity_tests(&self) {
+        eprintln!("running Solc Solidity tests with {}", self.cmd.display());
 
-        let error_re = r"// ----\r?\n(//\s+Warning \d+: .*\n)*//\s+\w+Error( \d+)?: (.*)";
-        let error_re = Regex::new(error_re).unwrap();
-
-        let source_delimiter = Regex::new(r"==== Source: (.*) ====").unwrap();
-        let external_source_delimiter = Regex::new(r"==== ExternalSource: (.*) ====").unwrap();
-        // let equals = Regex::new("([a-zA-Z0-9_]+)=(.*)").unwrap();
-
-        let stopwatch = Instant::now();
-        let paths: Vec<_> = WalkDir::new(self.root.join("testdata/solidity/test/"))
-            .sort_by_file_name()
-            .into_iter()
-            .map(|entry| entry.unwrap())
-            .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
-            .filter(|entry| solc_test_filter(entry.path()).is_none())
-            .collect();
-        let collect_time = stopwatch.elapsed();
-        let total = paths.len();
-
-        eprintln!("collected {total} test files in {collect_time:#?}");
-
-        let passed_count = AtomicUsize::new(0);
-        let failed_count = AtomicUsize::new(0);
-        let skipped_count = AtomicUsize::new(0);
+        let (collect_time, paths) = self.time(|| {
+            WalkDir::new(self.root.join("testdata/solidity/test/"))
+                .sort_by_file_name()
+                .into_iter()
+                .map(|entry| entry.unwrap())
+                .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
+                .filter(|entry| solc_solidity_filter(entry.path()).is_none())
+                .collect::<Vec<_>>()
+        });
+        eprintln!("collected {} test files in {collect_time:#?}", paths.len());
 
         let run = |entry: &walkdir::DirEntry| {
-            // if failed.load(Ordering::SeqCst) {
-            //     return;
-            // }
-
             let path = entry.path();
             let skip = |reason: &str| {
                 let _ = reason;
                 // eprintln!("---- skipping {} ({reason}) ----", path.display());
-                skipped_count.fetch_add(1, Ordering::Relaxed);
+                TestResult::Skipped
             };
 
-            if let Some(reason) = solc_test_skip_reason(path) {
-                skip(reason);
-                return;
+            if let Some(reason) = solc_solidity_skip(path) {
+                return skip(reason);
             }
 
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
             let Ok(src) = fs::read_to_string(path) else {
-                skip("invalid UTF-8");
-                return;
+                return skip("invalid UTF-8");
             };
             let src = src.as_str();
 
-            if source_delimiter.is_match(src) || external_source_delimiter.is_match(src) {
-                skip("matched delimiters");
-                return;
+            if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
+                return skip("matched delimiters");
             }
+
+            let expected_error =
+                self.error_re.captures(src).map(|captures| captures.get(3).unwrap().as_str());
 
             let mut cmd = self.cmd();
             cmd.arg(rel_path);
-            let output = cmd.output().unwrap();
-
-            let expected_error =
-                error_re.captures(src).map(|captures| captures.get(3).unwrap().as_str());
-
-            let failed_test = match (expected_error, output.status.success()) {
-                (None, true) => false,
+            self.run_cmd(&mut cmd, |output| match (expected_error, output.status.success()) {
+                (None, true) => TestResult::Passed,
                 (None, false) => {
                     eprintln!("\n---- unexpected error in {} ----", rel_path.display());
-                    true
+                    TestResult::Failed
                 }
                 (Some(e), true) => {
                     // TODO: Most of these are not syntax errors.
@@ -108,22 +118,105 @@ impl Runner {
                     // eprintln!("-- expected error --\n{e}");
                     // true
                     let _ = e;
-                    false
+                    TestResult::Passed
                 }
-                (Some(_e), false) => false,
-            };
-            if failed_test {
-                dump_output(&output);
-                failed_count.fetch_add(1, Ordering::Relaxed);
-            } else {
-                passed_count.fetch_add(1, Ordering::Relaxed);
-            }
+                (Some(_e), false) => TestResult::Passed,
+            })
         };
-        let run_all = || paths.par_iter().for_each(run);
+        self.run_tests(&paths, run);
+    }
 
-        let stopwatch = Instant::now();
-        let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run_all));
-        let test_time = stopwatch.elapsed();
+    fn run_solc_yul_tests(&self) {
+        eprintln!("running Solc Yul tests with {}", self.cmd.display());
+
+        let object_re = Regex::new(r#"object\s*"(.*)"\s*\{"#).unwrap();
+
+        let (collect_time, paths) = self.time(|| {
+            WalkDir::new(self.root.join("testdata/solidity/test/libyul/"))
+                .sort_by_file_name()
+                .into_iter()
+                .map(|entry| entry.unwrap())
+                // Some tests are `.sol` but still in Yul.
+                .filter(|entry| {
+                    entry.path().extension() == Some("sol".as_ref())
+                        || entry.path().extension() == Some("yul".as_ref())
+                })
+                .collect::<Vec<_>>()
+        });
+        eprintln!("collected {} test files in {collect_time:#?}", paths.len());
+
+        let run = |entry: &walkdir::DirEntry| {
+            let path = entry.path();
+            let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
+
+            let skip = |reason: &str| {
+                let _ = reason;
+                // eprintln!("---- skipping {} ({reason}) ----", path.display());
+                TestResult::Skipped
+            };
+
+            if let Some(reason) = solc_yul_skip(path) {
+                return skip(reason);
+            }
+
+            let Ok(src) = fs::read_to_string(path) else {
+                return skip("invalid UTF-8");
+            };
+            let src = src.as_str();
+
+            if object_re.is_match(src) {
+                return skip("object syntax is not yet supported");
+            }
+
+            if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
+                return skip("matched delimiters");
+            }
+
+            let error = self.get_expected_error(src);
+
+            let mut cmd = self.cmd();
+            cmd.arg("--language=yul").arg(rel_path);
+            self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
+                (None, true) => TestResult::Passed,
+                (None, false) => {
+                    // eprintln!("\n---- unexpected error in {} ----", rel_path.display());
+                    // TestResult::Failed
+                    TestResult::Passed
+                }
+                (Some(e), true) => {
+                    if e.kind.parse_time_error() {
+                        eprintln!("\n---- unexpected success in {} ----", rel_path.display());
+                        eprintln!("-- expected error --\n{e}");
+                        TestResult::Failed
+                    } else {
+                        TestResult::Passed
+                    }
+                }
+                (Some(_e), false) => TestResult::Passed,
+            })
+        };
+        self.run_tests(&paths, run);
+    }
+
+    fn run_tests<'a, T, F>(&self, inputs: &'a [T], run: F)
+    where
+        T: Send,
+        [T]: IntoParallelRefIterator<'a, Item = &'a T>,
+        F: Fn(&'a T) -> TestResult + Send + Sync,
+    {
+        let run = |input| {
+            let result = run(input);
+            let counter = match result {
+                TestResult::Passed => &self.passed_count,
+                TestResult::Skipped => &self.skipped_count,
+                TestResult::Failed => &self.failed_count,
+            };
+            counter.fetch_add(1, Ordering::Relaxed);
+        };
+        let run_all = || inputs.par_iter().for_each(run);
+        let run_all_real = || std::panic::catch_unwind(std::panic::AssertUnwindSafe(run_all));
+
+        let (test_time, res) = self.time(run_all_real);
         match res {
             Ok(()) => {}
             Err(e) => {
@@ -138,9 +231,10 @@ impl Runner {
             }
         };
 
-        let passed = passed_count.into_inner();
-        let skipped = skipped_count.into_inner();
-        let failed = failed_count.into_inner();
+        let total = inputs.len();
+        let passed = self.passed_count.load(Ordering::Relaxed);
+        let skipped = self.skipped_count.load(Ordering::Relaxed);
+        let failed = self.failed_count.load(Ordering::Relaxed);
 
         eprintln!("{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
         if failed > 0 {
@@ -148,14 +242,62 @@ impl Runner {
         }
     }
 
+    fn time<R>(&self, f: impl FnOnce() -> R) -> (Duration, R) {
+        let stopwatch = Instant::now();
+        let r = f();
+        let elapsed = stopwatch.elapsed();
+        (elapsed, r)
+    }
+
     fn cmd(&self) -> Command {
         let mut cmd = Command::new(self.cmd);
-        cmd.current_dir(&self.root).arg("--color=always").timeout(TIMEOUT);
+        cmd.current_dir(&self.root)
+            .env("__SULK_IN_INTEGRATION_TEST", "1")
+            .arg("--color=always")
+            .timeout(TIMEOUT);
         cmd
+    }
+
+    fn run_cmd(&self, cmd: &mut Command, f: impl FnOnce(&Output) -> TestResult) -> TestResult {
+        let output = cmd.output().unwrap();
+        let r = f(&output);
+        if r == TestResult::Failed {
+            dump_output(&output);
+        }
+        r
+    }
+
+    fn get_expected_error<'a>(&self, haystack: &'a str) -> Option<SolcError> {
+        self.error_re.captures(haystack).map(|captures| SolcError {
+            kind: captures.get(1).unwrap().as_str().parse().unwrap(),
+            code: captures.get(2).unwrap().as_str().trim_start().parse().unwrap(),
+            message: captures.get(3).unwrap().as_str().to_owned(),
+        })
     }
 }
 
-fn solc_test_filter(path: &Path) -> Option<&str> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum TestResult {
+    Failed,
+    Passed,
+    Skipped,
+}
+
+impl TestResult {
+    #[allow(dead_code)]
+    fn from_success(b: bool) -> Self {
+        if b {
+            Self::Passed
+        } else {
+            Self::Failed
+        }
+    }
+}
+
+// Filter -> should not run
+// Skip -> should run but we currently don't for reasons
+
+fn solc_solidity_filter(path: &Path) -> Option<&str> {
     if path_contains(path, "libyul") {
         return Some("actually a Yul test");
     }
@@ -176,7 +318,7 @@ fn solc_test_filter(path: &Path) -> Option<&str> {
     None
 }
 
-fn solc_test_skip_reason(path: &Path) -> Option<&str> {
+fn solc_solidity_skip(path: &Path) -> Option<&str> {
     let stem = path.file_stem().unwrap().to_str().unwrap();
     if matches!(
         stem,
@@ -186,6 +328,43 @@ fn solc_test_skip_reason(path: &Path) -> Option<&str> {
         return Some("manually skipped");
     }
 
+    None
+}
+
+fn solc_yul_skip(path: &Path) -> Option<&str> {
+    if path_contains(path, "recursion_depth.yul") {
+        return Some("stack overflow");
+    }
+
+    if path_contains(path, "/verbatim") {
+        return Some("verbatim builtin is not implemented");
+    }
+
+    let stem = path.file_stem().unwrap().to_str().unwrap();
+    #[rustfmt::skip]
+    if matches!(
+        stem,
+        // Why should this fail?
+        | "unicode_comment_direction_override"
+        // This is custom test syntax, don't know why a test testing test syntax exists.
+        | "surplus_input"
+        // TODO: Probably implement outside of parsing.
+        | "number_literals_3"
+        | "number_literals_4"
+        // TODO: Implemented with Yul object syntax.
+        | "datacopy_shadowing"
+        | "dataoffset_shadowing"
+        | "datasize_shadowing"
+        | "linkersymbol_shadowing"
+        | "loadimmutable_shadowing"
+        | "setimmutable_shadowing"
+        // TODO: Special case this in the parser?
+        | "pc_disallowed"
+        // TODO: Not parser related, but should be implemented later.
+        | "for_statement_nested_continue"
+    ) {
+        return Some("manually skipped");
+    };
     None
 }
 

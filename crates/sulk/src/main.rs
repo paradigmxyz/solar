@@ -49,9 +49,21 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
         })?;
 
         let mut parser = Parser::from_source_file(sess, &file);
-        let file = parser.parse_file().map_err(|e| e.emit())?;
-        let _ = file;
-        // eprintln!("file: {file:#?}");
+
+        match args.language {
+            cli::Language::Solidity => {
+                parser.parse_file().map_err(|e| e.emit())?;
+            }
+            cli::Language::Yul => {
+                // let is_testing =
+                //     std::env::var_os("__SULK_IN_INTEGRATION_TEST").is_some_and(|s| s != "0");
+                // if !is_testing {
+                //     sess.dcx.fatal("Yul is not supported yet").emit();
+                // }
+                parser.parse_yul_block().map_err(|e| e.emit())?;
+            }
+        }
+        sess.dcx.has_errors()?;
 
         Ok(())
     })
