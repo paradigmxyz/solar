@@ -1,0 +1,23 @@
+[package]
+name = "sulk-tester"
+description = "Sulk test runner"
+homepage = "https://github.com/danipopes/sulk/blob/master/tools/tester"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+assert_cmd.workspace = true
+rayon.workspace = true
+regex.workspace = true
+walkdir.workspace = true

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "tools/tester/"]
 resolver = "2"
 
 [workspace.package]
@@ -74,6 +74,7 @@ tracing-subscriber = "0.3"
 tracing = "0.1"
 
 # testing
+assert_cmd = "2.0"
 criterion = "0.5"
 expect-test = "1.4"
 rand = "0.8"
@@ -89,6 +90,7 @@ rustc-hash = "1.1.0"
 scoped-tls = "1.0.1"
 semver = "1.0"
 smallvec = "1"
-unicode-ident = "1.0"
-unicode-normalization = "0.1.22"
 unicode-width = "0.1.10"
+
+regex = "1.10"
+walkdir = "2.4"

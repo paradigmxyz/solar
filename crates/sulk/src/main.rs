@@ -13,6 +13,10 @@ use sulk_parse::{Lexer, ParseSess, Parser};
 pub mod cli;
 mod utils;
 
+// Used in integration tests.
+#[cfg(test)]
+use sulk_tester as _;
+
 fn main() -> ExitCode {
     let early_dcx = DiagCtxt::with_tty_emitter(None);
 
@@ -51,8 +55,8 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
 
             let mut parser = Parser::new(sess, tokens);
             let file = parser.parse_file().map_err(|e| e.emit())?;
-            // let _ = file;
-            eprintln!("file: {file:#?}");
+            let _ = file;
+            // eprintln!("file: {file:#?}");
         }
 
         Ok(())

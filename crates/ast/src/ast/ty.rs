@@ -1,4 +1,5 @@
 use super::{Expr, ParameterList, Path, StateMutability, Visibility};
+use std::fmt;
 use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
@@ -54,8 +55,14 @@ pub enum TyKind {
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TySize(u8);
+
+impl fmt::Debug for TySize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TySize({})", self.0)
+    }
+}
 
 impl TySize {
     /// The value zero. Note that this is not a valid size for a fixed-bytes type.
@@ -105,8 +112,14 @@ impl TySize {
 }
 
 /// Size of a fixed-point number (N) type. Valid values: 0..=80.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TyFixedSize(u8);
+
+impl fmt::Debug for TyFixedSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TyFixedSize({})", self.0)
+    }
+}
 
 impl TyFixedSize {
     /// The value zero.

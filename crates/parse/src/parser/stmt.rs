@@ -220,9 +220,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a `delim`-delimited, comma-separated list of maybe-optional items.
-    /// E.g. `(a, b) => [Some, Some]`, `(, a,, b) => [None, Some, None, Some]`.
-    ///
-    /// Returns `(items, trailing_comma)`.
+    /// E.g. `(a, b) => [Some, Some]`, `(, a,, b,) => [None, Some, None, Some, None]`.
     pub(crate) fn parse_seq_optional_items<T>(
         &mut self,
         delim: Delimiter,
@@ -230,16 +228,19 @@ impl<'a> Parser<'a> {
     ) -> PResult<'a, Vec<Option<T>>> {
         self.expect(&TokenKind::OpenDelim(delim))?;
         let mut out = Vec::new();
-        loop {
-            if self.token.kind != TokenKind::Comma
-                && self.token.kind != TokenKind::CloseDelim(delim)
-            {
-                out.push(Some(f(self)?));
-            } else {
+        let close = TokenKind::CloseDelim(delim);
+        while self.eat(&TokenKind::Comma) {
+            out.push(None);
+        }
+        if !self.check(&close) {
+            out.push(Some(f(self)?));
+        }
+        while !self.eat(&close) {
+            self.expect(&TokenKind::Comma)?;
+            if self.check(&TokenKind::Comma) || self.check(&close) {
                 out.push(None);
-            }
-            if self.eat(&TokenKind::CloseDelim(delim)) {
-                break;
+            } else {
+                out.push(Some(f(self)?));
             }
         }
         Ok(out)
@@ -313,5 +314,52 @@ impl ExprOrVar {
                 .span(expr.span)),
             Self::Var(var) => Ok(var),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ParseSess;
+    use sulk_interface::source_map::FileName;
+
+    #[test]
+    fn optional_items_list() {
+        fn check(tests: &[(&str, &[Option<&str>])]) {
+            sulk_interface::enter(|| {
+                let sess = ParseSess::with_test_emitter(false);
+                for (i, &(s, results)) in tests.iter().enumerate() {
+                    let name = i.to_string();
+                    let mut parser =
+                        Parser::from_source_code(&sess, FileName::Custom(name), s.into());
+
+                    let list = parser
+                        .parse_seq_optional_items(Delimiter::Parenthesis, Parser::parse_ident)
+                        .map_err(|e| e.emit())
+                        .unwrap();
+                    let formatted: Vec<_> =
+                        list.iter().map(|o| o.as_ref().map(|i| i.as_str())).collect();
+                    assert_eq!(formatted.as_slice(), results, "{s:?}");
+                }
+            })
+            .unwrap();
+        }
+
+        check(&[
+            ("()", &[]),
+            ("(a)", &[Some("a")]),
+            // ("(,)", &[None, None]),
+            ("(a,)", &[Some("a"), None]),
+            ("(,b)", &[None, Some("b")]),
+            ("(a,b)", &[Some("a"), Some("b")]),
+            ("(a,b,)", &[Some("a"), Some("b"), None]),
+            // ("(,,)", &[None, None, None]),
+            ("(a,,)", &[Some("a"), None, None]),
+            ("(a,b,)", &[Some("a"), Some("b"), None]),
+            ("(a,b,c)", &[Some("a"), Some("b"), Some("c")]),
+            ("(,b,c)", &[None, Some("b"), Some("c")]),
+            ("(,,c)", &[None, None, Some("c")]),
+            ("(a,,c)", &[Some("a"), None, Some("c")]),
+        ]);
     }
 }
