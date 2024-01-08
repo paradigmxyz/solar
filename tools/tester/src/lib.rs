@@ -267,7 +267,7 @@ impl Runner {
         r
     }
 
-    fn get_expected_error<'a>(&self, haystack: &'a str) -> Option<SolcError> {
+    fn get_expected_error(&self, haystack: &str) -> Option<SolcError> {
         self.error_re.captures(haystack).map(|captures| SolcError {
             kind: captures.get(1).unwrap().as_str().parse().unwrap(),
             code: captures.get(2).unwrap().as_str().trim_start().parse().unwrap(),
