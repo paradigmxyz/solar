@@ -90,8 +90,12 @@ pub enum FileNameDisplayPreference {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
+    /// Files from the file system.
     Real(PathBuf),
+    /// Command line.
     Anon(u64),
+    /// Custom sources for explicit parser calls from plugins and drivers.
+    Custom(String),
 }
 
 impl From<PathBuf> for FileName {
@@ -129,7 +133,7 @@ impl fmt::Display for FileNameDisplay<'_> {
             FileName::Anon(_) => write!(f, "<anon>"),
             // FileName::ProcMacroSourceCode(_) => write!(f, "<proc-macro source code>"),
             // FileName::CliCrateAttr(_) => write!(f, "<crate attribute>"),
-            // FileName::Custom(ref s) => write!(f, "<{s}>"),
+            FileName::Custom(s) => write!(f, "<{s}>"),
             // FileName::DocTest(ref path, _) => write!(f, "{}", path.display()),
             // FileName::InlineAsm(_) => write!(f, "<inline asm>"),
         }

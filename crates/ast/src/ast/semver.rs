@@ -1,5 +1,5 @@
 use semver::Op;
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 use sulk_interface::Span;
 
 pub use semver::Op as SemverOp;
@@ -13,98 +13,166 @@ pub use semver::Op as SemverOp;
 // - ranges are parsed as `>=start, <=end`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
 //   we however dedicate a separate node for this: [`SemverReqComponentKind::Range`]
 
-/// A SemVer version. `u32::MAX` values represent `*` (or `x`/`X`, which behaves the same) in source
-/// code.
+/// A SemVer version number.
+#[derive(Clone, Copy, Debug)]
+pub enum SemverVersionNumber {
+    /// A number.
+    Number(u32),
+    /// `*`, `X`, or `x`.
+    Wildcard,
+}
+
+impl From<u64> for SemverVersionNumber {
+    #[inline]
+    fn from(n: u64) -> Self {
+        match n.try_into() {
+            Ok(n) => Self::Number(n),
+            Err(_) => Self::Wildcard,
+        }
+    }
+}
+
+impl From<SemverVersionNumber> for u64 {
+    #[inline]
+    fn from(value: SemverVersionNumber) -> Self {
+        match value {
+            SemverVersionNumber::Number(n) => n as u64,
+            SemverVersionNumber::Wildcard => u64::MAX,
+        }
+    }
+}
+
+impl fmt::Display for SemverVersionNumber {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Number(n) => n.fmt(f),
+            Self::Wildcard => "*".fmt(f),
+        }
+    }
+}
+
+impl PartialEq for SemverVersionNumber {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Wildcard, _) => true,
+            (_, Self::Wildcard) => true,
+            (Self::Number(a), Self::Number(b)) => a == b,
+        }
+    }
+}
+
+impl Eq for SemverVersionNumber {}
+
+impl PartialOrd for SemverVersionNumber {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for SemverVersionNumber {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Self::Wildcard, _) => Ordering::Equal,
+            (_, Self::Wildcard) => Ordering::Equal,
+            (Self::Number(a), Self::Number(b)) => a.cmp(b),
+        }
+    }
+}
+
+/// A SemVer version.
 #[derive(Clone, Debug)]
 pub struct SemverVersion {
     pub span: Span,
     /// Major version.
-    pub major: u32,
+    pub major: SemverVersionNumber,
     /// Minor version. Optional.
-    pub minor: Option<u32>,
+    pub minor: Option<SemverVersionNumber>,
     /// Patch version. Optional.
-    pub patch: Option<u32>,
+    pub patch: Option<SemverVersionNumber>,
     // Pre-release and build metadata are not supported.
 }
 
+impl PartialEq for SemverVersion {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for SemverVersion {}
+
 impl PartialOrd for SemverVersion {
+    #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for SemverVersion {
+    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        #[inline]
+        fn cmp_opt(a: &Option<SemverVersionNumber>, b: &Option<SemverVersionNumber>) -> Ordering {
+            match (a, b) {
+                (Some(a), Some(b)) => a.cmp(&b),
+                _ => Ordering::Equal,
+            }
+        }
+
         self.major
             .cmp(&other.major)
-            .then_with(|| self.minor.cmp(&other.minor))
-            .then_with(|| self.patch.cmp(&other.patch))
+            .then_with(|| cmp_opt(&self.minor, &other.minor))
+            .then_with(|| cmp_opt(&self.patch, &other.patch))
     }
 }
-
-impl PartialEq for SemverVersion {
-    fn eq(&self, other: &Self) -> bool {
-        self.major == other.major && self.minor == other.minor && self.patch == other.patch
-    }
-}
-
-impl Eq for SemverVersion {}
 
 impl fmt::Display for SemverVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let write_number = |n: u32, f: &mut fmt::Formatter<'_>| {
-            if n == u32::MAX {
-                f.write_str("*")
-            } else {
-                write!(f, "{n}")
-            }
-        };
-
         let Self { span: _, major, minor, patch } = *self;
-        write_number(major, f)?;
+        write!(f, "{major}")?;
         if let Some(minor) = minor {
-            f.write_str(".")?;
-            write_number(minor, f)?;
+            write!(f, ".{minor}")?;
         }
         if let Some(patch) = patch {
             if minor.is_none() {
                 f.write_str(".*")?;
             }
-            f.write_str(".")?;
-            write_number(patch, f)?;
+            write!(f, ".{patch}")?;
         }
         Ok(())
     }
 }
 
 impl From<semver::Version> for SemverVersion {
+    #[inline]
     fn from(version: semver::Version) -> Self {
         Self {
             span: Span::DUMMY,
-            major: version.major.try_into().unwrap_or(u32::MAX),
-            minor: Some(version.minor.try_into().unwrap_or(u32::MAX)),
-            patch: Some(version.patch.try_into().unwrap_or(u32::MAX)),
+            major: version.major.into(),
+            minor: Some(version.minor.into()),
+            patch: Some(version.patch.into()),
         }
     }
 }
 
 impl From<SemverVersion> for semver::Version {
+    #[inline]
     fn from(version: SemverVersion) -> Self {
         Self::new(
-            version.major as u64,
-            version.minor.unwrap_or(0) as u64,
-            version.patch.unwrap_or(0) as u64,
+            version.major.into(),
+            version.minor.map(Into::into).unwrap_or(0),
+            version.patch.map(Into::into).unwrap_or(0),
         )
     }
 }
 
 impl SemverVersion {
-    /// Creates a new version.
-    pub const fn new(span: Span, major: u32, minor: Option<u32>, patch: Option<u32>) -> Self {
-        Self { span, major, minor, patch }
-    }
-
     /// Creates a new [::semver] version from this version.
+    #[inline]
     pub fn into_semver(self) -> semver::Version {
         self.into()
     }
@@ -117,7 +185,7 @@ pub struct SemverReq {
     ///
     /// Or-ed list of and-ed components, meaning that `matches` is evaluated as
     /// `any([all(c) for c in dis])`.
-    /// E.g.: `^0 <= 1 || 0.5.0 - 0.6.0 ...1 || ...2` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...1], ...2]`
+    /// E.g.: `^0 <=1 || 0.5.0 - 0.6.0 ... || ...` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...], ...]`
     pub dis: Vec<SemverReqCon>,
 }
 
@@ -265,9 +333,11 @@ fn matches_caret(a: &SemverVersion, b: &SemverVersion) -> bool {
     }
 
     let mut a = a.clone();
-    if a.major > 0 {
+    if a.major > SemverVersionNumber::Number(0) {
         a.minor = None;
     }
     a.patch = None;
     matches_op(Op::LessEq, &a, b)
 }
+
+// Tests in `crates/parse/src/parser/item.rs`

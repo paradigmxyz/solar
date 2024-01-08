@@ -63,19 +63,74 @@ pub struct PragmaDirective {
     pub tokens: PragmaTokens,
 }
 
+/// The parsed or unparsed tokens of a pragma directive.
 #[derive(Clone, Debug)]
 pub enum PragmaTokens {
-    /// A Solidity Semantic Versioning requirement: `pragma solidity <req>;`.
+    /// A Semantic Versioning requirement: `pragma solidity <req>;`.
     ///
-    /// Note that this is parsed differently from the [`semver`] crate, but we still make use of
-    /// the [`VersionReq`](semver::VersionReq) type.
-    Solidity(SemverReq),
-    /// `pragma abicoder <ident>;`
-    Abicoder(Ident),
-    /// `pragma experimental <ident>;`
-    Experimental(Ident),
+    /// Note that this is parsed differently from the [`semver`] crate.
+    Version(Ident, SemverReq),
+    /// `pragma <name> [value];`.
+    Custom(IdentOrStrLit, Option<IdentOrStrLit>),
     /// Unparsed tokens: `pragma <tokens>...;`.
     Verbatim(Vec<Token>),
+}
+
+impl PragmaTokens {
+    /// Returns the name and value of the pragma directive, if any.
+    ///
+    /// # Examples
+    ///
+    /// ```solidity
+    /// pragma solidity ...;          // None
+    /// pragma abicoder v2;           // Some((Ident("abicoder"), Some(Ident("v2"))))
+    /// pragma experimental solidity; // Some((Ident("experimental"), Some(Ident("solidity"))))
+    /// pragma hello;                 // Some((Ident("hello"), None))
+    /// pragma hello world;           // Some((Ident("hello"), Some(Ident("world"))))
+    /// pragma hello "world";         // Some((Ident("hello"), Some(StrLit("world"))))
+    /// pragma "hello" world;         // Some((StrLit("hello"), Some(Ident("world"))))
+    /// pragma ???;                   // None
+    /// ```
+    pub fn as_name_and_value(&self) -> Option<(&IdentOrStrLit, Option<&IdentOrStrLit>)> {
+        match self {
+            Self::Custom(name, value) => Some((name, value.as_ref())),
+            _ => None,
+        }
+    }
+}
+
+/// An identifier or a string literal.
+///
+/// This is used in `pragma` declaration because Solc for some reason accepts and treats both as
+/// identical.
+///
+/// Parsed in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
+///
+/// Syntax-checked in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
+#[derive(Clone, Debug)]
+pub enum IdentOrStrLit {
+    /// An identifier.
+    Ident(Ident),
+    /// A string literal.
+    StrLit(StrLit),
+}
+
+impl IdentOrStrLit {
+    /// Returns the string value of the identifier or literal.
+    pub fn value(&self) -> &str {
+        match self {
+            Self::Ident(ident) => ident.as_str(),
+            Self::StrLit(str_lit) => str_lit.value.as_str(),
+        }
+    }
+
+    /// Returns the span of the identifier or literal.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Ident(ident) => ident.span,
+            Self::StrLit(str_lit) => str_lit.span,
+        }
+    }
 }
 
 /// An import directive: `import "foo.sol";`.

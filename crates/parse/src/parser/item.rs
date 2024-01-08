@@ -245,12 +245,30 @@ impl<'a> Parser<'a> {
 
     /// Parses a pragma directive.
     fn parse_pragma(&mut self) -> PResult<'a, PragmaDirective> {
-        let tokens = if self.eat_keyword(sym::solidity) {
-            PragmaTokens::Solidity(self.parse_solidity_req()?)
-        } else if self.eat_keyword(sym::abicoder) {
-            PragmaTokens::Abicoder(self.parse_ident()?)
-        } else if self.eat_keyword(sym::experimental) {
-            PragmaTokens::Experimental(self.parse_ident()?)
+        let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
+
+        let tokens = if (is_ident_or_strlit(&self.token)
+            && self.look_ahead(1).kind == TokenKind::Semi)
+            || (is_ident_or_strlit(&self.token)
+                && self.look_ahead_with(1, is_ident_or_strlit)
+                && self.look_ahead(2).kind == TokenKind::Semi)
+        {
+            // `pragma <k>;`
+            // `pragma <k> <v>;`
+            let k = self.parse_ident_or_strlit()?;
+            let v = if self.token.is_ident() || self.token.is_str_lit() {
+                Some(self.parse_ident_or_strlit()?)
+            } else {
+                None
+            };
+            PragmaTokens::Custom(k, v)
+        } else if self.token.is_ident()
+            && self.look_ahead_with(1, |t| t.is_op() || t.is_rational_lit())
+        {
+            // `pragma <ident> <req>;`
+            let ident = self.parse_ident_any()?;
+            let req = self.parse_semver_req()?;
+            PragmaTokens::Version(ident, req)
         } else {
             let mut tokens = Vec::new();
             while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
@@ -267,10 +285,20 @@ impl<'a> Parser<'a> {
         Ok(PragmaDirective { tokens })
     }
 
-    /// Parses a Solidity version requirement.
+    fn parse_ident_or_strlit(&mut self) -> PResult<'a, IdentOrStrLit> {
+        if self.check_ident() {
+            self.parse_ident().map(IdentOrStrLit::Ident)
+        } else if self.check_str_lit() {
+            self.parse_str_lit().map(IdentOrStrLit::StrLit)
+        } else {
+            self.unexpected()
+        }
+    }
+
+    /// Parses a SemVer version requirement.
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
-    fn parse_solidity_req(&mut self) -> PResult<'a, SemverReq> {
+    fn parse_semver_req(&mut self) -> PResult<'a, SemverReq> {
         if self.check_noexpect(&TokenKind::Semi) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
@@ -288,7 +316,7 @@ impl<'a> Parser<'a> {
             if self.eat(&TokenKind::OrOr) {
                 continue;
             }
-            if self.check_noexpect(&TokenKind::Eof) || self.check_noexpect(&TokenKind::Semi) {
+            if self.check_noexpect(&TokenKind::Semi) || self.check_noexpect(&TokenKind::Eof) {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -374,8 +402,8 @@ impl<'a> Parser<'a> {
             // 0.1 .2
             let lit = self.token.lit().unwrap();
             let (mj, mn) = lit.symbol.as_str().split_once('.').unwrap();
-            major = self.parse_u32(mj)?;
-            minor = Some(self.parse_u32(mn)?);
+            major = SemverVersionNumber::Number(self.parse_u32(mj)?);
+            minor = Some(SemverVersionNumber::Number(self.parse_u32(mn)?));
             self.bump();
 
             patch =
@@ -388,8 +416,8 @@ impl<'a> Parser<'a> {
                     // *. 1.2
                     let lit = self.token.lit().unwrap();
                     let (mn, p) = lit.symbol.as_str().split_once('.').unwrap();
-                    minor = Some(self.parse_u32(mn)?);
-                    patch = Some(self.parse_u32(p)?);
+                    minor = Some(SemverVersionNumber::Number(self.parse_u32(mn)?));
+                    patch = Some(SemverVersionNumber::Number(self.parse_u32(p)?));
                     self.bump();
                 } else {
                     // *.1 .2
@@ -403,15 +431,15 @@ impl<'a> Parser<'a> {
             }
         }
         let span = lo.to(self.prev_token.span);
-        Ok(SemverVersion::new(span, major, minor, patch))
+        Ok(SemverVersion { span, major, minor, patch })
     }
 
-    fn parse_semver_number(&mut self) -> PResult<'a, u32> {
+    fn parse_semver_number(&mut self) -> PResult<'a, SemverVersionNumber> {
         if self.check_noexpect(&TokenKind::BinOp(BinOpToken::Star))
             || self.token.is_keyword_any(&[sym::x, sym::X])
         {
             self.bump();
-            return Ok(u32::MAX);
+            return Ok(SemverVersionNumber::Wildcard);
         }
 
         let Token {
@@ -424,7 +452,7 @@ impl<'a> Parser<'a> {
         };
         let value = self.parse_u32(symbol.as_str()).map_err(|e| e.span(span))?;
         self.bump();
-        Ok(value)
+        Ok(SemverVersionNumber::Number(value))
     }
 
     fn parse_u32(&mut self, s: &str) -> PResult<'a, u32> {
@@ -753,5 +781,204 @@ impl VarDeclMode {
 
     fn warn_on_name(&self) -> bool {
         matches!(self, Self::AllowStorageWithWarning)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ParseSess;
+    use sulk_interface::source_map::FileName;
+
+    fn assert_version_matches(tests: &[(&str, &str, bool)]) {
+        sulk_interface::enter(|| {
+            let sess = ParseSess::with_test_emitter(false);
+            for (i, &(v, req_s, res)) in tests.iter().enumerate() {
+                let name = i.to_string();
+                let src = format!("{v} {req_s}");
+                let mut parser = Parser::from_source_code(&sess, FileName::Custom(name), src);
+
+                let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
+                assert_eq!(version.to_string(), v);
+                let req = parser.parse_semver_req().map_err(|e| e.emit()).unwrap();
+                assert_eq!(req.matches(&version), res, "v={v:?}, req={req_s:?}");
+            }
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn semver_matches() {
+        assert_version_matches(&[
+            // none = eq
+            ("0.8.1", "0", true),
+            ("0.8.1", "1", false),
+            ("0.8.1", "1.0", false),
+            ("0.8.1", "1.0.0", false),
+            ("0.8.1", "0.7", false),
+            ("0.8.1", "0.7.0", false),
+            ("0.8.1", "0.7.1", false),
+            ("0.8.1", "0.7.2", false),
+            ("0.8.1", "0.8", true),
+            ("0.8.1", "0.8.0", false),
+            ("0.8.1", "0.8.1", true),
+            ("0.8.1", "0.8.2", false),
+            ("0.8.1", "0.9", false),
+            ("0.8.1", "0.9.0", false),
+            ("0.8.1", "0.9.1", false),
+            ("0.8.1", "0.9.2", false),
+            // eq
+            ("0.8.1", "=0", true),
+            ("0.8.1", "=1", false),
+            ("0.8.1", "=1.0", false),
+            ("0.8.1", "=1.0.0", false),
+            ("0.8.1", "=0.7", false),
+            ("0.8.1", "=0.7.0", false),
+            ("0.8.1", "=0.7.1", false),
+            ("0.8.1", "=0.7.2", false),
+            ("0.8.1", "=0.8", true),
+            ("0.8.1", "=0.8.0", false),
+            ("0.8.1", "=0.8.1", true),
+            ("0.8.1", "=0.8.2", false),
+            ("0.8.1", "=0.9", false),
+            ("0.8.1", "=0.9.0", false),
+            ("0.8.1", "=0.9.1", false),
+            ("0.8.1", "=0.9.2", false),
+            // gt
+            ("0.8.1", ">0", false),
+            ("0.8.1", ">1", false),
+            ("0.8.1", ">1.0", false),
+            ("0.8.1", ">1.0.0", false),
+            ("0.8.1", ">0.7", true),
+            ("0.8.1", ">0.7.0", true),
+            ("0.8.1", ">0.7.1", true),
+            ("0.8.1", ">0.7.2", true),
+            ("0.8.1", ">0.8", false),
+            ("0.8.1", ">0.8.0", true),
+            ("0.8.1", ">0.8.1", false),
+            ("0.8.1", ">0.8.2", false),
+            ("0.8.1", ">0.9", false),
+            ("0.8.1", ">0.9.0", false),
+            ("0.8.1", ">0.9.1", false),
+            ("0.8.1", ">0.9.2", false),
+            // ge
+            ("0.8.1", ">=0", true),
+            ("0.8.1", ">=1", false),
+            ("0.8.1", ">=1.0", false),
+            ("0.8.1", ">=1.0.0", false),
+            ("0.8.1", ">=0.7", true),
+            ("0.8.1", ">=0.7.0", true),
+            ("0.8.1", ">=0.7.1", true),
+            ("0.8.1", ">=0.7.2", true),
+            ("0.8.1", ">=0.8", true),
+            ("0.8.1", ">=0.8.0", true),
+            ("0.8.1", ">=0.8.1", true),
+            ("0.8.1", ">=0.8.2", false),
+            ("0.8.1", ">=0.9", false),
+            ("0.8.1", ">=0.9.0", false),
+            ("0.8.1", ">=0.9.1", false),
+            ("0.8.1", ">=0.9.2", false),
+            // lt
+            ("0.8.1", "<0", false),
+            ("0.8.1", "<1", true),
+            ("0.8.1", "<1.0", true),
+            ("0.8.1", "<1.0.0", true),
+            ("0.8.1", "<0.7", false),
+            ("0.8.1", "<0.7.0", false),
+            ("0.8.1", "<0.7.1", false),
+            ("0.8.1", "<0.7.2", false),
+            ("0.8.1", "<0.8", false),
+            ("0.8.1", "<0.8.0", false),
+            ("0.8.1", "<0.8.1", false),
+            ("0.8.1", "<0.8.2", true),
+            ("0.8.1", "<0.9", true),
+            ("0.8.1", "<0.9.0", true),
+            ("0.8.1", "<0.9.1", true),
+            ("0.8.1", "<0.9.2", true),
+            // le
+            ("0.8.1", "<=0", true),
+            ("0.8.1", "<=1", true),
+            ("0.8.1", "<=1.0", true),
+            ("0.8.1", "<=1.0.0", true),
+            ("0.8.1", "<=0.7", false),
+            ("0.8.1", "<=0.7.0", false),
+            ("0.8.1", "<=0.7.1", false),
+            ("0.8.1", "<=0.7.2", false),
+            ("0.8.1", "<=0.8", true),
+            ("0.8.1", "<=0.8.0", false),
+            ("0.8.1", "<=0.8.1", true),
+            ("0.8.1", "<=0.8.2", true),
+            ("0.8.1", "<=0.9.0", true),
+            ("0.8.1", "<=0.9.1", true),
+            ("0.8.1", "<=0.9.2", true),
+            // tilde
+            ("0.8.1", "~0", true),
+            ("0.8.1", "~1", false),
+            ("0.8.1", "~1.0", false),
+            ("0.8.1", "~1.0.0", false),
+            ("0.8.1", "~0.7", false),
+            ("0.8.1", "~0.7.0", false),
+            ("0.8.1", "~0.7.1", false),
+            ("0.8.1", "~0.7.2", false),
+            ("0.8.1", "~0.8", true),
+            ("0.8.1", "~0.8.0", true),
+            ("0.8.1", "~0.8.1", true),
+            ("0.8.1", "~0.8.2", false),
+            ("0.8.1", "~0.9.0", false),
+            ("0.8.1", "~0.9.1", false),
+            ("0.8.1", "~0.9.2", false),
+            // caret
+            ("0.8.1", "^0", true),
+            ("0.8.1", "^1", false),
+            ("0.8.1", "^1.0", false),
+            ("0.8.1", "^1.0.0", false),
+            ("0.8.1", "^0.7", false),
+            ("0.8.1", "^0.7.0", false),
+            ("0.8.1", "^0.7.1", false),
+            ("0.8.1", "^0.7.2", false),
+            ("0.8.1", "^0.8", true),
+            ("0.8.1", "^0.8.0", true),
+            ("0.8.1", "^0.8.1", true),
+            ("0.8.1", "^0.8.2", false),
+            ("0.8.1", "^0.9.0", false),
+            ("0.8.1", "^0.9.1", false),
+            ("0.8.1", "^0.9.2", false),
+            // ranges
+            ("0.8.1", "0 - 1", true),
+            ("0.8.1", "0.1 - 1.1", true),
+            ("0.8.1", "0.1.1 - 1.1.1", true),
+            ("0.8.1", "0 - 0.8.1", true),
+            ("0.8.1", "0 - 0.8.2", true),
+            ("0.8.1", "0.7 - 0.8.1", true),
+            ("0.8.1", "0.7 - 0.8.2", true),
+            ("0.8.1", "0.8 - 0.8.1", true),
+            ("0.8.1", "0.8 - 0.8.2", true),
+            ("0.8.1", "0.8.0 - 0.8.1", true),
+            ("0.8.1", "0.8.0 - 0.8.2", true),
+            ("0.8.1", "0.8.0 - 0.9.0", true),
+            ("0.8.1", "0.8.0 - 1.0.0", true),
+            ("0.8.1", "0.8.1 - 0.8.1", true),
+            ("0.8.1", "0.8.1 - 0.8.2", true),
+            ("0.8.1", "0.8.1 - 0.9.0", true),
+            ("0.8.1", "0.8.1 - 1.0.0", true),
+            ("0.8.1", "0.7 - 0.8", true),
+            ("0.8.1", "0.7.0 - 0.8", true),
+            ("0.8.1", "0.8 - 0.8", true),
+            ("0.8.1", "0.8.0 - 0.8", true),
+            ("0.8.1", "0.8 - 0.8.0", false),
+            ("0.8.1", "0.8 - 0.8.1", true),
+            // or
+            ("0.8.1", "0 || 0", true),
+            ("0.8.1", "0 || 1", true),
+            ("0.8.1", "1 || 0", true),
+            ("0.8.1", "0.0 || 0.0", false),
+            ("0.8.1", "0.0 || 1.0", false),
+            ("0.8.1", "1.0 || 0.0", false),
+            ("0.8.1", "0.7 || 0.8", true),
+            ("0.8.1", "0.8 || 0.8", true),
+            ("0.8.1", "0.8 || 0.8.1", true),
+            ("0.8.1", "0.8 || 0.8.2", true),
+            ("0.8.1", "0.8 || 0.9", true),
+        ]);
     }
 }
