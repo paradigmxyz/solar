@@ -84,7 +84,15 @@ impl DiagCtxt {
 
     /// Creates a new `DiagCtxt` with a TTY emitter.
     pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
-        Self::new(Box::new(HumanEmitter::stderr(ColorChoice::Auto).source_map(source_map)))
+        Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
+    }
+
+    /// Creates a new `DiagCtxt` with a TTY emitter and a color choice.
+    pub fn with_tty_emitter_and_color(
+        source_map: Option<Lrc<SourceMap>>,
+        color_choice: ColorChoice,
+    ) -> Self {
+        Self::new(Box::new(HumanEmitter::stderr(color_choice).source_map(source_map)))
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.

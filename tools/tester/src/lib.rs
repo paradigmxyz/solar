@@ -91,14 +91,15 @@ impl Runner {
             let failed_test = match (expected_error, output.status.success()) {
                 (None, true) => false,
                 (None, false) => {
-                    eprintln!("---- unexpected error in {} ----", rel_path.display());
+                    eprintln!("\n---- unexpected error in {} ----", rel_path.display());
                     true
                 }
                 (Some(e), true) => {
-                    let _ = e;
-                    // eprintln!("---- unexpected success in {} ----", rel_path.display());
+                    // TODO: Most of these are not syntax errors.
+                    // eprintln!("\n---- unexpected success in {} ----", rel_path.display());
                     // eprintln!("-- expected error --\n{e}");
                     // true
+                    let _ = e;
                     false
                 }
                 (Some(_e), false) => false,
@@ -141,7 +142,7 @@ impl Runner {
 
     fn cmd(&self) -> Command {
         let mut cmd = Command::new(self.cmd);
-        cmd.current_dir(&self.root).env("CLICOLOR_FORCE", "1").timeout(TIMEOUT);
+        cmd.current_dir(&self.root).arg("--color=always").timeout(TIMEOUT);
         cmd
     }
 }

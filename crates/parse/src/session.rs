@@ -1,5 +1,5 @@
 use sulk_data_structures::sync::Lrc;
-use sulk_interface::{diagnostics::DiagCtxt, SourceMap};
+use sulk_interface::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
 
 /// Information about the current parsing session.
 pub struct ParseSess {
@@ -27,7 +27,15 @@ impl ParseSess {
 
     /// Creates a new parser session with a TTY emitter.
     pub fn with_tty_emitter(source_map: Lrc<SourceMap>) -> Self {
-        let dcx = DiagCtxt::with_tty_emitter(Some(source_map.clone()));
+        Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
+    }
+
+    /// Creates a new parser session with a TTY emitter and a color choice.
+    pub fn with_tty_emitter_and_color(
+        source_map: Lrc<SourceMap>,
+        color_choice: ColorChoice,
+    ) -> Self {
+        let dcx = DiagCtxt::with_tty_emitter_and_color(Some(source_map.clone()), color_choice);
         Self::new(dcx, source_map)
     }
 

@@ -1,7 +1,7 @@
 //! The main entry point for the Sulk compiler.
 
 use clap::Parser as _;
-use cli::Opts;
+use cli::Args;
 use std::process::ExitCode;
 use sulk_data_structures::{defer, sync::Lrc};
 use sulk_interface::{
@@ -38,17 +38,15 @@ fn main() -> ExitCode {
 }
 
 pub fn run_compiler(args: &[String]) -> Result<()> {
-    let opts = Opts::parse_from(args);
-    run_compiler_with(opts, |compiler| {
+    let args = Args::parse_from(args);
+    run_compiler_with(args, |compiler| {
         let sess = &compiler.sess.parse_sess;
-        let opts = &compiler.sess.opts;
+        let args = &compiler.sess.args;
 
-        for path in &opts.paths {
-            let _ = sess.source_map().load_file(path).map_err(|e| {
-                let msg = format!("couldn't read {}: {}", path.display(), e);
-                sess.dcx.err(msg).emit()
-            })?;
-        }
+        let _ = sess.source_map().load_file(&args.input).map_err(|e| {
+            let msg = format!("couldn't read {}: {}", args.input.display(), e);
+            sess.dcx.err(msg).emit()
+        })?;
 
         for file in sess.source_map().files().iter() {
             let tokens = Lexer::from_source_file(sess, file).into_tokens();
@@ -65,7 +63,7 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
 
 pub struct Session {
     pub parse_sess: ParseSess,
-    pub opts: Opts,
+    pub args: Args,
 }
 
 impl Session {
@@ -90,12 +88,16 @@ impl Compiler {
     }
 }
 
-fn run_compiler_with<R: Send>(opts: Opts, f: impl FnOnce(&Compiler) -> R + Send) -> R {
+fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send) -> R {
     utils::run_in_thread_with_globals(|| {
-        let source_map = SourceMap::empty();
-        let parse_sess = ParseSess::with_tty_emitter(Lrc::new(source_map));
+        let color = match args.color {
+            clap::ColorChoice::Always => sulk_interface::ColorChoice::Always,
+            clap::ColorChoice::Auto => sulk_interface::ColorChoice::Auto,
+            clap::ColorChoice::Never => sulk_interface::ColorChoice::Never,
+        };
+        let parse_sess = ParseSess::with_tty_emitter_and_color(Lrc::new(SourceMap::empty()), color);
 
-        let sess = Session { parse_sess, opts };
+        let sess = Session { parse_sess, args };
         let compiler = Compiler { sess };
 
         SessionGlobals::with_source_map(compiler.sess.parse_sess.clone_source_map(), move || {
