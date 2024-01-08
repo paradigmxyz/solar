@@ -6,8 +6,12 @@ use crate::{
 };
 use annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
 use anstream::{AutoStream, ColorChoice};
-use std::io::{self, Write};
+use std::{
+    borrow::Cow,
+    io::{self, Write},
+};
 use sulk_data_structures::sync::Lrc;
+use unicode_width::UnicodeWidthChar;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .error(Level::Error.style())
@@ -161,6 +165,7 @@ impl HumanEmitter {
     }
 }
 
+#[derive(Debug)]
 struct OwnedAnnotation {
     id: Option<String>,
     label: Option<String>,
@@ -193,6 +198,7 @@ impl OwnedAnnotation {
     }
 }
 
+#[derive(Debug)]
 struct OwnedSourceAnnotation {
     range: (usize, usize),
     label: String,
@@ -209,6 +215,7 @@ impl OwnedSourceAnnotation {
     }
 }
 
+#[derive(Debug)]
 struct OwnedSlice {
     origin: Option<String>,
     source: String,
@@ -290,47 +297,64 @@ fn file_to_slice(
     lines: &[super::rustc::Line],
     default_level: Level,
 ) -> OwnedSlice {
-    let first_line = lines.first().map(|l| l.line_index).unwrap_or(1);
-    let last_line = lines.last().map(|l| l.line_index).unwrap_or(1);
+    debug_assert!(!lines.is_empty());
+
+    let first_line = lines.first().unwrap().line_index;
+    let last_line = lines.last().unwrap().line_index;
     debug_assert!(last_line >= first_line);
-    let first_line_idx = file.lines().get(first_line - 1).map(|l| l.0).unwrap_or(0);
+
+    let mut snippet =
+        Cow::Borrowed(file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default());
+    if snippet.contains('\t') {
+        snippet = Cow::Owned(snippet.replace('\t', "    "));
+    }
+
     let mut slice = OwnedSlice {
         origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
-        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().to_string(),
+        source: snippet.into_owned(),
         line_start: first_line,
         fold: true,
         annotations: Vec::new(),
     };
     let mut multiline_start = None;
+    let mut current_i = 0;
     for line in lines {
-        // Relative to the first line.
-        let absolute_idx = file.lines().get(line.line_index - 1).map(|l| l.0).unwrap_or(0);
-        let relative_idx = (absolute_idx - first_line_idx) as usize;
+        // Returns the position of the given column in the local snippet.
+        let get_pos = |c: &super::rustc::AnnotationColumn| current_i + c.display;
 
         for ann in &line.annotations {
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
                     slice.annotations.push(OwnedSourceAnnotation {
-                        range: (relative_idx + ann.start_col.file, relative_idx + ann.end_col.file),
+                        range: (get_pos(&ann.start_col), get_pos(&ann.end_col)),
                         label: ann.label.clone().unwrap_or_default(),
                         annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
                     })
                 }
                 super::rustc::AnnotationType::MultilineStart(_) => {
                     debug_assert!(multiline_start.is_none());
-                    multiline_start = Some((ann.label.as_ref(), relative_idx + ann.start_col.file));
+                    multiline_start = Some((ann.label.as_ref(), get_pos(&ann.start_col)));
                 }
                 super::rustc::AnnotationType::MultilineLine(_) => {}
                 super::rustc::AnnotationType::MultilineEnd(_) => {
                     let (label, multiline_start_idx) = multiline_start.take().unwrap();
+                    let end_idx = get_pos(&ann.end_col);
+                    debug_assert!(multiline_start_idx >= end_idx);
                     slice.annotations.push(OwnedSourceAnnotation {
-                        range: (multiline_start_idx, relative_idx + ann.end_col.file),
+                        range: (multiline_start_idx, end_idx),
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
                         annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
                     });
                 }
             }
         }
+
+        current_i += file
+            .get_line(line.line_index - 1)
+            .unwrap_or("")
+            .chars()
+            .map(|c| if c == '\t' { 4 } else { c.width().unwrap_or(0) })
+            .sum::<usize>() + 1 /* nl */;
     }
     slice
 }

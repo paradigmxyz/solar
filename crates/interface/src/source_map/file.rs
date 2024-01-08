@@ -268,8 +268,8 @@ impl SourceFile {
         self.lines().partition_point(|x| x <= &pos).checked_sub(1)
     }
 
-    /// Converts an relative `RelativeBytePos` to a `CharPos` relative to the `SourceFile`.
-    pub(super) fn bytepos_to_file_charpos(&self, bpos: RelativeBytePos) -> CharPos {
+    /// Converts a `RelativeBytePos` to a `CharPos` relative to the `SourceFile`.
+    pub(crate) fn bytepos_to_file_charpos(&self, bpos: RelativeBytePos) -> CharPos {
         // The number of extra bytes due to multibyte chars in the `SourceFile`.
         let mut total_extra_bytes = 0;
 
