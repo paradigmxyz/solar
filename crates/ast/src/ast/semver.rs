@@ -36,8 +36,8 @@ impl From<SemverVersionNumber> for u64 {
     #[inline]
     fn from(value: SemverVersionNumber) -> Self {
         match value {
-            SemverVersionNumber::Number(n) => n as u64,
-            SemverVersionNumber::Wildcard => u64::MAX,
+            SemverVersionNumber::Number(n) => n as Self,
+            SemverVersionNumber::Wildcard => Self::MAX,
         }
     }
 }
@@ -118,7 +118,7 @@ impl Ord for SemverVersion {
         #[inline]
         fn cmp_opt(a: &Option<SemverVersionNumber>, b: &Option<SemverVersionNumber>) -> Ordering {
             match (a, b) {
-                (Some(a), Some(b)) => a.cmp(&b),
+                (Some(a), Some(b)) => a.cmp(b),
                 _ => Ordering::Equal,
             }
         }
