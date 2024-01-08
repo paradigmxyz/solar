@@ -6,7 +6,6 @@ use assert_cmd::Command;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{
-    ffi::OsStr,
     fs,
     path::{Path, PathBuf},
     process::Output,
@@ -43,13 +42,13 @@ impl Runner {
         let external_source_delimiter = Regex::new(r"==== ExternalSource: (.*) ====").unwrap();
         // let equals = Regex::new("([a-zA-Z0-9_]+)=(.*)").unwrap();
 
-        let syntax_tests = self.root.join("testdata/solidity/test/libsolidity/syntaxTests");
         let stopwatch = Instant::now();
-        let paths: Vec<_> = WalkDir::new(syntax_tests)
+        let paths: Vec<_> = WalkDir::new(self.root.join("testdata/solidity/test/"))
             .sort_by_file_name()
             .into_iter()
             .map(|entry| entry.unwrap())
             .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
+            .filter(|entry| solc_test_filter(entry.path()).is_none())
             .collect();
         let collect_time = stopwatch.elapsed();
         let total = paths.len();
@@ -156,15 +155,28 @@ impl Runner {
     }
 }
 
-fn solc_test_skip_reason(path: &Path) -> Option<&str> {
-    if path.components().any(|c| c.as_os_str() == OsStr::new("experimental")) {
+fn solc_test_filter(path: &Path) -> Option<&str> {
+    if path_contains(path, "libyul") {
+        return Some("actually a Yul test");
+    }
+
+    if path_contains(path, "cmdlineTests") {
+        return Some("not same format as everything else");
+    }
+
+    if path_contains(path, "experimental") {
         return Some("solidity experimental");
     }
 
-    if path.components().any(|c| c.as_os_str() == OsStr::new("license")) {
+    // We don't parse licenses.
+    if path_contains(path, "license") {
         return Some("license test");
     }
 
+    None
+}
+
+fn solc_test_skip_reason(path: &Path) -> Option<&str> {
     let stem = path.file_stem().unwrap().to_str().unwrap();
     if matches!(
         stem,
@@ -194,4 +206,15 @@ fn dump_output(output: &Output) {
 
 fn utf8(s: &[u8]) -> &str {
     std::str::from_utf8(s).expect("could not decode utf8")
+}
+
+fn path_contains(haystack: &Path, needle: &str) -> bool {
+    if needle.contains('/') {
+        let s = haystack.to_str().unwrap();
+        #[cfg(windows)]
+        let s = s.replace('\\', "/");
+        s.contains(needle)
+    } else {
+        haystack.components().any(|c| c.as_os_str() == needle)
+    }
 }
