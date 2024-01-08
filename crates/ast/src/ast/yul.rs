@@ -1,6 +1,6 @@
 //! Yul AST.
 
-use super::{Lit, Path};
+use super::{DocComment, Lit, Path};
 use sulk_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
@@ -13,6 +13,8 @@ pub type Block = Vec<Stmt>;
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulStatement>
 #[derive(Clone, Debug)]
 pub struct Stmt {
+    /// The doc-comments of the statement.
+    pub docs: Vec<DocComment>,
     /// The span of the statement.
     pub span: Span,
     /// The kind of statement.

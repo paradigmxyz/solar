@@ -451,6 +451,13 @@ pub struct Token {
     pub span: Span,
 }
 
+impl From<Ident> for Token {
+    #[inline]
+    fn from(ident: Ident) -> Self {
+        Self::from_ast_ident(ident)
+    }
+}
+
 impl Token {
     /// The [EOF](TokenKind::Eof) token.
     pub const EOF: Self = Self::new(TokenKind::Eof, Span::DUMMY);

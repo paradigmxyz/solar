@@ -4,17 +4,29 @@ use sulk_ast::{
     ast::{yul::*, Path},
     token::*,
 };
-use sulk_interface::{kw, Ident};
+use sulk_interface::{error_code, kw, Ident};
 
 impl<'a> Parser<'a> {
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { span, kind })
+        self.in_yul(Self::parse_yul_stmt)
+    }
+
+    /// Parses a Yul statement, without setting `in_yul`.
+    pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'a, Stmt> {
+        let docs = self.parse_doc_comments()?;
+        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
     }
 
     /// Parses a Yul block.
     pub fn parse_yul_block(&mut self) -> PResult<'a, Block> {
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), Self::parse_yul_stmt).map(|(x, _)| x)
+        self.in_yul(Self::parse_yul_block_unchecked)
+    }
+
+    /// Parses a Yul block, without setting `in_yul`.
+    pub(crate) fn parse_yul_block_unchecked(&mut self) -> PResult<'a, Block> {
+        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), Self::parse_yul_stmt_unchecked)
+            .map(|(x, _)| x)
     }
 
     /// Parses a Yul statement kind.
@@ -24,7 +36,7 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Function) {
             self.parse_yul_function()
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
-            self.parse_yul_block().map(StmtKind::Block)
+            self.parse_yul_block_unchecked().map(StmtKind::Block)
         } else if self.eat_keyword(kw::If) {
             self.parse_yul_stmt_if()
         } else if self.eat_keyword(kw::Switch) {
@@ -38,14 +50,16 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Leave) {
             Ok(StmtKind::Leave)
         } else if self.check_ident() {
-            let path = self.parse_path()?;
+            let path = self.parse_path_any()?;
             if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 let name = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
             } else if self.eat(&TokenKind::Walrus) {
+                self.check_valid_path(&path);
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
             } else if self.check(&TokenKind::Comma) {
+                self.check_valid_path(&path);
                 let mut paths = Vec::with_capacity(4);
                 paths.push(path);
                 while self.eat(&TokenKind::Comma) {
@@ -96,38 +110,54 @@ impl<'a> Parser<'a> {
         } else {
             Vec::new()
         };
-        let body = self.parse_yul_block()?;
+        let body = self.parse_yul_block_unchecked()?;
         Ok(StmtKind::FunctionDef(Function { name, parameters, returns, body }))
     }
 
     /// Parses a Yul if statement.
     fn parse_yul_stmt_if(&mut self) -> PResult<'a, StmtKind> {
         let cond = self.parse_yul_expr()?;
-        let body = self.parse_yul_block()?;
+        let body = self.parse_yul_block_unchecked()?;
         Ok(StmtKind::If(cond, body))
     }
 
     /// Parses a Yul switch statement.
     fn parse_yul_stmt_switch(&mut self) -> PResult<'a, StmtSwitch> {
+        let lo = self.prev_token.span;
         let selector = self.parse_yul_expr()?;
         let mut branches = Vec::new();
         while self.eat_keyword(kw::Case) {
             let constant = self.parse_lit()?;
             self.expect_no_subdenomination();
-            let body = self.parse_yul_block()?;
+            let body = self.parse_yul_block_unchecked()?;
             branches.push(StmtSwitchCase { constant, body });
         }
-        let default_case =
-            if self.eat_keyword(kw::Default) { Some(self.parse_yul_block()?) } else { None };
+        let default_case = if self.eat_keyword(kw::Default) {
+            Some(self.parse_yul_block_unchecked()?)
+        } else {
+            None
+        };
+        if branches.is_empty() {
+            let span = lo.to(self.prev_token.span);
+            if default_case.is_none() {
+                self.dcx().err("`switch` statement has no cases").span(span).emit();
+            } else {
+                self.dcx()
+                    .warn("`switch` statement has only a default case")
+                    .span(span)
+                    .code(error_code!(E9592))
+                    .emit();
+            }
+        }
         Ok(StmtSwitch { selector, branches, default_case })
     }
 
     /// Parses a Yul for statement.
     fn parse_yul_stmt_for(&mut self) -> PResult<'a, StmtKind> {
-        let init = self.parse_yul_block()?;
+        let init = self.parse_yul_block_unchecked()?;
         let cond = self.parse_yul_expr()?;
-        let step = self.parse_yul_block()?;
-        let body = self.parse_yul_block()?;
+        let step = self.parse_yul_block_unchecked()?;
+        let body = self.parse_yul_block_unchecked()?;
         Ok(StmtKind::For { init, cond, step, body })
     }
 
@@ -139,15 +169,17 @@ impl<'a> Parser<'a> {
     /// Parses a Yul expression kind.
     fn parse_yul_expr_kind(&mut self) -> PResult<'a, ExprKind> {
         if self.check_path() {
-            let path = self.parse_path()?;
+            let path = self.parse_path_any()?;
             if self.token.is_open_delim(Delimiter::Parenthesis) {
-                // Paths are allowed in call expressions, but Solc parses them anyway.
+                // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
-                if ident.is_yul_keyword() && !ident.is_yul_builtin() {
-                    self.expected_ident_found_err().emit();
-                }
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
+                for &ident in path.segments() {
+                    if ident.is_yul_keyword() || ident.is_yul_builtin() {
+                        self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
+                    }
+                }
                 Ok(ExprKind::Path(path))
             }
         } else if self.check_lit() {
@@ -160,6 +192,9 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'a, ExprCall> {
+        if !name.is_yul_builtin() && name.is_reserved(true) {
+            self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
+        }
         let (parameters, _) = self.parse_paren_comma_seq(Self::parse_yul_expr)?;
         Ok(ExprCall { name, arguments: parameters })
     }
@@ -170,5 +205,13 @@ impl<'a> Parser<'a> {
             self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
         }
         *path.last()
+    }
+
+    fn check_valid_path(&mut self, path: &Path) {
+        for &ident in path.segments() {
+            if ident.is_reserved(true) {
+                self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
+            }
+        }
     }
 }

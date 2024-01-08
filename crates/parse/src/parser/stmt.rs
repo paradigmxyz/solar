@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
         } else {
             Vec::new()
         };
-        let block = self.in_yul(Self::parse_yul_block)?;
+        let block = self.parse_yul_block()?;
         Ok(StmtAssembly { dialect, flags, block })
     }
 

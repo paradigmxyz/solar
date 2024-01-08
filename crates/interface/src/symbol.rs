@@ -678,9 +678,11 @@ symbols! {
         Leave:       "leave",
         Revert:      "revert",
 
-        // Yul builtin functions.
+        // Yul EVM builtin functions.
         // Some builtins have already been previously declared, so they can't be redeclared here.
         // See `is_yul_builtin`.
+        // https://docs.soliditylang.org/en/latest/yul.html#evm-dialect
+        // TODO: The remaining internal dialect builtins.
         Add:            "add",
         Addmod:         "addmod",
         And:            "and",
