@@ -7,9 +7,9 @@ use sulk_interface::{Ident, Span, Symbol};
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum CommentKind {
-    /// `// ...`
+    /// `// ...`, `/// ...`
     Line,
-    /// `/* ... */`
+    /// `/* ... */`, `/** ... */`
     Block,
 }
 

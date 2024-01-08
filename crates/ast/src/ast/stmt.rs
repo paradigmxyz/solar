@@ -1,4 +1,4 @@
-use super::{yul, CallArgs, Expr, ParameterList, Path, StrLit, VariableDeclaration};
+use super::{yul, CallArgs, DocComment, Expr, ParameterList, Path, StrLit, VariableDeclaration};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -9,6 +9,7 @@ pub type Block = Vec<Stmt>;
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.statement>
 #[derive(Clone, Debug)]
 pub struct Stmt {
+    pub docs: Vec<DocComment>,
     pub span: Span,
     pub kind: StmtKind,
 }

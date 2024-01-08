@@ -6,7 +6,8 @@ use sulk_interface::kw;
 impl<'a> Parser<'a> {
     /// Parses a statement.
     pub fn parse_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { kind, span })
+        let docs = self.parse_doc_comments()?;
+        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
     }
 
     /// Parses a statement kind.
@@ -152,7 +153,12 @@ impl<'a> Parser<'a> {
 
     /// Parses a simple statement. These are just variable declarations and expressions.
     fn parse_simple_stmt(&mut self) -> PResult<'a, Stmt> {
-        self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt { kind, span })
+        let docs = self.parse_doc_comments()?;
+        self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt {
+            docs,
+            kind,
+            span,
+        })
     }
 
     /// Parses a simple statement kind. These are just variable declarations and expressions.

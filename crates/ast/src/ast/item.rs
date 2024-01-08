@@ -1,4 +1,4 @@
-use super::{Block, CallArgs, Expr, Path, SemverReq, StrLit, Ty};
+use super::{Block, CallArgs, DocComment, Expr, Path, SemverReq, StrLit, Ty};
 use crate::token::Token;
 use std::fmt;
 use sulk_interface::{Ident, Span};
@@ -9,6 +9,7 @@ pub type ParameterList = Vec<VariableDeclaration>;
 /// A top-level item in a Solidity source file.
 #[derive(Clone, Debug)]
 pub struct Item {
+    pub docs: Vec<DocComment>,
     pub span: Span,
     /// The item's kind.
     pub kind: ItemKind,

@@ -1,7 +1,7 @@
 use crate::{Lexer, PErr, PResult, ParseSess};
 use std::fmt::{self, Write};
 use sulk_ast::{
-    ast::Path,
+    ast::{DocComment, Path},
     token::{Delimiter, Token, TokenKind},
 };
 use sulk_interface::{
@@ -722,6 +722,17 @@ impl<'a> Parser<'a> {
             Err(e) if e.span.is_dummy() => Err(e.span(span)),
             Err(e) => Err(e),
         }
+    }
+
+    /// Parses contiguous doc comments. Can be empty.
+    pub fn parse_doc_comments(&mut self) -> PResult<'a, Vec<DocComment>> {
+        let mut doc_comments = Vec::new();
+        while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
+            debug_assert!(is_doc, "comments should not be in the token stream");
+            doc_comments.push(DocComment { kind, span, symbol });
+            self.bump();
+        }
+        Ok(doc_comments)
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

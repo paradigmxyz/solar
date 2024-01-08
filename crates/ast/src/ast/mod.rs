@@ -1,5 +1,6 @@
 //! Solidity AST.
 
+use crate::token::CommentKind;
 use sulk_data_structures::smallvec::SmallVec;
 use sulk_interface::{Ident, Span, Symbol};
 
@@ -22,6 +23,18 @@ mod ty;
 pub use ty::*;
 
 pub mod yul;
+
+/// A single doc-comment: `/// foo`, `/** bar */`.
+#[derive(Clone, Debug)]
+pub struct DocComment {
+    /// The comment kind.
+    pub kind: CommentKind,
+    /// The comment's span including its "quotes" (`//`, `/**`).
+    pub span: Span,
+    /// The comment's contents excluding its "quotes" (`//`, `/**`)
+    /// similarly to symbols in string literal tokens.
+    pub symbol: Symbol,
+}
 
 /// A qualified identifier: `foo.bar.baz`.
 ///

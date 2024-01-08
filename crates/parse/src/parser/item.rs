@@ -40,8 +40,9 @@ impl<'a> Parser<'a> {
 
     /// Parses an item.
     pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
+        let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_item_kind)
-            .map(|(span, kind)| kind.map(|kind| Item { span, kind }))
+            .map(|(span, kind)| kind.map(|kind| Item { docs, span, kind }))
     }
 
     fn parse_item_kind(&mut self) -> PResult<'a, Option<ItemKind>> {
