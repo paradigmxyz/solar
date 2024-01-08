@@ -129,8 +129,8 @@ pub struct Expr {
 /// A kind of Yul expression.
 #[derive(Clone, Debug)]
 pub enum ExprKind {
-    /// A single identifier.
-    Ident(Ident),
+    /// A single path.
+    Path(Path),
     /// A function call: `foo(a, b)`.
     Call(ExprCall),
     /// A literal.

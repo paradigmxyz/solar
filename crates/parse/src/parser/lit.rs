@@ -42,7 +42,7 @@ impl<'a> Parser<'a> {
                 _ => {
                     *opt = None;
                     let msg = "sub-denominations are only allowed on number and rational literals";
-                    self.dcx().err(msg).emit();
+                    self.dcx().err(msg).span(lit.span.to(self.prev_token.span)).emit();
                 }
             }
         }
@@ -241,7 +241,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     let s = symbol.as_str();
     debug_assert!(!s.is_empty());
 
-    let (int, rat, exp) = match (s.find('.'), s.find('e')) {
+    let (int, rat, exp) = match (s.find('.'), s.find('e').or(s.find('E'))) {
         // X
         (None, None) => (s, None, None),
         // X.Y
@@ -270,7 +270,8 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
             reconstructed.push_str(rat);
         }
         if let Some(exp) = exp {
-            reconstructed.push('e');
+            let e = if s.contains('E') { 'E' } else { 'e' };
+            reconstructed.push(e);
             reconstructed.push_str(exp);
         }
         assert_eq!(reconstructed, s, "{int:?} + {rat:?} + {exp:?}");
@@ -309,10 +310,12 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     if let Some(exp) = exp {
         let exp = BigInt::from_str_radix(exp, 10).map_err(LitError::ParseExponent)?;
         let exp = i16::try_from(exp).map_err(|_| LitError::ExponentTooLarge)?;
+        // NOTE: Calculating exponents greater than i16 might perform better with a manual loop.
+        let ten = BigInt::from(10u64);
         if exp.is_negative() {
-            number /= BigInt::from(10u64).pow((-exp) as u32);
+            number /= ten.pow((-exp) as u32);
         } else {
-            number *= BigInt::from(10u64).pow(exp as u32);
+            number *= ten.pow(exp as u32);
         }
     }
 

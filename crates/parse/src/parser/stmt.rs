@@ -140,7 +140,7 @@ impl<'a> Parser<'a> {
     /// Parses an assembly block.
     fn parse_stmt_assembly(&mut self) -> PResult<'a, StmtAssembly> {
         let dialect = self.parse_str_lit_opt();
-        let flags = if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(Self::parse_str_lit)?.0
         } else {
             Vec::new()
@@ -248,15 +248,17 @@ impl<'a> Parser<'a> {
 
     fn parse_expr_or_var(&mut self, in_list: bool) -> PResult<'a, ExprOrVar> {
         if self.token.is_ident()
-            && (self.token.is_elementary_type()
-                || self.look_ahead_with(1, |t| {
-                    t.is_ident()
-                        || (in_list
-                            && matches!(
-                                t.kind,
-                                TokenKind::Comma | TokenKind::CloseDelim(Delimiter::Parenthesis)
-                            ))
-                }))
+            && (self.is_non_custom_variable_declaration()
+                || (self.token.is_non_reserved_ident(self.in_yul)
+                    && self.look_ahead_with(1, |t| {
+                        t.is_ident()
+                            || (in_list
+                                && matches!(
+                                    t.kind,
+                                    TokenKind::Comma
+                                        | TokenKind::CloseDelim(Delimiter::Parenthesis)
+                                ))
+                    })))
         {
             self.parse_variable_declaration(VarDeclMode::AllowStorage).map(ExprOrVar::Var)
         } else {

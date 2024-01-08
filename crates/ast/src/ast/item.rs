@@ -335,14 +335,14 @@ impl FunctionKind {
 }
 
 /// The attributes of a function.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FunctionAttributes {
     pub span: Span,
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
     pub modifiers: Vec<Modifier>,
     pub virtual_: bool,
-    pub overrides: Vec<Override>,
+    pub override_: Option<Override>,
 }
 
 impl FunctionAttributes {
@@ -352,7 +352,7 @@ impl FunctionAttributes {
             && self.state_mutability.is_none()
             && self.modifiers.is_empty()
             && !self.virtual_
-            && self.overrides.is_empty()
+            && self.override_.is_none()
     }
 }
 

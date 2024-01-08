@@ -97,8 +97,11 @@ impl<'a> Parser<'a> {
     /// Returns `true` if the current token is the start of a variable declaration.
     fn is_variable_declaration(&self) -> bool {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
-        self.token.is_non_reserved_ident(false)
-            || self.token.is_keyword(kw::Mapping)
+        self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
+    }
+
+    pub(crate) fn is_non_custom_variable_declaration(&self) -> bool {
+        self.token.is_keyword(kw::Mapping)
             || (self.token.is_keyword(kw::Function)
                 && self.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
             || self.token.is_elementary_type()
@@ -131,7 +134,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.parse_parameter_list(VarDeclMode::AllowStorage)?
             };
-        let attributes = self.parse_function_attributes()?;
+        let attributes = self.parse_function_attributes(false)?;
         if !kind.can_have_attributes() && !attributes.is_empty() {
             let msg = format!("{kind}s cannot have attributes");
             self.dcx().err(msg).span(attributes.span).emit();
@@ -146,22 +149,61 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a function's attributes.
-    fn parse_function_attributes(&mut self) -> PResult<'a, FunctionAttributes> {
+    ///
+    /// `in_function_type` disables `virtual`, `override`, and modifiers.
+    pub(crate) fn parse_function_attributes(
+        &mut self,
+        in_function_type: bool,
+    ) -> PResult<'a, FunctionAttributes> {
+        let mut attrs = FunctionAttributes::default();
         let lo = self.token.span;
-        let visibility = self.parse_visibility();
-        let state_mutability = self.parse_state_mutability();
-        let modifiers = self.parse_modifiers()?;
-        let virtual_ = self.eat_keyword(kw::Virtual);
-        let overrides = self.parse_overrides()?;
-        let span = lo.to(self.prev_token.span);
-        Ok(FunctionAttributes {
-            span,
-            visibility,
-            state_mutability,
-            modifiers,
-            virtual_,
-            overrides,
-        })
+        loop {
+            if let Some(visibility) = self.parse_visibility() {
+                if attrs.visibility.is_some() {
+                    let msg = "visibility already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    attrs.visibility = Some(visibility);
+                }
+            } else if let Some(state_mutability) = self.parse_state_mutability() {
+                if attrs.state_mutability.is_some() {
+                    let msg = "state mutability already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    attrs.state_mutability = Some(state_mutability);
+                }
+            } else if self.eat_keyword(kw::Virtual) {
+                if in_function_type {
+                    let msg = "`virtual` is not allowed in function types";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                }
+
+                if attrs.virtual_ {
+                    let msg = "virtual already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    attrs.virtual_ = true;
+                }
+            } else if self.eat_keyword(kw::Override) {
+                if in_function_type {
+                    let msg = "`override` is not allowed in function types";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                }
+
+                if attrs.override_.is_some() {
+                    let msg = "override already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    attrs.override_ = Some(self.parse_override()?);
+                }
+            } else if !in_function_type && self.token.is_non_reserved_ident(false) {
+                attrs.modifiers.push(self.parse_modifier()?);
+            } else {
+                break;
+            }
+        }
+        attrs.span = lo.to(self.prev_token.span);
+        Ok(attrs)
     }
 
     /// Parses a struct definition.
@@ -632,19 +674,10 @@ impl<'a> Parser<'a> {
         Ok(VariableDeclaration { ty, storage, indexed, name })
     }
 
-    /// Parses a list of modifier invocations.
-    fn parse_modifiers(&mut self) -> PResult<'a, Vec<Modifier>> {
-        let mut modifiers = Vec::new();
-        while self.token.is_non_reserved_ident(false) {
-            modifiers.push(self.parse_modifier()?);
-        }
-        Ok(modifiers)
-    }
-
     /// Parses a list of inheritance specifiers.
     fn parse_inheritance(&mut self) -> PResult<'a, Vec<Modifier>> {
         self.parse_seq_to_before_end(
-            &TokenKind::CloseDelim(Delimiter::Brace),
+            &TokenKind::OpenDelim(Delimiter::Brace),
             SeqSep::trailing_disallowed(TokenKind::Comma),
             Self::parse_modifier,
         )
@@ -654,21 +687,12 @@ impl<'a> Parser<'a> {
     /// Parses a single modifier invocation.
     fn parse_modifier(&mut self) -> PResult<'a, Modifier> {
         let name = self.parse_path()?;
-        let arguments = if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
+        let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
         } else {
             CallArgs::empty()
         };
         Ok(Modifier { name, arguments })
-    }
-
-    /// Parses a list of function overrides.
-    fn parse_overrides(&mut self) -> PResult<'a, Vec<Override>> {
-        let mut overrides = Vec::new();
-        while self.eat_keyword(kw::Override) {
-            overrides.push(self.parse_override()?);
-        }
-        Ok(overrides)
     }
 
     /// Parses a single function override.
@@ -677,7 +701,11 @@ impl<'a> Parser<'a> {
     fn parse_override(&mut self) -> PResult<'a, Override> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
-        let (paths, _) = self.parse_paren_comma_seq(Self::parse_path)?;
+        let paths = if self.token.is_open_delim(Delimiter::Parenthesis) {
+            self.parse_paren_comma_seq(Self::parse_path)?.0
+        } else {
+            Vec::new()
+        };
         let span = lo.to(self.prev_token.span);
         Ok(Override { span, paths })
     }

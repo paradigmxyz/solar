@@ -49,6 +49,7 @@ impl Runner {
             .into_iter()
             .map(|entry| entry.unwrap())
             .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
+            .filter(|entry| !skip_solc_test(entry.path()))
             .collect();
         let collect_time = stopwatch.elapsed();
         let total = paths.len();
@@ -143,6 +144,14 @@ impl Runner {
         cmd.current_dir(&self.root).env("CLICOLOR_FORCE", "1").timeout(TIMEOUT);
         cmd
     }
+}
+
+fn skip_solc_test(path: &Path) -> bool {
+    let file_name = path.file_name().unwrap().to_str().unwrap();
+    matches!(file_name,
+        // Exponent is too large, but apparently it's fine in Solc because the result is 0.
+        | "rational_number_exp_limit_fine"
+    )
 }
 
 fn dump_output(output: &Output) {

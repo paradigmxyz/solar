@@ -62,6 +62,7 @@ impl<'a> Parser<'a> {
                 self.unexpected()
             }
         } else {
+            eprintln!("{}", std::backtrace::Backtrace::force_capture());
             self.unexpected()
         }
     }
@@ -138,16 +139,17 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul expression kind.
     fn parse_yul_expr_kind(&mut self) -> PResult<'a, ExprKind> {
-        if self.check_ident() {
-            if self.look_ahead(1).is_open_delim(Delimiter::Parenthesis) {
-                let ident = self.ident_or_err(true)?;
+        if self.check_path() {
+            let path = self.parse_path()?;
+            if self.token.is_open_delim(Delimiter::Parenthesis) {
+                // Paths are allowed in call expressions, but Solc parses them anyway.
+                let ident = self.expect_single_ident_path(path);
                 if ident.is_yul_keyword() && !ident.is_yul_builtin() {
                     self.expected_ident_found_err().emit();
                 }
-                self.bump(); // ident
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
-                self.parse_ident().map(ExprKind::Ident)
+                Ok(ExprKind::Path(path))
             }
         } else if self.check_lit() {
             // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
@@ -165,10 +167,9 @@ impl<'a> Parser<'a> {
 
     /// Expects a single identifier path and returns the identifier.
     fn expect_single_ident_path(&mut self, path: Path) -> Ident {
-        let ident = *path.segments().last().unwrap();
         if path.segments().len() > 1 {
-            self.dcx().err("dotted paths aren't allowed here").span(path.span()).emit();
+            self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
         }
-        ident
+        *path.last()
     }
 }

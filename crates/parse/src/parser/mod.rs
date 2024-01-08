@@ -415,6 +415,10 @@ impl<'a> Parser<'a> {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
     }
 
+    fn check_any_ident(&mut self) -> bool {
+        self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
+    }
+
     fn check_path(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
     }
@@ -575,6 +579,10 @@ impl<'a> Parser<'a> {
                             }
                         }
                         Err(mut expect_err) => {
+                            if sep.trailing_sep_required {
+                                return Err(expect_err);
+                            }
+
                             let sp = self.prev_token.span.shrink_to_hi();
 
                             // Attempt to keep parsing if it was an omitted separator.
@@ -625,14 +633,6 @@ impl<'a> Parser<'a> {
                         }
                     }
                 }
-            }
-
-            if sep.trailing_sep_required {
-                for ket in kets {
-                    self.expect(ket)?;
-                }
-                trailing = true;
-                break;
             }
 
             if sep.trailing_sep_allowed && self.expect_any(kets) {
@@ -733,6 +733,23 @@ impl<'a> Parser<'a> {
     /// Parses a qualified identifier starting with the given identifier.
     #[track_caller]
     pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
+        self.parse_path_with_f(first, Self::parse_ident)
+    }
+
+    /// Parses a qualified identifier: `foo.bar.baz`.
+    #[track_caller]
+    pub fn parse_path_any(&mut self) -> PResult<'a, Path> {
+        let first = self.parse_ident_any()?;
+        self.parse_path_with_f(first, Self::parse_ident_any)
+    }
+
+    /// Parses a qualified identifier starting with the given identifier.
+    #[track_caller]
+    fn parse_path_with_f(
+        &mut self,
+        first: Ident,
+        mut f: impl FnMut(&mut Self) -> PResult<'a, Ident>,
+    ) -> PResult<'a, Path> {
         if !self.check_noexpect(&TokenKind::Dot) {
             return Ok(Path::new_single(first));
         }
@@ -740,7 +757,7 @@ impl<'a> Parser<'a> {
         let mut path = Vec::with_capacity(4);
         path.push(first);
         while self.eat(&TokenKind::Dot) {
-            path.push(self.parse_ident()?);
+            path.push(f(self)?);
         }
         Ok(Path::new(path))
     }

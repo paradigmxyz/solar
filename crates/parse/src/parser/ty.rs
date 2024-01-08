@@ -121,8 +121,14 @@ impl<'a> Parser<'a> {
     /// Parses a function type.
     fn parse_function_type(&mut self) -> PResult<'a, TypeFunction> {
         let parameters = self.parse_function_type_parameter_list()?;
-        let visibility = self.parse_visibility();
-        let state_mutability = self.parse_state_mutability();
+        let FunctionAttributes {
+            span: _,
+            visibility,
+            state_mutability,
+            modifiers: _,
+            virtual_: _,
+            override_: _,
+        } = self.parse_function_attributes(true)?;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_function_type_parameter_list()?
         } else {

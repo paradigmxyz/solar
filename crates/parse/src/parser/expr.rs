@@ -120,6 +120,9 @@ impl<'a> Parser<'a> {
             } else if self.eat(&TokenKind::OpenDelim(Delimiter::Bracket)) {
                 // expr[], expr[start?], expr[start?:end?]
                 let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+                    // expr[]
+                    IndexKind::Index(None)
+                } else {
                     let start =
                         if self.check(&TokenKind::Colon) { None } else { Some(self.parse_expr()?) };
                     if self.eat_noexpect(&TokenKind::Colon) {
@@ -134,9 +137,6 @@ impl<'a> Parser<'a> {
                         // expr[start?]
                         IndexKind::Index(start)
                     }
-                } else {
-                    // expr[]
-                    IndexKind::Index(None)
                 };
                 self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
                 ExprKind::Index(expr, kind)
@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
         } else if self.check_elementary_type() {
             let ty = self.parse_type()?;
             ExprKind::Type(ty)
-        } else if self.check_ident() {
+        } else if self.check_any_ident() {
             let ident = self.parse_ident()?;
             ExprKind::Ident(ident)
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis))
@@ -180,7 +180,6 @@ impl<'a> Parser<'a> {
         {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
-            self.bump(); // open delim
             let is_array = close_delim == Delimiter::Bracket;
             let list = self.parse_seq_optional_items(close_delim, |this| this.parse_expr())?;
             if is_array {
