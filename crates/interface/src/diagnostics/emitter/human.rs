@@ -32,7 +32,7 @@ pub struct HumanEmitter {
 impl Emitter for HumanEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
         self.snippet(diagnostic, |this, snippet| {
-            writeln!(this.writer, "{}", this.renderer.render(snippet))?;
+            writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
         })
         .unwrap_or_else(|e| io_panic(e));
