@@ -262,19 +262,32 @@ impl ContractKind {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition>
 #[derive(Clone, Debug)]
 pub struct ItemFunction {
+    /// What kind of function this is.
     pub kind: FunctionKind,
-    /// The name of the function.
-    /// Constructors, fallbacks, and receive functions do not have names.
-    pub name: Option<Ident>,
-    /// Parens are optional for modifiers:
-    /// <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition>
-    pub parameters: ParameterList,
-    /// The Solidity attributes of the function.
-    pub attributes: FunctionAttributes,
-    /// The optional return types of the function.
-    pub returns: ParameterList,
+    /// The function header.
+    pub header: FunctionHeader,
     /// The body of the function. This is `;` when the value is `None`.
     pub body: Option<Block>,
+}
+
+/// A function header: `function helloWorld() external pure returns(string memory)`.
+///
+/// Used by all [function items](ItemFunction) and the [function type](super::Ty::Function).
+#[derive(Clone, Debug, Default)]
+pub struct FunctionHeader {
+    /// The name of the function.
+    pub name: Option<Ident>,
+    /// The parameters of the function.
+    pub parameters: ParameterList,
+
+    pub visibility: Option<Visibility>,
+    pub state_mutability: Option<StateMutability>,
+    pub modifiers: Vec<Modifier>,
+    pub virtual_: bool,
+    pub override_: Option<Override>,
+
+    /// The returns parameter list.
+    pub returns: ParameterList,
 }
 
 /// A kind of function.
@@ -308,46 +321,6 @@ impl FunctionKind {
             Self::Receive => "receive",
             Self::Modifier => "modifier",
         }
-    }
-
-    /// Returns `true` if the function item requires a name.
-    #[inline]
-    pub const fn requires_name(self) -> bool {
-        matches!(self, Self::Function | Self::Modifier)
-    }
-
-    /// Returns `true` if the function item can omit parentheses for the parameter list.
-    #[inline]
-    pub const fn can_omit_parens(self) -> bool {
-        matches!(self, Self::Modifier)
-    }
-
-    /// Returns `true` if the function item can have a return type.
-    #[inline]
-    pub fn can_have_returns(&self) -> bool {
-        matches!(self, Self::Function | Self::Modifier)
-    }
-}
-
-/// The attributes of a function.
-#[derive(Clone, Debug, Default)]
-pub struct FunctionAttributes {
-    pub span: Span,
-    pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
-    pub modifiers: Vec<Modifier>,
-    pub virtual_: bool,
-    pub override_: Option<Override>,
-}
-
-impl FunctionAttributes {
-    /// Returns `true` if the attributes are empty.
-    pub fn is_empty(&self) -> bool {
-        self.visibility.is_none()
-            && self.state_mutability.is_none()
-            && self.modifiers.is_empty()
-            && !self.virtual_
-            && self.override_.is_none()
     }
 }
 

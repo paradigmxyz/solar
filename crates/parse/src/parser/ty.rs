@@ -1,4 +1,4 @@
-use super::item::{FunctionFlags, VarDeclMode};
+use super::item::FunctionFlags;
 use crate::{PResult, Parser};
 use std::{fmt, ops::RangeInclusive};
 use sulk_ast::{ast::*, token::*};
@@ -32,7 +32,8 @@ impl<'a> Parser<'a> {
         if self.check_elementary_type() {
             self.parse_elementary_type()
         } else if self.eat_keyword(kw::Function) {
-            self.parse_function_type().map(|x| TyKind::Function(Box::new(x)))
+            self.parse_function_header(FunctionFlags::FUNCTION_TY)
+                .map(|x| TyKind::Function(Box::new(x)))
         } else if self.eat_keyword(kw::Mapping) {
             self.parse_mapping_type().map(|x| TyKind::Mapping(Box::new(x)))
         } else if self.check_path() {
@@ -116,32 +117,6 @@ impl<'a> Parser<'a> {
         to_bytes: bool,
     ) -> PResult<'a, u8> {
         parse_ty_size_u8(s, range, to_bytes).map_err(|e| self.dcx().err(e.to_string()))
-    }
-
-    /// Parses a function type.
-    fn parse_function_type(&mut self) -> PResult<'a, TypeFunction> {
-        let parameters = self.parse_function_type_parameter_list()?;
-        let FunctionAttributes {
-            span: _,
-            visibility,
-            state_mutability,
-            modifiers: _,
-            virtual_: _,
-            override_: _,
-        } = self.parse_function_attributes(FunctionFlags::FUNCTION_TY)?;
-        let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_function_type_parameter_list()?
-        } else {
-            Vec::new()
-        };
-        Ok(TypeFunction { parameters, visibility, state_mutability, returns })
-    }
-
-    fn parse_function_type_parameter_list(&mut self) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(|this| {
-            this.parse_variable_declaration(VarDeclMode::AllowStorageWithWarning)
-        })
-        .map(|(x, _)| x)
     }
 
     /// Parses a mapping type.

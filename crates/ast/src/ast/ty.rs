@@ -1,4 +1,4 @@
-use super::{Expr, ParameterList, Path, StateMutability, Visibility};
+use super::{Expr, FunctionHeader, ParameterList, Path, StateMutability, Visibility};
 use std::fmt;
 use sulk_interface::{kw, Ident, Span, Symbol};
 
@@ -46,7 +46,7 @@ pub enum TyKind {
     /// `$element[$($size)?]`
     Array(Box<TypeArray>),
     /// `function($($parameters),*) $($attributes)* $(returns ($($returns),+))?`
-    Function(Box<TypeFunction>),
+    Function(Box<FunctionHeader>),
     /// `mapping($key $($key_name)? => $value $($value_name)?)`
     Mapping(Box<TypeMapping>),
 

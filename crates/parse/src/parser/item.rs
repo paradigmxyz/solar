@@ -129,32 +129,44 @@ impl<'a> Parser<'a> {
             kw::Modifier => FunctionKind::Modifier,
             _ => unreachable!("parse_function called without function-like keyword"),
         };
-        let name = if kind.requires_name() { Some(self.parse_ident()?) } else { None };
-        let parameters =
-            if kind.can_omit_parens() && !self.token.is_open_delim(Delimiter::Parenthesis) {
-                Vec::new()
-            } else {
-                self.parse_parameter_list(VarDeclMode::AllowStorage)?
-            };
-        let attributes = self.parse_function_attributes(FunctionFlags::from_kind(kind))?;
-        let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_parameter_list(VarDeclMode::AllowStorage)?
+        let flags = FunctionFlags::from_kind(kind);
+        let header = self.parse_function_header(flags)?;
+        let body = if !flags.contains(FunctionFlags::ONLY_BLOCK) && self.eat(&TokenKind::Semi) {
+            None
         } else {
-            Vec::new()
+            Some(self.parse_block()?)
         };
-        let body = if self.eat(&TokenKind::Semi) { None } else { Some(self.parse_block()?) };
-        Ok(ItemFunction { kind, name, parameters, attributes, returns, body })
+        Ok(ItemFunction { kind, header, body })
     }
 
-    /// Parses a function's attributes.
-    ///
-    /// `flags` controls which attributes are rejected after parsing.
-    pub(crate) fn parse_function_attributes(
+    /// Parses a function a header.
+    pub(crate) fn parse_function_header(
         &mut self,
         flags: FunctionFlags,
-    ) -> PResult<'a, FunctionAttributes> {
-        let mut attrs = FunctionAttributes::default();
-        let lo = self.token.span;
+    ) -> PResult<'a, FunctionHeader> {
+        let mut header = FunctionHeader::default();
+        let var_mode = if flags.contains(FunctionFlags::PARAM_NAME) {
+            VarDeclMode::AllowStorageWithWarning
+        } else {
+            VarDeclMode::AllowStorage
+        };
+
+        if flags.contains(FunctionFlags::NAME) {
+            header.name = Some(self.parse_ident()?);
+        } else if self.token.is_non_reserved_ident(false) {
+            let msg = "function names are not allowed here";
+            self.dcx().err(msg).span(self.token.span).emit();
+            self.bump();
+        }
+
+        if flags.contains(FunctionFlags::NO_PARENS)
+            && !self.token.is_open_delim(Delimiter::Parenthesis)
+        {
+            // Omitted parens.
+        } else {
+            header.parameters = self.parse_parameter_list(var_mode)?;
+        }
+
         loop {
             if let Some(visibility) = self.parse_visibility() {
                 if !flags.contains(FunctionFlags::from_visibility(visibility)) {
@@ -166,11 +178,11 @@ impl<'a> Parser<'a> {
                         None => "visibility is not allowed here".into(),
                     };
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if attrs.visibility.is_some() {
+                } else if header.visibility.is_some() {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    attrs.visibility = Some(visibility);
+                    header.visibility = Some(visibility);
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
                 if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
@@ -182,42 +194,46 @@ impl<'a> Parser<'a> {
                         None => "state mutability is not allowed here".into(),
                     };
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if attrs.state_mutability.is_some() {
+                } else if header.state_mutability.is_some() {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    attrs.state_mutability = Some(state_mutability);
+                    header.state_mutability = Some(state_mutability);
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if attrs.virtual_ {
+                } else if header.virtual_ {
                     let msg = "virtual already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    attrs.virtual_ = true;
+                    header.virtual_ = true;
                 }
             } else if self.eat_keyword(kw::Override) {
                 if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if attrs.override_.is_some() {
+                } else if header.override_.is_some() {
                     let msg = "override already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    attrs.override_ = Some(self.parse_override()?);
+                    header.override_ = Some(self.parse_override()?);
                 }
             } else if flags.contains(FunctionFlags::MODIFIERS)
                 && self.token.is_non_reserved_ident(false)
             {
-                attrs.modifiers.push(self.parse_modifier()?);
+                header.modifiers.push(self.parse_modifier()?);
             } else {
                 break;
             }
         }
-        attrs.span = lo.to(self.prev_token.span);
-        Ok(attrs)
+
+        if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
+            header.returns = self.parse_parameter_list(var_mode)?;
+        }
+
+        Ok(header)
     }
 
     /// Parses a struct definition.
@@ -862,48 +878,63 @@ impl VarDeclMode {
     }
 }
 
-// TODO: Add remaining methods on `VarDeclMode` here; NO_ prefixes
 bitflags::bitflags! {
     /// Flags for parsing function headers.
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct FunctionFlags: u16 {
+        /// Name is required.
+        const NAME             = 1 << 0;
+        /// Function type: parameter names are parsed, but issue a warning.
+        const PARAM_NAME        = 1 << 1;
+        /// Parens can be omitted.
+        const NO_PARENS        = 1 << 2;
+
         // Visibility
-        const PRIVATE          = 1 << 0;
-        const INTERNAL         = 1 << 1;
-        const PUBLIC           = 1 << 2;
-        const EXTERNAL         = 1 << 3;
+        const PRIVATE          = 1 << 3;
+        const INTERNAL         = 1 << 4;
+        const PUBLIC           = 1 << 5;
+        const EXTERNAL         = 1 << 6;
         const VISIBILITY       = Self::PRIVATE.bits() |
                                  Self::INTERNAL.bits() |
                                  Self::PUBLIC.bits() |
                                  Self::EXTERNAL.bits();
 
         // StateMutability
-        const PURE             = 1 << 4;
-        const VIEW             = 1 << 5;
-        const PAYABLE          = 1 << 6;
+        const PURE             = 1 << 7;
+        const VIEW             = 1 << 8;
+        const PAYABLE          = 1 << 9;
         const STATE_MUTABILITY = Self::PURE.bits() |
                                  Self::VIEW.bits() |
                                  Self::PAYABLE.bits();
 
-        const MODIFIERS        = 1 << 7;
-        const VIRTUAL          = 1 << 8;
-        const OVERRIDE         = 1 << 9;
+        const MODIFIERS        = 1 << 10;
+        const VIRTUAL          = 1 << 11;
+        const OVERRIDE         = 1 << 12;
+
+        const RETURNS          = 1 << 13;
+        /// Must be implemented, meaning it must end in a `{}` implementation block.
+        const ONLY_BLOCK       = 1 << 14;
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
         const CONSTRUCTOR = Self::MODIFIERS.bits() |
                             Self::PAYABLE.bits() |
                             Self::INTERNAL.bits() |
-                            Self::PUBLIC.bits();
+                            Self::PUBLIC.bits() |
+                            Self::ONLY_BLOCK.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition
-        const FUNCTION    = Self::VISIBILITY.bits() |
+        const FUNCTION    = Self::NAME.bits() |
+                            Self::VISIBILITY.bits() |
                             Self::STATE_MUTABILITY.bits() |
                             Self::MODIFIERS.bits() |
                             Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+                            Self::OVERRIDE.bits() |
+                            Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition
-        const MODIFIER    = Self::VIRTUAL.bits() |
+        const MODIFIER    = Self::NAME.bits() |
+                            Self::NO_PARENS.bits() |
+                            Self::VIRTUAL.bits() |
                             Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.fallbackFunctionDefinition
@@ -911,7 +942,8 @@ bitflags::bitflags! {
                             Self::STATE_MUTABILITY.bits() |
                             Self::MODIFIERS.bits() |
                             Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+                            Self::OVERRIDE.bits() |
+                            Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.receiveFunctionDefinition
         const RECEIVE     = Self::EXTERNAL.bits() |
@@ -921,8 +953,10 @@ bitflags::bitflags! {
                             Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName
-        const FUNCTION_TY = Self::VISIBILITY.bits() |
-                            Self::STATE_MUTABILITY.bits();
+        const FUNCTION_TY = Self::PARAM_NAME.bits() |
+                            Self::VISIBILITY.bits() |
+                            Self::STATE_MUTABILITY.bits() |
+                            Self::RETURNS.bits();
     }
 }
 
