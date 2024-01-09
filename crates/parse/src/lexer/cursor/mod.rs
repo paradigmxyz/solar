@@ -14,7 +14,7 @@ mod tests;
 /// Returns `true` if `c` is considered a whitespace.
 #[inline]
 pub const fn is_whitespace(c: char) -> bool {
-    matches!(c, '\t' | '\n' | ' ')
+    matches!(c, ' ' | '\t' | '\n' | '\r')
 }
 
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
