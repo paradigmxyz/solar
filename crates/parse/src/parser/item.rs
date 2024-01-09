@@ -16,13 +16,9 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of items until the given token is encountered.
     fn parse_items(&mut self, end: &TokenKind) -> PResult<'a, Vec<Item>> {
-        let mut items = Vec::new();
-        while let Some(item) = self.parse_item()? {
-            items.push(item);
-        }
-        if !self.eat(end) {
+        let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
-            if self.in_contract {
+            if this.in_contract {
                 prefix = "contract";
                 list = "function, variable, struct, or modifier definition";
                 link = "contractBodyElement";
@@ -32,8 +28,22 @@ impl<'a> Parser<'a> {
                 link = "sourceUnit";
             }
             let msg =
-                format!("expected {prefix} item ({list}), found {}", self.token.full_description());
+                format!("expected {prefix} item ({list}), found {}", this.token.full_description());
             let note = format!("for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>");
+            (msg, note)
+        };
+
+        let mut items = Vec::new();
+        while let Some(item) = self.parse_item()? {
+            if self.in_contract && !item.is_allowed_in_contract() {
+                let msg = format!("{}s are not allowed in contracts", item.description());
+                let (_, note) = get_msg_note(self);
+                self.dcx().err(msg).span(item.span).note(note).emit();
+            }
+            items.push(item);
+        }
+        if !self.eat(end) {
+            let (msg, note) = get_msg_note(self);
             return Err(self.dcx().err(msg).span(self.token.span).note(note));
         }
         Ok(items)
@@ -69,7 +79,7 @@ impl<'a> Parser<'a> {
             && self.look_ahead(1).is_ident()
             && self.look_ahead(2).is_open_delim(Delimiter::Parenthesis)
         {
-            self.bump(); // error
+            self.bump(); // `error`
             self.parse_error().map(ItemKind::Error)
         } else if self.is_variable_declaration() {
             self.parse_variable_definition().map(ItemKind::Variable)
@@ -97,12 +107,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Returns `true` if the current token is the start of a variable declaration.
-    pub(crate) fn is_variable_declaration(&self) -> bool {
+    pub(super) fn is_variable_declaration(&self) -> bool {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
         self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
 
-    pub(crate) fn is_non_custom_variable_declaration(&self) -> bool {
+    pub(super) fn is_non_custom_variable_declaration(&self) -> bool {
         self.token.is_keyword(kw::Mapping)
             || (self.token.is_keyword(kw::Function)
                 && self.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
@@ -116,7 +126,7 @@ impl<'a> Parser<'a> {
     ///
     /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'a, ItemFunction> {
-        let TokenKind::Ident(kw) = self.token.kind else {
+        let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
         self.bump(); // kw
@@ -136,11 +146,18 @@ impl<'a> Parser<'a> {
         } else {
             Some(self.parse_block()?)
         };
+
+        if !self.in_contract && !kind.allowed_in_global() {
+            let msg = format!("{kind}s are not allowed in the global scope");
+            self.dcx().err(msg).span(lo.to(self.prev_token.span)).emit();
+        }
+        // All function kinds are allowed in contracts.
+
         Ok(ItemFunction { kind, header, body })
     }
 
     /// Parses a function a header.
-    pub(crate) fn parse_function_header(
+    pub(super) fn parse_function_header(
         &mut self,
         flags: FunctionFlags,
     ) -> PResult<'a, FunctionHeader> {
@@ -230,7 +247,7 @@ impl<'a> Parser<'a> {
         }
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = self.parse_parameter_list(var_flags)?;
+            header.returns = self.parse_returns(var_flags)?;
         }
 
         Ok(header)
@@ -242,6 +259,7 @@ impl<'a> Parser<'a> {
         let (fields, _) = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
+            false,
             |this| this.parse_variable_declaration(VarFlags::STRUCT),
         )?;
         Ok(ItemStruct { name, fields })
@@ -284,16 +302,8 @@ impl<'a> Parser<'a> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let inheritance;
-        if self.eat_keyword(kw::Is) {
-            inheritance = self.parse_inheritance()?;
-            if inheritance.is_empty() {
-                let msg = "expected at least one base contract";
-                self.dcx().err(msg).span(self.prev_token.span).emit();
-            }
-        } else {
-            inheritance = Vec::new();
-        }
+        let inheritance =
+            if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Vec::new() };
         self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
             self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
@@ -303,7 +313,8 @@ impl<'a> Parser<'a> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
         let name = self.parse_ident()?;
-        let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, Self::parse_ident)?;
+        let (variants, _) =
+            self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_ident)?;
         Ok(ItemEnum { name, variants })
     }
 
@@ -335,8 +346,9 @@ impl<'a> Parser<'a> {
                 None
             };
             PragmaTokens::Custom(k, v)
-        } else if self.token.is_ident()
-            && self.look_ahead_with(1, |t| t.is_op() || t.is_rational_lit())
+        } else if self.eat_keyword(sym::solidity)
+            || (self.token.is_ident()
+                && self.look_ahead_with(1, |t| t.is_op() || t.is_rational_lit()))
         {
             // `pragma <ident> <req>;`
             let ident = self.parse_ident_any()?;
@@ -535,16 +547,15 @@ impl<'a> Parser<'a> {
     /// Parses an import directive.
     fn parse_import(&mut self) -> PResult<'a, ImportDirective> {
         let path;
-        let items = if self.check(&TokenKind::BinOp(BinOpToken::Star)) {
+        let items = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
             // * as alias from ""
-            self.bump(); // *
             let alias = self.parse_as_alias()?;
             self.expect_keyword(sym::from)?;
             path = self.parse_str_lit()?;
             ImportItems::Glob(alias)
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
             // { x as y, ... } from ""
-            let (list, _) = self.parse_delim_comma_seq(Delimiter::Brace, |this| {
+            let (list, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
                 let alias = this.parse_as_alias()?;
                 Ok((name, alias))
@@ -558,6 +569,10 @@ impl<'a> Parser<'a> {
             let alias = self.parse_as_alias()?;
             ImportItems::Plain(alias)
         };
+        if path.value.as_str().is_empty() {
+            let msg = "import path cannot be empty";
+            self.dcx().err(msg).span(path.span).emit();
+        }
         self.expect_semi()?;
         Ok(ImportDirective { path, items })
     }
@@ -587,7 +602,7 @@ impl<'a> Parser<'a> {
 
     fn parse_using_list(&mut self) -> PResult<'a, UsingList> {
         if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
-            let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, |this| {
+            let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
                 let op = if this.eat_keyword(kw::As) {
                     Some(this.parse_user_definable_operator()?)
@@ -699,7 +714,14 @@ impl<'a> Parser<'a> {
 
     /// Parses a parameter list: `($(vardecl),*)`.
     pub(super) fn parse_parameter_list(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(|this| this.parse_variable_declaration(flags)).map(|(x, _)| x)
+        self.parse_paren_comma_seq(true, |this| this.parse_variable_declaration(flags))
+            .map(|(x, _)| x)
+    }
+
+    /// Parses a returns list (non-emtpy parameter list).
+    pub(super) fn parse_returns(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
+        self.parse_paren_comma_seq(false, |this| this.parse_variable_declaration(flags))
+            .map(|(x, _)| x)
     }
 
     /// Parses a variable declaration: `type storage? indexed? name`.
@@ -756,6 +778,7 @@ impl<'a> Parser<'a> {
         self.parse_seq_to_before_end(
             &TokenKind::OpenDelim(Delimiter::Brace),
             SeqSep::trailing_disallowed(TokenKind::Comma),
+            false,
             Self::parse_modifier,
         )
         .map(|(x, _, _)| x)
@@ -779,7 +802,7 @@ impl<'a> Parser<'a> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
         let paths = if self.token.is_open_delim(Delimiter::Parenthesis) {
-            self.parse_paren_comma_seq(Self::parse_path)?.0
+            self.parse_paren_comma_seq(false, Self::parse_path)?.0
         } else {
             Vec::new()
         };
@@ -872,7 +895,7 @@ bitflags::bitflags! {
 
     /// Flags for parsing function headers.
     #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct FunctionFlags: u16 {
+    pub(super) struct FunctionFlags: u16 {
         /// Name is required.
         const NAME             = 1 << 1;
         /// Function type: parameter names are parsed, but issue a warning.

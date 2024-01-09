@@ -72,13 +72,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Emits an error if a subdenomination was parsed.
-    pub(crate) fn expect_no_subdenomination(&mut self) {
+    pub(super) fn expect_no_subdenomination(&mut self) {
         if let Some(_sub) = self.parse_subdenomination() {
             self.no_subdenomination_error().emit();
         }
     }
 
-    pub(crate) fn no_subdenomination_error(&mut self) -> PErr<'a> {
+    pub(super) fn no_subdenomination_error(&mut self) -> PErr<'a> {
         let span = self.prev_token.span;
         self.dcx().err("subdenominations aren't allowed here").span(span)
     }

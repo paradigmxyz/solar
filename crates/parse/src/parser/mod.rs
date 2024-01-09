@@ -447,51 +447,65 @@ impl<'a> Parser<'a> {
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_paren_comma_seq<T>(
         &mut self,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_delim_comma_seq(Delimiter::Parenthesis, f)
+        self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
 
     /// Parses a comma-separated sequence, including both delimiters.
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_delim_comma_seq<T>(
         &mut self,
         delim: Delimiter,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), f)
+        self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
 
     /// Parses a comma-separated sequence.
     /// The function `f` must consume tokens until reaching the next separator.
     #[track_caller]
+    #[inline]
     fn parse_nodelim_comma_seq<T>(
         &mut self,
         stop: &TokenKind,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        self.parse_seq_to_before_end(stop, SeqSep::trailing_disallowed(TokenKind::Comma), f)
-            .map(|(v, trailing, _recovered)| (v, trailing))
+        self.parse_seq_to_before_end(
+            stop,
+            SeqSep::trailing_disallowed(TokenKind::Comma),
+            allow_empty,
+            f,
+        )
+        .map(|(v, trailing, _recovered)| (v, trailing))
     }
 
     /// Parses a `sep`-separated sequence, including both delimiters.
     /// The function `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_delim_seq<T>(
         &mut self,
         delim: Delimiter,
         sep: SeqSep,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_unspanned_seq(
             &TokenKind::OpenDelim(delim),
             &TokenKind::CloseDelim(delim),
             sep,
+            allow_empty,
             f,
         )
     }
@@ -500,28 +514,32 @@ impl<'a> Parser<'a> {
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_unspanned_seq<T>(
         &mut self,
         bra: &TokenKind,
         ket: &TokenKind,
         sep: SeqSep,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.expect(bra)?;
-        self.parse_seq_to_end(ket, sep, f)
+        self.parse_seq_to_end(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence, including only the closing delimiter. The function
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_seq_to_end<T>(
         &mut self,
         ket: &TokenKind,
         sep: SeqSep,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, f)?;
+        let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
             self.eat(ket);
         }
@@ -532,13 +550,15 @@ impl<'a> Parser<'a> {
     /// `f` must consume tokens until reaching the next separator or
     /// closing bracket.
     #[track_caller]
+    #[inline]
     fn parse_seq_to_before_end<T>(
         &mut self,
         ket: &TokenKind,
         sep: SeqSep,
+        allow_empty: bool,
         f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
-        self.parse_seq_to_before_tokens(&[ket], sep, f)
+        self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
     /// Checks if the next token is contained within `kets`, and returns `true` if so.
@@ -554,12 +574,18 @@ impl<'a> Parser<'a> {
         &mut self,
         kets: &[&TokenKind],
         sep: SeqSep,
+        allow_empty: bool,
         mut f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
         let mut v = Vec::new();
+
+        if !allow_empty {
+            v.push(f(self)?);
+            first = false;
+        }
 
         while !self.expect_any(kets) {
             if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
@@ -759,7 +785,7 @@ impl<'a> Parser<'a> {
     /// Parses an optional identifier.
     #[track_caller]
     pub fn parse_ident_opt(&mut self) -> PResult<'a, Option<Ident>> {
-        if self.token.is_ident() {
+        if self.check_ident() {
             self.parse_ident().map(Some)
         } else {
             Ok(None)

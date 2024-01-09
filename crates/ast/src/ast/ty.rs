@@ -11,6 +11,20 @@ pub struct Ty {
     pub kind: TyKind,
 }
 
+impl Ty {
+    /// Returns `true` if the type is an elementary type.
+    #[inline]
+    pub fn is_elementary(&self) -> bool {
+        self.kind.is_elementary()
+    }
+
+    /// Returns `true` if the type is a custom type.
+    #[inline]
+    pub fn is_custom(&self) -> bool {
+        self.kind.is_custom()
+    }
+}
+
 /// The kind of a type.
 #[derive(Clone, Debug)]
 pub enum TyKind {
@@ -52,6 +66,32 @@ pub enum TyKind {
 
     /// A custom type.
     Custom(Path),
+}
+
+impl TyKind {
+    /// Returns `true` if the type is an elementary type.
+    ///
+    /// Note that this does not include `Custom` types.
+    pub fn is_elementary(&self) -> bool {
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName
+        matches!(
+            self,
+            Self::Address(_)
+                | Self::Bool
+                | Self::String
+                | Self::Bytes
+                | Self::Int(..)
+                | Self::UInt(..)
+                | Self::FixedBytes(..)
+                | Self::Fixed(..)
+                | Self::UFixed(..)
+        )
+    }
+
+    /// Returns `true` if the type is a custom type.
+    pub fn is_custom(&self) -> bool {
+        matches!(self, Self::Custom(..))
+    }
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.

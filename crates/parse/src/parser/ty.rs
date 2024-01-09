@@ -124,12 +124,17 @@ impl<'a> Parser<'a> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
-        let key_name = if self.check_ident() { Some(self.parse_ident()?) } else { None };
+        if !key.is_elementary() && !key.is_custom() {
+            let msg =
+                "only elementary types or used-defined types can be used as key types in mappings";
+            self.dcx().err(msg).span(key.span).emit();
+        }
+        let key_name = self.parse_ident_opt()?;
 
         self.expect(&TokenKind::FatArrow)?;
 
         let value = self.parse_type()?;
-        let value_name = if self.check_ident() { Some(self.parse_ident()?) } else { None };
+        let value_name = self.parse_ident_opt()?;
 
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
 

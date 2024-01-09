@@ -104,7 +104,10 @@ impl<'a> Parser<'a> {
                 Box::new(Expr { span, kind: ExprKind::New(ty) })
             })
         } else if self.eat_keyword(kw::Payable) {
-            Ok(Box::new(Expr { span: lo, kind: ExprKind::Payable }))
+            self.parse_call_args().map(|args| {
+                let span = lo.to(self.prev_token.span);
+                Box::new(Expr { span, kind: ExprKind::Payable(args) })
+            })
         } else {
             self.parse_primary_expr()
         }?;
@@ -216,7 +219,7 @@ impl<'a> Parser<'a> {
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
     fn parse_named_args(&mut self) -> PResult<'a, NamedArgList> {
-        self.parse_delim_comma_seq(Delimiter::Brace, Self::parse_named_arg).map(|(x, _)| x)
+        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg).map(|(x, _)| x)
     }
 
     /// Parses a single named argument: `a: b`.
@@ -232,7 +235,7 @@ impl<'a> Parser<'a> {
     #[allow(clippy::vec_box)]
     #[track_caller]
     fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Box<Expr>>> {
-        self.parse_paren_comma_seq(Self::parse_expr).map(|(x, _)| x)
+        self.parse_paren_comma_seq(true, Self::parse_expr).map(|(x, _)| x)
     }
 }
 

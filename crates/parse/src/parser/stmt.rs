@@ -63,7 +63,8 @@ impl<'a> Parser<'a> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'a, Block> {
-        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), Self::parse_stmt).map(|(x, _)| x)
+        self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|(x, _)| x)
     }
 
     /// Parses an if statement.
@@ -120,13 +121,15 @@ impl<'a> Parser<'a> {
     fn parse_stmt_try(&mut self) -> PResult<'a, StmtTry> {
         let expr = self.parse_expr()?;
         let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_parameter_list(VarFlags::FUNCTION)?
+            self.parse_returns(VarFlags::FUNCTION)?
         } else {
             Vec::new()
         };
         let block = self.parse_block()?;
+
         let mut catch = Vec::new();
-        while self.eat_keyword(kw::Catch) {
+        self.expect_keyword(kw::Catch)?;
+        loop {
             let name = self.parse_ident_opt()?;
             let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 self.parse_parameter_list(VarFlags::FUNCTION)?
@@ -134,8 +137,12 @@ impl<'a> Parser<'a> {
                 Vec::new()
             };
             let block = self.parse_block()?;
-            catch.push(CatchClause { name, args, block })
+            catch.push(CatchClause { name, args, block });
+            if !self.eat_keyword(kw::Catch) {
+                break;
+            }
         }
+
         Ok(StmtTry { expr, returns, block, catch })
     }
 
@@ -143,7 +150,7 @@ impl<'a> Parser<'a> {
     fn parse_stmt_assembly(&mut self) -> PResult<'a, StmtAssembly> {
         let dialect = self.parse_str_lit_opt();
         let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parse_paren_comma_seq(Self::parse_str_lit)?.0
+            self.parse_paren_comma_seq(false, Self::parse_str_lit)?.0
         } else {
             Vec::new()
         };
@@ -228,7 +235,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a `delim`-delimited, comma-separated list of maybe-optional items.
     /// E.g. `(a, b) => [Some, Some]`, `(, a,, b,) => [None, Some, None, Some, None]`.
-    pub(crate) fn parse_seq_optional_items<T>(
+    pub(super) fn parse_seq_optional_items<T>(
         &mut self,
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'a, T>,

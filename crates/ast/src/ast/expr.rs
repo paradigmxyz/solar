@@ -51,8 +51,7 @@ pub enum ExprKind {
     New(Ty),
 
     /// A `payable` expression: `payable(address(0x...))`.
-    // Payable(Box<Expr>),
-    Payable,
+    Payable(CallArgs),
 
     /// A ternary (AKA conditional) expression: `foo ? bar : baz`.
     Ternary(Box<Expr>, Box<Expr>, Box<Expr>),

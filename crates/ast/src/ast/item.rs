@@ -15,6 +15,18 @@ pub struct Item {
     pub kind: ItemKind,
 }
 
+impl Item {
+    /// Returns the description of the item.
+    pub fn description(&self) -> &'static str {
+        self.kind.description()
+    }
+
+    /// Returns `true` if the item is allowed inside of contracts.
+    pub fn is_allowed_in_contract(&self) -> bool {
+        self.kind.is_allowed_in_contract()
+    }
+}
+
 /// An AST item. A more expanded version of a [Solidity source unit][ref].
 ///
 /// [ref]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit
@@ -55,6 +67,42 @@ pub enum ItemKind {
     /// An event definition:
     /// `event Transfer(address indexed from, address indexed to, uint256 value);`
     Event(ItemEvent),
+}
+
+impl ItemKind {
+    /// Returns the description of the item.
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Pragma(_) => "pragma directive",
+            Self::Import(_) => "import directive",
+            Self::Using(_) => "using directive",
+            Self::Contract(_) => "contract definition",
+            Self::Function(_) => "function definition",
+            Self::Variable(_) => "variable definition",
+            Self::Struct(_) => "struct definition",
+            Self::Enum(_) => "enum definition",
+            Self::Udvt(_) => "user-defined value type definition",
+            Self::Error(_) => "error definition",
+            Self::Event(_) => "event definition",
+        }
+    }
+
+    /// Returns `true` if the item is allowed inside of contracts.
+    pub fn is_allowed_in_contract(&self) -> bool {
+        match self {
+            Self::Pragma(_) => false,
+            Self::Import(_) => false,
+            Self::Using(_) => false,
+            Self::Contract(_) => false,
+            Self::Function(_) => true,
+            Self::Variable(_) => true,
+            Self::Struct(_) => true,
+            Self::Enum(_) => true,
+            Self::Udvt(_) => true,
+            Self::Error(_) => true,
+            Self::Event(_) => true,
+        }
+    }
 }
 
 /// A pragma directive: `pragma solidity ^0.8.0;`.
@@ -321,6 +369,11 @@ impl FunctionKind {
             Self::Receive => "receive",
             Self::Modifier => "modifier",
         }
+    }
+
+    /// Returns `true` if the function is allowed in global scope.
+    pub fn allowed_in_global(&self) -> bool {
+        matches!(self, Self::Function)
     }
 }
 
