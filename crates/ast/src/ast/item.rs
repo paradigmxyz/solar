@@ -277,7 +277,7 @@ pub struct ItemFunction {
     pub body: Option<Block>,
 }
 
-/// The kind of function.
+/// A kind of function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FunctionKind {
     /// `constructor`
@@ -320,12 +320,6 @@ impl FunctionKind {
     #[inline]
     pub const fn can_omit_parens(self) -> bool {
         matches!(self, Self::Modifier)
-    }
-
-    /// Returns `true` if the function item can have attributes.
-    #[inline]
-    pub const fn can_have_attributes(&self) -> bool {
-        matches!(self, Self::Function | Self::Fallback | Self::Receive | Self::Constructor)
     }
 
     /// Returns `true` if the function item can have a return type.

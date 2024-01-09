@@ -1,4 +1,4 @@
-use super::item::VarDeclMode;
+use super::item::{FunctionFlags, VarDeclMode};
 use crate::{PResult, Parser};
 use std::{fmt, ops::RangeInclusive};
 use sulk_ast::{ast::*, token::*};
@@ -128,7 +128,7 @@ impl<'a> Parser<'a> {
             modifiers: _,
             virtual_: _,
             override_: _,
-        } = self.parse_function_attributes(true)?;
+        } = self.parse_function_attributes(FunctionFlags::FUNCTION_TY)?;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_function_type_parameter_list()?
         } else {

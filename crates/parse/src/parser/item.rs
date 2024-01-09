@@ -1,5 +1,6 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
+use itertools::Itertools;
 use sulk_ast::{
     ast::*,
     token::{TokenLit, TokenLitKind, *},
@@ -135,11 +136,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.parse_parameter_list(VarDeclMode::AllowStorage)?
             };
-        let attributes = self.parse_function_attributes(false)?;
-        if !kind.can_have_attributes() && !attributes.is_empty() {
-            let msg = format!("{kind}s cannot have attributes");
-            self.dcx().err(msg).span(attributes.span).emit();
-        }
+        let attributes = self.parse_function_attributes(FunctionFlags::from_kind(kind))?;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(VarDeclMode::AllowStorage)?
         } else {
@@ -151,53 +148,69 @@ impl<'a> Parser<'a> {
 
     /// Parses a function's attributes.
     ///
-    /// `in_function_type` disables `virtual`, `override`, and modifiers.
+    /// `flags` controls which attributes are rejected after parsing.
     pub(crate) fn parse_function_attributes(
         &mut self,
-        in_function_type: bool,
+        flags: FunctionFlags,
     ) -> PResult<'a, FunctionAttributes> {
         let mut attrs = FunctionAttributes::default();
         let lo = self.token.span;
         loop {
             if let Some(visibility) = self.parse_visibility() {
-                if attrs.visibility.is_some() {
+                if !flags.contains(FunctionFlags::from_visibility(visibility)) {
+                    let msg = match flags.visibilities() {
+                        Some(iter) => format!(
+                            "`{visibility}` not allowed here; allowed values: {}",
+                            iter.map(|v| v.to_str()).format(", ")
+                        ),
+                        None => "visibility is not allowed here".into(),
+                    };
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if attrs.visibility.is_some() {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     attrs.visibility = Some(visibility);
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
-                if attrs.state_mutability.is_some() {
+                if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
+                    let msg = match flags.state_mutabilities() {
+                        Some(iter) => format!(
+                            "`{state_mutability}` not allowed here; allowed values: {}",
+                            iter.map(|v| v.to_str()).format(", ")
+                        ),
+                        None => "state mutability is not allowed here".into(),
+                    };
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if attrs.state_mutability.is_some() {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     attrs.state_mutability = Some(state_mutability);
                 }
             } else if self.eat_keyword(kw::Virtual) {
-                if in_function_type {
-                    let msg = "`virtual` is not allowed in function types";
+                if !flags.contains(FunctionFlags::VIRTUAL) {
+                    let msg = "`virtual` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                }
-
-                if attrs.virtual_ {
+                } else if attrs.virtual_ {
                     let msg = "virtual already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     attrs.virtual_ = true;
                 }
             } else if self.eat_keyword(kw::Override) {
-                if in_function_type {
-                    let msg = "`override` is not allowed in function types";
+                if !flags.contains(FunctionFlags::OVERRIDE) {
+                    let msg = "`override` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                }
-
-                if attrs.override_.is_some() {
+                } else if attrs.override_.is_some() {
                     let msg = "override already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     attrs.override_ = Some(self.parse_override()?);
                 }
-            } else if !in_function_type && self.token.is_non_reserved_ident(false) {
+            } else if flags.contains(FunctionFlags::MODIFIERS)
+                && self.token.is_non_reserved_ident(false)
+            {
                 attrs.modifiers.push(self.parse_modifier()?);
             } else {
                 break;
@@ -360,7 +373,7 @@ impl<'a> Parser<'a> {
             if self.eat(&TokenKind::OrOr) {
                 continue;
             }
-            if self.check_noexpect(&TokenKind::Semi) || self.check_noexpect(&TokenKind::Eof) {
+            if self.check(&TokenKind::Semi) || self.check(&TokenKind::Eof) {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -833,7 +846,7 @@ pub(super) enum VarDeclMode {
 
 impl VarDeclMode {
     fn no_storage(&self) -> bool {
-        !matches!(self, Self::AllowStorage)
+        !matches!(self, Self::AllowStorage | Self::AllowStorageWithWarning)
     }
 
     fn no_indexed(&self) -> bool {
@@ -846,6 +859,136 @@ impl VarDeclMode {
 
     fn warn_on_name(&self) -> bool {
         matches!(self, Self::AllowStorageWithWarning)
+    }
+}
+
+// TODO: Add remaining methods on `VarDeclMode` here; NO_ prefixes
+bitflags::bitflags! {
+    /// Flags for parsing function headers.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct FunctionFlags: u16 {
+        // Visibility
+        const PRIVATE          = 1 << 0;
+        const INTERNAL         = 1 << 1;
+        const PUBLIC           = 1 << 2;
+        const EXTERNAL         = 1 << 3;
+        const VISIBILITY       = Self::PRIVATE.bits() |
+                                 Self::INTERNAL.bits() |
+                                 Self::PUBLIC.bits() |
+                                 Self::EXTERNAL.bits();
+
+        // StateMutability
+        const PURE             = 1 << 4;
+        const VIEW             = 1 << 5;
+        const PAYABLE          = 1 << 6;
+        const STATE_MUTABILITY = Self::PURE.bits() |
+                                 Self::VIEW.bits() |
+                                 Self::PAYABLE.bits();
+
+        const MODIFIERS        = 1 << 7;
+        const VIRTUAL          = 1 << 8;
+        const OVERRIDE         = 1 << 9;
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
+        const CONSTRUCTOR = Self::MODIFIERS.bits() |
+                            Self::PAYABLE.bits() |
+                            Self::INTERNAL.bits() |
+                            Self::PUBLIC.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition
+        const FUNCTION    = Self::VISIBILITY.bits() |
+                            Self::STATE_MUTABILITY.bits() |
+                            Self::MODIFIERS.bits() |
+                            Self::VIRTUAL.bits() |
+                            Self::OVERRIDE.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition
+        const MODIFIER    = Self::VIRTUAL.bits() |
+                            Self::OVERRIDE.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.fallbackFunctionDefinition
+        const FALLBACK    = Self::EXTERNAL.bits() |
+                            Self::STATE_MUTABILITY.bits() |
+                            Self::MODIFIERS.bits() |
+                            Self::VIRTUAL.bits() |
+                            Self::OVERRIDE.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.receiveFunctionDefinition
+        const RECEIVE     = Self::EXTERNAL.bits() |
+                            Self::PAYABLE.bits() |
+                            Self::MODIFIERS.bits() |
+                            Self::VIRTUAL.bits() |
+                            Self::OVERRIDE.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName
+        const FUNCTION_TY = Self::VISIBILITY.bits() |
+                            Self::STATE_MUTABILITY.bits();
+    }
+}
+
+impl FunctionFlags {
+    fn from_kind(kind: FunctionKind) -> Self {
+        match kind {
+            FunctionKind::Constructor => Self::CONSTRUCTOR,
+            FunctionKind::Function => Self::FUNCTION,
+            FunctionKind::Modifier => Self::MODIFIER,
+            FunctionKind::Receive => Self::RECEIVE,
+            FunctionKind::Fallback => Self::FALLBACK,
+        }
+    }
+
+    fn from_visibility(visibility: Visibility) -> Self {
+        match visibility {
+            Visibility::Private => Self::PRIVATE,
+            Visibility::Internal => Self::INTERNAL,
+            Visibility::Public => Self::PUBLIC,
+            Visibility::External => Self::EXTERNAL,
+        }
+    }
+
+    fn into_visibility(self) -> Option<Visibility> {
+        match self {
+            Self::PRIVATE => Some(Visibility::Private),
+            Self::INTERNAL => Some(Visibility::Internal),
+            Self::PUBLIC => Some(Visibility::Public),
+            Self::EXTERNAL => Some(Visibility::External),
+            _ => None,
+        }
+    }
+
+    fn visibilities(self) -> Option<impl Iterator<Item = Visibility>> {
+        self.supported(Self::VISIBILITY).map(|iter| iter.map(|x| x.into_visibility().unwrap()))
+    }
+
+    fn from_state_mutability(state_mutability: StateMutability) -> Self {
+        match state_mutability {
+            StateMutability::Pure => Self::PURE,
+            StateMutability::View => Self::VIEW,
+            StateMutability::Payable => Self::PAYABLE,
+        }
+    }
+
+    fn into_state_mutability(self) -> Option<StateMutability> {
+        match self {
+            Self::PURE => Some(StateMutability::Pure),
+            Self::VIEW => Some(StateMutability::View),
+            Self::PAYABLE => Some(StateMutability::Payable),
+            _ => None,
+        }
+    }
+
+    fn state_mutabilities(self) -> Option<impl Iterator<Item = StateMutability>> {
+        self.supported(Self::STATE_MUTABILITY)
+            .map(|iter| iter.map(|x| x.into_state_mutability().unwrap()))
+    }
+
+    fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
+        let s = self.intersection(what);
+        if s.is_empty() {
+            None
+        } else {
+            Some(s.iter())
+        }
     }
 }
 
