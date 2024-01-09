@@ -318,18 +318,6 @@ fn file_to_slice(
     let mut current_i = 0;
     let mut prev_line_no = first_line - 1;
     for line in lines {
-        if let Some(i) = line.line_index.checked_sub(2) {
-            if i >= prev_line_no {
-                current_i += file
-                    .get_lines(prev_line_no..=i)
-                    .unwrap_or("")
-                    .chars()
-                    .map(|c| if c == '\t' { 4 } else { 1 })
-                    .sum::<usize>()
-                    + 1;
-            }
-        }
-
         // Returns the position of the given column in the local snippet.
         let get_pos = |c: &super::rustc::AnnotationColumn| current_i + c.display;
 
@@ -374,6 +362,7 @@ fn file_to_slice(
 
         prev_line_no = line.line_index;
     }
+    // dbg!(lines, &slice);
     slice
 }
 

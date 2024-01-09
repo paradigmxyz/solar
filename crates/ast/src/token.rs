@@ -246,6 +246,8 @@ pub enum TokenKind {
 
     // Literals.
     /// A literal token.
+    ///
+    /// Note that this does not include boolean literals.
     Literal(TokenLit),
 
     /// Identifier token.
@@ -534,12 +536,10 @@ impl Token {
         matches!(self.kind, TokenKind::Ident(_))
     }
 
-    /// Returns `true` if the token is a literal.
-    ///
-    /// Note that this does not include boolean literals. See [`is_bool_lit`](Self::is_bool_lit).
+    /// Returns `true` if the token is a literal. Includes `bool` literals.
     #[inline]
-    pub const fn is_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(_))
+    pub fn is_lit(&self) -> bool {
+        matches!(self.kind, TokenKind::Literal(_)) || self.is_bool_lit()
     }
 
     /// Returns `true` if the token is a given keyword, `kw`.

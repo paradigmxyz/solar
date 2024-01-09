@@ -179,9 +179,13 @@ impl Runner {
             self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
                 (None, true) => TestResult::Passed,
                 (None, false) => {
-                    // eprintln!("\n---- unexpected error in {} ----", rel_path.display());
-                    // TestResult::Failed
-                    TestResult::Passed
+                    // TODO: Typed identifiers.
+                    if String::from_utf8_lossy(&output.stderr).contains("found `:`") {
+                        TestResult::Skipped
+                    } else {
+                        eprintln!("\n---- unexpected error in {} ----", rel_path.display());
+                        TestResult::Failed
+                    }
                 }
                 (Some(e), true) => {
                     if e.kind.parse_time_error() {
@@ -340,14 +344,22 @@ fn solc_yul_skip(path: &Path) -> Option<&str> {
         return Some("verbatim builtin is not implemented");
     }
 
+    if path_contains(path, "/period_in_identifier") || path_contains(path, "/dot_middle") {
+        // Why does Solc parse periods in Yul identifirs?
+        // `yul-identifier` is the same as `solidity-identifier`, which disallows periods:
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.YulIdentifier
+        return Some("not actually valid identifiers");
+    }
+
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
     if matches!(
         stem,
         // Why should this fail?
         | "unicode_comment_direction_override"
-        // This is custom test syntax, don't know why a test testing test syntax exists.
+        // This is custom test syntax, don't know why tests testing test syntax exist.
         | "surplus_input"
+        | "period_in_identifier_start_with_comment"
         // TODO: Probably implement outside of parsing.
         | "number_literals_3"
         | "number_literals_4"

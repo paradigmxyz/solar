@@ -161,7 +161,7 @@ impl<'a> Parser<'a> {
     /// Parses a primary expression.
     fn parse_primary_expr(&mut self) -> PResult<'a, Box<Expr>> {
         let lo = self.token.span;
-        let kind = if self.token.is_lit() || self.token.is_bool_lit() {
+        let kind = if self.check_lit() {
             let (lit, sub) = self.parse_lit_with_subdenomination()?;
             ExprKind::Lit(lit, sub)
         } else if self.eat_keyword(kw::Type) {

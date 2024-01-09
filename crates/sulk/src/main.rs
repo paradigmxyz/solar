@@ -60,6 +60,7 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
                 // if !is_testing {
                 //     sess.dcx.fatal("Yul is not supported yet").emit();
                 // }
+                parser.parse_doc_comments().map_err(|e| e.emit())?;
                 parser.parse_yul_block().map_err(|e| e.emit())?;
             }
         }

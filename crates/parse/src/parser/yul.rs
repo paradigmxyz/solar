@@ -168,7 +168,10 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul expression kind.
     fn parse_yul_expr_kind(&mut self) -> PResult<'a, ExprKind> {
-        if self.check_path() {
+        if self.check_lit() {
+            // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
+            self.parse_lit().map(ExprKind::Lit)
+        } else if self.check_path() {
             let path = self.parse_path_any()?;
             if self.token.is_open_delim(Delimiter::Parenthesis) {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
@@ -182,9 +185,6 @@ impl<'a> Parser<'a> {
                 }
                 Ok(ExprKind::Path(path))
             }
-        } else if self.check_lit() {
-            // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
-            self.parse_lit().map(ExprKind::Lit)
         } else {
             self.unexpected()
         }
@@ -208,11 +208,16 @@ impl<'a> Parser<'a> {
         *path.last()
     }
 
+    // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulPath
     #[track_caller]
     fn check_valid_path(&mut self, path: &Path) {
-        for &ident in path.segments() {
+        let first = path.first();
+        if first.is_reserved(true) {
+            self.expected_ident_found_other((*first).into(), false).unwrap_err().emit();
+        }
+        for ident in &path.segments()[1..] {
             if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
-                self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
+                self.expected_ident_found_other((*ident).into(), false).unwrap_err().emit();
             }
         }
     }
