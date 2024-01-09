@@ -145,10 +145,10 @@ impl<'a> Parser<'a> {
         flags: FunctionFlags,
     ) -> PResult<'a, FunctionHeader> {
         let mut header = FunctionHeader::default();
-        let var_mode = if flags.contains(FunctionFlags::PARAM_NAME) {
-            VarDeclMode::AllowStorageWithWarning
+        let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
+            VarFlags::FUNCTION_TY
         } else {
-            VarDeclMode::AllowStorage
+            VarFlags::FUNCTION
         };
 
         if flags.contains(FunctionFlags::NAME) {
@@ -164,7 +164,7 @@ impl<'a> Parser<'a> {
         {
             // Omitted parens.
         } else {
-            header.parameters = self.parse_parameter_list(var_mode)?;
+            header.parameters = self.parse_parameter_list(var_flags)?;
         }
 
         loop {
@@ -230,7 +230,7 @@ impl<'a> Parser<'a> {
         }
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = self.parse_parameter_list(var_mode)?;
+            header.returns = self.parse_parameter_list(var_flags)?;
         }
 
         Ok(header)
@@ -242,7 +242,7 @@ impl<'a> Parser<'a> {
         let (fields, _) = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
-            |this| this.parse_variable_declaration(VarDeclMode::RequireName),
+            |this| this.parse_variable_declaration(VarFlags::STRUCT),
         )?;
         Ok(ItemStruct { name, fields })
     }
@@ -250,7 +250,7 @@ impl<'a> Parser<'a> {
     /// Parses an event definition.
     fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
         let name = self.parse_ident()?;
-        let parameters = self.parse_parameter_list(VarDeclMode::AllowIndexed)?;
+        let parameters = self.parse_parameter_list(VarFlags::EVENT)?;
         let anonymous = self.eat_keyword(kw::Anonymous);
         self.expect_semi()?;
         Ok(ItemEvent { name, parameters, anonymous })
@@ -259,7 +259,7 @@ impl<'a> Parser<'a> {
     /// Parses an error definition.
     fn parse_error(&mut self) -> PResult<'a, ItemError> {
         let name = self.parse_ident()?;
-        let parameters = self.parse_parameter_list(VarDeclMode::None)?;
+        let parameters = self.parse_parameter_list(VarFlags::ERROR)?;
         self.expect_semi()?;
         Ok(ItemError { name, parameters })
     }
@@ -698,39 +698,39 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a parameter list: `($(vardecl),*)`.
-    pub(super) fn parse_parameter_list(&mut self, mode: VarDeclMode) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(|this| this.parse_variable_declaration(mode)).map(|(x, _)| x)
+    pub(super) fn parse_parameter_list(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
+        self.parse_paren_comma_seq(|this| this.parse_variable_declaration(flags)).map(|(x, _)| x)
     }
 
     /// Parses a variable declaration: `type storage? indexed? name`.
     pub(super) fn parse_variable_declaration(
         &mut self,
-        mode: VarDeclMode,
+        flags: VarFlags,
     ) -> PResult<'a, VariableDeclaration> {
         let lo = self.token.span;
 
         let ty = self.parse_type()?;
 
         let mut storage = self.parse_storage();
-        if mode.no_storage() && storage.is_some() {
+        if !flags.contains(VarFlags::STORAGE) && storage.is_some() {
             storage = None;
             let msg = "storage specifiers are not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
         }
 
         let mut indexed = self.eat_keyword(kw::Indexed);
-        if mode.no_indexed() && indexed {
+        if !flags.contains(VarFlags::INDEXED) && indexed {
             indexed = false;
             let msg = "`indexed` is not allowed here";
             self.dcx().err(msg).span(self.prev_token.span).emit();
         }
 
         let name = self.parse_ident_opt()?;
-        if mode.warn_on_name() && name.is_some() {
+        if flags.contains(VarFlags::NAME_WARN) && name.is_some() {
             let msg = "named function type parameters are deprecated";
             self.dcx().warn(msg).code(error_code!(E6162)).span(self.prev_token.span).emit();
         }
-        if mode.name_required() && name.is_none() {
+        if flags.contains(VarFlags::NAME) && name.is_none() {
             // Have to return the error here.
             let msg = "parameter must have a name";
             let span = lo.to(self.prev_token.span);
@@ -842,78 +842,58 @@ impl<'a> Parser<'a> {
     }
 }
 
-/// Options for parsing variable declarations.
-#[derive(Clone, Copy)]
-pub(super) enum VarDeclMode {
-    // Name is optional.
-    /// `ty indexed? name?`; parsed in events.
-    AllowIndexed,
-    /// `ty storage? name?`; parsed in functions and variable declaration statements.
-    AllowStorage,
-    /// `ty storage? [name?]` (names issue a warning); parsed in function types.
-    AllowStorageWithWarning,
-    /// `ty name?`; parsed in errors.
-    None,
-
-    // Name is required.
-    /// `ty name`; parsed in structs.
-    RequireName,
-}
-
-impl VarDeclMode {
-    fn no_storage(&self) -> bool {
-        !matches!(self, Self::AllowStorage | Self::AllowStorageWithWarning)
-    }
-
-    fn no_indexed(&self) -> bool {
-        !matches!(self, Self::AllowIndexed)
-    }
-
-    fn name_required(&self) -> bool {
-        matches!(self, Self::RequireName)
-    }
-
-    fn warn_on_name(&self) -> bool {
-        matches!(self, Self::AllowStorageWithWarning)
-    }
-}
-
 bitflags::bitflags! {
+    /// Flags for parsing variable declarations.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(crate) struct VarFlags: u8 {
+        // `ty` is always required. `name` is always optional, unless `NAME` is specified.
+        const STORAGE   = 1 << 1;
+        const INDEXED   = 1 << 2;
+        const NAME      = 1 << 3;
+        const NAME_WARN = 1 << 4;
+
+        const STRUCT      = Self::NAME.bits();
+        const ERROR       = 0;
+        const EVENT       = Self::INDEXED.bits();
+        const FUNCTION    = Self::STORAGE.bits();
+        const FUNCTION_TY = Self::STORAGE.bits() | Self::NAME_WARN.bits();
+    }
+
     /// Flags for parsing function headers.
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(crate) struct FunctionFlags: u16 {
         /// Name is required.
-        const NAME             = 1 << 0;
+        const NAME             = 1 << 1;
         /// Function type: parameter names are parsed, but issue a warning.
-        const PARAM_NAME        = 1 << 1;
+        const PARAM_NAME       = 1 << 2;
         /// Parens can be omitted.
-        const NO_PARENS        = 1 << 2;
+        const NO_PARENS        = 1 << 3;
 
         // Visibility
-        const PRIVATE          = 1 << 3;
-        const INTERNAL         = 1 << 4;
-        const PUBLIC           = 1 << 5;
-        const EXTERNAL         = 1 << 6;
+        const PRIVATE          = 1 << 4;
+        const INTERNAL         = 1 << 5;
+        const PUBLIC           = 1 << 6;
+        const EXTERNAL         = 1 << 7;
         const VISIBILITY       = Self::PRIVATE.bits() |
                                  Self::INTERNAL.bits() |
                                  Self::PUBLIC.bits() |
                                  Self::EXTERNAL.bits();
 
         // StateMutability
-        const PURE             = 1 << 7;
-        const VIEW             = 1 << 8;
-        const PAYABLE          = 1 << 9;
+        const PURE             = 1 << 8;
+        const VIEW             = 1 << 9;
+        const PAYABLE          = 1 << 10;
         const STATE_MUTABILITY = Self::PURE.bits() |
                                  Self::VIEW.bits() |
                                  Self::PAYABLE.bits();
 
-        const MODIFIERS        = 1 << 10;
-        const VIRTUAL          = 1 << 11;
-        const OVERRIDE         = 1 << 12;
+        const MODIFIERS        = 1 << 11;
+        const VIRTUAL          = 1 << 12;
+        const OVERRIDE         = 1 << 13;
 
-        const RETURNS          = 1 << 13;
+        const RETURNS          = 1 << 14;
         /// Must be implemented, meaning it must end in a `{}` implementation block.
-        const ONLY_BLOCK       = 1 << 14;
+        const ONLY_BLOCK       = 1 << 15;
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
         const CONSTRUCTOR = Self::MODIFIERS.bits() |

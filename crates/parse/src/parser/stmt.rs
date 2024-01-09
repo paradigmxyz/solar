@@ -1,4 +1,4 @@
-use super::item::VarDeclMode;
+use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
@@ -120,7 +120,7 @@ impl<'a> Parser<'a> {
     fn parse_stmt_try(&mut self) -> PResult<'a, StmtTry> {
         let expr = self.parse_expr()?;
         let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_parameter_list(VarDeclMode::AllowStorage)?
+            self.parse_parameter_list(VarFlags::FUNCTION)?
         } else {
             Vec::new()
         };
@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
         while self.eat_keyword(kw::Catch) {
             let name = self.parse_ident_opt()?;
             let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                self.parse_parameter_list(VarDeclMode::AllowStorage)?
+                self.parse_parameter_list(VarFlags::FUNCTION)?
             } else {
                 Vec::new()
             };
@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
                     && next_is_ok(this))
         };
         if self.token.is_ident() && is_var(self) {
-            self.parse_variable_declaration(VarDeclMode::AllowStorage).map(ExprOrVar::Var)
+            self.parse_variable_declaration(VarFlags::FUNCTION).map(ExprOrVar::Var)
         } else {
             self.parse_expr().map(ExprOrVar::Expr)
         }
