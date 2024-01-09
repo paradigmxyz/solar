@@ -707,34 +707,45 @@ impl<'a> Parser<'a> {
         &mut self,
         flags: VarFlags,
     ) -> PResult<'a, VariableDeclaration> {
-        let lo = self.token.span;
-
         let ty = self.parse_type()?;
 
-        let mut storage = self.parse_storage();
-        if !flags.contains(VarFlags::STORAGE) && storage.is_some() {
-            storage = None;
-            let msg = "storage specifiers are not allowed here";
-            self.dcx().err(msg).span(self.prev_token.span).emit();
+        let mut storage = None;
+        let mut indexed = false;
+        loop {
+            if let Some(s) = self.parse_storage() {
+                if !flags.contains(VarFlags::STORAGE) {
+                    let msg = "storage specifiers are not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if storage.is_some() {
+                    let msg = "storage already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    storage = Some(s);
+                }
+            } else if self.eat_keyword(kw::Indexed) {
+                if !flags.contains(VarFlags::INDEXED) {
+                    let msg = "`indexed` is not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if indexed {
+                    let msg = "`indexed` already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    indexed = true;
+                }
+            } else {
+                break;
+            }
         }
 
-        let mut indexed = self.eat_keyword(kw::Indexed);
-        if !flags.contains(VarFlags::INDEXED) && indexed {
-            indexed = false;
-            let msg = "`indexed` is not allowed here";
-            self.dcx().err(msg).span(self.prev_token.span).emit();
-        }
-
-        let name = self.parse_ident_opt()?;
+        let name = if flags.contains(VarFlags::NAME) {
+            self.parse_ident().map(Some)
+        } else {
+            self.parse_ident_opt()
+        }?;
         if flags.contains(VarFlags::NAME_WARN) && name.is_some() {
+            debug_assert!(!flags.contains(VarFlags::NAME));
             let msg = "named function type parameters are deprecated";
             self.dcx().warn(msg).code(error_code!(E6162)).span(self.prev_token.span).emit();
-        }
-        if flags.contains(VarFlags::NAME) && name.is_none() {
-            // Have to return the error here.
-            let msg = "parameter must have a name";
-            let span = lo.to(self.prev_token.span);
-            return Err(self.dcx().err(msg).span(span));
         }
 
         Ok(VariableDeclaration { ty, storage, indexed, name })
