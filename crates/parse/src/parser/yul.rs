@@ -176,7 +176,7 @@ impl<'a> Parser<'a> {
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
                 for &ident in path.segments() {
-                    if ident.is_yul_keyword() || ident.is_yul_builtin() {
+                    if ident.is_yul_keyword() || ident.is_yul_evm_builtin() {
                         self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
                     }
                 }
@@ -192,7 +192,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'a, ExprCall> {
-        if !name.is_yul_builtin() && name.is_reserved(true) {
+        if !name.is_yul_evm_builtin() && name.is_reserved(true) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }
         let (parameters, _) = self.parse_paren_comma_seq(Self::parse_yul_expr)?;
@@ -200,6 +200,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Expects a single identifier path and returns the identifier.
+    #[track_caller]
     fn expect_single_ident_path(&mut self, path: Path) -> Ident {
         if path.segments().len() > 1 {
             self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
@@ -207,9 +208,10 @@ impl<'a> Parser<'a> {
         *path.last()
     }
 
+    #[track_caller]
     fn check_valid_path(&mut self, path: &Path) {
         for &ident in path.segments() {
-            if ident.is_reserved(true) {
+            if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
                 self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
             }
         }

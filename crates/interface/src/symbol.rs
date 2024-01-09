@@ -128,9 +128,9 @@ impl Ident {
         self.name.is_yul_keyword()
     }
 
-    /// Returns `true` if the identifier is a Yul builtin function keyword.
+    /// Returns `true` if the identifier is a Yul EVM builtin keyword.
     #[inline]
-    pub fn is_yul_builtin(self) -> bool {
+    pub fn is_yul_evm_builtin(self) -> bool {
         self.name.is_yul_builtin()
     }
 
@@ -228,7 +228,7 @@ impl Symbol {
         self >= kw::Leave && self <= kw::Builtin
     }
 
-    /// Returns `true` if the symbol is a keyword in a Yul context. Excludes builtin functions.
+    /// Returns `true` if the symbol is a keyword in a Yul context. Excludes EVM builtins.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
@@ -249,7 +249,7 @@ impl Symbol {
         )
     }
 
-    /// Returns `true` if the symbol is a Yul builtin function keyword.
+    /// Returns `true` if the symbol is a Yul EVM builtin keyword.
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
@@ -678,7 +678,7 @@ symbols! {
         Leave:       "leave",
         Revert:      "revert",
 
-        // Yul EVM builtin functions.
+        // Yul EVM EVM builtins.
         // Some builtins have already been previously declared, so they can't be redeclared here.
         // See `is_yul_builtin`.
         // https://docs.soliditylang.org/en/latest/yul.html#evm-dialect

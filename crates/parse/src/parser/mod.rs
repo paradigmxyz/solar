@@ -699,7 +699,21 @@ impl<'a> Parser<'a> {
     /// Parses a qualified identifier starting with the given identifier.
     #[track_caller]
     pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
-        self.parse_path_with_f(first, Self::parse_ident)
+        if self.in_yul {
+            self.parse_path_with_f(first, Self::parse_yul_path_ident)
+        } else {
+            self.parse_path_with_f(first, Self::parse_ident)
+        }
+    }
+
+    /// Parses either an identifier or a Yul EVM builtin.
+    fn parse_yul_path_ident(&mut self) -> PResult<'a, Ident> {
+        let ident = self.ident_or_err(true)?;
+        if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
+            self.expected_ident_found_err().emit();
+        }
+        self.bump();
+        Ok(ident)
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
@@ -720,7 +734,7 @@ impl<'a> Parser<'a> {
             return Ok(Path::new_single(first));
         }
 
-        let mut path = Vec::with_capacity(4);
+        let mut path = Vec::with_capacity(2);
         path.push(first);
         while self.eat(&TokenKind::Dot) {
             path.push(f(self)?);

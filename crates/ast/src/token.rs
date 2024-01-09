@@ -677,8 +677,8 @@ pub enum TokenDescription {
     ReservedKeyword,
     /// A Yul keyword.
     YulKeyword,
-    /// A Yul builtin function.
-    YulBuiltin,
+    /// A Yul EVM builtin.
+    YulEvmBuiltin,
 }
 
 impl fmt::Display for TokenDescription {
@@ -694,7 +694,7 @@ impl TokenDescription {
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),
             _ if token.is_ident_where(|id| id.is_yul_keyword()) => Some(Self::YulKeyword),
-            _ if token.is_ident_where(|id| id.is_yul_builtin()) => Some(Self::YulBuiltin),
+            _ if token.is_ident_where(|id| id.is_yul_evm_builtin()) => Some(Self::YulEvmBuiltin),
             _ => None,
         }
     }
@@ -705,7 +705,7 @@ impl TokenDescription {
             Self::Keyword => "keyword",
             Self::ReservedKeyword => "reserved keyword",
             Self::YulKeyword => "Yul keyword",
-            Self::YulBuiltin => "Yul builtin function keyword",
+            Self::YulEvmBuiltin => "Yul EVM builtin keyword",
         }
     }
 }
