@@ -27,6 +27,8 @@ jobs:
             flags: --features nightly,parallel
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
