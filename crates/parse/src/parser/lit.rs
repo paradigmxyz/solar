@@ -351,19 +351,16 @@ mod tests {
     use crate::{Lexer, ParseSess};
     use alloy_primitives::address;
     use num_rational::BigRational;
-    use sulk_interface::diagnostics::{DiagCtxt, LocalEmitter};
 
     // String literal parsing is tested in ../lexer/mod.rs.
 
     // Run through the lexer to get the same input that the parser gets.
     #[track_caller]
     fn lex_literal(src: &str) -> Symbol {
-        let emitter = LocalEmitter::new();
-        let sess = ParseSess::empty(DiagCtxt::new(Box::new(emitter.clone())));
+        let sess = ParseSess::with_test_emitter(false);
         let tokens = Lexer::new(&sess, src).into_tokens();
-        drop(sess);
+        sess.dcx.has_errors().unwrap();
         assert_eq!(tokens.len(), 1, "{tokens:?}");
-        assert_eq!(emitter.into_diagnostics(), []);
         tokens[0].lit().expect("not a literal").symbol
     }
 

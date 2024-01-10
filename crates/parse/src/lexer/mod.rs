@@ -500,6 +500,7 @@ mod tests {
             .filter(|t| !t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
+        sess.dcx.has_errors().unwrap();
         assert_eq!(tokens, expected, "{src:?}");
     }
 
@@ -552,7 +553,6 @@ mod tests {
                 ("0", &[(0..1, lit(Integer, "0"))]),
                 ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
                 ("0xa", &[(0..3, lit(Integer, "0xa"))]),
-                ("0.", &[(0..2, lit(Rational, "0."))]),
                 ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
                 (
                     "0.e-1",

@@ -449,6 +449,7 @@ mod tests {
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)
                         .map_err(|e| e.emit())
                         .unwrap_or_else(|_| panic!("src: {s:?}"));
+                    sess.dcx.has_errors().unwrap();
                     let formatted: Vec<_> =
                         list.iter().map(|o| o.as_ref().map(|i| i.as_str())).collect();
                     assert_eq!(formatted.as_slice(), results, "{s:?}");

@@ -1224,6 +1224,7 @@ mod tests {
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);
                 let req = parser.parse_semver_req().map_err(|e| e.emit()).unwrap();
+                sess.dcx.has_errors().unwrap();
                 assert_eq!(req.matches(&version), res, "v={v:?}, req={req_s:?}");
             }
         })
