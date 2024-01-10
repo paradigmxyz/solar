@@ -8,6 +8,7 @@ use assert_cmd::Command;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     process::Output,
@@ -71,29 +72,23 @@ impl Runner {
 
         let run = |entry: &walkdir::DirEntry| {
             let path = entry.path();
-            let skip = |reason: &str| {
-                let _ = reason;
-                // eprintln!("---- skipping {} ({reason}) ----", path.display());
-                TestResult::Skipped
-            };
-
-            if let Some(reason) = solc_solidity_filter(path) {
-                return skip(reason);
-            }
-
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
+            if let Some(reason) = solc_solidity_filter(rel_path) {
+                return TestResult::Skipped(reason);
+            }
+
             let Ok(src) = fs::read_to_string(path) else {
-                return skip("invalid UTF-8");
+                return TestResult::Skipped("invalid UTF-8");
             };
             let src = src.as_str();
 
             if src.contains("pragma experimental solidity") {
-                return skip("experimental solidity");
+                return TestResult::Skipped("experimental solidity");
             }
 
             if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
-                return skip("matched delimiters");
+                return TestResult::Skipped("matched delimiters");
             }
 
             let expected_error = self.get_expected_error(src);
@@ -101,7 +96,7 @@ impl Runner {
             // TODO: Imports (don't know why it's a ParserError).
             if let Some(e) = &expected_error {
                 if e.code == Some(6275) {
-                    return skip("imports not implemented");
+                    return TestResult::Skipped("imports not implemented");
                 }
             }
 
@@ -151,27 +146,21 @@ impl Runner {
             let path = entry.path();
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
-            let skip = |reason: &str| {
-                let _ = reason;
-                // eprintln!("---- skipping {} ({reason}) ----", path.display());
-                TestResult::Skipped
-            };
-
             if let Some(reason) = solc_yul_filter(path) {
-                return skip(reason);
+                return TestResult::Skipped(reason);
             }
 
             let Ok(src) = fs::read_to_string(path) else {
-                return skip("invalid UTF-8");
+                return TestResult::Skipped("invalid UTF-8");
             };
             let src = src.as_str();
 
             if object_re.is_match(src) {
-                return skip("object syntax is not yet supported");
+                return TestResult::Skipped("object syntax is not yet supported");
             }
 
             if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
-                return skip("matched delimiters");
+                return TestResult::Skipped("matched delimiters");
             }
 
             let error = self.get_expected_error(src);
@@ -183,7 +172,7 @@ impl Runner {
                 (None, false) => {
                     // TODO: Typed identifiers.
                     if String::from_utf8_lossy(&output.stderr).contains("found `:`") {
-                        TestResult::Skipped
+                        TestResult::Skipped("typed identifiers")
                     } else {
                         eprintln!("\n---- unexpected error in {} ----", rel_path.display());
                         TestResult::Failed
@@ -241,6 +230,7 @@ impl Runner {
         let mut passed = 0;
         let mut skipped = 0;
         let mut failed = 0;
+        let mut all_skipped = HashMap::<&'static str, usize>::new();
         for (i, (t, result, time)) in results.iter().rev().enumerate() {
             if i < 10 {
                 let _ = (i, t, time);
@@ -248,13 +238,23 @@ impl Runner {
             }
             let counter = match result {
                 TestResult::Passed => &mut passed,
-                TestResult::Skipped => &mut skipped,
+                TestResult::Skipped(_) => &mut skipped,
                 TestResult::Failed => &mut failed,
             };
             *counter += 1;
+            if let TestResult::Skipped(reason) = result {
+                *all_skipped.entry(reason).or_default() += 1;
+            }
         }
 
-        eprintln!("{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
+        let mut v = all_skipped.into_iter().collect::<Vec<_>>();
+        v.sort_by_key(|(_, count)| *count);
+        eprintln!();
+        for (reason, count) in v.into_iter().rev() {
+            eprintln!("skipped {count:>3}: {reason}");
+        }
+
+        eprintln!("\n{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
         if failed > 0 {
             panic!("some tests failed");
         }
@@ -298,7 +298,7 @@ impl Runner {
 enum TestResult {
     Failed,
     Passed,
-    Skipped,
+    Skipped(&'static str),
 }
 
 impl TestResult {
@@ -312,22 +312,22 @@ impl TestResult {
     }
 }
 
-fn solc_solidity_filter(path: &Path) -> Option<&str> {
+fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/libyul/") {
         return Some("actually a Yul test");
     }
 
     if path_contains(path, "/cmdlineTests/") {
-        return Some("not same format as everything else");
+        return Some("CLI tests do not have the same format as everything else");
     }
 
     if path_contains(path, "/experimental/") {
-        return Some("solidity experimental");
+        return Some("solidity experimental is not implemented");
     }
 
     // We don't parse licenses.
     if path_contains(path, "/license/") {
-        return Some("license test");
+        return Some("licenses are not checked");
     }
 
     if path_contains(path, "natspec") {
@@ -335,7 +335,7 @@ fn solc_solidity_filter(path: &Path) -> Option<&str> {
     }
 
     if path_contains(path, "_direction_override") {
-        return Some("not implemented");
+        return Some("Unicode direction override checks not implemented");
     }
 
     if path_contains(path, "max_depth_reached_") {
@@ -343,7 +343,7 @@ fn solc_solidity_filter(path: &Path) -> Option<&str> {
     }
 
     if path_contains(path, "wrong_compiler_") {
-        return Some("Solidity version is not checked");
+        return Some("Solidity pragma version is not checked");
     }
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -362,7 +362,7 @@ fn solc_solidity_filter(path: &Path) -> Option<&str> {
         | "assembly_dialect_leading_space"
         // `1wei` gets lexed as two different tokens, I think it's fine.
         | "invalid_denomination_no_whitespace"
-        // Actually not a broken version, we just don't check "^0 and ^1".
+        // Not actually a broken version, we just don't check "^0 and ^1".
         | "broken_version_1"
         // TODO: CBA to implement.
         | "unchecked_while_body"
@@ -377,13 +377,13 @@ fn solc_solidity_filter(path: &Path) -> Option<&str> {
     None
 }
 
-fn solc_yul_filter(path: &Path) -> Option<&str> {
+fn solc_yul_filter(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/recursion_depth.yul") {
-        return Some("stack overflow");
+        return Some("recursion stack overflow");
     }
 
     if path_contains(path, "/verbatim") {
-        return Some("verbatim builtin is not implemented");
+        return Some("verbatim Yul builtin is not implemented");
     }
 
     if path_contains(path, "/period_in_identifier") || path_contains(path, "/dot_middle") {
