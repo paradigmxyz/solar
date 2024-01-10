@@ -52,7 +52,9 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
 
         match args.language {
             cli::Language::Solidity => {
-                parser.parse_file().map_err(|e| e.emit())?;
+                let file = parser.parse_file().map_err(|e| e.emit())?;
+                let _ = file;
+                // println!("{file:#?}");
             }
             cli::Language::Yul => {
                 // let is_testing =

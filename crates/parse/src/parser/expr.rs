@@ -173,7 +173,14 @@ impl<'a> Parser<'a> {
             self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             ExprKind::TypeCall(ty)
         } else if self.check_elementary_type() {
-            let ty = self.parse_type()?;
+            let mut ty = self.parse_type()?;
+            if let TyKind::Address(b) = &mut ty.kind {
+                if *b {
+                    let msg = "`address payable` cannot be used in an expression";
+                    self.dcx().err(msg).span(ty.span).emit();
+                    *b = false;
+                }
+            }
             ExprKind::Type(ty)
         } else if self.check_any_ident() {
             let ident = self.parse_ident()?;

@@ -121,7 +121,7 @@ impl<'a> Parser<'a> {
     fn parse_stmt_try(&mut self) -> PResult<'a, StmtTry> {
         let expr = self.parse_expr()?;
         let returns = if self.eat_keyword(kw::Returns) {
-            self.parse_returns(VarFlags::FUNCTION)?
+            self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Vec::new()
         };
@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
         loop {
             let name = self.parse_ident_opt()?;
             let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-                self.parse_parameter_list(VarFlags::FUNCTION)?
+                self.parse_parameter_list(false, VarFlags::FUNCTION)?
             } else {
                 Vec::new()
             };

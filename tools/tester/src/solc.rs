@@ -3,13 +3,17 @@ use std::fmt;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SolcError {
     pub kind: SolcErrorKind,
-    pub code: u32,
+    pub code: Option<u32>,
     pub message: String,
 }
 
 impl fmt::Display for SolcError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}: {}", self.kind, self.code, self.message)
+        write!(f, "{}", self.kind)?;
+        if let Some(code) = self.code {
+            write!(f, " {code}")?;
+        }
+        write!(f, ": {}", self.message)
     }
 }
 
@@ -69,6 +73,6 @@ impl std::str::FromStr for SolcErrorKind {
 
 impl SolcErrorKind {
     pub fn parse_time_error(&self) -> bool {
-        matches!(self, Self::DocstringParsingError | Self::ParserError | Self::SyntaxError)
+        matches!(self, Self::DocstringParsingError | Self::ParserError)
     }
 }

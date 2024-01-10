@@ -182,7 +182,7 @@ impl<'a> Parser<'a> {
         {
             // Omitted parens.
         } else {
-            header.parameters = self.parse_parameter_list(var_flags)?;
+            header.parameters = self.parse_parameter_list(true, var_flags)?;
         }
 
         loop {
@@ -237,7 +237,7 @@ impl<'a> Parser<'a> {
         }
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = self.parse_returns(var_flags)?;
+            header.returns = self.parse_parameter_list(false, var_flags)?;
         }
 
         Ok(header)
@@ -258,7 +258,7 @@ impl<'a> Parser<'a> {
     /// Parses an event definition.
     fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
         let name = self.parse_ident()?;
-        let parameters = self.parse_parameter_list(VarFlags::EVENT)?;
+        let parameters = self.parse_parameter_list(true, VarFlags::EVENT)?;
         let anonymous = self.eat_keyword(kw::Anonymous);
         self.expect_semi()?;
         Ok(ItemEvent { name, parameters, anonymous })
@@ -267,7 +267,7 @@ impl<'a> Parser<'a> {
     /// Parses an error definition.
     fn parse_error(&mut self) -> PResult<'a, ItemError> {
         let name = self.parse_ident()?;
-        let parameters = self.parse_parameter_list(VarFlags::ERROR)?;
+        let parameters = self.parse_parameter_list(true, VarFlags::ERROR)?;
         self.expect_semi()?;
         Ok(ItemError { name, parameters })
     }
@@ -771,14 +771,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a parameter list: `($(vardecl),*)`.
-    pub(super) fn parse_parameter_list(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(true, |this| this.parse_variable_definition(flags))
-            .map(|(x, _)| x)
-    }
-
-    /// Parses a returns list (non-emtpy parameter list).
-    pub(super) fn parse_returns(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(false, |this| this.parse_variable_definition(flags))
+    pub(super) fn parse_parameter_list(
+        &mut self,
+        allow_empty: bool,
+        flags: VarFlags,
+    ) -> PResult<'a, ParameterList> {
+        self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
             .map(|(x, _)| x)
     }
 

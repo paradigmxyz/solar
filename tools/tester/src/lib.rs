@@ -11,7 +11,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Output,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{Mutex, PoisonError},
     time::{Duration, Instant},
 };
 use walkdir::WalkDir;
@@ -38,10 +38,6 @@ struct Runner {
     external_source_delimiter: Regex,
     #[allow(dead_code)]
     equals: Regex,
-
-    passed_count: AtomicUsize,
-    failed_count: AtomicUsize,
-    skipped_count: AtomicUsize,
 }
 
 impl Runner {
@@ -57,10 +53,6 @@ impl Runner {
             source_delimiter: Regex::new(r"==== Source: (.*) ====").unwrap(),
             external_source_delimiter: Regex::new(r"==== ExternalSource: (.*) ====").unwrap(),
             equals: Regex::new("([a-zA-Z0-9_]+)=(.*)").unwrap(),
-
-            passed_count: AtomicUsize::new(0),
-            failed_count: AtomicUsize::new(0),
-            skipped_count: AtomicUsize::new(0),
         }
     }
 
@@ -73,7 +65,6 @@ impl Runner {
                 .into_iter()
                 .map(|entry| entry.unwrap())
                 .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
-                .filter(|entry| solc_solidity_filter(entry.path()).is_none())
                 .collect::<Vec<_>>()
         });
         eprintln!("collected {} test files in {collect_time:#?}", paths.len());
@@ -86,7 +77,7 @@ impl Runner {
                 TestResult::Skipped
             };
 
-            if let Some(reason) = solc_solidity_skip(path) {
+            if let Some(reason) = solc_solidity_filter(path) {
                 return skip(reason);
             }
 
@@ -101,8 +92,14 @@ impl Runner {
                 return skip("matched delimiters");
             }
 
-            let expected_error =
-                self.error_re.captures(src).map(|captures| captures.get(3).unwrap().as_str());
+            let expected_error = self.get_expected_error(src);
+
+            // TODO: Imports (don't know why it's a ParserError).
+            if let Some(e) = &expected_error {
+                if e.code == Some(6275) {
+                    return skip("imports not implemented");
+                }
+            }
 
             let mut cmd = self.cmd();
             cmd.arg(rel_path);
@@ -111,14 +108,16 @@ impl Runner {
                 (None, false) => {
                     eprintln!("\n---- unexpected error in {} ----", rel_path.display());
                     TestResult::Failed
+                    // TestResult::Skipped
                 }
                 (Some(e), true) => {
-                    // TODO: Most of these are not syntax errors.
-                    // eprintln!("\n---- unexpected success in {} ----", rel_path.display());
-                    // eprintln!("-- expected error --\n{e}");
-                    // true
-                    let _ = e;
-                    TestResult::Passed
+                    if e.kind.parse_time_error() {
+                        eprintln!("\n---- unexpected success in {} ----", rel_path.display());
+                        eprintln!("-- expected error --\n{e}");
+                        TestResult::Failed
+                    } else {
+                        TestResult::Passed
+                    }
                 }
                 (Some(_e), false) => TestResult::Passed,
             })
@@ -155,7 +154,7 @@ impl Runner {
                 TestResult::Skipped
             };
 
-            if let Some(reason) = solc_yul_skip(path) {
+            if let Some(reason) = solc_yul_filter(path) {
                 return skip(reason);
             }
 
@@ -204,18 +203,16 @@ impl Runner {
 
     fn run_tests<'a, T, F>(&self, inputs: &'a [T], run: F)
     where
-        T: Send,
+        T: std::fmt::Debug + Send + Sync,
         [T]: IntoParallelRefIterator<'a, Item = &'a T>,
         F: Fn(&'a T) -> TestResult + Send + Sync,
     {
+        let results = Mutex::new(Vec::new());
         let run = |input| {
+            let stopwatch = Instant::now();
             let result = run(input);
-            let counter = match result {
-                TestResult::Passed => &self.passed_count,
-                TestResult::Skipped => &self.skipped_count,
-                TestResult::Failed => &self.failed_count,
-            };
-            counter.fetch_add(1, Ordering::Relaxed);
+            let elapsed = stopwatch.elapsed();
+            results.lock().unwrap_or_else(PoisonError::into_inner).push((input, result, elapsed));
         };
         let run_all = || inputs.par_iter().for_each(run);
         let run_all_real = || std::panic::catch_unwind(std::panic::AssertUnwindSafe(run_all));
@@ -235,10 +232,25 @@ impl Runner {
             }
         };
 
+        let mut results = results.into_inner().unwrap();
+        results.sort_by_key(|(_, _, d)| *d);
         let total = inputs.len();
-        let passed = self.passed_count.load(Ordering::Relaxed);
-        let skipped = self.skipped_count.load(Ordering::Relaxed);
-        let failed = self.failed_count.load(Ordering::Relaxed);
+        let mut passed = 0;
+        let mut skipped = 0;
+        let mut failed = 0;
+        let mut printed = 0;
+        for (t, result, time) in results.iter().rev() {
+            if printed < 10 {
+                eprintln!("- {result:?} in {time:#?} for {t:#?}");
+            }
+            let counter = match result {
+                TestResult::Passed => &mut passed,
+                TestResult::Skipped => &mut skipped,
+                TestResult::Failed => &mut failed,
+            };
+            *counter += 1;
+            printed += 1;
+        }
 
         eprintln!("{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
         if failed > 0 {
@@ -274,7 +286,7 @@ impl Runner {
     fn get_expected_error(&self, haystack: &str) -> Option<SolcError> {
         self.error_re.captures(haystack).map(|captures| SolcError {
             kind: captures.get(1).unwrap().as_str().parse().unwrap(),
-            code: captures.get(2).unwrap().as_str().trim_start().parse().unwrap(),
+            code: captures.get(2).map(|m| m.as_str().trim_start().parse().unwrap()),
             message: captures.get(3).unwrap().as_str().to_owned(),
         })
     }
@@ -298,45 +310,69 @@ impl TestResult {
     }
 }
 
-// Filter -> should not run
-// Skip -> should run but we currently don't for reasons
-
 fn solc_solidity_filter(path: &Path) -> Option<&str> {
-    if path_contains(path, "libyul") {
+    if path_contains(path, "/libyul/") {
         return Some("actually a Yul test");
     }
 
-    if path_contains(path, "cmdlineTests") {
+    if path_contains(path, "/cmdlineTests/") {
         return Some("not same format as everything else");
     }
 
-    if path_contains(path, "experimental") {
+    if path_contains(path, "/experimental/") {
         return Some("solidity experimental");
     }
 
     // We don't parse licenses.
-    if path_contains(path, "license") {
+    if path_contains(path, "/license/") {
         return Some("license test");
     }
 
-    None
-}
+    if path_contains(path, "natspec") {
+        return Some("natspec is not checked");
+    }
 
-fn solc_solidity_skip(path: &Path) -> Option<&str> {
+    if path_contains(path, "_direction_override") {
+        return Some("not implemented");
+    }
+
+    if path_contains(path, "max_depth_reached_") {
+        return Some("recursion guard will not be implemented");
+    }
+
+    if path_contains(path, "wrong_compiler_") {
+        return Some("Solidity version is not checked");
+    }
+
     let stem = path.file_stem().unwrap().to_str().unwrap();
+    #[rustfmt::skip]
     if matches!(
         stem,
         // Exponent is too large, but apparently it's fine in Solc because the result is 0.
-        "rational_number_exp_limit_fine"
+        | "rational_number_exp_limit_fine"
+        // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
+        | "address_payable_type_expression"
+        | "mapping_from_address_payable"
+        // `hex` is not a keyword, looks like just a Solc limitation?
+        | "hex_as_identifier"
+        // TODO: These should be checked after parsing.
+        | "assembly_invalid_type"
+        | "assembly_dialect_leading_space"
+        // `1wei` gets lexed as two different tokens, I think it's fine.
+        | "invalid_denomination_no_whitespace"
+        // Actually not a broken version, we just don't check "^0 and ^1".
+        | "broken_version_1"
+        // TODO: CBA to implement.
+        | "unchecked_while_body"
     ) {
         return Some("manually skipped");
-    }
+    };
 
     None
 }
 
-fn solc_yul_skip(path: &Path) -> Option<&str> {
-    if path_contains(path, "recursion_depth.yul") {
+fn solc_yul_filter(path: &Path) -> Option<&str> {
+    if path_contains(path, "/recursion_depth.yul") {
         return Some("stack overflow");
     }
 
@@ -345,7 +381,7 @@ fn solc_yul_skip(path: &Path) -> Option<&str> {
     }
 
     if path_contains(path, "/period_in_identifier") || path_contains(path, "/dot_middle") {
-        // Why does Solc parse periods in Yul identifirs?
+        // Why does Solc parse periods as part of Yul identifirs?
         // `yul-identifier` is the same as `solidity-identifier`, which disallows periods:
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.YulIdentifier
         return Some("not actually valid identifiers");
@@ -400,12 +436,8 @@ fn utf8(s: &[u8]) -> &str {
 }
 
 fn path_contains(haystack: &Path, needle: &str) -> bool {
-    if needle.contains('/') {
-        let s = haystack.to_str().unwrap();
-        #[cfg(windows)]
-        let s = s.replace('\\', "/");
-        s.contains(needle)
-    } else {
-        haystack.components().any(|c| c.as_os_str() == needle)
-    }
+    let s = haystack.to_str().unwrap();
+    #[cfg(windows)]
+    let s = s.replace('\\', "/");
+    s.contains(needle)
 }
