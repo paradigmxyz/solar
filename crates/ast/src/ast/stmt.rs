@@ -1,4 +1,4 @@
-use super::{yul, CallArgs, DocComment, Expr, ParameterList, Path, StrLit, VariableDeclaration};
+use super::{yul, CallArgs, DocComment, Expr, ParameterList, Path, StrLit, VariableDefinition};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -21,12 +21,12 @@ pub enum StmtKind {
     Assembly(StmtAssembly),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDeclaration, Option<Box<Expr>>),
+    DeclSingle(VariableDefinition, Option<Box<Expr>>),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Vec<Option<VariableDeclaration>>, Box<Expr>),
+    DeclMulti(Vec<Option<VariableDefinition>>, Box<Expr>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block),
@@ -112,7 +112,7 @@ pub struct CatchClause {
 #[derive(Clone, Debug)]
 pub enum VarDeclKind {
     /// A single variable declaration: `uint x ...`.
-    Single(VariableDeclaration),
+    Single(VariableDefinition),
     /// A tuple of variable declarations: `(uint x, uint y) ...`.
-    Tuple(Vec<Option<VariableDeclaration>>),
+    Tuple(Vec<Option<VariableDefinition>>),
 }

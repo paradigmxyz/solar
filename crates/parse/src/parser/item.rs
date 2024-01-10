@@ -82,7 +82,8 @@ impl<'a> Parser<'a> {
             self.bump(); // `error`
             self.parse_error().map(ItemKind::Error)
         } else if self.is_variable_declaration() {
-            self.parse_variable_definition().map(ItemKind::Variable)
+            let flags = if self.in_contract { VarFlags::STATE_VAR } else { VarFlags::CONSTANT_VAR };
+            self.parse_variable_definition(flags).map(ItemKind::Variable)
         } else {
             return Ok(None);
         };
@@ -187,13 +188,7 @@ impl<'a> Parser<'a> {
         loop {
             if let Some(visibility) = self.parse_visibility() {
                 if !flags.contains(FunctionFlags::from_visibility(visibility)) {
-                    let msg = match flags.visibilities() {
-                        Some(iter) => format!(
-                            "`{visibility}` not allowed here; allowed values: {}",
-                            iter.map(|v| v.to_str()).format(", ")
-                        ),
-                        None => "visibility is not allowed here".into(),
-                    };
+                    let msg = visibility_error(visibility, flags.visibilities());
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if header.visibility.is_some() {
                     let msg = "visibility already specified";
@@ -203,13 +198,7 @@ impl<'a> Parser<'a> {
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
                 if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
-                    let msg = match flags.state_mutabilities() {
-                        Some(iter) => format!(
-                            "`{state_mutability}` not allowed here; allowed values: {}",
-                            iter.map(|v| v.to_str()).format(", ")
-                        ),
-                        None => "state mutability is not allowed here".into(),
-                    };
+                    let msg = state_mutability_error(state_mutability, flags.state_mutabilities());
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if header.state_mutability.is_some() {
                     let msg = "state mutability already specified";
@@ -228,6 +217,7 @@ impl<'a> Parser<'a> {
                     header.virtual_ = true;
                 }
             } else if self.eat_keyword(kw::Override) {
+                let o = self.parse_override()?;
                 if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
@@ -235,7 +225,7 @@ impl<'a> Parser<'a> {
                     let msg = "override already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.override_ = Some(self.parse_override()?);
+                    header.override_ = Some(o);
                 }
             } else if flags.contains(FunctionFlags::MODIFIERS)
                 && self.token.is_non_reserved_ident(false)
@@ -260,7 +250,7 @@ impl<'a> Parser<'a> {
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
             false,
-            |this| this.parse_variable_declaration(VarFlags::STRUCT),
+            |this| this.parse_variable_definition(VarFlags::STRUCT),
         )?;
         Ok(ItemStruct { name, fields })
     }
@@ -331,8 +321,15 @@ impl<'a> Parser<'a> {
     fn parse_pragma(&mut self) -> PResult<'a, PragmaDirective> {
         let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
 
-        let tokens = if (is_ident_or_strlit(&self.token)
-            && self.look_ahead(1).kind == TokenKind::Semi)
+        let tokens = if self.check_keyword(sym::solidity)
+            || (self.token.is_ident()
+                && self.look_ahead_with(1, |t| t.is_op() || t.is_rational_lit()))
+        {
+            // `pragma <ident> <req>;`
+            let ident = self.parse_ident_any()?;
+            let req = self.parse_semver_req()?;
+            PragmaTokens::Version(ident, req)
+        } else if (is_ident_or_strlit(&self.token) && self.look_ahead(1).kind == TokenKind::Semi)
             || (is_ident_or_strlit(&self.token)
                 && self.look_ahead_with(1, is_ident_or_strlit)
                 && self.look_ahead(2).kind == TokenKind::Semi)
@@ -346,14 +343,6 @@ impl<'a> Parser<'a> {
                 None
             };
             PragmaTokens::Custom(k, v)
-        } else if self.eat_keyword(sym::solidity)
-            || (self.token.is_ident()
-                && self.look_ahead_with(1, |t| t.is_op() || t.is_rational_lit()))
-        {
-            // `pragma <ident> <req>;`
-            let ident = self.parse_ident_any()?;
-            let req = self.parse_semver_req()?;
-            PragmaTokens::Version(ident, req)
         } else {
             let mut tokens = Vec::new();
             while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
@@ -655,50 +644,119 @@ impl<'a> Parser<'a> {
 
     /* ----------------------------------------- Common ----------------------------------------- */
 
-    /// Parses a variable definition.
-    fn parse_variable_definition(&mut self) -> PResult<'a, VariableDefinition> {
+    /// Parses a variable declaration/definition.
+    ///
+    /// `state-variable-declaration`, `constant-variable-declaration`, `variable-declaration`,
+    /// `variable-declaration-statement`, and more.
+    pub(super) fn parse_variable_definition(
+        &mut self,
+        flags: VarFlags,
+    ) -> PResult<'a, VariableDefinition> {
         let ty = self.parse_type()?;
-        let mut storage = None;
+
+        let mut data_location = None;
         let mut visibility = None;
         let mut mutability = None;
         let mut override_ = None;
+        let mut indexed = false;
         loop {
-            if let Some(s) = self.parse_storage() {
-                if storage.is_some() {
-                    let msg = "storage already specified";
+            if let Some(s) = self.parse_data_location() {
+                if !flags.contains(VarFlags::DATALOC) {
+                    let msg = "storage specifiers are not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if data_location.is_some() {
+                    let msg = "data location already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    storage = Some(s);
+                    data_location = Some(s);
                 }
             } else if let Some(v) = self.parse_visibility() {
-                if visibility.is_some() {
+                if !flags.contains(VarFlags::from_visibility(v)) {
+                    let msg = visibility_error(v, flags.visibilities());
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if visibility.is_some() {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     visibility = Some(v);
                 }
             } else if let Some(m) = self.parse_variable_mutability() {
-                if mutability.is_some() {
+                if !flags.contains(VarFlags::from_varmut(m)) {
+                    let msg = varmut_error(m, flags.varmuts());
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if mutability.is_some() {
                     let msg = "mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
                     mutability = Some(m);
                 }
+            } else if self.eat_keyword(kw::Indexed) {
+                if !flags.contains(VarFlags::INDEXED) {
+                    let msg = "`indexed` is not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if indexed {
+                    let msg = "`indexed` already specified";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else {
+                    indexed = true;
+                }
+            } else if self.eat_keyword(kw::Virtual) {
+                let msg = "`virtual` is not allowed here";
+                self.dcx().err(msg).span(self.prev_token.span).emit();
             } else if self.eat_keyword(kw::Override) {
-                if override_.is_some() {
+                let o = self.parse_override()?;
+                if !flags.contains(VarFlags::OVERRIDE) {
+                    let msg = "`override` is not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if override_.is_some() {
                     let msg = "override already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    override_ = Some(self.parse_override()?);
+                    override_ = Some(o);
                 }
             } else {
                 break;
             }
         }
-        let name = self.parse_ident()?;
-        let initializer = if self.eat(&TokenKind::Eq) { Some(self.parse_expr()?) } else { None };
-        self.expect_semi()?;
-        Ok(VariableDefinition { ty, storage, visibility, mutability, override_, name, initializer })
+
+        let name = if flags.contains(VarFlags::NAME) {
+            self.parse_ident().map(Some)
+        } else {
+            self.parse_ident_opt()
+        }?;
+        if let Some(name) = &name {
+            if flags.contains(VarFlags::NAME_WARN) {
+                debug_assert!(!flags.contains(VarFlags::NAME));
+                let msg = "named function type parameters are deprecated";
+                self.dcx().warn(msg).code(error_code!(E6162)).span(name.span).emit();
+            }
+        }
+
+        let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(&TokenKind::Eq) {
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+
+        if flags.contains(VarFlags::INITIALIZER) {
+            self.expect_semi()?;
+        }
+
+        if mutability == Some(VarMut::Constant) && initializer.is_none() {
+            let msg = "constant variable must be initialized";
+            self.dcx().err(msg).span(ty.span.to(self.prev_token.span)).emit();
+        }
+
+        Ok(VariableDefinition {
+            ty,
+            data_location,
+            visibility,
+            mutability,
+            override_,
+            indexed,
+            name,
+            initializer,
+        })
     }
 
     /// Parses mutability of a variable: `constant | immutable`.
@@ -714,63 +772,14 @@ impl<'a> Parser<'a> {
 
     /// Parses a parameter list: `($(vardecl),*)`.
     pub(super) fn parse_parameter_list(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(true, |this| this.parse_variable_declaration(flags))
+        self.parse_paren_comma_seq(true, |this| this.parse_variable_definition(flags))
             .map(|(x, _)| x)
     }
 
     /// Parses a returns list (non-emtpy parameter list).
     pub(super) fn parse_returns(&mut self, flags: VarFlags) -> PResult<'a, ParameterList> {
-        self.parse_paren_comma_seq(false, |this| this.parse_variable_declaration(flags))
+        self.parse_paren_comma_seq(false, |this| this.parse_variable_definition(flags))
             .map(|(x, _)| x)
-    }
-
-    /// Parses a variable declaration: `type storage? indexed? name`.
-    pub(super) fn parse_variable_declaration(
-        &mut self,
-        flags: VarFlags,
-    ) -> PResult<'a, VariableDeclaration> {
-        let ty = self.parse_type()?;
-
-        let mut storage = None;
-        let mut indexed = false;
-        loop {
-            if let Some(s) = self.parse_storage() {
-                if !flags.contains(VarFlags::STORAGE) {
-                    let msg = "storage specifiers are not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if storage.is_some() {
-                    let msg = "storage already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else {
-                    storage = Some(s);
-                }
-            } else if self.eat_keyword(kw::Indexed) {
-                if !flags.contains(VarFlags::INDEXED) {
-                    let msg = "`indexed` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if indexed {
-                    let msg = "`indexed` already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else {
-                    indexed = true;
-                }
-            } else {
-                break;
-            }
-        }
-
-        let name = if flags.contains(VarFlags::NAME) {
-            self.parse_ident().map(Some)
-        } else {
-            self.parse_ident_opt()
-        }?;
-        if flags.contains(VarFlags::NAME_WARN) && name.is_some() {
-            debug_assert!(!flags.contains(VarFlags::NAME));
-            let msg = "named function type parameters are deprecated";
-            self.dcx().warn(msg).code(error_code!(E6162)).span(self.prev_token.span).emit();
-        }
-
-        Ok(VariableDeclaration { ty, storage, indexed, name })
     }
 
     /// Parses a list of inheritance specifiers.
@@ -835,13 +844,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a storage location: `storage | memory | calldata`.
-    pub(super) fn parse_storage(&mut self) -> Option<Storage> {
+    pub(super) fn parse_data_location(&mut self) -> Option<DataLocation> {
         if self.eat_keyword(kw::Storage) {
-            Some(Storage::Storage)
+            Some(DataLocation::Storage)
         } else if self.eat_keyword(kw::Memory) {
-            Some(Storage::Memory)
+            Some(DataLocation::Memory)
         } else if self.eat_keyword(kw::Calldata) {
-            Some(Storage::Calldata)
+            Some(DataLocation::Calldata)
         } else {
             None
         }
@@ -879,18 +888,48 @@ impl<'a> Parser<'a> {
 bitflags::bitflags! {
     /// Flags for parsing variable declarations.
     #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(crate) struct VarFlags: u8 {
+    pub(super) struct VarFlags: u16 {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
-        const STORAGE   = 1 << 1;
-        const INDEXED   = 1 << 2;
-        const NAME      = 1 << 3;
-        const NAME_WARN = 1 << 4;
+        const DATALOC     = 1 << 1;
+        const INDEXED     = 1 << 2;
 
-        const STRUCT      = Self::NAME.bits();
-        const ERROR       = 0;
-        const EVENT       = Self::INDEXED.bits();
-        const FUNCTION    = Self::STORAGE.bits();
-        const FUNCTION_TY = Self::STORAGE.bits() | Self::NAME_WARN.bits();
+        const PRIVATE     = 1 << 3;
+        const INTERNAL    = 1 << 4;
+        const PUBLIC      = 1 << 5;
+        const EXTERNAL    = 1 << 6; // Never accepted, just for error messages.
+        const VISIBILITY  = Self::PRIVATE.bits() |
+                            Self::INTERNAL.bits() |
+                            Self::PUBLIC.bits() |
+                            Self::EXTERNAL.bits();
+
+        const CONSTANT    = 1 << 7;
+        const IMMUTABLE   = 1 << 8;
+
+        const OVERRIDE    = 1 << 9;
+
+        const NAME        = 1 << 10;
+        const NAME_WARN   = 1 << 11;
+
+        const INITIALIZER = 1 << 12;
+
+        const STRUCT       = Self::NAME.bits();
+        const ERROR        = 0;
+        const EVENT        = Self::INDEXED.bits();
+        const FUNCTION     = Self::DATALOC.bits();
+        const FUNCTION_TY  = Self::DATALOC.bits() | Self::NAME_WARN.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration
+        const STATE_VAR    = Self::PRIVATE.bits() |
+                             Self::INTERNAL.bits() |
+                             Self::PUBLIC.bits() |
+                             Self::CONSTANT.bits() |
+                             Self::IMMUTABLE.bits() |
+                             Self::OVERRIDE.bits() |
+                             Self::NAME.bits() |
+                             Self::INITIALIZER.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration
+        const CONSTANT_VAR = Self::CONSTANT.bits() | Self::NAME.bits() | Self::INITIALIZER.bits();
     }
 
     /// Flags for parsing function headers.
@@ -974,6 +1013,60 @@ bitflags::bitflags! {
     }
 }
 
+impl VarFlags {
+    fn from_visibility(v: Visibility) -> Self {
+        match v {
+            Visibility::Private => Self::PRIVATE,
+            Visibility::Internal => Self::INTERNAL,
+            Visibility::Public => Self::PUBLIC,
+            Visibility::External => Self::EXTERNAL,
+        }
+    }
+
+    fn into_visibility(self) -> Option<Visibility> {
+        match self {
+            Self::PRIVATE => Some(Visibility::Private),
+            Self::INTERNAL => Some(Visibility::Internal),
+            Self::PUBLIC => Some(Visibility::Public),
+            Self::EXTERNAL => Some(Visibility::External),
+            _ => None,
+        }
+    }
+
+    fn visibilities(self) -> Option<impl Iterator<Item = Visibility>> {
+        self.supported(Self::VISIBILITY).map(|iter| iter.map(|x| x.into_visibility().unwrap()))
+    }
+
+    fn from_varmut(v: VarMut) -> Self {
+        match v {
+            VarMut::Constant => Self::CONSTANT,
+            VarMut::Immutable => Self::IMMUTABLE,
+        }
+    }
+
+    fn into_varmut(self) -> Option<VarMut> {
+        match self {
+            Self::CONSTANT => Some(VarMut::Constant),
+            Self::IMMUTABLE => Some(VarMut::Immutable),
+            _ => None,
+        }
+    }
+
+    fn varmuts(self) -> Option<impl Iterator<Item = VarMut>> {
+        self.supported(Self::CONSTANT | Self::IMMUTABLE)
+            .map(|iter| iter.map(|x| x.into_varmut().unwrap()))
+    }
+
+    fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
+        let s = self.intersection(what);
+        if s.is_empty() {
+            None
+        } else {
+            Some(s.iter())
+        }
+    }
+}
+
 impl FunctionFlags {
     fn from_kind(kind: FunctionKind) -> Self {
         match kind {
@@ -1037,6 +1130,32 @@ impl FunctionFlags {
         } else {
             Some(s.iter())
         }
+    }
+}
+
+fn visibility_error(v: Visibility, iter: Option<impl Iterator<Item = Visibility>>) -> String {
+    common_flags_error(v, "visibility", iter)
+}
+
+fn varmut_error(m: VarMut, iter: Option<impl Iterator<Item = VarMut>>) -> String {
+    common_flags_error(m, "mutability", iter)
+}
+
+fn state_mutability_error(
+    m: StateMutability,
+    iter: Option<impl Iterator<Item = StateMutability>>,
+) -> String {
+    common_flags_error(m, "state mutability", iter)
+}
+
+fn common_flags_error<T: std::fmt::Display>(
+    t: T,
+    desc: &str,
+    iter: Option<impl Iterator<Item = T>>,
+) -> String {
+    match iter {
+        Some(iter) => format!("`{t}` not allowed here; allowed values: {}", iter.format(", ")),
+        None => format!("{desc} is not allowed here"),
     }
 }
 

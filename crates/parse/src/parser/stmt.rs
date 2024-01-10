@@ -280,7 +280,7 @@ impl<'a> Parser<'a> {
                     && next_is_ok(this))
         };
         if self.token.is_ident() && is_var(self) {
-            self.parse_variable_declaration(VarFlags::FUNCTION).map(ExprOrVar::Var)
+            self.parse_variable_definition(VarFlags::FUNCTION).map(ExprOrVar::Var)
         } else {
             self.parse_expr().map(ExprOrVar::Expr)
         }
@@ -310,7 +310,7 @@ impl<'a> Parser<'a> {
 
 enum ExprOrVar {
     Expr(Box<Expr>),
-    Var(VariableDeclaration),
+    Var(VariableDefinition),
 }
 
 impl ExprOrVar {
@@ -328,7 +328,7 @@ impl ExprOrVar {
         }
     }
 
-    fn into_var<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, VariableDeclaration> {
+    fn into_var<'a>(self, parser: &mut Parser<'a>) -> PResult<'a, VariableDefinition> {
         match self {
             Self::Expr(expr) => Err(parser
                 .dcx()

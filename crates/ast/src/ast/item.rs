@@ -4,7 +4,7 @@ use std::fmt;
 use sulk_interface::{Ident, Span};
 
 /// A list of variable declarations.
-pub type ParameterList = Vec<VariableDeclaration>;
+pub type ParameterList = Vec<VariableDefinition>;
 
 /// A top-level item in a Solidity source file.
 #[derive(Clone, Debug)]
@@ -92,7 +92,7 @@ impl ItemKind {
         match self {
             Self::Pragma(_) => false,
             Self::Import(_) => false,
-            Self::Using(_) => false,
+            Self::Using(_) => true,
             Self::Contract(_) => false,
             Self::Function(_) => true,
             Self::Variable(_) => true,
@@ -394,23 +394,9 @@ pub struct Override {
     pub paths: Vec<Path>,
 }
 
-/// A variable declaration: `string memory hello`.
-#[derive(Clone, Debug)]
-pub struct VariableDeclaration {
-    /// The type of the variable.
-    pub ty: Ty,
-    /// The storage location of the variable, if any.
-    pub storage: Option<Storage>,
-    /// Whether the variable is indexed.
-    pub indexed: bool,
-    /// The name of the variable.
-    /// This is always `Some` if parsed as part of [`ParameterList`] or a [`Stmt`](super::Stmt).
-    pub name: Option<Ident>,
-}
-
 /// A storage location.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Storage {
+pub enum DataLocation {
     /// `memory`
     Memory,
     /// `storage`
@@ -419,13 +405,13 @@ pub enum Storage {
     Calldata,
 }
 
-impl fmt::Display for Storage {
+impl fmt::Display for DataLocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.to_str())
     }
 }
 
-impl Storage {
+impl DataLocation {
     /// Returns the string representation of the storage location.
     pub const fn to_str(self) -> &'static str {
         match self {
@@ -503,9 +489,10 @@ pub struct VariableDefinition {
     pub ty: Ty,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
-    pub storage: Option<Storage>,
+    pub data_location: Option<DataLocation>,
     pub override_: Option<Override>,
-    pub name: Ident,
+    pub indexed: bool,
+    pub name: Option<Ident>,
     pub initializer: Option<Box<Expr>>,
 }
 
@@ -532,6 +519,16 @@ impl VarMut {
             Self::Constant => "constant",
         }
     }
+
+    /// Returns `true` if the variable is immutable.
+    pub const fn is_immutable(self) -> bool {
+        matches!(self, Self::Immutable)
+    }
+
+    /// Returns `true` if the variable is constant.
+    pub const fn is_constant(self) -> bool {
+        matches!(self, Self::Constant)
+    }
 }
 
 /// A struct definition: `struct Foo { uint256 bar; }`.
@@ -540,7 +537,7 @@ impl VarMut {
 #[derive(Clone, Debug)]
 pub struct ItemStruct {
     pub name: Ident,
-    pub fields: Vec<VariableDeclaration>,
+    pub fields: Vec<VariableDefinition>,
 }
 
 /// An enum definition: `enum Foo { A, B, C }`.
