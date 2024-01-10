@@ -238,9 +238,8 @@ impl Runner {
         let mut passed = 0;
         let mut skipped = 0;
         let mut failed = 0;
-        let mut printed = 0;
-        for (t, result, time) in results.iter().rev() {
-            if printed < 10 {
+        for (i, (t, result, time)) in results.iter().rev().enumerate() {
+            if i < 10 {
                 eprintln!("- {result:?} in {time:#?} for {t:#?}");
             }
             let counter = match result {
@@ -249,7 +248,6 @@ impl Runner {
                 TestResult::Failed => &mut failed,
             };
             *counter += 1;
-            printed += 1;
         }
 
         eprintln!("{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");

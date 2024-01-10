@@ -320,7 +320,7 @@ pub struct ItemFunction {
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
 ///
-/// Used by all [function items](ItemFunction) and the [function type](super::Ty::Function).
+/// Used by all [function items](ItemFunction) and the [function type](super::TyKind::Function).
 #[derive(Clone, Debug, Default)]
 pub struct FunctionHeader {
     /// The name of the function.
