@@ -176,11 +176,7 @@ impl<'a> Parser<'a> {
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
-                for &ident in path.segments() {
-                    if ident.is_yul_keyword() || ident.is_yul_evm_builtin() {
-                        self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
-                    }
-                }
+                self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
             }
         } else {

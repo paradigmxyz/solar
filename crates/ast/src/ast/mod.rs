@@ -42,6 +42,12 @@ pub struct DocComment {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Path(SmallVec<[Ident; 1]>);
 
+impl FromIterator<Ident> for Path {
+    fn from_iter<T: IntoIterator<Item = Ident>>(iter: T) -> Self {
+        Self(SmallVec::from_iter(iter))
+    }
+}
+
 impl PartialEq<Ident> for Path {
     fn eq(&self, other: &Ident) -> bool {
         match self.get_ident() {
@@ -70,6 +76,16 @@ impl Path {
     pub fn new(segments: Vec<Ident>) -> Self {
         assert!(!segments.is_empty());
         Self(SmallVec::from(segments))
+    }
+
+    /// Creates a new path from a slice of segments.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `segments` is empty.
+    pub fn from_slice(segments: &[Ident]) -> Self {
+        assert!(!segments.is_empty());
+        Self(SmallVec::from_slice(segments))
     }
 
     /// Creates a new path from a single ident.

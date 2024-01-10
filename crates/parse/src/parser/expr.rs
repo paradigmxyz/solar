@@ -4,8 +4,13 @@ use sulk_interface::kw;
 
 impl<'a> Parser<'a> {
     /// Parses an expression.
+    #[inline]
     pub fn parse_expr(&mut self) -> PResult<'a, Box<Expr>> {
-        let expr = self.parse_binary_expr(4)?;
+        self.parse_expr_with(None)
+    }
+
+    pub(super) fn parse_expr_with(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+        let expr = self.parse_binary_expr(4, with)?;
         if self.eat(&TokenKind::Question) {
             let then = self.parse_expr()?;
             self.expect(&TokenKind::Colon)?;
@@ -28,8 +33,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a binary expression.
-    fn parse_binary_expr(&mut self, min_precedence: usize) -> PResult<'a, Box<Expr>> {
-        let mut expr = self.parse_unary_expr()?;
+    fn parse_binary_expr(
+        &mut self,
+        min_precedence: usize,
+        with: Option<Box<Expr>>,
+    ) -> PResult<'a, Box<Expr>> {
+        let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(&self.token);
         while precedence >= min_precedence {
             while token_precedence(&self.token) == precedence {
@@ -43,7 +52,7 @@ impl<'a> Parser<'a> {
                 let token = self.token.clone();
                 self.bump(); // binop token
 
-                let rhs = self.parse_binary_expr(next_precedence)?;
+                let rhs = self.parse_binary_expr(next_precedence, None)?;
 
                 let span = expr.span.to(self.prev_token.span);
 
@@ -65,40 +74,47 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a unary expression.
-    fn parse_unary_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    fn parse_unary_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
         if self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
-            self.dcx().err("unary plus is not supported").emit();
+            self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
         }
 
-        let lo = self.token.span;
-        if self.eat_keyword(kw::Delete) {
-            self.parse_unary_expr().map(|expr| {
-                let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::Delete(expr) })
-            })
-        } else if let Some(unop) = self.token.as_unop(false) {
-            self.bump(); // unop
-            self.parse_unary_expr().map(|expr| {
-                let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::Unary(unop, expr) })
-            })
-        } else {
-            self.parse_lhs_expr().map(|expr| {
-                if let Some(unop) = self.token.as_unop(true) {
-                    self.bump(); // unop
-                    let span = lo.to(self.prev_token.span);
+        let lo = with.as_ref().map(|e| e.span).unwrap_or(self.token.span);
+        let parse_lhs = |this: &mut Self, with| {
+            this.parse_lhs_expr(with).map(|expr| {
+                if let Some(unop) = this.token.as_unop(true) {
+                    this.bump(); // unop
+                    let span = lo.to(this.prev_token.span);
                     Box::new(Expr { span, kind: ExprKind::Unary(unop, expr) })
                 } else {
                     expr
                 }
             })
+        };
+        if let Some(with) = with {
+            parse_lhs(self, Some(with))
+        } else if self.eat_keyword(kw::Delete) {
+            self.parse_unary_expr(None).map(|expr| {
+                let span = lo.to(self.prev_token.span);
+                Box::new(Expr { span, kind: ExprKind::Delete(expr) })
+            })
+        } else if let Some(unop) = self.token.as_unop(false) {
+            self.bump(); // unop
+            self.parse_unary_expr(None).map(|expr| {
+                let span = lo.to(self.prev_token.span);
+                Box::new(Expr { span, kind: ExprKind::Unary(unop, expr) })
+            })
+        } else {
+            parse_lhs(self, None)
         }
     }
 
     /// Parses a primary left-hand-side expression.
-    fn parse_lhs_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    fn parse_lhs_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
         let lo = self.token.span;
-        let mut expr = if self.eat_keyword(kw::New) {
+        let mut expr = if let Some(with) = with {
+            Ok(with)
+        } else if self.eat_keyword(kw::New) {
             self.parse_type().map(|ty| {
                 let span = lo.to(self.prev_token.span);
                 Box::new(Expr { span, kind: ExprKind::New(ty) })
@@ -120,28 +136,8 @@ impl<'a> Parser<'a> {
                 // expr(args)
                 let args = self.parse_call_args()?;
                 ExprKind::Call(expr, args)
-            } else if self.eat(&TokenKind::OpenDelim(Delimiter::Bracket)) {
-                // expr[], expr[start?], expr[start?:end?]
-                let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
-                    // expr[]
-                    IndexKind::Index(None)
-                } else {
-                    let start =
-                        if self.check(&TokenKind::Colon) { None } else { Some(self.parse_expr()?) };
-                    if self.eat_noexpect(&TokenKind::Colon) {
-                        // expr[start?:end?]
-                        let end = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
-                            None
-                        } else {
-                            Some(self.parse_expr()?)
-                        };
-                        IndexKind::Range(start, end)
-                    } else {
-                        // expr[start?]
-                        IndexKind::Index(start)
-                    }
-                };
-                self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
+            } else if self.check(&TokenKind::OpenDelim(Delimiter::Bracket)) {
+                let kind = self.parse_expr_index_kind()?;
                 ExprKind::Index(expr, kind)
             } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
                 // This may be `try` statement block.
@@ -182,7 +178,7 @@ impl<'a> Parser<'a> {
                 }
             }
             ExprKind::Type(ty)
-        } else if self.check_any_ident() {
+        } else if self.check_nr_ident() {
             let ident = self.parse_ident()?;
             ExprKind::Ident(ident)
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis))
@@ -191,7 +187,7 @@ impl<'a> Parser<'a> {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
             let is_array = close_delim == Delimiter::Bracket;
-            let list = self.parse_seq_optional_items(close_delim, |this| this.parse_expr())?;
+            let list = self.parse_optional_items_seq(close_delim, |this| this.parse_expr())?;
             if is_array {
                 if !list.iter().all(Option::is_some) {
                     let msg = "array expression components cannot be empty";
@@ -221,6 +217,31 @@ impl<'a> Parser<'a> {
         } else {
             self.parse_unnamed_args().map(CallArgs::Unnamed)
         }
+    }
+
+    /// Parses a `[]` indexing expression.
+    pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'a, IndexKind> {
+        self.expect(&TokenKind::OpenDelim(Delimiter::Bracket))?;
+        let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+            // expr[]
+            IndexKind::Index(None)
+        } else {
+            let start = if self.check(&TokenKind::Colon) { None } else { Some(self.parse_expr()?) };
+            if self.eat_noexpect(&TokenKind::Colon) {
+                // expr[start?:end?]
+                let end = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+                    None
+                } else {
+                    Some(self.parse_expr()?)
+                };
+                IndexKind::Range(start, end)
+            } else {
+                // expr[start?]
+                IndexKind::Index(start)
+            }
+        };
+        self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
+        Ok(kind)
     }
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`

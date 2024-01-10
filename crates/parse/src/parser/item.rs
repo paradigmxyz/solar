@@ -170,7 +170,24 @@ impl<'a> Parser<'a> {
         };
 
         if flags.contains(FunctionFlags::NAME) {
-            header.name = Some(self.parse_ident()?);
+            // Allow and warn on `function fallback` or `function receive`.
+            let ident;
+            if flags == FunctionFlags::FUNCTION
+                && self.token.is_keyword_any(&[kw::Fallback, kw::Receive])
+            {
+                let kw_span = self.prev_token.span;
+                ident = self.parse_ident_any()?;
+                let msg = format!("function named `{ident}`");
+                let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(E3445));
+                if self.in_contract {
+                    let help = format!("remove the `function` keyword if you intend this to be a contract's {ident} function");
+                    warn = warn.span_help(kw_span, help);
+                }
+                warn.emit();
+            } else {
+                ident = self.parse_ident()?;
+            }
+            header.name = Some(ident);
         } else if self.token.is_non_reserved_ident(false) {
             let msg = "function names are not allowed here";
             self.dcx().err(msg).span(self.token.span).emit();
@@ -186,7 +203,14 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            if let Some(visibility) = self.parse_visibility() {
+            // This is needed to skip parsing surrounding variable's visibility in function types.
+            // E.g. in `function(uint) external internal e;` the `internal` is the surrounding
+            // variable's visibility, not the function's.
+            // HACK: Ugly way to add an extra guard to `if let` without the unstable `let-chains`.
+            // Ideally this would be `if let Some(_) = _ && guard { ... }`.
+            let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
+                .then_some(());
+            if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
                 if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                     let msg = visibility_error(visibility, flags.visibilities());
                     self.dcx().err(msg).span(self.prev_token.span).emit();
@@ -303,8 +327,11 @@ impl<'a> Parser<'a> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
         let name = self.parse_ident()?;
-        let (variants, _) =
-            self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_ident)?;
+        let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            // Ignore doc-comments.
+            let _ = this.parse_doc_comments()?;
+            this.parse_ident()
+        })?;
         Ok(ItemEnum { name, variants })
     }
 
@@ -652,7 +679,22 @@ impl<'a> Parser<'a> {
         &mut self,
         flags: VarFlags,
     ) -> PResult<'a, VariableDefinition> {
-        let ty = self.parse_type()?;
+        self.parse_variable_definition_with(flags, None)
+    }
+
+    pub(super) fn parse_variable_definition_with(
+        &mut self,
+        flags: VarFlags,
+        ty: Option<Ty>,
+    ) -> PResult<'a, VariableDefinition> {
+        let ty = match ty {
+            Some(ty) => ty,
+            None => {
+                // Ignore doc-comments.
+                let _ = self.parse_doc_comments()?;
+                self.parse_type()?
+            }
+        };
 
         let mut data_location = None;
         let mut visibility = None;
@@ -738,7 +780,7 @@ impl<'a> Parser<'a> {
             None
         };
 
-        if flags.contains(VarFlags::INITIALIZER) {
+        if flags.contains(VarFlags::SEMI) {
             self.expect_semi()?;
         }
 
@@ -909,6 +951,7 @@ bitflags::bitflags! {
         const NAME_WARN   = 1 << 11;
 
         const INITIALIZER = 1 << 12;
+        const SEMI        = 1 << 13;
 
         const STRUCT       = Self::NAME.bits();
         const ERROR        = 0;
@@ -924,10 +967,17 @@ bitflags::bitflags! {
                              Self::IMMUTABLE.bits() |
                              Self::OVERRIDE.bits() |
                              Self::NAME.bits() |
-                             Self::INITIALIZER.bits();
+                             Self::INITIALIZER.bits() |
+                             Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration
-        const CONSTANT_VAR = Self::CONSTANT.bits() | Self::NAME.bits() | Self::INITIALIZER.bits();
+        const CONSTANT_VAR = Self::CONSTANT.bits() |
+                             Self::NAME.bits() |
+                             Self::INITIALIZER.bits() |
+                             Self::SEMI.bits();
+
+        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclarationStatement
+        const VAR = Self::DATALOC.bits() | Self::INITIALIZER.bits();
     }
 
     /// Flags for parsing function headers.

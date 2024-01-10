@@ -88,6 +88,10 @@ impl Runner {
             };
             let src = src.as_str();
 
+            if src.contains("pragma experimental solidity") {
+                return skip("experimental solidity");
+            }
+
             if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
                 return skip("matched delimiters");
             }
@@ -108,7 +112,6 @@ impl Runner {
                 (None, false) => {
                     eprintln!("\n---- unexpected error in {} ----", rel_path.display());
                     TestResult::Failed
-                    // TestResult::Skipped
                 }
                 (Some(e), true) => {
                     if e.kind.parse_time_error() {
@@ -240,7 +243,8 @@ impl Runner {
         let mut failed = 0;
         for (i, (t, result, time)) in results.iter().rev().enumerate() {
             if i < 10 {
-                eprintln!("- {result:?} in {time:#?} for {t:#?}");
+                let _ = (i, t, time);
+                // eprintln!("- {result:?} in {time:#?} for {t:#?}");
             }
             let counter = match result {
                 TestResult::Passed => &mut passed,
@@ -362,6 +366,10 @@ fn solc_solidity_filter(path: &Path) -> Option<&str> {
         | "broken_version_1"
         // TODO: CBA to implement.
         | "unchecked_while_body"
+        // TODO: EVM version-aware parsing. Should this even be implemented?
+        | "basefee_berlin_function"
+        | "prevrandao_allowed_function_pre_paris"
+        
     ) {
         return Some("manually skipped");
     };

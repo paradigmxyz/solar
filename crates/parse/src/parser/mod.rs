@@ -416,7 +416,7 @@ impl<'a> Parser<'a> {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
     }
 
-    fn check_any_ident(&mut self) -> bool {
+    fn check_nr_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
     }
 
@@ -708,7 +708,9 @@ impl<'a> Parser<'a> {
     pub fn parse_doc_comments(&mut self) -> PResult<'a, Vec<DocComment>> {
         let mut doc_comments = Vec::new();
         while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
-            debug_assert!(is_doc, "comments should not be in the token stream");
+            if !is_doc {
+                self.dcx().bug("comments should not be in the token stream").span(span).emit();
+            }
             doc_comments.push(DocComment { kind, span, symbol });
             self.bump();
         }

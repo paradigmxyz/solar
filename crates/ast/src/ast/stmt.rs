@@ -21,7 +21,7 @@ pub enum StmtKind {
     Assembly(StmtAssembly),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDefinition, Option<Box<Expr>>),
+    DeclSingle(VariableDefinition),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///

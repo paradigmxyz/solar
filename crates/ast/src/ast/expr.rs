@@ -14,6 +14,18 @@ pub struct Expr {
     pub kind: ExprKind,
 }
 
+impl Expr {
+    /// Creates a new expression from an identifier.
+    pub fn from_ident(ident: Ident) -> Self {
+        Self { span: ident.span, kind: ExprKind::Ident(ident) }
+    }
+
+    /// Creates a new expression from a type.
+    pub fn from_ty(ty: Ty) -> Self {
+        Self { span: ty.span, kind: ExprKind::Type(ty) }
+    }
+}
+
 /// A kind of expression.
 #[derive(Clone, Debug)]
 pub enum ExprKind {

@@ -161,6 +161,12 @@ impl Ident {
     pub fn is_bool_lit(self) -> bool {
         self.name.is_bool_lit()
     }
+
+    /// Returns `true` if the identifier is a location specifier.
+    #[inline]
+    pub fn is_location_specifier(self) -> bool {
+        self.name.is_location_specifier()
+    }
 }
 
 /// An interned string.
@@ -286,6 +292,12 @@ impl Symbol {
     #[inline]
     pub fn is_bool_lit(self) -> bool {
         self == kw::False || self == kw::True
+    }
+
+    /// Returns `true` if the symbol is a location specifier.
+    #[inline]
+    pub fn is_location_specifier(self) -> bool {
+        matches!(self, kw::Calldata | kw::Memory | kw::Storage)
     }
 
     /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.

@@ -643,6 +643,12 @@ impl Token {
         self.kind.is_comment()
     }
 
+    /// Returns `true` if the token is a location specifier.
+    #[inline]
+    pub fn is_location_specifier(&self) -> bool {
+        self.is_ident_where(Ident::is_location_specifier)
+    }
+
     /// Returns this token's full description: `{self.description()} '{self.kind}'`.
     pub fn full_description(&self) -> impl fmt::Display + '_ {
         // https://github.com/rust-lang/rust/blob/44bf2a32a52467c45582c3355a893400e620d010/compiler/rustc_parse/src/parser/mod.rs#L378
