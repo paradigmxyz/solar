@@ -1,12 +1,54 @@
 //! Yul AST.
 
-use super::{DocComment, Lit, Path};
+use super::{DocComment, Lit, Path, StrLit};
 use sulk_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
 pub type Block = Vec<Stmt>;
+
+/// A Yul object.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/yul.html#specification-of-yul-object>
+#[derive(Clone, Debug)]
+pub struct Object {
+    /// The doc-comments of the object.
+    pub docs: Vec<DocComment>,
+    /// The span of the object, including the `object` keyword, but excluding the doc-comments.
+    pub span: Span,
+    /// The name of the object.
+    pub name: StrLit,
+    /// The `code` block.
+    pub code: CodeBlock,
+    /// Sub-objects, if any.
+    pub children: Vec<Object>,
+    /// `data` segments, if any.
+    pub data: Vec<Data>,
+}
+
+/// A Yul `code` block. See [`Object`].
+#[derive(Clone, Debug)]
+pub struct CodeBlock {
+    /// The span of the code block, including the `code` keyword.
+    ///
+    /// The `code` keyword may not be present in the source code if the object is parsed as a
+    /// plain [`Block`].
+    pub span: Span,
+    /// The `code` block.
+    pub code: Block,
+}
+
+/// A Yul `data` segment. See [`Object`].
+#[derive(Clone, Debug)]
+pub struct Data {
+    /// The span of the code block, including the `data` keyword.
+    pub span: Span,
+    /// The name of the data segment.
+    pub name: StrLit,
+    /// The data. Can only be a `Str` or `HexStr` literal.
+    pub data: Lit,
+}
 
 /// A Yul statement.
 ///

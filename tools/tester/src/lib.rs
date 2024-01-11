@@ -126,8 +126,6 @@ impl Runner {
     fn run_solc_yul_tests(&self) {
         eprintln!("running Solc Yul tests with {}", self.cmd.display());
 
-        let object_re = Regex::new(r#"object\s*"(.*)"\s*\{"#).unwrap();
-
         let (collect_time, paths) = self.time(|| {
             WalkDir::new(self.root.join("testdata/solidity/test/libyul/"))
                 .sort_by_file_name()
@@ -154,10 +152,6 @@ impl Runner {
                 return TestResult::Skipped("invalid UTF-8");
             };
             let src = src.as_str();
-
-            if object_re.is_match(src) {
-                return TestResult::Skipped("object syntax is not yet supported");
-            }
 
             if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
                 return TestResult::Skipped("matched delimiters");
@@ -393,15 +387,17 @@ fn solc_yul_filter(path: &Path) -> Option<&'static str> {
         return Some("not actually valid identifiers");
     }
 
+    if path_contains(path, "objects/conflict_") || path_contains(path, "objects/code.yul") {
+        // Not the parser's job to check conflicting names.
+        return Some("not implemented in the parser");
+    }
+
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
     if matches!(
         stem,
         // Why should this fail?
         | "unicode_comment_direction_override"
-        // This is custom test syntax, don't know why tests testing test syntax exist.
-        | "surplus_input"
-        | "period_in_identifier_start_with_comment"
         // TODO: Probably implement outside of parsing.
         | "number_literals_3"
         | "number_literals_4"
@@ -416,6 +412,8 @@ fn solc_yul_filter(path: &Path) -> Option<&'static str> {
         | "pc_disallowed"
         // TODO: Not parser related, but should be implemented later.
         | "for_statement_nested_continue"
+        // TODO: Not in the grammar, but docs are used to denote locations in the original src.
+        | "sourceLocations"
     ) {
         return Some("manually skipped");
     };

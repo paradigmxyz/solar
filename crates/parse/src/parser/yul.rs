@@ -1,12 +1,86 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use sulk_ast::{
-    ast::{yul::*, Path},
+    ast::{yul::*, LitKind, Path, StrKind, StrLit},
     token::*,
 };
-use sulk_interface::{error_code, kw, Ident};
+use sulk_interface::{error_code, kw, sym, Ident};
 
 impl<'a> Parser<'a> {
+    /// Parses a Yul object or plain block.
+    ///
+    /// The plain block gets returned as a Yul object named "object", with a single `code` block.
+    pub fn parse_yul_file_object(&mut self) -> PResult<'a, Object> {
+        let docs = self.parse_doc_comments()?;
+        let object = if self.check_keyword(sym::object) {
+            self.parse_yul_object().map(|mut obj| {
+                obj.docs = docs;
+                obj
+            })
+        } else {
+            let lo = self.token.span;
+            self.parse_yul_block().map(|code| {
+                let span = lo.to(self.prev_token.span);
+                let name = StrLit { span, value: sym::object };
+                let code = CodeBlock { span, code };
+                Object { docs, span, name, code, children: Vec::new(), data: Vec::new() }
+            })
+        }?;
+        self.expect(&TokenKind::Eof)?;
+        Ok(object)
+    }
+
+    /// Parses a Yul object.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/yul.html#specification-of-yul-object>
+    pub fn parse_yul_object(&mut self) -> PResult<'a, Object> {
+        let docs = self.parse_doc_comments()?;
+        let lo = self.token.span;
+        self.expect_keyword(sym::object)?;
+        let name = self.parse_str_lit()?;
+
+        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+        let code = self.parse_yul_code()?;
+        let mut children = Vec::new();
+        let mut data = Vec::new();
+        loop {
+            if self.check_keyword(sym::object) {
+                children.push(self.parse_yul_object()?);
+            } else if self.check_keyword(sym::data) {
+                data.push(self.parse_yul_data()?);
+            } else {
+                break;
+            }
+        }
+        self.expect(&TokenKind::CloseDelim(Delimiter::Brace))?;
+
+        let span = lo.to(self.prev_token.span);
+        Ok(Object { docs, span, name, code, children, data })
+    }
+
+    /// Parses a Yul code block.
+    fn parse_yul_code(&mut self) -> PResult<'a, CodeBlock> {
+        let lo = self.token.span;
+        self.expect_keyword(sym::code)?;
+        let code = self.parse_yul_block()?;
+        let span = lo.to(self.prev_token.span);
+        Ok(CodeBlock { span, code })
+    }
+
+    /// Parses a Yul data segment.
+    fn parse_yul_data(&mut self) -> PResult<'a, Data> {
+        let lo = self.token.span;
+        self.expect_keyword(sym::data)?;
+        let name = self.parse_str_lit()?;
+        let data = self.parse_lit()?;
+        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, _)) {
+            let msg = "only string and hex string literals are allowed in `data` segments";
+            return Err(self.dcx().err(msg).span(data.span));
+        }
+        let span = lo.to(self.prev_token.span);
+        Ok(Data { span, name, data })
+    }
+
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
         self.in_yul(Self::parse_yul_stmt)
@@ -24,7 +98,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul block, without setting `in_yul`.
-    pub(super) fn parse_yul_block_unchecked(&mut self) -> PResult<'a, Block> {
+    pub fn parse_yul_block_unchecked(&mut self) -> PResult<'a, Block> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_yul_stmt_unchecked)
             .map(|(x, _)| x)
     }

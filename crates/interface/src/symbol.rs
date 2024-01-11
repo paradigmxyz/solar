@@ -796,10 +796,13 @@ symbols! {
     Symbols {
         X,
         abicoder,
+        code,
+        data,
         error,
         experimental,
         from,
         global,
+        object,
         solidity,
         underscore: "_",
         x,
