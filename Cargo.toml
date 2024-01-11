@@ -8,7 +8,7 @@ edition = "2021"
 rust-version = "1.74"
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/danipopes/sulk"
+repository = "https://github.com/paradigmxyz/sulk"
 keywords = ["ethereum", "solidity", "solc", "crypto", "compiler"]
 categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
 

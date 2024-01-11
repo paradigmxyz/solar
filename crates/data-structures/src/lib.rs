@@ -3,8 +3,8 @@
 //! Mostly modified from [`rustc_data_structures`](https://github.com/rust-lang/rust/blob/c1fc1d18cd38cab44696a9b0e0d52633863308fd/compiler/rustc_data_structures/src/lib.rs).
 
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/logo.jpg",
-    html_favicon_url = "https://raw.githubusercontent.com/danipopes/sulk/main/assets/favicon.ico"
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/sulk/main/assets/logo.jpg",
+    html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/sulk/main/assets/favicon.ico"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(feature = "nightly", feature(cell_leak))]

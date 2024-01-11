@@ -30,5 +30,5 @@ shall be dual licensed as above, without any additional terms or conditions.
 [apache-badge]: https://img.shields.io/badge/license-Apache--2.0-blue.svg
 [mit-url]: LICENSE-MIT
 [apache-url]: LICENSE-APACHE
-[actions-badge]: https://github.com/danipopes/sulk/workflows/CI/badge.svg
-[actions-url]: https://github.com/danipopes/sulk/actions?query=workflow%3ACI+branch%3Amaster
+[actions-badge]: https://github.com/paradigmxyz/sulk/workflows/CI/badge.svg
+[actions-url]: https://github.com/paradigmxyz/sulk/actions?query=workflow%3ACI+branch%3Amaster

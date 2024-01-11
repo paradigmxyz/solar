@@ -4,7 +4,7 @@ use sulk_interface::{
     SessionGlobals,
 };
 
-const BUG_REPORT_URL: &str = "https://github.com/danipopes/sulk/issues/new/choose";
+const BUG_REPORT_URL: &str = "https://github.com/paradigmxyz/sulk/issues/new/choose";
 
 pub(crate) fn init_logger(early_dcx: &DiagCtxt) {
     if let Err(e) = try_init_logger() {
