@@ -57,15 +57,16 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
                 // println!("{file:#?}");
             }
             cli::Language::Yul => {
-                // let is_testing =
-                //     std::env::var_os("__SULK_IN_INTEGRATION_TEST").is_some_and(|s| s != "0");
-                // if !is_testing {
-                //     sess.dcx.fatal("Yul is not supported yet").emit();
-                // }
                 parser.parse_yul_file_object().map_err(|e| e.emit())?;
             }
         }
         sess.dcx.has_errors()?;
+
+        let is_testing =
+            || std::env::var_os("__SULK_IN_INTEGRATION_TEST").is_some_and(|s| s != "0");
+        if matches!(args.language, cli::Language::Yul) && !is_testing() {
+            return Err(sess.dcx.err("Yul is not supported yet").emit());
+        }
 
         Ok(())
     })
