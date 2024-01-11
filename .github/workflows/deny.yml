@@ -3,10 +3,10 @@ name: deps
 on:
   # TODO
   # push:
-  #   branches: [master]
+  #   branches: [main]
   #   paths: [Cargo.lock]
   # pull_request:
-  #   branches: [master]
+  #   branches: [main]
   #   paths: [Cargo.lock]
   # schedule: [cron: "00 00 * * *"]
   workflow_dispatch:
