@@ -1,3 +1,0 @@
-[build]
-# Needed for crates outside of the workspace to use the same target directory.
-target-dir = "./target"

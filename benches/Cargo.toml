@@ -1,11 +1,17 @@
-[workspace]
-
 [package]
 name = "sulk-bench"
-version = "0.0.0"
 description = "Simple benchmarks across different Solidity parser implementations"
-edition = "2021"
+homepage = "https://github.com/paradigmxyz/sulk/blob/main/benches"
 publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 criterion = "0.5"

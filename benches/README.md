@@ -5,12 +5,12 @@ Simple benchmarks across different Solidity parser implementations.
 Run with:
 ```bash
 # Criterion
-cargo r -r --manifest-path benches/Cargo.toml -- --bench
+cargo r -r -p sulk-bench -- --bench
 
 # Valgrind
 # See `--valgrind --help`
-cargo b -r --manifest-path benches/Cargo.toml
-valgrind --tool=callgrind benches/target/release/sulk-bench --valgrind
+cargo b -r -p sulk-bench
+valgrind --tool=callgrind target/release/sulk-bench --valgrind
 ```
 
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when

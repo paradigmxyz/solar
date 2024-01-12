@@ -1,5 +1,7 @@
 [workspace]
-members = ["crates/*", "tools/tester/"]
+members = ["benches/", "crates/*", "tools/tester/"]
+# Exclude bench and test crates from default commands.
+default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
