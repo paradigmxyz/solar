@@ -26,7 +26,7 @@ tracing-subscriber = { workspace = true, features = ["registry", "env-filter", "
 # tracing.workspace = true
 
 [dev-dependencies]
-sulk-tester = { path = "../../tools/tester" }
+sulk-tester.workspace = true
 
 [[test]]
 name = "tests"

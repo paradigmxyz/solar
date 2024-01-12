@@ -16,9 +16,9 @@ categories.workspace = true
 [dependencies]
 criterion = "0.5"
 
-sulk-parse = { path = "../crates/parse" }
+sulk-parse.workspace = true
 
 solang-parser = "=0.3.3"
 
 slang_solidity = "=0.13.0"
-semver = "1.0"
+semver.workspace = true

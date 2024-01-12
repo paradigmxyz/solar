@@ -34,13 +34,17 @@ unused-must-use = "deny"
 all = "warn"
 
 [workspace.dependencies]
+# compiler crates
 sulk-ast = { version = "0.0.0", path = "crates/ast" }
 sulk-data-structures = { version = "0.0.0", path = "crates/data-structures" }
 sulk-interface = { version = "0.0.0", path = "crates/interface" }
 sulk-macros = { version = "0.0.0", path = "crates/macros" }
 sulk-parse = { version = "0.0.0", path = "crates/parse" }
 
-alloy-primitives = "0.5"
+# internal crates
+sulk-tester = { version = "0.0.0", path = "tools/tester" }
+
+alloy-primitives = "0.6"
 
 # big numbers
 num-bigint = "0.4"
