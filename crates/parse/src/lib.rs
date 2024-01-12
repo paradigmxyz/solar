@@ -17,6 +17,10 @@ pub use parser::Parser;
 mod session;
 pub use session::ParseSess;
 
+// Convenience re-exports.
+pub use sulk_ast::{ast, token};
+pub use sulk_interface as interface;
+
 /// Parser error type.
 pub type PErr<'a> = DiagnosticBuilder<'a, ErrorGuaranteed>;
 

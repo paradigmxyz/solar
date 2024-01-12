@@ -1,0 +1,18 @@
+[workspace]
+
+[package]
+name = "sulk-bench"
+version = "0.0.0"
+description = "Simple benchmarks across different Solidity parser implementations"
+edition = "2021"
+publish = false
+
+[dependencies]
+criterion = "0.5"
+
+sulk-parse = { path = "../crates/parse" }
+
+solang-parser = "=0.3.3"
+
+slang_solidity = "=0.13.0"
+semver = "1.0"
