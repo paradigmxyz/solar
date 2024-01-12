@@ -1,7 +1,7 @@
 [package]
 name = "sulk-interface"
 description = "Source positions, diagnostics, and related helper functions"
-homepage = "https://github.com/paradigmxyz/sulk/blob/main/crates/interface"
+homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/interface"
 
 version.workspace = true
 authors.workspace = true

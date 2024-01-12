@@ -1,7 +1,7 @@
 [package]
 name = "sulk-parse"
 description = "Solidity lexer and parser"
-homepage = "https://github.com/paradigmxyz/sulk/blob/main/crates/parse"
+homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/parse"
 
 version.workspace = true
 authors.workspace = true
