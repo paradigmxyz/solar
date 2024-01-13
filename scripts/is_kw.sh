@@ -215,13 +215,30 @@ fi
 n=${#kws[@]}
 align=$(printf "%s\n" "${kws[@]}" | awk '{print length+1}' | sort -nr | head -1)
 
+echo "Solidity:"
 for kw in "${kws[@]}"; do
     r=$(echo "function f(){bool $kw;}" | solc - 2>&1)
     code=$?
 
     [ "$n" -eq 1 ] && printf "%s\n" "$r"
 
-    if [[ $code -gt 0 && $r =~ Expected ]]; then
+    if [[ $code -gt 0 ]]; then
+        result="yes"
+    else
+        result="no"
+    fi
+    printf "%-${align}s %s\n" "$kw:" "$result"
+done
+
+echo
+echo "Yul:"
+for kw in "${kws[@]}"; do
+    r=$(echo "function f(){assembly{let $kw := 0}}" | solc - 2>&1)
+    code=$?
+
+    [ "$n" -eq 1 ] && printf "%s\n" "$r"
+
+    if [[ $code -gt 0 ]]; then
         result="yes"
     else
         result="no"
