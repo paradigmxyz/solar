@@ -18,7 +18,10 @@ pub enum Mode {
 }
 
 /// Parses a string literal (without quotes) into a byte array.
-pub fn parse_literal(src: &str, mode: Mode, f: impl FnMut(Range<usize>, EscapeError)) -> Vec<u8> {
+pub fn parse_literal<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
+where
+    F: FnMut(Range<usize>, EscapeError),
+{
     // Avoid unescaping if possible.
     const CHRS: &[char] = &['\\', '\n', '\r'];
     let do_unescape = match mode {
@@ -44,12 +47,10 @@ pub fn parse_literal(src: &str, mode: Mode, f: impl FnMut(Range<usize>, EscapeEr
 }
 
 #[inline]
-fn parse_literal_unescape(
-    src: &str,
-    mode: Mode,
-    mut f: impl FnMut(Range<usize>, EscapeError),
-    dst_buf: &mut Vec<u8>,
-) {
+fn parse_literal_unescape<F>(src: &str, mode: Mode, mut f: F, dst_buf: &mut Vec<u8>)
+where
+    F: FnMut(Range<usize>, EscapeError),
+{
     // `src.len()` is enough capacity for the unescaped string, so we can just use a slice.
     // SAFETY: The buffer is never read from.
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };

@@ -127,15 +127,9 @@ pub struct FileNameDisplay<'a> {
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
-            FileName::Real(name) => write!(f, "{}", name.to_string_lossy()),
-            // FileName::QuoteExpansion(_) => write!(f, "<quote expansion>"),
-            // FileName::MacroExpansion(_) => write!(f, "<macro expansion>"),
+            FileName::Real(name) => write!(f, "{}", name.display()),
             FileName::Anon(_) => write!(f, "<anon>"),
-            // FileName::ProcMacroSourceCode(_) => write!(f, "<proc-macro source code>"),
-            // FileName::CliCrateAttr(_) => write!(f, "<crate attribute>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
-            // FileName::DocTest(ref path, _) => write!(f, "{}", path.display()),
-            // FileName::InlineAsm(_) => write!(f, "<inline asm>"),
         }
     }
 }

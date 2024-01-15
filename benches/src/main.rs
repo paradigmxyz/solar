@@ -111,7 +111,7 @@ impl Parser for Slang {
 
 fn main() {
     if false {
-        let path = std::env::args().skip(1).next().unwrap();
+        let path = std::env::args().nth(1).unwrap();
         let s = std::fs::read_to_string(path).unwrap();
         Slang.parse(&s);
         return;
@@ -188,18 +188,14 @@ fn valgrind_main(args: &[String]) {
         if arg.starts_with("--parser=") {
             continue;
         }
-        match SRCS.iter().find(|s| s.name == arg) {
-            Some(src) => benches.push(src),
-            None => {}
+        if let Some(src) = SRCS.iter().find(|s| s.name == arg) {
+            benches.push(src);
         }
-        match PARSERS.iter().find(|p| p.name() == arg) {
-            Some(src) => {
-                if src.name() == "sulk" {
-                    has_sulk = true;
-                }
-                parsers.push(*src)
+        if let Some(src) = PARSERS.iter().find(|p| p.name() == arg) {
+            if src.name() == "sulk" {
+                has_sulk = true;
             }
-            None => {}
+            parsers.push(*src);
         }
     }
     if benches.is_empty() {
@@ -207,7 +203,7 @@ fn valgrind_main(args: &[String]) {
     }
     if parsers.is_empty() {
         has_sulk = true;
-        parsers = PARSERS.iter().copied().collect();
+        parsers = PARSERS.to_vec();
     }
 
     let run = || {

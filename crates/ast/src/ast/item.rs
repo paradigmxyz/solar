@@ -121,7 +121,7 @@ pub enum PragmaTokens {
     Version(Ident, SemverReq),
     /// `pragma <name> [value];`.
     Custom(IdentOrStrLit, Option<IdentOrStrLit>),
-    /// Unparsed tokens: `pragma <tokens>...;`.
+    /// Unparsed tokens: `pragma <tokens...>;`.
     Verbatim(Vec<Token>),
 }
 

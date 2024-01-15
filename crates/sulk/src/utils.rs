@@ -64,8 +64,6 @@ fn panic_hook(info: &PanicInfo<'_>) {
     }
 
     dcx.note(format!("we would appreciate a bug report: {BUG_REPORT_URL}")).emit();
-
-    // TODO: Print
 }
 
 pub(crate) fn run_in_thread_with_globals<R: Send>(f: impl FnOnce() -> R + Send) -> R {

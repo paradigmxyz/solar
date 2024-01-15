@@ -163,6 +163,7 @@ impl<'a> Parser<'a> {
             value.append(&mut unescape(symbol));
             self.bump();
         }
+
         let kind = match lit.kind {
             TokenLitKind::Str => StrKind::Str,
             TokenLitKind::UnicodeStr => StrKind::Unicode,
