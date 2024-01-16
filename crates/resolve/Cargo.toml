@@ -1,0 +1,24 @@
+[package]
+name = "sulk-resolve"
+description = ""
+homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/config"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sulk-ast.workspace = true
+sulk-data-structures.workspace = true
+sulk-interface.workspace = true
+sulk-parse.workspace = true
+
+tracing.workspace = true

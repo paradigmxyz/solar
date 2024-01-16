@@ -430,7 +430,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Same as `symbol_from`, with an explicit endpoint.
     fn symbol_from_to(&self, start: BytePos, end: BytePos) -> Symbol {
-        // debug!("taking an ident from {:?} to {:?}", start, end);
         Symbol::intern(self.str_from_to(start, end))
     }
 

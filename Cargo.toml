@@ -37,9 +37,11 @@ all = "warn"
 # compiler crates
 sulk-ast = { version = "0.0.0", path = "crates/ast" }
 sulk-data-structures = { version = "0.0.0", path = "crates/data-structures" }
+sulk-config = { version = "0.0.0", path = "crates/config" }
 sulk-interface = { version = "0.0.0", path = "crates/interface" }
 sulk-macros = { version = "0.0.0", path = "crates/macros" }
 sulk-parse = { version = "0.0.0", path = "crates/parse" }
+sulk-resolve = { version = "0.0.0", path = "crates/resolve" }
 
 # internal crates
 sulk-tester = { version = "0.0.0", path = "tools/tester" }
@@ -69,6 +71,7 @@ match_cfg = "0.1"
 proc-macro2 = "1.0"
 quote = "1.0"
 syn = "2.0"
+thiserror = "1.0"
 
 # parallel
 parking_lot = "0.12"

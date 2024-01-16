@@ -73,21 +73,6 @@ impl std::ops::Sub<RelativeBytePos> for NonNarrowChar {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum FileNameDisplayPreference {
-    /// Display the path after the application of rewrite rules provided via `--remap-path-prefix`.
-    /// This is appropriate for paths that get embedded into files produced by the compiler.
-    Remapped,
-    /// Display the path before the application of rewrite rules provided via
-    /// `--remap-path-prefix`. This is appropriate for use in user-facing output (such as
-    /// diagnostics).
-    #[default]
-    Local,
-    /// Display only the filename, as a way to reduce the verbosity of the output.
-    /// This is appropriate for use in user-facing output (such as diagnostics).
-    Short,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -107,8 +92,8 @@ impl From<PathBuf> for FileName {
 impl FileName {
     /// Displays the filename.
     #[inline]
-    pub fn display(&self, pref: FileNameDisplayPreference) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self, _pref: pref }
+    pub fn display(&self) -> FileNameDisplay<'_> {
+        FileNameDisplay { inner: self }
     }
 
     pub fn anon_source_code(src: &str) -> Self {
@@ -121,7 +106,6 @@ impl FileName {
 
 pub struct FileNameDisplay<'a> {
     inner: &'a FileName,
-    _pref: FileNameDisplayPreference,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
@@ -268,7 +252,6 @@ impl SourceFile {
         let mut total_extra_bytes = 0;
 
         for mbc in self.multibyte_chars.iter() {
-            // debug!("{}-byte char at {:?}", mbc.bytes, mbc.pos);
             if mbc.pos < bpos {
                 // Every character is at least one byte, so we only
                 // count the actual extra bytes.
@@ -295,9 +278,6 @@ impl SourceFile {
                 let linebpos = self.lines()[a];
                 let linechpos = self.bytepos_to_file_charpos(linebpos);
                 let col = chpos - linechpos;
-                // debug!("byte pos {:?} is on the line at byte pos {:?}", pos, linebpos);
-                // debug!("char pos {:?} is on the line at char pos {:?}", chpos, linechpos);
-                // debug!("byte is on line: {}", line);
                 assert!(chpos >= linechpos);
                 (line, col)
             }

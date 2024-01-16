@@ -18,6 +18,9 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(feature = "nightly", feature(min_specialization))]
 
+#[macro_use]
+extern crate tracing;
+
 use std::process::ExitCode;
 
 pub mod diagnostics;
@@ -41,7 +44,7 @@ pub use symbol::{kw, sym, Ident, Symbol};
 pub use anstream::ColorChoice;
 
 /// Compiler result type.
-pub type Result<T> = std::result::Result<T, ErrorGuaranteed>;
+pub type Result<T, E = ErrorGuaranteed> = std::result::Result<T, E>;
 
 /// Creates a new compiler session on the current thread if it doesn't exist already and then
 /// executes the given closure, catching fatal errors and returning them as [`ErrorGuaranteed`].

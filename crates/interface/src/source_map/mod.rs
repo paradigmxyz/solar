@@ -1,7 +1,10 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Pos, Span};
-use std::{io, path::Path};
+use std::{
+    io::{self, Read},
+    path::Path,
+};
 use sulk_data_structures::{
     map::FxHashMap,
     sync::{Lrc, MappedReadGuard, ReadGuard, RwLock},
@@ -14,6 +17,9 @@ pub use file::*;
 
 mod file_loader;
 pub use file_loader::*;
+
+mod resolver;
+pub use resolver::{FileResolver, ResolveError};
 
 #[cfg(test)]
 mod tests;
@@ -100,7 +106,6 @@ struct SourceMapFiles {
 pub struct SourceMap {
     files: RwLock<SourceMapFiles>,
     file_loader: Box<dyn FileLoader + Sync + Send>,
-    filename_display_for_diagnostics: FileNameDisplayPreference,
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -111,31 +116,20 @@ impl Default for SourceMap {
 }
 
 impl SourceMap {
-    pub fn new(filename_display_for_diagnostics: FileNameDisplayPreference) -> Self {
-        Self::with_file_loader(
-            Box::new(RealFileLoader),
-            filename_display_for_diagnostics,
-            SourceFileHashAlgorithm::Md5,
-        )
+    pub fn new() -> Self {
+        Self::with_file_loader(Box::new(RealFileLoader), SourceFileHashAlgorithm::Md5)
     }
 
     pub fn with_file_loader(
         file_loader: Box<dyn FileLoader + Sync + Send>,
-        filename_display_for_diagnostics: FileNameDisplayPreference,
         hash_kind: SourceFileHashAlgorithm,
     ) -> Self {
-        Self {
-            files: Default::default(),
-            file_loader,
-            // path_mapping,
-            filename_display_for_diagnostics,
-            hash_kind,
-        }
+        Self { files: Default::default(), file_loader, hash_kind }
     }
 
     /// Creates a new empty source map.
     pub fn empty() -> Self {
-        Self::new(FileNameDisplayPreference::Local)
+        Self::new()
     }
 
     pub fn file_exists(&self, path: &Path) -> bool {
@@ -148,10 +142,22 @@ impl SourceMap {
         Ok(self.new_source_file(filename, src))
     }
 
+    pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
+        let mut src = String::new();
+        io::stdin().read_to_string(&mut src)?;
+        let filename = FileName::anon_source_code(&src);
+        Ok(self.new_source_file(filename, src))
+    }
+
     // By returning a `MonotonicVec`, we ensure that consumers cannot invalidate
     // any existing indices pointing into `files`.
     pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
         ReadGuard::map(self.files.borrow(), |files| &files.source_files)
+    }
+
+    pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Lrc<SourceFile>> {
+        let stable_id = StableSourceFileId::from_filename_in_current_crate(filename);
+        self.source_file_by_stable_id(stable_id)
     }
 
     pub fn source_file_by_stable_id(
@@ -219,7 +225,7 @@ impl SourceMap {
     }
 
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        filename.display(self.filename_display_for_diagnostics)
+        filename.display()
     }
 
     /// Returns `true` if the given span is multi-line.
@@ -312,7 +318,6 @@ impl SourceMap {
     }
 
     pub fn span_to_lines(&self, sp: Span) -> FileLinesResult {
-        // debug!("span_to_lines(sp={:?})", sp);
         let (lo, hi) = self.is_valid_span(sp)?;
         assert!(hi.line >= lo.line);
 
@@ -385,25 +390,18 @@ impl SourceMap {
     /// to build artifacts as this may leak local file paths. Use span_to_embeddable_string
     /// for string suitable for embedding.
     pub fn span_to_diagnostic_string(&self, sp: Span) -> String {
-        self.span_to_string(sp, self.filename_display_for_diagnostics)
+        self.span_to_string(sp)
     }
 
-    pub fn span_to_string(&self, sp: Span, pref: FileNameDisplayPreference) -> String {
+    pub fn span_to_string(&self, sp: Span) -> String {
         let (source_file, lo_line, lo_col, hi_line, hi_col) = self.span_to_location_info(sp);
 
         let file_name = match source_file {
-            Some(sf) => sf.name.display(pref).to_string(),
+            Some(sf) => sf.name.display().to_string(),
             None => return "no-location".to_string(),
         };
 
-        format!(
-            "{file_name}:{lo_line}:{lo_col}{}",
-            if let FileNameDisplayPreference::Short = pref {
-                String::new()
-            } else {
-                format!(": {hi_line}:{hi_col}")
-            }
-        )
+        format!("{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
     }
 
     pub fn span_to_location_info(

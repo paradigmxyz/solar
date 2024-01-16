@@ -1199,6 +1199,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4a24736216ec316047a1fc4252e27dabb04218aa4a3f37c6e7ddbf1f9782b54"
 
 [[package]]
+name = "normalize-path"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5438dd2b2ff4c6df6e1ce22d825ed2fa93ee2922235cc45186991717f0a892d"
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2081,6 +2087,7 @@ dependencies = [
  "sulk-data-structures",
  "sulk-interface",
  "sulk-parse",
+ "sulk-resolve",
  "sulk-tester",
  "tracing-error",
  "tracing-subscriber",
@@ -2110,6 +2117,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sulk-config"
+version = "0.0.0"
+
+[[package]]
 name = "sulk-data-structures"
 version = "0.0.0"
 dependencies = [
@@ -2129,13 +2140,17 @@ dependencies = [
  "anstream",
  "anstyle",
  "bumpalo",
+ "itertools 0.11.0",
  "match_cfg",
  "md-5",
+ "normalize-path",
  "scoped-tls",
  "serde",
  "serde_json",
  "sulk-data-structures",
  "sulk-macros",
+ "thiserror",
+ "tracing",
  "unicode-width",
 ]
 
@@ -2163,6 +2178,17 @@ dependencies = [
  "sulk-ast",
  "sulk-data-structures",
  "sulk-interface",
+]
+
+[[package]]
+name = "sulk-resolve"
+version = "0.0.0"
+dependencies = [
+ "sulk-ast",
+ "sulk-data-structures",
+ "sulk-interface",
+ "sulk-parse",
+ "tracing",
 ]
 
 [[package]]
@@ -2316,7 +2342,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3523ab5a71916ccf420eebdf5521fcef02141234bbc0b8a49f2fdc4544364ef"
 dependencies = [
  "pin-project-lite",
+ "tracing-attributes",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-attributes"
+version = "0.1.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.48",
 ]
 
 [[package]]

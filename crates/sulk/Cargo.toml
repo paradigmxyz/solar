@@ -19,6 +19,7 @@ workspace = true
 sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 sulk-parse.workspace = true
+sulk-resolve.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
 tracing-error.workspace = true

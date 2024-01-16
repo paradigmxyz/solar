@@ -1,5 +1,8 @@
 use std::fmt;
 
+mod solidity;
+mod yul;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SolcError {
     pub kind: SolcErrorKind,

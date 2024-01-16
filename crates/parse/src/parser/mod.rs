@@ -541,7 +541,7 @@ impl<'a> Parser<'a> {
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
-            self.eat(ket);
+            self.expect(ket)?;
         }
         Ok((val, trailing))
     }
