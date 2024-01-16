@@ -191,7 +191,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
         } else {
             // Sometimes `==== Source: ... ====` is missing after external sources.
             let mut contents = String::with_capacity(src.len());
-            while let Some(line) = lines.next() {
+            for line in lines.by_ref() {
                 assert!(!line.starts_with("===="));
                 contents.push_str(line);
                 contents.push('\n');
