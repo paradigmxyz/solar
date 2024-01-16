@@ -159,6 +159,7 @@ impl<'a> FileResolver<'a> {
     pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {
+            debug!("loaded normally");
             return Ok(Some(file));
         }
 
@@ -169,6 +170,7 @@ impl<'a> FileResolver<'a> {
                     path = p;
                 }
             }
+            debug!("canonicalized to {}", path.display());
             return self
                 .source_map()
                 .load_file(path)
@@ -176,6 +178,7 @@ impl<'a> FileResolver<'a> {
                 .map_err(|e| ResolveError::ReadFile(path.into(), e));
         }
 
+        debug!("not found");
         Ok(None)
     }
 }

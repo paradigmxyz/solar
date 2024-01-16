@@ -1,6 +1,14 @@
 use crate::{path_contains, Runner, TestResult};
+use assert_cmd::Command;
+use once_cell::sync::Lazy;
+use regex::Regex;
 use std::{fs, path::Path};
+use tempfile::TempDir;
 use walkdir::WalkDir;
+
+static SOURCE_DELIMITER: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
+static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"==== ExternalSource: (.*) ====").unwrap());
 
 impl Runner {
     pub(crate) fn run_solc_solidity_tests(&self) {
@@ -33,21 +41,18 @@ impl Runner {
                 return TestResult::Skipped("experimental solidity");
             }
 
-            if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
-                return TestResult::Skipped("matched delimiters");
-            }
-
             let expected_error = self.get_expected_error(src);
 
-            // TODO: Imports (don't know why it's a ParserError).
-            if let Some(e) = &expected_error {
-                if e.code == Some(6275) {
-                    return TestResult::Skipped("imports not implemented");
-                }
-            }
-
             let mut cmd = self.cmd();
-            cmd.arg(rel_path).arg("-I").arg(rel_path.parent().unwrap());
+
+            let _guard =
+                if SOURCE_DELIMITER.is_match(src) || EXTERNAL_SOURCE_DELIMITER.is_match(src) {
+                    handle_delimiters(src, rel_path, &mut cmd)
+                } else {
+                    cmd.arg(rel_path).arg("-I").arg(rel_path.parent().unwrap());
+                    None
+                };
+
             self.run_cmd(&mut cmd, |output| match (expected_error, output.status.success()) {
                 (None, true) => TestResult::Passed,
                 (None, false) => {
@@ -112,8 +117,11 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
         return Some("Solidity pragma version is not checked");
     }
 
-    if path_contains(path, "/_relative_imports/") || path_contains(path, "/_external/") {
-        return Some("not supposed to run alone");
+    if path_contains(path, "/_")
+        && !path.components().last().unwrap().as_os_str().to_str().unwrap().starts_with('_')
+    {
+        // Directories starting with `_` are not tests.
+        return Some("supporting file");
     }
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -141,10 +149,64 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
         | "prevrandao_allowed_function_pre_paris"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
         | "experimental_test_warning"
-        
+        // "." is not a valid import path.
+        | "boost_filesystem_bug"
     ) {
         return Some("manually skipped");
     };
 
     None
+}
+
+fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDir> {
+    let mut tempdir = None;
+    let insert_tempdir =
+        || tempfile::Builder::new().prefix(path.file_stem().unwrap()).tempdir().unwrap();
+    let mut lines = src.lines().peekable();
+    let mut add_import_path = false;
+    while let Some(line) = lines.next() {
+        if let Some(cap) = SOURCE_DELIMITER.captures(line) {
+            let mut name = cap.get(1).unwrap().as_str();
+            if name == "////" {
+                name = "test.sol";
+            }
+
+            let mut contents = String::with_capacity(src.len());
+            while lines.peek().is_some_and(|l| !l.starts_with("====")) {
+                contents.push_str(lines.next().unwrap());
+                contents.push('\n');
+            }
+
+            let tempdir = tempdir.get_or_insert_with(insert_tempdir);
+            let path = tempdir.path().join(name);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, contents).unwrap();
+            cmd.arg(path);
+        } else if let Some(cap) = EXTERNAL_SOURCE_DELIMITER.captures(line) {
+            let eq = cap.get(1).unwrap().as_str().to_owned();
+            if eq.contains('=') {
+                cmd.arg("-m").arg(eq);
+            }
+            add_import_path = true;
+        } else {
+            // Sometimes `==== Source: ... ====` is missing after external sources.
+            let mut contents = String::with_capacity(src.len());
+            while let Some(line) = lines.next() {
+                assert!(!line.starts_with("===="));
+                contents.push_str(line);
+                contents.push('\n');
+            }
+            let tempdir = tempdir.get_or_insert_with(insert_tempdir);
+            let path = tempdir.path().join("test.sol");
+            fs::write(&path, contents).unwrap();
+            cmd.arg(path);
+        }
+    }
+    if let Some(tempdir) = &tempdir {
+        cmd.arg("-I").arg(tempdir.path());
+    }
+    if add_import_path {
+        cmd.arg("-I").arg(path.parent().unwrap());
+    }
+    tempdir
 }

@@ -18,8 +18,8 @@ pub use file::*;
 mod file_loader;
 pub use file_loader::*;
 
-mod resolver;
-pub use resolver::{FileResolver, ResolveError};
+mod file_resolver;
+pub use file_resolver::{FileResolver, ResolveError};
 
 #[cfg(test)]
 mod tests;

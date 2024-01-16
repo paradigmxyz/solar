@@ -33,10 +33,6 @@ impl Runner {
             };
             let src = src.as_str();
 
-            if self.source_delimiter.is_match(src) || self.external_source_delimiter.is_match(src) {
-                return TestResult::Skipped("matched delimiters");
-            }
-
             let error = self.get_expected_error(src);
 
             let mut cmd = self.cmd();

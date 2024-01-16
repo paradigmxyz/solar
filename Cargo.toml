@@ -87,6 +87,11 @@ assert_cmd = "2.0"
 criterion = "0.5"
 expect-test = "1.4"
 rand = "0.8"
+tempfile = "3.9"
+
+once_cell = "1.19"
+regex = "1.10"
+walkdir = "2.4"
 
 # misc
 ahash = "0.8"
@@ -102,6 +107,3 @@ scoped-tls = "1.0.1"
 semver = "1.0"
 smallvec = "1"
 unicode-width = "0.1.10"
-
-regex = "1.10"
-walkdir = "2.4"

@@ -5,6 +5,7 @@
 #![allow(unreachable_pub)]
 
 use assert_cmd::Command;
+use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use regex::Regex;
 use std::{
@@ -20,6 +21,10 @@ use solc::SolcError;
 
 const TIMEOUT: Duration = Duration::from_millis(500);
 
+static ERROR_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"// ----\r?\n(?://\s+Warning \d+: .*\n)*//\s+(\w+Error)( \d+)?: (.*)").unwrap()
+});
+
 pub fn solc_solidity_tests(cmd: &'static Path) {
     Runner::new(cmd).run_solc_solidity_tests();
 }
@@ -31,12 +36,6 @@ pub fn solc_yul_tests(cmd: &'static Path) {
 struct Runner {
     cmd: &'static Path,
     root: PathBuf,
-
-    error_re: Regex,
-    source_delimiter: Regex,
-    external_source_delimiter: Regex,
-    #[allow(dead_code)]
-    equals: Regex,
 }
 
 impl Runner {
@@ -44,14 +43,6 @@ impl Runner {
         Self {
             cmd,
             root: Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../")).canonicalize().unwrap(),
-
-            error_re: Regex::new(
-                r"// ----\r?\n(?://\s+Warning \d+: .*\n)*//\s+(\w+Error)( \d+)?: (.*)",
-            )
-            .unwrap(),
-            source_delimiter: Regex::new(r"==== Source: (.*) ====").unwrap(),
-            external_source_delimiter: Regex::new(r"==== ExternalSource: (.*) ====").unwrap(),
-            equals: Regex::new("([a-zA-Z0-9_]+)=(.*)").unwrap(),
         }
     }
 
@@ -133,6 +124,7 @@ impl Runner {
         let mut cmd = Command::new(self.cmd);
         cmd.current_dir(&self.root)
             .env("__SULK_IN_INTEGRATION_TEST", "1")
+            .env("RUST_LOG", "debug")
             .arg("--color=always")
             .timeout(TIMEOUT);
         cmd
@@ -142,13 +134,13 @@ impl Runner {
         let output = cmd.output().unwrap();
         let r = f(&output);
         if r == TestResult::Failed {
-            dump_output(&output);
+            dump_output(cmd, &output);
         }
         r
     }
 
     fn get_expected_error(&self, haystack: &str) -> Option<SolcError> {
-        self.error_re.captures(haystack).map(|captures| SolcError {
+        ERROR_RE.captures(haystack).map(|captures| SolcError {
             kind: captures.get(1).unwrap().as_str().parse().unwrap(),
             code: captures.get(2).map(|m| m.as_str().trim_start().parse().unwrap()),
             message: captures.get(3).unwrap().as_str().to_owned(),
@@ -174,7 +166,9 @@ impl TestResult {
     }
 }
 
-fn dump_output(output: &Output) {
+fn dump_output(cmd: &Command, output: &Output) {
+    eprintln!("-- command --");
+    eprintln!("{cmd:?}");
     eprintln!("-- status --");
     eprintln!("{}", output.status);
     let stdout = utf8(&output.stdout).trim();
