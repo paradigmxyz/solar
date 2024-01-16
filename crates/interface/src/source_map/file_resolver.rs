@@ -1,3 +1,7 @@
+//! File resolver.
+//!
+//! Modified from [`solang`](https://github.com/hyperledger/solang/blob/0f032dcec2c6e96797fd66fa0175a02be0aba71c/src/file_resolver.rs).
+
 use super::SourceFile;
 use crate::SourceMap;
 use itertools::Itertools;
