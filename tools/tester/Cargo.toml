@@ -19,7 +19,10 @@ workspace = true
 [dependencies]
 assert_cmd.workspace = true
 once_cell.workspace = true
-rayon.workspace = true
 regex.workspace = true
 tempfile.workspace = true
+tester.workspace = true
 walkdir.workspace = true
+
+[features]
+nightly = []

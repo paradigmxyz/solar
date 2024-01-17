@@ -10,57 +10,54 @@ static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"==== ExternalSource: (.*) ====").unwrap());
 
 impl Runner {
-    pub(crate) fn run_solc_solidity_tests(&self) {
-        eprintln!("running Solc Solidity tests with {}", self.cmd.display());
-        let path = self.root.join("testdata/solidity/test/");
-        let paths = self.collect_files(&path, false);
-        self.run_tests(&paths, |entry| {
-            let path = entry.path();
-            let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
+    pub(crate) fn run_solc_solidity_test(&self, path: &Path, check: bool) -> TestResult {
+        let rel_path = path.strip_prefix(self.root).expect("test path not in root");
 
-            if let Some(reason) = solc_solidity_filter(rel_path) {
-                return TestResult::Skipped(reason);
+        if let Some(reason) = solc_solidity_filter(rel_path) {
+            return TestResult::Skipped(reason);
+        }
+
+        let Ok(src) = fs::read_to_string(path) else {
+            return TestResult::Skipped("invalid UTF-8");
+        };
+        let src = src.as_str();
+
+        if src.contains("pragma experimental solidity") {
+            return TestResult::Skipped("experimental solidity");
+        }
+
+        if check {
+            return TestResult::Passed;
+        }
+
+        let expected_error = self.get_expected_error(src);
+
+        let mut cmd = self.cmd();
+
+        let _guard = if SOURCE_DELIMITER.is_match(src) || EXTERNAL_SOURCE_DELIMITER.is_match(src) {
+            handle_delimiters(src, rel_path, &mut cmd)
+        } else {
+            cmd.arg(rel_path).arg("-I").arg(rel_path.parent().unwrap());
+            None
+        };
+
+        self.run_cmd(&mut cmd, |output| match (expected_error, output.status.success()) {
+            (None, true) => TestResult::Passed,
+            (None, false) => {
+                eprintln!("\n---- unexpected error in {} ----", rel_path.display());
+                TestResult::Failed
             }
-
-            let Ok(src) = fs::read_to_string(path) else {
-                return TestResult::Skipped("invalid UTF-8");
-            };
-            let src = src.as_str();
-
-            if src.contains("pragma experimental solidity") {
-                return TestResult::Skipped("experimental solidity");
-            }
-
-            let expected_error = self.get_expected_error(src);
-
-            let mut cmd = self.cmd();
-
-            let _guard =
-                if SOURCE_DELIMITER.is_match(src) || EXTERNAL_SOURCE_DELIMITER.is_match(src) {
-                    handle_delimiters(src, rel_path, &mut cmd)
-                } else {
-                    cmd.arg(rel_path).arg("-I").arg(rel_path.parent().unwrap());
-                    None
-                };
-
-            self.run_cmd(&mut cmd, |output| match (expected_error, output.status.success()) {
-                (None, true) => TestResult::Passed,
-                (None, false) => {
-                    eprintln!("\n---- unexpected error in {} ----", rel_path.display());
+            (Some(e), true) => {
+                if e.kind.parse_time_error() {
+                    eprintln!("\n---- unexpected success in {} ----", rel_path.display());
+                    eprintln!("-- expected error --\n{e}");
                     TestResult::Failed
+                } else {
+                    TestResult::Passed
                 }
-                (Some(e), true) => {
-                    if e.kind.parse_time_error() {
-                        eprintln!("\n---- unexpected success in {} ----", rel_path.display());
-                        eprintln!("-- expected error --\n{e}");
-                        TestResult::Failed
-                    } else {
-                        TestResult::Passed
-                    }
-                }
-                (Some(_e), false) => TestResult::Passed,
-            })
-        });
+            }
+            (Some(_e), false) => TestResult::Passed,
+        })
     }
 }
 

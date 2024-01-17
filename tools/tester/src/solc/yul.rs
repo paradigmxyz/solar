@@ -2,50 +2,48 @@ use crate::{path_contains, Runner, TestResult};
 use std::{fs, path::Path};
 
 impl Runner {
-    pub(crate) fn run_solc_yul_tests(&self) {
-        eprintln!("running Solc Yul tests with {}", self.cmd.display());
-        let path = self.root.join("testdata/solidity/test/libyul/");
-        let paths = self.collect_files(&path, true);
-        self.run_tests(&paths, |entry| {
-            let path = entry.path();
-            let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
+    pub(crate) fn run_solc_yul_test(&self, path: &Path, check: bool) -> TestResult {
+        let rel_path = path.strip_prefix(self.root).expect("test path not in root");
 
-            if let Some(reason) = solc_yul_filter(path) {
-                return TestResult::Skipped(reason);
+        if let Some(reason) = solc_yul_filter(path) {
+            return TestResult::Skipped(reason);
+        }
+
+        let Ok(src) = fs::read_to_string(path) else {
+            return TestResult::Skipped("invalid UTF-8");
+        };
+        let src = src.as_str();
+
+        if check {
+            return TestResult::Passed;
+        }
+
+        let error = self.get_expected_error(src);
+
+        let mut cmd = self.cmd();
+        cmd.arg("--language=yul").arg(rel_path);
+        self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
+            (None, true) => TestResult::Passed,
+            (None, false) => {
+                // TODO: Typed identifiers.
+                if String::from_utf8_lossy(&output.stderr).contains("found `:`") {
+                    TestResult::Skipped("typed identifiers")
+                } else {
+                    eprintln!("\n---- unexpected error in {} ----", rel_path.display());
+                    TestResult::Failed
+                }
             }
-
-            let Ok(src) = fs::read_to_string(path) else {
-                return TestResult::Skipped("invalid UTF-8");
-            };
-            let src = src.as_str();
-
-            let error = self.get_expected_error(src);
-
-            let mut cmd = self.cmd();
-            cmd.arg("--language=yul").arg(rel_path);
-            self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
-                (None, true) => TestResult::Passed,
-                (None, false) => {
-                    // TODO: Typed identifiers.
-                    if String::from_utf8_lossy(&output.stderr).contains("found `:`") {
-                        TestResult::Skipped("typed identifiers")
-                    } else {
-                        eprintln!("\n---- unexpected error in {} ----", rel_path.display());
-                        TestResult::Failed
-                    }
+            (Some(e), true) => {
+                if e.kind.parse_time_error() {
+                    eprintln!("\n---- unexpected success in {} ----", rel_path.display());
+                    eprintln!("-- expected error --\n{e}");
+                    TestResult::Failed
+                } else {
+                    TestResult::Passed
                 }
-                (Some(e), true) => {
-                    if e.kind.parse_time_error() {
-                        eprintln!("\n---- unexpected success in {} ----", rel_path.display());
-                        eprintln!("-- expected error --\n{e}");
-                        TestResult::Failed
-                    } else {
-                        TestResult::Passed
-                    }
-                }
-                (Some(_e), false) => TestResult::Passed,
-            })
-        });
+            }
+            (Some(_e), false) => TestResult::Passed,
+        })
     }
 }
 

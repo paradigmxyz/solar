@@ -3,16 +3,25 @@
 //! This crate is invoked in `crates/sulk/tests.rs`.
 
 #![allow(unreachable_pub)]
+#![cfg_attr(feature = "nightly", feature(test))]
+
+#[cfg(feature = "nightly")]
+extern crate test as _test;
+#[cfg(feature = "nightly")]
+use _test::test;
+#[cfg(feature = "nightly")]
+use tester as _;
+
+#[cfg(not(feature = "nightly"))]
+use tester::{self as _test, test};
 
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
-use rayon::prelude::*;
 use regex::Regex;
 use std::{
-    collections::HashMap,
     path::Path,
     process::Output,
-    sync::{Mutex, PoisonError},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -27,32 +36,153 @@ static ERROR_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"// ----\r?\n(?://\s+Warning \d+: .*\n)*//\s+(\w+Error)( \d+)?: (.*)").unwrap()
 });
 
+type TestFn = fn(&Runner, &Path, check: bool) -> TestResult;
+
+#[derive(Clone, Copy)]
 pub enum Mode {
     Ui,
     SolcSolidity,
     SolcYul,
 }
 
-pub fn run_tests(cmd: &'static Path, mode: Mode) {
-    let runner = Runner::new(cmd);
-    match mode {
-        Mode::Ui => runner.run_ui_tests(),
-        Mode::SolcSolidity => runner.run_solc_solidity_tests(),
-        Mode::SolcYul => runner.run_solc_yul_tests(),
+pub fn run_tests(cmd: &'static Path) {
+    let args = std::env::args().collect::<Vec<_>>();
+    let mut opts = match test::parse_opts(&args) {
+        Some(Ok(o)) => o,
+        Some(Err(msg)) => {
+            eprintln!("error: {msg}");
+            std::process::exit(101);
+        }
+        None => return,
+    };
+    // Condense output if not explicitly requested.
+    let requested_pretty = || args.iter().any(|x| x.contains("--format"));
+    if opts.format == _test::OutputFormat::Pretty && !requested_pretty() {
+        opts.format = _test::OutputFormat::Terse;
+    }
+    // [`tester`] currently (0.9.1) uses `num_cpus::get_physical`;
+    // use all available threads instead.
+    if opts.test_threads.is_none() {
+        opts.test_threads = std::thread::available_parallelism().map(|x| x.get()).ok();
+    }
+
+    let mut tests = Vec::new();
+    for mode in [Mode::Ui, Mode::SolcSolidity, Mode::SolcYul] {
+        let runner = Runner::new(cmd, mode);
+        let inputs = runner.collect();
+        let f = match mode {
+            Mode::Ui => Runner::run_ui_test,
+            Mode::SolcSolidity => Runner::run_solc_solidity_test,
+            Mode::SolcYul => Runner::run_solc_yul_test,
+        };
+        make_tests(Arc::new(runner), &mut tests, &inputs, f);
+    }
+    tests.sort_by(|a, b| a.desc.name.as_slice().cmp(b.desc.name.as_slice()));
+
+    match _test::run_tests_console(&opts, tests) {
+        Ok(true) => {}
+        Ok(false) => {
+            println!("Some tests failed");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            println!("I/O failure during tests: {e}");
+            std::process::exit(1);
+        }
     }
 }
 
+fn make_tests(
+    runner: Arc<Runner>,
+    tests: &mut Vec<test::TestDescAndFn>,
+    inputs: &[walkdir::DirEntry],
+    run: TestFn,
+) {
+    tests.reserve(inputs.len());
+    for input in inputs {
+        let runner = runner.clone();
+        let path = input.path().to_path_buf();
+
+        let rel_path = path.strip_prefix(runner.root).unwrap_or(&path);
+        let mode = match runner.mode {
+            Mode::Ui => "ui",
+            Mode::SolcSolidity => "solc-solidity",
+            Mode::SolcYul => "solc-yul",
+        };
+        let name = format!("[{mode}] {}", rel_path.display());
+        let ignore_reason = match run(&runner, &path, true) {
+            TestResult::Skipped(reason) => Some(reason),
+            _ => None,
+        };
+        tests.push(test::TestDescAndFn {
+            #[cfg(feature = "nightly")]
+            desc: test::TestDesc {
+                name: test::TestName::DynTestName(name),
+                ignore: ignore_reason.is_some(),
+                ignore_message: ignore_reason,
+                source_file: "",
+                start_line: 0,
+                start_col: 0,
+                end_line: 0,
+                end_col: 0,
+                should_panic: test::ShouldPanic::No,
+                compile_fail: false,
+                no_run: false,
+                test_type: test::TestType::Unknown,
+            },
+            #[cfg(not(feature = "nightly"))]
+            desc: test::TestDesc {
+                name: test::TestName::DynTestName(name),
+                ignore: ignore_reason.is_some(),
+                should_panic: test::ShouldPanic::No,
+                allow_fail: false,
+                test_type: test::TestType::Unknown,
+            },
+            testfn: test::DynTestFn(Box::new(move || {
+                let r = run(&runner, &path, false);
+                if r == TestResult::Failed {
+                    #[cfg(not(feature = "nightly"))]
+                    panic!("test failed");
+                    #[cfg(feature = "nightly")]
+                    return Err(String::from("test failed"));
+                }
+                #[cfg(feature = "nightly")]
+                Ok(())
+            })),
+        })
+    }
+}
+
+#[derive(Clone)]
 struct Runner {
     cmd: &'static Path,
     root: &'static Path,
+    mode: Mode,
+    verbose: bool,
 }
 
 impl Runner {
-    fn new(cmd: &'static Path) -> Self {
+    fn new(cmd: &'static Path, mode: Mode) -> Self {
         Self {
             cmd,
             root: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap(),
+            mode,
+            verbose: false,
         }
+    }
+
+    fn collect(&self) -> Vec<walkdir::DirEntry> {
+        let path = match self.mode {
+            Mode::Ui => self.root.join("tests/ui/"),
+            Mode::SolcSolidity => self.root.join("testdata/solidity/test/"),
+            Mode::SolcYul => self.root.join("testdata/solidity/test/libyul/"),
+        };
+        let yul = match self.mode {
+            Mode::Ui => true,
+            Mode::SolcSolidity => false,
+            Mode::SolcYul => true,
+        };
+        self.collect_files(&path, yul)
     }
 
     fn collect_files(&self, path: &Path, yul: bool) -> Vec<walkdir::DirEntry> {
@@ -67,79 +197,10 @@ impl Runner {
                 })
                 .collect::<Vec<_>>()
         });
-        eprintln!("collected {} test files in {time:#?}", r.len());
+        if self.verbose {
+            eprintln!("collected {} test files in {time:#?}", r.len());
+        }
         r
-    }
-
-    fn run_tests<'a, T, F>(&self, inputs: &'a [T], run: F)
-    where
-        T: std::fmt::Debug + Send + Sync,
-        [T]: IntoParallelRefIterator<'a, Item = &'a T>,
-        F: Fn(&'a T) -> TestResult + Send + Sync,
-    {
-        let results = Mutex::new(Vec::with_capacity(inputs.len()));
-        let run = |input| {
-            let stopwatch = Instant::now();
-            let result = run(input);
-            let elapsed = stopwatch.elapsed();
-            results.lock().unwrap_or_else(PoisonError::into_inner).push((input, result, elapsed));
-        };
-        let run_all = || inputs.par_iter().for_each(run);
-        let run_all_real = || std::panic::catch_unwind(std::panic::AssertUnwindSafe(run_all));
-
-        let (test_time, res) = self.time(run_all_real);
-        match res {
-            Ok(()) => {}
-            Err(e) => {
-                let msg = if let Some(s) = e.downcast_ref::<&'static str>() {
-                    *s
-                } else if let Some(s) = e.downcast_ref::<String>() {
-                    s.as_str()
-                } else {
-                    "Box<dyn Any>"
-                };
-                eprintln!("test runner panicked with {msg}");
-            }
-        };
-
-        let mut results = results.into_inner().unwrap();
-        results.sort_by_key(|(_, _, d)| *d);
-        let total = inputs.len();
-        let mut passed = 0;
-        let mut skipped = 0;
-        let mut failed = 0;
-        let mut all_skipped = HashMap::<&'static str, usize>::new();
-        for (i, (t, result, time)) in results.iter().rev().enumerate() {
-            if i < 10 {
-                let _ = (i, t, time);
-                // eprintln!("- {result:?} in {time:#?} for {t:#?}");
-            }
-            let counter = match result {
-                TestResult::Passed => &mut passed,
-                TestResult::Skipped(_) => &mut skipped,
-                TestResult::Failed => &mut failed,
-            };
-            *counter += 1;
-            if let TestResult::Skipped(reason) = result {
-                *all_skipped.entry(reason).or_default() += 1;
-            }
-        }
-
-        if !all_skipped.is_empty() {
-            let mut v = all_skipped.into_iter().collect::<Vec<_>>();
-            v.sort_by_key(|(_, count)| *count);
-            let max_count = v.iter().map(|(_, count)| *count).max().unwrap();
-            let max_count_len = max_count.to_string().len();
-            eprintln!();
-            for (reason, count) in v.into_iter().rev() {
-                eprintln!("skipped {count:>max_count_len$}: {reason}");
-            }
-        }
-
-        eprintln!("\n{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
-        if failed > 0 {
-            panic!("some tests failed");
-        }
     }
 
     fn time<R>(&self, f: impl FnOnce() -> R) -> (Duration, R) {
@@ -151,7 +212,7 @@ impl Runner {
 
     fn cmd(&self) -> Command {
         let mut cmd = Command::new(self.cmd);
-        cmd.current_dir(&self.root)
+        cmd.current_dir(self.root)
             .env("__SULK_IN_INTEGRATION_TEST", "1")
             .env("RUST_LOG", "debug")
             .arg("--color=always")

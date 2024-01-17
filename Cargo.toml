@@ -90,6 +90,7 @@ criterion = "0.5"
 expect-test = "1.4"
 rand = "0.8"
 tempfile = "3.9"
+tester = "0.9"
 
 once_cell = "1.19"
 regex = "1.10"

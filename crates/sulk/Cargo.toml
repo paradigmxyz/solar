@@ -38,8 +38,10 @@ nightly = [
     "sulk-data-structures/nightly",
     "sulk-interface/nightly",
     "sulk-resolve/nightly",
+    "sulk-tester/nightly",
 ]
 
 [[test]]
 name = "tests"
 path = "./tests.rs"
+harness = false
