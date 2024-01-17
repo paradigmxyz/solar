@@ -1,26 +1,12 @@
 use crate::{path_contains, Runner, TestResult};
 use std::{fs, path::Path};
-use walkdir::WalkDir;
 
 impl Runner {
     pub(crate) fn run_solc_yul_tests(&self) {
         eprintln!("running Solc Yul tests with {}", self.cmd.display());
-
-        let (collect_time, paths) = self.time(|| {
-            WalkDir::new(self.root.join("testdata/solidity/test/libyul/"))
-                .sort_by_file_name()
-                .into_iter()
-                .map(|entry| entry.unwrap())
-                // Some tests are `.sol` but still in Yul.
-                .filter(|entry| {
-                    entry.path().extension() == Some("sol".as_ref())
-                        || entry.path().extension() == Some("yul".as_ref())
-                })
-                .collect::<Vec<_>>()
-        });
-        eprintln!("collected {} test files in {collect_time:#?}", paths.len());
-
-        let run = |entry: &walkdir::DirEntry| {
+        let path = self.root.join("testdata/solidity/test/libyul/");
+        let paths = self.collect_files(&path, true);
+        self.run_tests(&paths, |entry| {
             let path = entry.path();
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
@@ -59,8 +45,7 @@ impl Runner {
                 }
                 (Some(_e), false) => TestResult::Passed,
             })
-        };
-        self.run_tests(&paths, run);
+        });
     }
 }
 

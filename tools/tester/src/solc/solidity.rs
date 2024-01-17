@@ -4,7 +4,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{fs, path::Path};
 use tempfile::TempDir;
-use walkdir::WalkDir;
 
 static SOURCE_DELIMITER: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
 static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
@@ -13,18 +12,9 @@ static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
 impl Runner {
     pub(crate) fn run_solc_solidity_tests(&self) {
         eprintln!("running Solc Solidity tests with {}", self.cmd.display());
-
-        let (collect_time, paths) = self.time(|| {
-            WalkDir::new(self.root.join("testdata/solidity/test/"))
-                .sort_by_file_name()
-                .into_iter()
-                .map(|entry| entry.unwrap())
-                .filter(|entry| entry.path().extension() == Some("sol".as_ref()))
-                .collect::<Vec<_>>()
-        });
-        eprintln!("collected {} test files in {collect_time:#?}", paths.len());
-
-        let run = |entry: &walkdir::DirEntry| {
+        let path = self.root.join("testdata/solidity/test/");
+        let paths = self.collect_files(&path, false);
+        self.run_tests(&paths, |entry| {
             let path = entry.path();
             let rel_path = path.strip_prefix(&self.root).expect("test path not in root");
 
@@ -70,8 +60,7 @@ impl Runner {
                 }
                 (Some(_e), false) => TestResult::Passed,
             })
-        };
-        self.run_tests(&paths, run);
+        });
     }
 }
 

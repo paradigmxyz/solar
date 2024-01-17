@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use regex::Regex;
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     process::Output,
     sync::{Mutex, PoisonError},
     time::{Duration, Instant},
@@ -19,31 +19,56 @@ use std::{
 mod solc;
 use solc::SolcError;
 
+mod ui;
+
 const TIMEOUT: Duration = Duration::from_millis(500);
 
 static ERROR_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"// ----\r?\n(?://\s+Warning \d+: .*\n)*//\s+(\w+Error)( \d+)?: (.*)").unwrap()
 });
 
-pub fn solc_solidity_tests(cmd: &'static Path) {
-    Runner::new(cmd).run_solc_solidity_tests();
+pub enum Mode {
+    Ui,
+    SolcSolidity,
+    SolcYul,
 }
 
-pub fn solc_yul_tests(cmd: &'static Path) {
-    Runner::new(cmd).run_solc_yul_tests();
+pub fn run_tests(cmd: &'static Path, mode: Mode) {
+    let runner = Runner::new(cmd);
+    match mode {
+        Mode::Ui => runner.run_ui_tests(),
+        Mode::SolcSolidity => runner.run_solc_solidity_tests(),
+        Mode::SolcYul => runner.run_solc_yul_tests(),
+    }
 }
 
 struct Runner {
     cmd: &'static Path,
-    root: PathBuf,
+    root: &'static Path,
 }
 
 impl Runner {
     fn new(cmd: &'static Path) -> Self {
         Self {
             cmd,
-            root: Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../")).canonicalize().unwrap(),
+            root: Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap(),
         }
+    }
+
+    fn collect_files(&self, path: &Path, yul: bool) -> Vec<walkdir::DirEntry> {
+        let (time, r) = self.time(|| {
+            walkdir::WalkDir::new(path)
+                .sort_by_file_name()
+                .into_iter()
+                .map(|entry| entry.unwrap())
+                .filter(|entry| {
+                    entry.path().extension() == Some("sol".as_ref())
+                        || (yul && entry.path().extension() == Some("yul".as_ref()))
+                })
+                .collect::<Vec<_>>()
+        });
+        eprintln!("collected {} test files in {time:#?}", r.len());
+        r
     }
 
     fn run_tests<'a, T, F>(&self, inputs: &'a [T], run: F)
@@ -52,7 +77,7 @@ impl Runner {
         [T]: IntoParallelRefIterator<'a, Item = &'a T>,
         F: Fn(&'a T) -> TestResult + Send + Sync,
     {
-        let results = Mutex::new(Vec::new());
+        let results = Mutex::new(Vec::with_capacity(inputs.len()));
         let run = |input| {
             let stopwatch = Instant::now();
             let result = run(input);
@@ -100,11 +125,15 @@ impl Runner {
             }
         }
 
-        let mut v = all_skipped.into_iter().collect::<Vec<_>>();
-        v.sort_by_key(|(_, count)| *count);
-        eprintln!();
-        for (reason, count) in v.into_iter().rev() {
-            eprintln!("skipped {count:>3}: {reason}");
+        if !all_skipped.is_empty() {
+            let mut v = all_skipped.into_iter().collect::<Vec<_>>();
+            v.sort_by_key(|(_, count)| *count);
+            let max_count = v.iter().map(|(_, count)| *count).max().unwrap();
+            let max_count_len = max_count.to_string().len();
+            eprintln!();
+            for (reason, count) in v.into_iter().rev() {
+                eprintln!("skipped {count:>max_count_len$}: {reason}");
+            }
         }
 
         eprintln!("\n{total} tests: {passed} passed; {failed} failed; {skipped} skipped; finished in {test_time:#?}");
