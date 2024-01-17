@@ -89,6 +89,9 @@ mod tests {
     use super::*;
     use strum::IntoEnumIterator;
 
+    #[cfg(not(feature = "serde"))]
+    use serde_json as _;
+
     #[test]
     fn string_enum() {
         for value in EvmVersion::iter() {
