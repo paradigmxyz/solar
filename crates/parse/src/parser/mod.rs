@@ -1,4 +1,4 @@
-use crate::{Lexer, PErr, PResult, ParseSess};
+use crate::{Lexer, PErr, PResult};
 use std::fmt::{self, Write};
 use sulk_ast::{
     ast::{DocComment, Path},
@@ -7,7 +7,7 @@ use sulk_ast::{
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
-    Ident, Span, Symbol,
+    Ident, Session, Span, Symbol,
 };
 
 mod expr;
@@ -20,7 +20,7 @@ mod yul;
 /// Solidity parser.
 pub struct Parser<'a> {
     /// The parser session.
-    pub sess: &'a ParseSess,
+    pub sess: &'a Session,
 
     /// The current token.
     pub token: Token,
@@ -118,7 +118,7 @@ impl<'a> Parser<'a> {
     /// # Panics
     ///
     /// Panics if any of the tokens are comments.
-    pub fn new(sess: &'a ParseSess, tokens: Vec<Token>) -> Self {
+    pub fn new(sess: &'a Session, tokens: Vec<Token>) -> Self {
         debug_assert!(
             tokens.iter().all(|t| !t.is_comment()),
             "comments should be stripped before parsing"
@@ -138,13 +138,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Creates a new parser from a source code string.
-    pub fn from_source_code(sess: &'a ParseSess, filename: FileName, src: String) -> Self {
+    pub fn from_source_code(sess: &'a Session, filename: FileName, src: String) -> Self {
         let file = sess.source_map().new_source_file(filename, src);
         Self::from_source_file(sess, &file)
     }
 
     /// Creates a new parser from a source file.
-    pub fn from_source_file(sess: &'a ParseSess, file: &SourceFile) -> Self {
+    pub fn from_source_file(sess: &'a Session, file: &SourceFile) -> Self {
         Self::from_lexer(Lexer::from_source_file(sess, file))
     }
 

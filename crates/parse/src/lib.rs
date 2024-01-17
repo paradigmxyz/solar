@@ -14,9 +14,6 @@ pub use lexer::{is_id_continue, is_id_start, is_ident, is_whitespace, unescape, 
 mod parser;
 pub use parser::Parser;
 
-mod session;
-pub use session::ParseSess;
-
 // Convenience re-exports.
 pub use sulk_ast::{ast, token};
 pub use sulk_interface as interface;

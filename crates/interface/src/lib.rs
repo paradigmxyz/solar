@@ -32,6 +32,9 @@ pub use globals::SessionGlobals;
 mod pos;
 pub use pos::{BytePos, CharPos, Pos};
 
+mod session;
+pub use session::Session;
+
 pub mod source_map;
 pub use source_map::SourceMap;
 

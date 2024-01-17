@@ -21,7 +21,6 @@ workspace = true
 
 [dependencies]
 sulk-ast.workspace = true
-sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 
 alloy-primitives.workspace = true

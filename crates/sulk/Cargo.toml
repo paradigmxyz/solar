@@ -15,10 +15,13 @@ categories.workspace = true
 [lints]
 workspace = true
 
+[build-dependencies]
+vergen = { workspace = true, features = ["build", "git", "gitcl"] }
+
 [dependencies]
+sulk-config = { workspace = true, features = ["clap"] }
 sulk-data-structures.workspace = true
 sulk-interface.workspace = true
-sulk-parse.workspace = true
 sulk-resolve.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
@@ -28,6 +31,14 @@ tracing-subscriber = { workspace = true, features = ["registry", "env-filter", "
 
 [dev-dependencies]
 sulk-tester.workspace = true
+
+[features]
+nightly = [
+    "sulk-config/nightly",
+    "sulk-data-structures/nightly",
+    "sulk-interface/nightly",
+    "sulk-resolve/nightly",
+]
 
 [[test]]
 name = "tests"

@@ -33,15 +33,14 @@ pub(crate) fn install_panic_hook() {
         std::env::set_var("RUST_BACKTRACE", "full");
     }
 
-    let default_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
+    update_hook(|default_hook, info| {
         default_hook(info);
 
         // Separate the output with an empty line.
         eprintln!();
 
         panic_hook(info);
-    }));
+    });
 }
 
 fn panic_hook(info: &PanicInfo<'_>) {
@@ -77,4 +76,19 @@ pub(crate) fn run_in_thread_with_globals<R: Send>(f: impl FnOnce() -> R + Send) 
             Err(e) => std::panic::resume_unwind(e),
         }
     })
+}
+
+#[cfg(feature = "nightly")]
+use std::panic::update_hook;
+
+#[cfg(not(feature = "nightly"))]
+fn update_hook<F>(hook_fn: F)
+where
+    F: Fn(&(dyn Fn(&PanicInfo<'_>) + Send + Sync + 'static), &PanicInfo<'_>)
+        + Sync
+        + Send
+        + 'static,
+{
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| hook_fn(&default_hook, info)));
 }

@@ -14,3 +14,21 @@ categories.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+strum = { workspace = true, features = ["derive"] }
+
+# clap
+clap_builder = { workspace = true, optional = true }
+
+# serde
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[features]
+nightly = []
+
+clap = ["dep:clap_builder"]
+serde = ["dep:serde"]

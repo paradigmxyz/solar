@@ -1,12 +1,11 @@
 //! Solidity lexer.
 
-use crate::ParseSess;
 use sulk_ast::{
     ast::Base,
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLit, TokenLitKind},
 };
 use sulk_interface::{
-    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Span, Symbol,
+    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Session, Span, Symbol,
 };
 
 mod cursor;
@@ -22,7 +21,7 @@ mod utf8;
 /// Solidity lexer.
 pub struct Lexer<'sess, 'src> {
     /// The parsing context.
-    pub(crate) sess: &'sess ParseSess,
+    pub(crate) sess: &'sess Session,
 
     /// Initial position, read-only.
     start_pos: BytePos,
@@ -47,17 +46,17 @@ pub struct Lexer<'sess, 'src> {
 
 impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Creates a new `Lexer` for the given source string.
-    pub fn new(sess: &'sess ParseSess, src: &'src str) -> Self {
+    pub fn new(sess: &'sess Session, src: &'src str) -> Self {
         Self::with_start_pos(sess, src, BytePos(0))
     }
 
     /// Creates a new `Lexer` for the given source file.
-    pub fn from_source_file(sess: &'sess ParseSess, file: &'src SourceFile) -> Self {
+    pub fn from_source_file(sess: &'sess Session, file: &'src SourceFile) -> Self {
         Self::with_start_pos(sess, &file.src, file.start_pos)
     }
 
     /// Creates a new `Lexer` for the given source string and starting position.
-    pub fn with_start_pos(sess: &'sess ParseSess, src: &'src str, start_pos: BytePos) -> Self {
+    pub fn with_start_pos(sess: &'sess Session, src: &'src str, start_pos: BytePos) -> Self {
         let mut lexer = Self {
             sess,
             start_pos,
@@ -494,7 +493,7 @@ mod tests {
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
     fn check(src: &str, expected: Expected<'_>) {
-        let sess = ParseSess::with_test_emitter(false);
+        let sess = Session::with_test_emitter(false);
         let tokens: Vec<_> = Lexer::new(&sess, src)
             .filter(|t| !t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))

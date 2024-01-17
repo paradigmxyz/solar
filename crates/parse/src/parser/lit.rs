@@ -349,16 +349,17 @@ fn strip_underscores(symbol: Symbol) -> Symbol {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Lexer, ParseSess};
+    use crate::Lexer;
     use alloy_primitives::address;
     use num_rational::BigRational;
+    use sulk_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.
 
     // Run through the lexer to get the same input that the parser gets.
     #[track_caller]
     fn lex_literal(src: &str) -> Symbol {
-        let sess = ParseSess::with_test_emitter(false);
+        let sess = Session::with_test_emitter(false);
         let tokens = Lexer::new(&sess, src).into_tokens();
         sess.dcx.has_errors().unwrap();
         assert_eq!(tokens.len(), 1, "{tokens:?}");

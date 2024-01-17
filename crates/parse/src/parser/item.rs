@@ -1210,12 +1210,11 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParseSess;
-    use sulk_interface::source_map::FileName;
+    use sulk_interface::{source_map::FileName, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
         sulk_interface::enter(|| {
-            let sess = ParseSess::with_test_emitter(false);
+            let sess = Session::with_test_emitter(false);
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");

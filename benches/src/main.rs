@@ -1,6 +1,6 @@
 use criterion::Criterion;
 use std::{hint::black_box, path::PathBuf, time::Duration};
-use sulk_parse::ParseSess;
+use sulk_parse::interface::Session;
 
 const PARSERS: &[&dyn Parser] = &[&Sulk, &Solang, &Slang];
 const SRCS: &[Source] = &[
@@ -47,7 +47,7 @@ impl Parser for Sulk {
     fn parse(&self, src: &str) {
         (|| {
             let source_map = sulk_parse::interface::SourceMap::empty();
-            let sess = ParseSess::with_tty_emitter(source_map.into());
+            let sess = Session::with_tty_emitter(source_map.into());
             let filename = PathBuf::from("test.sol");
             let mut parser =
                 sulk_parse::Parser::from_source_code(&sess, filename.into(), src.into());

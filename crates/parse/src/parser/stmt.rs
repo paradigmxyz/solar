@@ -432,14 +432,13 @@ impl IndexAccessedPath {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ParseSess;
-    use sulk_interface::source_map::FileName;
+    use sulk_interface::{source_map::FileName, Session};
 
     #[test]
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
             sulk_interface::enter(|| {
-                let sess = ParseSess::with_test_emitter(false);
+                let sess = Session::with_test_emitter(false);
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let mut parser =

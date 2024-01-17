@@ -46,9 +46,9 @@ sulk-resolve = { version = "0.0.0", path = "crates/resolve" }
 # internal crates
 sulk-tester = { version = "0.0.0", path = "tools/tester" }
 
+# Ethereum
 alloy-primitives = "0.6"
 
-# big numbers
 num-bigint = "0.4"
 num-integer = "0.1"
 num-rational = "0.4"
@@ -56,6 +56,7 @@ num-traits = "0.2"
 
 # CLI
 clap = "4.4"
+clap_builder = "4.4"
 
 # diagnostics
 anstream = "0.6"
@@ -63,13 +64,14 @@ anstyle = "1.0"
 annotate-snippets = "0.10.1"
 
 # serde
-serde = { version = "1.0", features = ["derive"] }
+serde = "1.0"
 serde_json = "1.0"
 
 # macros
 match_cfg = "0.1"
 proc-macro2 = "1.0"
 quote = "1.0"
+strum = "0.25"
 syn = "2.0"
 thiserror = "1.0"
 
@@ -107,3 +109,4 @@ scoped-tls = "1.0.1"
 semver = "1.0"
 smallvec = "1"
 unicode-width = "0.1.10"
+vergen = "8.3"

@@ -1,34 +1,43 @@
-use clap::{ColorChoice, Parser, ValueEnum, ValueHint};
+use clap::{ColorChoice, Parser, ValueHint};
 use std::path::PathBuf;
+use sulk_config::{EvmVersion, Language};
+
+const VERSION_MESSAGE: &str = concat!(
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("VERGEN_GIT_SHA"),
+    " ",
+    env!("VERGEN_BUILD_DATE"),
+    ")"
+);
 
 /// Blazingly fast Solidity compiler.
 #[derive(Parser)]
+#[clap(
+    name = "sulk",
+    version = VERSION_MESSAGE,
+    // after_help = "Find more information in the book: http://book.getfoundry.sh/reference/forge/forge.html",
+    next_display_order = None,
+)]
 pub struct Args {
     /// Files to compile.
     #[arg(value_hint = ValueHint::FilePath, required = true)]
     pub input: Vec<PathBuf>,
-    /// Language.
-    #[arg(long, value_enum, default_value = "solidity")]
-    pub language: Language,
     /// Directory to search for files.
     #[arg(long, short = 'I')]
     pub import_path: Vec<PathBuf>,
     /// Map to search for files [format: map=path]
     #[arg(long, short = 'm')]
     pub import_map: Vec<ImportMap>,
+    /// Source code language.
+    #[arg(long, value_enum, default_value_t)]
+    pub language: Language,
+    /// EVM version.
+    #[arg(long, value_enum, default_value_t)]
+    pub evm_version: EvmVersion,
     /// Coloring.
-    #[arg(long, value_enum, default_value = "auto")]
+    #[arg(long, value_enum, default_value_t)]
     pub color: ColorChoice,
-}
-
-/// Source code language.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-pub enum Language {
-    /// Solidity.
-    #[default]
-    Solidity,
-    /// Yul.
-    Yul,
 }
 
 #[derive(Clone, Debug)]

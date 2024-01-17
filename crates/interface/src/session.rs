@@ -1,18 +1,22 @@
+use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
+use sulk_config::{EvmVersion, Language};
 use sulk_data_structures::sync::Lrc;
-use sulk_interface::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
 
-/// Information about the current parsing session.
-pub struct ParseSess {
+/// Information about the current compiler session.
+pub struct Session {
     /// The diagnostics context.
     pub dcx: DiagCtxt,
     /// The source map.
     source_map: Lrc<SourceMap>,
+
+    pub evm_version: EvmVersion,
+    pub language: Language,
 }
 
-impl ParseSess {
+impl Session {
     /// Creates a new parser session with the given diagnostics context and source map.
     pub fn new(dcx: DiagCtxt, source_map: Lrc<SourceMap>) -> Self {
-        Self { dcx, source_map }
+        Self { dcx, source_map, evm_version: EvmVersion::default(), language: Language::default() }
     }
 
     /// Creates a new parser session with an empty source map.

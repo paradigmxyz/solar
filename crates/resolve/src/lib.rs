@@ -15,34 +15,29 @@ use sulk_data_structures::sync::Lrc;
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
-    sym, Result, Span,
+    sym, Result, Session, Span,
 };
-use sulk_parse::{ParseSess, Parser};
+use sulk_parse::Parser;
 
 pub struct Resolver<'a> {
     pub file_resolver: FileResolver<'a>,
-    pub parse_sess: &'a ParseSess,
+    pub sess: &'a Session,
     files: Vec<Lrc<SourceFile>>,
 }
 
 impl<'a> Resolver<'a> {
     /// Creates a new resolver.
-    pub fn new(parse_sess: &'a ParseSess) -> Self {
-        Self {
-            file_resolver: FileResolver::new(parse_sess.source_map()),
-            parse_sess,
-            files: Vec::new(),
-        }
+    pub fn new(sess: &'a Session) -> Self {
+        Self { file_resolver: FileResolver::new(sess.source_map()), sess, files: Vec::new() }
     }
 
     /// Returns the diagnostic context.
     pub fn dcx(&self) -> &'a DiagCtxt {
-        &self.parse_sess.dcx
+        &self.sess.dcx
     }
 
     pub fn parse_and_resolve(
         &mut self,
-        yul: bool,
         stdin: bool,
         paths: impl IntoIterator<Item = impl AsRef<Path>>,
     ) -> Result<()> {
@@ -50,7 +45,7 @@ impl<'a> Resolver<'a> {
         let emit_resolve_error = |e: ResolveError| dcx.err(e.to_string()).emit();
         if stdin {
             let file = self.file_resolver.load_stdin().map_err(emit_resolve_error)?;
-            self.resolve_file(yul, file)?;
+            self.resolve_file(file)?;
         }
         for path in paths {
             let path = path.as_ref();
@@ -64,32 +59,33 @@ impl<'a> Resolver<'a> {
                 Err(_) => path.to_path_buf(),
             };
             let file = self.file_resolver.resolve_file(&path, None).map_err(emit_resolve_error)?;
-            self.resolve_file(yul, file)?;
+            self.resolve_file(file)?;
         }
         Ok(())
     }
 
-    fn resolve_file(&mut self, yul: bool, file: Lrc<SourceFile>) -> Result<()> {
+    fn resolve_file(&mut self, file: Lrc<SourceFile>) -> Result<()> {
         if self.files.iter().any(|f| Lrc::ptr_eq(f, &file)) {
             debug!("skipping file {}", file.name.display());
             return Ok(());
         }
         self.files.push(file.clone());
+        debug!("parsing file {}", file.name.display());
 
-        let mut parser = Parser::from_source_file(self.parse_sess, &file);
+        let mut parser = Parser::from_source_file(self.sess, &file);
 
-        if yul {
+        if self.sess.language.is_yul() {
             let file = parser.parse_yul_file_object().map_err(|e| e.emit())?;
             // TODO
             let _ = file;
             return Ok(());
         }
 
-        debug!("parsing file {}", file.name.display());
         let source_unit = parser.parse_file().map_err(|e| e.emit())?;
 
         let parent = match &file.name {
             FileName::Real(path) => Some(path.as_path()),
+            FileName::Anon(_) => Some(Path::new("")),
             _ => None,
         };
         for item in &source_unit.items {
@@ -105,7 +101,7 @@ impl<'a> Resolver<'a> {
                         .file_resolver
                         .resolve_file(path, parent)
                         .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())?;
-                    self.resolve_file(yul, file)?;
+                    self.resolve_file(file)?;
                 }
                 _ => {}
             }

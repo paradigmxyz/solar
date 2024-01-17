@@ -22,3 +22,11 @@ sulk-interface.workspace = true
 sulk-parse.workspace = true
 
 tracing.workspace = true
+
+[features]
+nightly = [
+    "sulk-ast/nightly",
+    "sulk-data-structures/nightly",
+    "sulk-interface/nightly",
+    "sulk-parse/nightly",
+]
