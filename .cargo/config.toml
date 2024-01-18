@@ -1,0 +1,4 @@
+[alias]
+xtask = "run --package xtask --bin xtask --"
+tq = "test -- -q"
+qt = "tq"
