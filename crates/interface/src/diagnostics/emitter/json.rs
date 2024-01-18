@@ -6,31 +6,43 @@ use crate::{
 };
 use anstream::ColorChoice;
 use serde::Serialize;
-use std::{cell::RefCell, io, rc::Rc};
+use std::{
+    io,
+    sync::{Arc, Mutex, PoisonError},
+};
 use sulk_data_structures::sync::Lrc;
 
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
     writer: Box<dyn io::Write>,
-    source_map: Lrc<SourceMap>,
     pretty: bool,
+
+    human_emitter: HumanEmitter,
+    buffer: LocalBuffer,
 }
 
 impl Emitter for JsonEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) {
-        self.emit(&EmitTyped::Diagnostic(self.diagnostic(diagnostic)))
-            .unwrap_or_else(|e| io_panic(e));
+        let json_diagnostic = self.diagnostic(diagnostic);
+        self.emit(&EmitTyped::Diagnostic(json_diagnostic)).unwrap_or_else(|e| io_panic(e));
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {
-        Some(&self.source_map)
+        Emitter::source_map(&self.human_emitter)
     }
 }
 
 impl JsonEmitter {
     /// Creates a new `JsonEmitter` that writes to given writer.
     pub fn new(writer: Box<dyn io::Write>, source_map: Lrc<SourceMap>) -> Self {
-        Self { writer, source_map, pretty: false }
+        let buffer = LocalBuffer::new();
+        Self {
+            writer,
+            pretty: false,
+            human_emitter: HumanEmitter::new(Box::new(buffer.clone()), ColorChoice::Never)
+                .source_map(Some(source_map)),
+            buffer,
+        }
     }
 
     /// Sets whether to pretty print the JSON.
@@ -39,13 +51,20 @@ impl JsonEmitter {
         self
     }
 
-    fn diagnostic(&self, diagnostic: &crate::diagnostics::Diagnostic) -> Diagnostic {
+    /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
+    pub fn ui_testing(mut self, yes: bool) -> Self {
+        self.human_emitter = self.human_emitter.ui_testing(yes);
+        self
+    }
+
+    fn source_map(&self) -> &Lrc<SourceMap> {
+        Emitter::source_map(self).unwrap()
+    }
+
+    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> Diagnostic {
         Diagnostic {
             message: diagnostic.label().into_owned(),
-            code: diagnostic
-                .code
-                .as_ref()
-                .map(|code| DiagnosticCode { code: code.id.to_string(), explanation: None }),
+            code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
             level: diagnostic.level.to_str(),
             spans: self.spans(&diagnostic.span),
             children: diagnostic.children.iter().map(|sub| self.sub_diagnostic(sub)).collect(),
@@ -69,7 +88,7 @@ impl JsonEmitter {
     }
 
     fn span(&self, label: &SpanLabel) -> DiagnosticSpan {
-        let sm = &*self.source_map;
+        let sm = &**self.source_map();
         let span = label.span;
         let start = sm.lookup_char_pos(span.lo());
         let end = sm.lookup_char_pos(span.hi());
@@ -88,7 +107,7 @@ impl JsonEmitter {
     }
 
     fn span_lines(&self, span: Span) -> Vec<DiagnosticSpanLine> {
-        let Ok(f) = self.source_map.span_to_lines(span) else { return Vec::new() };
+        let Ok(f) = self.source_map().span_to_lines(span) else { return Vec::new() };
         let sf = &*f.file;
         f.lines.iter().map(|line| self.span_line(sf, line)).collect()
     }
@@ -101,48 +120,10 @@ impl JsonEmitter {
         }
     }
 
-    fn emit_diagnostic_to_buffer(&self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
-        #[derive(Clone)]
-        struct LocalBuffer(Rc<RefCell<Vec<u8>>>);
-
-        impl io::Write for LocalBuffer {
-            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                self.0.borrow_mut().write(buf)
-            }
-
-            fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
-                self.0.borrow_mut().write_vectored(bufs)
-            }
-
-            fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-                self.0.borrow_mut().write_all(buf)
-            }
-
-            fn flush(&mut self) -> io::Result<()> {
-                Ok(())
-            }
-        }
-
-        impl LocalBuffer {
-            fn new() -> Self {
-                Self(Rc::new(RefCell::new(Vec::with_capacity(64))))
-            }
-
-            #[track_caller]
-            fn unwrap(self) -> Vec<u8> {
-                match Rc::try_unwrap(self.0) {
-                    Ok(cell) => cell.into_inner(),
-                    Err(_) => panic!("LocalBuffer::unwrap called with multiple references"),
-                }
-            }
-        }
-
-        let buffer = LocalBuffer::new();
-        HumanEmitter::new(Box::new(buffer.clone()), ColorChoice::Never)
-            .source_map(Some(self.source_map.clone()))
-            .emit_diagnostic(diagnostic);
-        let buffer = buffer.unwrap();
-        String::from_utf8(buffer).expect("HumanEmitter wrote invalid UTF-8")
+    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
+        self.human_emitter.emit_diagnostic(diagnostic);
+        let bytes = std::mem::take(&mut *self.buffer.0.lock().unwrap());
+        String::from_utf8(bytes).expect("HumanEmitter wrote invalid UTF-8")
     }
 
     fn emit(&mut self, value: &EmitTyped) -> io::Result<()> {
@@ -153,6 +134,33 @@ impl JsonEmitter {
         }?;
         self.writer.write_all(b"\n")?;
         self.writer.flush()
+    }
+}
+
+#[derive(Clone)]
+struct LocalBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for LocalBuffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).write(buf)
+    }
+
+    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).write_vectored(bufs)
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner).write_all(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl LocalBuffer {
+    fn new() -> Self {
+        Self(Arc::new(Mutex::new(Vec::new())))
     }
 }
 

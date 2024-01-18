@@ -7,7 +7,7 @@ use cli::Args;
 use std::{path::Path, process::ExitCode};
 use sulk_data_structures::{defer, sync::Lrc};
 use sulk_interface::{
-    diagnostics::{DiagCtxt, FatalError},
+    diagnostics::{DiagCtxt, DynEmitter, FatalError, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
 };
 
@@ -44,8 +44,7 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
 
 fn _run_compiler(Compiler { sess, args }: &Compiler) -> Result<()> {
     let is_yul = args.language.is_yul();
-    let is_testing = || std::env::var_os("__SULK_IN_INTEGRATION_TEST").is_some_and(|s| s != "0");
-    if is_yul && !is_testing() {
+    if is_yul && args.test_mode.is_none() {
         return Err(sess.dcx.err("Yul is not supported yet").emit());
     }
 
@@ -83,13 +82,34 @@ impl Compiler {
 
 fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send) -> R {
     utils::run_in_thread_with_globals(|| {
-        let source_map = SourceMap::new();
-        let color = match args.color {
-            clap::ColorChoice::Always => sulk_interface::ColorChoice::Always,
-            clap::ColorChoice::Auto => sulk_interface::ColorChoice::Auto,
-            clap::ColorChoice::Never => sulk_interface::ColorChoice::Never,
+        let ui_testing = matches!(args.test_mode, Some(cli::TestMode::Ui));
+        let source_map = Lrc::new(SourceMap::new());
+        let emitter: Box<DynEmitter> = match args.error_format {
+            cli::ErrorFormat::Human => {
+                let color = match args.color {
+                    clap::ColorChoice::Always => sulk_interface::ColorChoice::Always,
+                    clap::ColorChoice::Auto => sulk_interface::ColorChoice::Auto,
+                    clap::ColorChoice::Never => sulk_interface::ColorChoice::Never,
+                };
+                let human = HumanEmitter::stderr(color)
+                    .source_map(Some(source_map.clone()))
+                    .ui_testing(ui_testing);
+                Box::new(human)
+            }
+            cli::ErrorFormat::Json | cli::ErrorFormat::PrettyJson => {
+                let json = JsonEmitter::new(Box::new(std::io::stderr()), source_map.clone())
+                    .pretty(matches!(args.error_format, cli::ErrorFormat::PrettyJson))
+                    .ui_testing(ui_testing);
+                Box::new(json)
+            }
         };
-        let mut sess = Session::with_tty_emitter_and_color(Lrc::new(source_map), color);
+        let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
+            flags.deduplicate_diagnostics &= !ui_testing;
+            flags.track_diagnostics &= !ui_testing;
+            flags.track_diagnostics |= args.track_diagnostics;
+        });
+
+        let mut sess = Session::new(dcx, source_map);
         sess.evm_version = args.evm_version;
         sess.language = args.language;
 

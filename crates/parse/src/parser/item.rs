@@ -178,7 +178,7 @@ impl<'a> Parser<'a> {
                 let kw_span = self.prev_token.span;
                 ident = self.parse_ident_any()?;
                 let msg = format!("function named `{ident}`");
-                let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(E3445));
+                let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
                 if self.in_contract {
                     let help = format!("remove the `function` keyword if you intend this to be a contract's {ident} function");
                     warn = warn.span_help(kw_span, help);
@@ -770,7 +770,7 @@ impl<'a> Parser<'a> {
             if flags.contains(VarFlags::NAME_WARN) {
                 debug_assert!(!flags.contains(VarFlags::NAME));
                 let msg = "named function type parameters are deprecated";
-                self.dcx().warn(msg).code(error_code!(E6162)).span(name.span).emit();
+                self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
             }
         }
 
@@ -1214,7 +1214,7 @@ mod tests {
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
         sulk_interface::enter(|| {
-            let sess = Session::with_test_emitter(false);
+            let sess = Session::with_test_emitter();
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");

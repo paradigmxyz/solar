@@ -218,7 +218,7 @@ impl<'a> Parser<'a> {
                 self.dcx()
                     .warn("`switch` statement has only a default case")
                     .span(span)
-                    .code(error_code!(E9592))
+                    .code(error_code!(9592))
                     .emit();
             }
         }

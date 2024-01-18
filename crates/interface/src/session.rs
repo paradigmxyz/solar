@@ -25,8 +25,8 @@ impl Session {
     }
 
     /// Creates a new parser session with a test emitter.
-    pub fn with_test_emitter(ui: bool) -> Self {
-        Self::empty(DiagCtxt::with_test_emitter(ui))
+    pub fn with_test_emitter() -> Self {
+        Self::empty(DiagCtxt::with_test_emitter())
     }
 
     /// Creates a new parser session with a TTY emitter.

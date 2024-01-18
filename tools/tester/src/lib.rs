@@ -211,12 +211,25 @@ impl Runner {
     }
 
     fn cmd(&self) -> Command {
+        let mut cmd = self.cmd_common();
+        cmd.env("RUST_LOG", "debug");
+        cmd.arg("--test-mode=integration");
+        cmd
+    }
+
+    fn ui_cmd(&self) -> Command {
+        let mut cmd = self.cmd_common();
+        cmd.arg("--test-mode=ui");
+        cmd.arg("--error-format=json");
+        cmd
+    }
+
+    #[doc(hidden)]
+    fn cmd_common(&self) -> Command {
         let mut cmd = Command::new(self.cmd);
-        cmd.current_dir(self.root)
-            .env("__SULK_IN_INTEGRATION_TEST", "1")
-            .env("RUST_LOG", "debug")
-            .arg("--color=always")
-            .timeout(TIMEOUT);
+        cmd.current_dir(self.root);
+        cmd.arg("--color=always");
+        cmd.timeout(TIMEOUT);
         cmd
     }
 

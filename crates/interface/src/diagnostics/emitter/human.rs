@@ -65,7 +65,7 @@ impl HumanEmitter {
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
-    pub fn test(ui: bool) -> Self {
+    pub fn test() -> Self {
         struct TestWriter(io::Stderr);
 
         impl Write for TestWriter {
@@ -85,11 +85,7 @@ impl HumanEmitter {
             }
         }
 
-        if ui {
-            Self::stderr(ColorChoice::Never).anonymized_line_numbers(true)
-        } else {
-            Self::new(Box::new(TestWriter(io::stderr())), ColorChoice::Always)
-        }
+        Self::new(Box::new(TestWriter(io::stderr())), ColorChoice::Always)
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
@@ -108,9 +104,9 @@ impl HumanEmitter {
         self
     }
 
-    /// Sets whether to anonymize line numbers.
-    pub fn anonymized_line_numbers(mut self, anonymized_line_numbers: bool) -> Self {
-        self.renderer = self.renderer.anonymized_line_numbers(anonymized_line_numbers);
+    /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
+    pub fn ui_testing(mut self, yes: bool) -> Self {
+        self.renderer = self.renderer.anonymized_line_numbers(yes);
         self
     }
 
@@ -174,7 +170,7 @@ struct OwnedAnnotation {
 impl OwnedAnnotation {
     fn from_diagnostic(diag: &Diagnostic) -> Self {
         Self {
-            id: diag.code.as_ref().map(|s| s.id.to_string()),
+            id: diag.id(),
             label: Some(diag.label().into_owned()),
             annotation_type: to_annotation_type(diag.level),
         }

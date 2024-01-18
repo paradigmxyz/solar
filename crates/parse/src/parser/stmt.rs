@@ -438,7 +438,7 @@ mod tests {
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
             sulk_interface::enter(|| {
-                let sess = Session::with_test_emitter(false);
+                let sess = Session::with_test_emitter();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let mut parser =

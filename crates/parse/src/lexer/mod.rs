@@ -493,7 +493,7 @@ mod tests {
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
     fn check(src: &str, expected: Expected<'_>) {
-        let sess = Session::with_test_emitter(false);
+        let sess = Session::with_test_emitter();
         let tokens: Vec<_> = Lexer::new(&sess, src)
             .filter(|t| !t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))

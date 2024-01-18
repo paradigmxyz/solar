@@ -21,7 +21,7 @@ vergen = { workspace = true, features = ["build", "git", "gitcl"] }
 [dependencies]
 sulk-config = { workspace = true, features = ["clap"] }
 sulk-data-structures.workspace = true
-sulk-interface.workspace = true
+sulk-interface = { workspace = true, features = ["json"] }
 sulk-resolve.workspace = true
 
 clap = { workspace = true, features = ["derive"] }

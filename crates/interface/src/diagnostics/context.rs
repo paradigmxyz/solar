@@ -78,8 +78,8 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a test emitter.
-    pub fn with_test_emitter(ui: bool) -> Self {
-        Self::new(Box::new(HumanEmitter::test(ui)))
+    pub fn with_test_emitter() -> Self {
+        Self::new(Box::new(HumanEmitter::test()))
     }
 
     /// Creates a new `DiagCtxt` with a TTY emitter.

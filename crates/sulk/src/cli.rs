@@ -35,9 +35,47 @@ pub struct Args {
     /// EVM version.
     #[arg(long, value_enum, default_value_t)]
     pub evm_version: EvmVersion,
+
     /// Coloring.
     #[arg(long, value_enum, default_value_t)]
     pub color: ColorChoice,
+    /// Use verbose output.
+    #[arg(long, short)]
+    pub verbose: bool,
+    /// How errors and other messages are produced.
+    #[arg(long, value_enum, default_value_t)]
+    pub error_format: ErrorFormat,
+
+    // ############################################################################################
+    // Internal options - WARNING: these are completely unstable, and may change at any time.
+    // ############################################################################################
+    #[doc(hidden)]
+    #[arg(long, hide = true)]
+    pub test_mode: Option<TestMode>,
+    /// Prints a note for every diagnostic that is emitted with the creation and emission location.
+    ///
+    /// This is enabled by default on debug builds.
+    #[doc(hidden)]
+    #[arg(long, hide = true)]
+    pub track_diagnostics: bool,
+}
+
+#[doc(hidden)]
+#[derive(Clone, Debug, clap::ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+pub enum TestMode {
+    Ui,
+    Integration,
+}
+
+/// How errors and other messages are produced.
+#[derive(Clone, Debug, Default, clap::ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+pub enum ErrorFormat {
+    #[default]
+    Human,
+    Json,
+    PrettyJson,
 }
 
 #[derive(Clone, Debug)]

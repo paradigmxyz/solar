@@ -5,7 +5,7 @@ impl Runner {
     pub(crate) fn run_solc_yul_test(&self, path: &Path, check: bool) -> TestResult {
         let rel_path = path.strip_prefix(self.root).expect("test path not in root");
 
-        if let Some(reason) = solc_yul_filter(path) {
+        if let Some(reason) = solc_yul_filter(rel_path) {
             return TestResult::Skipped(reason);
         }
 
@@ -21,7 +21,7 @@ impl Runner {
         let error = self.get_expected_error(src);
 
         let mut cmd = self.cmd();
-        cmd.arg("--language=yul").arg(rel_path);
+        cmd.arg(rel_path).arg("--language=yul");
         self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
             (None, true) => TestResult::Passed,
             (None, false) => {

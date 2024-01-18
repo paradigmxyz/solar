@@ -96,11 +96,11 @@ impl FatalError {
 ///
 /// ```
 /// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
-/// let id: DiagnosticId = error_code!(E1234);
+/// let id: DiagnosticId = error_code!(1234);
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagnosticId {
-    id: &'static str,
+    id: u32,
 }
 
 impl DiagnosticId {
@@ -109,17 +109,14 @@ impl DiagnosticId {
     /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
     #[track_caller]
-    pub const fn new_from_macro(id: &'static str) -> Self {
-        let [b'E', bytes @ ..] = id.as_bytes() else { panic!("error codes must start with 'E'") };
-        assert!(bytes.len() == 4, "error codes must be exactly 4 digits long");
-
-        let mut bytes = bytes;
-        while let [byte, rest @ ..] = bytes {
-            assert!(byte.is_ascii_digit(), "error codes must be decimal");
-            bytes = rest;
-        }
-
+    pub const fn new_from_macro(id: u32) -> Self {
+        assert!(id >= 1 && id <= 9999, "error code must be in range 0001-9999");
         Self { id }
+    }
+
+    /// Returns the string representation of the diagnostic ID.
+    pub fn as_string(&self) -> String {
+        format!("{:04}", self.id)
     }
 }
 
@@ -130,14 +127,14 @@ impl DiagnosticId {
 ///
 /// ```
 /// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
-/// let code: DiagnosticId = error_code!(E1234);
+/// let code: DiagnosticId = error_code!(1234);
 /// ```
 #[macro_export]
 macro_rules! error_code {
-    ($id:ident) => {{
-        const $id: $crate::diagnostics::DiagnosticId =
-            $crate::diagnostics::DiagnosticId::new_from_macro(stringify!($id));
-        $id
+    ($id:literal) => {{
+        const E: $crate::diagnostics::DiagnosticId =
+            $crate::diagnostics::DiagnosticId::new_from_macro($id);
+        E
     }};
 }
 
@@ -394,6 +391,11 @@ impl Diagnostic {
     /// Returns the level of this diagnostic.
     pub fn level(&self) -> Level {
         self.level
+    }
+
+    /// Returns the code of this diagnostic as a string.
+    pub fn id(&self) -> Option<String> {
+        self.code.as_ref().map(|code| code.as_string())
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
