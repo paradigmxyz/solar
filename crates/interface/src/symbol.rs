@@ -700,6 +700,8 @@ symbols! {
         And:            "and",
         Balance:        "balance",
         Basefee:        "basefee",
+        Blobbasefee:    "blobbasefee",
+        Blobhash:       "blobhash",
         Blockhash:      "blockhash",
         Call:           "call",
         Callcode:       "callcode",

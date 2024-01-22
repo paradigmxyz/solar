@@ -130,9 +130,11 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
         | "broken_version_1"
         // TODO: CBA to implement.
         | "unchecked_while_body"
-        // TODO: EVM version-aware parsing. Should this even be implemented?
+        // TODO: EVM version-aware parsing.
         | "basefee_berlin_function"
         | "prevrandao_allowed_function_pre_paris"
+        | "blobbasefee_shanghai_function"
+        | "blobhash_pre_cancun"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
         | "experimental_test_warning"
         // "." is not a valid import path.

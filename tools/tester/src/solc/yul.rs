@@ -90,6 +90,9 @@ fn solc_yul_filter(path: &Path) -> Option<&'static str> {
         | "for_statement_nested_continue"
         // TODO: Not in the grammar, but docs are used to denote locations in the original src.
         | "sourceLocations"
+        // TODO: EVM version-aware parsing.
+        | "blobbasefee_identifier_pre_cancun"
+        | "blobhash_pre_cancun"
     ) {
         return Some("manually skipped");
     };
