@@ -930,28 +930,28 @@ bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(super) struct VarFlags: u16 {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
-        const DATALOC     = 1 << 1;
-        const INDEXED     = 1 << 2;
+        const DATALOC     = 1 << 0;
+        const INDEXED     = 1 << 1;
 
-        const PRIVATE     = 1 << 3;
-        const INTERNAL    = 1 << 4;
-        const PUBLIC      = 1 << 5;
-        const EXTERNAL    = 1 << 6; // Never accepted, just for error messages.
+        const PRIVATE     = 1 << 2;
+        const INTERNAL    = 1 << 3;
+        const PUBLIC      = 1 << 4;
+        const EXTERNAL    = 1 << 5; // Never accepted, just for error messages.
         const VISIBILITY  = Self::PRIVATE.bits() |
                             Self::INTERNAL.bits() |
                             Self::PUBLIC.bits() |
                             Self::EXTERNAL.bits();
 
-        const CONSTANT    = 1 << 7;
-        const IMMUTABLE   = 1 << 8;
+        const CONSTANT    = 1 << 6;
+        const IMMUTABLE   = 1 << 7;
 
-        const OVERRIDE    = 1 << 9;
+        const OVERRIDE    = 1 << 8;
 
-        const NAME        = 1 << 10;
-        const NAME_WARN   = 1 << 11;
+        const NAME        = 1 << 9;
+        const NAME_WARN   = 1 << 10;
 
-        const INITIALIZER = 1 << 12;
-        const SEMI        = 1 << 13;
+        const INITIALIZER = 1 << 11;
+        const SEMI        = 1 << 12;
 
         const STRUCT       = Self::NAME.bits();
         const ERROR        = 0;
@@ -984,37 +984,37 @@ bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(super) struct FunctionFlags: u16 {
         /// Name is required.
-        const NAME             = 1 << 1;
+        const NAME             = 1 << 0;
         /// Function type: parameter names are parsed, but issue a warning.
-        const PARAM_NAME       = 1 << 2;
+        const PARAM_NAME       = 1 << 1;
         /// Parens can be omitted.
-        const NO_PARENS        = 1 << 3;
+        const NO_PARENS        = 1 << 2;
 
         // Visibility
-        const PRIVATE          = 1 << 4;
-        const INTERNAL         = 1 << 5;
-        const PUBLIC           = 1 << 6;
-        const EXTERNAL         = 1 << 7;
+        const PRIVATE          = 1 << 3;
+        const INTERNAL         = 1 << 4;
+        const PUBLIC           = 1 << 5;
+        const EXTERNAL         = 1 << 6;
         const VISIBILITY       = Self::PRIVATE.bits() |
                                  Self::INTERNAL.bits() |
                                  Self::PUBLIC.bits() |
                                  Self::EXTERNAL.bits();
 
         // StateMutability
-        const PURE             = 1 << 8;
-        const VIEW             = 1 << 9;
-        const PAYABLE          = 1 << 10;
+        const PURE             = 1 << 7;
+        const VIEW             = 1 << 8;
+        const PAYABLE          = 1 << 9;
         const STATE_MUTABILITY = Self::PURE.bits() |
                                  Self::VIEW.bits() |
                                  Self::PAYABLE.bits();
 
-        const MODIFIERS        = 1 << 11;
-        const VIRTUAL          = 1 << 12;
-        const OVERRIDE         = 1 << 13;
+        const MODIFIERS        = 1 << 10;
+        const VIRTUAL          = 1 << 11;
+        const OVERRIDE         = 1 << 12;
 
-        const RETURNS          = 1 << 14;
+        const RETURNS          = 1 << 13;
         /// Must be implemented, meaning it must end in a `{}` implementation block.
-        const ONLY_BLOCK       = 1 << 15;
+        const ONLY_BLOCK       = 1 << 14;
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
         const CONSTRUCTOR = Self::MODIFIERS.bits() |
