@@ -98,7 +98,7 @@ impl Error {
         });
 
         let mut errors = Vec::new();
-        if let Some(idx) = file.find(DELIM) {
+        if let Some(idx) = file.rfind(DELIM) {
             let re = &*ERROR_RE;
             for line in file[idx..].lines().skip(1) {
                 if let Some(caps) = re.captures(line) {

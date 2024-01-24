@@ -39,9 +39,11 @@ pub struct TestCx<'a> {
 }
 
 impl TestCx<'_> {
+    // NOTE: Adding `.env()` to the command SIGNIFICANTLY slows down tests due to every command now
+    // having to re-capture the running process' environment.
+
     pub fn cmd(&self) -> Command {
         let mut cmd = self.cmd_common();
-        cmd.env("RUST_LOG", "debug");
         cmd.arg("--test-mode=integration");
         cmd.arg("--error-format=json");
         cmd
