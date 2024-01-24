@@ -22,7 +22,7 @@ fn run(cx: &TestCx<'_>) -> TestResult {
             "To only update this specific test, also pass `--test-args {}`",
             relative_path_to_file.display(),
         );
-        cx.fatal_proc_rec(&format!("{} errors occurred comparing output.", errors), &output);
+        cx.fatal_proc_rec(&format!("{errors} errors occurred comparing output."), &output);
     }
 
     cx.check_expected_errors(&output);

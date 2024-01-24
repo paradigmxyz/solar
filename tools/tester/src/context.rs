@@ -157,7 +157,7 @@ impl TestCx<'_> {
     }
 
     fn expected_output_path(&self, kind: &str) -> PathBuf {
-        expected_output_path(&self.file(), self.revision, kind)
+        expected_output_path(self.file(), self.revision, kind)
     }
 
     fn load_expected_output_from_path(&self, path: &Path) -> Result<String, String> {
@@ -210,9 +210,9 @@ impl TestCx<'_> {
 
         if !self.config.bless {
             if expected.is_empty() {
-                println!("normalized {}:\n{}\n", kind, actual);
+                println!("normalized {kind}:\n{actual}\n");
             } else {
-                println!("diff of {}:\n", kind);
+                println!("diff of {kind}:\n");
                 print!("{}", write_diff(expected, actual, 3));
             }
         }
@@ -238,7 +238,7 @@ impl TestCx<'_> {
                 self.delete_file(output_file);
             } else {
                 println!("writing to {}", output_file.display());
-                if let Err(err) = fs::write(&output_file, &actual) {
+                if let Err(err) = fs::write(output_file, actual) {
                     self.fatal(&format!(
                         "failed to write {} to `{}`: {}",
                         kind,
@@ -249,7 +249,7 @@ impl TestCx<'_> {
             }
         }
 
-        println!("\nThe actual {0} differed from the expected {0}.", kind);
+        println!("\nThe actual {kind} differed from the expected {kind}.");
         for output_file in files {
             println!("Actual {} saved to {}", kind, output_file.display());
         }

@@ -20,8 +20,8 @@ pub struct Mismatch {
 }
 
 impl Mismatch {
-    fn new(line_number: u32) -> Mismatch {
-        Mismatch { line_number, lines: Vec::new() }
+    fn new(line_number: u32) -> Self {
+        Self { line_number, lines: Vec::new() }
     }
 }
 
@@ -94,15 +94,15 @@ pub(crate) fn write_diff(expected: &str, actual: &str, context_size: usize) -> S
         for line in result.lines {
             match line {
                 DiffLine::Expected(e) => {
-                    writeln!(output, "-\t{}", e).unwrap();
+                    writeln!(output, "-\t{e}").unwrap();
                     line_number += 1;
                 }
                 DiffLine::Context(c) => {
-                    writeln!(output, "{}\t{}", line_number, c).unwrap();
+                    writeln!(output, "{line_number}\t{c}").unwrap();
                     line_number += 1;
                 }
                 DiffLine::Resulting(r) => {
-                    writeln!(output, "+\t{}", r).unwrap();
+                    writeln!(output, "+\t{r}").unwrap();
                 }
             }
         }
@@ -131,10 +131,10 @@ where
         let entry = entry.expect("failed to read file");
         let extension = entry.path().extension().and_then(|p| p.to_str());
         if filter(entry.file_type(), extension) {
-            let expected_path = compare_dir.join(entry.path().strip_prefix(&out_dir).unwrap());
+            let expected_path = compare_dir.join(entry.path().strip_prefix(out_dir).unwrap());
             let expected = if let Ok(s) = std::fs::read(&expected_path) { s } else { continue };
             let actual_path = entry.path();
-            let actual = std::fs::read(&actual_path).unwrap();
+            let actual = std::fs::read(actual_path).unwrap();
             let diff = unified_diff::diff(
                 &expected,
                 &expected_path.to_string_lossy(),
@@ -155,7 +155,7 @@ where
         eprintln!("printing diff:");
         let mut buf = Vec::new();
         diff_output.read_to_end(&mut buf).unwrap();
-        std::io::stderr().lock().write_all(&mut buf).unwrap();
+        std::io::stderr().lock().write_all(&buf).unwrap();
     }
     true
 }

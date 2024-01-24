@@ -65,7 +65,7 @@ pub fn run_tests(cmd: &'static Path) -> i32 {
             "ui" => Mode::Ui,
             "solc-solidity" => Mode::SolcSolidity,
             "solc-yul" => Mode::SolcYul,
-            _ => panic!("unknown mode: {}", mode),
+            _ => panic!("unknown mode: {mode}"),
         };
         modes = std::slice::from_ref(&mode_tmp);
     }
@@ -109,7 +109,7 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
 
             if !mode.solc_props() {
                 let build_path = context::output_relative_path(&config, &relative_dir);
-                std::fs::create_dir_all(&build_path).unwrap();
+                std::fs::create_dir_all(build_path).unwrap();
             }
 
             let mode = match mode {
