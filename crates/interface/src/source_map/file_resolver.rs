@@ -168,6 +168,8 @@ impl<'a> FileResolver<'a> {
         }
 
         if let Ok(path) = path.canonicalize() {
+            // TODO: avoids loading the same file twice by canonicalizing,
+            // and then not displaying the full path in the error message
             let mut path = path.as_path();
             if let Ok(curdir) = std::env::current_dir() {
                 if let Ok(p) = path.strip_prefix(curdir) {

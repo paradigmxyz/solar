@@ -16,7 +16,7 @@ const INT_FLAGS: &[&str] = &["--package=sulk", "--test=tests"];
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();
     match flags.subcommand {
-        flags::XtaskCmd::Test(flags::Test { bless, test_name }) => {
+        flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
             let mut cmd = cmd!(sh, "cargo test -q");
             if bless {
@@ -27,6 +27,9 @@ fn main() -> anyhow::Result<()> {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
                 }
                 cmd = cmd.arg(t);
+            }
+            if !rest.is_empty() {
+                cmd = cmd.arg("--").args(rest);
             }
             cmd.run()?;
         }

@@ -1,0 +1,9 @@
+error: ranges can only be combined using the || operator
+  --> $DIR/pragmas.sol:47:1
+   |
+LL | pragma solidity 0 - 1 0 - 2;
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 1 previous error
+

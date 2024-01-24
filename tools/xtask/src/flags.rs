@@ -10,6 +10,8 @@ xflags::xflags! {
 
             /// Bless test outputs.
             optional --bless
+
+            repeated rest: String
         }
     }
 }
@@ -30,6 +32,7 @@ pub enum XtaskCmd {
 #[derive(Debug)]
 pub struct Test {
     pub test_name: Option<String>,
+    pub rest: Vec<String>,
 
     pub bless: bool,
 }

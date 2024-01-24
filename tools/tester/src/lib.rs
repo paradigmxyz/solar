@@ -105,9 +105,12 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
             let config = Arc::clone(config);
             let path = input.path().to_path_buf();
             let rel_path = path.strip_prefix(config.root).unwrap_or(&path);
+            let relative_dir = rel_path.parent().unwrap().to_path_buf();
 
-            let build_path = config.build_base.join(rel_path);
-            std::fs::create_dir_all(&build_path).unwrap();
+            if !mode.solc_props() {
+                let build_path = context::output_relative_path(&config, &relative_dir);
+                std::fs::create_dir_all(&build_path).unwrap();
+            }
 
             let mode = match mode {
                 Mode::Ui => "ui",
@@ -149,9 +152,10 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
                     let src = &std::fs::read_to_string(&path).unwrap()[..];
                     let props = load(src, revision.as_deref());
                     let revision = revision.as_deref();
-                    let paths = TestPaths { file: path, relative_dir: build_path };
+                    let paths = TestPaths { file: path, relative_dir };
 
                     let cx = TestCx { config: &config, paths, src, props, revision };
+                    std::fs::create_dir_all(cx.output_base_dir()).unwrap();
                     let r = run(&cx);
                     if r == TestResult::Failed {
                         #[cfg(not(feature = "nightly"))]

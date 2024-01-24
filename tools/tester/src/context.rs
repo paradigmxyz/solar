@@ -18,7 +18,7 @@ use std::{
 
 const TIMEOUT: Duration = Duration::from_millis(500);
 
-enum TestOutput {
+pub enum TestOutput {
     Compile,
     Run,
 }
@@ -82,7 +82,7 @@ impl TestCx<'_> {
         self.file().strip_prefix(self.config.root).expect("test path not in root")
     }
 
-    fn load_compare_outputs(
+    pub fn load_compare_outputs(
         &self,
         proc_res: &ProcRes,
         output_kind: TestOutput,
@@ -236,13 +236,16 @@ impl TestCx<'_> {
         for output_file in &files {
             if actual.is_empty() {
                 self.delete_file(output_file);
-            } else if let Err(err) = fs::write(&output_file, &actual) {
-                self.fatal(&format!(
-                    "failed to write {} to `{}`: {}",
-                    kind,
-                    output_file.display(),
-                    err,
-                ));
+            } else {
+                println!("writing to {}", output_file.display());
+                if let Err(err) = fs::write(&output_file, &actual) {
+                    self.fatal(&format!(
+                        "failed to write {} to `{}`: {}",
+                        kind,
+                        output_file.display(),
+                        err,
+                    ));
+                }
             }
         }
 
@@ -423,6 +426,7 @@ impl TestCx<'_> {
 
         let parent_dir = self.file().parent().unwrap();
         normalize_path(parent_dir, "$DIR");
+        normalize_path(parent_dir.strip_prefix(self.config.root).unwrap(), "$DIR");
 
         // if self.props.remap_src_base {
         //     let mut remapped_parent_dir = PathBuf::from(FAKE_SRC_BASE);
@@ -431,14 +435,6 @@ impl TestCx<'_> {
         //     }
         //     normalize_path(&remapped_parent_dir, "$DIR");
         // }
-
-        let base_dir = Path::new("/rustc/FAKE_PREFIX");
-        // Paths into the libstd/libcore
-        normalize_path(&base_dir.join("library"), "$SRC_DIR");
-        // `ui-fulldeps` tests can show paths to the compiler source when testing macros from
-        // `rustc_macros`
-        // eg. /home/user/rust/compiler
-        normalize_path(&base_dir.join("compiler"), "$COMPILER_DIR");
 
         // Paths into the build directory
         let test_build_dir = &self.config.build_base;
@@ -523,30 +519,30 @@ impl TestCx<'_> {
     /// Gets the absolute path to the directory where all output for the given
     /// test/revision should reside.
     /// E.g., `/path/to/build/host-triple/test/ui/relative/testname.revision.mode/`.
-    fn output_base_dir(&self) -> PathBuf {
+    pub fn output_base_dir(&self) -> PathBuf {
         output_base_dir(self.config, &self.paths, self.revision)
     }
 
     /// Gets the absolute path to the base filename used as output for the given
     /// test/revision.
     /// E.g., `/.../relative/testname.revision.mode/testname`.
-    fn output_base_name(&self) -> PathBuf {
+    pub fn output_base_name(&self) -> PathBuf {
         output_base_name(self.config, &self.paths, self.revision)
     }
 
-    fn fatal_proc_rec(&self, err: &str, output: &ProcRes) -> ! {
+    pub fn fatal_proc_rec(&self, err: &str, output: &ProcRes) -> ! {
         self.error(err);
         output.fatal(None);
     }
 
-    fn error(&self, err: &str) {
+    pub fn error(&self, err: &str) {
         match self.revision {
             Some(rev) => println!("\nerror in revision `{rev}`: {err}"),
             None => println!("\nerror: {err}"),
         }
     }
 
-    fn fatal(&self, err: &str) -> ! {
+    pub fn fatal(&self, err: &str) -> ! {
         self.error(err);
         panic!("fatal error");
     }

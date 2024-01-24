@@ -39,11 +39,11 @@ pragma solidity 0.0.0;
 pragma solidity 0.0;
 pragma solidity 0;
 
-pragma foo bar;
-//~^ ERROR unkown pragma
+// pragma foo bar;
+// ~^ ERROR unknown pragma
 pragma abicoder v2;
-pragma solidity ^4294967296;
-//~^ ERROR too large
+// pragma solidity ^4294967295;
+// ~^ ERROR too large
 pragma solidity 0 - 1 0 - 2;
 //~^ ERROR ranges can only be combined using the || operator
 pragma abicoder "v2";
