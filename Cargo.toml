@@ -33,6 +33,13 @@ unused-must-use = "deny"
 [workspace.lints.rustdoc]
 all = "warn"
 
+[profile.release]
+strip = "debuginfo"
+lto = "thin"
+panic = "unwind"
+codegen-units = 1
+incremental = false
+
 [workspace.dependencies]
 # compiler crates
 sulk-ast = { version = "0.0.0", path = "crates/ast" }
