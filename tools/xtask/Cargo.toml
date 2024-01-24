@@ -17,5 +17,6 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+anyhow = "1.0"
 xflags = "0.3"
 xshell = "0.2"

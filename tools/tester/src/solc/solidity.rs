@@ -1,64 +1,48 @@
-use crate::{path_contains, Runner, TestResult};
+use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
 use assert_cmd::Command;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{fs, path::Path};
 use tempfile::TempDir;
 
+pub(crate) const FNS: TestFns = TestFns { check, run };
+
 static SOURCE_DELIMITER: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
 static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"==== ExternalSource: (.*) ====").unwrap());
 
-impl Runner {
-    pub(crate) fn run_solc_solidity_test(&self, path: &Path, check: bool) -> TestResult {
-        let rel_path = path.strip_prefix(self.root).expect("test path not in root");
+fn check(config: &Config, path: &Path) -> TestResult {
+    let rel_path = path.strip_prefix(config.root).expect("test path not in root");
 
-        if let Some(reason) = solc_solidity_filter(rel_path) {
-            return TestResult::Skipped(reason);
-        }
-
-        let Ok(src) = fs::read_to_string(path) else {
-            return TestResult::Skipped("invalid UTF-8");
-        };
-        let src = src.as_str();
-
-        if src.contains("pragma experimental solidity") {
-            return TestResult::Skipped("experimental solidity");
-        }
-
-        if check {
-            return TestResult::Passed;
-        }
-
-        let expected_error = self.get_expected_error(src);
-
-        let mut cmd = self.cmd();
-
-        let _guard = if SOURCE_DELIMITER.is_match(src) || EXTERNAL_SOURCE_DELIMITER.is_match(src) {
-            handle_delimiters(src, rel_path, &mut cmd)
-        } else {
-            cmd.arg(rel_path).arg("-I").arg(rel_path.parent().unwrap());
-            None
-        };
-
-        self.run_cmd(&mut cmd, |output| match (expected_error, output.status.success()) {
-            (None, true) => TestResult::Passed,
-            (None, false) => {
-                eprintln!("\n---- unexpected error in {} ----", rel_path.display());
-                TestResult::Failed
-            }
-            (Some(e), true) => {
-                if e.kind.parse_time_error() {
-                    eprintln!("\n---- unexpected success in {} ----", rel_path.display());
-                    eprintln!("-- expected error --\n{e}");
-                    TestResult::Failed
-                } else {
-                    TestResult::Passed
-                }
-            }
-            (Some(_e), false) => TestResult::Passed,
-        })
+    if let Some(reason) = solc_solidity_filter(rel_path) {
+        return TestResult::Skipped(reason);
     }
+
+    let Ok(src) = fs::read_to_string(path) else {
+        return TestResult::Skipped("invalid UTF-8");
+    };
+    let src = src.as_str();
+
+    if src.contains("pragma experimental solidity") {
+        return TestResult::Skipped("experimental solidity");
+    }
+
+    TestResult::Passed
+}
+
+fn run(cx: &TestCx<'_>) -> TestResult {
+    let path = cx.paths.file.as_path();
+    let mut cmd = cx.cmd();
+    let _guard = if SOURCE_DELIMITER.is_match(cx.src) || EXTERNAL_SOURCE_DELIMITER.is_match(cx.src)
+    {
+        handle_delimiters(cx.src, path, &mut cmd)
+    } else {
+        cmd.arg(path).arg("-I").arg(path.parent().unwrap());
+        None
+    };
+    let output = cx.run_cmd(cmd);
+    cx.check_expected_errors(&output);
+    TestResult::Passed
 }
 
 fn solc_solidity_filter(path: &Path) -> Option<&'static str> {

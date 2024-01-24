@@ -1,7 +1,7 @@
 use std::fmt;
 
-mod solidity;
-mod yul;
+pub(crate) mod solidity;
+pub(crate) mod yul;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SolcError {
@@ -75,7 +75,12 @@ impl std::str::FromStr for SolcErrorKind {
 }
 
 impl SolcErrorKind {
-    pub fn parse_time_error(&self) -> bool {
+    pub fn is_parser_error(&self) -> bool {
         matches!(self, Self::DocstringParsingError | Self::ParserError)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn is_error(&self) -> bool {
+        !matches!(self, Self::Info | Self::Warning)
     }
 }

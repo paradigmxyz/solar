@@ -1,4 +1,6 @@
 [alias]
 xtask = "run --package xtask --bin xtask --"
-tq = "test -- -q"
+tq = "xtask test"
 qt = "tq"
+ryul = "run --package sulk --bin sulk -- --language yul --test-mode ui"
+bless = "xtask test --bless"

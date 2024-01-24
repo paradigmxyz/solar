@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Prints whether a list of keywords is a keyword in Solidity or Yul using Solc.
 
 kws=(
     "abstract"

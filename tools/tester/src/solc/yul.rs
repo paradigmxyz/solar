@@ -1,50 +1,31 @@
-use crate::{path_contains, Runner, TestResult};
+use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
 use std::{fs, path::Path};
 
-impl Runner {
-    pub(crate) fn run_solc_yul_test(&self, path: &Path, check: bool) -> TestResult {
-        let rel_path = path.strip_prefix(self.root).expect("test path not in root");
+pub(crate) const FNS: TestFns = TestFns { check, run };
 
-        if let Some(reason) = solc_yul_filter(rel_path) {
-            return TestResult::Skipped(reason);
-        }
-
-        let Ok(src) = fs::read_to_string(path) else {
-            return TestResult::Skipped("invalid UTF-8");
-        };
-        let src = src.as_str();
-
-        if check {
-            return TestResult::Passed;
-        }
-
-        let error = self.get_expected_error(src);
-
-        let mut cmd = self.cmd();
-        cmd.arg(rel_path).arg("--language=yul");
-        self.run_cmd(&mut cmd, |output| match (error, output.status.success()) {
-            (None, true) => TestResult::Passed,
-            (None, false) => {
-                // TODO: Typed identifiers.
-                if String::from_utf8_lossy(&output.stderr).contains("found `:`") {
-                    TestResult::Skipped("typed identifiers")
-                } else {
-                    eprintln!("\n---- unexpected error in {} ----", rel_path.display());
-                    TestResult::Failed
-                }
-            }
-            (Some(e), true) => {
-                if e.kind.parse_time_error() {
-                    eprintln!("\n---- unexpected success in {} ----", rel_path.display());
-                    eprintln!("-- expected error --\n{e}");
-                    TestResult::Failed
-                } else {
-                    TestResult::Passed
-                }
-            }
-            (Some(_e), false) => TestResult::Passed,
-        })
+fn check(_config: &Config, path: &Path) -> TestResult {
+    if let Some(reason) = solc_yul_filter(path) {
+        return TestResult::Skipped(reason);
     }
+
+    if fs::read_to_string(path).is_err() {
+        return TestResult::Skipped("invalid UTF-8");
+    }
+
+    TestResult::Passed
+}
+
+fn run(cx: &TestCx<'_>) -> TestResult {
+    let path = cx.paths.file.as_path();
+    let mut cmd = cx.cmd();
+    cmd.arg(path).arg("--language=yul");
+    let output = cx.run_cmd(cmd);
+    // TODO: Typed identifiers.
+    if output.stderr.contains("found `:`") {
+        return TestResult::Skipped("typed identifiers");
+    }
+    cx.check_expected_errors(&output);
+    TestResult::Passed
 }
 
 fn solc_yul_filter(path: &Path) -> Option<&'static str> {

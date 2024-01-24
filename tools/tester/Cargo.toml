@@ -18,10 +18,14 @@ workspace = true
 
 [dependencies]
 assert_cmd.workspace = true
+diff.workspace = true
 once_cell.workspace = true
 regex.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 tempfile.workspace = true
 tester.workspace = true
+unified-diff.workspace = true
 walkdir.workspace = true
 
 [features]

@@ -87,10 +87,12 @@ tracing = "0.1"
 # testing
 assert_cmd = "2.0"
 criterion = "0.5"
+diff = "0.1.13"
 expect-test = "1.4"
 rand = "0.8"
 tempfile = "3.9"
 tester = "0.9"
+unified-diff = "0.2.1"
 
 once_cell = "1.19"
 regex = "1.10"

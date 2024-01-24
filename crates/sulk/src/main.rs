@@ -104,8 +104,8 @@ fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send)
             }
         };
         let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
-            flags.deduplicate_diagnostics &= !ui_testing;
-            flags.track_diagnostics &= !ui_testing;
+            flags.deduplicate_diagnostics &= args.test_mode.is_none();
+            flags.track_diagnostics &= args.test_mode.is_none();
             flags.track_diagnostics |= args.track_diagnostics;
         });
 

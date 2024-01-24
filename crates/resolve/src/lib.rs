@@ -45,7 +45,7 @@ impl<'a> Resolver<'a> {
         let emit_resolve_error = |e: ResolveError| dcx.err(e.to_string()).emit();
         if stdin {
             let file = self.file_resolver.load_stdin().map_err(emit_resolve_error)?;
-            self.resolve_file(file)?;
+            self.parse_and_resolve_file(file)?;
         }
         for path in paths {
             let path = path.as_ref();
@@ -59,12 +59,12 @@ impl<'a> Resolver<'a> {
                 Err(_) => path.to_path_buf(),
             };
             let file = self.file_resolver.resolve_file(&path, None).map_err(emit_resolve_error)?;
-            self.resolve_file(file)?;
+            self.parse_and_resolve_file(file)?;
         }
         Ok(())
     }
 
-    fn resolve_file(&mut self, file: Lrc<SourceFile>) -> Result<()> {
+    fn parse_and_resolve_file(&mut self, file: Lrc<SourceFile>) -> Result<()> {
         if self.files.iter().any(|f| Lrc::ptr_eq(f, &file)) {
             debug!("skipping file {}", file.name.display());
             return Ok(());
@@ -101,7 +101,7 @@ impl<'a> Resolver<'a> {
                         .file_resolver
                         .resolve_file(path, parent)
                         .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())?;
-                    self.resolve_file(file)?;
+                    self.parse_and_resolve_file(file)?;
                 }
                 _ => {}
             }

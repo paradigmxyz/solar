@@ -2268,10 +2268,14 @@ name = "sulk-tester"
 version = "0.0.0"
 dependencies = [
  "assert_cmd",
+ "diff",
  "once_cell",
  "regex",
+ "serde",
+ "serde_json",
  "tempfile",
  "tester",
+ "unified-diff",
  "walkdir",
 ]
 
@@ -2571,6 +2575,15 @@ name = "unicode-xid"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f962df74c8c05a667b5ee8bcf162993134c104e96440b663c8daa176dc772d8c"
+
+[[package]]
+name = "unified-diff"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "496a3d395ed0c30f411ceace4a91f7d93b148fb5a9b383d5d4cff7850f048d5f"
+dependencies = [
+ "diff",
+]
 
 [[package]]
 name = "utf8parse"
@@ -2906,6 +2919,7 @@ checksum = "7e2c411759b501fb9501aac2b1b2d287a6e93e5bdcf13c25306b23e1b716dd0e"
 name = "xtask"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "xflags",
  "xshell",
 ]

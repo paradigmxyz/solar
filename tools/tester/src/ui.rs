@@ -1,18 +1,24 @@
-use crate::{Runner, TestResult};
+use crate::{Config, TestCx, TestFns, TestResult};
 use std::path::Path;
 
-impl Runner {
-    pub(crate) fn run_ui_test(&self, path: &Path, check: bool) -> TestResult {
-        let rel_path = path.strip_prefix(self.root).expect("test path not in root");
+pub(crate) const FNS: TestFns = TestFns { check, run };
 
-        #[allow(clippy::nonminimal_bool)]
-        if true && check {
-            return TestResult::Passed;
-        }
+fn check(_config: &Config, _path: &Path) -> TestResult {
+    // let rel_path = path.strip_prefix(config.root).expect("test path not in root");
 
-        let mut cmd = self.ui_cmd();
-        cmd.arg(rel_path);
-        let _ = cmd;
-        TestResult::Passed
+    #[allow(clippy::nonminimal_bool)]
+    if true {
+        return TestResult::Skipped("ui tests are not implemented yet");
     }
+
+    TestResult::Passed
+}
+
+fn run(cx: &TestCx<'_>) -> TestResult {
+    let _ = cx;
+    // let TestCx { config, path, src, props } = *cx;
+    // let mut cmd = config.ui_cmd();
+    // cmd.arg(rel_path);
+    // let _ = cmd;
+    TestResult::Passed
 }
