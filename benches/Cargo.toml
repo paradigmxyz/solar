@@ -20,5 +20,5 @@ sulk-parse.workspace = true
 
 solang-parser = "=0.3.3"
 
-slang_solidity = "=0.13.0"
+slang_solidity = "=0.13.1"
 semver.workspace = true

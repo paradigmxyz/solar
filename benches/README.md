@@ -16,23 +16,6 @@ valgrind --tool=callgrind target/release/sulk-bench --valgrind
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
 invoking other commands such as `cargo test`.
 
-Note that currently `OptimizorClub` must be patched because `slang` fails parsing it: <https://github.com/NomicFoundation/slang/issues/740>
-```patch
-diff --git a/test/benchmarks/OptimizorClub.sol b/test/benchmarks/OptimizorClub.sol
-index c21d42e65f..b02faa06cc 100644
---- a/test/benchmarks/OptimizorClub.sol
-+++ b/test/benchmarks/OptimizorClub.sol
-@@ -69,7 +69,7 @@ library Puretea {
-                 } lt(offset, end) {
-                     offset := add(offset, 1)
-                 } {
--                    let opcode := byte(0, mload(offset))
-+                    // let opcode := byte(0, mload(offset))
-                     if iszero(matchesMask(mask, opcode)) {
-                         leave
-                     }
-```
-
 ## Results
 
 For this compiler:
