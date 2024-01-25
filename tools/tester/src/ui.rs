@@ -9,7 +9,7 @@ fn check(_config: &Config, _path: &Path) -> TestResult {
 
 fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
-    let mut cmd = cx.ui_cmd();
+    let mut cmd = cx.cmd();
     cmd.arg(path);
     let output = cx.run_cmd(cmd);
 

@@ -145,8 +145,7 @@ impl SourceMap {
     pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
         let mut src = String::new();
         io::stdin().read_to_string(&mut src)?;
-        let filename = FileName::anon_source_code(&src);
-        Ok(self.new_source_file(filename, src))
+        Ok(self.new_source_file(FileName::Stdin, src))
     }
 
     // By returning a `MonotonicVec`, we ensure that consumers cannot invalidate

@@ -44,15 +44,7 @@ impl TestCx<'_> {
 
     pub fn cmd(&self) -> Command {
         let mut cmd = self.cmd_common();
-        cmd.arg("--test-mode=integration");
-        cmd.arg("--error-format=json");
-        cmd
-    }
-
-    #[allow(dead_code)]
-    pub fn ui_cmd(&self) -> Command {
-        let mut cmd = self.cmd_common();
-        cmd.arg("--test-mode=ui");
+        cmd.arg("-Zui-testing");
         cmd.arg("--error-format=json");
         cmd
     }

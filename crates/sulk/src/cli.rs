@@ -46,26 +46,29 @@ pub struct Args {
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,
 
-    // ############################################################################################
-    // Internal options - WARNING: these are completely unstable, and may change at any time.
-    // ############################################################################################
-    #[doc(hidden)]
-    #[arg(long, hide = true)]
-    pub test_mode: Option<TestMode>,
-    /// Prints a note for every diagnostic that is emitted with the creation and emission location.
+    /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
-    /// This is enabled by default on debug builds.
+    /// See `-Z help` for more details.
+    // TODO: `-Zhelp` needs positional arg, and also it's displayed like a normal command.
     #[doc(hidden)]
-    #[arg(long, hide = true)]
-    pub track_diagnostics: bool,
+    #[arg(name = "unstable-features", value_name = "FLAG", short = 'Z')]
+    pub _unstable: Vec<String>,
+
+    /// Parsed unstable flags.
+    #[arg(skip)]
+    pub unstable: UnstableFeatures,
 }
 
-#[doc(hidden)]
-#[derive(Clone, Debug, clap::ValueEnum)]
-#[clap(rename_all = "kebab-case")]
-pub enum TestMode {
-    Ui,
-    Integration,
+impl Args {
+    pub(crate) fn populate_unstable(&mut self) -> Result<(), clap::Error> {
+        // TODO: Figure out if we can flatten this directly in clap derives.
+        if !self._unstable.is_empty() {
+            let hack = self._unstable.iter().map(|s| format!("--{s}"));
+            self.unstable =
+                UnstableFeatures::try_parse_from(std::iter::once(String::new()).chain(hack))?;
+        }
+        Ok(())
+    }
 }
 
 /// How errors and other messages are produced.
@@ -93,5 +96,71 @@ impl std::str::FromStr for ImportMap {
         } else {
             Err("missing '='")
         }
+    }
+}
+
+/// Internal options.
+#[derive(Clone, Debug, Default, Parser)]
+pub struct UnstableFeatures {
+    /// Enables UI testing mode.
+    #[clap(long)]
+    pub ui_testing: bool,
+    /// Prints a note for every diagnostic that is emitted with the creation and emission location.
+    ///
+    /// This is enabled by default on debug builds.
+    #[clap(long)]
+    pub track_diagnostics: bool,
+
+    #[cfg(test)]
+    #[clap(long)]
+    test_bool: bool,
+    #[cfg(test)]
+    #[clap(long)]
+    test_value: Option<usize>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn verify_cli() {
+        Args::command().debug_assert();
+        UnstableFeatures::command().debug_assert();
+    }
+
+    #[test]
+    fn unstable_features() {
+        fn parse(args: &[&str]) -> Result<UnstableFeatures, impl std::fmt::Debug> {
+            struct UnwrapDisplay<T>(T);
+            impl<T: std::fmt::Display> std::fmt::Debug for UnwrapDisplay<T> {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    write!(f, "\n{}", self.0)
+                }
+            }
+            (|| {
+                let mut args = Args::try_parse_from(args)?;
+                args.populate_unstable()?;
+                Ok::<_, clap::Error>(args.unstable)
+            })()
+            .map_err(|e| UnwrapDisplay(e.render().ansi().to_string()))
+        }
+
+        let unstable = parse(&["sulk", "a.sol"]).unwrap();
+        assert!(!unstable.test_bool);
+
+        let unstable = parse(&["sulk", "-Ztest-bool", "a.sol"]).unwrap();
+        assert!(unstable.test_bool);
+        let unstable = parse(&["sulk", "-Z", "test-bool", "a.sol"]).unwrap();
+        assert!(unstable.test_bool);
+
+        assert!(parse(&["sulk", "-Ztest-value", "a.sol"]).is_err());
+        assert!(parse(&["sulk", "-Z", "test-value", "a.sol"]).is_err());
+        assert!(parse(&["sulk", "-Ztest-value", "2", "a.sol"]).is_err());
+        let unstable = parse(&["sulk", "-Ztest-value=2", "a.sol"]).unwrap();
+        assert_eq!(unstable.test_value, Some(2));
+        let unstable = parse(&["sulk", "-Z", "test-value=2", "a.sol"]).unwrap();
+        assert_eq!(unstable.test_value, Some(2));
     }
 }

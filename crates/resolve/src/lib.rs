@@ -85,7 +85,7 @@ impl<'a> Resolver<'a> {
 
         let parent = match &file.name {
             FileName::Real(path) => Some(path.as_path()),
-            FileName::Anon(_) => Some(Path::new("")),
+            FileName::Stdin => Some(Path::new("")),
             _ => None,
         };
         for item in &source_unit.items {

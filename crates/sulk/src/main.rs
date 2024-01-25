@@ -38,13 +38,14 @@ fn main() -> ExitCode {
 }
 
 pub fn run_compiler(args: &[String]) -> Result<()> {
-    let args = Args::parse_from(args);
+    let mut args = Args::parse_from(args);
+    args.populate_unstable().map_err(|e| e.exit())?;
     run_compiler_with(args, _run_compiler)
 }
 
 fn _run_compiler(Compiler { sess, args }: &Compiler) -> Result<()> {
     let is_yul = args.language.is_yul();
-    if is_yul && args.test_mode.is_none() {
+    if is_yul && !args.unstable.ui_testing {
         return Err(sess.dcx.err("Yul is not supported yet").emit());
     }
 
@@ -82,7 +83,7 @@ impl Compiler {
 
 fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send) -> R {
     utils::run_in_thread_with_globals(|| {
-        let ui_testing = matches!(args.test_mode, Some(cli::TestMode::Ui));
+        let ui_testing = args.unstable.ui_testing;
         let source_map = Lrc::new(SourceMap::new());
         let emitter: Box<DynEmitter> = match args.error_format {
             cli::ErrorFormat::Human => {
@@ -104,9 +105,9 @@ fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send)
             }
         };
         let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
-            flags.deduplicate_diagnostics &= args.test_mode.is_none();
-            flags.track_diagnostics &= args.test_mode.is_none();
-            flags.track_diagnostics |= args.track_diagnostics;
+            flags.deduplicate_diagnostics &= !ui_testing;
+            flags.track_diagnostics &= !ui_testing;
+            flags.track_diagnostics |= args.unstable.track_diagnostics;
         });
 
         let mut sess = Session::new(dcx, source_map);

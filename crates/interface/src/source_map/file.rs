@@ -78,7 +78,7 @@ pub enum FileName {
     /// Files from the file system.
     Real(PathBuf),
     /// Command line.
-    Anon(u64),
+    Stdin,
     /// Custom sources for explicit parser calls from plugins and drivers.
     Custom(String),
 }
@@ -95,13 +95,6 @@ impl FileName {
     pub fn display(&self) -> FileNameDisplay<'_> {
         FileNameDisplay { inner: self }
     }
-
-    pub fn anon_source_code(src: &str) -> Self {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = sulk_data_structures::map::AHasher::default();
-        src.hash(&mut hasher);
-        Self::Anon(hasher.finish())
-    }
 }
 
 pub struct FileNameDisplay<'a> {
@@ -112,7 +105,7 @@ impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             FileName::Real(name) => write!(f, "{}", name.display()),
-            FileName::Anon(_) => write!(f, "<anon>"),
+            FileName::Stdin => write!(f, "<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
         }
     }
