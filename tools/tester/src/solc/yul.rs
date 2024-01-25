@@ -74,6 +74,9 @@ fn solc_yul_filter(path: &Path) -> Option<&'static str> {
         // TODO: EVM version-aware parsing.
         | "blobbasefee_identifier_pre_cancun"
         | "blobhash_pre_cancun"
+        | "mcopy_as_identifier_pre_cancun"
+        | "mcopy_pre_cancun"
+        | "tstore_tload_as_identifiers_pre_cancun"
     ) {
         return Some("manually skipped");
     };

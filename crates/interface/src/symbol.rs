@@ -735,6 +735,7 @@ symbols! {
         Log3:           "log3",
         Log4:           "log4",
         Lt:             "lt",
+        Mcopy:          "mcopy",
         Mload:          "mload",
         Mod:            "mod",
         Msize:          "msize",
@@ -766,6 +767,8 @@ symbols! {
         Stop:           "stop",
         Sub:            "sub",
         Timestamp:      "timestamp",
+        Tload:          "tload",
+        Tstore:         "tstore",
         Xor:            "xor",
 
         // Experimental Solidity specific keywords.
