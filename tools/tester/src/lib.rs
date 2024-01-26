@@ -149,8 +149,8 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
                     test_type: test::TestType::Unknown,
                 },
                 testfn: test::DynTestFn(Box::new(move || {
-                    let src = &std::fs::read_to_string(&path).unwrap()[..];
-                    let props = load(src, revision.as_deref());
+                    let src = std::fs::read_to_string(&path).unwrap();
+                    let props = load(&src, revision.as_deref());
                     let revision = revision.as_deref();
                     let paths = TestPaths { file: path, relative_dir };
 

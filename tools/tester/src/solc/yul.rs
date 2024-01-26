@@ -18,7 +18,7 @@ fn check(_config: &Config, path: &Path) -> TestResult {
 fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
     let mut cmd = cx.cmd();
-    cmd.arg(path).arg("--language=yul");
+    cmd.arg(path).arg("--language=yul").arg("-Zparse-yul");
     let output = cx.run_cmd(cmd);
     // TODO: Typed identifiers.
     if output.stderr.contains("found `:`") {

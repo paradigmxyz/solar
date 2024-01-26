@@ -7,8 +7,8 @@ use tempfile::TempDir;
 
 pub(crate) const FNS: TestFns = TestFns { check, run };
 
-static SOURCE_DELIMITER: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
-static EXTERNAL_SOURCE_DELIMITER: Lazy<Regex> =
+static SOURCE_DELIM: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
+static EXT_SOURCE_DELIM: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"==== ExternalSource: (.*) ====").unwrap());
 
 fn check(config: &Config, path: &Path) -> TestResult {
@@ -33,9 +33,8 @@ fn check(config: &Config, path: &Path) -> TestResult {
 fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
     let mut cmd = cx.cmd();
-    let _guard = if SOURCE_DELIMITER.is_match(cx.src) || EXTERNAL_SOURCE_DELIMITER.is_match(cx.src)
-    {
-        handle_delimiters(cx.src, path, &mut cmd)
+    let _guard = if has_delimiters(&cx.src) {
+        handle_delimiters(&cx.src, path, &mut cmd)
     } else {
         cmd.arg(path).arg("-I").arg(path.parent().unwrap());
         None
@@ -133,6 +132,10 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
     None
 }
 
+fn has_delimiters(src: &str) -> bool {
+    src.lines().any(|s| s.starts_with("==== "))
+}
+
 fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDir> {
     let mut tempdir = None;
     let insert_tempdir =
@@ -140,7 +143,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
     let mut lines = src.lines().peekable();
     let mut add_import_path = false;
     while let Some(line) = lines.next() {
-        if let Some(cap) = SOURCE_DELIMITER.captures(line) {
+        if let Some(cap) = SOURCE_DELIM.captures(line) {
             let mut name = cap.get(1).unwrap().as_str();
             if name == "////" {
                 name = "test.sol";
@@ -157,7 +160,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, contents).unwrap();
             cmd.arg(path);
-        } else if let Some(cap) = EXTERNAL_SOURCE_DELIMITER.captures(line) {
+        } else if let Some(cap) = EXT_SOURCE_DELIM.captures(line) {
             let eq = cap.get(1).unwrap().as_str().to_owned();
             if eq.contains('=') {
                 cmd.arg("-m").arg(eq);

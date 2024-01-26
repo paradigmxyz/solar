@@ -2,5 +2,5 @@
 xtask = "run --package xtask --bin xtask --"
 tq = "xtask test"
 qt = "tq"
-ryul = "run --package sulk --bin sulk -- --language yul --test-mode ui"
+ryul = "run --package sulk --bin sulk -- --language yul -Zparse-yul"
 bless = "xtask test --bless"

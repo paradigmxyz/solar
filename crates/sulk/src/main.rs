@@ -45,7 +45,7 @@ pub fn run_compiler(args: &[String]) -> Result<()> {
 
 fn _run_compiler(Compiler { sess, args }: &Compiler) -> Result<()> {
     let is_yul = args.language.is_yul();
-    if is_yul && !args.unstable.ui_testing {
+    if is_yul && !args.unstable.parse_yul {
         return Err(sess.dcx.err("Yul is not supported yet").emit());
     }
 

@@ -32,7 +32,7 @@ pub struct TestPaths {
 pub struct TestCx<'a> {
     pub config: &'a Config,
     pub paths: TestPaths,
-    pub src: &'a str,
+    pub src: String,
     #[allow(dead_code)]
     pub props: TestProps,
     pub revision: Option<&'a str>,

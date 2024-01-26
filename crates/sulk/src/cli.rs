@@ -110,6 +110,9 @@ pub struct UnstableFeatures {
     /// This is enabled by default on debug builds.
     #[clap(long)]
     pub track_diagnostics: bool,
+    /// Enables parsing Yul files for testing.
+    #[clap(long)]
+    pub parse_yul: bool,
 
     #[cfg(test)]
     #[clap(long)]
