@@ -1,3 +1,4 @@
 [submodule "testdata/solidity"]
 	path = testdata/solidity
-	url = https://github.com/ethereum/solidity
+	url = https://github.com/ethereum/solidity.git
+	shallow = true
