@@ -20,30 +20,51 @@ invoking other commands such as `cargo test`.
 
 For this compiler:
 - ~3 µs to set and unset scoped-TLS; **not** included below.
-- ~400 ns to setup and drop stderr emitter; included below.
-- ~200 ns to setup and drop the parser; included below.
+- ~400 ns to setup and drop stderr emitter; included below in `lex`, `parse`.
+- ~200 ns to setup and drop the parser; included below in `parse`.
 
 In practice all of these are one-time costs.
 
 Criterion results on `x86_64-unknown-linux-gnu` on AMD Ryzen 7 7950X:
 
 ```
-parser/empty/sulk       time:   [710.47 ns 711.88 ns 713.51 ns]
-parser/empty/solang     time:   [122.28 ns 122.86 ns 123.32 ns]
-parser/empty/slang      time:   [15.189 µs 15.210 µs 15.231 µs]
+parser/empty/sulk/lex   time:   [407.36 ns 408.68 ns 410.18 ns]
+parser/empty/sulk/parse time:   [685.35 ns 690.52 ns 695.61 ns]
+parser/empty/solang/lex time:   [10.986 ns 11.014 ns 11.046 ns]
+parser/empty/solang/parse
+                        time:   [110.21 ns 110.67 ns 111.09 ns]
+parser/empty/slang/parse
+                        time:   [14.577 µs 14.602 µs 14.632 µs]
 
-parser/simple/sulk      time:   [2.5731 µs 2.5785 µs 2.5850 µs]
-parser/simple/solang    time:   [4.9611 µs 4.9650 µs 4.9693 µs]
-parser/simple/slang     time:   [395.77 µs 398.76 µs 402.13 µs]
+parser/simple/sulk/lex  time:   [1.2385 µs 1.2437 µs 1.2507 µs]
+parser/simple/sulk/parse
+                        time:   [2.4507 µs 2.4683 µs 2.4871 µs]
+parser/simple/solang/lex
+                        time:   [1.1127 µs 1.1168 µs 1.1207 µs]
+parser/simple/solang/parse
+                        time:   [4.2663 µs 4.2714 µs 4.2773 µs]
+parser/simple/slang/parse
+                        time:   [356.34 µs 356.69 µs 357.14 µs]
 
-parser/verifier/sulk    time:   [134.47 µs 135.39 µs 136.32 µs]
-parser/verifier/solang  time:   [547.88 µs 550.95 µs 555.08 µs]
-parser/verifier/slang   time:   [37.924 ms 37.964 ms 38.006 ms]
+parser/verifier/sulk/lex
+                        time:   [48.672 µs 48.803 µs 48.933 µs]
+parser/verifier/sulk/parse
+                        time:   [125.80 µs 126.37 µs 127.03 µs]
+parser/verifier/solang/lex
+                        time:   [72.662 µs 72.828 µs 72.997 µs]
+parser/verifier/solang/parse
+                        time:   [449.12 µs 449.84 µs 450.52 µs]
+parser/verifier/slang/parse
+                        time:   [37.542 ms 37.598 ms 37.660 ms]
 
-parser/OptimizorClub/sulk
-                        time:   [384.25 µs 385.17 µs 386.29 µs]
-parser/OptimizorClub/solang
-                        time:   [1.4672 ms 1.4794 ms 1.4930 ms]
-parser/OptimizorClub/slang
-                        time:   [110.48 ms 110.67 ms 110.83 ms]
+parser/OptimizorClub/sulk/lex
+                        time:   [164.54 µs 164.88 µs 165.24 µs]
+parser/OptimizorClub/sulk/parse
+                        time:   [398.59 µs 400.89 µs 402.81 µs]
+parser/OptimizorClub/solang/lex
+                        time:   [219.47 µs 220.07 µs 220.85 µs]
+parser/OptimizorClub/solang/parse
+                        time:   [1.2791 ms 1.2815 ms 1.2844 ms]
+parser/OptimizorClub/slang/parse
+                        time:   [113.90 ms 114.07 ms 114.25 ms]
 ```

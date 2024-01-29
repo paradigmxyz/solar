@@ -35,13 +35,25 @@ struct Source {
 
 trait Parser {
     fn name(&self) -> &'static str;
-    fn parse(&self, s: &str);
+    fn lex(&self, src: &str);
+    fn has_lex(&self) -> bool {
+        true
+    }
+    fn parse(&self, src: &str);
 }
 
 struct Sulk;
 impl Parser for Sulk {
     fn name(&self) -> &'static str {
         "sulk"
+    }
+
+    fn lex(&self, src: &str) {
+        let source_map = sulk_parse::interface::SourceMap::empty();
+        let sess = Session::with_tty_emitter(source_map.into());
+        for token in sulk_parse::Lexer::new(&sess, src) {
+            black_box(token);
+        }
     }
 
     fn parse(&self, src: &str) {
@@ -64,6 +76,12 @@ struct Solang;
 impl Parser for Solang {
     fn name(&self) -> &'static str {
         "solang"
+    }
+
+    fn lex(&self, src: &str) {
+        for token in solang_parser::lexer::Lexer::new(src, 0, &mut vec![], &mut vec![]) {
+            black_box(token);
+        }
     }
 
     fn parse(&self, src: &str) {
@@ -89,6 +107,14 @@ impl Parser for Slang {
         "slang"
     }
 
+    fn lex(&self, src: &str) {
+        let _ = src;
+    }
+
+    fn has_lex(&self) -> bool {
+        false
+    }
+
     fn parse(&self, src: &str) {
         let version = semver::Version::new(0, 8, 22);
         let lang = slang_solidity::language::Language::new(version).unwrap();
@@ -110,13 +136,6 @@ impl Parser for Slang {
 }
 
 fn main() {
-    if false {
-        let path = std::env::args().nth(1).unwrap();
-        let s = std::fs::read_to_string(path).unwrap();
-        Slang.parse(&s);
-        return;
-    }
-
     let mut args = std::env::args().skip(1).collect::<Vec<_>>();
     let mut valgrind = false;
     let mut criterion = false;
@@ -170,7 +189,11 @@ fn criterion_benches(c: &mut Criterion) {
     sulk_parse::interface::enter(|| {
         for &Source { name, src } in SRCS {
             for &parser in PARSERS {
-                let id = format!("{name}/{}", parser.name());
+                if parser.has_lex() {
+                    let id = format!("{name}/{}/lex", parser.name());
+                    g.bench_function(id, |b| b.iter(|| parser.lex(src)));
+                }
+                let id = format!("{name}/{}/parse", parser.name());
                 g.bench_function(id, |b| b.iter(|| parser.parse(src)));
             }
         }
