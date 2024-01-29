@@ -1,15 +1,9 @@
 use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
 use assert_cmd::Command;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use std::{fs, path::Path};
 use tempfile::TempDir;
 
 pub(crate) const FNS: TestFns = TestFns { check, run };
-
-static SOURCE_DELIM: Lazy<Regex> = Lazy::new(|| Regex::new(r"==== Source: (.*) ====").unwrap());
-static EXT_SOURCE_DELIM: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"==== ExternalSource: (.*) ====").unwrap());
 
 fn check(config: &Config, path: &Path) -> TestResult {
     let rel_path = path.strip_prefix(config.root).expect("test path not in root");
@@ -133,7 +127,7 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
 }
 
 fn has_delimiters(src: &str) -> bool {
-    src.lines().any(|s| s.starts_with("==== "))
+    src.contains("==== ")
 }
 
 fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDir> {
@@ -143,8 +137,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
     let mut lines = src.lines().peekable();
     let mut add_import_path = false;
     while let Some(line) = lines.next() {
-        if let Some(cap) = SOURCE_DELIM.captures(line) {
-            let mut name = cap.get(1).unwrap().as_str();
+        if let Some(mut name) = source_delim(line) {
             if name == "////" {
                 name = "test.sol";
             }
@@ -160,8 +153,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, contents).unwrap();
             cmd.arg(path);
-        } else if let Some(cap) = EXT_SOURCE_DELIM.captures(line) {
-            let eq = cap.get(1).unwrap().as_str().to_owned();
+        } else if let Some(eq) = external_source_delim(line) {
             if eq.contains('=') {
                 cmd.arg("-m").arg(eq);
             }
@@ -169,7 +161,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
         } else {
             // Sometimes `==== Source: ... ====` is missing after external sources.
             let mut contents = String::with_capacity(src.len());
-            for line in lines.by_ref() {
+            for line in lines {
                 assert!(!line.starts_with("===="));
                 contents.push_str(line);
                 contents.push('\n');
@@ -178,6 +170,7 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
             let path = tempdir.path().join("test.sol");
             fs::write(&path, contents).unwrap();
             cmd.arg(path);
+            break;
         }
     }
     if let Some(tempdir) = &tempdir {
@@ -187,4 +180,12 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
         cmd.arg("-I").arg(path.parent().unwrap());
     }
     tempdir
+}
+
+fn source_delim(line: &str) -> Option<&str> {
+    line.strip_prefix("==== Source: ").and_then(|s| s.strip_suffix(" ===="))
+}
+
+fn external_source_delim(line: &str) -> Option<&str> {
+    line.strip_prefix("==== ExternalSource: ").and_then(|s| s.strip_suffix(" ===="))
 }
