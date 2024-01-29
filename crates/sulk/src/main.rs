@@ -14,7 +14,7 @@ use sulk_interface::{
 pub mod cli;
 mod utils;
 
-// Used in integration tests.
+// Used in integration tests. See `../tests.rs`.
 #[cfg(test)]
 use sulk_tester as _;
 
@@ -24,50 +24,26 @@ fn main() -> ExitCode {
     utils::init_logger(&early_dcx);
     utils::install_panic_hook();
 
-    FatalError::catch_with_exit_code(|| {
-        let args = std::env::args_os()
-            .enumerate()
-            .map(|(i, arg)| {
-                arg.into_string().unwrap_or_else(|arg| {
-                    early_dcx.fatal(format!("argument {i} is not valid Unicode: {arg:?}")).emit()
-                })
-            })
-            .collect::<Vec<_>>();
-        run_compiler(&args)
-    })
+    let args = match parse_args(std::env::args_os()) {
+        Ok(args) => args,
+        Err(e) => e.exit(),
+    };
+
+    FatalError::catch_with_exit_code(|| run_compiler_args(args))
 }
 
-pub fn run_compiler(args: &[String]) -> Result<()> {
-    let mut args = Args::parse_from(args);
-    args.populate_unstable().map_err(|e| e.exit())?;
-    run_compiler_with(args, _run_compiler)
+pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    let mut args = Args::try_parse_from(itr)?;
+    args.populate_unstable()?;
+    Ok(args)
 }
 
-fn _run_compiler(Compiler { sess, args }: &Compiler) -> Result<()> {
-    let is_yul = args.language.is_yul();
-    if is_yul && !args.unstable.parse_yul {
-        return Err(sess.dcx.err("Yul is not supported yet").emit());
-    }
-
-    let mut resolver = sulk_resolve::Resolver::new(sess);
-    for map in &args.import_map {
-        resolver.file_resolver.add_import_map(map.map.clone(), map.path.clone());
-    }
-    for path in &args.import_path {
-        let new = resolver.file_resolver.add_import_path(path.clone());
-        if !new {
-            let msg = format!("import path {} already specified", path.display());
-            return Err(sess.dcx.err(msg).emit());
-        }
-    }
-
-    let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));
-    let paths = args.input.iter().filter(|arg| *arg != Path::new("-"));
-    resolver.parse_and_resolve(stdin, paths)?;
-
-    sess.dcx.has_errors()?;
-
-    Ok(())
+pub fn run_compiler_args(args: Args) -> Result<()> {
+    run_compiler_with(args, Compiler::run_default)
 }
 
 pub struct Compiler {
@@ -76,6 +52,35 @@ pub struct Compiler {
 }
 
 impl Compiler {
+    pub fn run_default(&self) -> Result<()> {
+        let Self { sess, args } = self;
+
+        let is_yul = sess.language.is_yul();
+        if is_yul && !args.unstable.parse_yul {
+            return Err(sess.dcx.err("Yul is not supported yet").emit());
+        }
+
+        let mut resolver = sulk_resolve::Resolver::new(sess);
+        for map in &args.import_map {
+            resolver.file_resolver.add_import_map(map.map.clone(), map.path.clone());
+        }
+        for path in &args.import_path {
+            let new = resolver.file_resolver.add_import_path(path.clone());
+            if !new {
+                let msg = format!("import path {} already specified", path.display());
+                return Err(sess.dcx.err(msg).emit());
+            }
+        }
+
+        let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));
+        let paths = args.input.iter().filter(|arg| *arg != Path::new("-"));
+        resolver.parse_and_resolve(stdin, paths)?;
+
+        sess.dcx.has_errors()?;
+
+        Ok(())
+    }
+
     fn finish_diagnostics(&self) {
         self.sess.dcx.print_error_count();
     }

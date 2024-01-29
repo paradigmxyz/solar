@@ -56,6 +56,7 @@ where
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
     unescape_literal(src, mode, |range, res| match res {
         Ok(c) => {
+            // NOTE: We can't use `char::encode_utf8` because `c` can be an invalid unicode code.
             let written = super::utf8::encode_utf8_raw(c, dst).len();
 
             // SAFETY: Unescaping guarantees that the final unescaped byte array is shorter than
