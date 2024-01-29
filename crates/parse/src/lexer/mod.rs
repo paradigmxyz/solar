@@ -9,8 +9,8 @@ use sulk_interface::{
 };
 
 mod cursor;
-pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace};
-use cursor::{Cursor, RawLiteralKind, RawToken, RawTokenKind};
+use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
+pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, token, Cursor};
 
 pub mod unescape;
 
@@ -19,6 +19,10 @@ mod unicode_chars;
 mod utf8;
 
 /// Solidity lexer.
+///
+/// Converts a [`Cursor`]'s output from simple [`RawTokenKind`]s into rich [`TokenKind`]s, by
+/// converting strings into interned symbols, concatenating tokens together, and running additional
+/// validation.
 pub struct Lexer<'sess, 'src> {
     /// The parsing context.
     pub(crate) sess: &'sess Session,

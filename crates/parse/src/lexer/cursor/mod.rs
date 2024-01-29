@@ -5,8 +5,8 @@
 use std::str::Chars;
 use sulk_ast::ast::Base;
 
-mod token;
-pub(crate) use token::{RawLiteralKind, RawToken, RawTokenKind};
+pub mod token;
+use token::{RawLiteralKind, RawToken, RawTokenKind};
 
 #[cfg(test)]
 mod tests;
@@ -64,7 +64,7 @@ const EOF_CHAR: char = '\0';
 /// Next characters can be peeked via `first` method,
 /// and position can be shifted forward via `bump` method.
 #[derive(Clone, Debug)]
-pub(crate) struct Cursor<'a> {
+pub struct Cursor<'a> {
     len_remaining: usize,
     /// Iterator over chars. Slightly faster than a &str.
     chars: Chars<'a>,
@@ -74,7 +74,7 @@ pub(crate) struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
-    pub(crate) fn new(input: &'a str) -> Cursor<'a> {
+    pub fn new(input: &'a str) -> Cursor<'a> {
         Cursor {
             len_remaining: input.len(),
             chars: input.chars(),
@@ -84,7 +84,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Parses a token from the input string.
-    pub(crate) fn advance_token(&mut self) -> RawToken {
+    pub fn advance_token(&mut self) -> RawToken {
         let first_char = match self.bump() {
             Some(c) => c,
             None => return RawToken::EOF,
@@ -366,11 +366,11 @@ impl<'a> Cursor<'a> {
     }
 
     /// Returns the remaining input as a string slice.
-    fn as_str(&self) -> &'a str {
+    pub fn as_str(&self) -> &'a str {
         self.chars.as_str()
     }
 
-    /// Returns the last eaten symbol.
+    /// Returns the last eaten symbol. Only available with `debug_assertions` enabled.
     fn prev(&self) -> char {
         #[cfg(debug_assertions)]
         return self.prev;

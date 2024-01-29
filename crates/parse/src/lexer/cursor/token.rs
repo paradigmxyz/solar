@@ -1,3 +1,5 @@
+//! Raw, low-level tokens. Created using [`Cursor`](crate::Cursor).
+
 use sulk_ast::ast::Base;
 
 /// A raw token.
@@ -5,27 +7,27 @@ use sulk_ast::ast::Base;
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct RawToken {
+pub struct RawToken {
     /// The kind of token.
-    pub(crate) kind: RawTokenKind,
+    pub kind: RawTokenKind,
     /// The length of the token in bytes.
-    pub(crate) len: u32,
+    pub len: u32,
 }
 
 impl RawToken {
     /// The [`EOF`](RawTokenKind::Eof) token with length 0.
-    pub(crate) const EOF: Self = Self::new(RawTokenKind::Eof, 0);
+    pub const EOF: Self = Self::new(RawTokenKind::Eof, 0);
 
     /// Creates a new token.
     #[inline]
-    pub(crate) const fn new(kind: RawTokenKind, len: u32) -> Self {
+    pub const fn new(kind: RawTokenKind, len: u32) -> Self {
         Self { kind, len }
     }
 }
 
 /// Common lexeme types.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum RawTokenKind {
+pub enum RawTokenKind {
     // Multi-char tokens:
     /// `// comment`
     ///
@@ -117,7 +119,7 @@ pub(crate) enum RawTokenKind {
 
 /// The literal types supported by the lexer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum RawLiteralKind {
+pub enum RawLiteralKind {
     /// `123`, `0x123`; empty_int: `0x`
     Int { base: Base, empty_int: bool },
     /// `123.321`, `1.2e3`; empty_fraction: `1.`, `1.e2`; empty_exponent: `2e`, `2.3e`
