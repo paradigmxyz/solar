@@ -1,4 +1,4 @@
-//! AST semantic analysis.
+//! Semantic analysis.
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/sulk/main/assets/logo.jpg",
@@ -19,9 +19,13 @@ use sulk_interface::{
 };
 use sulk_parse::Parser;
 
+/// Semantic analysis context.
 pub struct Resolver<'a> {
+    /// The file resolver.
     pub file_resolver: FileResolver<'a>,
+    /// The session.
     pub sess: &'a Session,
+
     files: Vec<Lrc<SourceFile>>,
 }
 

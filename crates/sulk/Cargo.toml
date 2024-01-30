@@ -22,7 +22,7 @@ vergen = { workspace = true, features = ["build", "git", "gitcl"] }
 sulk-config = { workspace = true, features = ["clap"] }
 sulk-data-structures.workspace = true
 sulk-interface = { workspace = true, features = ["json"] }
-sulk-resolve.workspace = true
+sulk-sema.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
 tracing-error.workspace = true
@@ -37,7 +37,7 @@ nightly = [
     "sulk-config/nightly",
     "sulk-data-structures/nightly",
     "sulk-interface/nightly",
-    "sulk-resolve/nightly",
+    "sulk-sema/nightly",
     "sulk-tester/nightly",
 ]
 

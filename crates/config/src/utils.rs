@@ -14,7 +14,7 @@ impl<'de, T: std::str::FromStr + strum::VariantNames> serde::de::Visitor<'de> fo
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = std::any::type_name::<T>();
-        let name = name.split("::").last().unwrap_or(name);
+        let name = name.rsplit("::").next().unwrap_or(name);
         write!(f, "a {name} string")
     }
 

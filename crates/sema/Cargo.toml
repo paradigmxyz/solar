@@ -1,6 +1,6 @@
 [package]
-name = "sulk-resolve"
-description = ""
+name = "sulk-sema"
+description = "Semantic analysis"
 homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/config"
 
 version.workspace = true

@@ -2155,7 +2155,7 @@ dependencies = [
  "sulk-config",
  "sulk-data-structures",
  "sulk-interface",
- "sulk-resolve",
+ "sulk-sema",
  "sulk-tester",
  "tracing-error",
  "tracing-subscriber",
@@ -2256,7 +2256,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sulk-resolve"
+name = "sulk-sema"
 version = "0.0.0"
 dependencies = [
  "sulk-ast",

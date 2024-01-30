@@ -60,7 +60,7 @@ impl Compiler {
             return Err(sess.dcx.err("Yul is not supported yet").emit());
         }
 
-        let mut resolver = sulk_resolve::Resolver::new(sess);
+        let mut resolver = sulk_sema::Resolver::new(sess);
         for map in &args.import_map {
             resolver.file_resolver.add_import_map(map.map.clone(), map.path.clone());
         }
