@@ -43,9 +43,11 @@ impl SessionGlobals {
         SESSION_GLOBALS.set(self, f)
     }
 
-    /// Sets the source map in the session globals.
-    pub fn set_source_map(&mut self, source_map: Option<Lrc<SourceMap>>) {
-        *self.source_map.get_mut() = source_map;
+    /// Clears the newly-interned symbols, keeping the pre-interned ones.
+    ///
+    /// NOTE: This invalidates all `Symbol` values interned. Use with care.
+    pub fn unchecked_clear_interned_symbols(&self) {
+        self.symbol_interner.freshen();
     }
 
     /// Insert `source_map` into the session globals for the duration of the

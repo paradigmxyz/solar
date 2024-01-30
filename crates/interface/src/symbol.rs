@@ -344,12 +344,24 @@ struct InternerInner {
     strings: FxIndexSet<&'static str>,
 }
 
-impl Interner {
+impl InternerInner {
     fn prefill(init: &[&'static str]) -> Self {
-        Self(Lock::new(InternerInner {
-            arena: bumpalo::Bump::new(),
-            strings: init.iter().copied().collect(),
-        }))
+        Self { arena: bumpalo::Bump::new(), strings: init.iter().copied().collect() }
+    }
+}
+
+impl Interner {
+    pub(crate) fn fresh() -> Self {
+        Self(Lock::new(InternerInner::fresh()))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn prefill(init: &[&'static str]) -> Self {
+        Self(Lock::new(InternerInner::prefill(init)))
+    }
+
+    pub(crate) fn freshen(&self) {
+        *self.0.lock() = InternerInner::fresh();
     }
 
     #[inline]
