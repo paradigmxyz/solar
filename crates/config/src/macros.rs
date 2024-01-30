@@ -1,7 +1,7 @@
 macro_rules! str_enum {
     ($(#[$attr:meta])* $vis:vis enum $name:ident { $( $(#[$var_attr:meta])* $var:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::EnumString, strum::EnumVariantNames)]
+        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::EnumString, strum::VariantNames)]
         $(#[$attr])*
         $vis enum $name {
             $(
