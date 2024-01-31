@@ -11,6 +11,9 @@ fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
     let mut cmd = cx.cmd();
     cmd.arg(path);
+    if path.extension() == Some(std::ffi::OsStr::new("yul")) {
+        cmd.arg("--language=yul").arg("-Zparse-yul");
+    }
     let output = cx.run_cmd(cmd);
 
     let errors = cx.load_compare_outputs(&output, TestOutput::Compile, false);
