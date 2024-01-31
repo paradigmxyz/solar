@@ -1,0 +1,13 @@
+error: unterminated hex string
+--> $DIR/unterminated_hex_string.sol:1:1
+ |
+ |
+
+error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `<error>`
+--> $DIR/unterminated_hex_string.sol:1:1
+ |
+ |
+ = note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
+
+error: aborting due to 2 previous errors
+

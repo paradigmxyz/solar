@@ -56,7 +56,7 @@ impl EscapeError {
         match self {
             Self::LoneSlash => "invalid trailing slash in literal",
             Self::InvalidEscape => "unknown character escape",
-            Self::BareCarriageReturn => "bare CR not allowed in string, use `\r` instead",
+            Self::BareCarriageReturn => "bare CR not allowed in string, use `\\r` instead",
             Self::CannotSkipMultipleLines => "cannot skip multiple lines with `\\`",
             Self::HexEscapeTooShort => "hex escape must be followed by 2 hex digits",
             Self::InvalidHexEscape => "invalid character in hex escape",

@@ -1,0 +1,72 @@
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:6:24
+   |
+LL | bytes constant s = hex"\
+   |                        ^
+   |
+
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:6:25
+   |
+LL | bytes constant s = hex"\
+   |                         ^
+   |
+
+error: cannot skip multiple lines with `\`
+  --> $DIR/string_escapes_lf.sol:14:1
+   |
+LL | 
+   | ^
+   |
+
+error: cannot skip multiple lines with `\`
+  --> $DIR/string_escapes_lf.sol:17:1
+   |
+LL | 
+   | ^
+   |
+
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:19:24
+   |
+LL | bytes constant s = hex"\
+   |                        ^
+   |
+
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:19:25
+   |
+LL | bytes constant s = hex"\
+   |                         ^
+   |
+
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:20:1
+   |
+LL | 
+   | ^
+   |
+
+error: unescaped newline
+  --> $DIR/string_escapes_lf.sol:28:22
+   |
+LL | string constant s = "
+   |                      ^
+   |
+
+error: unescaped newline
+  --> $DIR/string_escapes_lf.sol:30:29
+   |
+LL | string constant s = unicode"
+   |                             ^
+   |
+
+error: invalid hex digit
+  --> $DIR/string_escapes_lf.sol:32:24
+   |
+LL | bytes constant s = hex"
+   |                        ^
+   |
+
+error: aborting due to 10 previous errors
+

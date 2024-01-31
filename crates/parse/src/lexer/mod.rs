@@ -138,7 +138,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     preceded_by_whitespace = true;
 
                     if !terminated {
-                        self.report_unterminated_block_comment(start, is_doc);
+                        let msg = if is_doc {
+                            "unterminated block doc-comment"
+                        } else {
+                            "unterminated block comment"
+                        };
+                        self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
                     }
 
                     // Opening delimiter and closing delimiter are not included into the symbol.
@@ -273,23 +278,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     fn cook_doc_comment(
         &self,
-        content_start: BytePos,
+        _content_start: BytePos,
         content: &str,
         is_doc: bool,
         comment_kind: CommentKind,
     ) -> TokenKind {
-        if content.contains('\r') {
-            for (idx, _) in content.char_indices().filter(|&(_, c)| c == '\r') {
-                let span = self.new_span(
-                    content_start + BytePos(idx as u32),
-                    content_start + BytePos(idx as u32 + 1),
-                );
-                let block = if matches!(comment_kind, CommentKind::Block) { "block " } else { "" };
-                let msg = format!("bare CR not allowed in {block}doc-comment");
-                self.dcx().err(msg).span(span).emit();
-            }
-        }
-
         TokenKind::Comment(is_doc, comment_kind, Symbol::intern(content))
     }
 
@@ -303,19 +296,23 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             RawLiteralKind::Str { terminated, unicode } => {
                 if !terminated {
                     let span = self.new_span(start, end);
-                    self.dcx().fatal("unterminated string").span(span).emit();
+                    self.dcx().err("unterminated string").span(span).emit();
+                    (TokenLitKind::Err, self.symbol_from_to(start, end))
+                } else {
+                    let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
+                    let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
+                    self.cook_quoted(kind, start, end, prefix_len)
                 }
-                let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
-                let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
-                self.cook_quoted(kind, start, end, prefix_len)
             }
             RawLiteralKind::HexStr { terminated } => {
                 if !terminated {
                     let span = self.new_span(start, end);
-                    self.dcx().fatal("unterminated hex string").span(span).emit();
+                    self.dcx().err("unterminated hex string").span(span).emit();
+                    (TokenLitKind::Err, self.symbol_from_to(start, end))
+                } else {
+                    let prefix_len = 3; // `hex`
+                    self.cook_quoted(TokenLitKind::HexStr, start, end, prefix_len)
                 }
-                let prefix_len = 3; // `hex`
-                self.cook_quoted(TokenLitKind::HexStr, start, end, prefix_len)
             }
             RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
@@ -445,12 +442,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Slice of the source text spanning from `start` until the end.
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
         &self.src[self.src_index(start)..]
-    }
-
-    fn report_unterminated_block_comment(&self, start: BytePos, is_doc: bool) {
-        let msg =
-            if is_doc { "unterminated block doc-comment" } else { "unterminated block comment" };
-        self.dcx().fatal(msg).span(self.new_span(start, self.pos)).emit();
     }
 
     fn report_unknown_prefix(&self, start: BytePos) {

@@ -143,6 +143,11 @@ where
         let start = src.len() - chars.as_str().len() - c.len_utf8();
         let res = match c {
             '\\' => match chars.clone().next() {
+                Some('\r') if chars.clone().nth(1) == Some('\n') => {
+                    // +2 for the '\\' and '\r' characters.
+                    skip_ascii_whitespace(&mut chars, start + 2, &mut callback);
+                    continue;
+                }
                 Some('\n') => {
                     // +1 for the '\\' character.
                     skip_ascii_whitespace(&mut chars, start + 1, &mut callback);
@@ -151,7 +156,12 @@ where
                 _ => scan_escape(&mut chars),
             },
             '\n' => Err(EscapeError::StrNewline),
-            '\r' => Err(EscapeError::BareCarriageReturn),
+            '\r' => {
+                if chars.clone().next() == Some('\n') {
+                    continue;
+                }
+                Err(EscapeError::BareCarriageReturn)
+            }
             c if !is_unicode && !c.is_ascii() => Err(EscapeError::StrNonAsciiChar),
             c => Ok(c as u32),
         };
@@ -168,7 +178,10 @@ where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     // Skip the first newline.
-    let nl = chars.next();
+    let mut nl = chars.next();
+    if let Some('\r') = nl {
+        nl = chars.next();
+    }
     debug_assert_eq!(nl, Some('\n'));
     let mut tail = chars.as_str();
     start += 1;
@@ -310,7 +323,7 @@ mod tests {
             (r"\n\n", "\n\n", &[]),
             (r"\ ", "", &[(0..2, InvalidEscape)]),
             (r"\?", "", &[(0..2, InvalidEscape)]),
-            ("\r\n", "", &[(0..1, BareCarriageReturn), (1..2, StrNewline)]),
+            ("\r\n", "", &[(1..2, StrNewline)]),
             ("\n", "", &[(0..1, StrNewline)]),
             ("\\\n", "", &[]),
             ("\\\na", "a", &[]),
