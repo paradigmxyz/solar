@@ -17,6 +17,8 @@ pub struct TestProps {
     pub compare_output_lines_by_subset: bool,
 
     pub evm_version: Option<String>,
+
+    pub test_value: Option<String>,
 }
 
 impl Default for TestProps {
@@ -36,6 +38,7 @@ impl TestProps {
             dont_check_compiler_stderr: false,
             compare_output_lines_by_subset: false,
             evm_version: None,
+            test_value: None,
         }
     }
 
@@ -53,14 +56,13 @@ impl TestProps {
             match parser.directive.kind {
                 DirectiveKind::Dummy => {}
                 DirectiveKind::EvmVersion => parser.word_value(&mut props.evm_version),
+                DirectiveKind::TestValue => parser.word_value(&mut props.test_value),
             }
         });
         props
     }
 
     pub fn load_solc(file: &str, _cfg: Option<&str>) -> Self {
-        // const DELIM: &str = "// ====";
-
         let mut props = Self::new();
         props.expected_errors = Error::load_solc(file);
         props
@@ -95,12 +97,14 @@ impl TestDirective {
 enum DirectiveKind {
     Dummy,
     EvmVersion,
+    TestValue,
 }
 
 impl DirectiveKind {
     fn from_str_(s: &str) -> Option<Self> {
         match s {
             "evm-version" => Some(Self::EvmVersion),
+            "test-value" => Some(Self::TestValue),
             _ => None,
         }
     }
@@ -117,8 +121,10 @@ impl<'a> DirectiveParser<'a> {
     }
 
     fn parse_directive(&mut self) {
-        let (Some(start), Some(end)) = self.next_word_idx() else { return };
-        let mut word = &self.line[start..end];
+        let mut word = self.next_word();
+        if word.is_empty() {
+            return;
+        }
 
         let negative = word.starts_with("no-");
         if negative {
@@ -127,7 +133,7 @@ impl<'a> DirectiveParser<'a> {
 
         let Some(kind) = DirectiveKind::from_str_(word) else { return };
 
-        self.line = &self.line[end..];
+        self.line = &self.line[word.len()..];
         self.directive = TestDirective { negative, kind };
     }
 
@@ -136,41 +142,36 @@ impl<'a> DirectiveParser<'a> {
         T: std::str::FromStr,
         T::Err: std::fmt::Debug,
     {
-        let (Some(start), Some(end)) = self.next_word_idx() else {
-            panic!("expected a word value");
-        };
         self.expect_no_negative();
-        let word = &self.line[start..end];
+
+        self.char(':');
+        self.whitespace();
+
+        let word = self.next_word();
+        if word.is_empty() {
+            panic!("expected a word value @ {:?}", self.line);
+        }
+        self.line = &self.line[word.len()..];
         *value = Some(word.parse().unwrap());
     }
 
-    fn next_word_idx(&self) -> (Option<usize>, Option<usize>) {
-        fn is_word_char(c: u8) -> bool {
+    fn char(&mut self, c: char) {
+        if !self.line.starts_with(c) {
+            panic!("expected {c:?} @ {:?}", self.line);
+        }
+        self.line = &self.line[c.len_utf8()..];
+    }
+
+    fn whitespace(&mut self) {
+        self.line = self.line.trim_start();
+    }
+
+    fn next_word(&self) -> &'a str {
+        fn is_word_char(c: &u8) -> bool {
             matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_')
         }
-
-        let mut start = None;
-        let mut end = None;
-        for (i, byte) in self.line.bytes().enumerate() {
-            match start {
-                None => {
-                    if byte.is_ascii_whitespace() {
-                        continue;
-                    } else if is_word_char(byte) {
-                        start = Some(i);
-                    } else {
-                        break;
-                    }
-                }
-                Some(_) => {
-                    if !is_word_char(byte) {
-                        end = Some(i);
-                        break;
-                    }
-                }
-            }
-        }
-        (start, end)
+        let c = self.line.bytes().take_while(is_word_char).count();
+        &self.line[..c]
     }
 
     fn expect_no_negative(&self) {

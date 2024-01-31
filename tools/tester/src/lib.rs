@@ -98,9 +98,9 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
     };
     let load = if mode.solc_props() { TestProps::load_solc } else { TestProps::load };
 
-    let inputs = &collect_tests(config, mode);
+    let inputs = collect_tests(config, mode);
     tests.reserve(inputs.len());
-    for input in inputs {
+    for input in &inputs {
         let mut make_test = |revision: Option<String>| {
             let config = Arc::clone(config);
             let path = input.path().to_path_buf();
