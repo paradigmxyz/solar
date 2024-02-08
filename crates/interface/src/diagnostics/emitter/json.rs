@@ -176,12 +176,7 @@ impl JsonEmitter {
         }
     }
 
-    fn solc_span(
-        &self,
-        span: &MultiSpan,
-        file: &String,
-        message: Option<String>,
-    ) -> SourceLocation {
+    fn solc_span(&self, span: &MultiSpan, file: &str, message: Option<String>) -> SourceLocation {
         let sm = &**self.source_map();
         let sp = span.primary_span();
         SourceLocation {
@@ -190,7 +185,7 @@ impl JsonEmitter {
                     let start = sm.lookup_char_pos(span.lo());
                     sm.filename_for_diagnostics(&start.file.name).to_string()
                 })
-                .unwrap_or_else(|| file.clone()),
+                .unwrap_or_else(|| file.into()),
             start: sp
                 .map(|span| {
                     let start = sm.lookup_char_pos(span.lo());
