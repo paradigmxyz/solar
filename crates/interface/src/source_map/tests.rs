@@ -266,6 +266,7 @@ fn t10() {
 }
 
 /// Returns the span corresponding to the `n`th occurrence of `substring` in `source_text`.
+#[cfg(NO)]
 trait SourceMapExtension {
     fn span_substr(
         &self,
@@ -276,6 +277,7 @@ trait SourceMapExtension {
     ) -> Span;
 }
 
+#[cfg(NO)]
 impl SourceMapExtension for SourceMap {
     fn span_substr(
         &self,

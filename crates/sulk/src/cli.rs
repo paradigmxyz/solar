@@ -42,6 +42,9 @@ pub struct Args {
     /// Use verbose output.
     #[arg(long, short)]
     pub verbose: bool,
+    /// Pretty-print any JSON output.
+    #[arg(long, short)]
+    pub pretty_json: bool,
     /// How errors and other messages are produced.
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,
@@ -78,7 +81,7 @@ pub enum ErrorFormat {
     #[default]
     Human,
     Json,
-    PrettyJson,
+    RichJson,
 }
 
 #[derive(Clone, Debug)]

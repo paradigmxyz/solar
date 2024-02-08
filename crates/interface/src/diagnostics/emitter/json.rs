@@ -1,6 +1,6 @@
 use super::{io_panic, Emitter, HumanEmitter};
 use crate::{
-    diagnostics::{MultiSpan, SpanLabel},
+    diagnostics::{Level, MultiSpan, SpanLabel},
     source_map::{LineInfo, SourceFile},
     SourceMap, Span,
 };
@@ -16,6 +16,7 @@ use sulk_data_structures::sync::Lrc;
 pub struct JsonEmitter {
     writer: Box<dyn io::Write>,
     pretty: bool,
+    rustc_like: bool,
 
     human_emitter: HumanEmitter,
     buffer: LocalBuffer,
@@ -23,8 +24,14 @@ pub struct JsonEmitter {
 
 impl Emitter for JsonEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) {
-        let json_diagnostic = self.diagnostic(diagnostic);
-        self.emit(&EmitTyped::Diagnostic(json_diagnostic)).unwrap_or_else(|e| io_panic(e));
+        if self.rustc_like {
+            let diagnostic = self.diagnostic(diagnostic);
+            self.emit(&EmitTyped::Diagnostic(diagnostic))
+        } else {
+            let diagnostic = self.solc_diagnostic(diagnostic);
+            self.emit(&diagnostic)
+        }
+        .unwrap_or_else(|e| io_panic(e));
     }
 
     fn source_map(&self) -> Option<&Lrc<SourceMap>> {
@@ -39,6 +46,7 @@ impl JsonEmitter {
         Self {
             writer,
             pretty: false,
+            rustc_like: false,
             human_emitter: HumanEmitter::new(Box::new(buffer.clone()), ColorChoice::Never)
                 .source_map(Some(source_map)),
             buffer,
@@ -48,6 +56,14 @@ impl JsonEmitter {
     /// Sets whether to pretty print the JSON.
     pub fn pretty(mut self, pretty: bool) -> Self {
         self.pretty = pretty;
+        self
+    }
+
+    /// Sets whether to emit diagnostics in a format that is compatible with rustc.
+    ///
+    /// Mainly used in UI testing.
+    pub fn rustc_like(mut self, yes: bool) -> Self {
+        self.rustc_like = yes;
         self
     }
 
@@ -120,13 +136,79 @@ impl JsonEmitter {
         }
     }
 
+    fn solc_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> SolcDiagnostic {
+        let primary = diagnostic.span.primary_span();
+        let file = primary
+            .map(|span| {
+                let sm = &**self.source_map();
+                let start = sm.lookup_char_pos(span.lo());
+                sm.filename_for_diagnostics(&start.file.name).to_string()
+            })
+            .unwrap_or_default();
+
+        let severity = to_severity(diagnostic.level);
+
+        SolcDiagnostic {
+            source_location: primary
+                .is_some()
+                .then(|| self.solc_span(&diagnostic.span, &file, None)),
+            secondary_source_locations: diagnostic
+                .children
+                .iter()
+                .map(|sub| self.solc_span(&sub.span, &file, Some(sub.label().into_owned())))
+                .collect(),
+            r#type: match severity {
+                Severity::Error => match diagnostic.level {
+                    Level::Bug => "InternalCompilerError",
+                    Level::Fatal => "FatalError",
+                    Level::Error => "Exception",
+                    _ => unreachable!(),
+                },
+                Severity::Warning => "Warning",
+                Severity::Info => "Info",
+            }
+            .into(),
+            component: "general".into(),
+            severity,
+            error_code: diagnostic.id(),
+            message: diagnostic.label().into_owned(),
+            formatted_message: Some(self.emit_diagnostic_to_buffer(diagnostic)),
+        }
+    }
+
+    fn solc_span(&self, span: &MultiSpan, file: &str, message: Option<String>) -> SourceLocation {
+        let sm = &**self.source_map();
+        let sp = span.primary_span();
+        SourceLocation {
+            file: sp
+                .map(|span| {
+                    let start = sm.lookup_char_pos(span.lo());
+                    sm.filename_for_diagnostics(&start.file.name).to_string()
+                })
+                .unwrap_or_else(|| file.into()),
+            start: sp
+                .map(|span| {
+                    let start = sm.lookup_char_pos(span.lo());
+                    start.file.original_relative_byte_pos(span.lo()).0
+                })
+                .unwrap_or(0),
+            end: sp
+                .map(|span| {
+                    let end = sm.lookup_char_pos(span.hi());
+                    end.file.original_relative_byte_pos(span.hi()).0
+                })
+                .unwrap_or(0),
+            message,
+        }
+    }
+
     fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
         self.human_emitter.emit_diagnostic(diagnostic);
         let bytes = std::mem::take(&mut *self.buffer.0.lock().unwrap());
         String::from_utf8(bytes).expect("HumanEmitter wrote invalid UTF-8")
     }
 
-    fn emit(&mut self, value: &EmitTyped) -> io::Result<()> {
+    fn emit<T: ?Sized + Serialize>(&mut self, value: &T) -> io::Result<()> {
         if self.pretty {
             serde_json::to_writer_pretty(&mut *self.writer, value)
         } else {
@@ -164,7 +246,7 @@ impl LocalBuffer {
     }
 }
 
-// JSON format.
+// Rustc-like JSON format.
 
 #[derive(Serialize)]
 #[serde(tag = "$message_type", rename_all = "snake_case")]
@@ -225,4 +307,48 @@ struct DiagnosticCode {
     code: String,
     /// An explanation for the code.
     explanation: Option<&'static str>,
+}
+
+// Solc JSON format.
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SolcDiagnostic {
+    source_location: Option<SourceLocation>,
+    secondary_source_locations: Vec<SourceLocation>,
+    r#type: String,
+    component: String,
+    severity: Severity,
+    error_code: Option<String>,
+    message: String,
+    formatted_message: Option<String>,
+}
+
+#[derive(Serialize)]
+struct SourceLocation {
+    file: String,
+    start: u32,
+    end: u32,
+    // Some if it's a secondary source location.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum Severity {
+    Error,
+    Warning,
+    Info,
+}
+
+fn to_severity(level: Level) -> Severity {
+    match level {
+        Level::Bug | Level::Fatal | Level::Error => Severity::Error,
+        Level::Warning => Severity::Warning,
+        #[rustfmt::skip]
+        Level::Note | Level::OnceNote | Level::FailureNote |
+        Level::Help | Level::OnceHelp |
+        Level::Allow => Severity::Info,
+    }
 }

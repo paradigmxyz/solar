@@ -45,7 +45,7 @@ impl TestCx<'_> {
     pub fn cmd(&self) -> Command {
         let mut cmd = self.cmd_common();
         cmd.arg("-Zui-testing");
-        cmd.arg("--error-format=json");
+        cmd.arg("--error-format=rich-json");
         cmd
     }
 

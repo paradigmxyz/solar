@@ -102,9 +102,10 @@ fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send)
                     .ui_testing(ui_testing);
                 Box::new(human)
             }
-            cli::ErrorFormat::Json | cli::ErrorFormat::PrettyJson => {
+            cli::ErrorFormat::Json | cli::ErrorFormat::RichJson => {
                 let json = JsonEmitter::new(Box::new(std::io::stderr()), source_map.clone())
-                    .pretty(matches!(args.error_format, cli::ErrorFormat::PrettyJson))
+                    .pretty(args.pretty_json)
+                    .rustc_like(matches!(args.error_format, cli::ErrorFormat::RichJson))
                     .ui_testing(ui_testing);
                 Box::new(json)
             }
