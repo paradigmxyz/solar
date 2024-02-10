@@ -57,6 +57,7 @@ impl fmt::Display for Ident {
 }
 
 #[cfg(feature = "nightly")]
+#[allow(clippy::to_string_trait_impl)] // Specialization: https://github.com/rust-lang/rust-clippy/issues/12263
 impl ToString for Ident {
     #[inline]
     fn to_string(&self) -> String {
@@ -322,6 +323,7 @@ impl fmt::Display for Symbol {
 }
 
 #[cfg(feature = "nightly")]
+#[allow(clippy::to_string_trait_impl)] // Specialization: https://github.com/rust-lang/rust-clippy/issues/12263
 impl ToString for Symbol {
     #[inline]
     fn to_string(&self) -> String {

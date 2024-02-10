@@ -124,7 +124,7 @@ impl<'a> Resolver<'a> {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().err(msg).span(name.span).emit();
-                    return;
+                    // return;
                 }
                 // TODO: Check version
             }
