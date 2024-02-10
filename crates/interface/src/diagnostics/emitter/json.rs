@@ -264,7 +264,7 @@ struct Diagnostic {
     spans: Vec<DiagnosticSpan>,
     /// Associated diagnostic messages.
     children: Vec<Diagnostic>,
-    /// The message as rustc would render it.
+    /// The message as the compiler would render it.
     rendered: Option<String>,
 }
 
