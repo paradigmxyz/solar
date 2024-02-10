@@ -53,6 +53,7 @@ impl<'a> Resolver<'a> {
         }
         for path in paths {
             let path = path.as_ref();
+            // Base paths from arguments to the current directory for shorter diagnostics output.
             let path = match path.canonicalize() {
                 Ok(path) => {
                     match path.strip_prefix(std::env::current_dir().unwrap_or(PathBuf::from(""))) {
@@ -89,8 +90,9 @@ impl<'a> Resolver<'a> {
 
         let parent = match &file.name {
             FileName::Real(path) => Some(path.as_path()),
+            // Use current directory for stdin.
             FileName::Stdin => Some(Path::new("")),
-            _ => None,
+            FileName::Custom(_) => None,
         };
         for item in &source_unit.items {
             match &item.kind {
@@ -120,22 +122,22 @@ impl<'a> Resolver<'a> {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
-                    self.dcx()
-                        .err("only `solidity` is supported as a version pragma")
-                        .span(name.span)
-                        .emit();
+                    let msg = "only `solidity` is supported as a version pragma";
+                    self.dcx().err(msg).span(name.span).emit();
+                    return;
                 }
                 // TODO: Check version
             }
             ast::PragmaTokens::Custom(name, value) => {
-                let name = name.value();
-                let value = value.as_ref().map(ast::IdentOrStrLit::value);
+                let name = name.as_str();
+                let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
                     ("abicoder", Some("v1" | "v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
-                        self.dcx().err("experimental solidity features are not supported").emit();
+                        let msg = "experimental solidity features are not supported";
+                        self.dcx().err(msg).span(span).emit();
                     }
                     _ => {
                         self.dcx().err("unknown pragma").span(span).emit();

@@ -55,8 +55,7 @@ impl Compiler {
     pub fn run_default(&self) -> Result<()> {
         let Self { sess, args } = self;
 
-        let is_yul = sess.language.is_yul();
-        if is_yul && !args.unstable.parse_yul {
+        if sess.language.is_yul() && !args.unstable.parse_yul {
             return Err(sess.dcx.err("Yul is not supported yet").emit());
         }
 

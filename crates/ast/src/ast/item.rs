@@ -166,7 +166,7 @@ pub enum IdentOrStrLit {
 
 impl IdentOrStrLit {
     /// Returns the string value of the identifier or literal.
-    pub fn value(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Ident(ident) => ident.as_str(),
             Self::StrLit(str_lit) => str_lit.value.as_str(),
