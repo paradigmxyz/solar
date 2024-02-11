@@ -46,7 +46,7 @@ impl TestProps {
     pub fn load(file: &str, cfg: Option<&str>) -> Self {
         let mut props = Self::new();
         props.expected_errors = Error::load(file.lines(), cfg);
-        let comment = "//";
+        let comment = "//@";
         directives_str(comment, file, |revision, line, _| {
             if revision.is_some() && revision != cfg {
                 return;
@@ -71,7 +71,7 @@ impl TestProps {
     /// Loads the test properties from a string.
     pub fn load_revisions(path: &Path) -> Vec<String> {
         let mut revisions = Vec::new();
-        let comment = "//";
+        let comment = "//@";
         let file = std::fs::File::open(path).unwrap();
         directives_file(comment, file, |revision, line, _| {
             const S: &str = "revisions:";
