@@ -20,11 +20,11 @@ const VERSION_MESSAGE: &str = concat!(
     next_display_order = None,
 )]
 pub struct Args {
-    /// Files to compile.
+    /// Files to compile or import remappings.
     #[arg(value_hint = ValueHint::FilePath, required = true)]
     pub input: Vec<PathBuf>,
     /// Directory to search for files.
-    #[arg(long, short = 'I')]
+    #[arg(long, short = 'I', visible_alias = "base-path")]
     pub import_path: Vec<PathBuf>,
     /// Map to search for files [format: map=path]
     #[arg(long, short = 'm')]

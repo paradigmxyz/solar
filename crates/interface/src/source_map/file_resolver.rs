@@ -103,14 +103,15 @@ impl<'a> FileResolver<'a> {
         if parent.is_none() {
             if let Some(file) = self.try_file(path)? {
                 return Ok(file);
-            } else if path.is_absolute() {
+            }
+            if path.is_absolute() {
                 return Err(ResolveError::NotFound(path.into()));
             }
         }
 
         let original_path = path;
         let path = self.remap_path(path);
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(1);
 
         // Walk over the import paths until we find one that resolves.
         for import in &self.import_paths {
@@ -163,7 +164,7 @@ impl<'a> FileResolver<'a> {
     pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {
-            debug!("loaded normally");
+            debug!("loaded from cache");
             return Ok(Some(file));
         }
 

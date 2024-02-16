@@ -69,13 +69,14 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
+    #[instrument(name = "p&r", level = "debug", skip_all, fields(file = %file.name.display()))]
     fn parse_and_resolve_file(&mut self, file: Lrc<SourceFile>) -> Result<()> {
         if self.files.iter().any(|f| Lrc::ptr_eq(f, &file)) {
-            debug!("skipping file {}", file.name.display());
+            debug!("already parsed");
             return Ok(());
         }
         self.files.push(file.clone());
-        debug!("parsing file {}", file.name.display());
+        debug!("parsing");
 
         let mut parser = Parser::from_source_file(self.sess, &file);
 

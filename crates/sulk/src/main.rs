@@ -59,9 +59,21 @@ impl Compiler {
             return Err(sess.dcx.err("Yul is not supported yet").emit());
         }
 
+        // Partition arguments into three categories:
+        // - `stdin`: `-`, occurences after the first are ignored
+        // - remappings: `path=mapped`
+        // - paths: everything else
+        let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));
+        let non_stdin_args = args.input.iter().filter(|arg| *arg != Path::new("-"));
+        let arg_remappings = non_stdin_args
+            .clone()
+            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<cli::ImportMap>().ok());
+        let paths = non_stdin_args.filter(|arg| !arg.to_str().unwrap_or("").contains('='));
+
         let mut resolver = sulk_sema::Resolver::new(sess);
-        for map in &args.import_map {
-            resolver.file_resolver.add_import_map(map.map.clone(), map.path.clone());
+        let remappings = arg_remappings.chain(args.import_map.iter().cloned());
+        for map in remappings {
+            resolver.file_resolver.add_import_map(map.map, map.path);
         }
         for path in &args.import_path {
             let new = resolver.file_resolver.add_import_path(path.clone());
@@ -71,8 +83,6 @@ impl Compiler {
             }
         }
 
-        let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));
-        let paths = args.input.iter().filter(|arg| *arg != Path::new("-"));
         resolver.parse_and_resolve(stdin, paths)?;
 
         sess.dcx.has_errors()?;
