@@ -351,7 +351,6 @@ mod tests {
     use super::*;
     use crate::Lexer;
     use alloy_primitives::address;
-    use num_rational::BigRational;
     use sulk_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.

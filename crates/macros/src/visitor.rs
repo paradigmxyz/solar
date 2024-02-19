@@ -186,8 +186,7 @@ fn add_walk_fns(items: &mut Vec<TraitItem>) {
             let walk_stmts = std::mem::replace(&mut body.stmts, vec![call_walk_stmt]);
 
             walk_fn.sig.ident = walk_name;
-            walk_fn.default =
-                Some(Block { brace_token: body.brace_token.clone(), stmts: walk_stmts });
+            walk_fn.default = Some(Block { brace_token: body.brace_token, stmts: walk_stmts });
             items.push(TraitItem::Fn(walk_fn));
         }
     }

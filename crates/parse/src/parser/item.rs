@@ -1,10 +1,7 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
-use sulk_ast::{
-    ast::*,
-    token::{TokenLit, TokenLitKind, *},
-};
+use sulk_ast::{ast::*, token::*};
 use sulk_interface::{error_code, kw, sym, Ident};
 
 impl<'a> Parser<'a> {
