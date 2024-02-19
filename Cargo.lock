@@ -2147,6 +2147,7 @@ dependencies = [
  "semver 1.0.21",
  "sulk-data-structures",
  "sulk-interface",
+ "sulk-macros",
 ]
 
 [[package]]
