@@ -1,0 +1,25 @@
+{
+    "language": "Solidity",
+    "sources": {
+        "${FILE_NAME}": {
+            "content": "${SOURCE_CODE}"
+        }
+    },
+    "settings": {
+        "optimizer": { "enabled": true, "runs": 200 },
+        "metadata": { "useLiteralContent": false, "bytecodeHash": "ipfs", "appendCBOR": true },
+        "outputSelection": {
+            "*": {
+                "*": [
+                    "abi",
+                    "evm.bytecode",
+                    "evm.deployedBytecode",
+                    "evm.methodIdentifiers",
+                    "metadata"
+                ]
+            }
+        },
+        "evmVersion": "paris",
+        "libraries": {}
+    }
+}
