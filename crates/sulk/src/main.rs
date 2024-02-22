@@ -19,9 +19,7 @@ mod utils;
 use sulk_tester as _;
 
 fn main() -> ExitCode {
-    let early_dcx = DiagCtxt::with_tty_emitter(None);
-
-    utils::init_logger(&early_dcx);
+    utils::init_logger();
     utils::install_panic_hook();
 
     let args = match parse_args(std::env::args_os()) {

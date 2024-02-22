@@ -6,9 +6,13 @@ use sulk_interface::{
 
 const BUG_REPORT_URL: &str = "https://github.com/paradigmxyz/sulk/issues/new/choose";
 
-pub(crate) fn init_logger(early_dcx: &DiagCtxt) {
+fn early_dcx() -> DiagCtxt {
+    DiagCtxt::with_tty_emitter(None)
+}
+
+pub(crate) fn init_logger() {
     if let Err(e) = try_init_logger() {
-        early_dcx.fatal(e.to_string()).emit();
+        early_dcx().fatal(e.to_string()).emit();
     }
 }
 
@@ -41,7 +45,7 @@ pub(crate) fn install_panic_hook() {
 }
 
 fn panic_hook(info: &PanicInfo<'_>) {
-    let dcx = DiagCtxt::with_tty_emitter(None).set_flags(|f| f.track_diagnostics = false);
+    let dcx = early_dcx().set_flags(|f| f.track_diagnostics = false);
 
     // If the error was caused by a broken pipe then this is not a bug.
     // Write the error and return immediately. See #98700.
