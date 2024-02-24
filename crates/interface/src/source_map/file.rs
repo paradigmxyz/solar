@@ -389,6 +389,7 @@ impl SourceFile {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SourceFileHashAlgorithm {
     #[default]
+    None,
     Md5,
     // Sha1,
     // Sha256,
@@ -412,6 +413,7 @@ impl SourceFileHashAlgorithm {
     #[inline]
     pub const fn hash_len(self) -> usize {
         match self {
+            Self::None => 0,
             Self::Md5 => 16,
             // Self::Sha1 => 20,
             // Self::Sha256 => 32,
@@ -442,6 +444,7 @@ impl SourceFileHash {
         let value = &mut hash.value;
         let data = src.as_bytes();
         match kind {
+            SourceFileHashAlgorithm::None => {}
             SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
             // SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
             // SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
