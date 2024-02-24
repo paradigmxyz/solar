@@ -13,11 +13,37 @@ use std::path::{Path, PathBuf};
 use sulk_ast::ast;
 use sulk_data_structures::sync::Lrc;
 use sulk_interface::{
+    debug_time,
     diagnostics::DiagCtxt,
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
-    sym, Result, Session, Span,
+    sym, trace_time, Result, Session, Span,
 };
-use sulk_parse::Parser;
+use sulk_parse::{Lexer, Parser};
+
+struct Sources(Vec<Source>);
+
+impl Sources {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn add_file(&mut self, file: Lrc<SourceFile>) {
+        if self.0.iter().any(|source| Lrc::ptr_eq(&source.file, &file)) {
+            trace!(file = %file.name.display(), "skipping duplicate source file");
+            return;
+        }
+        self.0.push(Source { file, ast: None });
+    }
+
+    fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit> {
+        self.0.iter().filter_map(|source| source.ast.as_ref())
+    }
+}
+
+struct Source {
+    file: Lrc<SourceFile>,
+    ast: Option<ast::SourceUnit>,
+}
 
 /// Semantic analysis context.
 pub struct Resolver<'a> {
@@ -25,14 +51,13 @@ pub struct Resolver<'a> {
     pub file_resolver: FileResolver<'a>,
     /// The session.
     pub sess: &'a Session,
-
-    files: Vec<Lrc<SourceFile>>,
+    sources: Sources,
 }
 
 impl<'a> Resolver<'a> {
     /// Creates a new resolver.
     pub fn new(sess: &'a Session) -> Self {
-        Self { file_resolver: FileResolver::new(sess.source_map()), sess, files: Vec::new() }
+        Self { file_resolver: FileResolver::new(sess.source_map()), sess, sources: Sources::new() }
     }
 
     /// Returns the diagnostic context.
@@ -40,16 +65,17 @@ impl<'a> Resolver<'a> {
         &self.sess.dcx
     }
 
-    pub fn parse_and_resolve(
+    pub fn add_files_from_args(
         &mut self,
         stdin: bool,
         paths: impl IntoIterator<Item = impl AsRef<Path>>,
     ) -> Result<()> {
         let dcx = self.dcx();
         let emit_resolve_error = |e: ResolveError| dcx.err(e.to_string()).emit();
+
         if stdin {
             let file = self.file_resolver.load_stdin().map_err(emit_resolve_error)?;
-            self.parse_and_resolve_file(file)?;
+            self.sources.add_file(file);
         }
         for path in paths {
             let path = path.as_ref();
@@ -64,62 +90,82 @@ impl<'a> Resolver<'a> {
                 Err(_) => path.to_path_buf(),
             };
             let file = self.file_resolver.resolve_file(&path, None).map_err(emit_resolve_error)?;
-            self.parse_and_resolve_file(file)?;
+            self.sources.add_file(file);
         }
+
+        if self.sources.0.is_empty() {
+            let msg = "no files found";
+            let note = "if you wish to use the standard input, please specify `-` explicitly";
+            return Err(dcx.err(msg).note(note).emit());
+        }
+
         Ok(())
     }
 
-    #[instrument(name = "p&r", level = "debug", skip_all, fields(file = %file.name.display()))]
-    fn parse_and_resolve_file(&mut self, file: Lrc<SourceFile>) -> Result<()> {
-        if self.files.iter().any(|f| Lrc::ptr_eq(f, &file)) {
-            debug!("already parsed");
-            return Ok(());
-        }
-        self.files.push(file.clone());
-        debug!("parsing");
+    pub fn parse_and_resolve(&mut self) -> Result<()> {
+        debug_time!("parse all files", || self.parse_all_files());
 
-        let mut parser = Parser::from_source_file(self.sess, &file);
-
-        if self.sess.language.is_yul() {
-            let file = parser.parse_yul_file_object().map_err(|e| e.emit())?;
-            // TODO
-            let _ = file;
-            return Ok(());
-        }
-
-        let source_unit = parser.parse_file().map_err(|e| e.emit())?;
-
-        let parent = match &file.name {
-            FileName::Real(path) => Some(path.as_path()),
-            // Use current directory for stdin.
-            FileName::Stdin => Some(Path::new("")),
-            FileName::Custom(_) => None,
-        };
-        for item in &source_unit.items {
-            match &item.kind {
-                ast::ItemKind::Pragma(pragma) => {
-                    self.check_pragma(item.span, pragma);
+        for ast in self.sources.asts() {
+            for item in &ast.items {
+                match &item.kind {
+                    ast::ItemKind::Pragma(pragma) => {
+                        self.check_pragma(item.span, pragma);
+                    }
+                    _ => {}
                 }
-                ast::ItemKind::Import(import) => {
-                    // TODO: Unescape
-                    let path_str = import.path.value.as_str();
-                    let path = Path::new(path_str);
-                    let file = self
-                        .file_resolver
-                        .resolve_file(path, parent)
-                        .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())?;
-                    self.parse_and_resolve_file(file)?;
-                }
-                _ => {}
             }
         }
 
-        // TODO: Rest
-
         Ok(())
     }
 
-    fn check_pragma(&mut self, span: Span, pragma: &ast::PragmaDirective) {
+    fn parse_all_files(&mut self) {
+        for i in 0.. {
+            let Some(Source { file, ast: _ }) = self.sources.0.get(i) else { break };
+
+            let _guard = debug_span!("parse", file = %file.name.display()).entered();
+
+            let lexer = Lexer::from_source_file(self.sess, file);
+            let tokens = trace_time!("lex file", || lexer.into_tokens());
+            let mut parser = Parser::new(self.sess, tokens);
+            let ast = trace_time!("parse file", || {
+                if self.sess.language.is_yul() {
+                    // TODO
+                    let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
+                    None
+                } else {
+                    parser.parse_file().map_err(|e| e.emit()).ok()
+                }
+            });
+
+            if let Some(ast) = &ast {
+                let parent = match &file.name {
+                    FileName::Real(path) => Some(path.clone()),
+                    // Use current directory for stdin.
+                    FileName::Stdin => Some(PathBuf::from("")),
+                    FileName::Custom(_) => None,
+                };
+                for item in &ast.items {
+                    if let ast::ItemKind::Import(import) = &item.kind {
+                        // TODO: Unescape
+                        let path_str = import.path.value.as_str();
+                        let path = Path::new(path_str);
+                        if let Ok(file) = self
+                            .file_resolver
+                            .resolve_file(path, parent.as_deref())
+                            .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
+                        {
+                            self.sources.add_file(file);
+                        }
+                    }
+                }
+            }
+
+            self.sources.0[i].ast = ast;
+        }
+    }
+
+    fn check_pragma(&self, span: Span, pragma: &ast::PragmaDirective) {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {

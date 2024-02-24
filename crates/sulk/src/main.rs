@@ -80,8 +80,9 @@ impl Compiler {
                 return Err(sess.dcx.err(msg).emit());
             }
         }
+        resolver.add_files_from_args(stdin, paths)?;
 
-        resolver.parse_and_resolve(stdin, paths)?;
+        resolver.parse_and_resolve()?;
 
         sess.dcx.has_errors()?;
 

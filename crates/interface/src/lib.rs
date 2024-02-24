@@ -64,3 +64,32 @@ pub fn enter<R>(f: impl FnOnce() -> R) -> Result<R> {
 pub fn enter_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
     SessionGlobals::with_or_default(|_| FatalError::catch_with_exit_code(f))
 }
+
+#[macro_export]
+macro_rules! debug_time {
+    ($what:literal, || $e:expr) => {
+        $crate::__time!(tracing::Level::DEBUG, $what, || $e)
+    };
+}
+
+#[macro_export]
+macro_rules! trace_time {
+    ($what:literal, || $e:expr) => {
+        $crate::__time!(tracing::Level::TRACE, $what, || $e)
+    };
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __time {
+    ($level:expr, $what:literal, || $e:expr) => {
+        if enabled!($level) {
+            let timer = std::time::Instant::now();
+            let res = $e;
+            event!($level, elapsed=?timer.elapsed(), $what);
+            res
+        } else {
+            $e
+        }
+    };
+}

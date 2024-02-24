@@ -164,7 +164,7 @@ impl<'a> FileResolver<'a> {
     pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {
-            debug!("loaded from cache");
+            trace!("loaded from cache");
             return Ok(Some(file));
         }
 
