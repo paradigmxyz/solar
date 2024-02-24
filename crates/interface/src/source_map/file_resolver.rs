@@ -140,7 +140,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Applies the import path mappings to `path`.
-    #[instrument(level = "debug", skip(self), ret)]
+    #[instrument(level = "trace", skip(self), ret)]
     pub fn remap_path<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
         let orig = path;
         let mut remapped = Cow::Borrowed(path);
@@ -160,7 +160,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
-    #[instrument(level = "debug", skip(self))]
+    #[instrument(level = "trace", skip(self))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {
@@ -177,7 +177,7 @@ impl<'a> FileResolver<'a> {
                     path = p;
                 }
             }
-            debug!("canonicalized to {}", path.display());
+            trace!("canonicalized to {}", path.display());
             return self
                 .source_map()
                 .load_file(path)
@@ -185,7 +185,7 @@ impl<'a> FileResolver<'a> {
                 .map_err(|e| ResolveError::ReadFile(path.into(), e));
         }
 
-        debug!("not found");
+        trace!("not found");
         Ok(None)
     }
 }
