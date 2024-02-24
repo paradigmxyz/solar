@@ -260,13 +260,13 @@ impl TestCx<'_> {
         let is_solc = expected_errors.iter().all(|e| e.solc_kind.is_some());
         if is_solc {
             let expected_error = expected_errors.iter().find(|e| e.is_error());
-            let failed = match (expected_error, output.status.success()) {
-                (None, true) => false,
-                (None, false) => {
+            let failed = match (expected_error, output.status.code()) {
+                (None, Some(0)) => false,
+                (None, Some(1)) => {
                     eprintln!("\n---- unexpected error in {} ----", self.file().display());
                     true
                 }
-                (Some(e), true) => {
+                (Some(e), Some(0)) => {
                     if e.solc_kind.unwrap().is_parser_error() {
                         eprintln!("\n---- unexpected success in {} ----", self.file().display());
                         eprintln!("-- expected error --\n{e:?}");
@@ -275,7 +275,13 @@ impl TestCx<'_> {
                         false
                     }
                 }
-                (Some(_e), false) => false,
+                (Some(_e), Some(1)) => false,
+                (e, _) => {
+                    eprintln!("\n---- unexpected exit code in {} ----", self.file().display());
+                    eprintln!("-- error code --\n{:?} -> {}", output.status.code(), output.status);
+                    eprintln!("-- expected error --\n{e:?}");
+                    true
+                }
             };
             if failed {
                 dump_output(output);
