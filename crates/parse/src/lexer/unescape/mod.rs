@@ -22,14 +22,7 @@ pub fn parse_literal<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
 where
     F: FnMut(Range<usize>, EscapeError),
 {
-    // Avoid unescaping if possible.
-    const CHRS: &[char] = &['\\', '\n', '\r'];
-    let do_unescape = match mode {
-        Mode::Str => src.contains(|c: char| CHRS.contains(&c) || !c.is_ascii()),
-        Mode::UnicodeStr => src.contains(CHRS),
-        Mode::HexStr => src.len() % 2 != 0 || src.contains(|c: char| !c.is_ascii_hexdigit()),
-    };
-    let mut bytes = if do_unescape {
+    let mut bytes = if needs_unescape(src, mode) {
         let mut bytes = Vec::with_capacity(src.len());
         parse_literal_unescape(src, mode, f, &mut bytes);
         bytes
@@ -37,8 +30,7 @@ where
         src.as_bytes().to_vec()
     };
     if mode == Mode::HexStr {
-        // This fails when the hex string is invalid, which is fine since we already emitted the
-        // errors during unescaping.
+        // Currently this should not ever fail, but it's a good idea to check anyway.
         if let Ok(decoded) = hex::decode(&bytes) {
             bytes = decoded;
         }
@@ -75,7 +67,23 @@ where
 /// Unescapes the contents of a string literal (without quotes).
 ///
 /// The callback is invoked with a range and either a unicode code point or an error.
-pub fn unescape_literal<F>(src: &str, mode: Mode, callback: F)
+pub fn unescape_literal<F>(src: &str, mode: Mode, mut callback: F)
+where
+    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+{
+    if needs_unescape(src, mode) {
+        unescape_literal_unchecked(src, mode, callback)
+    } else {
+        for (i, ch) in src.char_indices() {
+            callback(i..i + ch.len_utf8(), Ok(ch as u32));
+        }
+    }
+}
+
+/// Unescapes the contents of a string literal (without quotes).
+///
+/// See [`unescape_literal`] for more details.
+fn unescape_literal_unchecked<F>(src: &str, mode: Mode, callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
@@ -84,6 +92,20 @@ where
             unescape_str(src, matches!(mode, Mode::UnicodeStr), callback)
         }
         Mode::HexStr => unescape_hex_str(src, callback),
+    }
+}
+
+/// Fast-path check for whether a string literal needs to be unescaped or errors need to be
+/// reported.
+fn needs_unescape(src: &str, mode: Mode) -> bool {
+    fn needs_unescape_chars(src: &str) -> bool {
+        memchr::memchr3(b'\\', b'\n', b'\r', src.as_bytes()).is_some()
+    }
+
+    match mode {
+        Mode::Str => needs_unescape_chars(src) || !src.is_ascii(),
+        Mode::UnicodeStr => needs_unescape_chars(src),
+        Mode::HexStr => src.len() % 2 != 0 || !hex::check_raw(src),
     }
 }
 
