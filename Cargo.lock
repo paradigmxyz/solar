@@ -2224,6 +2224,7 @@ dependencies = [
  "const-hex",
  "expect-test",
  "itertools 0.11.0",
+ "memchr",
  "num-bigint",
  "num-rational",
  "num-traits",
