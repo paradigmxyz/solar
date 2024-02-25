@@ -21,7 +21,7 @@ const VERSION_MESSAGE: &str = concat!(
 )]
 pub struct Args {
     /// Files to compile or import remappings.
-    #[arg(value_hint = ValueHint::FilePath, required = true)]
+    #[arg(value_hint = ValueHint::FilePath)]
     pub input: Vec<PathBuf>,
     /// Directory to search for files.
     #[arg(long, short = 'I', visible_alias = "base-path")]

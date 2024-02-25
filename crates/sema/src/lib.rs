@@ -35,6 +35,7 @@ impl Sources {
         self.0.push(Source { file, ast: None });
     }
 
+    #[allow(dead_code)]
     fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit> {
         self.0.iter().filter_map(|source| source.ast.as_ref())
     }
@@ -104,24 +105,13 @@ impl<'a> Resolver<'a> {
 
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         debug_time!("parse all files", || self.parse_all_files());
-
-        for ast in self.sources.asts() {
-            for item in &ast.items {
-                match &item.kind {
-                    ast::ItemKind::Pragma(pragma) => {
-                        self.check_pragma(item.span, pragma);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
         Ok(())
     }
 
     fn parse_all_files(&mut self) {
         for i in 0.. {
-            let Some(Source { file, ast: _ }) = self.sources.0.get(i) else { break };
+            let Some(Source { file, ast: source_ast }) = self.sources.0.get(i) else { break };
+            debug_assert!(source_ast.is_none(), "already parsed a file");
 
             let _guard = debug_span!("parse", file = %file.name.display()).entered();
 
@@ -146,23 +136,31 @@ impl<'a> Resolver<'a> {
                     FileName::Custom(_) => None,
                 };
                 for item in &ast.items {
-                    if let ast::ItemKind::Import(import) = &item.kind {
-                        // TODO: Unescape
-                        let path_str = import.path.value.as_str();
-                        let path = Path::new(path_str);
-                        if let Ok(file) = self
-                            .file_resolver
-                            .resolve_file(path, parent.as_deref())
-                            .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
-                        {
-                            self.sources.add_file(file);
+                    match &item.kind {
+                        ast::ItemKind::Pragma(pragma) => {
+                            self.check_pragma(item.span, pragma);
                         }
+                        ast::ItemKind::Import(import) => {
+                            // TODO: Unescape
+                            let path_str = import.path.value.as_str();
+                            let path = Path::new(path_str);
+                            if let Ok(file) = self
+                                .file_resolver
+                                .resolve_file(path, parent.as_deref())
+                                .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
+                            {
+                                self.sources.add_file(file);
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
 
             self.sources.0[i].ast = ast;
         }
+
+        debug!("parsed {} files", self.sources.0.len());
     }
 
     fn check_pragma(&self, span: Span, pragma: &ast::PragmaDirective) {

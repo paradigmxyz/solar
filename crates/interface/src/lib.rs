@@ -66,22 +66,7 @@ pub fn enter_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
 }
 
 #[macro_export]
-macro_rules! debug_time {
-    ($what:literal, || $e:expr) => {
-        $crate::__time!(tracing::Level::DEBUG, $what, || $e)
-    };
-}
-
-#[macro_export]
-macro_rules! trace_time {
-    ($what:literal, || $e:expr) => {
-        $crate::__time!(tracing::Level::TRACE, $what, || $e)
-    };
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! __time {
+macro_rules! time {
     ($level:expr, $what:literal, || $e:expr) => {
         if enabled!($level) {
             let timer = std::time::Instant::now();
@@ -91,5 +76,19 @@ macro_rules! __time {
         } else {
             $e
         }
+    };
+}
+
+#[macro_export]
+macro_rules! debug_time {
+    ($what:literal, || $e:expr) => {
+        $crate::time!(tracing::Level::DEBUG, $what, || $e)
+    };
+}
+
+#[macro_export]
+macro_rules! trace_time {
+    ($what:literal, || $e:expr) => {
+        $crate::time!(tracing::Level::TRACE, $what, || $e)
     };
 }

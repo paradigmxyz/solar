@@ -83,6 +83,7 @@ impl Path {
     /// # Panics
     ///
     /// Panics if `segments` is empty.
+    #[inline]
     pub fn from_slice(segments: &[Ident]) -> Self {
         assert!(!segments.is_empty());
         Self(SmallVec::from_slice(segments))
