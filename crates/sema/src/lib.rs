@@ -105,6 +105,19 @@ impl<'a> Resolver<'a> {
 
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         debug_time!("parse all files", || self.parse_all_files());
+
+        if self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
+            return Ok(());
+        }
+
+        for ast in self.sources.asts() {
+            for item in &ast.items {
+                if let ast::ItemKind::Pragma(pragma) = &item.kind {
+                    self.check_pragma(item.span, pragma);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -136,23 +149,17 @@ impl<'a> Resolver<'a> {
                     FileName::Custom(_) => None,
                 };
                 for item in &ast.items {
-                    match &item.kind {
-                        ast::ItemKind::Pragma(pragma) => {
-                            self.check_pragma(item.span, pragma);
+                    if let ast::ItemKind::Import(import) = &item.kind {
+                        // TODO: Unescape
+                        let path_str = import.path.value.as_str();
+                        let path = Path::new(path_str);
+                        if let Ok(file) = self
+                            .file_resolver
+                            .resolve_file(path, parent.as_deref())
+                            .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
+                        {
+                            self.sources.add_file(file);
                         }
-                        ast::ItemKind::Import(import) => {
-                            // TODO: Unescape
-                            let path_str = import.path.value.as_str();
-                            let path = Path::new(path_str);
-                            if let Ok(file) = self
-                                .file_resolver
-                                .resolve_file(path, parent.as_deref())
-                                .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
-                            {
-                                self.sources.add_file(file);
-                            }
-                        }
-                        _ => {}
                     }
                 }
             }

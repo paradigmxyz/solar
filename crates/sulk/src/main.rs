@@ -127,6 +127,7 @@ fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send)
         let mut sess = Session::new(dcx, source_map);
         sess.evm_version = args.evm_version;
         sess.language = args.language;
+        sess.stop_after = args.stop_after;
 
         let compiler = Compiler { sess, args };
 

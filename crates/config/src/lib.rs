@@ -14,6 +14,15 @@ mod utils;
 pub use strum;
 
 str_enum! {
+    /// Stop execution after the given compiler stage.
+    #[derive(strum::EnumIs)]
+    #[strum(serialize_all = "lowercase")]
+    pub enum StopAfter {
+        Parsing,
+    }
+}
+
+str_enum! {
     /// Source code language.
     #[derive(Default)]
     #[derive(strum::EnumIs)]
@@ -32,6 +41,7 @@ str_enum! {
     #[derive(Default)]
     #[strum(serialize_all = "camelCase")]
     pub enum EvmVersion {
+        // NOTE: Order matters.
         Homestead,
         TangerineWhistle,
         SpuriousDragon,

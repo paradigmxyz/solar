@@ -27,6 +27,7 @@ fn check(config: &Config, path: &Path) -> TestResult {
 fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
     let mut cmd = cx.cmd();
+    cmd.arg("--stop-after=parsing");
     let _guard = if has_delimiters(&cx.src) {
         handle_delimiters(&cx.src, path, &mut cmd)
     } else {
