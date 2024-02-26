@@ -97,7 +97,7 @@ impl Compiler {
 fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send) -> R {
     utils::run_in_thread_with_globals(|| {
         let ui_testing = args.unstable.ui_testing;
-        let source_map = Lrc::new(SourceMap::new());
+        let source_map = Lrc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match args.error_format {
             cli::ErrorFormat::Human => {
                 let color = match args.color {
