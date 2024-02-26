@@ -15,9 +15,6 @@ mod analyze;
 mod file;
 pub use file::*;
 
-mod file_loader;
-pub use file_loader::*;
-
 mod file_resolver;
 pub use file_resolver::{FileResolver, ResolveError};
 
@@ -105,7 +102,6 @@ struct SourceMapFiles {
 
 pub struct SourceMap {
     files: RwLock<SourceMapFiles>,
-    file_loader: Box<dyn FileLoader + Sync + Send>,
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -116,40 +112,30 @@ impl Default for SourceMap {
 }
 
 impl SourceMap {
-    pub fn new() -> Self {
-        Self::with_file_loader(Box::new(RealFileLoader), SourceFileHashAlgorithm::Md5)
-    }
-
-    pub fn with_file_loader(
-        file_loader: Box<dyn FileLoader + Sync + Send>,
-        hash_kind: SourceFileHashAlgorithm,
-    ) -> Self {
-        Self { files: Default::default(), file_loader, hash_kind }
+    /// Creates a new empty source map with the given hash algorithm.
+    pub fn new(hash_kind: SourceFileHashAlgorithm) -> Self {
+        Self { files: Default::default(), hash_kind }
     }
 
     /// Creates a new empty source map.
     pub fn empty() -> Self {
-        Self::new()
+        Self::new(SourceFileHashAlgorithm::default())
     }
 
-    pub fn file_exists(&self, path: &Path) -> bool {
-        self.file_loader.file_exists(path)
-    }
-
+    /// Loads a file from the given path.
     pub fn load_file(&self, path: &Path) -> io::Result<Lrc<SourceFile>> {
-        let src = self.file_loader.read_file(path)?;
+        let src = std::fs::read_to_string(path)?;
         let filename = path.to_owned().into();
         Ok(self.new_source_file(filename, src))
     }
 
+    /// Loads `stdin`.
     pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
         let mut src = String::new();
         io::stdin().read_to_string(&mut src)?;
         Ok(self.new_source_file(FileName::Stdin, src))
     }
 
-    // By returning a `MonotonicVec`, we ensure that consumers cannot invalidate
-    // any existing indices pointing into `files`.
     pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
         ReadGuard::map(self.files.borrow(), |files| &files.source_files)
     }
@@ -203,11 +189,6 @@ impl SourceMap {
         filename: FileName,
         src: String,
     ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
-        // // Note that filename may not be a valid path, eg it may be `<anon>` etc,
-        // // but this is okay because the directory determined by `path.pop()` will
-        // // be empty, so the working directory will be used.
-        // let (filename, _) = self.path_mapping.map_filename_prefix(&filename);
-
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
         match self.source_file_by_stable_id(stable_id) {
             Some(lrc_sf) => Ok(lrc_sf),

@@ -141,6 +141,7 @@ impl StableSourceFileId {
     }
 }
 
+/// Sum of all file lengths is over [`u32::MAX`].
 #[derive(Debug)]
 pub struct OffsetOverflowError;
 
@@ -149,7 +150,7 @@ pub struct OffsetOverflowError;
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
-    /// (e.g., `<anon>`).
+    /// (e.g., `<stdin>`).
     pub name: FileName,
     /// The complete source code.
     pub src: Lrc<String>,
@@ -165,14 +166,10 @@ pub struct SourceFile {
     pub multibyte_chars: Vec<MultiByteChar>,
     /// Width of characters that are not narrow in the source code.
     pub non_narrow_chars: Vec<NonNarrowChar>,
-    // /// Locations of characters removed during normalization.
-    // pub normalized_pos: Vec<NormalizedPos>,
     /// A hash of the filename & crate-id, used for uniquely identifying source
     /// files within the crate graph and for speeding up hashing in incremental
     /// compilation.
     pub stable_id: StableSourceFileId,
-    // /// Indicates which crate this `SourceFile` was imported from.
-    // pub cnum: CrateNum,
 }
 
 impl SourceFile {
@@ -195,16 +192,12 @@ impl SourceFile {
             name,
             src: Lrc::new(src),
             src_hash,
-            // external_src: FreezeLock::frozen(ExternalSource::Unneeded),
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
-            // lines: FreezeLock::frozen(SourceFileLines::Lines(lines)),
             multibyte_chars,
             non_narrow_chars,
-            // normalized_pos,
             stable_id,
-            // cnum: LOCAL_CRATE,
         })
     }
 
@@ -371,17 +364,6 @@ impl SourceFile {
     /// based on the given byte position.
     pub fn original_relative_byte_pos(&self, pos: BytePos) -> RelativeBytePos {
         let pos = self.relative_position(pos);
-
-        // // Diff before any records is 0. Otherwise use the previously recorded
-        // // diff as that applies to the following characters until a new diff
-        // // is recorded.
-        // let diff = match self.normalized_pos.binary_search_by(|np| np.pos.cmp(&pos)) {
-        //     Ok(i) => self.normalized_pos[i].diff,
-        //     Err(0) => 0,
-        //     Err(i) => self.normalized_pos[i - 1].diff,
-        // };
-
-        // + diff
         RelativeBytePos::from_u32(pos.0)
     }
 }
@@ -421,7 +403,7 @@ impl SourceFileHashAlgorithm {
     }
 }
 
-const MAX_HASH_SIZE: usize = 16;
+const MAX_HASH_SIZE: usize = 32;
 
 /// The hash of the on-disk source file used for debug info.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
