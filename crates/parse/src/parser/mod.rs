@@ -451,7 +451,7 @@ impl<'a> Parser<'a> {
     fn parse_paren_comma_seq<T>(
         &mut self,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
@@ -465,7 +465,7 @@ impl<'a> Parser<'a> {
         &mut self,
         delim: Delimiter,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
@@ -478,7 +478,7 @@ impl<'a> Parser<'a> {
         &mut self,
         stop: &TokenKind,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_seq_to_before_end(
             stop,
@@ -499,7 +499,7 @@ impl<'a> Parser<'a> {
         delim: Delimiter,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.parse_unspanned_seq(
             &TokenKind::OpenDelim(delim),
@@ -521,7 +521,7 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         self.expect(bra)?;
         self.parse_seq_to_end(ket, sep, allow_empty, f)
@@ -537,7 +537,7 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
         let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
@@ -556,7 +556,7 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
@@ -575,7 +575,7 @@ impl<'a> Parser<'a> {
         kets: &[&TokenKind],
         sep: SeqSep,
         allow_empty: bool,
-        mut f: impl FnMut(&mut Parser<'a>) -> PResult<'a, T>,
+        mut f: impl FnMut(&mut Self) -> PResult<'a, T>,
     ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
         let mut first = true;
         let mut recovered = false;
