@@ -74,7 +74,7 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
-    pub fn new(input: &'a str) -> Cursor<'a> {
+    pub fn new(input: &'a str) -> Self {
         Cursor {
             len_remaining: input.len(),
             chars: input.chars(),
