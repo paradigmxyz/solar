@@ -464,8 +464,7 @@ mod tests {
                 "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
                 Ok(address!("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb")),
             );
-        })
-        .unwrap();
+        });
     }
 
     #[test]
@@ -568,7 +567,6 @@ mod tests {
             check_rat("1.100", Ok("11/10"));
             check_rat("1.2", Ok("12/10"));
             check_rat("1.20", Ok("12/10"));
-        })
-        .unwrap();
+        });
     }
 }

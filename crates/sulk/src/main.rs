@@ -5,9 +5,9 @@
 use clap::Parser as _;
 use cli::Args;
 use std::{path::Path, process::ExitCode};
-use sulk_data_structures::{defer, sync::Lrc};
+use sulk_data_structures::sync::Lrc;
 use sulk_interface::{
-    diagnostics::{DiagCtxt, DynEmitter, FatalError, HumanEmitter, JsonEmitter},
+    diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
 };
 
@@ -19,15 +19,16 @@ mod utils;
 use sulk_tester as _;
 
 fn main() -> ExitCode {
-    utils::init_logger();
+    let _ = utils::init_logger();
     utils::install_panic_hook();
-
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
-
-    FatalError::catch_with_exit_code(|| run_compiler_args(args))
+    match run_compiler_args(args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(_) => ExitCode::FAILURE,
+    }
 }
 
 pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
@@ -89,12 +90,12 @@ impl Compiler {
         Ok(())
     }
 
-    fn finish_diagnostics(&self) {
-        self.sess.dcx.print_error_count();
+    fn finish_diagnostics(&self) -> Result {
+        self.sess.dcx.print_error_count()
     }
 }
 
-fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send) -> R {
+fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
     utils::run_in_thread_with_globals(|| {
         let ui_testing = args.unstable.ui_testing;
         let source_map = Lrc::new(SourceMap::empty());
@@ -132,10 +133,9 @@ fn run_compiler_with<R: Send>(args: Args, f: impl FnOnce(&Compiler) -> R + Send)
         let compiler = Compiler { sess, args };
 
         SessionGlobals::with_source_map(compiler.sess.clone_source_map(), move || {
-            let r = {
-                let _finish_diagnostics = defer(|| compiler.finish_diagnostics());
-                f(&compiler)
-            };
+            let mut r = Ok(());
+            r = f(&compiler).and(r);
+            r = compiler.finish_diagnostics().and(r);
             drop(compiler);
             r
         })

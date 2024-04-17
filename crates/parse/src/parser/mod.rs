@@ -7,7 +7,7 @@ use sulk_ast::{
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
-    Ident, Session, Span, Symbol,
+    Ident, Result, Session, Span, Symbol,
 };
 
 mod expr;
@@ -138,9 +138,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Creates a new parser from a source code string.
-    pub fn from_source_code(sess: &'a Session, filename: FileName, src: String) -> Self {
-        let file = sess.source_map().new_source_file(filename, src);
-        Self::from_source_file(sess, &file)
+    pub fn from_source_code(sess: &'a Session, filename: FileName, src: String) -> Result<Self> {
+        let file = sess
+            .source_map()
+            .new_source_file(filename, src)
+            .map_err(|e| sess.dcx.err(e.to_string()).emit())?;
+        Ok(Self::from_source_file(sess, &file))
     }
 
     /// Creates a new parser from a source file.

@@ -1,8 +1,8 @@
 use super::{
     emitter::HumanEmitter, BugAbort, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
-    EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
+    EmissionGuarantee, ErrorGuaranteed, Level, SilentEmitter,
 };
-use crate::SourceMap;
+use crate::{Result, SourceMap};
 use anstream::ColorChoice;
 use std::{borrow::Cow, num::NonZeroUsize};
 use sulk_data_structures::{
@@ -19,7 +19,8 @@ pub struct DiagCtxtFlags {
     pub treat_err_as_bug: Option<NonZeroUsize>,
     /// If true, identical diagnostics are reported only once.
     pub deduplicate_diagnostics: bool,
-    /// Track where errors are created. Enabled with `-Ztrack-diagnostics`.
+    /// Track where errors are created. Enabled with `-Ztrack-diagnostics`, and by default in debug
+    /// builds.
     pub track_diagnostics: bool,
 }
 
@@ -151,8 +152,8 @@ impl DiagCtxt {
     }
 
     /// Emits a diagnostic if any warnings or errors have been emitted.
-    pub fn print_error_count(&self) {
-        self.inner.lock().print_error_count();
+    pub fn print_error_count(&self) -> Result {
+        self.inner.lock().print_error_count()
     }
 }
 
@@ -174,12 +175,6 @@ impl DiagCtxt {
     #[track_caller]
     pub fn bug(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, BugAbort> {
         self.diag(Level::Bug, msg)
-    }
-
-    /// Creates a builder at the `Fatal` level with the given `msg`.
-    #[track_caller]
-    pub fn fatal(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
-        self.diag(Level::Fatal, msg)
     }
 
     /// Creates a builder at the `Error` level with the given `msg`.
@@ -226,7 +221,7 @@ impl DiagCtxtInner {
             return Ok(());
         }
 
-        if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_err_as_bug() {
+        if matches!(diagnostic.level, Level::Error) && self.treat_err_as_bug() {
             diagnostic.level = Level::Bug;
         }
 
@@ -265,11 +260,11 @@ impl DiagCtxtInner {
         }
     }
 
-    fn print_error_count(&mut self) {
+    fn print_error_count(&mut self) -> Result {
         // self.emit_stashed_diagnostics();
 
         if self.treat_err_as_bug() {
-            return;
+            return Ok(());
         }
 
         let warnings = |count| match count {
@@ -284,17 +279,16 @@ impl DiagCtxtInner {
         };
 
         match (self.deduplicated_err_count, self.deduplicated_warn_count) {
-            (0, 0) => {}
-            (0, w) => self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w))),
-            (e, 0) => {
-                let _ = self.emit_diagnostic(Diagnostic::new(Level::Fatal, errors(e)));
+            (0, 0) => Ok(()),
+            (0, w) => {
+                self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w)));
+                Ok(())
             }
-            (e, w) => {
-                let _ = self.emit_diagnostic(Diagnostic::new(
-                    Level::Fatal,
-                    format!("{}; {}", errors(e), warnings(w)),
-                ));
-            }
+            (e, 0) => self.emit_diagnostic(Diagnostic::new(Level::Error, errors(e))),
+            (e, w) => self.emit_diagnostic(Diagnostic::new(
+                Level::Error,
+                format!("{}; {}", errors(e), warnings(w)),
+            )),
         }
     }
 

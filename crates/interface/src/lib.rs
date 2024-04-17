@@ -21,10 +21,8 @@
 #[macro_use]
 extern crate tracing;
 
-use std::process::ExitCode;
-
 pub mod diagnostics;
-use diagnostics::{ErrorGuaranteed, FatalError};
+use diagnostics::ErrorGuaranteed;
 
 mod globals;
 pub use globals::SessionGlobals;
@@ -47,22 +45,12 @@ pub use symbol::{kw, sym, Ident, Symbol};
 pub use anstream::ColorChoice;
 
 /// Compiler result type.
-pub type Result<T, E = ErrorGuaranteed> = std::result::Result<T, E>;
+pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 
 /// Creates a new compiler session on the current thread if it doesn't exist already and then
-/// executes the given closure, catching fatal errors and returning them as [`ErrorGuaranteed`].
-///
-/// # Errors
-///
-/// Returns [`ErrorGuaranteed`] if a [`FatalError`] was caught. Other panics are propagated.
-pub fn enter<R>(f: impl FnOnce() -> R) -> Result<R> {
-    SessionGlobals::with_or_default(|_| FatalError::catch(f))
-}
-
-/// Creates a new compiler session on the current thread if it doesn't exist already and then
-/// executes the given closure, catching fatal errors and returning them as [`ExitCode::FAILURE`].
-pub fn enter_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
-    SessionGlobals::with_or_default(|_| FatalError::catch_with_exit_code(f))
+/// executes the given closure.
+pub fn enter<R>(f: impl FnOnce() -> R) -> R {
+    SessionGlobals::with_or_default(|_| f())
 }
 
 #[macro_export]

@@ -1,7 +1,7 @@
 use std::panic::PanicInfo;
 use sulk_interface::{
     diagnostics::{DiagCtxt, ExplicitBug},
-    SessionGlobals,
+    Result, SessionGlobals,
 };
 
 const BUG_REPORT_URL: &str = "https://github.com/paradigmxyz/sulk/issues/new/choose";
@@ -10,10 +10,8 @@ fn early_dcx() -> DiagCtxt {
     DiagCtxt::with_tty_emitter(None)
 }
 
-pub(crate) fn init_logger() {
-    if let Err(e) = try_init_logger() {
-        early_dcx().fatal(e.to_string()).emit();
-    }
+pub(crate) fn init_logger() -> Result {
+    try_init_logger().map_err(|e| early_dcx().err(e.to_string()).emit())
 }
 
 fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {

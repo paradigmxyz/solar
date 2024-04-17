@@ -55,7 +55,7 @@ impl SilentEmitter {
 
 impl Emitter for SilentEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
-        if diagnostic.level != Level::Fatal {
+        if diagnostic.level != Level::Bug {
             return;
         }
 

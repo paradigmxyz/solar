@@ -1,6 +1,6 @@
 use super::{
     BugAbort, DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, ExplicitBug,
-    FatalAbort, FatalError, Level, MultiSpan, Style,
+    Level, MultiSpan, Style,
 };
 use crate::Span;
 use core::fmt;
@@ -62,24 +62,6 @@ impl EmissionGuarantee for BugAbort {
     }
 }
 
-impl EmissionGuarantee for FatalAbort {
-    type EmitResult = Never;
-
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
-        db.emit_producing_nothing();
-        FatalError.raise()
-    }
-}
-
-impl EmissionGuarantee for FatalError {
-    type EmitResult = Self;
-
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
-        db.emit_producing_nothing();
-        Self
-    }
-}
-
 /// Used for emitting structured error messages and other diagnostic information.
 ///
 /// **Note:** Incorrect usage of this type results in a panic when dropped.
@@ -134,7 +116,7 @@ impl<G: EmissionGuarantee> Drop for DiagnosticBuilder<'_, G> {
         }
 
         let _ = self.dcx.emit_diagnostic(Diagnostic::new(
-            Level::Fatal,
+            Level::Bug,
             "the following error was constructed but not emitted",
         ));
         let _ = self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic);

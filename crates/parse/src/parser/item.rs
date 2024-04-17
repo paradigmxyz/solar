@@ -1207,15 +1207,15 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sulk_interface::{source_map::FileName, Session};
+    use sulk_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        sulk_interface::enter(|| {
+        sulk_interface::enter(|| -> Result {
             let sess = Session::with_test_emitter();
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
-                let mut parser = Parser::from_source_code(&sess, FileName::Custom(name), src);
+                let mut parser = Parser::from_source_code(&sess, FileName::Custom(name), src)?;
 
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);
@@ -1223,8 +1223,9 @@ mod tests {
                 sess.dcx.has_errors().unwrap();
                 assert_eq!(req.matches(&version), res, "v={v:?}, req={req_s:?}");
             }
+            Ok(())
         })
-        .unwrap()
+        .unwrap();
     }
 
     #[test]

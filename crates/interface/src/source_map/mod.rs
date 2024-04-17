@@ -126,14 +126,14 @@ impl SourceMap {
     pub fn load_file(&self, path: &Path) -> io::Result<Lrc<SourceFile>> {
         let src = std::fs::read_to_string(path)?;
         let filename = path.to_owned().into();
-        Ok(self.new_source_file(filename, src))
+        self.new_source_file(filename, src).map_err(Into::into)
     }
 
     /// Loads `stdin`.
     pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
         let mut src = String::new();
         io::stdin().read_to_string(&mut src)?;
-        Ok(self.new_source_file(FileName::Stdin, src))
+        self.new_source_file(FileName::Stdin, src).map_err(Into::into)
     }
 
     pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
@@ -162,7 +162,7 @@ impl SourceMap {
         file.start_pos = BytePos(if let Some(last_file) = files.source_files.last() {
             // Add one so there is some space between files. This lets us distinguish
             // positions in the `SourceMap`, even in the presence of zero-length files.
-            last_file.end_position().0.checked_add(1).ok_or(OffsetOverflowError)?
+            last_file.end_position().0.checked_add(1).ok_or(OffsetOverflowError(()))?
         } else {
             0
         });
@@ -175,16 +175,13 @@ impl SourceMap {
     }
 
     /// Creates a new `SourceFile`.
+    ///
     /// If a file already exists in the `SourceMap` with the same ID, that file is returned
     /// unmodified.
-    pub fn new_source_file(&self, filename: FileName, src: String) -> Lrc<SourceFile> {
-        self.try_new_source_file(filename, src).unwrap_or_else(|OffsetOverflowError| {
-            eprintln!("fatal error: files larger than 4GiB are not supported");
-            crate::FatalError.raise()
-        })
-    }
-
-    fn try_new_source_file(
+    ///
+    /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
+    /// `SourceFile`.
+    pub fn new_source_file(
         &self,
         filename: FileName,
         src: String,

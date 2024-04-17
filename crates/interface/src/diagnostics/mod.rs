@@ -2,13 +2,9 @@
 //!
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
-use crate::{Result, Span};
+use crate::Span;
 use anstyle::{AnsiColor, Color};
-use std::{
-    borrow::Cow,
-    panic::{self, Location},
-    process::ExitCode,
-};
+use std::{borrow::Cow, panic::Location};
 
 mod builder;
 pub use builder::{DiagnosticBuilder, EmissionGuarantee};
@@ -49,44 +45,6 @@ pub struct BugAbort;
 /// Signifies that the compiler died with an explicit call to `.bug` rather than a failed assertion,
 /// etc.
 pub struct ExplicitBug;
-
-/// Marker type which enables implementation of fatal diagnostics.
-pub struct FatalAbort(());
-
-/// Used as a return value to signify that a fatal error occurred.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[must_use]
-pub struct FatalError;
-
-impl FatalError {
-    /// Raises a fatal error that can be caught by [`catch`](Self::catch).
-    pub fn raise(self) -> ! {
-        panic::resume_unwind(Box::new(self))
-    }
-
-    /// Catches a fatal error that was raised by [`raise`](Self::raise).
-    pub fn catch<R>(f: impl FnOnce() -> R) -> Result<R> {
-        panic::catch_unwind(panic::AssertUnwindSafe(f)).map_err(|value| {
-            if value.is::<Self>() {
-                #[allow(deprecated)]
-                ErrorGuaranteed::new_unchecked()
-            } else {
-                panic::resume_unwind(value)
-            }
-        })
-    }
-
-    /// Catches a fatal error that was raised by [`raise`](Self::raise).
-    ///
-    /// Returns [`FAILURE`](ExitCode::FAILURE) if an error was caught,
-    /// [`SUCCESS`](ExitCode::SUCCESS) otherwise.
-    pub fn catch_with_exit_code(f: impl FnOnce() -> Result<()>) -> ExitCode {
-        match Self::catch(f).and_then(std::convert::identity) {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(_) => ExitCode::FAILURE,
-        }
-    }
-}
 
 /// Diagnostic ID.
 ///
@@ -146,13 +104,6 @@ pub enum Level {
     /// Its `EmissionGuarantee` is `BugAbort`.
     Bug,
 
-    /// An error that causes an immediate abort. Used for things like configuration errors,
-    /// internal overflows, some file operation errors.
-    ///
-    /// Its `EmissionGuarantee` is `FatalAbort`, except in the non-aborting "almost fatal" case
-    /// that is occasionaly used, where it is `FatalError`.
-    Fatal,
-
     /// An error in the code being compiled, which prevents compilation from finishing. This is the
     /// most common case.
     ///
@@ -202,7 +153,7 @@ impl Level {
     pub fn to_str(self) -> &'static str {
         match self {
             Self::Bug => "error: internal compiler error",
-            Self::Fatal | Self::Error => "error",
+            Self::Error => "error",
             Self::Warning => "warning",
             Self::Note | Self::OnceNote => "note",
             Self::Help | Self::OnceHelp => "help",
@@ -217,7 +168,7 @@ impl Level {
     #[inline]
     pub fn is_error(self) -> bool {
         match self {
-            Self::Bug | Self::Fatal | Self::Error | Self::FailureNote => true,
+            Self::Bug | Self::Error | Self::FailureNote => true,
 
             Self::Warning
             | Self::Note
@@ -248,7 +199,7 @@ impl Level {
     pub const fn ansi_color(self) -> Option<AnsiColor> {
         // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
         match self {
-            Self::Bug | Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
+            Self::Bug | Self::Error => Some(AnsiColor::BrightRed),
             Self::Warning => Some(AnsiColor::BrightYellow),
             Self::Note | Self::OnceNote => Some(AnsiColor::BrightGreen),
             Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),

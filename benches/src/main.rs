@@ -57,16 +57,16 @@ impl Parser for Sulk {
     }
 
     fn parse(&self, src: &str) {
-        (|| {
+        (|| -> sulk_parse::interface::Result {
             let source_map = sulk_parse::interface::SourceMap::empty();
             let sess = Session::with_tty_emitter(source_map.into());
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                sulk_parse::Parser::from_source_code(&sess, filename.into(), src.into());
+                sulk_parse::Parser::from_source_code(&sess, filename.into(), src.into())?;
             let f = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(f);
-            Ok::<_, sulk_parse::interface::diagnostics::ErrorGuaranteed>(())
+            Ok(())
         })()
         .unwrap();
     }
@@ -197,8 +197,7 @@ fn criterion_benches(c: &mut Criterion) {
                 g.bench_function(id, |b| b.iter(|| parser.parse(src)));
             }
         }
-    })
-    .unwrap();
+    });
 
     g.finish();
 }
@@ -238,7 +237,7 @@ fn valgrind_main(args: &[String]) {
         }
     };
     if has_sulk {
-        sulk_parse::interface::enter(run).unwrap();
+        sulk_parse::interface::enter(run);
     } else {
         run();
     }

@@ -1,5 +1,5 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
-use std::{fmt, ops::RangeInclusive, path::PathBuf};
+use std::{fmt, io, ops::RangeInclusive, path::PathBuf};
 use sulk_data_structures::sync::Lrc;
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
@@ -104,8 +104,8 @@ pub struct FileNameDisplay<'a> {
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
-            FileName::Real(name) => write!(f, "{}", name.display()),
-            FileName::Stdin => write!(f, "<stdin>"),
+            FileName::Real(path) => path.display().fmt(f),
+            FileName::Stdin => f.write_str("<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
         }
     }
@@ -143,7 +143,22 @@ impl StableSourceFileId {
 
 /// Sum of all file lengths is over [`u32::MAX`].
 #[derive(Debug)]
-pub struct OffsetOverflowError;
+pub struct OffsetOverflowError(pub(crate) ());
+
+impl fmt::Display for OffsetOverflowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("files larger than 4GiB are not supported")
+    }
+}
+
+impl std::error::Error for OffsetOverflowError {}
+
+impl From<OffsetOverflowError> for io::Error {
+    fn from(e: OffsetOverflowError) -> Self {
+        // TODO: Use `FileTooLarge` when `io_error_more` is stable.
+        Self::new(io::ErrorKind::Other, e.to_string())
+    }
+}
 
 /// A single source in the `SourceMap`.
 #[derive(Clone, Debug)]
@@ -184,7 +199,7 @@ impl SourceFile {
 
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&name);
         let source_len = src.len();
-        let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError)?;
+        let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
         let (lines, multibyte_chars, non_narrow_chars) = super::analyze::analyze_source_file(&src);
 
