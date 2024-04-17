@@ -5,11 +5,11 @@ Simple benchmarks across different Solidity parser implementations.
 Run with:
 ```bash
 # Criterion
-cargo r -r -p sulk-bench -- --bench
+cargo criterion -p sulk-benches --bench bench
 
 # Valgrind
 # See `--valgrind --help`
-cargo b -r -p sulk-bench
+cargo b --profile bench -p sulk-bench
 valgrind --tool=callgrind target/release/sulk-bench --valgrind
 ```
 
@@ -25,46 +25,47 @@ For this compiler:
 
 In practice all of these are one-time costs.
 
-Criterion results on `x86_64-unknown-linux-gnu` on AMD Ryzen 7 7950X:
+Criterion results on `x86_64-unknown-linux-gnu` on AMD Ryzen 7 7950X;
+`sulk-parse @ `, `solang-parser =0.3.3`, `slang =0.14.0`:
 
 ```
-parser/empty/sulk/lex   time:   [417.58 ns 418.55 ns 419.57 ns]
-parser/empty/sulk/parse time:   [700.78 ns 702.17 ns 704.00 ns]
-parser/empty/solang/lex time:   [11.009 ns 11.074 ns 11.145 ns]
+parser/empty/sulk/lex   time:   [442.21 ns 442.77 ns 443.41 ns]
+parser/empty/sulk/parse time:   [617.24 ns 618.31 ns 619.57 ns]
+parser/empty/solang/lex time:   [11.338 ns 11.436 ns 11.549 ns]
 parser/empty/solang/parse
-                        time:   [107.29 ns 107.57 ns 107.91 ns]
+                        time:   [90.352 ns 90.608 ns 90.980 ns]
 parser/empty/slang/parse
-                        time:   [14.937 µs 14.959 µs 14.985 µs]
+                        time:   [25.663 µs 25.680 µs 25.700 µs]
 
-parser/simple/sulk/lex  time:   [965.39 ns 966.49 ns 967.76 ns]
+parser/simple/sulk/lex  time:   [1.0291 µs 1.0324 µs 1.0357 µs]
 parser/simple/sulk/parse
-                        time:   [2.3744 µs 2.3788 µs 2.3832 µs]
+                        time:   [2.4432 µs 2.4450 µs 2.4472 µs]
 parser/simple/solang/lex
-                        time:   [1.0485 µs 1.0514 µs 1.0541 µs]
+                        time:   [1.0999 µs 1.1064 µs 1.1133 µs]
 parser/simple/solang/parse
-                        time:   [4.4007 µs 4.4056 µs 4.4106 µs]
+                        time:   [4.1265 µs 4.1353 µs 4.1445 µs]
 parser/simple/slang/parse
-                        time:   [365.15 µs 365.70 µs 366.28 µs]
+                        time:   [584.02 µs 584.37 µs 584.81 µs]
 
 parser/verifier/sulk/lex
-                        time:   [35.739 µs 35.830 µs 35.918 µs]
+                        time:   [36.543 µs 36.624 µs 36.713 µs]
 parser/verifier/sulk/parse
-                        time:   [127.55 µs 128.01 µs 128.59 µs]
+                        time:   [124.73 µs 125.47 µs 126.75 µs]
 parser/verifier/solang/lex
-                        time:   [71.895 µs 72.229 µs 72.655 µs]
+                        time:   [70.687 µs 70.930 µs 71.236 µs]
 parser/verifier/solang/parse
-                        time:   [448.01 µs 449.14 µs 450.38 µs]
+                        time:   [420.98 µs 422.68 µs 424.56 µs]
 parser/verifier/slang/parse
-                        time:   [35.996 ms 36.076 ms 36.152 ms]
+                        time:   [63.713 ms 63.754 ms 63.800 ms]
 
 parser/OptimizorClub/sulk/lex
-                        time:   [127.05 µs 127.30 µs 127.69 µs]
+                        time:   [122.92 µs 123.09 µs 123.30 µs]
 parser/OptimizorClub/sulk/parse
-                        time:   [397.74 µs 398.73 µs 399.72 µs]
+                        time:   [367.79 µs 369.48 µs 370.97 µs]
 parser/OptimizorClub/solang/lex
-                        time:   [211.62 µs 212.12 µs 212.54 µs]
+                        time:   [212.57 µs 212.99 µs 213.37 µs]
 parser/OptimizorClub/solang/parse
-                        time:   [1.2982 ms 1.3036 ms 1.3105 ms]
+                        time:   [1.2452 ms 1.2513 ms 1.2576 ms]
 parser/OptimizorClub/slang/parse
-                        time:   [110.09 ms 110.77 ms 111.44 ms]
+                        time:   [185.74 ms 186.10 ms 186.51 ms]
 ```
