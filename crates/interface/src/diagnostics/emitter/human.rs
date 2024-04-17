@@ -6,10 +6,7 @@ use crate::{
 };
 use annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
 use anstream::{AutoStream, ColorChoice};
-use std::{
-    borrow::Cow,
-    io::{self, Write},
-};
+use std::io::{self, Write};
 use sulk_data_structures::sync::Lrc;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
@@ -294,46 +291,43 @@ fn file_to_slice(
     debug_assert!(!lines.is_empty());
 
     let first_line = lines.first().unwrap().line_index;
+    debug_assert!(first_line > 0, "line index is 1-based");
     let last_line = lines.last().unwrap().line_index;
     debug_assert!(last_line >= first_line);
-
-    let mut snippet =
-        Cow::Borrowed(file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default());
-    if snippet.contains('\t') {
-        snippet = Cow::Owned(snippet.replace('\t', "    "));
-    }
+    debug_assert!(lines.windows(2).all(|w| w[0].line_index <= w[1].line_index), "unsorted lines");
+    let snippet_base = file.line_position(first_line - 1).unwrap();
 
     let mut slice = OwnedSlice {
         origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
-        source: snippet.into_owned(),
+        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into(),
         line_start: first_line,
         fold: true,
         annotations: Vec::new(),
     };
     let mut multiline_start = None;
-    let mut current_i = 0;
-    let mut prev_line_no = first_line - 1;
     for line in lines {
+        let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
+        let line_rel_pos = line_abs_pos - snippet_base;
         // Returns the position of the given column in the local snippet.
-        let get_pos = |c: &super::rustc::AnnotationColumn| current_i + c.display;
+        let rel_pos = |c: &super::rustc::AnnotationColumn| line_rel_pos + c.display;
 
         for ann in &line.annotations {
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
                     slice.annotations.push(OwnedSourceAnnotation {
-                        range: (get_pos(&ann.start_col), get_pos(&ann.end_col)),
+                        range: (rel_pos(&ann.start_col), rel_pos(&ann.end_col)),
                         label: ann.label.clone().unwrap_or_default(),
                         annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
                     })
                 }
                 super::rustc::AnnotationType::MultilineStart(_) => {
                     debug_assert!(multiline_start.is_none());
-                    multiline_start = Some((ann.label.as_ref(), get_pos(&ann.start_col)));
+                    multiline_start = Some((ann.label.as_ref(), rel_pos(&ann.start_col)));
                 }
                 super::rustc::AnnotationType::MultilineLine(_) => {}
                 super::rustc::AnnotationType::MultilineEnd(_) => {
                     let (label, multiline_start_idx) = multiline_start.take().unwrap();
-                    let end_idx = get_pos(&ann.end_col);
+                    let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
                     slice.annotations.push(OwnedSourceAnnotation {
                         range: (multiline_start_idx, end_idx),
@@ -343,22 +337,7 @@ fn file_to_slice(
                 }
             }
         }
-
-        if let Some(i) = line.line_index.checked_sub(1) {
-            if i >= prev_line_no {
-                current_i += file
-                    .get_lines(prev_line_no..=i)
-                    .unwrap_or("")
-                    .chars()
-                    .map(|c| if c == '\t' { 4 } else { 1 })
-                    .sum::<usize>()
-                    + 1;
-            }
-        }
-
-        prev_line_no = line.line_index;
     }
-    // dbg!(lines, &slice);
     slice
 }
 

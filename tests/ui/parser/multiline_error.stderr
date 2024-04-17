@@ -1,0 +1,12 @@
+error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found keyword `new`
+  --> $DIR/multiline_error.sol:3:24
+   |
+LL |         new string[](3)
+   |                        ^ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+...
+LL |         new string[](4)
+   |         ^^^ unexpected token
+   |
+
+error: aborting due to 1 previous error
+

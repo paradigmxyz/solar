@@ -13,7 +13,7 @@ const VERSION_MESSAGE: &str = concat!(
 
 /// Blazingly fast Solidity compiler.
 #[derive(Parser)]
-#[clap(
+#[command(
     name = "sulk",
     version = VERSION_MESSAGE,
     // after_help = "Find more information in the book: http://book.getfoundry.sh/reference/forge/forge.html",
@@ -56,8 +56,9 @@ pub struct Args {
     ///
     /// See `-Z help` for more details.
     // TODO: `-Zhelp` needs positional arg, and also it's displayed like a normal command.
+    // TODO: Figure out if we can flatten this directly in clap derives.
     #[doc(hidden)]
-    #[arg(name = "unstable-features", value_name = "FLAG", short = 'Z')]
+    #[arg(id = "unstable-features", value_name = "FLAG", short = 'Z')]
     pub _unstable: Vec<String>,
 
     /// Parsed unstable flags.
@@ -67,7 +68,6 @@ pub struct Args {
 
 impl Args {
     pub(crate) fn populate_unstable(&mut self) -> Result<(), clap::Error> {
-        // TODO: Figure out if we can flatten this directly in clap derives.
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
             self.unstable =
@@ -79,7 +79,7 @@ impl Args {
 
 /// How errors and other messages are produced.
 #[derive(Clone, Debug, Default, clap::ValueEnum)]
-#[clap(rename_all = "kebab-case")]
+#[value(rename_all = "kebab-case")]
 pub enum ErrorFormat {
     #[default]
     Human,
@@ -109,22 +109,22 @@ impl std::str::FromStr for ImportMap {
 #[derive(Clone, Debug, Default, Parser)]
 pub struct UnstableFeatures {
     /// Enables UI testing mode.
-    #[clap(long)]
+    #[arg(long)]
     pub ui_testing: bool,
     /// Prints a note for every diagnostic that is emitted with the creation and emission location.
     ///
     /// This is enabled by default on debug builds.
-    #[clap(long)]
+    #[arg(long)]
     pub track_diagnostics: bool,
     /// Enables parsing Yul files for testing.
-    #[clap(long)]
+    #[arg(long)]
     pub parse_yul: bool,
 
     #[cfg(test)]
-    #[clap(long)]
+    #[arg(long)]
     test_bool: bool,
     #[cfg(test)]
-    #[clap(long)]
+    #[arg(long)]
     test_value: Option<usize>,
 }
 

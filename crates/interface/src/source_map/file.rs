@@ -247,6 +247,12 @@ impl SourceFile {
         self.lines().partition_point(|x| x <= &pos).checked_sub(1)
     }
 
+    /// Returns the relative byte position of the start of the line at the given
+    /// 0-based line index.
+    pub fn line_position(&self, line_number: usize) -> Option<usize> {
+        self.lines().get(line_number).map(|x| x.to_usize())
+    }
+
     /// Converts a `RelativeBytePos` to a `CharPos` relative to the `SourceFile`.
     pub(crate) fn bytepos_to_file_charpos(&self, bpos: RelativeBytePos) -> CharPos {
         // The number of extra bytes due to multibyte chars in the `SourceFile`.

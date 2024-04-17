@@ -133,10 +133,8 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         let compiler = Compiler { sess, args };
 
         SessionGlobals::with_source_map(compiler.sess.clone_source_map(), move || {
-            let mut r = Ok(());
-            r = f(&compiler).and(r);
+            let mut r = f(&compiler);
             r = compiler.finish_diagnostics().and(r);
-            drop(compiler);
             r
         })
     })

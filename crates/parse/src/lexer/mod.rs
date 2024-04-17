@@ -446,7 +446,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     fn report_unknown_prefix(&self, start: BytePos) {
         let prefix = self.str_from_to(start, self.pos);
-        let msg = format!("prefix {prefix} is unknown");
+        let msg = format!("literal prefix {prefix} is unknown");
         self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
     }
 }
