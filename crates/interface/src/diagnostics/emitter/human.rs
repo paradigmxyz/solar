@@ -118,20 +118,20 @@ impl HumanEmitter {
     ) -> R {
         // Current format (annotate-snippets 0.10.0) (comments in <...>):
         /*
-        title.annotation_type[title.id]: title.label
-           --> slices[0].origin
+        title.level[title.id]: title.label
+           --> snippets[0].origin
             |
-         LL | slices[0].source[ann[0].range] <ann = slices[0].annotations>
-            | ^^^^^^^^^^^^^^^^ ann[0].annotation_type: ann[0].label <type is skipped for error, warning>
-         LL | slices[0].source[ann[1].range]
-            | ---------------- ann[1].annotation_type: ann[1].label
+         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations>
+            | ^^^^^^^^^^^^^^^^ ann[0].level: ann[0].label <type is skipped for error, warning>
+         LL | snippets[0].source[ann[1].range]
+            | ---------------- ann[1].level: ann[1].label
             |
-           ::: slices[1].origin
+           ::: snippets[1].origin
             |
         etc...
             |
-            = footer[0].annotation_type: footer[0].label <I believe the .id here is always ignored>
-            = footer[1].annotation_type: footer[1].label
+            = footer[0].level: footer[0].label <I believe the .id here is always ignored>
+            = footer[1].level: footer[1].label
             = ...
         */
 
@@ -163,24 +163,20 @@ impl HumanEmitter {
 struct OwnedMessage {
     id: Option<String>,
     label: String,
-    annotation_type: ASLevel,
+    level: ASLevel,
 }
 
 impl OwnedMessage {
     fn from_diagnostic(diag: &Diagnostic) -> Self {
-        Self {
-            id: diag.id(),
-            label: diag.label().into_owned(),
-            annotation_type: to_as_level(diag.level),
-        }
+        Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
     }
 
     fn from_subdiagnostic(sub: &SubDiagnostic) -> Self {
-        Self { id: None, label: sub.label().into_owned(), annotation_type: to_as_level(sub.level) }
+        Self { id: None, label: sub.label().into_owned(), level: to_as_level(sub.level) }
     }
 
     fn as_ref(&self) -> Message<'_> {
-        let mut msg = self.annotation_type.title(&self.label);
+        let mut msg = self.level.title(&self.label);
         if let Some(id) = &self.id {
             msg = msg.id(id);
         }
@@ -192,12 +188,12 @@ impl OwnedMessage {
 struct OwnedAnnotation {
     range: Range<usize>,
     label: String,
-    annotation_type: ASLevel,
+    level: ASLevel,
 }
 
 impl OwnedAnnotation {
     fn as_ref(&self) -> Annotation<'_> {
-        self.annotation_type.span(self.range.clone()).label(&self.label)
+        self.level.span(self.range.clone()).label(&self.label)
     }
 }
 
@@ -312,7 +308,7 @@ fn file_to_snippet(
                     snippet.annotations.push(OwnedAnnotation {
                         range: rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
                         label: ann.label.clone().unwrap_or_default(),
-                        annotation_type: to_as_level(ann.level.unwrap_or(default_level)),
+                        level: to_as_level(ann.level.unwrap_or(default_level)),
                     });
                 }
                 super::rustc::AnnotationType::MultilineStart(_) => {
@@ -327,7 +323,7 @@ fn file_to_snippet(
                     snippet.annotations.push(OwnedAnnotation {
                         range: multiline_start_idx..end_idx,
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
-                        annotation_type: to_as_level(ann.level.unwrap_or(default_level)),
+                        level: to_as_level(ann.level.unwrap_or(default_level)),
                     });
                 }
             }
