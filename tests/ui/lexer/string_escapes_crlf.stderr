@@ -9,7 +9,7 @@ error: invalid hex digit
   --> $DIR/string_escapes_crlf.sol:6:25
    |
 LL | bytes constant s = hex"\
-   |                         
+   |                         ^
    |
 
 error: invalid hex digit
@@ -47,7 +47,7 @@ error: invalid hex digit
   --> $DIR/string_escapes_crlf.sol:20:25
    |
 LL | bytes constant s = hex"\
-   |                         
+   |                         ^
    |
 
 error: invalid hex digit
@@ -61,8 +61,8 @@ LL | |
 error: invalid hex digit
   --> $DIR/string_escapes_crlf.sol:21:1
    |
-LL | 
-   | 
+LL | ...
+   | ^
    |
 
 error: invalid hex digit
@@ -93,7 +93,7 @@ error: invalid hex digit
   --> $DIR/string_escapes_crlf.sol:35:24
    |
 LL | bytes constant s = hex"
-   |                        
+   |                        ^
    |
 
 error: invalid hex digit
