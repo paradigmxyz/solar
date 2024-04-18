@@ -4,9 +4,12 @@ use crate::{
     source_map::SourceFile,
     SourceMap,
 };
-use annotate_snippets::{Annotation, AnnotationType, Renderer, Slice, Snippet, SourceAnnotation};
+use annotate_snippets::{Annotation, Level as ASLevel, Message, Renderer, Snippet};
 use anstream::{AutoStream, ColorChoice};
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    ops::Range,
+};
 use sulk_data_structures::sync::Lrc;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
@@ -107,116 +110,103 @@ impl HumanEmitter {
         self
     }
 
-    /// Formats the given `diagnostic` into a [`Snippet`] suitable for use with the renderer.
+    /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
     fn snippet<R>(
         &mut self,
         diagnostic: &Diagnostic,
-        f: impl FnOnce(&mut Self, Snippet<'_>) -> R,
+        f: impl FnOnce(&mut Self, Message<'_>) -> R,
     ) -> R {
         // Current format (annotate-snippets 0.10.0) (comments in <...>):
         /*
-        title.annotation_type[title.id]: title.label
-           --> slices[0].origin
+        title.level[title.id]: title.label
+           --> snippets[0].origin
             |
-         LL | slices[0].source[ann[0].range] <ann = slices[0].annotations>
-            | ^^^^^^^^^^^^^^^^ ann[0].annotation_type: ann[0].label <type is skipped for error, warning>
-         LL | slices[0].source[ann[1].range]
-            | ---------------- ann[1].annotation_type: ann[1].label
+         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations>
+            | ^^^^^^^^^^^^^^^^ ann[0].level: ann[0].label <type is skipped for error, warning>
+         LL | snippets[0].source[ann[1].range]
+            | ---------------- ann[1].level: ann[1].label
             |
-           ::: slices[1].origin
+           ::: snippets[1].origin
             |
         etc...
             |
-            = footer[0].annotation_type: footer[0].label <I believe the .id here is always ignored>
-            = footer[1].annotation_type: footer[1].label
+            = footer[0].level: footer[0].label <I believe the .id here is always ignored>
+            = footer[1].level: footer[1].label
             = ...
         */
 
-        let title = OwnedAnnotation::from_diagnostic(diagnostic);
+        let title = OwnedMessage::from_diagnostic(diagnostic);
 
-        let owned_slices = self
+        let owned_snippets = self
             .source_map
             .as_deref()
-            .map(|sm| OwnedSlice::collect(sm, diagnostic))
+            .map(|sm| OwnedSnippet::collect(sm, diagnostic))
             .unwrap_or_default();
 
         // Dummy subdiagnostics go in the footer, while non-dummy ones go in the slices.
-        let dummy_subs: Vec<_> = diagnostic
+        let owned_footers: Vec<_> = diagnostic
             .children
             .iter()
             .filter(|sub| sub.span.is_dummy())
-            .map(OwnedAnnotation::from_subdiagnostic)
+            .map(OwnedMessage::from_subdiagnostic)
             .collect();
 
-        let snippet = Snippet {
-            title: Some(title.as_ref()),
-            slices: owned_slices.iter().map(OwnedSlice::as_ref).collect(),
-            footer: dummy_subs.iter().map(OwnedAnnotation::as_ref).collect(),
-        };
+        let snippet = title
+            .as_ref()
+            .snippets(owned_snippets.iter().map(OwnedSnippet::as_ref))
+            .footers(owned_footers.iter().map(OwnedMessage::as_ref));
         f(self, snippet)
     }
 }
 
 #[derive(Debug)]
-struct OwnedAnnotation {
+struct OwnedMessage {
     id: Option<String>,
-    label: Option<String>,
-    annotation_type: AnnotationType,
+    label: String,
+    level: ASLevel,
 }
 
-impl OwnedAnnotation {
+impl OwnedMessage {
     fn from_diagnostic(diag: &Diagnostic) -> Self {
-        Self {
-            id: diag.id(),
-            label: Some(diag.label().into_owned()),
-            annotation_type: to_annotation_type(diag.level),
-        }
+        Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
     }
 
     fn from_subdiagnostic(sub: &SubDiagnostic) -> Self {
-        Self {
-            id: None,
-            label: Some(sub.label().into_owned()),
-            annotation_type: to_annotation_type(sub.level),
-        }
+        Self { id: None, label: sub.label().into_owned(), level: to_as_level(sub.level) }
     }
 
-    fn as_ref(&self) -> Annotation<'_> {
-        Annotation {
-            id: self.id.as_deref(),
-            label: self.label.as_deref(),
-            annotation_type: self.annotation_type,
+    fn as_ref(&self) -> Message<'_> {
+        let mut msg = self.level.title(&self.label);
+        if let Some(id) = &self.id {
+            msg = msg.id(id);
         }
+        msg
     }
 }
 
 #[derive(Debug)]
-struct OwnedSourceAnnotation {
-    range: (usize, usize),
+struct OwnedAnnotation {
+    range: Range<usize>,
     label: String,
-    annotation_type: AnnotationType,
+    level: ASLevel,
 }
 
-impl OwnedSourceAnnotation {
-    fn as_ref(&self) -> SourceAnnotation<'_> {
-        SourceAnnotation {
-            range: self.range,
-            label: &self.label,
-            annotation_type: self.annotation_type,
-        }
+impl OwnedAnnotation {
+    fn as_ref(&self) -> Annotation<'_> {
+        self.level.span(self.range.clone()).label(&self.label)
     }
 }
 
 #[derive(Debug)]
-struct OwnedSlice {
-    origin: Option<String>,
+struct OwnedSnippet {
+    origin: String,
     source: String,
     line_start: usize,
     fold: bool,
-    annotations: Vec<OwnedSourceAnnotation>,
+    annotations: Vec<OwnedAnnotation>,
 }
 
-impl OwnedSlice {
+impl OwnedSnippet {
     fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
         // Collect main diagnostic.
         let mut files = Self::collect_files(sm, &diagnostic.span);
@@ -248,7 +238,7 @@ impl OwnedSlice {
 
         files
             .iter()
-            .map(|file| file_to_slice(sm, &file.file, &file.lines, diagnostic.level))
+            .map(|file| file_to_snippet(sm, &file.file, &file.lines, diagnostic.level))
             .collect()
     }
 
@@ -267,27 +257,25 @@ impl OwnedSlice {
         annotated_files
     }
 
-    fn as_ref(&self) -> Slice<'_> {
-        Slice {
-            source: &self.source,
-            line_start: self.line_start,
-            origin: self.origin.as_deref(),
-            fold: self.fold,
-            annotations: self.annotations.iter().map(OwnedSourceAnnotation::as_ref).collect(),
-        }
+    fn as_ref(&self) -> Snippet<'_> {
+        Snippet::source(&self.source)
+            .line_start(self.line_start)
+            .origin(&self.origin)
+            .fold(self.fold)
+            .annotations(self.annotations.iter().map(OwnedAnnotation::as_ref))
     }
 }
 
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
-/// Assumes that lines are sorted.
-fn file_to_slice(
+/// Expects that lines are sorted.
+fn file_to_snippet(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
     default_level: Level,
-) -> OwnedSlice {
+) -> OwnedSnippet {
     debug_assert!(!lines.is_empty());
 
     let first_line = lines.first().unwrap().line_index;
@@ -297,8 +285,8 @@ fn file_to_slice(
     debug_assert!(lines.windows(2).all(|w| w[0].line_index <= w[1].line_index), "unsorted lines");
     let snippet_base = file.line_position(first_line - 1).unwrap();
 
-    let mut slice = OwnedSlice {
-        origin: Some(sm.filename_for_diagnostics(&file.name).to_string()),
+    let mut snippet = OwnedSnippet {
+        origin: sm.filename_for_diagnostics(&file.name).to_string(),
         source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into(),
         line_start: first_line,
         fold: true,
@@ -309,16 +297,19 @@ fn file_to_slice(
         let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
         let line_rel_pos = line_abs_pos - snippet_base;
         // Returns the position of the given column in the local snippet.
-        let rel_pos = |c: &super::rustc::AnnotationColumn| line_rel_pos + c.file;
+        // We have to convert the column char position to byte position.
+        let rel_pos = |c: &super::rustc::AnnotationColumn| {
+            line_rel_pos + char_to_byte_pos(&snippet.source[line_rel_pos..], c.file)
+        };
 
         for ann in &line.annotations {
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
-                    slice.annotations.push(OwnedSourceAnnotation {
-                        range: (rel_pos(&ann.start_col), rel_pos(&ann.end_col)),
+                    snippet.annotations.push(OwnedAnnotation {
+                        range: rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
                         label: ann.label.clone().unwrap_or_default(),
-                        annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
-                    })
+                        level: to_as_level(ann.level.unwrap_or(default_level)),
+                    });
                 }
                 super::rustc::AnnotationType::MultilineStart(_) => {
                     debug_assert!(multiline_start.is_none());
@@ -329,24 +320,28 @@ fn file_to_slice(
                     let (label, multiline_start_idx) = multiline_start.take().unwrap();
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
-                    slice.annotations.push(OwnedSourceAnnotation {
-                        range: (multiline_start_idx, end_idx),
+                    snippet.annotations.push(OwnedAnnotation {
+                        range: multiline_start_idx..end_idx,
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
-                        annotation_type: to_annotation_type(ann.level.unwrap_or(default_level)),
+                        level: to_as_level(ann.level.unwrap_or(default_level)),
                     });
                 }
             }
         }
     }
-    slice
+    snippet
 }
 
-fn to_annotation_type(level: Level) -> AnnotationType {
+fn to_as_level(level: Level) -> ASLevel {
     match level {
-        Level::Bug | Level::Error => AnnotationType::Error,
-        Level::Warning => AnnotationType::Warning,
-        Level::Note | Level::OnceNote | Level::FailureNote => AnnotationType::Note,
-        Level::Help | Level::OnceHelp => AnnotationType::Help,
-        Level::Allow => AnnotationType::Info,
+        Level::Bug | Level::Error => ASLevel::Error,
+        Level::Warning => ASLevel::Warning,
+        Level::Note | Level::OnceNote | Level::FailureNote => ASLevel::Note,
+        Level::Help | Level::OnceHelp => ASLevel::Help,
+        Level::Allow => ASLevel::Info,
     }
+}
+
+fn char_to_byte_pos(s: &str, char_pos: usize) -> usize {
+    s.chars().take(char_pos).map(char::len_utf8).sum()
 }

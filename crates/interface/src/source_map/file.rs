@@ -355,7 +355,7 @@ impl SourceFile {
     pub fn get_lines(&self, range: RangeInclusive<usize>) -> Option<&str> {
         fn get_until_newline(src: &str, start: usize, end: usize) -> &str {
             match src[end..].find('\n') {
-                Some(e) => &src[start..end + e],
+                Some(e) => &src[start..end + e + 1],
                 None => &src[start..],
             }
         }

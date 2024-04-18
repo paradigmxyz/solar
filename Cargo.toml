@@ -54,7 +54,7 @@ sulk-sema = { version = "0.0.0", path = "crates/sema" }
 sulk-tester = { version = "0.0.0", path = "tools/tester" }
 
 # Ethereum
-alloy-primitives = "0.6"
+alloy-primitives = "0.7"
 
 num-bigint = "0.4"
 num-integer = "0.1"
@@ -68,7 +68,7 @@ clap_builder = "4.4"
 # diagnostics
 anstream = "0.6"
 anstyle = "1.0"
-annotate-snippets = "0.10.2"
+annotate-snippets = "0.11.1"
 
 # serde
 serde = "1.0"
@@ -112,7 +112,7 @@ bumpalo = "3.14"
 hex = { package = "const-hex", version = "1.10" }
 index_vec = "0.1.3"
 indexmap = "2.2"
-itertools = "0.11"
+itertools = "0.12"
 md-5 = "0.10"
 memchr = "2.7"
 rustc-hash = "1.1.0"
