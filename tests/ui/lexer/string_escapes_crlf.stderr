@@ -13,10 +13,9 @@ LL | bytes constant s = hex"\
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:6:25
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
 LL |   bytes constant s = hex"\
-   |  _________________________^
 LL | | ";
    | |_^
    |
@@ -52,10 +51,9 @@ LL | bytes constant s = hex"\
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:20:25
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
 LL |   bytes constant s = hex"\
-   |  _________________________^
 LL | | 
    | |_^
    |
@@ -68,27 +66,25 @@ LL |
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:21:1
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
-LL | / 
+LL |   
 LL | | ";
    | |_^
    |
 
 error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:31:22
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
 LL |   string constant s = "
-   |  ______________________^
 LL | | ";
    | |_^
    |
 
 error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:33:29
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
 LL |   string constant s = unicode"
-   |  _____________________________^
 LL | | ";
    | |_^
    |
@@ -101,10 +97,9 @@ LL | bytes constant s = hex"
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:35:24
+  --> $DIR/string_escapes_crlf.sol:1:1
    |
 LL |   bytes constant s = hex"
-   |  ________________________^
 LL | | ";
    | |_^
    |

@@ -309,7 +309,7 @@ fn file_to_slice(
         let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
         let line_rel_pos = line_abs_pos - snippet_base;
         // Returns the position of the given column in the local snippet.
-        let rel_pos = |c: &super::rustc::AnnotationColumn| line_rel_pos + c.display;
+        let rel_pos = |c: &super::rustc::AnnotationColumn| line_rel_pos + c.file;
 
         for ann in &line.annotations {
             match ann.annotation_type {

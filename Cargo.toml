@@ -68,7 +68,7 @@ clap_builder = "4.4"
 # diagnostics
 anstream = "0.6"
 anstyle = "1.0"
-annotate-snippets = "0.10.1"
+annotate-snippets = "0.10.2"
 
 # serde
 serde = "1.0"
