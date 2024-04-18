@@ -140,7 +140,7 @@ impl HumanEmitter {
         let owned_slices = self
             .source_map
             .as_deref()
-            .map(|sm| OwnedSlice::collect(sm, diagnostic))
+            .map(|sm| OwnedSnippet::collect(sm, diagnostic))
             .unwrap_or_default();
 
         // Dummy subdiagnostics go in the footer, while non-dummy ones go in the slices.
@@ -153,7 +153,7 @@ impl HumanEmitter {
 
         let snippet = title
             .as_ref()
-            .snippets(owned_slices.iter().map(OwnedSlice::as_ref))
+            .snippets(owned_slices.iter().map(OwnedSnippet::as_ref))
             .footers(dummy_subs.iter().map(OwnedMessage::as_ref));
         f(self, snippet)
     }
@@ -202,7 +202,7 @@ impl OwnedAnnotation {
 }
 
 #[derive(Debug)]
-struct OwnedSlice {
+struct OwnedSnippet {
     origin: String,
     source: String,
     line_start: usize,
@@ -210,7 +210,7 @@ struct OwnedSlice {
     annotations: Vec<OwnedAnnotation>,
 }
 
-impl OwnedSlice {
+impl OwnedSnippet {
     fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
         // Collect main diagnostic.
         let mut files = Self::collect_files(sm, &diagnostic.span);
@@ -242,7 +242,7 @@ impl OwnedSlice {
 
         files
             .iter()
-            .map(|file| file_to_slice(sm, &file.file, &file.lines, diagnostic.level))
+            .map(|file| file_to_snippet(sm, &file.file, &file.lines, diagnostic.level))
             .collect()
     }
 
@@ -273,13 +273,13 @@ impl OwnedSlice {
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
-/// Assumes that lines are sorted.
-fn file_to_slice(
+/// Expects that lines are sorted.
+fn file_to_snippet(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
     default_level: Level,
-) -> OwnedSlice {
+) -> OwnedSnippet {
     debug_assert!(!lines.is_empty());
 
     let first_line = lines.first().unwrap().line_index;
@@ -289,7 +289,7 @@ fn file_to_slice(
     debug_assert!(lines.windows(2).all(|w| w[0].line_index <= w[1].line_index), "unsorted lines");
     let snippet_base = file.line_position(first_line - 1).unwrap();
 
-    let mut slice = OwnedSlice {
+    let mut snippet = OwnedSnippet {
         origin: sm.filename_for_diagnostics(&file.name).to_string(),
         source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into(),
         line_start: first_line,
@@ -303,13 +303,13 @@ fn file_to_slice(
         // Returns the position of the given column in the local snippet.
         // We have to convert the column char position to byte position.
         let rel_pos = |c: &super::rustc::AnnotationColumn| {
-            line_rel_pos + char_to_byte_pos(&slice.source[line_rel_pos..], c.file)
+            line_rel_pos + char_to_byte_pos(&snippet.source[line_rel_pos..], c.file)
         };
 
         for ann in &line.annotations {
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
-                    slice.annotations.push(OwnedAnnotation {
+                    snippet.annotations.push(OwnedAnnotation {
                         range: rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
                         label: ann.label.clone().unwrap_or_default(),
                         annotation_type: to_as_level(ann.level.unwrap_or(default_level)),
@@ -324,7 +324,7 @@ fn file_to_slice(
                     let (label, multiline_start_idx) = multiline_start.take().unwrap();
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
-                    slice.annotations.push(OwnedAnnotation {
+                    snippet.annotations.push(OwnedAnnotation {
                         range: multiline_start_idx..end_idx,
                         label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
                         annotation_type: to_as_level(ann.level.unwrap_or(default_level)),
@@ -333,7 +333,7 @@ fn file_to_slice(
             }
         }
     }
-    slice
+    snippet
 }
 
 fn to_as_level(level: Level) -> ASLevel {
