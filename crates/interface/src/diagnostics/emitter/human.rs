@@ -137,14 +137,14 @@ impl HumanEmitter {
 
         let title = OwnedMessage::from_diagnostic(diagnostic);
 
-        let owned_slices = self
+        let owned_snippets = self
             .source_map
             .as_deref()
             .map(|sm| OwnedSnippet::collect(sm, diagnostic))
             .unwrap_or_default();
 
         // Dummy subdiagnostics go in the footer, while non-dummy ones go in the slices.
-        let dummy_subs: Vec<_> = diagnostic
+        let owned_footers: Vec<_> = diagnostic
             .children
             .iter()
             .filter(|sub| sub.span.is_dummy())
@@ -153,8 +153,8 @@ impl HumanEmitter {
 
         let snippet = title
             .as_ref()
-            .snippets(owned_slices.iter().map(OwnedSnippet::as_ref))
-            .footers(dummy_subs.iter().map(OwnedMessage::as_ref));
+            .snippets(owned_snippets.iter().map(OwnedSnippet::as_ref))
+            .footers(owned_footers.iter().map(OwnedMessage::as_ref));
         f(self, snippet)
     }
 }
