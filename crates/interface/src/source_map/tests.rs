@@ -217,7 +217,7 @@ fn span_merging_fail() {
 }
 
 /// Tests loading an external source file that requires normalization.
-#[cfg(NO)]
+#[cfg(any())]
 #[test]
 fn t10() {
     let sm = SourceMap::empty();
@@ -270,7 +270,7 @@ fn t10() {
 }
 
 /// Returns the span corresponding to the `n`th occurrence of `substring` in `source_text`.
-#[cfg(NO)]
+#[cfg(any())]
 trait SourceMapExtension {
     fn span_substr(
         &self,
@@ -281,7 +281,7 @@ trait SourceMapExtension {
     ) -> Span;
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 impl SourceMapExtension for SourceMap {
     fn span_substr(
         &self,
@@ -318,13 +318,13 @@ impl SourceMapExtension for SourceMap {
 }
 
 // Takes a unix-style path and returns a platform specific path.
-#[cfg(NO)]
+#[cfg(any())]
 fn path(p: &str) -> PathBuf {
     path_str(p).into()
 }
 
 // Takes a unix-style path and returns a platform specific path.
-#[cfg(NO)]
+#[cfg(any())]
 fn path_str(p: &str) -> String {
     #[cfg(not(windows))]
     {
@@ -342,7 +342,7 @@ fn path_str(p: &str) -> String {
     }
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 fn map_path_prefix(mapping: &FilePathMapping, p: &str) -> String {
     // It's important that we convert to a string here because that's what
     // later stages do too (e.g. in the backend), and comparing `Path` values
@@ -351,12 +351,12 @@ fn map_path_prefix(mapping: &FilePathMapping, p: &str) -> String {
     mapping.map_prefix(path(p)).0.to_string_lossy().to_string()
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 fn reverse_map_prefix(mapping: &FilePathMapping, p: &str) -> Option<String> {
     mapping.reverse_map_prefix_heuristically(&path(p)).map(|q| q.to_string_lossy().to_string())
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 #[test]
 fn path_prefix_remapping() {
     // Relative to relative
@@ -404,7 +404,7 @@ fn path_prefix_remapping() {
     }
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 #[test]
 fn path_prefix_remapping_expand_to_absolute() {
     // "virtual" working directory is relative path
@@ -508,7 +508,7 @@ fn path_prefix_remapping_expand_to_absolute() {
     );
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 #[test]
 fn path_prefix_remapping_reverse() {
     // Ignores options without alphanumeric chars.
@@ -550,7 +550,7 @@ fn path_prefix_remapping_reverse() {
     }
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 #[test]
 fn test_next_point() {
     let sm = SourceMap::empty();
@@ -597,7 +597,7 @@ fn test_next_point() {
     assert!(sm.span_to_snippet(span).is_err());
 }
 
-#[cfg(NO)]
+#[cfg(any())]
 #[cfg(target_os = "linux")]
 #[test]
 fn read_binary_file_handles_lying_stat() {
