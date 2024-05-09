@@ -1,15 +1,13 @@
 use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
-use std::{fs, path::Path};
+use std::path::Path;
 
 pub(crate) const FNS: TestFns = TestFns { check, run };
 
-fn check(_config: &Config, path: &Path) -> TestResult {
-    if let Some(reason) = solc_yul_filter(path) {
-        return TestResult::Skipped(reason);
-    }
+fn check(config: &Config, path: &Path) -> TestResult {
+    let rel_path = path.strip_prefix(config.root).expect("test path not in root");
 
-    if fs::read_to_string(path).is_err() {
-        return TestResult::Skipped("invalid UTF-8");
+    if let Some(reason) = should_skip(rel_path) {
+        return TestResult::Skipped(reason);
     }
 
     TestResult::Passed
@@ -29,7 +27,7 @@ fn run(cx: &TestCx<'_>) -> TestResult {
     TestResult::Passed
 }
 
-fn solc_yul_filter(path: &Path) -> Option<&'static str> {
+fn should_skip(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/recursion_depth.yul") {
         return Some("recursion stack overflow");
     }

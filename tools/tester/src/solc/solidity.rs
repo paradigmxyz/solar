@@ -8,17 +8,8 @@ pub(crate) const FNS: TestFns = TestFns { check, run };
 fn check(config: &Config, path: &Path) -> TestResult {
     let rel_path = path.strip_prefix(config.root).expect("test path not in root");
 
-    if let Some(reason) = solc_solidity_filter(rel_path) {
+    if let Some(reason) = should_skip(rel_path) {
         return TestResult::Skipped(reason);
-    }
-
-    let Ok(src) = fs::read_to_string(path) else {
-        return TestResult::Skipped("invalid UTF-8");
-    };
-    let src = src.as_str();
-
-    if src.contains("pragma experimental solidity") {
-        return TestResult::Skipped("experimental solidity");
     }
 
     TestResult::Passed
@@ -39,7 +30,7 @@ fn run(cx: &TestCx<'_>) -> TestResult {
     TestResult::Passed
 }
 
-fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
+fn should_skip(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/libyul/") {
         return Some("actually a Yul test");
     }
@@ -56,7 +47,8 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
         return Some("no JSON AST");
     }
 
-    if path_contains(path, "/experimental/") {
+    if path_contains(path, "/functionDependencyGraphTests/") || path_contains(path, "/experimental")
+    {
         return Some("solidity experimental is not implemented");
     }
 
@@ -120,6 +112,8 @@ fn solc_solidity_filter(path: &Path) -> Option<&'static str> {
         | "experimental_test_warning"
         // "." is not a valid import path.
         | "boost_filesystem_bug"
+        // Invalid UTF-8 is not supported.
+        | "invalid_utf8_sequence"
     ) {
         return Some("manually skipped");
     };

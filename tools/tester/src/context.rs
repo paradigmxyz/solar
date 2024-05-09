@@ -509,10 +509,7 @@ impl TestCx<'_> {
         let output = output.replace(r"\\", r"\");
 
         PATH_BACKSLASH_RE
-            .replace_all(&output, |caps: &Captures<'_>| {
-                println!("{}", &caps[0]);
-                caps[0].replace('\\', "/")
-            })
+            .replace_all(&output, |caps: &Captures<'_>| caps[0].replace('\\', "/"))
             .replace("\r\n", "\n")
     }
 
