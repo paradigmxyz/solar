@@ -28,10 +28,8 @@ index_vec.workspace = true
 
 # parallel
 # TODO: wait for possible perf improvements upstream before introducing rayon code
-# rayon = { workspace = true, optional = true }
-parking_lot = { workspace = true, optional = true }
+# rayon.workspace = true
+parking_lot.workspace = true
 
 [features]
-nightly = ["smallvec/specialization", "smallvec/may_dangle", "parking_lot?/nightly"]
-parallel = ["dep:parking_lot"]
-# parallel = ["dep:rayon", "dep:parking_lot"]
+nightly = ["smallvec/specialization", "smallvec/may_dangle", "parking_lot/nightly"]

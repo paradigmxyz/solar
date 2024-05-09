@@ -22,13 +22,9 @@ jobs:
       matrix:
         include:
           - rust: stable
-          - rust: stable
-            flags: --features parallel
           - rust: nightly
           - rust: nightly
             flags: --features nightly
-          - rust: nightly
-            flags: --features nightly,parallel
     steps:
       - uses: actions/checkout@v4
         with:
