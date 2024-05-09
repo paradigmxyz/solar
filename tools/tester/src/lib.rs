@@ -98,9 +98,7 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
     };
     let load = if mode.solc_props() { TestProps::load_solc } else { TestProps::load };
 
-    let inputs = collect_tests(config, mode);
-    tests.reserve(inputs.len());
-    for input in &inputs {
+    for input in collect_tests(config, mode) {
         let mut make_test = |revision: Option<String>| {
             let config = Arc::clone(config);
             let path = input.path().to_path_buf();
@@ -183,7 +181,7 @@ fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: 
     }
 }
 
-fn collect_tests(config: &Config, mode: Mode) -> Vec<walkdir::DirEntry> {
+fn collect_tests(config: &Config, mode: Mode) -> impl Iterator<Item = walkdir::DirEntry> {
     let path = match mode {
         Mode::Ui => "tests/ui/",
         Mode::SolcSolidity => "testdata/solidity/test/",
@@ -195,15 +193,11 @@ fn collect_tests(config: &Config, mode: Mode) -> Vec<walkdir::DirEntry> {
         Mode::SolcSolidity => false,
         Mode::SolcYul => true,
     };
-    walkdir::WalkDir::new(path)
-        .sort_by_file_name()
-        .into_iter()
-        .map(|entry| entry.unwrap())
-        .filter(|entry| {
-            entry.path().extension() == Some("sol".as_ref())
-                || (yul && entry.path().extension() == Some("yul".as_ref()))
-        })
-        .collect::<Vec<_>>()
+    let f = move |entry: &walkdir::DirEntry| {
+        entry.path().extension() == Some("sol".as_ref())
+            || (yul && entry.path().extension() == Some("yul".as_ref()))
+    };
+    walkdir::WalkDir::new(path).sort_by_file_name().into_iter().filter_map(Result::ok).filter(f)
 }
 
 #[derive(Clone, Copy)]

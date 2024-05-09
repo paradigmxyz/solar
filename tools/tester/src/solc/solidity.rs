@@ -73,10 +73,10 @@ fn should_skip(path: &Path) -> Option<&'static str> {
         return Some("Solidity pragma version is not checked");
     }
 
+    // Directories starting with `_` are not tests.
     if path_contains(path, "/_")
         && !path.components().last().unwrap().as_os_str().to_str().unwrap().starts_with('_')
     {
-        // Directories starting with `_` are not tests.
         return Some("supporting file");
     }
 
