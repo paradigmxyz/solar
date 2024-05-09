@@ -137,7 +137,7 @@ impl SourceMap {
     }
 
     pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
-        ReadGuard::map(self.files.borrow(), |files| &files.source_files)
+        ReadGuard::map(self.files.read(), |files| &files.source_files)
     }
 
     pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Lrc<SourceFile>> {
@@ -149,7 +149,7 @@ impl SourceMap {
         &self,
         stable_id: StableSourceFileId,
     ) -> Option<Lrc<SourceFile>> {
-        self.files.borrow().stable_id_to_source_file.get(&stable_id).cloned()
+        self.files.read().stable_id_to_source_file.get(&stable_id).cloned()
     }
 
     fn register_source_file(
@@ -157,7 +157,7 @@ impl SourceMap {
         file_id: StableSourceFileId,
         mut file: SourceFile,
     ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
-        let mut files = self.files.borrow_mut();
+        let mut files = self.files.write();
 
         file.start_pos = BytePos(if let Some(last_file) = files.source_files.last() {
             // Add one so there is some space between files. This lets us distinguish
@@ -212,7 +212,7 @@ impl SourceMap {
         if lo != hi {
             return true;
         }
-        let f = (*self.files.borrow().source_files)[lo].clone();
+        let f = (*self.files.read().source_files)[lo].clone();
         let lo = f.relative_position(span.lo());
         let hi = f.relative_position(span.hi());
         f.lookup_line(lo) != f.lookup_line(hi)
@@ -230,7 +230,7 @@ impl SourceMap {
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
     pub fn lookup_byte_offset(&self, bpos: BytePos) -> SourceFileAndBytePos {
         let idx = self.lookup_source_file_idx(bpos);
-        let sf = (*self.files.borrow().source_files)[idx].clone();
+        let sf = (*self.files.read().source_files)[idx].clone();
         let offset = bpos - sf.start_pos;
         SourceFileAndBytePos { sf, pos: offset }
     }
@@ -239,13 +239,13 @@ impl SourceMap {
     /// This index is guaranteed to be valid for the lifetime of this `SourceMap`,
     /// since `source_files` is a `MonotonicVec`
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
-        self.files.borrow().source_files.partition_point(|x| x.start_pos <= pos) - 1
+        self.files.read().source_files.partition_point(|x| x.start_pos <= pos) - 1
     }
 
     /// Return the SourceFile that contains the given `BytePos`
     pub fn lookup_source_file(&self, pos: BytePos) -> Lrc<SourceFile> {
         let idx = self.lookup_source_file_idx(pos);
-        (*self.files.borrow().source_files)[idx].clone()
+        (*self.files.read().source_files)[idx].clone()
     }
 
     /// Looks up source information about a `BytePos`.
@@ -385,7 +385,7 @@ impl SourceMap {
         &self,
         sp: Span,
     ) -> (Option<Lrc<SourceFile>>, usize, usize, usize, usize) {
-        if self.files.borrow().source_files.is_empty() || sp.is_dummy() {
+        if self.files.read().source_files.is_empty() || sp.is_dummy() {
             return (None, 0, 0, 0, 0);
         }
 

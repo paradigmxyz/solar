@@ -73,9 +73,7 @@ jobs:
           cache-on-failure: true
       - run: cargo doc
         env:
-          RUSTDOCFLAGS:
-            --cfg docsrs -D warnings --show-type-layout --generate-link-to-definition
-            --enable-index-page -Zunstable-options
+          RUSTDOCFLAGS: --cfg docsrs -D warnings --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options
       - name: Deploy documentation
         uses: peaceiris/actions-gh-pages@v3
         # TODO
