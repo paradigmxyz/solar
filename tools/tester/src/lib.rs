@@ -57,6 +57,17 @@ pub fn run_tests(cmd: &'static Path) -> i32 {
     if opts.test_threads.is_none() {
         opts.test_threads = std::thread::available_parallelism().map(|x| x.get()).ok();
     }
+    if matches!(opts.color, test::ColorConfig::AutoColor) {
+        if std::env::var_os("NOCOLOR").is_some_and(|s| s != "0") {
+            opts.color = test::ColorConfig::NeverColor;
+        } else if let Ok(s) = std::env::var("CARGO_TERM_COLOR") {
+            match s.as_str() {
+                "always" => opts.color = test::ColorConfig::AlwaysColor,
+                "never" => opts.color = test::ColorConfig::NeverColor,
+                _ => {}
+            }
+        }
+    }
 
     let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
     let mode_tmp;

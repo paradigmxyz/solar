@@ -21,17 +21,11 @@ workspace = true
 
 [dependencies]
 ahash.workspace = true
-smallvec = { workspace = true, features = ["union"] }
-rustc-hash.workspace = true
-indexmap.workspace = true
 index_vec.workspace = true
-
-# parallel
-# TODO: wait for possible perf improvements upstream before introducing rayon code
-# rayon = { workspace = true, optional = true }
-parking_lot = { workspace = true, optional = true }
+indexmap.workspace = true
+parking_lot.workspace = true
+rustc-hash.workspace = true
+smallvec = { workspace = true, features = ["union"] }
 
 [features]
-nightly = ["smallvec/specialization", "smallvec/may_dangle", "parking_lot?/nightly"]
-parallel = ["dep:parking_lot"]
-# parallel = ["dep:rayon", "dep:parking_lot"]
+nightly = ["smallvec/specialization", "smallvec/may_dangle", "parking_lot/nightly"]
