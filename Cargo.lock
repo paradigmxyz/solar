@@ -2155,6 +2155,7 @@ name = "sulk"
 version = "0.0.0"
 dependencies = [
  "clap",
+ "rayon",
  "sulk-config",
  "sulk-data-structures",
  "sulk-interface",

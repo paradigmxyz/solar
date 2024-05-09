@@ -16,7 +16,7 @@ use std::{
     time::Duration,
 };
 
-const TIMEOUT: Duration = Duration::from_millis(500);
+const TIMEOUT: Duration = Duration::from_secs(2);
 
 pub enum TestOutput {
     Compile,
@@ -52,6 +52,7 @@ impl TestCx<'_> {
     fn cmd_common(&self) -> Command {
         let mut cmd = Command::new(self.config.cmd);
         cmd.current_dir(self.config.root);
+        cmd.arg("-j1");
         cmd.arg("--color=always");
         cmd.timeout(TIMEOUT);
         cmd

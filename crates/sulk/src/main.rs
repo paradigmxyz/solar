@@ -96,7 +96,7 @@ impl Compiler {
 }
 
 fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
-    utils::run_in_thread_with_globals(|| {
+    utils::run_in_thread_pool_with_globals(args.threads, || {
         let ui_testing = args.unstable.ui_testing;
         let source_map = Lrc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match args.error_format {

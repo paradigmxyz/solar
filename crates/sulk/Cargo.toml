@@ -25,9 +25,9 @@ sulk-interface = { workspace = true, features = ["json"] }
 sulk-sema.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
+rayon.workspace = true
 tracing-error.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter", "fmt"] }
-# tracing.workspace = true
 
 [dev-dependencies]
 sulk-tester.workspace = true

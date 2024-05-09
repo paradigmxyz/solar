@@ -64,10 +64,44 @@ fn panic_hook(info: &PanicInfo<'_>) {
     dcx.note(format!("we would appreciate a bug report: {BUG_REPORT_URL}")).emit();
 }
 
-pub(crate) fn run_in_thread_with_globals<R: Send>(f: impl FnOnce() -> R + Send) -> R {
-    const STACK_SIZE: usize = 1024 * 1024 * 8;
+fn init_stack_size() -> usize {
+    const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 8;
+    DEFAULT_STACK_SIZE
+}
 
-    let builder = std::thread::Builder::new().name("sulk".into()).stack_size(STACK_SIZE);
+pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
+    threads: usize,
+    f: impl FnOnce() -> R + Send,
+) -> R {
+    if threads == 1 {
+        return run_in_thread_with_globals(f);
+    }
+
+    let builder = rayon::ThreadPoolBuilder::new()
+        .thread_name(|i| format!("sulk-{i}"))
+        .num_threads(threads)
+        .stack_size(init_stack_size());
+
+    // We create the session globals on the main thread, then create the thread
+    // pool. Upon creation, each worker thread created gets a copy of the
+    // session globals in TLS. This is possible because `SessionGlobals` impls
+    // `Send` in the parallel compiler.
+    SessionGlobals::new().set(|| {
+        SessionGlobals::with(|session_globals| {
+            builder
+                .build_scoped(
+                    // Initialize each new worker thread when created.
+                    move |thread| session_globals.set(|| thread.run()),
+                    // Run `f` on the first thread in the thread pool.
+                    move |pool| pool.install(f),
+                )
+                .unwrap()
+        })
+    })
+}
+
+fn run_in_thread_with_globals<R: Send>(f: impl FnOnce() -> R + Send) -> R {
+    let builder = std::thread::Builder::new().name("sulk".into()).stack_size(init_stack_size());
     std::thread::scope(|s| {
         let r = builder.spawn_scoped(s, move || SessionGlobals::new().set(f)).unwrap().join();
         match r {

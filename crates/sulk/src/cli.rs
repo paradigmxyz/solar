@@ -51,6 +51,10 @@ pub struct Args {
     /// How errors and other messages are produced.
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,
+    /// Number of threads to use. Zero specifies the number of logical cores.
+    // TODO: Default to `0` once we're actually using rayon.
+    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "1")]
+    pub threads: usize,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
