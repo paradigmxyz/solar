@@ -61,7 +61,7 @@ pub fn run_tests(cmd: &'static Path) -> i32 {
         if std::env::var_os("NOCOLOR").is_some_and(|s| s != "0") {
             opts.color = test::ColorConfig::NeverColor;
         } else if let Ok(s) = std::env::var("CARGO_TERM_COLOR") {
-            match s.as_str() {
+            match dbg!(s.as_str()) {
                 "always" => opts.color = test::ColorConfig::AlwaysColor,
                 "never" => opts.color = test::ColorConfig::NeverColor,
                 _ => {}
