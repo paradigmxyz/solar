@@ -64,23 +64,15 @@ fn panic_hook(info: &PanicInfo<'_>) {
     dcx.note(format!("we would appreciate a bug report: {BUG_REPORT_URL}")).emit();
 }
 
-fn init_stack_size() -> usize {
-    const DEFAULT_STACK_SIZE: usize = 1024 * 1024 * 8;
-    DEFAULT_STACK_SIZE
-}
-
 pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
     threads: usize,
     f: impl FnOnce() -> R + Send,
 ) -> R {
+    let mut builder =
+        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("sulk-{i}")).num_threads(threads);
     if threads == 1 {
-        return run_in_thread_with_globals(f);
+        builder = builder.use_current_thread();
     }
-
-    let builder = rayon::ThreadPoolBuilder::new()
-        .thread_name(|i| format!("sulk-{i}"))
-        .num_threads(threads)
-        .stack_size(init_stack_size());
 
     // We create the session globals on the main thread, then create the thread
     // pool. Upon creation, each worker thread created gets a copy of the
@@ -97,17 +89,6 @@ pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
                 )
                 .unwrap()
         })
-    })
-}
-
-fn run_in_thread_with_globals<R: Send>(f: impl FnOnce() -> R + Send) -> R {
-    let builder = std::thread::Builder::new().name("sulk".into()).stack_size(init_stack_size());
-    std::thread::scope(|s| {
-        let r = builder.spawn_scoped(s, move || SessionGlobals::new().set(f)).unwrap().join();
-        match r {
-            Ok(r) => r,
-            Err(e) => std::panic::resume_unwind(e),
-        }
     })
 }
 
