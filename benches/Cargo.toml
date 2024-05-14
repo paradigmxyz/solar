@@ -20,7 +20,7 @@ sulk-parse.workspace = true
 
 solang-parser = "=0.3.3"
 
-slang_solidity = "=0.14.0"
+slang_solidity = "=0.14.2"
 semver.workspace = true
 
 [[bench]]
