@@ -1,6 +1,5 @@
 use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
-use std::sync::{Arc, Mutex, PoisonError};
 use sulk_data_structures::sync::Lrc;
 
 mod human;
@@ -65,16 +64,12 @@ impl Emitter for SilentEmitter {
         }
         let _ = self.fatal_dcx.emit_diagnostic(diagnostic);
     }
-
-    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
-        None
-    }
 }
 
 /// Diagnostic emitter that only stores emitted diagnostics.
 #[derive(Clone, Debug)]
 pub struct LocalEmitter {
-    diagnostics: Arc<Mutex<Vec<Diagnostic>>>,
+    diagnostics: Vec<Diagnostic>,
 }
 
 impl Default for LocalEmitter {
@@ -86,30 +81,23 @@ impl Default for LocalEmitter {
 impl LocalEmitter {
     /// Creates a new `LocalEmitter`.
     pub fn new() -> Self {
-        Self { diagnostics: Arc::new(Mutex::new(Vec::new())) }
+        Self { diagnostics: Vec::new() }
     }
 
     /// Returns a reference to the emitted diagnostics.
-    pub fn diagnostics(&self) -> &Mutex<Vec<Diagnostic>> {
+    pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diagnostics
     }
 
     /// Consumes the emitter and returns the emitted diagnostics.
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
-        Arc::try_unwrap(self.diagnostics)
-            .unwrap()
-            .into_inner()
-            .unwrap_or_else(PoisonError::into_inner)
+        self.diagnostics
     }
 }
 
 impl Emitter for LocalEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
-        self.diagnostics.lock().unwrap_or_else(PoisonError::into_inner).push(diagnostic.clone());
-    }
-
-    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
-        None
+        self.diagnostics.push(diagnostic.clone());
     }
 }
 

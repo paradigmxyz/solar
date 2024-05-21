@@ -43,8 +43,18 @@ pub struct DocComment {
 pub struct Path(SmallVec<[Ident; 1]>);
 
 impl FromIterator<Ident> for Path {
+    /// Creates a path from an iterator of idents.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the iterator is empty.
     fn from_iter<T: IntoIterator<Item = Ident>>(iter: T) -> Self {
-        Self(SmallVec::from_iter(iter))
+        let mut iter = iter.into_iter();
+        let first = iter.next().expect("paths cannot be empty");
+        match iter.next() {
+            Some(second) => Self(SmallVec::from_iter([first, second].into_iter().chain(iter))),
+            None => Self::new_single(first),
+        }
     }
 }
 

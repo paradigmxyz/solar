@@ -1,5 +1,5 @@
 use criterion::Criterion;
-use std::{hint::black_box, path::PathBuf, time::Duration};
+use std::{hint::black_box, io::Write, path::PathBuf, process::Stdio, time::Duration};
 use sulk_parse::interface::Session;
 
 const PARSERS: &[&dyn Parser] = &[&Solc, &Sulk, &Solang, &Slang];
@@ -43,6 +43,36 @@ trait Parser {
     fn parse(&self, src: &str);
 }
 
+struct Solc;
+impl Parser for Solc {
+    fn name(&self) -> &'static str {
+        "solc"
+    }
+
+    fn has_lex(&self) -> bool {
+        false
+    }
+
+    fn lex(&self, _: &str) {}
+
+    fn parse(&self, src: &str) {
+        let mut cmd = std::process::Command::new("solc");
+        cmd.arg("-");
+        cmd.arg("--stop-after=parsing");
+        // cmd.arg("--ast-compact-json");
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+        cmd.stdin(Stdio::piped());
+        let mut child = cmd.spawn().expect("failed to spawn child");
+        child.stdin.as_mut().unwrap().write_all(src.as_bytes()).expect("failed to write to stdin");
+        let output = child.wait_with_output().expect("failed to wait for child");
+        if !output.status.success() {
+            panic!("solc failed.\ncmd: {cmd:?}\nout: {output:#?}");
+        }
+        let _stdout = String::from_utf8(output.stdout).expect("failed to read stdout");
+    }
+}
+
 struct Sulk;
 impl Parser for Sulk {
     fn name(&self) -> &'static str {
@@ -64,9 +94,9 @@ impl Parser for Sulk {
             let filename = PathBuf::from("test.sol");
             let mut parser =
                 sulk_parse::Parser::from_source_code(&sess, filename.into(), src.into())?;
-            let f = parser.parse_file().map_err(|e| e.emit())?;
+            let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
-            black_box(f);
+            black_box(result);
             Ok(())
         })()
         .unwrap();
@@ -87,8 +117,8 @@ impl Parser for Solang {
 
     fn parse(&self, src: &str) {
         match solang_parser::parse(src, 0) {
-            Ok(res) => {
-                black_box(res);
+            Ok(result) => {
+                black_box(result);
             }
             Err(diagnostics) => {
                 if !diagnostics.is_empty() {

@@ -1,5 +1,9 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
-use std::{fmt, io, ops::RangeInclusive, path::PathBuf};
+use std::{
+    fmt, io,
+    ops::RangeInclusive,
+    path::{Path, PathBuf},
+};
 use sulk_data_structures::sync::Lrc;
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
@@ -83,6 +87,33 @@ pub enum FileName {
     Custom(String),
 }
 
+impl PartialEq<Path> for FileName {
+    fn eq(&self, other: &Path) -> bool {
+        match self {
+            Self::Real(p) => p == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<&Path> for FileName {
+    fn eq(&self, other: &&Path) -> bool {
+        match self {
+            Self::Real(p) => p == *other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<PathBuf> for FileName {
+    fn eq(&self, other: &PathBuf) -> bool {
+        match self {
+            Self::Real(p) => p == other,
+            _ => false,
+        }
+    }
+}
+
 impl From<PathBuf> for FileName {
     fn from(p: PathBuf) -> Self {
         Self::Real(p)
@@ -156,7 +187,7 @@ impl std::error::Error for OffsetOverflowError {}
 impl From<OffsetOverflowError> for io::Error {
     fn from(e: OffsetOverflowError) -> Self {
         // TODO: Use `FileTooLarge` when `io_error_more` is stable.
-        Self::new(io::ErrorKind::Other, e.to_string())
+        Self::new(io::ErrorKind::Other, e)
     }
 }
 

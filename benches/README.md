@@ -5,11 +5,11 @@ Simple benchmarks across different Solidity parser implementations.
 Run with:
 ```bash
 # Criterion
-cargo criterion -p sulk-benches --bench bench
+cargo criterion -p sulk-bench --bench bench
 
 # Valgrind
 # See `--valgrind --help`
-cargo b --profile bench -p sulk-bench
+cargo build --profile bench -p sulk-bench
 valgrind --tool=callgrind target/release/sulk-bench --valgrind
 ```
 
