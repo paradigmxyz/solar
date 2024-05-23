@@ -2,7 +2,7 @@ use criterion::Criterion;
 use std::{hint::black_box, path::PathBuf, time::Duration};
 use sulk_parse::interface::Session;
 
-const PARSERS: &[&dyn Parser] = &[&Sulk, &Solang, &Slang];
+const PARSERS: &[&dyn Parser] = &[&Solc, &Sulk, &Solang, &Slang];
 const SRCS: &[Source] = &[
     Source { name: "empty", src: "" },
     Source {
@@ -25,6 +25,7 @@ const SRCS: &[Source] = &[
         name: "OptimizorClub",
         src: include_str!("../../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
     },
+    Source { name: "UniswapV3", src: include_str!("../../testdata/UniswapV3.sol") },
 ];
 
 #[derive(Clone, Debug)]
