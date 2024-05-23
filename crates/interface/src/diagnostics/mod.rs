@@ -41,7 +41,6 @@ impl ErrorGuaranteed {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BugAbort;
 
-// TODO: Catch in panic hook.
 /// Signifies that the compiler died with an explicit call to `.bug` rather than a failed assertion,
 /// etc.
 pub struct ExplicitBug;

@@ -62,15 +62,15 @@ fn t3() {
     let sm = init_source_map();
 
     let srcfbp1 = sm.lookup_byte_offset(BytePos(23));
-    assert_eq!(srcfbp1.sf.name, PathBuf::from("blork.rs").into());
+    assert_eq!(srcfbp1.sf.name, Path::new("blork.rs"));
     assert_eq!(srcfbp1.pos, BytePos(23));
 
     let srcfbp1 = sm.lookup_byte_offset(BytePos(24));
-    assert_eq!(srcfbp1.sf.name, PathBuf::from("empty.rs").into());
+    assert_eq!(srcfbp1.sf.name, Path::new("empty.rs"));
     assert_eq!(srcfbp1.pos, BytePos(0));
 
     let srcfbp2 = sm.lookup_byte_offset(BytePos(25));
-    assert_eq!(srcfbp2.sf.name, PathBuf::from("blork2.rs").into());
+    assert_eq!(srcfbp2.sf.name, Path::new("blork2.rs"));
     assert_eq!(srcfbp2.pos, BytePos(0));
 }
 
@@ -92,12 +92,12 @@ fn t5() {
     let sm = init_source_map();
 
     let loc1 = sm.lookup_char_pos(BytePos(22));
-    assert_eq!(loc1.file.name, PathBuf::from("blork.rs").into());
+    assert_eq!(loc1.file.name, Path::new("blork.rs"));
     assert_eq!(loc1.line, 2);
     assert_eq!(loc1.col, CharPos(10));
 
     let loc2 = sm.lookup_char_pos(BytePos(25));
-    assert_eq!(loc2.file.name, PathBuf::from("blork2.rs").into());
+    assert_eq!(loc2.file.name, Path::new("blork2.rs"));
     assert_eq!(loc2.line, 1);
     assert_eq!(loc2.col, CharPos(0));
 }
@@ -143,7 +143,7 @@ fn t7() {
     let span = Span::new(BytePos(12), BytePos(23));
     let file_lines = sm.span_to_lines(span).unwrap();
 
-    assert_eq!(file_lines.file.name, PathBuf::from("blork.rs").into());
+    assert_eq!(file_lines.file.name, Path::new("blork.rs"));
     assert_eq!(file_lines.lines.len(), 1);
     assert_eq!(file_lines.lines[0].line_index, 1);
 }

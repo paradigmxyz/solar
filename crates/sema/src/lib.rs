@@ -11,7 +11,7 @@ extern crate tracing;
 
 use std::path::{Path, PathBuf};
 use sulk_ast::ast;
-use sulk_data_structures::sync::Lrc;
+use sulk_data_structures::{index::IndexVec, newtype_index, sync::Lrc};
 use sulk_interface::{
     debug_time,
     diagnostics::DiagCtxt,
@@ -20,19 +20,36 @@ use sulk_interface::{
 };
 use sulk_parse::{Lexer, Parser};
 
-struct Sources(Vec<Source>);
+// pub mod hir;
+
+newtype_index! {
+    /// A source index.
+    pub(crate) struct SourceId
+}
+
+struct Sources(IndexVec<SourceId, Source>);
 
 impl Sources {
     fn new() -> Self {
-        Self(Vec::new())
+        Self(IndexVec::new())
     }
 
-    fn add_file(&mut self, file: Lrc<SourceFile>) {
-        if self.0.iter().any(|source| Lrc::ptr_eq(&source.file, &file)) {
+    fn get(&self, id: SourceId) -> Option<&Source> {
+        self.0.get(id)
+    }
+
+    fn push_import(&mut self, current: SourceId, import: SourceId) {
+        self.0[current].imports.push(import);
+    }
+
+    fn add_file(&mut self, file: Lrc<SourceFile>) -> SourceId {
+        if let Some((id, _)) =
+            self.0.iter_enumerated().find(|(_, source)| Lrc::ptr_eq(&source.file, &file))
+        {
             trace!(file = %file.name.display(), "skipping duplicate source file");
-            return;
+            return id;
         }
-        self.0.push(Source { file, ast: None });
+        self.0.push(Source { file, ast: None, imports: IndexVec::new() })
     }
 
     #[allow(dead_code)]
@@ -43,7 +60,9 @@ impl Sources {
 
 struct Source {
     file: Lrc<SourceFile>,
+    /// The AST of the source. None if Yul or parsing failed.
     ast: Option<ast::SourceUnit>,
+    imports: IndexVec<SourceId, SourceId>,
 }
 
 /// Semantic analysis context.
@@ -110,6 +129,7 @@ impl<'a> Resolver<'a> {
             return Ok(());
         }
 
+        // TODO: Proper AST validation and in parallel.
         for ast in self.sources.asts() {
             for item in &ast.items {
                 if let ast::ItemKind::Pragma(pragma) = &item.kind {
@@ -123,7 +143,9 @@ impl<'a> Resolver<'a> {
 
     fn parse_all_files(&mut self) {
         for i in 0.. {
-            let Some(Source { file, ast: source_ast }) = self.sources.0.get(i) else { break };
+            let current_file = SourceId::new(i);
+            let Some(source) = self.sources.get(current_file) else { break };
+            let Source { file, ast: source_ast, imports: _ } = source;
             debug_assert!(source_ast.is_none(), "already parsed a file");
 
             let _guard = debug_span!("parse", file = %file.name.display()).entered();
@@ -158,18 +180,20 @@ impl<'a> Resolver<'a> {
                             .resolve_file(path, parent.as_deref())
                             .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
                         {
-                            self.sources.add_file(file);
+                            let import = self.sources.add_file(file);
+                            self.sources.push_import(current_file, import);
                         }
                     }
                 }
             }
 
-            self.sources.0[i].ast = ast;
+            self.sources.0[current_file].ast = ast;
         }
 
         debug!("parsed {} files", self.sources.0.len());
     }
 
+    // TODO: Move to AST validation.
     fn check_pragma(&self, span: Span, pragma: &ast::PragmaDirective) {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
@@ -178,7 +202,7 @@ impl<'a> Resolver<'a> {
                     self.dcx().err(msg).span(name.span).emit();
                     // return;
                 }
-                // TODO: Check version
+                // TODO: Check or ignore version?
             }
             ast::PragmaTokens::Custom(name, value) => {
                 let name = name.as_str();

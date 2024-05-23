@@ -16,6 +16,7 @@
 pub mod hint;
 pub mod index;
 pub mod map;
+pub mod scope;
 pub mod sync;
 
 mod never;
