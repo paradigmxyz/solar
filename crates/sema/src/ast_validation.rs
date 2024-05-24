@@ -40,9 +40,7 @@ impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
                 if name.name != sym::solidity {
                     let msg = "only `solidity` is supported as a version pragma";
                     self.dcx().err(msg).span(name.span).emit();
-                    // return;
                 }
-                // TODO: Check or ignore version?
             }
             ast::PragmaTokens::Custom(name, value) => {
                 let name = name.as_str();

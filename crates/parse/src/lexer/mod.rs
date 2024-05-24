@@ -345,12 +345,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 }
             }
-            RawLiteralKind::Rational { base, empty_fraction, empty_exponent } => {
-                if empty_fraction {
-                    let span = self.new_span(start, self.pos);
-                    self.dcx().err("expected at least one digit in fraction").span(span).emit();
-                }
-
+            RawLiteralKind::Rational { base, empty_exponent } => {
                 if empty_exponent {
                     let span = self.new_span(start, self.pos);
                     self.dcx().err("expected at least one digit in exponent").span(span).emit();

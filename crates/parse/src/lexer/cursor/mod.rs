@@ -265,7 +265,7 @@ impl<'a> Cursor<'a> {
             // by field/method access (`12.foo()`)
             '.' if !is_id_start(self.second()) => {
                 self.bump();
-                let empty_fraction = !self.eat_decimal_digits();
+                self.eat_decimal_digits();
                 let empty_exponent = match self.first() {
                     'e' | 'E' => {
                         self.bump();
@@ -273,12 +273,12 @@ impl<'a> Cursor<'a> {
                     }
                     _ => false,
                 };
-                RawLiteralKind::Rational { base, empty_fraction, empty_exponent }
+                RawLiteralKind::Rational { base, empty_exponent }
             }
             'e' | 'E' => {
                 self.bump();
                 let empty_exponent = !self.eat_exponent();
-                RawLiteralKind::Rational { base, empty_fraction: false, empty_exponent }
+                RawLiteralKind::Rational { base, empty_exponent }
             }
             _ => RawLiteralKind::Int { base, empty_int: false },
         }

@@ -327,9 +327,11 @@ impl TokenKind {
         match self {
             Eq | Lt | Le | EqEq | Ne | Ge | Gt | AndAnd | OrOr | Not | Tilde | Walrus
             | PlusPlus | MinusMinus | StarStar | BinOp(_) | BinOpEq(_) | At | Dot | Comma
-            | Semi | Colon | Arrow | FatArrow | Question => true,
+            | Colon | Arrow | FatArrow | Question => true,
 
-            OpenDelim(..) | CloseDelim(..) | Literal(..) | Comment(..) | Ident(..) | Eof => false,
+            OpenDelim(..) | CloseDelim(..) | Literal(..) | Comment(..) | Ident(..) | Semi | Eof => {
+                false
+            }
         }
     }
 

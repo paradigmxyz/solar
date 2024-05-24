@@ -1,8 +1,9 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
+use std::num::IntErrorKind;
 use sulk_ast::{ast::*, token::*};
-use sulk_interface::{error_code, kw, sym, Ident};
+use sulk_interface::{error_code, kw, sym, Ident, Span};
 
 impl<'a> Parser<'a> {
     /// Parses a source unit.
@@ -500,8 +501,8 @@ impl<'a> Parser<'a> {
             // 0.1 .2
             let lit = self.token.lit().unwrap();
             let (mj, mn) = lit.symbol.as_str().split_once('.').unwrap();
-            major = SemverVersionNumber::Number(self.parse_u32(mj)?);
-            minor = Some(SemverVersionNumber::Number(self.parse_u32(mn)?));
+            major = SemverVersionNumber::Number(self.parse_u32(mj, self.token.span));
+            minor = Some(SemverVersionNumber::Number(self.parse_u32(mn, self.token.span)));
             self.bump();
 
             patch =
@@ -514,8 +515,8 @@ impl<'a> Parser<'a> {
                     // *. 1.2
                     let lit = self.token.lit().unwrap();
                     let (mn, p) = lit.symbol.as_str().split_once('.').unwrap();
-                    minor = Some(SemverVersionNumber::Number(self.parse_u32(mn)?));
-                    patch = Some(SemverVersionNumber::Number(self.parse_u32(p)?));
+                    minor = Some(SemverVersionNumber::Number(self.parse_u32(mn, self.token.span)));
+                    patch = Some(SemverVersionNumber::Number(self.parse_u32(p, self.token.span)));
                     self.bump();
                 } else {
                     // *.1 .2
@@ -548,13 +549,22 @@ impl<'a> Parser<'a> {
             self.expected_tokens.push(ExpectedToken::VersionNumber);
             return self.unexpected();
         };
-        let value = self.parse_u32(symbol.as_str()).map_err(|e| e.span(span))?;
+        let value = self.parse_u32(symbol.as_str(), span);
         self.bump();
         Ok(SemverVersionNumber::Number(value))
     }
 
-    fn parse_u32(&mut self, s: &str) -> PResult<'a, u32> {
-        s.parse::<u32>().map_err(|e| self.dcx().err(e.to_string()))
+    fn parse_u32(&mut self, s: &str, span: Span) -> u32 {
+        match s.parse::<u32>() {
+            Ok(n) => n,
+            Err(e) => match e.kind() {
+                IntErrorKind::Empty => 0,
+                _ => {
+                    self.dcx().err(e.to_string()).span(span).emit();
+                    u32::MAX
+                }
+            },
+        }
     }
 
     /// Parses an import directive.
