@@ -2264,6 +2264,7 @@ dependencies = [
 name = "sulk-sema"
 version = "0.0.0"
 dependencies = [
+ "rayon",
  "sulk-ast",
  "sulk-data-structures",
  "sulk-interface",

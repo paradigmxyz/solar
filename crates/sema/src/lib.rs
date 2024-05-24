@@ -9,6 +9,7 @@
 #[macro_use]
 extern crate tracing;
 
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::path::{Path, PathBuf};
 use sulk_ast::ast;
 use sulk_data_structures::{index::IndexVec, newtype_index, sync::Lrc};
@@ -16,11 +17,14 @@ use sulk_interface::{
     debug_time,
     diagnostics::DiagCtxt,
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
-    sym, trace_time, Result, Session, Span,
+    trace_time, Result, Session,
 };
 use sulk_parse::{Lexer, Parser};
 
 // pub mod hir;
+
+mod ast_validation;
+pub use ast_validation::AstValidator;
 
 newtype_index! {
     /// A source index.
@@ -55,6 +59,11 @@ impl Sources {
     #[allow(dead_code)]
     fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit> {
         self.0.iter().filter_map(|source| source.ast.as_ref())
+    }
+
+    #[allow(dead_code)]
+    fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit> {
+        self.0.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }
 }
 
@@ -129,14 +138,7 @@ impl<'a> Resolver<'a> {
             return Ok(());
         }
 
-        // TODO: Proper AST validation and in parallel.
-        for ast in self.sources.asts() {
-            for item in &ast.items {
-                if let ast::ItemKind::Pragma(pragma) = &item.kind {
-                    self.check_pragma(item.span, pragma);
-                }
-            }
-        }
+        debug_time!("validate ASTs", || self.validate_asts());
 
         Ok(())
     }
@@ -193,36 +195,7 @@ impl<'a> Resolver<'a> {
         debug!("parsed {} files", self.sources.0.len());
     }
 
-    // TODO: Move to AST validation.
-    fn check_pragma(&self, span: Span, pragma: &ast::PragmaDirective) {
-        match &pragma.tokens {
-            ast::PragmaTokens::Version(name, _version) => {
-                if name.name != sym::solidity {
-                    let msg = "only `solidity` is supported as a version pragma";
-                    self.dcx().err(msg).span(name.span).emit();
-                    // return;
-                }
-                // TODO: Check or ignore version?
-            }
-            ast::PragmaTokens::Custom(name, value) => {
-                let name = name.as_str();
-                let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
-                match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
-                    ("experimental", Some("ABIEncoderV2")) => {}
-                    ("experimental", Some("SMTChecker")) => {}
-                    ("experimental", Some("solidity")) => {
-                        let msg = "experimental solidity features are not supported";
-                        self.dcx().err(msg).span(span).emit();
-                    }
-                    _ => {
-                        self.dcx().err("unknown pragma").span(span).emit();
-                    }
-                }
-            }
-            ast::PragmaTokens::Verbatim(_) => {
-                self.dcx().err("unknown pragma").span(span).emit();
-            }
-        }
+    fn validate_asts(&self) {
+        self.sources.par_asts().for_each(|ast| AstValidator::validate(self.sess, ast));
     }
 }

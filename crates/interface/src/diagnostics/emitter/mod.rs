@@ -13,7 +13,7 @@ pub use json::JsonEmitter;
 mod rustc;
 
 /// Dynamic diagnostic emitter. See [`Emitter`].
-pub type DynEmitter = dyn Emitter;
+pub type DynEmitter = dyn Emitter + Send;
 
 /// Diagnostic emitter.
 pub trait Emitter {

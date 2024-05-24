@@ -24,10 +24,15 @@ const DEFAULT_RENDERER: Renderer = Renderer::plain()
 
 /// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
+    // NOTE: `AutoStream` only allows bare `Box<dyn Write>`, without any auto-traits.
+    // We must implement them manually and enforce them through the public API.
     writer: AutoStream<Box<dyn Write>>,
     source_map: Option<Lrc<SourceMap>>,
     renderer: Renderer,
 }
+
+// SAFETY: See `writer` above.
+unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
@@ -56,8 +61,9 @@ impl HumanEmitter {
     /// Note that a color choice of `Auto` will be treated as `Never` because the writer opaque
     /// at this point. Prefer calling [`AutoStream::choice`] on the writer if it is known
     /// before-hand.
-    pub fn new(writer: Box<dyn Write>, color: ColorChoice) -> Self {
+    pub fn new(writer: Box<dyn Write + Send>, color: ColorChoice) -> Self {
         Self {
+            // NOTE: Intentionally erases the `+ Send` bound, see `writer` above.
             writer: AutoStream::new(writer, color),
             source_map: None,
             renderer: DEFAULT_RENDERER,

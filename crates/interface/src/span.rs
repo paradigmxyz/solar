@@ -142,6 +142,7 @@ impl Span {
     ///     self lorem ipsum end
     ///     ^^^^^^^^^^^^^^^^^^^^
     /// ```
+    #[inline]
     pub fn to(self, end: Self) -> Self {
         Self::new(cmp::min(self.lo(), end.lo()), cmp::max(self.hi(), end.hi()))
     }
@@ -153,6 +154,7 @@ impl Span {
     ///     self lorem ipsum end
     ///         ^^^^^^^^^^^^^
     /// ```
+    #[inline]
     pub fn between(self, end: Self) -> Self {
         Self::new(self.hi(), end.lo())
     }
@@ -164,6 +166,7 @@ impl Span {
     ///     self lorem ipsum end
     ///     ^^^^^^^^^^^^^^^^^
     /// ```
+    #[inline]
     pub fn until(self, end: Self) -> Self {
         Self::new(self.lo(), end.lo())
     }

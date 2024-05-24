@@ -21,6 +21,7 @@ sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 sulk-parse.workspace = true
 
+rayon.workspace = true
 tracing.workspace = true
 
 [features]

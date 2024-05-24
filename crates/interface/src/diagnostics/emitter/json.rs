@@ -14,7 +14,7 @@ use sulk_data_structures::sync::Lrc;
 
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
-    writer: Box<dyn io::Write>,
+    writer: Box<dyn io::Write + Send>,
     pretty: bool,
     rustc_like: bool,
 
@@ -41,7 +41,7 @@ impl Emitter for JsonEmitter {
 
 impl JsonEmitter {
     /// Creates a new `JsonEmitter` that writes to given writer.
-    pub fn new(writer: Box<dyn io::Write>, source_map: Lrc<SourceMap>) -> Self {
+    pub fn new(writer: Box<dyn io::Write + Send>, source_map: Lrc<SourceMap>) -> Self {
         let buffer = LocalBuffer::new();
         Self {
             writer,
