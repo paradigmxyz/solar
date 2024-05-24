@@ -2257,6 +2257,7 @@ dependencies = [
  "num-traits",
  "sulk-ast",
  "sulk-interface",
+ "tracing",
 ]
 
 [[package]]

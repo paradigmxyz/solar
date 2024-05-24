@@ -83,8 +83,10 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Consumes the lexer and collects the remaining tokens into a vector.
     ///
     /// Note that this skips comments, as [required by the parser](crate::Parser::new).
+    ///
+    /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
     pub fn into_tokens(mut self) -> Vec<Token> {
-        let mut tokens = Vec::with_capacity(16);
+        let mut tokens = Vec::with_capacity(1024);
         loop {
             let token = self.next_token();
             if token.is_eof() {
@@ -95,6 +97,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             }
             tokens.push(token);
         }
+        trace!(tokens = tokens.len(), "lexed");
         tokens
     }
 

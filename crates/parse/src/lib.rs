@@ -6,6 +6,9 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+#[macro_use]
+extern crate tracing;
+
 use sulk_interface::diagnostics::{DiagnosticBuilder, ErrorGuaranteed};
 
 pub mod lexer;

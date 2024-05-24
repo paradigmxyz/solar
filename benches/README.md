@@ -89,3 +89,14 @@ parser/UniswapV3/solang/parse
 parser/UniswapV3/slang/parse
                         time:   [517.57 ms 519.66 ms 521.78 ms]
 ```
+
+### UniswapV3 - 3200 LoC
+
+`solc 0.8.25`, `sulk @ 6167e5e`, `solang-parser =0.3.3`, `slang =0.14.2`:
+
+|        | Lex (ms) | Lex (KLoC/s) | Parse (ms) | Parse (KLoC/s) |
+| ------ | -------- | ------------ | ---------- | -------------- |
+| solc   | N/A      | N/A          | 4.29       | 745.9          |
+| sulk   | 0.36     | 8888.9       | 0.95       | 3368.4         |
+| solang | 0.64     | 5000.0       | 3.29       | 972.6          |
+| slang  | N/A      | N/A          | 518.79     | 6.2            |
