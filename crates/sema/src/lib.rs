@@ -9,10 +9,14 @@
 #[macro_use]
 extern crate tracing;
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, newtype_index, sync::Lrc};
+use sulk_data_structures::{
+    index::{Idx, IndexVec},
+    newtype_index,
+    sync::Lrc,
+};
 use sulk_interface::{
     debug_time,
     diagnostics::DiagCtxt,
@@ -31,6 +35,7 @@ newtype_index! {
     pub(crate) struct SourceId
 }
 
+#[derive(Default)]
 struct Sources(IndexVec<SourceId, Source>);
 
 impl Sources {
@@ -134,7 +139,7 @@ impl<'a> Resolver<'a> {
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         debug_time!("parse all files", || self.parse_all_files());
 
-        if self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
+        if self.sess.language.is_yul() || self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
             return Ok(());
         }
 
@@ -144,55 +149,70 @@ impl<'a> Resolver<'a> {
     }
 
     fn parse_all_files(&mut self) {
+        let mut sources = std::mem::take(&mut self.sources);
         for i in 0.. {
-            let current_file = SourceId::new(i);
-            let Some(source) = self.sources.get(current_file) else { break };
-            let Source { file, ast: source_ast, imports: _ } = source;
-            debug_assert!(source_ast.is_none(), "already parsed a file");
+            let current_file = SourceId::from_usize(i);
+            let Some(source) = sources.get(current_file) else { break };
+            debug_assert!(source.ast.is_none(), "file already parsed");
 
-            let _guard = debug_span!("parse", file = %file.name.display()).entered();
-
-            let lexer = Lexer::from_source_file(self.sess, file);
-            let tokens = trace_time!("lex file", || lexer.into_tokens());
-            let mut parser = Parser::new(self.sess, tokens);
-            let ast = trace_time!("parse file", || {
-                if self.sess.language.is_yul() {
-                    // TODO
-                    let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
-                    None
-                } else {
-                    parser.parse_file().map_err(|e| e.emit()).ok()
-                }
-            });
-
-            if let Some(ast) = &ast {
-                let parent = match &file.name {
-                    FileName::Real(path) => Some(path.clone()),
-                    // Use current directory for stdin.
-                    FileName::Stdin => Some(PathBuf::from("")),
-                    FileName::Custom(_) => None,
-                };
-                for item in &ast.items {
-                    if let ast::ItemKind::Import(import) = &item.kind {
-                        // TODO: Unescape
-                        let path_str = import.path.value.as_str();
-                        let path = Path::new(path_str);
-                        if let Ok(file) = self
-                            .file_resolver
-                            .resolve_file(path, parent.as_deref())
-                            .map_err(|e| self.dcx().err(e.to_string()).span(item.span).emit())
-                        {
-                            let import = self.sources.add_file(file);
-                            self.sources.push_import(current_file, import);
-                        }
-                    }
-                }
+            let ast = self.parse_one(&source.file);
+            for import in self.resolve_imports(&source.file, ast.as_ref()) {
+                let import = sources.add_file(import);
+                sources.push_import(current_file, import);
             }
-
-            self.sources.0[current_file].ast = ast;
+            sources.0[current_file].ast = ast;
         }
+        self.sources = sources;
+    }
 
-        debug!("parsed {} files", self.sources.0.len());
+    /// Parses a single file.
+    #[instrument(name = "parse", level = "debug", skip_all, fields(file = %file.name.display()))]
+    fn parse_one(&self, file: &SourceFile) -> Option<ast::SourceUnit> {
+        let lexer = Lexer::from_source_file(self.sess, file);
+        let tokens = trace_time!("lex file", || lexer.into_tokens());
+
+        let mut parser = Parser::new(self.sess, tokens);
+        trace_time!("parse file", || {
+            if self.sess.language.is_yul() {
+                let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
+                None
+            } else {
+                parser.parse_file().map_err(|e| e.emit()).ok()
+            }
+        })
+    }
+
+    /// Resolves the imports of the given file, returning an iterator over all the imported files.
+    fn resolve_imports<'b>(
+        &'b self,
+        file: &SourceFile,
+        ast: Option<&'b ast::SourceUnit>,
+    ) -> impl Iterator<Item = Lrc<SourceFile>> + 'b {
+        let parent = match &file.name {
+            FileName::Real(path) => Some(path.clone()),
+            // Use current directory for stdin.
+            FileName::Stdin => Some(PathBuf::from("")),
+            FileName::Custom(_) => None,
+        };
+        let items = ast.map(|ast| &ast.items[..]).unwrap_or(&[]);
+        items
+            .iter()
+            .filter_map(|item| {
+                if let ast::ItemKind::Import(import) = &item.kind {
+                    Some((import, item.span))
+                } else {
+                    None
+                }
+            })
+            .filter_map(move |(import, span)| {
+                // TODO: Unescape
+                let path_str = import.path.value.as_str();
+                let path = Path::new(path_str);
+                self.file_resolver
+                    .resolve_file(path, parent.as_deref())
+                    .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
+                    .ok()
+            })
     }
 
     fn validate_asts(&self) {
