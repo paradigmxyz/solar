@@ -38,6 +38,7 @@ newtype_index! {
 #[derive(Default)]
 struct Sources(IndexVec<SourceId, Source>);
 
+#[allow(dead_code)]
 impl Sources {
     fn new() -> Self {
         Self(IndexVec::new())
@@ -61,12 +62,10 @@ impl Sources {
         self.0.push(Source { file, ast: None, imports: IndexVec::new() })
     }
 
-    #[allow(dead_code)]
     fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit> {
         self.0.iter().filter_map(|source| source.ast.as_ref())
     }
 
-    #[allow(dead_code)]
     fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit> {
         self.0.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }

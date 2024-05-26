@@ -37,8 +37,9 @@ impl<'a> Parser<'a> {
                 let msg = format!("{}s are not allowed in contracts", item.description());
                 let (_, note) = get_msg_note(self);
                 self.dcx().err(msg).span(item.span).note(note).emit();
+            } else {
+                items.push(item);
             }
-            items.push(item);
         }
         if !self.eat(end) {
             let (msg, note) = get_msg_note(self);

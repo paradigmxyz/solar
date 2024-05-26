@@ -272,6 +272,8 @@ impl OwnedSnippet {
     }
 }
 
+// TODO: Tabs are not handled correctly.
+
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
