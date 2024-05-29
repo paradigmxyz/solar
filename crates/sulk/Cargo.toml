@@ -27,12 +27,23 @@ sulk-sema.workspace = true
 clap = { workspace = true, features = ["derive"] }
 rayon.workspace = true
 tracing-error.workspace = true
-tracing-subscriber = { workspace = true, features = ["registry", "env-filter", "fmt"] }
+tracing-subscriber = { workspace = true, features = [
+    "registry",
+    "env-filter",
+    "fmt",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+# TODO: slows tests by 2x
+# tikv-jemallocator = { workspace = true, optional = true }
 
 [dev-dependencies]
 sulk-tester.workspace = true
 
 [features]
+# default = ["jemalloc"]
 nightly = [
     "sulk-config/nightly",
     "sulk-data-structures/nightly",
@@ -40,6 +51,7 @@ nightly = [
     "sulk-sema/nightly",
     "sulk-tester/nightly",
 ]
+# jemalloc = ["dep:tikv-jemallocator"]
 
 [[test]]
 name = "tests"
