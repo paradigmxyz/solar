@@ -30,7 +30,7 @@ where
         src.as_bytes().to_vec()
     };
     if mode == Mode::HexStr {
-        // Currently this should not ever fail, but it's a good idea to check anyway.
+        // Currently this should never fail, but it's a good idea to check anyway.
         if let Ok(decoded) = hex::decode(&bytes) {
             bytes = decoded;
         }

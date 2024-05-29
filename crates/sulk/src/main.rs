@@ -14,11 +14,32 @@ use sulk_interface::{
 pub mod cli;
 mod utils;
 
+#[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
+pub mod sigsegv_handler;
+
+/// Signal handler to extract a backtrace from stack overflow.
+///
+/// This is a no-op because this platform doesn't support our signal handler's requirements.
+#[cfg(not(all(unix, any(target_env = "gnu", target_os = "macos"))))]
+pub mod sigsegv_handler {
+    /// No-op function.
+    pub fn install() {}
+}
+
 // Used in integration tests. See `../tests.rs`.
 #[cfg(test)]
 use sulk_tester as _;
 
+// TODO: slows tests by 2x
+/*
+// We use jemalloc for performance reasons.
+#[cfg(all(feature = "jemalloc", unix))]
+#[global_allocator]
+static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+*/
+
 fn main() -> ExitCode {
+    sigsegv_handler::install();
     let _ = utils::init_logger();
     utils::install_panic_hook();
     let args = match parse_args(std::env::args_os()) {
