@@ -36,14 +36,13 @@ tracing-subscriber = { workspace = true, features = [
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
-# TODO: slows tests by 2x
-# tikv-jemallocator = { workspace = true, optional = true }
+tikv-jemallocator = { workspace = true, optional = true }
 
 [dev-dependencies]
 sulk-tester.workspace = true
 
 [features]
-# default = ["jemalloc"]
+default = ["jemalloc"]
 nightly = [
     "sulk-config/nightly",
     "sulk-data-structures/nightly",
@@ -51,7 +50,7 @@ nightly = [
     "sulk-sema/nightly",
     "sulk-tester/nightly",
 ]
-# jemalloc = ["dep:tikv-jemallocator"]
+jemalloc = ["dep:tikv-jemallocator"]
 
 [[test]]
 name = "tests"
