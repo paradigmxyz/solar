@@ -198,7 +198,11 @@ fn collect_tests(config: &Config, mode: Mode) -> impl Iterator<Item = walkdir::D
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
-    let path = config.root.join(path);
+    let root = config.root.join(path);
+    assert!(
+        root.exists(),
+        "tests root directory does not exist: {path}; you may need to initialize submodules"
+    );
     let yul = match mode {
         Mode::Ui => true,
         Mode::SolcSolidity => false,
@@ -208,7 +212,7 @@ fn collect_tests(config: &Config, mode: Mode) -> impl Iterator<Item = walkdir::D
         entry.path().extension() == Some("sol".as_ref())
             || (yul && entry.path().extension() == Some("yul".as_ref()))
     };
-    walkdir::WalkDir::new(path).sort_by_file_name().into_iter().filter_map(Result::ok).filter(f)
+    walkdir::WalkDir::new(root).sort_by_file_name().into_iter().filter_map(Result::ok).filter(f)
 }
 
 #[derive(Clone, Copy)]
