@@ -30,13 +30,14 @@ pub mod sigsegv_handler {
 #[cfg(test)]
 use sulk_tester as _;
 
-// TODO: slows tests by 2x
-/*
 // We use jemalloc for performance reasons.
+#[cfg(not(debug_assertions))]
 #[cfg(all(feature = "jemalloc", unix))]
 #[global_allocator]
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
-*/
+
+#[cfg(debug_assertions)]
+use tikv_jemallocator as _;
 
 fn main() -> ExitCode {
     sigsegv_handler::install();
