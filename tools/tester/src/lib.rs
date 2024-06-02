@@ -38,6 +38,8 @@ mod utils;
 use utils::TestResult;
 
 pub fn run_tests(cmd: &'static Path) -> i32 {
+    utils::enable_paint();
+
     let args = std::env::args().collect::<Vec<_>>();
     let mut opts = match test::test::parse_opts(&args) {
         Some(Ok(o)) => o,

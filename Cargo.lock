@@ -152,7 +152,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "367fd0ad87307588d087544707bc5fbf4805ded96c7db922b70d368fa1cb5702"
 dependencies = [
  "unicode-width",
- "yansi",
+ "yansi 0.5.1",
 ]
 
 [[package]]
@@ -2288,6 +2288,7 @@ dependencies = [
  "tester",
  "unified-diff",
  "walkdir",
+ "yansi 1.0.1",
 ]
 
 [[package]]
@@ -2968,6 +2969,15 @@ name = "yansi"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
+
+[[package]]
+name = "yansi"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
+dependencies = [
+ "is-terminal",
+]
 
 [[package]]
 name = "zerocopy"

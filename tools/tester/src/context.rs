@@ -367,19 +367,24 @@ impl TestCx<'_> {
         }
 
         if !unexpected.is_empty() || !not_found.is_empty() {
-            self.error(&format!(
-                "{} unexpected errors found, {} expected errors not found",
-                unexpected.len(),
-                not_found.len()
-            ));
-            println!("status: {}\ncommand: {}", output.status, output.cmdline);
+            use yansi::Paint;
+
+            println!("status: {}\ncommand: {}\n", output.status, output.cmdline);
             if !unexpected.is_empty() {
-                println!("unexpected errors (from JSON output): {unexpected:#?}\n");
+                println!("{}", "--- unexpected errors (from JSON output) ---".green());
+                for error in &unexpected {
+                    println!("{}", error.render_for_expected());
+                }
+                println!("{}", "---".green());
             }
             if !not_found.is_empty() {
-                println!("not found errors (from test file): {not_found:#?}\n");
+                println!("{}", "--- not found errors (from test file) ---".red());
+                for error in &not_found {
+                    println!("{}", error.render_for_expected());
+                }
+                println!("{}", "---\n".red());
             }
-            panic!();
+            panic!("errors differ from expected");
         }
     }
 

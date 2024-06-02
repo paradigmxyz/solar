@@ -27,6 +27,7 @@ tempfile.workspace = true
 tester.workspace = true
 unified-diff.workspace = true
 walkdir.workspace = true
+yansi = { workspace = true, features = ["detect-env", "detect-tty"] }
 
 [features]
 nightly = []

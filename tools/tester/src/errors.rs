@@ -130,6 +130,18 @@ impl Error {
     }
 }
 
+impl Error {
+    pub fn render_for_expected(&self) -> String {
+        use yansi::Paint;
+        format!(
+            "{: <10}line {: >3}: {}",
+            self.kind.map(|kind| kind.to_string()).unwrap_or_default().to_uppercase(),
+            self.line_num,
+            self.msg.cyan(),
+        )
+    }
+}
+
 #[derive(PartialEq, Debug)]
 enum WhichLine {
     ThisLine,
