@@ -175,6 +175,7 @@ impl<'a> Parser<'a> {
     pub fn unexpected_error(&mut self) -> PErr<'a> {
         #[cold]
         #[inline(never)]
+        #[track_caller]
         fn unexpected_ok(b: bool) -> ! {
             unreachable!("`unexpected()` returned Ok({b})")
         }

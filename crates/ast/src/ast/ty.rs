@@ -29,12 +29,16 @@ impl Ty {
 #[derive(Clone, Debug)]
 pub enum TyKind {
     // `elementary-type-name`: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
+    /// Ethereum address, 20-byte fixed-size byte array.
     /// `address $(payable)?`
     Address(/* payable: */ bool),
+    /// Boolean.
     /// `bool`
     Bool,
+    /// UTF-8 string.
     /// `string`
     String,
+    /// Dynamic byte array.
     /// `bytes`
     Bytes,
     /// Signed fixed-point number.
@@ -53,6 +57,7 @@ pub enum TyKind {
     /// `size @ 1..=32 => uint{size*8}`
     /// `33.. => unreachable!()`
     UInt(TySize),
+    /// Fixed-size byte array.
     /// `size @ 1..=32 => bytes{size}`
     /// `0 | 33.. => unreachable!()`
     FixedBytes(TySize),
@@ -108,23 +113,29 @@ impl TySize {
     /// The value zero. Note that this is not a valid size for a fixed-bytes type.
     pub const ZERO: Self = Self(0);
 
-    /// The maximum value of a `TySize`.
+    /// The maximum byte value of a `TySize`.
     pub const MAX: u8 = 32;
 
-    /// Creates a new `TySize` from a `u8`.
+    /// Creates a new `TySize` from a `u8` number of **bytes**.
     #[inline]
-    pub const fn new(value: u8) -> Option<Self> {
-        if value > Self::MAX {
+    pub const fn new(bytes: u8) -> Option<Self> {
+        if bytes > Self::MAX {
             None
         } else {
-            Some(Self(value))
+            Some(Self(bytes))
         }
     }
 
-    /// Returns the value.
+    /// Returns the number of **bytes**.
     #[inline]
-    pub const fn get(self) -> u8 {
+    pub const fn bytes(self) -> u8 {
         self.0
+    }
+
+    /// Returns the number of **bits**.
+    #[inline]
+    pub const fn bits(self) -> u8 {
+        self.0 * 8
     }
 
     /// Returns the `int` symbol for the type name.

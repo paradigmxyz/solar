@@ -242,7 +242,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     let s = symbol.as_str();
     debug_assert!(!s.is_empty());
 
-    let (int, rat, exp) = match (s.find('.'), s.find('e').or(s.find('E'))) {
+    let (int, rat, exp) = match (s.find('.'), s.find(['e', 'E'])) {
         // X
         (None, None) => (s, None, None),
         // X.Y

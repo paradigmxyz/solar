@@ -12,21 +12,24 @@ pub struct Hir {
     pub enums: IndexVec<Enum, EnumData>,
 }
 
-newtype_index! {
-    /// A conctract index.
-    pub struct Contract
-}
-
-/// A contract.
-pub struct ContractData {
-    // TODO
-}
-
 pub enum ContractItem {
     Function(Function),
     VarDecl(VarDecl),
     Struct(Struct),
     Enum(Enum),
+}
+
+newtype_index! {
+    pub struct Function
+}
+newtype_index! {
+    pub struct VarDecl
+}
+newtype_index! {
+    pub struct Struct
+}
+newtype_index! {
+    pub struct Enum
 }
 
 newtype_index! {
