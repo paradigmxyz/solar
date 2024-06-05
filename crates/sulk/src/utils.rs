@@ -74,10 +74,9 @@ pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
         builder = builder.use_current_thread();
     }
 
-    // We create the session globals on the main thread, then create the thread
-    // pool. Upon creation, each worker thread created gets a copy of the
-    // session globals in TLS. This is possible because `SessionGlobals` impls
-    // `Send` in the parallel compiler.
+    // We create the session globals on the main thread, then create the thread pool. Upon creation,
+    // each worker thread created gets a copy of the session globals in TLS. This is possible
+    // because `SessionGlobals` impls `Send`.
     SessionGlobals::new().set(|| {
         SessionGlobals::with(|session_globals| {
             builder

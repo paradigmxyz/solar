@@ -36,7 +36,7 @@ all = "warn"
 [profile.release]
 strip = "debuginfo"
 lto = "thin"
-panic = "unwind"
+panic = "abort"
 codegen-units = 1
 incremental = false
 
