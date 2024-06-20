@@ -1,7 +1,7 @@
 /// Hack to access the never type on stable.
 #[cfg(not(feature = "nightly"))]
 #[doc(hidden)]
-#[allow(unreachable_pub)] // False positive. Fixed in 1.76: https://github.com/rust-lang/rust/pull/118715
+#[allow(unnameable_types)]
 pub trait GetReturnType {
     type ReturnType;
 }
