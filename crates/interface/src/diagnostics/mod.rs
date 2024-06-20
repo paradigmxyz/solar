@@ -10,7 +10,7 @@ mod builder;
 pub use builder::{DiagnosticBuilder, EmissionGuarantee};
 
 mod context;
-pub use context::DiagCtxt;
+pub use context::{DiagCtxt, DiagCtxtFlags};
 
 mod emitter;
 #[cfg(feature = "json")]

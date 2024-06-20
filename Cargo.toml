@@ -23,12 +23,16 @@ dbg-macro = "warn"
 manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
+redundant-clone = "warn"
 
 [workspace.lints.rust]
-rust-2018-idioms = "deny"
+# missing-debug-implementations = "warn"
+# missing-docs = "warn"
+rust-2018-idioms = "warn"
 unreachable-pub = "warn"
-unused-crate-dependencies = "warn"
-unused-must-use = "deny"
+unused-must-use = "warn"
+redundant-lifetimes = "warn"
+unnameable-types = "warn"
 
 [workspace.lints.rustdoc]
 all = "warn"

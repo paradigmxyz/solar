@@ -7,10 +7,8 @@ Run with:
 # Criterion
 cargo criterion -p sulk-bench --bench bench
 
-# Valgrind
-# See `--valgrind --help`
-cargo build --profile bench -p sulk-bench
-valgrind --tool=callgrind target/release/sulk-bench --valgrind
+# iai - requires `valgrind` and `iai-callgrind-runner`
+cargo bench -p sulk-bench --bench iai
 ```
 
 This crate is excluded from the main workspace to avoid compiling it (and its dependencies) when
