@@ -13,24 +13,24 @@ LL | bytes constant s = hex"\
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:6:25
    |
-LL | | ";
-   | |_^
-   |
-
-error: cannot skip multiple lines with `\`
-  --> $DIR/string_escapes_crlf.sol:1:1
-   |
-LL | | ";
-   | |_^
+LL | bytes constant s = hex"\
+   |                         ^
    |
 
 error: cannot skip multiple lines with `\`
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:15:1
    |
-LL | | ";
-   | |_^
+LL | 
+   | ^
+   |
+
+error: cannot skip multiple lines with `\`
+  --> $DIR/string_escapes_crlf.sol:18:1
+   |
+LL | 
+   | ^
    |
 
 error: invalid hex digit
@@ -48,10 +48,10 @@ LL | bytes constant s = hex"\
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:20:25
    |
-LL | | 
-   | |_^
+LL | bytes constant s = hex"\
+   |                         ^
    |
 
 error: invalid hex digit
@@ -62,24 +62,24 @@ LL | ...
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:21:1
    |
-LL | | ";
-   | |_^
-   |
-
-error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:1:1
-   |
-LL | | ";
-   | |_^
+LL | 
+   | ^
    |
 
 error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:31:22
    |
-LL | | ";
-   | |_^
+LL | string constant s = "
+   |                      ^
+   |
+
+error: unescaped newline
+  --> $DIR/string_escapes_crlf.sol:33:29
+   |
+LL | string constant s = unicode"
+   |                             ^
    |
 
 error: invalid hex digit
@@ -90,10 +90,10 @@ LL | bytes constant s = hex"
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:1:1
+  --> $DIR/string_escapes_crlf.sol:35:24
    |
-LL | | ";
-   | |_^
+LL | bytes constant s = hex"
+   |                        ^
    |
 
 error: aborting due to 14 previous errors
