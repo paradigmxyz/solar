@@ -96,14 +96,14 @@ mk_groups!("empty", "simple", "verifier", "OptimizorClub", "UniswapV3");
 #[inline]
 fn run_lex(name: &str, parser: &dyn Parser) {
     assert!(parser.can_lex(), "{} can't lex", parser.name());
-    let source = get_source(name);
-    sulk_parse::interface::enter(|| black_box(parser.lex(black_box(&source.src))))
+    let Source { name: _, src } = get_source(name);
+    sulk_parse::interface::enter(|| parser.lex(black_box(src)))
 }
 
 #[inline]
 fn run_parse(name: &str, parser: &dyn Parser) {
-    let source = get_source(name);
-    sulk_parse::interface::enter(|| black_box(parser.parse(black_box(&source.src))))
+    let Source { name: _, src } = get_source(name);
+    sulk_parse::interface::enter(|| parser.parse(black_box(src)))
 }
 
 #[inline]
