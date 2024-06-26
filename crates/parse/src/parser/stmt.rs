@@ -5,6 +5,7 @@ use sulk_interface::{kw, Ident, Span};
 
 impl<'a> Parser<'a> {
     /// Parses a statement.
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'a, Stmt> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
@@ -442,7 +443,7 @@ mod tests {
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let mut parser =
-                        Parser::from_source_code(&sess, FileName::Custom(name), s.into())?;
+                        Parser::from_source_code(&sess, FileName::Custom(name), || Ok(s.into()))?;
 
                     let list = parser
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)

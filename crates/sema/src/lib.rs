@@ -18,10 +18,9 @@ use sulk_data_structures::{
     sync::Lrc,
 };
 use sulk_interface::{
-    debug_time,
     diagnostics::DiagCtxt,
     source_map::{FileName, FileResolver, ResolveError, SourceFile},
-    trace_time, Result, Session,
+    Result, Session,
 };
 use sulk_parse::{Lexer, Parser};
 
@@ -98,6 +97,7 @@ impl<'a> Resolver<'a> {
         &self.sess.dcx
     }
 
+    #[instrument(level = "debug", skip_all)]
     pub fn add_files_from_args(
         &mut self,
         stdin: bool,
@@ -112,9 +112,11 @@ impl<'a> Resolver<'a> {
         }
         for path in paths {
             let path = path.as_ref();
-            // Base paths from arguments to the current directory for shorter diagnostics output.
+            // Paths must be canonicalized before passing to the resolver.
             let path = match path.canonicalize() {
                 Ok(path) => {
+                    // Base paths from arguments to the current directory for shorter diagnostics
+                    // output.
                     match path.strip_prefix(std::env::current_dir().unwrap_or(PathBuf::from(""))) {
                         Ok(path) => path.to_path_buf(),
                         Err(_) => path,
@@ -136,18 +138,19 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn parse_and_resolve(&mut self) -> Result<()> {
-        debug_time!("parse all files", || self.parse_all_files());
+        self.parse();
 
         if self.sess.language.is_yul() || self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
             return Ok(());
         }
 
-        debug_time!("validate ASTs", || self.validate_asts());
+        self.validate_asts();
 
         Ok(())
     }
 
-    fn parse_all_files(&mut self) {
+    #[instrument(level = "debug", skip_all)]
+    fn parse(&mut self) {
         let mut sources = std::mem::take(&mut self.sources);
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
@@ -165,20 +168,16 @@ impl<'a> Resolver<'a> {
     }
 
     /// Parses a single file.
-    #[instrument(name = "parse", level = "debug", skip_all, fields(file = %file.name.display()))]
+    #[instrument(level = "debug", skip_all, fields(file = %file.name.display()))]
     fn parse_one(&self, file: &SourceFile) -> Option<ast::SourceUnit> {
         let lexer = Lexer::from_source_file(self.sess, file);
-        let tokens = trace_time!("lex file", || lexer.into_tokens());
-
-        let mut parser = Parser::new(self.sess, tokens);
-        trace_time!("parse file", || {
-            if self.sess.language.is_yul() {
-                let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
-                None
-            } else {
-                parser.parse_file().map_err(|e| e.emit()).ok()
-            }
-        })
+        let mut parser = Parser::from_lexer(lexer);
+        if self.sess.language.is_yul() {
+            let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
+            None
+        } else {
+            parser.parse_file().map_err(|e| e.emit()).ok()
+        }
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files.
@@ -214,6 +213,7 @@ impl<'a> Resolver<'a> {
             })
     }
 
+    #[instrument(level = "debug", skip_all)]
     fn validate_asts(&self) {
         self.sources.par_asts().for_each(|ast| AstValidator::validate(self.sess, ast));
     }

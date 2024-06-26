@@ -1,4 +1,4 @@
-use crate::{unescape, PErr, PResult, Parser};
+use crate::{unescape, PResult, Parser};
 use alloy_primitives::Address;
 use num_bigint::BigInt;
 use num_rational::BigRational;
@@ -9,6 +9,7 @@ use sulk_interface::{kw, Symbol};
 
 impl<'a> Parser<'a> {
     /// Parses a literal.
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_lit(&mut self) -> PResult<'a, Lit> {
         self.parse_spanned(Self::parse_lit_inner).map(|(span, (symbol, kind))| Lit {
             span,
@@ -51,7 +52,15 @@ impl<'a> Parser<'a> {
 
     /// Parses a subdenomination.
     pub fn parse_subdenomination(&mut self) -> Option<SubDenomination> {
-        let sub = match self.token.ident()?.name {
+        let sub = self.subdenomination();
+        if sub.is_some() {
+            self.bump();
+        }
+        sub
+    }
+
+    fn subdenomination(&self) -> Option<SubDenomination> {
+        match self.token.ident()?.name {
             kw::Wei => Some(SubDenomination::Ether(EtherSubDenomination::Wei)),
             kw::Gwei => Some(SubDenomination::Ether(EtherSubDenomination::Gwei)),
             kw::Ether => Some(SubDenomination::Ether(EtherSubDenomination::Ether)),
@@ -64,23 +73,15 @@ impl<'a> Parser<'a> {
             kw::Years => Some(SubDenomination::Time(TimeSubDenomination::Years)),
 
             _ => None,
-        };
-        if sub.is_some() {
-            self.bump();
         }
-        sub
     }
 
     /// Emits an error if a subdenomination was parsed.
     pub(super) fn expect_no_subdenomination(&mut self) {
         if let Some(_sub) = self.parse_subdenomination() {
-            self.no_subdenomination_error().emit();
+            let span = self.prev_token.span;
+            self.dcx().err("subdenominations aren't allowed here").span(span).emit();
         }
-    }
-
-    pub(super) fn no_subdenomination_error(&mut self) -> PErr<'a> {
-        let span = self.prev_token.span;
-        self.dcx().err("subdenominations aren't allowed here").span(span)
     }
 
     fn parse_lit_inner(&mut self) -> PResult<'a, (Symbol, LitKind)> {
@@ -153,14 +154,14 @@ impl<'a> Parser<'a> {
             TokenLitKind::HexStr => unescape::Mode::HexStr,
             _ => unreachable!(),
         };
-        let unescape = |s: Symbol| unescape::parse_literal(s.as_str(), mode, |_, _| {});
+        let parse = |s: Symbol| unescape::parse_string_literal(s.as_str(), mode, |_, _| {});
 
-        let mut value = unescape(lit.symbol);
+        let mut value = parse(lit.symbol);
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
-            value.append(&mut unescape(symbol));
+            value.append(&mut parse(symbol));
             self.bump();
         }
 

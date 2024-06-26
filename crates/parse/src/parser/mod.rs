@@ -138,10 +138,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Creates a new parser from a source code string.
-    pub fn from_source_code(sess: &'a Session, filename: FileName, src: String) -> Result<Self> {
+    pub fn from_source_code(
+        sess: &'a Session,
+        filename: FileName,
+        get_src: impl FnOnce() -> std::io::Result<String>,
+    ) -> Result<Self> {
         let file = sess
             .source_map()
-            .new_source_file(filename, src)
+            .new_source_file(filename, get_src)
             .map_err(|e| sess.dcx.err(e.to_string()).emit())?;
         Ok(Self::from_source_file(sess, &file))
     }
@@ -658,6 +662,7 @@ impl<'a> Parser<'a> {
     ///
     /// [`Eof`](Token::EOF) will be returned if the look-ahead is any distance past the end of the
     /// tokens.
+    #[inline]
     pub fn look_ahead(&self, dist: usize) -> &Token {
         if dist == 0 {
             &self.token
@@ -669,6 +674,7 @@ impl<'a> Parser<'a> {
     /// Calls `f` with the token `dist` tokens ahead of the current one.
     ///
     /// See [`look_ahead`](Self::look_ahead) for more information.
+    #[inline]
     pub fn look_ahead_with<R>(&self, dist: usize, f: impl FnOnce(&Token) -> R) -> R {
         f(self.look_ahead(dist))
     }

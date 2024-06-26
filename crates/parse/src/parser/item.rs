@@ -7,6 +7,7 @@ use sulk_interface::{error_code, kw, sym, Ident, Span};
 
 impl<'a> Parser<'a> {
     /// Parses a source unit.
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'a, SourceUnit> {
         let items = self.parse_items(&TokenKind::Eof)?;
         Ok(SourceUnit { items })
@@ -49,6 +50,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an item.
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_item_kind)
@@ -1226,7 +1228,8 @@ mod tests {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
-                let mut parser = Parser::from_source_code(&sess, FileName::Custom(name), src)?;
+                let mut parser =
+                    Parser::from_source_code(&sess, FileName::Custom(name), || Ok(src))?;
 
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);

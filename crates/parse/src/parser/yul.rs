@@ -11,6 +11,7 @@ impl<'a> Parser<'a> {
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.
     /// See: <https://github.com/ethereum/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'a, Object> {
         let docs = self.parse_doc_comments()?;
         let object = if self.check_keyword(sym::object) {

@@ -85,7 +85,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Note that this skips comments, as [required by the parser](crate::Parser::new).
     ///
     /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
+    #[instrument(name = "lex", level = "debug", skip_all)]
     pub fn into_tokens(mut self) -> Vec<Token> {
+        // `src.len() / 8` is an estimate of the number of tokens in the source.
         let mut tokens = Vec::with_capacity(self.src.len() / 8);
         loop {
             let token = self.next_token();
@@ -387,11 +389,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         let content_end = end - 1;
         let lit_content = self.str_from_to(content_start, content_end);
 
-        let mut has_fatal_err = false;
+        let mut has_err = false;
         unescape::unescape_literal(lit_content, mode, |range, result| {
             // Here we only check for errors. The actual unescaping is done later.
             if let Err(err) = result {
-                has_fatal_err = true;
+                has_err = true;
                 let (start, end) = (range.start as u32, range.end as u32);
                 let lo = content_start + BytePos(start);
                 let hi = lo + BytePos(end - start);
@@ -402,11 +404,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
         // We normally exclude the quotes for the symbol, but for errors we
         // include it because it results in clearer error messages.
-        if has_fatal_err {
-            (TokenLitKind::Err, self.symbol_from_to(start, end))
-        } else {
-            (kind, Symbol::intern(lit_content))
-        }
+        let symbol =
+            if has_err { self.symbol_from_to(start, end) } else { Symbol::intern(lit_content) };
+        (kind, symbol)
     }
 
     #[inline]
