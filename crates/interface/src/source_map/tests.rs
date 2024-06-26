@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 fn init_source_map() -> SourceMap {
     let sm = SourceMap::empty();
-    sm.new_source_file(PathBuf::from("blork.rs").into(), "first line.\nsecond line".to_string())
+    sm.new_dummy_source_file(PathBuf::from("blork.rs"), "first line.\nsecond line".to_string())
         .unwrap();
-    sm.new_source_file(PathBuf::from("empty.rs").into(), String::new()).unwrap();
-    sm.new_source_file(PathBuf::from("blork2.rs").into(), "first line.\nsecond line".to_string())
+    sm.new_dummy_source_file(PathBuf::from("empty.rs"), String::new()).unwrap();
+    sm.new_dummy_source_file(PathBuf::from("blork2.rs"), "first line.\nsecond line".to_string())
         .unwrap();
     sm
 }
@@ -105,13 +105,13 @@ fn t5() {
 fn init_source_map_mbc() -> SourceMap {
     let sm = SourceMap::empty();
     // "€" is a three-byte UTF8 char.
-    sm.new_source_file(
-        PathBuf::from("blork.rs").into(),
+    sm.new_dummy_source_file(
+        PathBuf::from("blork.rs"),
         "fir€st €€€€ line.\nsecond line".to_string(),
     )
     .unwrap();
-    sm.new_source_file(
-        PathBuf::from("blork2.rs").into(),
+    sm.new_dummy_source_file(
+        PathBuf::from("blork2.rs"),
         "first line€€.\n€ second line".to_string(),
     )
     .unwrap();
@@ -166,7 +166,7 @@ fn span_to_snippet_and_lines_spanning_multiple_lines() {
     let sm = SourceMap::empty();
     let inputtext = "aaaaa\nbbbbBB\nCCC\nDDDDDddddd\neee\n";
     let selection = "     \n    ~~\n~~~\n~~~~~     \n   \n";
-    sm.new_source_file(Path::new("blork.rs").to_owned().into(), inputtext.to_string()).unwrap();
+    sm.new_dummy_source_file(Path::new("blork.rs").to_owned(), inputtext.to_string()).unwrap();
     let span = span_from_selection(inputtext, selection);
 
     // Check that we are extracting the text we thought we were extracting.
@@ -209,7 +209,7 @@ fn span_merging_fail() {
     let inputtext = "bbbb BB\ncc CCC\n";
     let selection1 = "     ~~\n      \n";
     let selection2 = "       \n   ~~~\n";
-    sm.new_source_file(Path::new("blork.rs").to_owned().into(), inputtext.to_owned()).unwrap();
+    sm.new_dummy_source_file(Path::new("blork.rs").to_owned(), inputtext.to_owned()).unwrap();
     let span1 = span_from_selection(inputtext, selection1);
     let span2 = span_from_selection(inputtext, selection2);
 
@@ -224,7 +224,8 @@ fn t10() {
     let unnormalized = "first line.\r\nsecond line";
     let normalized = "first line.\nsecond line";
 
-    let src_file = sm.new_source_file(PathBuf::from("blork.rs").into(), unnormalized.to_string());
+    let src_file =
+        sm.new_dummy_source_file(PathBuf::from("blork.rs").into(), unnormalized.to_string());
 
     assert_eq!(src_file.src.as_ref().unwrap().as_ref(), normalized);
     assert!(
@@ -554,7 +555,7 @@ fn path_prefix_remapping_reverse() {
 #[test]
 fn test_next_point() {
     let sm = SourceMap::empty();
-    sm.new_source_file(PathBuf::from("example.rs").into(), "a…b".to_string());
+    sm.new_dummy_source_file(PathBuf::from("example.rs").into(), "a…b".to_string());
 
     // Dummy spans don't advance.
     let span = DUMMY_SP;

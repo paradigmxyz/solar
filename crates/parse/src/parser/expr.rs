@@ -9,6 +9,7 @@ impl<'a> Parser<'a> {
         self.parse_expr_with(None)
     }
 
+    #[instrument(name = "parse_expr", level = "debug", skip_all)]
     pub(super) fn parse_expr_with(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
         let expr = self.parse_binary_expr(4, with)?;
         if self.eat(&TokenKind::Question) {

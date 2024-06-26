@@ -78,6 +78,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Resolves an import path. `parent` is the path of the file that contains the import, if any.
+    #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn resolve_file(
         &self,
         path: &Path,
@@ -140,7 +141,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Applies the import path mappings to `path`.
-    #[instrument(level = "trace", skip(self), ret)]
+    #[instrument(level = "trace", skip_all, ret)]
     pub fn remap_path<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
         let orig = path;
         let mut remapped = Cow::Borrowed(path);
@@ -160,7 +161,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
-    #[instrument(level = "trace", skip(self))]
+    #[instrument(level = "debug", skip_all)]
     pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {

@@ -1,6 +1,6 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
-use std::{ops::Range, slice, str::Chars};
+use std::{borrow::Cow, ops::Range, slice, str::Chars};
 
 mod errors;
 pub(crate) use errors::emit_unescape_error;
@@ -18,33 +18,43 @@ pub enum Mode {
 }
 
 /// Parses a string literal (without quotes) into a byte array.
-pub fn parse_literal<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
+#[instrument(level = "debug", skip_all)]
+pub fn parse_string_literal<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
 where
     F: FnMut(Range<usize>, EscapeError),
 {
     let mut bytes = if needs_unescape(src, mode) {
-        let mut bytes = Vec::with_capacity(src.len());
-        parse_literal_unescape(src, mode, f, &mut bytes);
-        bytes
+        Cow::Owned(parse_literal_unescape(src, mode, f))
     } else {
-        src.as_bytes().to_vec()
+        Cow::Borrowed(src.as_bytes())
     };
     if mode == Mode::HexStr {
         // Currently this should never fail, but it's a good idea to check anyway.
         if let Ok(decoded) = hex::decode(&bytes) {
-            bytes = decoded;
+            bytes = Cow::Owned(decoded);
         }
     }
+    bytes.into_owned()
+}
+
+#[cold]
+fn parse_literal_unescape<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
+where
+    F: FnMut(Range<usize>, EscapeError),
+{
+    let mut bytes = Vec::with_capacity(src.len());
+    parse_literal_unescape_into(src, mode, f, &mut bytes);
     bytes
 }
 
-#[inline]
-fn parse_literal_unescape<F>(src: &str, mode: Mode, mut f: F, dst_buf: &mut Vec<u8>)
+fn parse_literal_unescape_into<F>(src: &str, mode: Mode, mut f: F, dst_buf: &mut Vec<u8>)
 where
     F: FnMut(Range<usize>, EscapeError),
 {
     // `src.len()` is enough capacity for the unescaped string, so we can just use a slice.
     // SAFETY: The buffer is never read from.
+    debug_assert!(dst_buf.is_empty());
+    debug_assert!(dst_buf.capacity() >= src.len());
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
     unescape_literal(src, mode, |range, res| match res {
         Ok(c) => {
@@ -67,6 +77,7 @@ where
 /// Unescapes the contents of a string literal (without quotes).
 ///
 /// The callback is invoked with a range and either a unicode code point or an error.
+#[instrument(level = "debug", skip_all)]
 pub fn unescape_literal<F>(src: &str, mode: Mode, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
@@ -297,7 +308,7 @@ mod tests {
         assert_eq!(ok, expected_str, "{panic_str}");
 
         let mut errs2 = Vec::with_capacity(errs.len());
-        let out = parse_literal(src, mode, |range, e| {
+        let out = parse_string_literal(src, mode, |range, e| {
             errs2.push((range, e));
         });
         assert_eq!(errs2, errs, "{panic_str}");

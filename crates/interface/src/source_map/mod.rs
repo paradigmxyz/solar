@@ -3,7 +3,7 @@
 use crate::{BytePos, CharPos, Pos, Span};
 use std::{
     io::{self, Read},
-    path::Path,
+    path::{Path, PathBuf},
 };
 use sulk_data_structures::{
     map::FxHashMap,
@@ -124,16 +124,52 @@ impl SourceMap {
 
     /// Loads a file from the given path.
     pub fn load_file(&self, path: &Path) -> io::Result<Lrc<SourceFile>> {
-        let src = std::fs::read_to_string(path)?;
         let filename = path.to_owned().into();
-        self.new_source_file(filename, src).map_err(Into::into)
+        self.new_source_file(filename, || std::fs::read_to_string(path))
     }
 
     /// Loads `stdin`.
     pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
-        let mut src = String::new();
-        io::stdin().read_to_string(&mut src)?;
-        self.new_source_file(FileName::Stdin, src).map_err(Into::into)
+        self.new_source_file(FileName::Stdin, || {
+            let mut src = String::new();
+            io::stdin().read_to_string(&mut src)?;
+            Ok(src)
+        })
+    }
+
+    /// Loads a file with the given source string.
+    ///
+    /// This is useful for testing.
+    pub fn new_dummy_source_file(&self, path: PathBuf, src: String) -> io::Result<Lrc<SourceFile>> {
+        self.new_source_file(path.into(), || Ok(src))
+    }
+
+    /// Creates a new `SourceFile`.
+    ///
+    /// If a file already exists in the `SourceMap` with the same ID, that file is returned
+    /// unmodified.
+    ///
+    /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
+    /// `SourceFile`.
+    #[instrument(level = "debug", skip_all, fields(filename = %filename.display()))]
+    pub fn new_source_file(
+        &self,
+        filename: FileName,
+        get_src: impl FnOnce() -> io::Result<String>,
+    ) -> io::Result<Lrc<SourceFile>> {
+        let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
+        match self.source_file_by_stable_id(stable_id) {
+            Some(lrc_sf) => Ok(lrc_sf),
+            None => {
+                let source_file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
+
+                // Let's make sure the file_id we generated above actually matches
+                // the ID we generate for the SourceFile we just created.
+                debug_assert_eq!(source_file.stable_id, stable_id);
+
+                self.register_source_file(stable_id, source_file).map_err(Into::into)
+            }
+        }
     }
 
     pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
@@ -172,33 +208,6 @@ impl SourceMap {
         files.stable_id_to_source_file.insert(file_id, file.clone());
 
         Ok(file)
-    }
-
-    /// Creates a new `SourceFile`.
-    ///
-    /// If a file already exists in the `SourceMap` with the same ID, that file is returned
-    /// unmodified.
-    ///
-    /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
-    /// `SourceFile`.
-    pub fn new_source_file(
-        &self,
-        filename: FileName,
-        src: String,
-    ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
-        match self.source_file_by_stable_id(stable_id) {
-            Some(lrc_sf) => Ok(lrc_sf),
-            None => {
-                let source_file = SourceFile::new(filename, src, self.hash_kind)?;
-
-                // Let's make sure the file_id we generated above actually matches
-                // the ID we generate for the SourceFile we just created.
-                debug_assert_eq!(source_file.stable_id, stable_id);
-
-                self.register_source_file(stable_id, source_file)
-            }
-        }
     }
 
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {

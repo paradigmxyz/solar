@@ -93,7 +93,7 @@ impl Parser for Sulk {
             let sess = Session::with_tty_emitter(source_map.into());
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                sulk_parse::Parser::from_source_code(&sess, filename.into(), src.into())?;
+                sulk_parse::Parser::from_source_code(&sess, filename.into(), || Ok(src.into()))?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);

@@ -52,31 +52,3 @@ pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 pub fn enter<R>(f: impl FnOnce() -> R) -> R {
     SessionGlobals::with_or_default(|_| f())
 }
-
-#[macro_export]
-macro_rules! time {
-    ($level:expr, $what:literal, || $e:expr) => {
-        if enabled!($level) {
-            let timer = std::time::Instant::now();
-            let res = $e;
-            event!($level, elapsed=?timer.elapsed(), $what);
-            res
-        } else {
-            $e
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! debug_time {
-    ($what:literal, || $e:expr) => {
-        $crate::time!(tracing::Level::DEBUG, $what, || $e)
-    };
-}
-
-#[macro_export]
-macro_rules! trace_time {
-    ($what:literal, || $e:expr) => {
-        $crate::time!(tracing::Level::TRACE, $what, || $e)
-    };
-}
