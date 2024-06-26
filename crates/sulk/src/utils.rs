@@ -17,11 +17,11 @@ pub(crate) fn init_logger() -> Result {
 fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {
     use tracing_subscriber::prelude::*;
 
-    tracing_subscriber::Registry::default()
-        .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(tracing_error::ErrorLayer::default())
-        .with(tracing_subscriber::fmt::layer())
-        .try_init()
+    let registry = tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::EnvFilter::from_default_env());
+    #[cfg(feature = "tracy")]
+    let registry = registry.with(tracing_tracy::TracyLayer::default());
+    registry.with(tracing_subscriber::fmt::layer()).try_init()
 }
 
 pub(crate) fn install_panic_hook() {

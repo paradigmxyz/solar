@@ -26,12 +26,9 @@ sulk-sema.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
 rayon.workspace = true
-tracing-error.workspace = true
-tracing-subscriber = { workspace = true, features = [
-    "registry",
-    "env-filter",
-    "fmt",
-] }
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+
+tracing-tracy = { version = "0.11", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
@@ -51,6 +48,7 @@ nightly = [
     "sulk-tester/nightly",
 ]
 jemalloc = ["dep:tikv-jemallocator"]
+tracy = ["dep:tracing-tracy"]
 
 [[test]]
 name = "tests"
