@@ -38,11 +38,22 @@ unnameable-types = "warn"
 all = "warn"
 
 [profile.release]
-strip = "debuginfo"
+opt-level = 3
 lto = "thin"
+debug = "line-tables-only"
+strip = true
 panic = "abort"
-codegen-units = 1
-incremental = false
+codegen-units = 16
+
+# Use the `--profile profiling` flag to show symbols in release mode.
+# e.g. `cargo build --profile profiling`
+[profile.profiling]
+inherits = "release"
+debug = 2
+strip = false
+
+[profile.bench]
+inherits = "profiling"
 
 [workspace.dependencies]
 # compiler crates
