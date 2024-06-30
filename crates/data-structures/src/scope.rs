@@ -1,6 +1,6 @@
 use std::{
-    collections::HashMap,
-    hash::{BuildHasher, Hash, RandomState},
+    collections::{hash_map::RandomState, HashMap},
+    hash::{BuildHasher, Hash},
 };
 
 /// A single scope.

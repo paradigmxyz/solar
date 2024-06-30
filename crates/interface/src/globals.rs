@@ -43,13 +43,6 @@ impl SessionGlobals {
         SESSION_GLOBALS.set(self, f)
     }
 
-    /// Clears the newly-interned symbols, keeping the pre-interned ones.
-    ///
-    /// NOTE: This invalidates all `Symbol` values interned. Use with care.
-    pub fn unchecked_clear_interned_symbols(&self) {
-        self.symbol_interner.freshen();
-    }
-
     /// Insert `source_map` into the session globals for the duration of the
     /// closure's execution.
     pub fn with_source_map<R>(source_map: Lrc<SourceMap>, f: impl FnOnce() -> R) -> R {

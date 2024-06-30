@@ -193,6 +193,8 @@ impl SourceMap {
         file_id: StableSourceFileId,
         mut file: SourceFile,
     ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
+        debug!(name=%file.name.display(), len=file.src.len(), "adding to source map");
+
         let mut files = self.files.write();
 
         file.start_pos = BytePos(if let Some(last_file) = files.source_files.last() {
@@ -281,12 +283,9 @@ impl SourceMap {
         })
     }
 
-    // #[instrument(skip(self), level = "trace")]
     pub fn is_valid_span(&self, sp: Span) -> Result<(Loc, Loc), SpanLinesError> {
         let lo = self.lookup_char_pos(sp.lo());
-        // trace!(?lo);
         let hi = self.lookup_char_pos(sp.hi());
-        // trace!(?hi);
         if lo.file.start_pos != hi.file.start_pos {
             return Err(SpanLinesError::DistinctSources(Box::new(DistinctSources {
                 begin: (lo.file.name.clone(), lo.file.start_pos),

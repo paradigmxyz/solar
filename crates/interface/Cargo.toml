@@ -26,6 +26,7 @@ sulk-macros.workspace = true
 
 bumpalo.workspace = true
 itertools.workspace = true
+itoa = "1.0"
 match_cfg.workspace = true
 md-5.workspace = true
 normalize-path = "0.2.1"

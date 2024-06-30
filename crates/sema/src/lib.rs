@@ -152,19 +152,64 @@ impl<'a> Resolver<'a> {
     #[instrument(level = "debug", skip_all)]
     fn parse(&mut self) {
         let mut sources = std::mem::take(&mut self.sources);
+        if self.sess.jobs.get() == 1 {
+            self.parse_sequential(&mut sources);
+        } else {
+            self.parse_parallel(&mut sources);
+        }
+        self.sources = sources;
+    }
+
+    fn parse_sequential(&self, sources: &mut Sources) {
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
             let Some(source) = sources.get(current_file) else { break };
             debug_assert!(source.ast.is_none(), "file already parsed");
 
             let ast = self.parse_one(&source.file);
+            let n_sources = sources.0.len();
             for import in self.resolve_imports(&source.file, ast.as_ref()) {
                 let import = sources.add_file(import);
                 sources.push_import(current_file, import);
             }
+            let new_files = sources.0.len() - n_sources;
+            if new_files > 0 {
+                trace!(new_files);
+            }
             sources.0[current_file].ast = ast;
         }
-        self.sources = sources;
+    }
+
+    fn parse_parallel(&self, sources: &mut Sources) {
+        let mut start = 0;
+        loop {
+            let base = start;
+            let Some(to_parse) = sources.0.raw.get_mut(start..) else { break };
+            if to_parse.is_empty() {
+                break;
+            }
+            trace!(start, "parsing {} files", to_parse.len());
+            start += to_parse.len();
+            let imports = to_parse
+                .par_iter_mut()
+                .enumerate()
+                .flat_map_iter(|(i, source)| {
+                    debug_assert!(source.ast.is_none(), "source already parsed");
+                    source.ast = self.parse_one(&source.file);
+                    self.resolve_imports(&source.file, source.ast.as_ref())
+                        .map(move |import| (i, import))
+                })
+                .collect_vec_list();
+            let n_sources = sources.0.len();
+            for (i, import) in imports.into_iter().flatten() {
+                let import_id = sources.add_file(import);
+                sources.push_import(SourceId::from_usize(base + i), import_id);
+            }
+            let new_files = sources.0.len() - n_sources;
+            if new_files > 0 {
+                trace!(new_files);
+            }
+        }
     }
 
     /// Parses a single file.
@@ -213,6 +258,7 @@ impl<'a> Resolver<'a> {
             })
     }
 
+    /// Performs [AST validation](AstValidator) on all ASTs, in parallel.
     #[instrument(level = "debug", skip_all)]
     fn validate_asts(&self) {
         self.sources.par_asts().for_each(|ast| AstValidator::validate(self.sess, ast));

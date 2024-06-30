@@ -56,8 +56,7 @@ impl PartialEq for SemverVersionNumber {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Wildcard, _) => true,
-            (_, Self::Wildcard) => true,
+            (Self::Wildcard, _) | (_, Self::Wildcard) => true,
             (Self::Number(a), Self::Number(b)) => a == b,
         }
     }
@@ -76,8 +75,7 @@ impl Ord for SemverVersionNumber {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (Self::Wildcard, _) => Ordering::Equal,
-            (_, Self::Wildcard) => Ordering::Equal,
+            (Self::Wildcard, _) | (_, Self::Wildcard) => Ordering::Equal,
             (Self::Number(a), Self::Number(b)) => a.cmp(b),
         }
     }

@@ -2345,6 +2345,7 @@ dependencies = [
  "anstyle",
  "bumpalo",
  "itertools 0.13.0",
+ "itoa",
  "match_cfg",
  "md-5",
  "normalize-path",

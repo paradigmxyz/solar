@@ -12,7 +12,7 @@ use std::{
 };
 
 pub use ahash::{self, AHasher};
-pub use rustc_hash::{self, FxHasher};
+pub use rustc_hash::{self, FxBuildHasher, FxHasher};
 
 /// [`HashMap`] entry type.
 pub type StdEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
