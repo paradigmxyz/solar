@@ -21,6 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - rust: 1.74 # MSRV
           - rust: stable
           - rust: nightly
           - rust: nightly
@@ -35,7 +36,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      # Only run tests on latest stable and above
+      - name: build
+        if: ${{ matrix.rust == '1.74' }} # MSRV
+        run: cargo build ${{ matrix.flags }}
       - name: test
+        if: ${{ matrix.rust != '1.74' }} # MSRV
         run: cargo test --workspace ${{ matrix.flags }}
 
   clippy:

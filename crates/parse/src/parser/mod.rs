@@ -316,7 +316,7 @@ impl<'a> Parser<'a> {
                 format!("expected {expect}, found {actual}"),
                 (self.prev_token.span.shrink_to_hi(), format!("expected {expect}")),
             ),
-            len @ 2.. => {
+            len => {
                 let fmt = format!("expected one of {expect}, found {actual}");
                 let short_expect = if len > 6 { format!("{len} possible tokens") } else { expect };
                 let s = self.prev_token.span.shrink_to_hi();

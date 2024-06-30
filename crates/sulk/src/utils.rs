@@ -26,8 +26,8 @@ fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {
 
 pub(crate) fn install_panic_hook() {
     // If the user has not explicitly overridden "RUST_BACKTRACE", then produce full backtraces.
-    // When a compiler ICE happens, we want to gather as much information as possible
-    // to present in the issue opened by the user.
+    // When a compiler ICE happens, we want to gather as much information as possible to present in
+    // the issue opened by the user.
     if std::env::var_os("RUST_BACKTRACE").is_none() {
         std::env::set_var("RUST_BACKTRACE", "full");
     }
@@ -66,10 +66,12 @@ fn panic_hook(info: &PanicInfo<'_>) {
 
 pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
     threads: usize,
-    f: impl FnOnce() -> R + Send,
+    f: impl FnOnce(usize) -> R + Send,
 ) -> R {
     let mut builder =
         rayon::ThreadPoolBuilder::new().thread_name(|i| format!("sulk-{i}")).num_threads(threads);
+    // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator` don't
+    // install their own thread pool.
     if threads == 1 {
         builder = builder.use_current_thread();
     }
@@ -84,7 +86,7 @@ pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
                     // Initialize each new worker thread when created.
                     move |thread| session_globals.set(|| thread.run()),
                     // Run `f` on the first thread in the thread pool.
-                    move |pool| pool.install(f),
+                    move |pool| pool.install(|| f(pool.current_num_threads())),
                 )
                 .unwrap()
         })

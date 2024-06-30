@@ -1,4 +1,5 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
+use std::num::NonZeroUsize;
 use sulk_config::{EvmVersion, Language, StopAfter};
 use sulk_data_structures::sync::Lrc;
 
@@ -9,9 +10,14 @@ pub struct Session {
     /// The source map.
     source_map: Lrc<SourceMap>,
 
+    /// EVM version.
     pub evm_version: EvmVersion,
+    /// Source code language.
     pub language: Language,
+    /// Stop execution after the given compiler stage.
     pub stop_after: Option<StopAfter>,
+    /// Number of threads to use. Already resolved to a non-zero value.
+    pub jobs: NonZeroUsize,
 }
 
 impl Session {
@@ -23,6 +29,7 @@ impl Session {
             evm_version: EvmVersion::default(),
             language: Language::default(),
             stop_after: None,
+            jobs: NonZeroUsize::MIN,
         }
     }
 

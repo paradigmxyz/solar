@@ -362,10 +362,6 @@ impl Interner {
         Self(Lock::new(InternerInner::prefill(init)))
     }
 
-    pub(crate) fn freshen(&self) {
-        *self.0.lock() = InternerInner::fresh();
-    }
-
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
         let mut inner = self.0.lock();
@@ -472,13 +468,11 @@ pub mod sym {
     /// Get the symbol for an integer.
     ///
     /// The first few non-negative integers each have a static symbol and therefore are fast.
-    pub fn integer<N: TryInto<usize> + Copy + ToString>(n: N) -> Symbol {
-        if let Ok(idx) = n.try_into() {
-            if idx < 10 {
-                return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
-            }
+    pub fn integer<N: TryInto<usize> + Copy + itoa::Integer>(n: N) -> Symbol {
+        if let Ok(idx @ 0..=9) = n.try_into() {
+            return Symbol::new(super::SYMBOL_DIGITS_BASE + idx as u32);
         }
-        Symbol::intern(&n.to_string())
+        Symbol::intern(itoa::Buffer::new().format(n))
     }
 }
 

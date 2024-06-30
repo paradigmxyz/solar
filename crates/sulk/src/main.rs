@@ -4,7 +4,7 @@
 
 use clap::Parser as _;
 use cli::Args;
-use std::{path::Path, process::ExitCode};
+use std::{num::NonZeroUsize, path::Path, process::ExitCode};
 use sulk_data_structures::sync::Lrc;
 use sulk_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
@@ -118,7 +118,7 @@ impl Compiler {
 }
 
 fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
-    utils::run_in_thread_pool_with_globals(args.threads, || {
+    utils::run_in_thread_pool_with_globals(args.threads, |jobs| {
         let ui_testing = args.unstable.ui_testing;
         let source_map = Lrc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match args.error_format {
@@ -151,6 +151,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         sess.evm_version = args.evm_version;
         sess.language = args.language;
         sess.stop_after = args.stop_after;
+        sess.jobs = NonZeroUsize::new(jobs).unwrap();
 
         let compiler = Compiler { sess, args };
 
