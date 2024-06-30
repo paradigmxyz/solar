@@ -1,6 +1,7 @@
 use crate::{SessionGlobals, Span};
+use lasso::Resolver;
 use std::{cmp, fmt, hash, str};
-use sulk_data_structures::{index::BaseIndex32, map::FxIndexSet, sync::Lock};
+use sulk_data_structures::index::BaseIndex32;
 use sulk_macros::symbols;
 
 /// An identifier.
@@ -331,64 +332,75 @@ impl ToString for Symbol {
     }
 }
 
+type InternerInner = LassoInterner;
+
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
-pub(crate) struct Interner(Lock<InternerInner>);
-
-// The `&'static str`s in this type actually point into the arena.
-//
-// This type is private to prevent accidentally constructing more than one
-// `Interner` on the same thread, which makes it easy to mix up `Symbol`s
-// between `Interner`s.
-struct InternerInner {
-    arena: bumpalo::Bump,
-    strings: FxIndexSet<&'static str>,
-}
-
-impl InternerInner {
-    fn prefill(init: &[&'static str]) -> Self {
-        Self { arena: bumpalo::Bump::new(), strings: init.iter().copied().collect() }
-    }
-}
+pub(crate) struct Interner(InternerInner);
 
 impl Interner {
     pub(crate) fn fresh() -> Self {
-        Self(Lock::new(InternerInner::fresh()))
+        Self(InternerInner::fresh())
     }
 
     #[cfg(test)]
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
-        Self(Lock::new(InternerInner::prefill(init)))
+        Self(InternerInner::prefill(init))
     }
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        let mut inner = self.0.lock();
-        if let Some(idx) = inner.strings.get_index_of(string) {
-            return Symbol::new(idx as u32);
-        }
-
-        let string: &str = inner.arena.alloc_str(string);
-
-        // SAFETY: we can extend the arena allocation to `'static` because we
-        // only access these while the arena is still alive.
-        let string: &'static str = unsafe { &*(string as *const str) };
-
-        // This second hash table lookup can be avoided by using `RawEntryMut`,
-        // but this code path isn't hot enough for it to be worth it. See
-        // #91445 for details.
-        let (idx, is_new) = inner.strings.insert_full(string);
-        debug_assert!(is_new); // due to the get_index_of check above
-
-        Symbol::new(idx as u32)
+        self.0.intern(string)
     }
 
-    /// Get the symbol as a string.
-    ///
-    /// [`Symbol::as_str()`] should be used in preference to this function.
+    #[inline]
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.lock().strings.get_index(symbol.as_u32() as usize).unwrap()
+        self.0.get(symbol)
+    }
+}
+
+struct LassoInterner(lasso::ThreadedRodeo<Symbol, sulk_data_structures::map::FxBuildHasher>);
+
+impl LassoInterner {
+    fn prefill(init: &[&'static str]) -> Self {
+        let capacity = if init.is_empty() {
+            Default::default()
+        } else {
+            let actual_string = init.len();
+            let strings = actual_string.next_power_of_two();
+            let actual_bytes = PREINTERNED_SYMBOLS_BYTES as usize;
+            let bytes = actual_bytes.next_power_of_two().max(4096);
+            trace!(strings, bytes, "prefill capacity");
+            lasso::Capacity::new(strings, std::num::NonZeroUsize::new(bytes).unwrap())
+        };
+        let rodeo = lasso::ThreadedRodeo::with_capacity_and_hasher(capacity, Default::default());
+        for &s in init {
+            rodeo.get_or_intern_static(s);
+        }
+        Self(rodeo)
+    }
+
+    #[inline]
+    fn intern(&self, string: &str) -> Symbol {
+        self.0.get_or_intern(string)
+    }
+
+    #[inline]
+    fn get(&self, symbol: Symbol) -> &str {
+        unsafe { self.0.resolve_unchecked(&symbol) }
+    }
+}
+
+unsafe impl lasso::Key for Symbol {
+    #[inline]
+    fn into_usize(self) -> usize {
+        self.as_u32() as usize
+    }
+
+    #[inline]
+    fn try_from_usize(int: usize) -> Option<Self> {
+        int.try_into().ok().map(Self::new)
     }
 }
 

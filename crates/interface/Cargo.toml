@@ -27,6 +27,7 @@ sulk-macros.workspace = true
 bumpalo.workspace = true
 itertools.workspace = true
 itoa = "1.0"
+lasso = { version = "0.7", features = ["multi-threaded", "inline-more"] }
 match_cfg.workspace = true
 md-5.workspace = true
 normalize-path = "0.2.1"
