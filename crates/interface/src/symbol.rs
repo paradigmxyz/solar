@@ -57,15 +57,6 @@ impl fmt::Display for Ident {
     }
 }
 
-#[cfg(feature = "nightly")]
-#[allow(clippy::to_string_trait_impl)] // Specialization: https://github.com/rust-lang/rust-clippy/issues/12263
-impl ToString for Ident {
-    #[inline]
-    fn to_string(&self) -> String {
-        self.name.to_string()
-    }
-}
-
 impl Ident {
     /// Constructs a new identifier from a symbol and a span.
     #[inline]
@@ -93,7 +84,6 @@ impl Ident {
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
     pub fn to_string(&self) -> String {
         self.as_str().to_string()
     }
@@ -191,7 +181,6 @@ impl Symbol {
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
-    #[cfg(not(feature = "nightly"))]
     pub fn to_string(&self) -> String {
         self.as_str().to_string()
     }
@@ -323,15 +312,6 @@ impl fmt::Display for Symbol {
     }
 }
 
-#[cfg(feature = "nightly")]
-#[allow(clippy::to_string_trait_impl)] // Specialization: https://github.com/rust-lang/rust-clippy/issues/12263
-impl ToString for Symbol {
-    #[inline]
-    fn to_string(&self) -> String {
-        self.as_str().to_string()
-    }
-}
-
 type InternerInner = LassoInterner;
 
 /// Symbol interner.
@@ -360,6 +340,7 @@ impl Interner {
     }
 }
 
+// TODO: We could finalize the interner after parsing to a `RodeoResolver`, making it read-only.
 struct LassoInterner(lasso::ThreadedRodeo<Symbol, sulk_data_structures::map::FxBuildHasher>);
 
 impl LassoInterner {

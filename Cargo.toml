@@ -7,7 +7,7 @@ resolver = "2"
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.74"
+rust-version = "1.74" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/sulk"
@@ -37,11 +37,19 @@ unnameable-types = "warn"
 [workspace.lints.rustdoc]
 all = "warn"
 
+# Speed up compilation time for dev builds by reducing emitted debug info.
+# NOTE: Debuggers may provide less useful information with this setting.
+# Uncomment this section if you're using a debugger.
+[profile.dev]
+# https://davidlattimore.github.io/posts/2024/02/04/speeding-up-the-rust-edit-build-run-cycle.html
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
 [profile.release]
 opt-level = 3
 lto = "thin"
 debug = "line-tables-only"
-strip = true
+strip = "debuginfo" # "symbols" for less binary size but no backtraces
 panic = "abort"
 codegen-units = 16
 
@@ -50,6 +58,7 @@ codegen-units = 16
 [profile.profiling]
 inherits = "release"
 debug = 2
+split-debuginfo = "unpacked"
 strip = false
 
 [profile.bench]

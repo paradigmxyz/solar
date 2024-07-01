@@ -25,14 +25,11 @@ fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {
 }
 
 pub(crate) fn install_panic_hook() {
-    // If the user has not explicitly overridden "RUST_BACKTRACE", then produce full backtraces.
-    // When a compiler ICE happens, we want to gather as much information as possible to present in
-    // the issue opened by the user.
-    if std::env::var_os("RUST_BACKTRACE").is_none() {
-        std::env::set_var("RUST_BACKTRACE", "full");
-    }
-
     update_hook(|default_hook, info| {
+        if std::env::var_os("RUST_BACKTRACE").is_none() {
+            std::env::set_var("RUST_BACKTRACE", "1");
+        }
+
         default_hook(info);
 
         // Separate the output with an empty line.

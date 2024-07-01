@@ -210,13 +210,5 @@ fn parse_expected(
         (which, line_num)
     };
 
-    // debug!(
-    //     "line={} tag={:?} which={:?} kind={:?} msg={:?}",
-    //     line_num,
-    //     whole_match.as_str(),
-    //     which,
-    //     kind,
-    //     msg
-    // );
     Some((which, Error { line_num, kind, msg, solc_kind: None }))
 }

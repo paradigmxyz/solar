@@ -184,7 +184,7 @@ impl<'a> Resolver<'a> {
         let mut start = 0;
         loop {
             let base = start;
-            let Some(to_parse) = sources.0.raw.get_mut(start..) else { break };
+            let to_parse = &mut sources.0.raw[start..];
             if to_parse.is_empty() {
                 break;
             }

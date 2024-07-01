@@ -16,7 +16,6 @@
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
-#![cfg_attr(feature = "nightly", feature(min_specialization))]
 
 #[macro_use]
 extern crate tracing;
