@@ -1,8 +1,9 @@
 //! Solidity AST.
 
-use crate::token::CommentKind;
 use sulk_data_structures::smallvec::SmallVec;
-use sulk_interface::{Ident, Span, Symbol};
+
+pub use crate::token::CommentKind;
+pub use sulk_interface::{Ident, Span, Symbol};
 
 mod expr;
 pub use expr::*;

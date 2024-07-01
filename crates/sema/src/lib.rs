@@ -24,14 +24,17 @@ use sulk_interface::{
 };
 use sulk_parse::{Lexer, Parser};
 
-// pub mod hir;
+pub mod hir;
 
 mod ast_validation;
 pub use ast_validation::AstValidator;
 
+mod staging;
+pub use staging::SymbolCollector;
+
 newtype_index! {
     /// A source index.
-    pub(crate) struct SourceId
+    pub(crate) struct SourceId;
 }
 
 #[derive(Default)]

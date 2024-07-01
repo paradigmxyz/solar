@@ -9,7 +9,8 @@ pub use index_vec::{
 /// Creates a new index to use with [`::index_vec`].
 #[macro_export]
 macro_rules! newtype_index {
-    ($(#[$attr:meta])* $vis:vis struct $name:ident) => {
+    () => {};
+    ($(#[$attr:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
         $(#[$attr])*
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         #[repr(transparent)]
@@ -57,13 +58,14 @@ macro_rules! newtype_index {
                 self.0.get()
             }
         }
+
+        $crate::newtype_index!($($rest)*);
     };
 }
 
-// TODO: Use generic NonZero<_>.
 // NOTE: The max MUST be less than the maximum value of the underlying integer.
 macro_rules! base_index {
-    ($(#[$attr:meta])* $name:ident($primitive:ident || $non_zero:ident <= $max:literal)) => {
+    ($(#[$attr:meta])* $name:ident($primitive:ident <= $max:literal)) => {
         /// A specialized wrapper around a primitive number.
         ///
         $(#[$attr])*
@@ -76,7 +78,7 @@ macro_rules! base_index {
             #[cfg(feature = "nightly")]
             value: $primitive,
             #[cfg(not(feature = "nightly"))]
-            value: std::num::$non_zero,
+            value: std::num::NonZero<$primitive>,
         }
 
         impl fmt::Display for $name {
@@ -99,7 +101,7 @@ macro_rules! base_index {
                 if value > Self::MAX_AS as usize {
                     index_overflow();
                 }
-                Self::new(value as $primitive)
+                unsafe { Self::new_unchecked(value as $primitive) }
             }
 
             #[inline(always)]
@@ -120,20 +122,27 @@ macro_rules! base_index {
             /// # Panics
             ///
             /// Panics if `value` exceeds `MAX`.
-            #[inline]
+            #[inline(always)]
             pub const fn new(value: $primitive) -> Self {
                 if value > Self::MAX_AS {
                     index_overflow();
                 }
+                unsafe { Self::new_unchecked(value) }
+            }
+
+            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            ///
+            /// # Safety
+            ///
+            /// The caller must ensure that `value` is less than or equal to `MAX`.
+            #[inline(always)]
+            pub const unsafe fn new_unchecked(value: $primitive) -> Self {
                 unsafe {
                     Self {
                         #[cfg(feature = "nightly")]
                         value,
                         #[cfg(not(feature = "nightly"))]
-                        value: std::num::$non_zero::new_unchecked(match value.checked_add(1) {
-                            Some(value) => value,
-                            None => std::hint::unreachable_unchecked(),
-                        }),
+                        value: std::mem::transmute::<$primitive, std::num::NonZero<$primitive>>(value.unchecked_add(1)),
                     }
                 }
             }
@@ -145,17 +154,13 @@ macro_rules! base_index {
                 return self.value;
 
                 #[cfg(not(feature = "nightly"))]
-                return match self.value.get().checked_sub(1) {
-                    Some(value) => value,
-                    // SAFETY: Non-zero.
-                    None => unsafe { std::hint::unreachable_unchecked() },
-                };
+                return unsafe { self.value.get().unchecked_sub(1) };
             }
         }
     };
 }
 
-base_index!(BaseIndex32(u32 || NonZeroU32 <= 0xFFFF_FF00));
+base_index!(BaseIndex32(u32 <= 0xFFFF_FF00));
 
 #[inline(never)]
 #[cold]
