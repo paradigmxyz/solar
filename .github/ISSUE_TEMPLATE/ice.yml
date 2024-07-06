@@ -1,0 +1,51 @@
+name: Internal Compiler Error (for use by automated tooling)
+description: For now, you'll want to use the other ICE template, as GitHub forms have strict limits on the size of fields so backtraces cannot be pasted directly.
+labels: ["C-bug", "I-ICE"]
+title: "[ICE]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for finding an Internal Compiler Error! 🧊
+
+        If possible, try to provide a minimal verifiable example.
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code
+      description: Please provide code or a link to a repository that can reproduce the problem
+      placeholder: code
+      render: Rust
+    validations:
+      required: false
+
+  - type: textarea
+    id: version
+    attributes:
+      label: Rust Version
+      description: Please provide the `sulk` version, `sulk --version`. Make sure that you're using the latest version of the compiler!
+      placeholder: |
+        $ sulk --version
+        sulk X.Y.Z (SHORTHASH DATE)
+      render: Shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Current error output
+      description: Please provide the `sulk` output you see, including any backtraces
+      placeholder: output
+      render: Shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: If you have more details you want to give us to reproduce this issue, please add it here
+    validations:
+      required: false
