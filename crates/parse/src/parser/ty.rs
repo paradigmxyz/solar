@@ -48,7 +48,15 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_elementary_type(&mut self) -> PResult<'a, TyKind> {
         let id = self.parse_ident_any()?;
         let kind = match id.name {
-            kw::Address => TyKind::Address(self.eat_keyword(kw::Payable)),
+            kw::Address => TyKind::Address(match self.parse_state_mutability() {
+                Some(StateMutability::Payable) => true,
+                None => false,
+                _ => {
+                    let msg = "address types can only be payable or non-payable";
+                    self.dcx().err(msg).span(id.span.to(self.prev_token.span)).emit();
+                    false
+                }
+            }),
             kw::Bool => TyKind::Bool,
             kw::String => TyKind::String,
             kw::Bytes => TyKind::Bytes,
