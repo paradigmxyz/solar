@@ -161,7 +161,6 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
         self.consume_no_panic(|_| {});
     }
 
-    #[track_caller]
     fn consume_no_panic<R>(self, f: impl FnOnce(&mut Self) -> R) -> R {
         let mut this = ManuallyDrop::new(self);
         let r = f(&mut *this);
