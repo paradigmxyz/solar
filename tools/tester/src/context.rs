@@ -193,7 +193,7 @@ impl TestCx<'_> {
                 return 0;
             }
             if expected_lines.is_empty() {
-                // if we have no lines to check, force a full overwite
+                // if we have no lines to check, force a full overwrite
                 ("", actual)
             } else {
                 tmp = (expected_lines.join("\n"), used.join("\n"));

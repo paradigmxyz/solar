@@ -691,7 +691,7 @@ symbols! {
         Leave:       "leave",
         Revert:      "revert",
 
-        // Yul EVM EVM builtins.
+        // Yul EVM builtins.
         // Some builtins have already been previously declared, so they can't be redeclared here.
         // See `is_yul_builtin`.
         // https://docs.soliditylang.org/en/latest/yul.html#evm-dialect

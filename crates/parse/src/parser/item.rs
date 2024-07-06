@@ -456,7 +456,7 @@ impl<'a> Parser<'a> {
             let span = lo.to(self.prev_token.span);
             components.push(SemverReqComponent { span, kind });
         } else {
-            // conjuction; first is already parsed
+            // conjunction; first is already parsed
             let span = lo.to(self.prev_token.span);
             let kind = SemverReqComponentKind::Op(op, v);
             components.push(SemverReqComponent { span, kind });

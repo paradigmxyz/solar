@@ -81,7 +81,7 @@ impl Compiler {
         }
 
         // Partition arguments into three categories:
-        // - `stdin`: `-`, occurences after the first are ignored
+        // - `stdin`: `-`, occurrences after the first are ignored
         // - remappings: `path=mapped`
         // - paths: everything else
         let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));

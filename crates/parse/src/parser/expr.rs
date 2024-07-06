@@ -64,7 +64,7 @@ impl<'a> Parser<'a> {
                 } else if token.kind == TokenKind::Eq {
                     ExprKind::Assign(expr, None, rhs)
                 } else {
-                    let msg = format!("unkown binop token: {token:?}");
+                    let msg = format!("unknown binop token: {token:?}");
                     self.dcx().bug(msg).span(span).emit();
                 };
                 expr = Box::new(Expr { span, kind });
