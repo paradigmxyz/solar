@@ -4,7 +4,8 @@ use sulk_interface::{
     Result, SessionGlobals,
 };
 
-const BUG_REPORT_URL: &str = "https://github.com/paradigmxyz/sulk/issues/new/choose";
+const BUG_REPORT_URL: &str =
+    "https://github.com/paradigmxyz/sulk/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
 fn early_dcx() -> DiagCtxt {
     DiagCtxt::with_tty_emitter(None)
@@ -26,6 +27,9 @@ fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {
 
 pub(crate) fn install_panic_hook() {
     update_hook(|default_hook, info| {
+        // Lock stderr to prevent interleaving of concurrent panics.
+        let _guard = std::io::stderr().lock();
+
         if std::env::var_os("RUST_BACKTRACE").is_none() {
             std::env::set_var("RUST_BACKTRACE", "1");
         }
@@ -41,17 +45,6 @@ pub(crate) fn install_panic_hook() {
 
 fn panic_hook(info: &PanicInfo<'_>) {
     let dcx = early_dcx().set_flags(|f| f.track_diagnostics = false);
-
-    // If the error was caused by a broken pipe then this is not a bug.
-    // Write the error and return immediately. See #98700.
-    #[cfg(windows)]
-    if let Some(msg) = info.payload().downcast_ref::<String>() {
-        if msg.starts_with("failed printing to stdout: ") && msg.ends_with("(os error 232)") {
-            // the error code is already going to be reported when the panic unwinds up the stack
-            let _ = dcx.err(msg.clone()).emit();
-            return;
-        }
-    };
 
     // An explicit `bug()` call has already printed what it wants to print.
     if !info.payload().is::<ExplicitBug>() {
