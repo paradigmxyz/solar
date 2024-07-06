@@ -89,7 +89,8 @@ impl Compiler {
         let arg_remappings = non_stdin_args
             .clone()
             .filter_map(|arg| arg.to_str().unwrap_or("").parse::<cli::ImportMap>().ok());
-        let paths = non_stdin_args.filter(|arg| !arg.to_str().unwrap_or("").contains('='));
+        let paths =
+            non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
         let mut resolver = sulk_sema::Resolver::new(sess);
         let remappings = arg_remappings.chain(args.import_map.iter().cloned());
@@ -103,11 +104,13 @@ impl Compiler {
                 return Err(sess.dcx.err(msg).emit());
             }
         }
-        resolver.add_files_from_args(stdin, paths)?;
+
+        if stdin {
+            resolver.add_stdin()?;
+        }
+        resolver.load_files(paths)?;
 
         resolver.parse_and_resolve()?;
-
-        sess.dcx.has_errors()?;
 
         Ok(())
     }

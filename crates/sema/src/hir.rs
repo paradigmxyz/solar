@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use sulk_data_structures::{index::IndexVec, newtype_index};
-use sulk_interface::Ident;
+use sulk_interface::{Ident, Span};
 
 pub use sulk_ast::ast::ContractKind;
 
@@ -9,19 +9,76 @@ pub use sulk_ast::ast::ContractKind;
 /// This struct contains all the information about the ent
 pub struct Hir<'hir> {
     /// All contracts.
-    contracts: IndexVec<ContractId, Contract<'hir>>,
+    pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
-    functions: IndexVec<FunctionId, Function<'hir>>,
+    pub(crate) functions: IndexVec<FunctionId, Function<'hir>>,
     /// All structs.
-    structs: IndexVec<StructId, Struct<'hir>>,
+    pub(crate) structs: IndexVec<StructId, Struct<'hir>>,
     /// All enums.
-    enums: IndexVec<EnumId, Enum<'hir>>,
+    pub(crate) enums: IndexVec<EnumId, Enum<'hir>>,
+    /// All user-defined value types.
+    pub(crate) udvts: IndexVec<UdvtId, Udvt<'hir>>,
     /// All events.
-    events: IndexVec<EventId, Event<'hir>>,
+    pub(crate) events: IndexVec<EventId, Event<'hir>>,
     /// All custom errors.
-    errors: IndexVec<ErrorId, Error<'hir>>,
+    pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All constants and variables.
-    vars: IndexVec<VarId, Var<'hir>>,
+    pub(crate) vars: IndexVec<VarId, Var<'hir>>,
+}
+
+impl<'hir> Hir<'hir> {
+    pub(crate) fn new() -> Self {
+        Self {
+            contracts: IndexVec::new(),
+            functions: IndexVec::new(),
+            structs: IndexVec::new(),
+            enums: IndexVec::new(),
+            udvts: IndexVec::new(),
+            events: IndexVec::new(),
+            errors: IndexVec::new(),
+            vars: IndexVec::new(),
+        }
+    }
+
+    #[inline]
+    pub fn contract(&self, id: ContractId) -> &Contract<'hir> {
+        &self.contracts[id]
+    }
+
+    #[inline]
+    pub fn function(&self, id: FunctionId) -> &Function<'hir> {
+        &self.functions[id]
+    }
+
+    #[inline]
+    pub fn strukt(&self, id: StructId) -> &Struct<'hir> {
+        &self.structs[id]
+    }
+
+    #[inline]
+    pub fn enumm(&self, id: EnumId) -> &Enum<'hir> {
+        &self.enums[id]
+    }
+
+    #[inline]
+    pub fn udvt(&self, id: UdvtId) -> &Udvt<'hir> {
+        &self.udvts[id]
+    }
+
+    #[inline]
+    pub fn event(&self, id: EventId) -> &Event<'hir> {
+        &self.events[id]
+    }
+
+    #[inline]
+    pub fn error(&self, id: ErrorId) -> &Error<'hir> {
+        &self.errors[id]
+    }
+
+    #[inline]
+    pub fn var(&self, id: VarId) -> &Var<'hir> {
+        &self.vars[id]
+    }
 }
 
 newtype_index! {
@@ -36,6 +93,9 @@ newtype_index! {
 
     /// An [`Enum`] ID.
     pub struct EnumId;
+
+    /// An [`Udvt`] ID.
+    pub struct UdvtId;
 
     /// An [`Event`] ID.
     pub struct EventId;
@@ -56,68 +116,110 @@ pub struct Contract<'hir> {
     pub kind: ContractKind,
     /// The contract bases.
     pub bases: &'hir [ContractId],
+    /// The constructor function.
     pub ctor: Option<FunctionId>,
-    _tmp: PhantomData<&'hir ()>,
+    /// The `fallback` function.
+    pub fallback: Option<FunctionId>,
+    /// The `receive` function.
+    pub receive: Option<FunctionId>,
+    /// The contract items.
+    pub items: &'hir [ContractItemId],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContractItemId {
+    Function(FunctionId),
+    Var(VarId),
+    Struct(StructId),
+    Enum(EnumId),
+    Udvt(UdvtId),
+    Error(ErrorId),
+    Event(EventId),
 }
 
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
-    /// The item name.
+    /// The function name.
     pub name: Ident,
-    _tmp: PhantomData<&'hir ()>,
+    /// The function span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// A struct.
 #[derive(Debug)]
 pub struct Struct<'hir> {
-    /// The item name.
+    /// The struct name.
     pub name: Ident,
-    _tmp: PhantomData<&'hir ()>,
+    /// The struct span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// An enum.
 #[derive(Debug)]
 pub struct Enum<'hir> {
-    /// The item name.
+    /// The enum name.
     pub name: Ident,
+    /// The enum span.
+    pub span: Span,
     /// The enum variants.
     pub variants: &'hir [Ident],
-    _tmp: PhantomData<&'hir ()>,
+}
+
+/// A user-defined value type.
+#[derive(Debug)]
+pub struct Udvt<'hir> {
+    /// The UDVT name.
+    pub name: Ident,
+    /// The UDVT span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// An event.
 #[derive(Debug)]
 pub struct Event<'hir> {
-    /// The item name.
+    /// The event name.
     pub name: Ident,
-    _tmp: PhantomData<&'hir ()>,
+    /// The event span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// A custom error.
 #[derive(Debug)]
 pub struct Error<'hir> {
-    /// The item name.
+    /// The error name.
     pub name: Ident,
-    _tmp: PhantomData<&'hir ()>,
+    /// The error span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// A constant or variable declaration.
 #[derive(Debug)]
 pub struct Var<'hir> {
-    /// The item name.
+    /// The declaration name.
     pub name: Ident,
-    _tmp: PhantomData<&'hir ()>,
+    /// The declaration span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// A statement.
 #[derive(Debug)]
 pub struct Stmt<'hir> {
-    _tmp: PhantomData<&'hir ()>,
+    /// The statement span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// An expression.
 #[derive(Debug)]
 pub struct Expr<'hir> {
-    _tmp: PhantomData<&'hir ()>,
+    /// The expression span.
+    pub span: Span,
+    pub _tmp: PhantomData<&'hir ()>,
 }

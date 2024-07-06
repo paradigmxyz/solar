@@ -1,6 +1,6 @@
 //! Solidity AST.
 
-use sulk_data_structures::smallvec::SmallVec;
+use sulk_data_structures::{index::IndexVec, newtype_index, smallvec::SmallVec};
 
 pub use crate::token::CommentKind;
 pub use sulk_interface::{Ident, Span, Symbol};
@@ -175,5 +175,10 @@ impl Path {
 #[derive(Clone, Debug)]
 pub struct SourceUnit {
     /// The source unit's items.
-    pub items: Vec<Item>,
+    pub items: IndexVec<ItemId, Item>,
+}
+
+newtype_index! {
+    /// A [source unit item](Item) ID. Only used in [`SourceUnit`].
+    pub struct ItemId;
 }

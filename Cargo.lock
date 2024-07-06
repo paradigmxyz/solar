@@ -2425,6 +2425,8 @@ dependencies = [
 name = "sulk-sema"
 version = "0.0.0"
 dependencies = [
+ "bumpalo",
+ "petgraph",
  "rayon",
  "sulk-ast",
  "sulk-data-structures",

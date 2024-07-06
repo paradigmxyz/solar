@@ -10,7 +10,7 @@ impl<'a> Parser<'a> {
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'a, SourceUnit> {
         let items = self.parse_items(&TokenKind::Eof)?;
-        Ok(SourceUnit { items })
+        Ok(SourceUnit { items: items.into() })
     }
 
     /// Parses a list of items until the given token is encountered.

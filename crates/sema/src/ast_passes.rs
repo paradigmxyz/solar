@@ -1,29 +1,35 @@
+//! AST-related passes.
+
 use sulk_ast::{ast, visit::Visit};
 use sulk_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
-// TODO: Implement the rest.
+#[instrument(name = "ast_passes", level = "debug", skip_all)]
+pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit) {
+    // TODO: Desugar here.
+    validate(sess, ast);
+}
+
+/// Performs AST validation.
+#[instrument(name = "validate", level = "debug", skip_all)]
+pub fn validate(sess: &Session, ast: &ast::SourceUnit) {
+    let mut validator = AstValidator::new(sess);
+    validator.visit_source_unit(ast);
+}
 
 /// AST validator.
-pub struct AstValidator<'sess> {
+struct AstValidator<'sess> {
     span: Span,
     dcx: &'sess DiagCtxt,
 }
 
 impl<'sess> AstValidator<'sess> {
-    /// Creates a new AST validator. Valid only for one AST.
-    pub fn new(sess: &'sess Session) -> Self {
+    fn new(sess: &'sess Session) -> Self {
         Self { span: Span::DUMMY, dcx: &sess.dcx }
-    }
-
-    /// Performs AST validation.
-    pub fn validate(sess: &'sess Session, source_unit: &ast::SourceUnit) {
-        let mut validator = Self::new(sess);
-        validator.visit_source_unit(source_unit);
     }
 
     /// Returns the diagnostics context.
     #[inline]
-    pub fn dcx(&self) -> &'sess DiagCtxt {
+    fn dcx(&self) -> &'sess DiagCtxt {
         self.dcx
     }
 }

@@ -193,7 +193,7 @@ impl SourceMap {
         file_id: StableSourceFileId,
         mut file: SourceFile,
     ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
-        debug!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
+        trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 
         let mut files = self.files.write();
 

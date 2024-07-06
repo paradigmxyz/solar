@@ -71,7 +71,14 @@ impl Session {
     }
 
     /// Clones the source map.
+    #[inline]
     pub fn clone_source_map(&self) -> Lrc<SourceMap> {
         self.source_map.clone()
+    }
+
+    /// Returns `true` if parallelism is not enabled.
+    #[inline]
+    pub fn is_sequential(&self) -> bool {
+        self.jobs.get() == 1
     }
 }
