@@ -10,13 +10,15 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     map::{FxHashSet, FxIndexSet},
     newtype_index,
-    sync::Lrc,
 };
 use sulk_interface::{
     diagnostics::DiagCtxt,
@@ -62,16 +64,16 @@ impl Sources {
         &mut self,
         current: SourceId,
         import_item_id: ast::ItemId,
-        import: Lrc<SourceFile>,
+        import: Arc<SourceFile>,
     ) {
         let import_id = self.add_file(import);
         self.sources[current].imports.push((import_item_id, import_id));
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn add_file(&mut self, file: Lrc<SourceFile>) -> SourceId {
+    fn add_file(&mut self, file: Arc<SourceFile>) -> SourceId {
         if let Some((id, _)) =
-            self.sources.iter_enumerated().find(|(_, source)| Lrc::ptr_eq(&source.file, &file))
+            self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
         {
             trace!(file = %file.name.display(), "skipping duplicate source file");
             return id;
@@ -120,14 +122,14 @@ impl std::ops::DerefMut for Sources {
 }
 
 struct Source {
-    file: Lrc<SourceFile>,
+    file: Arc<SourceFile>,
     /// The AST of the source. None if Yul or parsing failed.
     ast: Option<ast::SourceUnit>,
     imports: Vec<(ast::ItemId, SourceId)>,
 }
 
 impl Source {
-    fn new(file: Lrc<SourceFile>) -> Self {
+    fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new() }
     }
 }
@@ -194,7 +196,7 @@ impl<'a> Resolver<'a> {
     }
 
     /// Adds a pre-loaded file to the resolver.
-    pub fn add_file(&mut self, file: Lrc<SourceFile>) {
+    pub fn add_file(&mut self, file: Arc<SourceFile>) {
         self.sources.add_file(file);
     }
 
@@ -308,7 +310,7 @@ impl<'a> Resolver<'a> {
         &'b self,
         file: &SourceFile,
         ast: Option<&'b ast::SourceUnit>,
-    ) -> impl Iterator<Item = (ast::ItemId, Lrc<SourceFile>)> + 'b {
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + 'b {
         let parent = match &file.name {
             FileName::Real(path) => Some(path.clone()),
             // Use current directory for stdin.

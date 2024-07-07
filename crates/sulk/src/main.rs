@@ -4,8 +4,8 @@
 
 use clap::Parser as _;
 use cli::Args;
-use std::{num::NonZeroUsize, path::Path, process::ExitCode};
-use sulk_data_structures::sync::Lrc;
+use std::{num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
+
 use sulk_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
@@ -123,7 +123,7 @@ impl Compiler {
 fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
     utils::run_in_thread_pool_with_globals(args.threads, |jobs| {
         let ui_testing = args.unstable.ui_testing;
-        let source_map = Lrc::new(SourceMap::empty());
+        let source_map = Arc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match args.error_format {
             cli::ErrorFormat::Human => {
                 let color = match args.color {

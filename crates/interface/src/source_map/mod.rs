@@ -4,10 +4,11 @@ use crate::{BytePos, CharPos, Pos, Span};
 use std::{
     io::{self, Read},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use sulk_data_structures::{
     map::FxHashMap,
-    sync::{Lrc, MappedReadGuard, ReadGuard, RwLock},
+    sync::{MappedReadGuard, ReadGuard, RwLock},
 };
 
 mod analyze;
@@ -54,7 +55,7 @@ pub struct MalformedSourceMapPositions {
 #[derive(Clone, Debug)]
 pub struct Loc {
     /// Information about the original source.
-    pub file: Lrc<SourceFile>,
+    pub file: Arc<SourceFile>,
     /// The (1-based) line number.
     pub line: usize,
     /// The (0-based) column offset.
@@ -66,14 +67,14 @@ pub struct Loc {
 // Used to be structural records.
 #[derive(Debug)]
 pub struct SourceFileAndLine {
-    pub sf: Lrc<SourceFile>,
+    pub sf: Arc<SourceFile>,
     /// Index of line, starting from 0.
     pub line: usize,
 }
 
 #[derive(Debug)]
 pub struct SourceFileAndBytePos {
-    pub sf: Lrc<SourceFile>,
+    pub sf: Arc<SourceFile>,
     pub pos: BytePos,
 }
 
@@ -90,14 +91,14 @@ pub struct LineInfo {
 }
 
 pub struct FileLines {
-    pub file: Lrc<SourceFile>,
+    pub file: Arc<SourceFile>,
     pub lines: Vec<LineInfo>,
 }
 
 #[derive(Default)]
 struct SourceMapFiles {
-    source_files: Vec<Lrc<SourceFile>>,
-    stable_id_to_source_file: FxHashMap<StableSourceFileId, Lrc<SourceFile>>,
+    source_files: Vec<Arc<SourceFile>>,
+    stable_id_to_source_file: FxHashMap<StableSourceFileId, Arc<SourceFile>>,
 }
 
 pub struct SourceMap {
@@ -123,13 +124,13 @@ impl SourceMap {
     }
 
     /// Loads a file from the given path.
-    pub fn load_file(&self, path: &Path) -> io::Result<Lrc<SourceFile>> {
+    pub fn load_file(&self, path: &Path) -> io::Result<Arc<SourceFile>> {
         let filename = path.to_owned().into();
         self.new_source_file(filename, || std::fs::read_to_string(path))
     }
 
     /// Loads `stdin`.
-    pub fn load_stdin(&self) -> io::Result<Lrc<SourceFile>> {
+    pub fn load_stdin(&self) -> io::Result<Arc<SourceFile>> {
         self.new_source_file(FileName::Stdin, || {
             let mut src = String::new();
             io::stdin().read_to_string(&mut src)?;
@@ -140,7 +141,7 @@ impl SourceMap {
     /// Loads a file with the given source string.
     ///
     /// This is useful for testing.
-    pub fn new_dummy_source_file(&self, path: PathBuf, src: String) -> io::Result<Lrc<SourceFile>> {
+    pub fn new_dummy_source_file(&self, path: PathBuf, src: String) -> io::Result<Arc<SourceFile>> {
         self.new_source_file(path.into(), || Ok(src))
     }
 
@@ -156,7 +157,7 @@ impl SourceMap {
         &self,
         filename: FileName,
         get_src: impl FnOnce() -> io::Result<String>,
-    ) -> io::Result<Lrc<SourceFile>> {
+    ) -> io::Result<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
         match self.source_file_by_stable_id(stable_id) {
             Some(lrc_sf) => Ok(lrc_sf),
@@ -172,11 +173,11 @@ impl SourceMap {
         }
     }
 
-    pub fn files(&self) -> MappedReadGuard<'_, Vec<Lrc<SourceFile>>> {
+    pub fn files(&self) -> MappedReadGuard<'_, Vec<Arc<SourceFile>>> {
         ReadGuard::map(self.files.read(), |files| &files.source_files)
     }
 
-    pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Lrc<SourceFile>> {
+    pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(filename);
         self.source_file_by_stable_id(stable_id)
     }
@@ -184,7 +185,7 @@ impl SourceMap {
     pub fn source_file_by_stable_id(
         &self,
         stable_id: StableSourceFileId,
-    ) -> Option<Lrc<SourceFile>> {
+    ) -> Option<Arc<SourceFile>> {
         self.files.read().stable_id_to_source_file.get(&stable_id).cloned()
     }
 
@@ -192,7 +193,7 @@ impl SourceMap {
         &self,
         file_id: StableSourceFileId,
         mut file: SourceFile,
-    ) -> Result<Lrc<SourceFile>, OffsetOverflowError> {
+    ) -> Result<Arc<SourceFile>, OffsetOverflowError> {
         trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 
         let mut files = self.files.write();
@@ -205,7 +206,7 @@ impl SourceMap {
             0
         });
 
-        let file = Lrc::new(file);
+        let file = Arc::new(file);
         files.source_files.push(file.clone());
         files.stable_id_to_source_file.insert(file_id, file.clone());
 
@@ -254,7 +255,7 @@ impl SourceMap {
     }
 
     /// Return the SourceFile that contains the given `BytePos`
-    pub fn lookup_source_file(&self, pos: BytePos) -> Lrc<SourceFile> {
+    pub fn lookup_source_file(&self, pos: BytePos) -> Arc<SourceFile> {
         let idx = self.lookup_source_file_idx(pos);
         (*self.files.read().source_files)[idx].clone()
     }
@@ -267,7 +268,7 @@ impl SourceMap {
     }
 
     /// If the corresponding `SourceFile` is empty, does not return a line number.
-    pub fn lookup_line(&self, pos: BytePos) -> Result<SourceFileAndLine, Lrc<SourceFile>> {
+    pub fn lookup_line(&self, pos: BytePos) -> Result<SourceFileAndLine, Arc<SourceFile>> {
         let f = self.lookup_source_file(pos);
         let pos = f.relative_position(pos);
         match f.lookup_line(pos) {
@@ -392,7 +393,7 @@ impl SourceMap {
     pub fn span_to_location_info(
         &self,
         sp: Span,
-    ) -> (Option<Lrc<SourceFile>>, usize, usize, usize, usize) {
+    ) -> (Option<Arc<SourceFile>>, usize, usize, usize, usize) {
         if self.files.read().source_files.is_empty() || sp.is_dummy() {
             return (None, 0, 0, 0, 0);
         }

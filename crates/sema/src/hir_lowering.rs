@@ -4,7 +4,7 @@ use crate::{
 };
 use bumpalo::Bump;
 use sulk_ast::ast;
-use sulk_data_structures::{map::FxHashSet, smallvec::SmallVec};
+use sulk_data_structures::smallvec::SmallVec;
 use sulk_interface::{diagnostics::DiagCtxt, Session};
 
 #[instrument(name = "hir_lowering", level = "debug", skip_all)]
@@ -92,7 +92,7 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
                         }
                         ast::FunctionKind::Function | ast::FunctionKind::Modifier => {}
                     }
-                    hir::ContractItemId::Function(id)
+                    hir::ItemId::Function(id)
                 }
                 ast::ItemKind::Variable(_)
                 | ast::ItemKind::Struct(_)
@@ -115,21 +115,19 @@ impl<'a, 'hir> LoweringContext<'a, 'hir> {
         id
     }
 
-    fn lower_item(&mut self, item: &ast::Item) -> hir::ContractItemId {
+    fn lower_item(&mut self, item: &ast::Item) -> hir::ItemId {
         match &item.kind {
             ast::ItemKind::Pragma(_)
             | ast::ItemKind::Import(_)
             | ast::ItemKind::Using(_)
             | ast::ItemKind::Contract(_) => unreachable!(),
-            ast::ItemKind::Function(item) => {
-                hir::ContractItemId::Function(self.lower_function(item))
-            }
-            ast::ItemKind::Variable(item) => hir::ContractItemId::Var(self.lower_variable(item)),
-            ast::ItemKind::Struct(item) => hir::ContractItemId::Struct(self.lower_struct(item)),
-            ast::ItemKind::Enum(item) => hir::ContractItemId::Enum(self.lower_enum(item)),
-            ast::ItemKind::Udvt(item) => hir::ContractItemId::Udvt(self.lower_udvt(item)),
-            ast::ItemKind::Error(item) => hir::ContractItemId::Error(self.lower_error(item)),
-            ast::ItemKind::Event(item) => hir::ContractItemId::Event(self.lower_event(item)),
+            ast::ItemKind::Function(item) => hir::ItemId::Function(self.lower_function(item)),
+            ast::ItemKind::Variable(item) => hir::ItemId::Var(self.lower_variable(item)),
+            ast::ItemKind::Struct(item) => hir::ItemId::Struct(self.lower_struct(item)),
+            ast::ItemKind::Enum(item) => hir::ItemId::Enum(self.lower_enum(item)),
+            ast::ItemKind::Udvt(item) => hir::ItemId::Udvt(self.lower_udvt(item)),
+            ast::ItemKind::Error(item) => hir::ItemId::Error(self.lower_error(item)),
+            ast::ItemKind::Event(item) => hir::ItemId::Event(self.lower_event(item)),
         }
     }
 

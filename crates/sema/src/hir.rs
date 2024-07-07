@@ -1,16 +1,19 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc};
+use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use sulk_interface::{Ident, Span};
+use sulk_interface::{source_map::SourceFile, Ident, Span};
 
-pub use sulk_ast::ast::ContractKind;
+pub use sulk_ast::ast::{ContractKind, FunctionKind, StateMutability, Visibility};
 
 /// The high-level intermediate representation (HIR).
 ///
-/// This struct contains all the information about the ent
+/// This struct contains all the information about the entire program.
 pub struct Hir<'hir> {
+    /// All sources.
+    pub(crate) sources: IndexVec<SourceId, Source>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -32,6 +35,7 @@ pub struct Hir<'hir> {
 impl<'hir> Hir<'hir> {
     pub(crate) fn new() -> Self {
         Self {
+            sources: IndexVec::new(),
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
             structs: IndexVec::new(),
@@ -76,6 +80,7 @@ macro_rules! indexvec_methods {
 }
 
 indexvec_methods! {
+    source => sources, SourceId => Source;
     contract => contracts, ContractId => Contract<'hir>;
     function => functions, FunctionId => Function<'hir>;
     strukt => structs, StructId => Struct<'hir>;
@@ -87,6 +92,9 @@ indexvec_methods! {
 }
 
 newtype_index! {
+    /// A [`Source`] ID.
+    pub struct SourceId;
+
     /// A [`Contract`] ID.
     pub struct ContractId;
 
@@ -112,6 +120,16 @@ newtype_index! {
     pub struct VarId;
 }
 
+/// A source file.
+#[derive(Debug)]
+pub struct Source {
+    pub file: Arc<SourceFile>,
+    /// The AST of the source. None if Yul, parsing failed, or is after lowering where it's no
+    /// longer needed.
+    pub ast: Option<ast::SourceUnit>,
+    pub imports: Vec<(ast::ItemId, SourceId)>,
+}
+
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
@@ -128,11 +146,11 @@ pub struct Contract<'hir> {
     /// The `receive` function.
     pub receive: Option<FunctionId>,
     /// The contract items.
-    pub items: &'hir [ContractItemId],
+    pub items: &'hir [ItemId],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ContractItemId {
+pub enum ItemId {
     Function(FunctionId),
     Var(VarId),
     Struct(StructId),

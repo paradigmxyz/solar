@@ -275,7 +275,7 @@ fn t10() {
 trait SourceMapExtension {
     fn span_substr(
         &self,
-        file: &Lrc<SourceFile>,
+        file: &Arc<SourceFile>,
         source_text: &str,
         substring: &str,
         n: usize,
@@ -286,7 +286,7 @@ trait SourceMapExtension {
 impl SourceMapExtension for SourceMap {
     fn span_substr(
         &self,
-        file: &Lrc<SourceFile>,
+        file: &Arc<SourceFile>,
         source_text: &str,
         substring: &str,
         n: usize,
@@ -602,7 +602,7 @@ fn test_next_point() {
 #[cfg(target_os = "linux")]
 #[test]
 fn read_binary_file_handles_lying_stat() {
-    // read_binary_file tries to read the contents of a file into an Lrc<[u8]> while
+    // read_binary_file tries to read the contents of a file into an Arc<[u8]> while
     // never having two copies of the data in memory at once. This is an optimization
     // to support include_bytes! with large files. But since Rust allocators are
     // sensitive to alignment, our implementation can't be bootstrapped off calling
