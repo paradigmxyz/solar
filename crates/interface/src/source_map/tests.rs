@@ -50,7 +50,7 @@ impl SourceMap {
     /// Converts an absolute `BytePos` to a `CharPos` relative to the `SourceFile`.
     fn bytepos_to_file_charpos(&self, bpos: BytePos) -> CharPos {
         let idx = self.lookup_source_file_idx(bpos);
-        let sf = &(*self.files.read().source_files)[idx];
+        let sf = &self.files()[idx];
         let bpos = sf.relative_position(bpos);
         sf.bytepos_to_file_charpos(bpos)
     }

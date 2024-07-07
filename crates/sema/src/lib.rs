@@ -17,33 +17,28 @@ use std::{
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
-    map::{FxHashSet, FxIndexSet},
-    newtype_index,
+    map::FxHashSet,
 };
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, FileResolver, SourceFile},
-    Ident, Result, Session,
+    Result, Session,
 };
 use sulk_parse::{Lexer, Parser};
 
 mod ast_passes;
 
 pub mod hir;
+use hir::{Source, SourceId};
 
-mod hir_lowering;
+mod ast_lowering;
 
 mod staging;
 pub use staging::SymbolCollector;
 
-newtype_index! {
-    /// A source index.
-    pub(crate) struct SourceId;
-}
-
 #[derive(Default)]
-struct Sources {
-    sources: IndexVec<SourceId, Source>,
+pub(crate) struct Sources {
+    pub(crate) sources: IndexVec<SourceId, Source<'static>>,
 }
 
 #[allow(dead_code)]
@@ -81,6 +76,15 @@ impl Sources {
         self.sources.push(Source::new(file))
     }
 
+    #[cfg(debug_assertions)]
+    fn debug_assert_unique(&self) {
+        assert_eq!(
+            self.sources.iter().map(|s| s.file.stable_id).collect::<FxHashSet<_>>().len(),
+            self.sources.len(),
+            "parsing produced duplicate source files"
+        );
+    }
+
     #[instrument(level = "debug", skip_all)]
     fn topo_sort(&mut self) {
         let len = self.len();
@@ -108,7 +112,7 @@ impl Sources {
 }
 
 impl std::ops::Deref for Sources {
-    type Target = IndexVec<SourceId, Source>;
+    type Target = IndexVec<SourceId, Source<'static>>;
 
     fn deref(&self) -> &Self::Target {
         &self.sources
@@ -118,19 +122,6 @@ impl std::ops::Deref for Sources {
 impl std::ops::DerefMut for Sources {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.sources
-    }
-}
-
-struct Source {
-    file: Arc<SourceFile>,
-    /// The AST of the source. None if Yul or parsing failed.
-    ast: Option<ast::SourceUnit>,
-    imports: Vec<(ast::ItemId, SourceId)>,
-}
-
-impl Source {
-    fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new() }
     }
 }
 
@@ -205,17 +196,28 @@ impl<'a> Resolver<'a> {
         self.ensure_sources()?;
 
         self.parse();
+        #[cfg(debug_assertions)]
+        self.sources.debug_assert_unique();
         if self.sess.language.is_yul() || self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
             return Ok(());
         }
 
-        self.sources.par_asts().for_each(|ast| {
-            ast_passes::run(self.sess, ast);
+        debug_span!("all_ast_passes").in_scope(|| {
+            self.sources.par_asts().for_each(|ast| {
+                ast_passes::run(self.sess, ast);
+            });
         });
 
         self.dcx().has_errors()?;
 
         self.sources.topo_sort();
+
+        let arena = bumpalo::Bump::new();
+        let hir = ast_lowering::lower(self.sess, std::mem::take(&mut self.sources), &arena);
+
+        self.dcx().has_errors()?;
+
+        drop(hir);
 
         Ok(())
     }
@@ -338,36 +340,6 @@ impl<'a> Resolver<'a> {
                     .map(|file| (id, file))
             })
     }
-}
-
-fn collect_exports(ast: &ast::SourceUnit) -> FxIndexSet<Ident> {
-    let mut exports = FxIndexSet::default();
-
-    for item in &ast.items {
-        match &item.kind {
-            ast::ItemKind::Import(import) => match import.items {
-                ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
-                    if let Some(alias) = alias {
-                        exports.insert(alias);
-                    }
-                }
-                ast::ImportItems::Aliases(ref aliases) => {
-                    for &(_, alias) in aliases {
-                        if let Some(alias) = alias {
-                            exports.insert(alias);
-                        }
-                    }
-                }
-            },
-            _ => {
-                if let Some(name) = item.name() {
-                    exports.insert(name);
-                }
-            }
-        }
-    }
-
-    exports
 }
 
 /// Sorts `data` according to `indices`.

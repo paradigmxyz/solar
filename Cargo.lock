@@ -2367,6 +2367,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "bumpalo",
+ "dashmap",
  "itertools 0.13.0",
  "itoa",
  "lasso",
