@@ -25,6 +25,7 @@ bumpalo.workspace = true
 petgraph.workspace = true
 rayon.workspace = true
 tracing.workspace = true
+paste.workspace = true
 
 [features]
 nightly = [

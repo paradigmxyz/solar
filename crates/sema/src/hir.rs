@@ -1,5 +1,8 @@
 use std::marker::PhantomData;
-use sulk_data_structures::{index::IndexVec, newtype_index};
+use sulk_data_structures::{
+    index::{Idx, IndexVec},
+    newtype_index,
+};
 use sulk_interface::{Ident, Span};
 
 pub use sulk_ast::ast::ContractKind;
@@ -39,46 +42,48 @@ impl<'hir> Hir<'hir> {
             vars: IndexVec::new(),
         }
     }
+}
 
-    #[inline]
-    pub fn contract(&self, id: ContractId) -> &Contract<'hir> {
-        &self.contracts[id]
-    }
+macro_rules! indexvec_methods {
+    ($($singular:ident => $plural:ident, $id:ty => $type:ty;)*) => { paste::paste! {
+        impl<'hir> Hir<'hir> {
+            $(
+                #[doc = "Returns the " $singular " associated with the given ID."]
+                #[inline]
+                #[cfg_attr(debug_assertions, track_caller)]
+                pub fn $singular(&self, id: $id) -> &$type {
+                    if cfg!(debug_assertions) {
+                        &self.$plural[id]
+                    } else {
+                        unsafe { self.$plural.raw.get_unchecked(id.index()) }
+                    }
+                }
 
-    #[inline]
-    pub fn function(&self, id: FunctionId) -> &Function<'hir> {
-        &self.functions[id]
-    }
+                #[doc = "Returns an iterator over all of the " $singular " IDs."]
+                #[inline]
+                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator {
+                    self.$plural.indices()
+                }
 
-    #[inline]
-    pub fn strukt(&self, id: StructId) -> &Struct<'hir> {
-        &self.structs[id]
-    }
+                #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
+                #[inline]
+                pub fn $plural(&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
+                    self.$plural.iter_enumerated()
+                }
+            )*
+        }
+    }};
+}
 
-    #[inline]
-    pub fn enumm(&self, id: EnumId) -> &Enum<'hir> {
-        &self.enums[id]
-    }
-
-    #[inline]
-    pub fn udvt(&self, id: UdvtId) -> &Udvt<'hir> {
-        &self.udvts[id]
-    }
-
-    #[inline]
-    pub fn event(&self, id: EventId) -> &Event<'hir> {
-        &self.events[id]
-    }
-
-    #[inline]
-    pub fn error(&self, id: ErrorId) -> &Error<'hir> {
-        &self.errors[id]
-    }
-
-    #[inline]
-    pub fn var(&self, id: VarId) -> &Var<'hir> {
-        &self.vars[id]
-    }
+indexvec_methods! {
+    contract => contracts, ContractId => Contract<'hir>;
+    function => functions, FunctionId => Function<'hir>;
+    strukt => structs, StructId => Struct<'hir>;
+    enumm => enums, EnumId => Enum<'hir>;
+    udvt => udvts, UdvtId => Udvt<'hir>;
+    event => events, EventId => Event<'hir>;
+    error => errors, ErrorId => Error<'hir>;
+    var => vars, VarId => Var<'hir>;
 }
 
 newtype_index! {
