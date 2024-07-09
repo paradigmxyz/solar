@@ -101,7 +101,7 @@ impl HumanEmitter {
         if color_choice == ColorChoice::Auto {
             color_choice = AutoStream::choice(&stderr);
         }
-        Self::new(Box::new(stderr), color_choice)
+        Self::new(Box::new(io::BufWriter::new(stderr)), color_choice)
     }
 
     /// Sets the source map.

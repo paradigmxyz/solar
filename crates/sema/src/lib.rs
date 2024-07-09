@@ -97,6 +97,12 @@ impl Sources {
         for id in self.sources.indices() {
             self.topo_order(id, &mut order, &mut seen);
         }
+        // Re-map imports.
+        for source in self.sources.iter_mut() {
+            for (_, import) in &mut source.imports {
+                *import = SourceId::from_usize(order.iter().position(|id| id == import).unwrap());
+            }
+        }
         sort_by_indices(&mut self.sources, order);
     }
 
@@ -147,7 +153,7 @@ impl<'a> Resolver<'a> {
 
     /// Loads `stdin` into the resolver.
     #[instrument(level = "debug", skip_all)]
-    pub fn add_stdin(&mut self) -> Result<()> {
+    pub fn load_stdin(&mut self) -> Result<()> {
         let file =
             self.file_resolver.load_stdin().map_err(|e| self.dcx().err(e.to_string()).emit())?;
         self.add_file(file);

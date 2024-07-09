@@ -11,7 +11,6 @@ use std::{
     sync::{Arc, Mutex, PoisonError},
 };
 
-
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
     writer: Box<dyn io::Write + Send>,

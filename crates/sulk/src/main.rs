@@ -5,7 +5,6 @@
 use clap::Parser as _;
 use cli::Args;
 use std::{num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
-
 use sulk_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
@@ -106,7 +105,7 @@ impl Compiler {
         }
 
         if stdin {
-            resolver.add_stdin()?;
+            resolver.load_stdin()?;
         }
         resolver.load_files(paths)?;
 

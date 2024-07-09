@@ -4,7 +4,7 @@ use crate::{
 };
 use bumpalo::Bump;
 use rayon::prelude::*;
-use std::marker::PhantomData;
+use std::{fmt, marker::PhantomData};
 use sulk_ast::ast;
 use sulk_data_structures::{index::IndexVec, map::FxIndexMap, smallvec::SmallVec};
 use sulk_interface::{
@@ -276,7 +276,10 @@ impl Scope {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
-    fn resolve(&self, name: Ident) -> impl ExactSizeIterator<Item = Declaration> + '_ {
+    fn resolve(
+        &self,
+        name: Ident,
+    ) -> impl ExactSizeIterator<Item = Declaration> + '_ + std::fmt::Debug {
         self.declarations.get(&name).map(std::ops::Deref::deref).unwrap_or_default().iter().copied()
     }
 
@@ -295,7 +298,7 @@ impl Scope {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 #[allow(dead_code)]
 enum Declaration {
     /// A resolved item.
@@ -304,4 +307,15 @@ enum Declaration {
     Namespace(hir::SourceId),
     /// An error occurred while resolving the item. Silences further errors regarding this name.
     Err(ErrorGuaranteed),
+}
+
+impl fmt::Debug for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Declaration::")?;
+        match self {
+            Declaration::Item(id) => id.fmt(f),
+            Declaration::Namespace(id) => id.fmt(f),
+            Declaration::Err(_) => f.write_str("Err"),
+        }
+    }
 }

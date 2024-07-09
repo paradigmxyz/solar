@@ -16,17 +16,10 @@ macro_rules! newtype_index {
         #[repr(transparent)]
         $vis struct $name($crate::index::BaseIndex32);
 
-        impl std::fmt::Display for $name {
-            #[inline(always)]
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
-            }
-        }
-
         impl std::fmt::Debug for $name {
             #[inline(always)]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.fmt(f)
+                write!(f, "{}({:?})", stringify!($name), self.0)
             }
         }
 
@@ -79,13 +72,6 @@ macro_rules! base_index {
             value: $primitive,
             #[cfg(not(feature = "nightly"))]
             value: std::num::NonZero<$primitive>,
-        }
-
-        impl fmt::Display for $name {
-            #[inline(always)]
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.value.fmt(f)
-            }
         }
 
         impl fmt::Debug for $name {
