@@ -24,7 +24,7 @@ sulk-config.workspace = true
 sulk-data-structures.workspace = true
 sulk-macros.workspace = true
 
-bumpalo.workspace = true
+alloy-primitives.workspace = true
 dashmap.workspace = true
 itertools.workspace = true
 itoa.workspace = true

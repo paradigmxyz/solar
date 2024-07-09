@@ -22,10 +22,11 @@ sulk-interface.workspace = true
 sulk-parse.workspace = true
 
 bumpalo.workspace = true
-petgraph.workspace = true
+# itertools.workspace = true
+paste.workspace = true
+# petgraph.workspace = true
 rayon.workspace = true
 tracing.workspace = true
-paste.workspace = true
 
 [features]
 nightly = [

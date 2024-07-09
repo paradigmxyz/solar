@@ -1,4 +1,5 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
+use alloy_primitives::hex;
 use std::{
     fmt, io,
     ops::RangeInclusive,
@@ -434,12 +435,14 @@ impl std::str::FromStr for SourceFileHashAlgorithm {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            // "md5" => Ok(Self::Md5),
-            // "sha1" => Ok(Self::Sha1),
-            // "sha256" => Ok(Self::Sha256),
-            _ => Err(()),
-        }
+        // match s {
+        //     "md5" => Ok(Self::Md5),
+        //     "sha1" => Ok(Self::Sha1),
+        //     "sha256" => Ok(Self::Sha256),
+        //     _ => Err(()),
+        // }
+        let _ = s;
+        Err(())
     }
 }
 
@@ -459,10 +462,21 @@ impl SourceFileHashAlgorithm {
 const MAX_HASH_SIZE: usize = 32;
 
 /// The hash of the on-disk source file used for debug info.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceFileHash {
     kind: SourceFileHashAlgorithm,
     value: [u8; MAX_HASH_SIZE],
+}
+
+impl fmt::Debug for SourceFileHash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut dbg = f.debug_struct("SourceFileHash");
+        dbg.field("kind", &self.kind);
+        if self.kind != SourceFileHashAlgorithm::None {
+            dbg.field("value", &format_args!("{}", hex::encode(self.hash_bytes())));
+        }
+        dbg.finish()
+    }
 }
 
 impl SourceFileHash {

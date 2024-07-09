@@ -1,22 +1,32 @@
-#![allow(dead_code, unused_variables)] // TODO
-
-use std::marker::PhantomData;
-
 use crate::{
     hir::{self, Hir},
     Sources,
 };
 use bumpalo::Bump;
+use rayon::prelude::*;
+use std::marker::PhantomData;
 use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, map::FxIndexSet, smallvec::SmallVec};
-use sulk_interface::{diagnostics::DiagCtxt, Ident, Session};
+use sulk_data_structures::{index::IndexVec, map::FxIndexMap, smallvec::SmallVec};
+use sulk_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    Ident, Session,
+};
 
-#[instrument(name = "hir_lowering", level = "debug", skip_all)]
+#[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(sess: &Session, sources: Sources, arena: &'hir Bump) -> Hir<'hir> {
     let mut lcx = LoweringContext::new(sess, arena);
-    lcx.lower(sources);
-    lcx.hir.shrink_to_fit();
+
+    // Lower AST to HIR.
+    lcx.lower_sources(sources);
+
+    lcx.collect_exports();
+    lcx.perform_imports();
     lcx.resolve();
+
+    // Clean up.
+    lcx.drop_asts();
+    lcx.shrink_to_fit();
+
     lcx.hir
 }
 
@@ -24,11 +34,13 @@ struct LoweringContext<'sess, 'hir> {
     sess: &'sess Session,
     arena: &'hir Bump,
     hir: Hir<'hir>,
+
+    source_scopes: IndexVec<hir::SourceId, Scope>,
 }
 
 impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
     fn new(sess: &'sess Session, arena: &'hir Bump) -> Self {
-        Self { sess, arena, hir: Hir::new() }
+        Self { sess, arena, hir: Hir::new(), source_scopes: IndexVec::new() }
     }
 
     /// Returns the diagnostic context.
@@ -38,8 +50,8 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn lower(&mut self, sources: Sources) {
-        let mut sources: IndexVec<hir::SourceId, hir::Source<'hir>> = sources.sources;
+    fn lower_sources(&mut self, sources: Sources) {
+        let mut sources = sources.sources;
         for source in sources.iter_mut() {
             let Some(ast) = &source.ast else { continue };
             let mut items = SmallVec::<[_; 16]>::new();
@@ -59,7 +71,6 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
                 }
             }
             source.items = self.arena.alloc_slice_copy(&items);
-            source.ast = None;
         }
         self.hir.sources = sources;
     }
@@ -182,35 +193,115 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         self.hir.events.push(hir::Event { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
-    fn resolve(&mut self) {}
-}
-
-fn collect_exports(ast: &ast::SourceUnit) -> FxIndexSet<Ident> {
-    let mut exports = FxIndexSet::default();
-
-    for item in &ast.items {
-        match &item.kind {
-            ast::ItemKind::Import(import) => match import.items {
-                ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
-                    if let Some(alias) = alias {
-                        exports.insert(alias);
+    #[instrument(level = "debug", skip_all)]
+    fn collect_exports(&mut self) {
+        assert!(self.source_scopes.is_empty(), "exports already collected");
+        self.source_scopes = self
+            .hir
+            .sources()
+            .map(|source| {
+                let mut scope = Scope::with_capacity(source.items.len());
+                for &item_id in source.items {
+                    if let Some(name) = self.hir.item(item_id).name() {
+                        scope.declare(name, Declaration::Item(item_id));
                     }
                 }
-                ast::ImportItems::Aliases(ref aliases) => {
-                    for &(_, alias) in aliases {
+                scope
+            })
+            .collect();
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn perform_imports(&mut self) {
+        for (source_id, source) in self.hir.sources_enumerated() {
+            for &(item_id, import_id) in &source.imports {
+                let item = &source.ast.as_ref().unwrap().items[item_id];
+                let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
+                match import.items {
+                    ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                         if let Some(alias) = alias {
-                            exports.insert(alias);
+                            self.source_scopes[source_id]
+                                .declare(alias, Declaration::Namespace(import_id));
+                        } else if source_id != import_id {
+                            // TODO: get_many_mut
+                            let scope = self.source_scopes[import_id].clone();
+                            self.source_scopes[source_id].import(&scope);
                         }
                     }
-                }
-            },
-            _ => {
-                if let Some(name) = item.name() {
-                    exports.insert(name);
+                    ast::ImportItems::Aliases(ref aliases) => {
+                        for &(import, alias) in aliases {
+                            let resolved = self.source_scopes[import_id].resolve(import);
+                            let name = alias.unwrap_or(import);
+                            if resolved.len() == 0 {
+                                drop(resolved);
+                                let msg = format!("unresolved import `{import}`");
+                                let guar = self.dcx().err(msg).span(import.span).emit();
+                                self.source_scopes[source_id].declare(name, Declaration::Err(guar));
+                            } else if source_id != import_id {
+                                // TODO: get_many_mut
+                                let resolved = resolved.collect::<Vec<_>>();
+                                self.source_scopes[source_id].declare_many(name, resolved);
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    exports
+    #[instrument(level = "debug", skip_all)]
+    fn resolve(&mut self) {}
+
+    #[instrument(level = "debug", skip_all)]
+    fn shrink_to_fit(&mut self) {
+        self.hir.shrink_to_fit();
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn drop_asts(&mut self) {
+        // TODO: Switch back to sequential once the AST is using arenas.
+        self.hir.sources.raw.par_iter_mut().for_each(|source| source.ast = None);
+    }
+}
+
+#[derive(Clone, Debug)]
+struct Scope {
+    declarations: ScopeInner,
+}
+
+type ScopeInner = FxIndexMap<Ident, SmallVec<[Declaration; 2]>>;
+
+impl Scope {
+    fn with_capacity(capacity: usize) -> Self {
+        Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
+    }
+
+    fn resolve(&self, name: Ident) -> impl ExactSizeIterator<Item = Declaration> + '_ {
+        self.declarations.get(&name).map(std::ops::Deref::deref).unwrap_or_default().iter().copied()
+    }
+
+    fn declare(&mut self, name: Ident, decl: Declaration) {
+        self.declarations.entry(name).or_default().push(decl);
+    }
+
+    fn declare_many(&mut self, name: Ident, decls: impl IntoIterator<Item = Declaration>) {
+        self.declarations.entry(name).or_default().extend(decls);
+    }
+
+    fn import(&mut self, other: &Self) {
+        for (name, decls) in &other.declarations {
+            self.declare_many(*name, decls.iter().copied());
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+enum Declaration {
+    /// A resolved item.
+    Item(hir::ItemId),
+    /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
+    Namespace(hir::SourceId),
+    /// An error occurred while resolving the item. Silences further errors regarding this name.
+    Err(ErrorGuaranteed),
 }

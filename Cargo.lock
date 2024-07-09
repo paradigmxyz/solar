@@ -9,7 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
- "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -2301,7 +2300,6 @@ dependencies = [
  "libc",
  "rayon",
  "sulk-config",
- "sulk-data-structures",
  "sulk-interface",
  "sulk-sema",
  "sulk-tester",
@@ -2351,7 +2349,6 @@ dependencies = [
 name = "sulk-data-structures"
 version = "0.0.0"
 dependencies = [
- "ahash",
  "index_vec",
  "indexmap",
  "parking_lot",
@@ -2363,10 +2360,10 @@ dependencies = [
 name = "sulk-interface"
 version = "0.0.0"
 dependencies = [
+ "alloy-primitives",
  "annotate-snippets",
  "anstream",
  "anstyle",
- "bumpalo",
  "dashmap",
  "itertools 0.13.0",
  "itoa",
@@ -2417,7 +2414,6 @@ version = "0.0.0"
 dependencies = [
  "bumpalo",
  "paste",
- "petgraph",
  "rayon",
  "sulk-ast",
  "sulk-data-structures",

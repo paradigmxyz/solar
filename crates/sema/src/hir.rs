@@ -104,6 +104,22 @@ indexvec_methods! {
     var => vars, VarId => Var<'hir>;
 }
 
+impl<'hir> Hir<'hir> {
+    /// Returns the item associated with the given ID.
+    pub fn item(&self, id: ItemId) -> Item<'_, 'hir> {
+        match id {
+            ItemId::Contract(id) => Item::Contract(self.contract(id)),
+            ItemId::Function(id) => Item::Function(self.function(id)),
+            ItemId::Var(id) => Item::Var(self.var(id)),
+            ItemId::Struct(id) => Item::Struct(self.strukt(id)),
+            ItemId::Enum(id) => Item::Enum(self.enumm(id)),
+            ItemId::Udvt(id) => Item::Udvt(self.udvt(id)),
+            ItemId::Error(id) => Item::Error(self.error(id)),
+            ItemId::Event(id) => Item::Event(self.event(id)),
+        }
+    }
+}
+
 newtype_index! {
     /// A [`Source`] ID.
     pub struct SourceId;
@@ -161,6 +177,46 @@ impl Source<'_> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Item<'a, 'hir> {
+    Contract(&'a Contract<'hir>),
+    Function(&'a Function<'hir>),
+    Struct(&'a Struct<'hir>),
+    Enum(&'a Enum<'hir>),
+    Udvt(&'a Udvt<'hir>),
+    Error(&'a Error<'hir>),
+    Event(&'a Event<'hir>),
+    Var(&'a Var<'hir>),
+}
+
+impl Item<'_, '_> {
+    /// Returns the name of the item.
+    pub fn name(self) -> Option<Ident> {
+        match self {
+            Item::Contract(c) => Some(c.name),
+            Item::Function(f) => f.name,
+            Item::Struct(s) => Some(s.name),
+            Item::Enum(e) => Some(e.name),
+            Item::Udvt(u) => Some(u.name),
+            Item::Error(e) => Some(e.name),
+            Item::Event(e) => Some(e.name),
+            Item::Var(v) => v.name,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ItemId {
+    Contract(ContractId),
+    Function(FunctionId),
+    Var(VarId),
+    Struct(StructId),
+    Enum(EnumId),
+    Udvt(UdvtId),
+    Error(ErrorId),
+    Event(EventId),
+}
+
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
@@ -182,22 +238,11 @@ pub struct Contract<'hir> {
     pub items: &'hir [ItemId],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ItemId {
-    Contract(ContractId),
-    Function(FunctionId),
-    Var(VarId),
-    Struct(StructId),
-    Enum(EnumId),
-    Udvt(UdvtId),
-    Error(ErrorId),
-    Event(EventId),
-}
-
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
     /// The function name.
+    /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
     /// The function span.
     pub span: Span,

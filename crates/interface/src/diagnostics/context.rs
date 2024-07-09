@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
-use std::{borrow::Cow, num::NonZeroUsize, sync::Arc};
+use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 use sulk_data_structures::{map::FxHashSet, sync::Lock};
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
@@ -292,7 +292,7 @@ impl DiagCtxtInner {
     /// Inserts the given diagnostic into the set of emitted diagnostics.
     /// Returns `true` if the diagnostic was already emitted.
     fn insert_diagnostic<H: std::hash::Hash>(&mut self, diag: &H) -> bool {
-        let hash = sulk_data_structures::map::ahash::RandomState::new().hash_one(diag);
+        let hash = sulk_data_structures::map::rustc_hash::FxBuildHasher.hash_one(diag);
         !self.emitted_diagnostics.insert(hash)
     }
 

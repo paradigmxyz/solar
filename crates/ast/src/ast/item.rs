@@ -351,6 +351,7 @@ pub struct ItemFunction {
 #[derive(Clone, Debug, Default)]
 pub struct FunctionHeader {
     /// The name of the function.
+    /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
     /// The parameters of the function.
     pub parameters: ParameterList,
