@@ -9,8 +9,8 @@ use anstream::{AutoStream, ColorChoice};
 use std::{
     io::{self, Write},
     ops::Range,
+    sync::Arc,
 };
-use sulk_data_structures::sync::Lrc;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .error(Level::Error.style())
@@ -27,7 +27,7 @@ pub struct HumanEmitter {
     // NOTE: `AutoStream` only allows bare `Box<dyn Write>`, without any auto-traits.
     // We must implement them manually and enforce them through the public API.
     writer: AutoStream<Box<dyn Write>>,
-    source_map: Option<Lrc<SourceMap>>,
+    source_map: Option<Arc<SourceMap>>,
     renderer: Renderer,
 }
 
@@ -43,7 +43,7 @@ impl Emitter for HumanEmitter {
         .unwrap_or_else(|e| io_panic(e));
     }
 
-    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
+    fn source_map(&self) -> Option<&Arc<SourceMap>> {
         self.source_map.as_ref()
     }
 
@@ -101,11 +101,11 @@ impl HumanEmitter {
         if color_choice == ColorChoice::Auto {
             color_choice = AutoStream::choice(&stderr);
         }
-        Self::new(Box::new(stderr), color_choice)
+        Self::new(Box::new(io::BufWriter::new(stderr)), color_choice)
     }
 
     /// Sets the source map.
-    pub fn source_map(mut self, source_map: Option<Lrc<SourceMap>>) -> Self {
+    pub fn source_map(mut self, source_map: Option<Arc<SourceMap>>) -> Self {
         self.source_map = source_map;
         self
     }
@@ -233,7 +233,7 @@ impl OwnedSnippet {
                 }
 
                 if let Some(main_file) =
-                    files.iter_mut().find(|main_file| Lrc::ptr_eq(&main_file.file, &sub_file.file))
+                    files.iter_mut().find(|main_file| Arc::ptr_eq(&main_file.file, &sub_file.file))
                 {
                     main_file.add_lines(sub_file.lines);
                 } else {

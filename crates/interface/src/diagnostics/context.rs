@@ -4,11 +4,8 @@ use super::{
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
-use std::{borrow::Cow, num::NonZeroUsize};
-use sulk_data_structures::{
-    map::FxHashSet,
-    sync::{Lock, Lrc},
-};
+use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+use sulk_data_structures::{map::FxHashSet, sync::Lock};
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
 #[derive(Clone, Copy)]
@@ -84,13 +81,13 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a TTY emitter.
-    pub fn with_tty_emitter(source_map: Option<Lrc<SourceMap>>) -> Self {
+    pub fn with_tty_emitter(source_map: Option<Arc<SourceMap>>) -> Self {
         Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
     }
 
     /// Creates a new `DiagCtxt` with a TTY emitter and a color choice.
     pub fn with_tty_emitter_and_color(
-        source_map: Option<Lrc<SourceMap>>,
+        source_map: Option<Arc<SourceMap>>,
         color_choice: ColorChoice,
     ) -> Self {
         Self::new(Box::new(HumanEmitter::stderr(color_choice).source_map(source_map)))
@@ -295,7 +292,7 @@ impl DiagCtxtInner {
     /// Inserts the given diagnostic into the set of emitted diagnostics.
     /// Returns `true` if the diagnostic was already emitted.
     fn insert_diagnostic<H: std::hash::Hash>(&mut self, diag: &H) -> bool {
-        let hash = sulk_data_structures::map::ahash::RandomState::new().hash_one(diag);
+        let hash = sulk_data_structures::map::rustc_hash::FxBuildHasher.hash_one(diag);
         !self.emitted_diagnostics.insert(hash)
     }
 

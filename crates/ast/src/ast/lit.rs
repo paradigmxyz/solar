@@ -1,6 +1,5 @@
 use alloy_primitives::Address;
-use std::fmt;
-use sulk_data_structures::sync::Lrc;
+use std::{fmt, sync::Arc};
 use sulk_interface::{kw, Span, Symbol};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
@@ -25,7 +24,7 @@ pub enum LitKind {
     ///
     /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
     /// are allowed, and as such this cannot be a `str` or `Symbol`.
-    Str(StrKind, Lrc<[u8]>),
+    Str(StrKind, Arc<[u8]>),
     /// A decimal or hexadecimal number literal.
     Number(num_bigint::BigInt),
     /// A rational number literal.

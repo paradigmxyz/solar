@@ -20,7 +20,6 @@ vergen = { workspace = true, features = ["build", "git", "gitcl"] }
 
 [dependencies]
 sulk-config = { workspace = true, features = ["clap"] }
-sulk-data-structures.workspace = true
 sulk-interface = { workspace = true, features = ["json"] }
 sulk-sema.workspace = true
 
@@ -42,7 +41,6 @@ sulk-tester.workspace = true
 default = ["jemalloc"]
 nightly = [
     "sulk-config/nightly",
-    "sulk-data-structures/nightly",
     "sulk-interface/nightly",
     "sulk-sema/nightly",
     "sulk-tester/nightly",

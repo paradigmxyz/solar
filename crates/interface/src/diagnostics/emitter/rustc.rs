@@ -5,8 +5,10 @@ use crate::{
     source_map::{Loc, SourceFile},
     SourceMap,
 };
-use std::cmp::{max, min};
-use sulk_data_structures::sync::Lrc;
+use std::{
+    cmp::{max, min},
+    sync::Arc,
+};
 
 #[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub(crate) struct Line {
@@ -169,7 +171,7 @@ pub(crate) struct Annotation {
 
 #[derive(Debug)]
 pub(crate) struct FileWithAnnotatedLines {
-    pub(crate) file: Lrc<SourceFile>,
+    pub(crate) file: Arc<SourceFile>,
     pub(crate) lines: Vec<Line>,
     multiline_depth: usize,
 }
@@ -180,7 +182,7 @@ impl FileWithAnnotatedLines {
     pub(crate) fn collect_annotations(sm: &SourceMap, msp: &MultiSpan) -> Vec<Self> {
         fn add_annotation_to_file(
             file_vec: &mut Vec<FileWithAnnotatedLines>,
-            file: Lrc<SourceFile>,
+            file: Arc<SourceFile>,
             line_index: usize,
             ann: Annotation,
         ) {

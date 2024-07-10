@@ -1,14 +1,13 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, sync::Arc};
 use sulk_config::{EvmVersion, Language, StopAfter};
-use sulk_data_structures::sync::Lrc;
 
 /// Information about the current compiler session.
 pub struct Session {
     /// The diagnostics context.
     pub dcx: DiagCtxt,
     /// The source map.
-    source_map: Lrc<SourceMap>,
+    source_map: Arc<SourceMap>,
 
     /// EVM version.
     pub evm_version: EvmVersion,
@@ -22,7 +21,7 @@ pub struct Session {
 
 impl Session {
     /// Creates a new parser session with the given diagnostics context and source map.
-    pub fn new(dcx: DiagCtxt, source_map: Lrc<SourceMap>) -> Self {
+    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
         Self {
             dcx,
             source_map,
@@ -35,7 +34,7 @@ impl Session {
 
     /// Creates a new parser session with an empty source map.
     pub fn empty(dcx: DiagCtxt) -> Self {
-        Self::new(dcx, Lrc::new(SourceMap::empty()))
+        Self::new(dcx, Arc::new(SourceMap::empty()))
     }
 
     /// Creates a new parser session with a test emitter.
@@ -44,13 +43,13 @@ impl Session {
     }
 
     /// Creates a new parser session with a TTY emitter.
-    pub fn with_tty_emitter(source_map: Lrc<SourceMap>) -> Self {
+    pub fn with_tty_emitter(source_map: Arc<SourceMap>) -> Self {
         Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
     }
 
     /// Creates a new parser session with a TTY emitter and a color choice.
     pub fn with_tty_emitter_and_color(
-        source_map: Lrc<SourceMap>,
+        source_map: Arc<SourceMap>,
         color_choice: ColorChoice,
     ) -> Self {
         let dcx = DiagCtxt::with_tty_emitter_and_color(Some(source_map.clone()), color_choice);
@@ -60,7 +59,7 @@ impl Session {
     /// Creates a new parser session with a silent emitter.
     pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
         let dcx = DiagCtxt::with_silent_emitter(fatal_note);
-        let source_map = Lrc::new(SourceMap::empty());
+        let source_map = Arc::new(SourceMap::empty());
         Self::new(dcx, source_map)
     }
 
@@ -71,7 +70,14 @@ impl Session {
     }
 
     /// Clones the source map.
-    pub fn clone_source_map(&self) -> Lrc<SourceMap> {
+    #[inline]
+    pub fn clone_source_map(&self) -> Arc<SourceMap> {
         self.source_map.clone()
+    }
+
+    /// Returns `true` if parallelism is not enabled.
+    #[inline]
+    pub fn is_sequential(&self) -> bool {
+        self.jobs.get() == 1
     }
 }

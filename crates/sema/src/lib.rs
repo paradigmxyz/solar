@@ -10,12 +10,14 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
-    sync::Lrc,
 };
 use sulk_interface::{
     diagnostics::DiagCtxt,
@@ -31,7 +33,7 @@ pub use ast_validation::AstValidator;
 
 newtype_index! {
     /// A source index.
-    pub(crate) struct SourceId
+    pub(crate) struct SourceId;
 }
 
 #[derive(Default)]
@@ -51,9 +53,9 @@ impl Sources {
         self.0[current].imports.push(import);
     }
 
-    fn add_file(&mut self, file: Lrc<SourceFile>) -> SourceId {
+    fn add_file(&mut self, file: Arc<SourceFile>) -> SourceId {
         if let Some((id, _)) =
-            self.0.iter_enumerated().find(|(_, source)| Lrc::ptr_eq(&source.file, &file))
+            self.0.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
         {
             trace!(file = %file.name.display(), "skipping duplicate source file");
             return id;
@@ -71,7 +73,7 @@ impl Sources {
 }
 
 struct Source {
-    file: Lrc<SourceFile>,
+    file: Arc<SourceFile>,
     /// The AST of the source. None if Yul or parsing failed.
     ast: Option<ast::SourceUnit>,
     imports: IndexVec<SourceId, SourceId>,
@@ -230,7 +232,7 @@ impl<'a> Resolver<'a> {
         &'b self,
         file: &SourceFile,
         ast: Option<&'b ast::SourceUnit>,
-    ) -> impl Iterator<Item = Lrc<SourceFile>> + 'b {
+    ) -> impl Iterator<Item = Arc<SourceFile>> + 'b {
         let parent = match &file.name {
             FileName::Real(path) => Some(path.clone()),
             // Use current directory for stdin.

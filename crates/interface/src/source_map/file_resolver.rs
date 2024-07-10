@@ -10,8 +10,8 @@ use std::{
     borrow::Cow,
     io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
-use sulk_data_structures::sync::Lrc;
 
 /// An error that occurred while resolving a path.
 #[derive(Debug, thiserror::Error)]
@@ -23,7 +23,7 @@ pub enum ResolveError {
     #[error("file not found: {0}")]
     NotFound(PathBuf),
     #[error("multiple files match {0}: {}", _1.iter().map(|f| f.name.display()).format(", "))]
-    MultipleMatches(PathBuf, Vec<Lrc<SourceFile>>),
+    MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),
 }
 
 pub struct FileResolver<'a> {
@@ -83,7 +83,7 @@ impl<'a> FileResolver<'a> {
         &self,
         path: &Path,
         parent: Option<&Path>,
-    ) -> Result<Lrc<SourceFile>, ResolveError> {
+    ) -> Result<Arc<SourceFile>, ResolveError> {
         // https://docs.soliditylang.org/en/latest/path-resolution.html
         // Only when the path starts with ./ or ../ are relative paths considered; this means
         // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
@@ -156,13 +156,13 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Loads stdin into the source map.
-    pub fn load_stdin(&self) -> Result<Lrc<SourceFile>, ResolveError> {
+    pub fn load_stdin(&self) -> Result<Arc<SourceFile>, ResolveError> {
         self.source_map().load_stdin().map_err(ResolveError::ReadStdin)
     }
 
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all)]
-    pub fn try_file(&self, path: &Path) -> Result<Option<Lrc<SourceFile>>, ResolveError> {
+    pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         let cache_path = path.normalize();
         if let Ok(file) = self.source_map().load_file(&cache_path) {
             trace!("loaded from cache");
