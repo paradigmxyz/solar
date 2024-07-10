@@ -97,6 +97,7 @@ pub struct FileLines {
 }
 
 pub struct SourceMap {
+    // INVARIANT: The only operation allowed on `source_files` is `push`.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
     stable_id_to_source_file: DashMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
     hash_kind: SourceFileHashAlgorithm,
@@ -240,13 +241,13 @@ impl SourceMap {
     }
 
     /// Returns the index of the [`SourceFile`] (in `self.files`) that contains `pos`.
-    /// This index is guaranteed to be valid for the lifetime of this `SourceMap`,
-    /// since `source_files` is a `MonotonicVec`
+    ///
+    /// This index is guaranteed to be valid for the lifetime of this `SourceMap`.
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
         self.files().partition_point(|x| x.start_pos <= pos) - 1
     }
 
-    /// Return the SourceFile that contains the given `BytePos`
+    /// Return the SourceFile that contains the given `BytePos`.
     pub fn lookup_source_file(&self, pos: BytePos) -> Arc<SourceFile> {
         let idx = self.lookup_source_file_idx(pos);
         self.files()[idx].clone()

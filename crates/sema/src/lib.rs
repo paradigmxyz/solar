@@ -98,7 +98,7 @@ impl Sources {
             self.topo_order(id, &mut order, &mut seen);
         }
         // Re-map imports.
-        for source in self.sources.iter_mut() {
+        for source in &mut self.sources {
             for (_, import) in &mut source.imports {
                 *import = SourceId::from_usize(order.iter().position(|id| id == import).unwrap());
             }

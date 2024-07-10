@@ -6,7 +6,11 @@ use bumpalo::Bump;
 use rayon::prelude::*;
 use std::{fmt, marker::PhantomData};
 use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, map::FxIndexMap, smallvec::SmallVec};
+use sulk_data_structures::{
+    index::{Idx, IndexVec},
+    map::FxIndexMap,
+    smallvec::SmallVec,
+};
 use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session,
@@ -217,30 +221,28 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
             for &(item_id, import_id) in &source.imports {
                 let item = &source.ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
+                let dcx = &self.sess.dcx;
+                let (source_scope, import_scope) =
+                    get_two_mut(&mut self.source_scopes.raw, source_id.index(), import_id.index());
                 match import.items {
                     ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                         if let Some(alias) = alias {
-                            self.source_scopes[source_id]
-                                .declare(alias, Declaration::Namespace(import_id));
+                            source_scope.declare(alias, Declaration::Namespace(import_id));
                         } else if source_id != import_id {
-                            // TODO: get_many_mut
-                            let scope = self.source_scopes[import_id].clone();
-                            self.source_scopes[source_id].import(&scope);
+                            source_scope.import(import_scope);
                         }
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
                         for &(import, alias) in aliases {
-                            let resolved = self.source_scopes[import_id].resolve(import);
+                            let resolved = import_scope.resolve(import);
                             let name = alias.unwrap_or(import);
                             if resolved.len() == 0 {
                                 drop(resolved);
                                 let msg = format!("unresolved import `{import}`");
-                                let guar = self.dcx().err(msg).span(import.span).emit();
-                                self.source_scopes[source_id].declare(name, Declaration::Err(guar));
+                                let guar = dcx.err(msg).span(import.span).emit();
+                                source_scope.declare(name, Declaration::Err(guar));
                             } else if source_id != import_id {
-                                // TODO: get_many_mut
-                                let resolved = resolved.collect::<Vec<_>>();
-                                self.source_scopes[source_id].declare_many(name, resolved);
+                                source_scope.declare_many(name, resolved);
                             }
                         }
                     }
@@ -318,4 +320,10 @@ impl fmt::Debug for Declaration {
             Declaration::Err(_) => f.write_str("Err"),
         }
     }
+}
+
+fn get_two_mut<T>(sl: &mut [T], idx_1: usize, idx_2: usize) -> (&mut T, &mut T) {
+    assert!(idx_1 != idx_2 && idx_1 < sl.len() && idx_2 < sl.len());
+    let ptr = sl.as_mut_ptr();
+    unsafe { (&mut *ptr.add(idx_1), &mut *ptr.add(idx_2)) }
 }

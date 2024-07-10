@@ -17,7 +17,6 @@ macro_rules! newtype_index {
         $vis struct $name($crate::index::BaseIndex32);
 
         impl std::fmt::Debug for $name {
-            #[inline(always)]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}({:?})", stringify!($name), self.0)
             }
@@ -75,7 +74,6 @@ macro_rules! base_index {
         }
 
         impl fmt::Debug for $name {
-            #[inline(always)]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.value.fmt(f)
             }
@@ -87,6 +85,7 @@ macro_rules! base_index {
                 if value > Self::MAX_AS as usize {
                     index_overflow();
                 }
+                // SAFETY: `value` is less than or equal to `MAX`.
                 unsafe { Self::new_unchecked(value as $primitive) }
             }
 
@@ -113,6 +112,7 @@ macro_rules! base_index {
                 if value > Self::MAX_AS {
                     index_overflow();
                 }
+                // SAFETY: `value` is less than or equal to `MAX`.
                 unsafe { Self::new_unchecked(value) }
             }
 
@@ -123,6 +123,7 @@ macro_rules! base_index {
             /// The caller must ensure that `value` is less than or equal to `MAX`.
             #[inline(always)]
             pub const unsafe fn new_unchecked(value: $primitive) -> Self {
+                // SAFETY: guaranteed by the caller.
                 unsafe {
                     Self {
                         #[cfg(feature = "nightly")]
@@ -139,6 +140,7 @@ macro_rules! base_index {
                 #[cfg(feature = "nightly")]
                 return self.value;
 
+                // SAFETY: non-zero minus one doesn't overflow.
                 #[cfg(not(feature = "nightly"))]
                 return unsafe { self.value.get().unchecked_sub(1) };
             }
