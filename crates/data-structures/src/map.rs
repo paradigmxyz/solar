@@ -1,9 +1,4 @@
 //! Map types.
-//!
-//! - use [`IndexMap`] over [`HashMap`] for deterministic iteration order
-//! - use [`AHasher`] for big keys and [`FxHasher`] for everything else
-//!   - AHash docs make it look like it's faster than everything, but FxHash beats it for all
-//!     primitives and small (<=16 bytes, if not more) strings and byte arrays
 
 use indexmap::{IndexMap, IndexSet};
 use std::{
