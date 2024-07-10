@@ -1,9 +1,4 @@
 //! Map types.
-//!
-//! - use [`IndexMap`] over [`HashMap`] for deterministic iteration order
-//! - use [`AHasher`] for big keys and [`FxHasher`] for everything else
-//!   - AHash docs make it look like it's faster than everything, but FxHash beats it for all
-//!     primitives and small (<=16 bytes, if not more) strings and byte arrays
 
 use indexmap::{IndexMap, IndexSet};
 use std::{
@@ -11,22 +6,12 @@ use std::{
     hash::BuildHasherDefault,
 };
 
-pub use ahash::{self, AHasher};
 pub use rustc_hash::{self, FxBuildHasher, FxHasher};
 
 /// [`HashMap`] entry type.
 pub type StdEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
 /// [`IndexMap`] entry type.
 pub type IndexEntry<'a, K, V> = indexmap::map::Entry<'a, K, V>;
-
-/// A [`HashMap`] using [`AHasher`] as its hasher.
-pub type AHashMap<K, V> = ahash::HashMap<K, V>;
-/// A [`HashSet`] using [`AHasher`] as its hasher.
-pub type AHashSet<V> = ahash::HashSet<V>;
-/// An [`IndexMap`] using [`AHasher`] as its hasher.
-pub type AIndexMap<K, V> = IndexMap<K, V, ahash::RandomState>;
-/// An [`IndexSet`] using [`AHasher`] as its hasher.
-pub type AIndexSet<V> = IndexSet<V, ahash::RandomState>;
 
 /// A [`HashMap`] using [`FxHasher`] as its hasher.
 pub type FxHashMap<K, V> = HashMap<K, V, BuildHasherDefault<FxHasher>>;

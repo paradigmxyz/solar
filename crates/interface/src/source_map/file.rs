@@ -1,10 +1,11 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
+use alloy_primitives::hex;
 use std::{
     fmt, io,
     ops::RangeInclusive,
     path::{Path, PathBuf},
+    sync::Arc,
 };
-use sulk_data_structures::sync::Lrc;
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -199,7 +200,7 @@ pub struct SourceFile {
     /// (e.g., `<stdin>`).
     pub name: FileName,
     /// The complete source code.
-    pub src: Lrc<String>,
+    pub src: Arc<String>,
     /// The source code's hash.
     pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
@@ -237,7 +238,7 @@ impl SourceFile {
         src.shrink_to_fit();
         Ok(Self {
             name,
-            src: Lrc::new(src),
+            src: Arc::new(src),
             src_hash,
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
@@ -425,7 +426,7 @@ impl SourceFile {
 pub enum SourceFileHashAlgorithm {
     #[default]
     None,
-    Md5,
+    // Md5,
     // Sha1,
     // Sha256,
 }
@@ -434,12 +435,14 @@ impl std::str::FromStr for SourceFileHashAlgorithm {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "md5" => Ok(Self::Md5),
-            // "sha1" => Ok(Self::Sha1),
-            // "sha256" => Ok(Self::Sha256),
-            _ => Err(()),
-        }
+        // match s {
+        //     "md5" => Ok(Self::Md5),
+        //     "sha1" => Ok(Self::Sha1),
+        //     "sha256" => Ok(Self::Sha256),
+        //     _ => Err(()),
+        // }
+        let _ = s;
+        Err(())
     }
 }
 
@@ -449,7 +452,7 @@ impl SourceFileHashAlgorithm {
     pub const fn hash_len(self) -> usize {
         match self {
             Self::None => 0,
-            Self::Md5 => 16,
+            // Self::Md5 => 16,
             // Self::Sha1 => 20,
             // Self::Sha256 => 32,
         }
@@ -459,32 +462,45 @@ impl SourceFileHashAlgorithm {
 const MAX_HASH_SIZE: usize = 32;
 
 /// The hash of the on-disk source file used for debug info.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceFileHash {
     kind: SourceFileHashAlgorithm,
     value: [u8; MAX_HASH_SIZE],
 }
 
+impl fmt::Debug for SourceFileHash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut dbg = f.debug_struct("SourceFileHash");
+        dbg.field("kind", &self.kind);
+        if self.kind != SourceFileHashAlgorithm::None {
+            dbg.field("value", &format_args!("{}", hex::encode(self.hash_bytes())));
+        }
+        dbg.finish()
+    }
+}
+
 impl SourceFileHash {
     pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> Self {
-        use md5::digest::{typenum::Unsigned, Digest, OutputSizeUser};
+        // use md5::digest::{typenum::Unsigned, Digest, OutputSizeUser};
 
-        fn digest_into<D: Digest>(data: &[u8], out: &mut [u8; MAX_HASH_SIZE]) {
-            let mut hasher = D::new();
-            hasher.update(data);
-            hasher.finalize_into((&mut out[..<D as OutputSizeUser>::OutputSize::USIZE]).into());
-        }
+        // fn digest_into<D: Digest>(data: &[u8], out: &mut [u8; MAX_HASH_SIZE]) {
+        //     let mut hasher = D::new();
+        //     hasher.update(data);
+        //     hasher.finalize_into((&mut out[..<D as OutputSizeUser>::OutputSize::USIZE]).into());
+        // }
 
-        let mut hash = Self { kind, value: Default::default() };
-        let value = &mut hash.value;
-        let data = src.as_bytes();
-        match kind {
-            SourceFileHashAlgorithm::None => {}
-            SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
-            // SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
-            // SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
-        }
-        hash
+        // let mut hash = Self { kind, value: Default::default() };
+        // let value = &mut hash.value;
+        // let data = src.as_bytes();
+        // match kind {
+        //     SourceFileHashAlgorithm::None => (),
+        //     SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
+        //     SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
+        //     SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
+        // }
+        // hash
+        let _ = src;
+        Self { kind, value: Default::default() }
     }
 
     /// Check if the stored hash matches the hash of the string.

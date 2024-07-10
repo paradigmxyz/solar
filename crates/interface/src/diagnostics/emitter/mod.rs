@@ -1,6 +1,6 @@
 use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
-use sulk_data_structures::sync::Lrc;
+use std::sync::Arc;
 
 mod human;
 pub use human::HumanEmitter;
@@ -22,7 +22,7 @@ pub trait Emitter {
 
     /// Returns a reference to the source map, if any.
     #[inline]
-    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
+    fn source_map(&self) -> Option<&Arc<SourceMap>> {
         None
     }
 

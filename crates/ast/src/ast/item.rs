@@ -16,6 +16,11 @@ pub struct Item {
 }
 
 impl Item {
+    /// Returns the name of the item, if any.
+    pub fn name(&self) -> Option<Ident> {
+        self.kind.name()
+    }
+
     /// Returns the description of the item.
     pub fn description(&self) -> &'static str {
         self.kind.description()
@@ -70,6 +75,21 @@ pub enum ItemKind {
 }
 
 impl ItemKind {
+    /// Returns the name of the item, if any.
+    pub fn name(&self) -> Option<Ident> {
+        match self {
+            Self::Pragma(_) | Self::Import(_) | Self::Using(_) => None,
+            Self::Contract(item) => Some(item.name),
+            Self::Function(item) => item.header.name,
+            Self::Variable(item) => item.name,
+            Self::Struct(item) => Some(item.name),
+            Self::Enum(item) => Some(item.name),
+            Self::Udvt(item) => Some(item.name),
+            Self::Error(item) => Some(item.name),
+            Self::Event(item) => Some(item.name),
+        }
+    }
+
     /// Returns the description of the item.
     pub fn description(&self) -> &'static str {
         match self {
@@ -190,6 +210,13 @@ pub struct ImportDirective {
     /// The path string literal value.
     pub path: StrLit,
     pub items: ImportItems,
+}
+
+impl ImportDirective {
+    /// Returns `true` if the import directive imports all items from the target.
+    pub fn imports_all(&self) -> bool {
+        matches!(self.items, ImportItems::Glob(None) | ImportItems::Plain(None))
+    }
 }
 
 /// The path of an import directive.
@@ -324,6 +351,7 @@ pub struct ItemFunction {
 #[derive(Clone, Debug, Default)]
 pub struct FunctionHeader {
     /// The name of the function.
+    /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
     /// The parameters of the function.
     pub parameters: ParameterList,

@@ -1,8 +1,6 @@
 use crate::SourceMap;
-use sulk_data_structures::{
-    defer,
-    sync::{Lock, Lrc},
-};
+use std::sync::Arc;
+use sulk_data_structures::{defer, sync::Lock};
 
 scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 
@@ -19,7 +17,7 @@ pub struct SessionGlobals {
     ///
     /// This field should only be used in places where the `Session` is truly
     /// not available, such as `<Span as Debug>::fmt`.
-    pub(crate) source_map: Lock<Option<Lrc<SourceMap>>>,
+    pub(crate) source_map: Lock<Option<Arc<SourceMap>>>,
 }
 
 impl Default for SessionGlobals {
@@ -45,7 +43,7 @@ impl SessionGlobals {
 
     /// Insert `source_map` into the session globals for the duration of the
     /// closure's execution.
-    pub fn with_source_map<R>(source_map: Lrc<SourceMap>, f: impl FnOnce() -> R) -> R {
+    pub fn with_source_map<R>(source_map: Arc<SourceMap>, f: impl FnOnce() -> R) -> R {
         Self::with(|g| *g.source_map.lock() = Some(source_map));
 
         let _clear = defer(|| {

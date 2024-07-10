@@ -20,7 +20,6 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
-ahash.workspace = true
 index_vec.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
@@ -28,4 +27,8 @@ rustc-hash.workspace = true
 smallvec = { workspace = true, features = ["union"] }
 
 [features]
-nightly = ["smallvec/specialization", "smallvec/may_dangle", "parking_lot/nightly"]
+nightly = [
+    "smallvec/specialization",
+    "smallvec/may_dangle",
+    "parking_lot/nightly",
+]

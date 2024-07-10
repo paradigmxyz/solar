@@ -9,7 +9,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
  "cfg-if",
- "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -1344,16 +1343,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "md-5"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
-dependencies = [
- "cfg-if",
- "digest 0.10.7",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2311,7 +2300,6 @@ dependencies = [
  "libc",
  "rayon",
  "sulk-config",
- "sulk-data-structures",
  "sulk-interface",
  "sulk-sema",
  "sulk-tester",
@@ -2361,7 +2349,6 @@ dependencies = [
 name = "sulk-data-structures"
 version = "0.0.0"
 dependencies = [
- "ahash",
  "index_vec",
  "indexmap",
  "parking_lot",
@@ -2373,15 +2360,15 @@ dependencies = [
 name = "sulk-interface"
 version = "0.0.0"
 dependencies = [
+ "alloy-primitives",
  "annotate-snippets",
  "anstream",
  "anstyle",
- "bumpalo",
+ "dashmap",
  "itertools 0.13.0",
  "itoa",
  "lasso",
  "match_cfg",
- "md-5",
  "normalize-path",
  "scoped-tls",
  "serde",

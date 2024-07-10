@@ -10,7 +10,6 @@ use std::{
     io,
     sync::{Arc, Mutex, PoisonError},
 };
-use sulk_data_structures::sync::Lrc;
 
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
@@ -34,14 +33,14 @@ impl Emitter for JsonEmitter {
         .unwrap_or_else(|e| io_panic(e));
     }
 
-    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
+    fn source_map(&self) -> Option<&Arc<SourceMap>> {
         Emitter::source_map(&self.human_emitter)
     }
 }
 
 impl JsonEmitter {
     /// Creates a new `JsonEmitter` that writes to given writer.
-    pub fn new(writer: Box<dyn io::Write + Send>, source_map: Lrc<SourceMap>) -> Self {
+    pub fn new(writer: Box<dyn io::Write + Send>, source_map: Arc<SourceMap>) -> Self {
         let buffer = LocalBuffer::new();
         Self {
             writer,
@@ -73,7 +72,7 @@ impl JsonEmitter {
         self
     }
 
-    fn source_map(&self) -> &Lrc<SourceMap> {
+    fn source_map(&self) -> &Arc<SourceMap> {
         Emitter::source_map(self).unwrap()
     }
 

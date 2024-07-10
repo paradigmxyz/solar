@@ -24,12 +24,13 @@ sulk-config.workspace = true
 sulk-data-structures.workspace = true
 sulk-macros.workspace = true
 
-bumpalo.workspace = true
+alloy-primitives.workspace = true
+dashmap.workspace = true
 itertools.workspace = true
 itoa.workspace = true
 lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
 match_cfg.workspace = true
-md-5.workspace = true
+# md-5.workspace = true
 normalize-path = "0.2.1"
 scoped-tls.workspace = true
 thiserror.workspace = true
