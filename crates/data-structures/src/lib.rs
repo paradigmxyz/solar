@@ -24,19 +24,5 @@ pub use never::Never;
 
 pub use smallvec;
 
-/// Returns a structure that calls `f` when dropped.
-#[inline]
-pub fn defer<F: FnOnce()>(f: F) -> impl Drop {
-    struct OnDrop<F: FnOnce()>(Option<F>);
-
-    impl<F: FnOnce()> Drop for OnDrop<F> {
-        #[inline]
-        fn drop(&mut self) {
-            if let Some(f) = self.0.take() {
-                f();
-            }
-        }
-    }
-
-    OnDrop(Some(f))
-}
+mod on_drop;
+pub use on_drop::{defer, OnDrop};

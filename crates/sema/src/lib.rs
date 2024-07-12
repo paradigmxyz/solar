@@ -9,15 +9,16 @@
 #[macro_use]
 extern crate tracing;
 
+use bumpalo::Bump;
 use rayon::prelude::*;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
+    OnDrop,
 };
 use sulk_interface::{
     diagnostics::DiagCtxt,
@@ -25,6 +26,13 @@ use sulk_interface::{
     Result, Session,
 };
 use sulk_parse::{Lexer, Parser};
+use thread_local::ThreadLocal;
+
+// Convenience re-exports.
+pub use ::thread_local;
+pub use bumpalo;
+pub use sulk_ast::ast;
+pub use sulk_interface as interface;
 
 mod ast_passes;
 
@@ -37,21 +45,21 @@ mod staging;
 pub use staging::SymbolCollector;
 
 #[derive(Default)]
-pub(crate) struct Sources {
-    pub(crate) sources: IndexVec<SourceId, Source<'static>>,
+pub(crate) struct Sources<'ast> {
+    pub(crate) sources: IndexVec<SourceId, Source<'ast, 'static>>,
 }
 
 #[allow(dead_code)]
-impl Sources {
+impl<'ast> Sources<'ast> {
     fn new() -> Self {
         Self { sources: IndexVec::new() }
     }
 
-    fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit> {
+    fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit<'ast>> {
         self.sources.iter().filter_map(|source| source.ast.as_ref())
     }
 
-    fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit> {
+    fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit<'ast>> {
         self.sources.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }
 
@@ -126,37 +134,37 @@ impl Sources {
     }
 }
 
-impl std::ops::Deref for Sources {
-    type Target = IndexVec<SourceId, Source<'static>>;
+impl<'ast> std::ops::Deref for Sources<'ast> {
+    type Target = IndexVec<SourceId, Source<'ast, 'static>>;
 
     fn deref(&self) -> &Self::Target {
         &self.sources
     }
 }
 
-impl std::ops::DerefMut for Sources {
+impl std::ops::DerefMut for Sources<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.sources
     }
 }
 
 /// Semantic analysis context.
-pub struct Sema<'a> {
+pub struct Sema<'sess> {
     /// The file resolver.
-    pub file_resolver: FileResolver<'a>,
+    pub file_resolver: FileResolver<'sess>,
     /// The session.
-    pub sess: &'a Session,
-    sources: Sources,
+    pub sess: &'sess Session,
+    sources: Sources<'static>,
 }
 
-impl<'a> Sema<'a> {
+impl<'sess> Sema<'sess> {
     /// Creates a new context.
-    pub fn new(sess: &'a Session) -> Self {
+    pub fn new(sess: &'sess Session) -> Self {
         Self { file_resolver: FileResolver::new(sess.source_map()), sess, sources: Sources::new() }
     }
 
     /// Returns the diagnostic context.
-    pub fn dcx(&self) -> &'a DiagCtxt {
+    pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
     }
 
@@ -210,25 +218,35 @@ impl<'a> Sema<'a> {
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         self.ensure_sources()?;
 
-        self.parse();
+        let ast_arenas = OnDrop::new(ThreadLocal::<Bump>::new(), |mut arenas| {
+            debug!(
+                "dropping AST arenas containg {} / {} bytes",
+                arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),
+                arenas.iter_mut().map(|a| a.allocated_bytes_including_metadata()).sum::<usize>(),
+            );
+            debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
+        });
+        let mut sources = self.parse(&ast_arenas);
+
         #[cfg(debug_assertions)]
-        self.sources.debug_assert_unique();
+        sources.debug_assert_unique();
+
         if self.sess.language.is_yul() || self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
             return Ok(());
         }
 
         debug_span!("all_ast_passes").in_scope(|| {
-            self.sources.par_asts().for_each(|ast| {
+            sources.par_asts().for_each(|ast| {
                 ast_passes::run(self.sess, ast);
             });
         });
 
         self.dcx().has_errors()?;
 
-        self.sources.topo_sort();
+        sources.topo_sort();
 
         let arena = bumpalo::Bump::new();
-        let hir = ast_lowering::lower(self.sess, std::mem::take(&mut self.sources), &arena);
+        let hir = ast_lowering::lower(self.sess, sources, &arena);
 
         self.dcx().has_errors()?;
 
@@ -248,24 +266,29 @@ impl<'a> Sema<'a> {
 
     /// Parses all the loaded sources, recursing into imports.
     #[instrument(level = "debug", skip_all)]
-    fn parse(&mut self) {
-        let mut sources = std::mem::take(&mut self.sources);
+    fn parse<'ast>(&mut self, arenas: &'ast ThreadLocal<Bump>) -> Sources<'ast> {
+        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the values are
+        // populated, so this is safe.
+        let sources: Sources<'static> = std::mem::take(&mut self.sources);
+        let mut sources: Sources<'ast> =
+            unsafe { std::mem::transmute::<Sources<'static>, Sources<'ast>>(sources) };
+        assert!(!sources.is_empty(), "no sources to parse");
         if self.sess.is_sequential() {
-            self.parse_sequential(&mut sources);
+            self.parse_sequential(&mut sources, arenas.get_or_default());
         } else {
-            self.parse_parallel(&mut sources);
+            self.parse_parallel(&mut sources, arenas);
         }
-        debug!("parsed {} files", sources.len());
-        self.sources = sources;
+        debug!(sources.len = sources.len(), "parsed");
+        sources
     }
 
-    fn parse_sequential(&self, sources: &mut Sources) {
+    fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast Bump) {
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
             let Some(source) = sources.get(current_file) else { break };
             debug_assert!(source.ast.is_none(), "source already parsed");
 
-            let ast = self.parse_one(&source.file);
+            let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
             for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
                 sources.add_import(current_file, import_item_id, import);
@@ -278,7 +301,7 @@ impl<'a> Sema<'a> {
         }
     }
 
-    fn parse_parallel(&self, sources: &mut Sources) {
+    fn parse_parallel<'ast>(&self, sources: &mut Sources<'ast>, arenas: &'ast ThreadLocal<Bump>) {
         let mut start = 0;
         loop {
             let base = start;
@@ -293,7 +316,7 @@ impl<'a> Sema<'a> {
                 .enumerate()
                 .flat_map_iter(|(i, source)| {
                     debug_assert!(source.ast.is_none(), "source already parsed");
-                    source.ast = self.parse_one(&source.file);
+                    source.ast = self.parse_one(&source.file, arenas.get_or_default());
                     self.resolve_imports(&source.file, source.ast.as_ref())
                         .map(move |import| (i, import))
                 })
@@ -311,27 +334,37 @@ impl<'a> Sema<'a> {
 
     /// Parses a single file.
     #[instrument(level = "debug", skip_all, fields(file = %file.name.display()))]
-    fn parse_one(&self, file: &SourceFile) -> Option<ast::SourceUnit> {
+    fn parse_one<'ast>(
+        &self,
+        file: &SourceFile,
+        arena: &'ast Bump,
+    ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
-        let mut parser = Parser::from_lexer(lexer);
-        if self.sess.language.is_yul() {
+        let mut parser = Parser::from_lexer(arena, lexer);
+        let r = if self.sess.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
-        }
+        };
+        trace!(
+            "AST size {} / {}",
+            arena.allocated_bytes(),
+            arena.allocated_bytes_including_metadata(),
+        );
+        r
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files.
-    fn resolve_imports<'b>(
-        &'b self,
+    fn resolve_imports(
+        &self,
         file: &SourceFile,
-        ast: Option<&'b ast::SourceUnit>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + 'b {
+        ast: Option<&ast::SourceUnit<'_>>,
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
         let parent = match &file.name {
-            FileName::Real(path) => Some(path.clone()),
+            FileName::Real(path) => Some(path.as_path()),
             // Use current directory for stdin.
-            FileName::Stdin => Some(PathBuf::from("")),
+            FileName::Stdin => Some(Path::new("")),
             FileName::Custom(_) => None,
         };
         let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
@@ -349,11 +382,14 @@ impl<'a> Sema<'a> {
                 let path_str = import.path.value.as_str();
                 let path = Path::new(path_str);
                 self.file_resolver
-                    .resolve_file(path, parent.as_deref())
+                    .resolve_file(path, parent)
                     .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
                     .ok()
                     .map(|file| (id, file))
             })
+            // TODO: Must collect here due to lifetimes
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 

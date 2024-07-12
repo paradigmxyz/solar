@@ -1,84 +1,85 @@
 use super::{Lit, SubDenomination, Ty};
+use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
 /// A list of named arguments: `{a: "1", b: 2}`.
-pub type NamedArgList = Vec<NamedArg>;
+pub type NamedArgList<'ast> = Box<'ast, [NamedArg<'ast>]>;
 
 /// An expression.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression>
-#[derive(Clone, Debug)]
-pub struct Expr {
+#[derive(Debug)]
+pub struct Expr<'ast> {
     pub span: Span,
-    pub kind: ExprKind,
+    pub kind: ExprKind<'ast>,
 }
 
-impl Expr {
+impl<'ast> Expr<'ast> {
     /// Creates a new expression from an identifier.
     pub fn from_ident(ident: Ident) -> Self {
         Self { span: ident.span, kind: ExprKind::Ident(ident) }
     }
 
     /// Creates a new expression from a type.
-    pub fn from_ty(ty: Ty) -> Self {
+    pub fn from_ty(ty: Ty<'ast>) -> Self {
         Self { span: ty.span, kind: ExprKind::Type(ty) }
     }
 }
 
 /// A kind of expression.
-#[derive(Clone, Debug)]
-pub enum ExprKind {
+#[derive(Debug)]
+pub enum ExprKind<'ast> {
     /// An array literal expression: `[a, b, c, d]`.
-    Array(Vec<Box<Expr>>),
+    Array(Box<'ast, [Box<'ast, Expr<'ast>>]>),
 
     /// An assignment: `a = b`, `a += b`.
-    Assign(Box<Expr>, Option<BinOp>, Box<Expr>),
+    Assign(Box<'ast, Expr<'ast>>, Option<BinOp>, Box<'ast, Expr<'ast>>),
 
     /// A binary operation: `a + b`, `a >> b`.
-    Binary(Box<Expr>, BinOp, Box<Expr>),
+    Binary(Box<'ast, Expr<'ast>>, BinOp, Box<'ast, Expr<'ast>>),
 
     /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
-    Call(Box<Expr>, CallArgs),
+    Call(Box<'ast, Expr<'ast>>, CallArgs<'ast>),
 
     /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
-    CallOptions(Box<Expr>, NamedArgList),
+    CallOptions(Box<'ast, Expr<'ast>>, NamedArgList<'ast>),
 
     /// A unary `delete` expression: `delete vector`.
-    Delete(Box<Expr>),
+    Delete(Box<'ast, Expr<'ast>>),
 
     /// An identifier: `foo`.
     Ident(Ident),
 
     /// A square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
-    Index(Box<Expr>, IndexKind),
+    Index(Box<'ast, Expr<'ast>>, IndexKind<'ast>),
 
     /// A literal: `hex"1234"`, `5.6 ether`.
     Lit(Lit, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
-    Member(Box<Expr>, Ident),
+    Member(Box<'ast, Expr<'ast>>, Ident),
 
     /// A `new` expression: `new Contract`.
-    New(Ty),
+    New(Ty<'ast>),
 
     /// A `payable` expression: `payable(address(0x...))`.
-    Payable(CallArgs),
+    Payable(CallArgs<'ast>),
 
     /// A ternary (AKA conditional) expression: `foo ? bar : baz`.
-    Ternary(Box<Expr>, Box<Expr>, Box<Expr>),
+    Ternary(Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(Vec<Option<Box<Expr>>>),
+    Tuple(Box<'ast, [Option<Box<'ast, Expr<'ast>>>]>),
 
     /// A `type()` expression: `type(uint256)`
-    TypeCall(Ty),
+    TypeCall(Ty<'ast>),
 
     /// An elementary type name: `uint256`.
-    Type(Ty),
+    Type(Ty<'ast>),
 
     /// A unary operation: `!x`, `-x`, `x++`.
-    Unary(UnOp, Box<Expr>),
+    Unary(UnOp, Box<'ast, Expr<'ast>>),
 }
 
 /// A binary operation: `a + b`, `a += b`.
@@ -259,43 +260,41 @@ impl UnOpKind {
 }
 
 /// A list of function call arguments.
-#[derive(Clone, Debug)]
-pub enum CallArgs {
+#[derive(Debug)]
+pub enum CallArgs<'ast> {
     /// A list of unnamed arguments: `(1, 2, 3)`.
-    Unnamed(Vec<Box<Expr>>),
+    Unnamed(Box<'ast, [Box<'ast, Expr<'ast>>]>),
 
     /// A list of named arguments: `({x: 1, y: 2, z: 3})`.
-    Named(NamedArgList),
+    Named(NamedArgList<'ast>),
 }
 
-impl Default for CallArgs {
-    #[inline]
+impl Default for CallArgs<'_> {
     fn default() -> Self {
-        Self::Unnamed(Vec::new())
+        Self::empty()
     }
 }
 
-impl CallArgs {
+impl CallArgs<'_> {
     /// Creates a new empty list of unnamed arguments.
-    #[inline]
     pub fn empty() -> Self {
-        Self::Unnamed(Vec::new())
+        Self::Unnamed(Box::default())
     }
 }
 
 /// A named argument: `name: value`.
-#[derive(Clone, Debug)]
-pub struct NamedArg {
+#[derive(Debug)]
+pub struct NamedArg<'ast> {
     pub name: Ident,
-    pub value: Box<Expr>,
+    pub value: Box<'ast, Expr<'ast>>,
 }
 
 /// A kind of square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
-#[derive(Clone, Debug)]
-pub enum IndexKind {
+#[derive(Debug)]
+pub enum IndexKind<'ast> {
     /// A single index: `vector[index]`.
-    Index(Option<Box<Expr>>),
+    Index(Option<Box<'ast, Expr<'ast>>>),
 
     /// A slice: `slice[l:r]`.
-    Range(Option<Box<Expr>>, Option<Box<Expr>>),
+    Range(Option<Box<'ast, Expr<'ast>>>, Option<Box<'ast, Expr<'ast>>>),
 }

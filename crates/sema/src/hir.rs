@@ -14,7 +14,7 @@ pub use sulk_ast::ast::{ContractKind, FunctionKind, StateMutability, Visibility}
 #[derive(Debug)]
 pub struct Hir<'hir> {
     /// All sources.
-    pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
+    pub(crate) sources: IndexVec<SourceId, Source<'hir, 'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -93,7 +93,7 @@ macro_rules! indexvec_methods {
 }
 
 indexvec_methods! {
-    source => sources, SourceId => Source<'hir>;
+    source => sources, SourceId => Source<'hir, 'hir>;
     contract => contracts, ContractId => Contract<'hir>;
     function => functions, FunctionId => Function<'hir>;
     strukt => structs, StructId => Struct<'hir>;
@@ -150,17 +150,17 @@ newtype_index! {
 }
 
 /// A source file.
-pub struct Source<'hir> {
+pub struct Source<'ast, 'hir> {
     pub file: Arc<SourceFile>,
     /// The AST of the source. None if Yul, parsing failed, or is after lowering where it's no
     /// longer needed.
-    pub ast: Option<ast::SourceUnit>,
+    pub ast: Option<ast::SourceUnit<'ast>>,
     pub imports: Vec<(ast::ItemId, SourceId)>,
     /// The source items.
     pub items: &'hir [ItemId],
 }
 
-impl fmt::Debug for Source<'_> {
+impl fmt::Debug for Source<'_, '_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Source")
             .field("file", &self.file.name)
@@ -171,7 +171,7 @@ impl fmt::Debug for Source<'_> {
     }
 }
 
-impl Source<'_> {
+impl Source<'_, '_> {
     pub(crate) fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new(), items: &[] }
     }
@@ -221,14 +221,14 @@ impl fmt::Debug for ItemId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ItemId::")?;
         match self {
-            ItemId::Contract(id) => id.fmt(f),
-            ItemId::Function(id) => id.fmt(f),
-            ItemId::Var(id) => id.fmt(f),
-            ItemId::Struct(id) => id.fmt(f),
-            ItemId::Enum(id) => id.fmt(f),
-            ItemId::Udvt(id) => id.fmt(f),
-            ItemId::Error(id) => id.fmt(f),
-            ItemId::Event(id) => id.fmt(f),
+            Self::Contract(id) => id.fmt(f),
+            Self::Function(id) => id.fmt(f),
+            Self::Var(id) => id.fmt(f),
+            Self::Struct(id) => id.fmt(f),
+            Self::Enum(id) => id.fmt(f),
+            Self::Udvt(id) => id.fmt(f),
+            Self::Error(id) => id.fmt(f),
+            Self::Event(id) => id.fmt(f),
         }
     }
 }

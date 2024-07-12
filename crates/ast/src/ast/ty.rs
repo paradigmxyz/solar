@@ -1,17 +1,18 @@
 use super::{Expr, FunctionHeader, ParameterList, Path, StateMutability, Visibility};
+use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.typeName>
-#[derive(Clone, Debug)]
-pub struct Ty {
+#[derive(Debug)]
+pub struct Ty<'ast> {
     pub span: Span,
-    pub kind: TyKind,
+    pub kind: TyKind<'ast>,
 }
 
-impl Ty {
+impl Ty<'_> {
     /// Returns `true` if the type is an elementary type.
     #[inline]
     pub fn is_elementary(&self) -> bool {
@@ -26,8 +27,8 @@ impl Ty {
 }
 
 /// The kind of a type.
-#[derive(Clone, Debug)]
-pub enum TyKind {
+#[derive(Debug)]
+pub enum TyKind<'ast> {
     // `elementary-type-name`: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
     /// Ethereum address, 20-byte fixed-size byte array.
     /// `address $(payable)?`
@@ -63,17 +64,17 @@ pub enum TyKind {
     FixedBytes(TySize),
 
     /// `$element[$($size)?]`
-    Array(Box<TypeArray>),
+    Array(Box<'ast, TypeArray<'ast>>),
     /// `function($($parameters),*) $($attributes)* $(returns ($($returns),+))?`
-    Function(Box<FunctionHeader>),
+    Function(Box<'ast, FunctionHeader<'ast>>),
     /// `mapping($key $($key_name)? => $value $($value_name)?)`
-    Mapping(Box<TypeMapping>),
+    Mapping(Box<'ast, TypeMapping<'ast>>),
 
     /// A custom type.
     Custom(Path),
 }
 
-impl TyKind {
+impl<'ast> TyKind<'ast> {
     /// Returns `true` if the type is an elementary type.
     ///
     /// Note that this does not include `Custom` types.
@@ -197,30 +198,30 @@ impl TyFixedSize {
 }
 
 /// An array type.
-#[derive(Clone, Debug)]
-pub struct TypeArray {
-    pub element: Ty,
-    pub size: Option<Box<Expr>>,
+#[derive(Debug)]
+pub struct TypeArray<'ast> {
+    pub element: Ty<'ast>,
+    pub size: Option<Box<'ast, Expr<'ast>>>,
 }
 
 /// A function type name.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName>
-#[derive(Clone, Debug)]
-pub struct TypeFunction {
-    pub parameters: ParameterList,
+#[derive(Debug)]
+pub struct TypeFunction<'ast> {
+    pub parameters: ParameterList<'ast>,
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
-    pub returns: ParameterList,
+    pub returns: ParameterList<'ast>,
 }
 
 /// A mapping type.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType>
-#[derive(Clone, Debug)]
-pub struct TypeMapping {
-    pub key: Ty,
+#[derive(Debug)]
+pub struct TypeMapping<'ast> {
+    pub key: Ty<'ast>,
     pub key_name: Option<Ident>,
-    pub value: Ty,
+    pub value: Ty<'ast>,
     pub value_name: Option<Ident>,
 }

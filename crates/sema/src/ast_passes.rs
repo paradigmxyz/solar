@@ -4,14 +4,14 @@ use sulk_ast::{ast, visit::Visit};
 use sulk_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
-pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit) {
+pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
     // TODO: Desugar here.
     validate(sess, ast);
 }
 
 /// Performs AST validation.
 #[instrument(name = "validate", level = "debug", skip_all)]
-pub fn validate(sess: &Session, ast: &ast::SourceUnit) {
+pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
     let mut validator = AstValidator::new(sess);
     validator.visit_source_unit(ast);
 }
@@ -35,12 +35,12 @@ impl<'sess> AstValidator<'sess> {
 }
 
 impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
-    fn visit_item(&mut self, item: &'ast ast::Item) {
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
         self.span = item.span;
         self.walk_item(item);
     }
 
-    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective) {
+    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
@@ -72,9 +72,9 @@ impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
 
     // Intentionally override unused default implementations to reduce bloat.
 
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr) {}
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
 
-    fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt) {}
+    fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt<'ast>) {}
 
-    fn visit_ty(&mut self, _ty: &'ast ast::Ty) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Ty<'ast>) {}
 }

@@ -100,6 +100,14 @@ fn expand_streams(tts: &TokenStream) -> (TokenStream, TokenStream) {
                 let mut_token = tt_iter.next().unwrap();
                 mut_tts.append(mut_token);
             }
+            TokenTree::Punct(punct)
+                if punct.as_char() == '#'
+                    && tt_iter.clone().next().is_some_and(is_token_onlymut) =>
+            {
+                let _onlymut_token = tt_iter.next().unwrap();
+                let TokenTree::Group(group) = tt_iter.next().unwrap() else { continue };
+                mut_tts.extend(group.stream());
+            }
             TokenTree::Ident(id)
                 if tt_iter.clone().next().is_some_and(is_token_hash)
                     && tt_iter.clone().nth(1).is_some_and(is_token_underscore_mut) =>
@@ -128,6 +136,13 @@ fn is_token_hash(tt: TokenTree) -> bool {
 fn is_token_mut(tt: TokenTree) -> bool {
     if let TokenTree::Ident(ident) = tt {
         return ident == "mut";
+    }
+    false
+}
+
+fn is_token_onlymut(tt: TokenTree) -> bool {
+    if let TokenTree::Ident(ident) = tt {
+        return ident == "onlymut";
     }
     false
 }

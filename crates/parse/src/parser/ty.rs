@@ -4,10 +4,10 @@ use std::{fmt, ops::RangeInclusive};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_type(&mut self) -> PResult<'a, Ty> {
+    pub fn parse_type(&mut self) -> PResult<'sess, Ty<'ast>> {
         let mut ty =
             self.parse_spanned(Self::parse_basic_ty_kind).map(|(span, kind)| Ty { span, kind })?;
 
@@ -21,7 +21,7 @@ impl<'a> Parser<'a> {
             self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
             ty = Ty {
                 span: ty.span.to(self.prev_token.span),
-                kind: TyKind::Array(Box::new(TypeArray { element: ty, size })),
+                kind: TyKind::Array(self.alloc(TypeArray { element: ty, size })),
             };
         }
 
@@ -29,14 +29,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a type kind. Does not parse suffixes.
-    fn parse_basic_ty_kind(&mut self) -> PResult<'a, TyKind> {
+    fn parse_basic_ty_kind(&mut self) -> PResult<'sess, TyKind<'ast>> {
         if self.check_elementary_type() {
             self.parse_elementary_type()
         } else if self.eat_keyword(kw::Function) {
             self.parse_function_header(FunctionFlags::FUNCTION_TY)
-                .map(|x| TyKind::Function(Box::new(x)))
+                .map(|x| TyKind::Function(self.alloc(x)))
         } else if self.eat_keyword(kw::Mapping) {
-            self.parse_mapping_type().map(|x| TyKind::Mapping(Box::new(x)))
+            self.parse_mapping_type().map(|x| TyKind::Mapping(self.alloc(x)))
         } else if self.check_path() {
             self.parse_path().map(TyKind::Custom)
         } else {
@@ -45,7 +45,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an elementary type.
-    pub(super) fn parse_elementary_type(&mut self) -> PResult<'a, TyKind> {
+    pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, TyKind<'ast>> {
         let id = self.parse_ident_any()?;
         let kind = match id.name {
             kw::Address => TyKind::Address(match self.parse_state_mutability() {
@@ -72,7 +72,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses `intN`, `uintN`, `bytesN`, `fixedMxN`, or `ufixedMxN`.
-    fn parse_dynamic_elementary_type(&mut self, original: &str) -> PResult<'a, TyKind> {
+    fn parse_dynamic_elementary_type(&mut self, original: &str) -> PResult<'sess, TyKind<'ast>> {
         let s = original;
         if let Some(s) = s.strip_prefix("bytes") {
             debug_assert!(!s.is_empty());
@@ -98,15 +98,15 @@ impl<'a> Parser<'a> {
         unreachable!("unexpected elementary type: {original:?}");
     }
 
-    fn parse_fb_size(&mut self, s: &str) -> PResult<'a, TySize> {
+    fn parse_fb_size(&mut self, s: &str) -> PResult<'sess, TySize> {
         self.parse_ty_size_u8(s, 1..=32, false).map(|x| TySize::new(x).unwrap())
     }
 
-    fn parse_int_size(&mut self, s: &str) -> PResult<'a, TySize> {
+    fn parse_int_size(&mut self, s: &str) -> PResult<'sess, TySize> {
         self.parse_ty_size_u8(s, 1..=32, true).map(|x| TySize::new(x).unwrap())
     }
 
-    fn parse_fixed_size(&mut self, s: &str) -> PResult<'a, (TySize, TyFixedSize)> {
+    fn parse_fixed_size(&mut self, s: &str) -> PResult<'sess, (TySize, TyFixedSize)> {
         let (m, n) = s
             .split_once('x')
             .ok_or_else(|| self.dcx().err("`fixed` sizes must be separated by exactly one 'x'"))?;
@@ -124,12 +124,12 @@ impl<'a> Parser<'a> {
         s: &str,
         range: RangeInclusive<u8>,
         to_bytes: bool,
-    ) -> PResult<'a, u8> {
+    ) -> PResult<'sess, u8> {
         parse_ty_size_u8(s, range, to_bytes).map_err(|e| self.dcx().err(e.to_string()))
     }
 
     /// Parses a mapping type.
-    fn parse_mapping_type(&mut self) -> PResult<'a, TypeMapping> {
+    fn parse_mapping_type(&mut self) -> PResult<'sess, TypeMapping<'ast>> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;

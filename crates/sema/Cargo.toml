@@ -27,6 +27,7 @@ paste.workspace = true
 # petgraph.workspace = true
 rayon.workspace = true
 tracing.workspace = true
+thread_local = "1.1"
 
 [features]
 nightly = [

@@ -1,6 +1,7 @@
 //! Solidity AST.
 
-use sulk_data_structures::{index::IndexVec, newtype_index, smallvec::SmallVec};
+use bumpalo::boxed::Box;
+use sulk_data_structures::{index::IndexSlice, newtype_index, smallvec::SmallVec};
 
 pub use crate::token::CommentKind;
 pub use sulk_interface::{Ident, Span, Symbol};
@@ -24,6 +25,9 @@ mod ty;
 pub use ty::*;
 
 pub mod yul;
+
+/// A list of doc-comments.
+pub type DocComments<'ast> = bumpalo::boxed::Box<'ast, [DocComment]>;
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Clone, Debug)]
@@ -172,10 +176,19 @@ impl Path {
 }
 
 /// A Solidity source file.
-#[derive(Clone, Debug)]
-pub struct SourceUnit {
+#[derive(Debug)]
+pub struct SourceUnit<'ast> {
     /// The source unit's items.
-    pub items: IndexVec<ItemId, Item>,
+    pub items: Box<'ast, IndexSlice<ItemId, [Item<'ast>]>>,
+}
+
+impl<'ast> SourceUnit<'ast> {
+    /// Creates a new source unit from the given items.
+    pub fn new(items: Box<'ast, [Item<'ast>]>) -> Self {
+        // SAFETY: Casting `Box<[T]> -> Box<IndexSlice<[T]>>` is safe.
+        let ptr = Box::into_raw(items) as *mut IndexSlice<ItemId, [Item<'ast>]>;
+        Self { items: unsafe { Box::from_raw(ptr) } }
+    }
 }
 
 newtype_index! {
