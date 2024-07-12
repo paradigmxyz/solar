@@ -233,26 +233,37 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
                 let item = &source.ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
                 let dcx = &self.sess.dcx;
-                let (source_scope, import_scope) =
-                    get_two_mut(&mut self.source_scopes.raw, source_id.index(), import_id.index());
+                let (source_scope, import_scope) = if source_id != import_id {
+                    let (a, b) = get_two_mut(
+                        &mut self.source_scopes.raw,
+                        source_id.index(),
+                        import_id.index(),
+                    );
+                    (a, Some(&*b))
+                } else {
+                    (&mut self.source_scopes[source_id], None)
+                };
                 match import.items {
                     ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                         if let Some(alias) = alias {
                             source_scope.declare(alias, Declaration::Namespace(import_id));
-                        } else if source_id != import_id {
+                        } else if let Some(import_scope) = import_scope {
                             source_scope.import(import_scope);
                         }
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
                         for &(import, alias) in aliases.iter() {
-                            let resolved = import_scope.resolve(import);
+                            let resolved =
+                                import_scope.map(|import_scope| import_scope.resolve(import));
                             let name = alias.unwrap_or(import);
-                            if resolved.len() == 0 {
+                            if resolved.is_none()
+                                || resolved.as_ref().is_some_and(|resolved| resolved.len() == 0)
+                            {
                                 drop(resolved);
                                 let msg = format!("unresolved import `{import}`");
                                 let guar = dcx.err(msg).span(import.span).emit();
                                 source_scope.declare(name, Declaration::Err(guar));
-                            } else if source_id != import_id {
+                            } else if let Some(resolved) = resolved {
                                 source_scope.declare_many(name, resolved);
                             }
                         }
