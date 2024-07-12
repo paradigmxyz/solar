@@ -14,7 +14,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_item(&mut self, item: &'ast #mut Item) {
+        fn visit_item(&mut self, item: &'ast #mut Item<'ast>) {
             let Item { docs, span, kind } = item;
             self.visit_span #_mut(span);
             self.visit_doc_comments #_mut(docs);
@@ -33,12 +33,12 @@ declare_visitors! {
             }
         }
 
-        fn visit_pragma_directive(&mut self, pragma: &'ast #mut PragmaDirective) {
+        fn visit_pragma_directive(&mut self, pragma: &'ast #mut PragmaDirective<'ast>) {
             // noop by default.
             let PragmaDirective { tokens: _ } = pragma;
         }
 
-        fn visit_import_directive(&mut self, import: &'ast #mut ImportDirective) {
+        fn visit_import_directive(&mut self, import: &'ast #mut ImportDirective<'ast>) {
             let ImportDirective { path, items } = import;
             let _ = path; // TODO: ?
             match items {
@@ -63,7 +63,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_using_directive(&mut self, using: &'ast #mut UsingDirective) {
+        fn visit_using_directive(&mut self, using: &'ast #mut UsingDirective<'ast>) {
             let UsingDirective { list, ty, global: _ } = using;
             match list {
                 UsingList::Single(path) => {
@@ -80,7 +80,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract) {
+        fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) {
             let ItemContract { kind: _, name, inheritance, body } = contract;
             self.visit_ident #_mut(name);
             for modifier in inheritance {
@@ -91,7 +91,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_item_function(&mut self, function: &'ast #mut ItemFunction) {
+        fn visit_item_function(&mut self, function: &'ast #mut ItemFunction<'ast>) {
             let ItemFunction { kind: _, header, body } = function;
             self.visit_function_header #_mut(header);
             if let Some(body) = body {
@@ -99,7 +99,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_item_struct(&mut self, strukt: &'ast #mut ItemStruct) {
+        fn visit_item_struct(&mut self, strukt: &'ast #mut ItemStruct<'ast>) {
             let ItemStruct { name, fields } = strukt;
             self.visit_ident #_mut(name);
             for field in fields {
@@ -107,7 +107,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_item_enum(&mut self, enum_: &'ast #mut ItemEnum) {
+        fn visit_item_enum(&mut self, enum_: &'ast #mut ItemEnum<'ast>) {
             let ItemEnum { name, variants } = enum_;
             self.visit_ident #_mut(name);
             for variant in variants {
@@ -115,25 +115,25 @@ declare_visitors! {
             }
         }
 
-        fn visit_item_udvt(&mut self, udvt: &'ast #mut ItemUdvt) {
+        fn visit_item_udvt(&mut self, udvt: &'ast #mut ItemUdvt<'ast>) {
             let ItemUdvt { name, ty } = udvt;
             self.visit_ident #_mut(name);
             self.visit_ty #_mut(ty);
         }
 
-        fn visit_item_error(&mut self, error: &'ast #mut ItemError) {
+        fn visit_item_error(&mut self, error: &'ast #mut ItemError<'ast>) {
             let ItemError { name, parameters } = error;
             self.visit_ident #_mut(name);
             self.visit_parameter_list #_mut(parameters);
         }
 
-        fn visit_item_event(&mut self, event: &'ast #mut ItemEvent) {
+        fn visit_item_event(&mut self, event: &'ast #mut ItemEvent<'ast>) {
             let ItemEvent { name, parameters, anonymous: _ } = event;
             self.visit_ident #_mut(name);
             self.visit_parameter_list #_mut(parameters);
         }
 
-        fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition) {
+        fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition<'ast>) {
             let VariableDefinition {
                 ty,
                 visibility: _,
@@ -153,7 +153,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_ty(&mut self, ty: &'ast #mut Ty) {
+        fn visit_ty(&mut self, ty: &'ast #mut Ty<'ast>) {
             let Ty { span, kind } = ty;
             self.visit_span #_mut(span);
             match kind {
@@ -190,7 +190,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader) {
+        fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) {
             let FunctionHeader {
                 name,
                 parameters,
@@ -205,39 +205,39 @@ declare_visitors! {
                 self.visit_ident #_mut(name);
             }
             self.visit_parameter_list #_mut(parameters);
-            for modifier in modifiers {
+            for modifier in &#mut modifiers[..] {
                 self.visit_modifier #_mut(modifier);
             }
             self.visit_parameter_list #_mut(returns);
         }
 
-        fn visit_modifier(&mut self, modifier: &'ast #mut Modifier) {
+        fn visit_modifier(&mut self, modifier: &'ast #mut Modifier<'ast>) {
             let Modifier { name, arguments } = modifier;
             self.visit_path #_mut(name);
             self.visit_call_args #_mut(arguments);
         }
 
-        fn visit_call_args(&mut self, args: &'ast #mut CallArgs) {
+        fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) {
             match args {
                 CallArgs::Named(named) => {
                     self.visit_named_args #_mut(named);
                 }
                 CallArgs::Unnamed(unnamed) => {
-                    for arg in unnamed {
+                    for arg in &#mut unnamed[..] {
                         self.visit_expr #_mut(arg);
                     }
                 }
             }
         }
 
-        fn visit_named_args(&mut self, args: &'ast #mut NamedArgList) {
+        fn visit_named_args(&mut self, args: &'ast #mut NamedArgList<'ast>) {
             for NamedArg { name, value } in args {
                 self.visit_ident #_mut(name);
                 self.visit_expr #_mut(value);
             }
         }
 
-        fn visit_stmt(&mut self, stmt: &'ast #mut Stmt) {
+        fn visit_stmt(&mut self, stmt: &'ast #mut Stmt<'ast>) {
             let Stmt { docs, span, kind } = stmt;
             self.visit_doc_comments #_mut(docs);
             self.visit_span #_mut(span);
@@ -313,12 +313,12 @@ declare_visitors! {
             }
         }
 
-        fn visit_stmt_assembly(&mut self, assembly: &'ast #mut StmtAssembly) {
+        fn visit_stmt_assembly(&mut self, assembly: &'ast #mut StmtAssembly<'ast>) {
             let StmtAssembly { dialect: _, flags: _, block } = assembly;
             self.visit_yul_block #_mut(block);
         }
 
-        fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry) {
+        fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) {
             let StmtTry { expr, returns, block, catch } = try_;
             self.visit_expr #_mut(expr);
             self.visit_parameter_list #_mut(returns);
@@ -328,7 +328,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause) {
+        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) {
             let CatchClause { name, args, block } = catch;
             if let Some(name) = name {
                 self.visit_ident #_mut(name);
@@ -337,13 +337,13 @@ declare_visitors! {
             self.visit_block #_mut(block);
         }
 
-        fn visit_block(&mut self, block: &'ast #mut Block) {
+        fn visit_block(&mut self, block: &'ast #mut Block<'ast>) {
             for stmt in block {
                 self.visit_stmt #_mut(stmt);
             }
         }
 
-        fn visit_expr(&mut self, expr: &'ast #mut Expr) {
+        fn visit_expr(&mut self, expr: &'ast #mut Expr<'ast>) {
             let Expr { span, kind } = expr;
             self.visit_span #_mut(span);
             match kind {
@@ -429,8 +429,8 @@ declare_visitors! {
             }
         }
 
-        fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList) {
-            for param in list {
+        fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) {
+            for param in &#mut list[..] {
                 self.visit_variable_definition #_mut(param);
             }
         }
@@ -440,7 +440,7 @@ declare_visitors! {
             self.visit_span #_mut(span);
         }
 
-        fn visit_yul_stmt(&mut self, stmt: &'ast #mut yul::Stmt) {
+        fn visit_yul_stmt(&mut self, stmt: &'ast #mut yul::Stmt<'ast>) {
             let yul::Stmt { docs, span, kind } = stmt;
             self.visit_doc_comments #_mut(docs);
             self.visit_span #_mut(span);
@@ -491,13 +491,13 @@ declare_visitors! {
             }
         }
 
-        fn visit_yul_block(&mut self, block: &'ast #mut yul::Block) {
+        fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) {
             for stmt in block {
                 self.visit_yul_stmt #_mut(stmt);
             }
         }
 
-        fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch) {
+        fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) {
             let yul::StmtSwitch { selector, branches, default_case } = switch;
             self.visit_yul_expr #_mut(selector);
             for case in branches {
@@ -508,13 +508,13 @@ declare_visitors! {
             }
         }
 
-        fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase) {
+        fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) {
             let yul::StmtSwitchCase { constant, body } = case;
             self.visit_lit #_mut(constant);
             self.visit_yul_block #_mut(body);
         }
 
-        fn visit_yul_function(&mut self, function: &'ast #mut yul::Function) {
+        fn visit_yul_function(&mut self, function: &'ast #mut yul::Function<'ast>) {
             let yul::Function { name, parameters, returns, body } = function;
             self.visit_ident #_mut(name);
             for ident in parameters {
@@ -526,7 +526,7 @@ declare_visitors! {
             self.visit_yul_block #_mut(body);
         }
 
-        fn visit_yul_expr(&mut self, expr: &'ast #mut yul::Expr) {
+        fn visit_yul_expr(&mut self, expr: &'ast #mut yul::Expr<'ast>) {
             let yul::Expr { span, kind } = expr;
             self.visit_span #_mut(span);
             match kind {
@@ -542,7 +542,7 @@ declare_visitors! {
             }
         }
 
-        fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall) {
+        fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall<'ast>) {
             let yul::ExprCall { name, arguments } = call;
             self.visit_ident #_mut(name);
             for arg in arguments {
@@ -550,8 +550,8 @@ declare_visitors! {
             }
         }
 
-        fn visit_doc_comments(&mut self, doc_comments: &'ast #mut Vec<DocComment>) {
-            for doc_comment in doc_comments {
+        fn visit_doc_comments(&mut self, doc_comments: &'ast #mut DocComments<'ast>) {
+            for doc_comment in &#mut doc_comments[..] {
                 self.visit_doc_comment #_mut(doc_comment);
             }
         }

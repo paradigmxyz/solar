@@ -1,42 +1,43 @@
 //! Yul AST.
 
-use super::{DocComment, Lit, Path, StrLit};
+use super::{DocComments, Lit, Path, StrLit};
+use bumpalo::{boxed::Box, collections::Vec};
 use sulk_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
-pub type Block = Vec<Stmt>;
+pub type Block<'ast> = Vec<'ast, Stmt<'ast>>;
 
 /// A Yul object.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/yul.html#specification-of-yul-object>
-#[derive(Clone, Debug)]
-pub struct Object {
+#[derive(Debug)]
+pub struct Object<'ast> {
     /// The doc-comments of the object.
-    pub docs: Vec<DocComment>,
+    pub docs: DocComments<'ast>,
     /// The span of the object, including the `object` keyword, but excluding the doc-comments.
     pub span: Span,
     /// The name of the object.
     pub name: StrLit,
     /// The `code` block.
-    pub code: CodeBlock,
+    pub code: CodeBlock<'ast>,
     /// Sub-objects, if any.
-    pub children: Vec<Object>,
+    pub children: Vec<'ast, Object<'ast>>,
     /// `data` segments, if any.
-    pub data: Vec<Data>,
+    pub data: Vec<'ast, Data>,
 }
 
 /// A Yul `code` block. See [`Object`].
-#[derive(Clone, Debug)]
-pub struct CodeBlock {
+#[derive(Debug)]
+pub struct CodeBlock<'ast> {
     /// The span of the code block, including the `code` keyword.
     ///
     /// The `code` keyword may not be present in the source code if the object is parsed as a
     /// plain [`Block`].
     pub span: Span,
     /// The `code` block.
-    pub code: Block,
+    pub code: Block<'ast>,
 }
 
 /// A Yul `data` segment. See [`Object`].
@@ -53,55 +54,55 @@ pub struct Data {
 /// A Yul statement.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulStatement>
-#[derive(Clone, Debug)]
-pub struct Stmt {
+#[derive(Debug)]
+pub struct Stmt<'ast> {
     /// The doc-comments of the statement.
-    pub docs: Vec<DocComment>,
+    pub docs: DocComments<'ast>,
     /// The span of the statement.
     pub span: Span,
     /// The kind of statement.
-    pub kind: StmtKind,
+    pub kind: StmtKind<'ast>,
 }
 
 /// A kind of Yul statement.
-#[derive(Clone, Debug)]
-pub enum StmtKind {
+#[derive(Debug)]
+pub enum StmtKind<'ast> {
     /// A blocked scope: `{ ... }`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
-    Block(Block),
+    Block(Block<'ast>),
 
     /// A single-variable assignment statement: `x := 1`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignSingle(Path, Expr),
+    AssignSingle(Path, Expr<'ast>),
 
     /// A multiple-variable assignment statement: `x, y, z := foo(1, 2)`.
     ///
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Vec<Path>, ExprCall),
+    AssignMulti(Vec<'ast, Path>, ExprCall<'ast>),
 
     /// An expression statement. This can only be a function call.
-    Expr(ExprCall),
+    Expr(ExprCall<'ast>),
 
     /// An if statement: `if lt(a, b) { ... }`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulIfStatement>
-    If(Expr, Block),
+    If(Expr<'ast>, Block<'ast>),
 
     /// A for statement: `for {let i := 0} lt(i,10) {i := add(i,1)} { ... }`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulForStatement>
     ///
     /// Breakdown of parts: <https://docs.soliditylang.org/en/latest/yul.html#loops>
-    For { init: Block, cond: Expr, step: Block, body: Block },
+    For { init: Block<'ast>, cond: Expr<'ast>, step: Block<'ast>, body: Block<'ast> },
 
     /// A switch statement: `switch expr case 0 { ... } default { ... }`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulSwitchStatement>
-    Switch(StmtSwitch),
+    Switch(StmtSwitch<'ast>),
 
     /// A leave statement: `leave`.
     Leave,
@@ -113,12 +114,12 @@ pub enum StmtKind {
     Continue,
 
     /// A function definition statement: `function f() { ... }`.
-    FunctionDef(Function),
+    FunctionDef(Function<'ast>),
 
     /// A variable declaration statement: `let x := 0`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
-    VarDecl(Vec<Ident>, Option<Expr>),
+    VarDecl(Vec<'ast, Ident>, Option<Expr<'ast>>),
 }
 
 /// A Yul switch statement can consist of only a default-case or one
@@ -134,49 +135,49 @@ pub enum StmtKind {
 /// ```
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulSwitchStatement>
-#[derive(Clone, Debug)]
-pub struct StmtSwitch {
-    pub selector: Expr,
-    pub branches: Vec<StmtSwitchCase>,
-    pub default_case: Option<Block>,
+#[derive(Debug)]
+pub struct StmtSwitch<'ast> {
+    pub selector: Expr<'ast>,
+    pub branches: Vec<'ast, StmtSwitchCase<'ast>>,
+    pub default_case: Option<Block<'ast>>,
 }
 
 /// Represents a non-default case of a Yul switch statement.
 ///
 /// See [`StmtSwitch`] for more information.
-#[derive(Clone, Debug)]
-pub struct StmtSwitchCase {
+#[derive(Debug)]
+pub struct StmtSwitchCase<'ast> {
     pub constant: Lit,
-    pub body: Block,
+    pub body: Block<'ast>,
 }
 
 /// Yul function definition: `function f() -> a, b { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionDefinition>
-#[derive(Clone, Debug)]
-pub struct Function {
+#[derive(Debug)]
+pub struct Function<'ast> {
     pub name: Ident,
-    pub parameters: Vec<Ident>,
-    pub returns: Vec<Ident>,
-    pub body: Block,
+    pub parameters: Vec<'ast, Ident>,
+    pub returns: Vec<'ast, Ident>,
+    pub body: Block<'ast>,
 }
 
 /// A Yul expression.
-#[derive(Clone, Debug)]
-pub struct Expr {
+#[derive(Debug)]
+pub struct Expr<'ast> {
     /// The span of the expression.
     pub span: Span,
     /// The kind of expression.
-    pub kind: ExprKind,
+    pub kind: ExprKind<'ast>,
 }
 
 /// A kind of Yul expression.
-#[derive(Clone, Debug)]
-pub enum ExprKind {
+#[derive(Debug)]
+pub enum ExprKind<'ast> {
     /// A single path.
     Path(Path),
     /// A function call: `foo(a, b)`.
-    Call(ExprCall),
+    Call(ExprCall<'ast>),
     /// A literal.
     Lit(Lit),
 }
@@ -184,8 +185,8 @@ pub enum ExprKind {
 /// A Yul function call expression: `foo(a, b)`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulFunctionCall>
-#[derive(Clone, Debug)]
-pub struct ExprCall {
+#[derive(Debug)]
+pub struct ExprCall<'ast> {
     pub name: Ident,
-    pub arguments: Vec<Expr>,
+    pub arguments: Vec<'ast, Expr<'ast>>,
 }

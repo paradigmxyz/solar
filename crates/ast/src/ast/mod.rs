@@ -25,6 +25,9 @@ pub use ty::*;
 
 pub mod yul;
 
+/// A list of doc-comments.
+pub type DocComments<'ast> = bumpalo::boxed::Box<'ast, [DocComment]>;
+
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Clone, Debug)]
 pub struct DocComment {
@@ -172,10 +175,10 @@ impl Path {
 }
 
 /// A Solidity source file.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SourceUnit<'ast> {
     /// The source unit's items.
-    pub items: IndexVec<ItemId, Item>,
+    pub items: IndexVec<ItemId, Item<'ast>>,
     pub _tmp: std::marker::PhantomData<&'ast ()>,
 }
 

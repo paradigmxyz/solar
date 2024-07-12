@@ -2316,6 +2316,7 @@ name = "sulk-ast"
 version = "0.0.0"
 dependencies = [
  "alloy-primitives",
+ "bumpalo",
  "num-bigint",
  "num-rational",
  "semver 1.0.23",
