@@ -440,7 +440,7 @@ impl<'ast> IndexAccessedPath<'ast> {
 
 /// `T: !Clone`
 fn vec_repeat_none<T>(n: usize) -> Vec<Option<T>> {
-    let mut v = Vec::with_capacity(n.next_power_of_two());
+    let mut v = Vec::with_capacity(n);
     v.extend(std::iter::repeat_with(|| None).take(n));
     v
 }
