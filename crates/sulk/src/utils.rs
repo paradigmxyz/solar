@@ -15,11 +15,17 @@ fn early_dcx() -> DiagCtxt {
 pub(crate) fn init_logger() -> impl Sized {
     use tracing_subscriber::prelude::*;
 
-    let (chrome_layer, guard) = chrome_layer();
+    let (profile_layer, guard) = match std::env::var("SULK_PROFILE").as_deref() {
+        Ok("chrome") => {
+            let (layer, guard) = chrome_layer();
+            (Some(layer.boxed()), Some(guard))
+        }
+        Ok("tracy") => (Some(tracy_layer().boxed()), Default::default()),
+        _ => Default::default(),
+    };
     let registry = tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(tracy_layer())
-        .with(chrome_layer)
+        .with(profile_layer)
         .with(tracing_subscriber::fmt::layer());
     match registry.try_init() {
         Ok(()) => guard,
@@ -31,7 +37,7 @@ pub(crate) fn init_logger() -> impl Sized {
 }
 
 #[cfg(feature = "tracy")]
-fn tracy_layer() -> Option<tracing_tracy::TracyLayer<impl tracing_tracy::Config>> {
+fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
     struct Config(tracing_subscriber::fmt::format::DefaultFields, bool);
     impl tracing_tracy::Config for Config {
         type Formatter = tracing_subscriber::fmt::format::DefaultFields;
@@ -43,12 +49,7 @@ fn tracy_layer() -> Option<tracing_tracy::TracyLayer<impl tracing_tracy::Config>
         }
     }
 
-    if env_to_bool(std::env::var_os("SULK_PROFILE").as_deref()) {
-        let capture_args = env_to_bool(std::env::var_os("SULK_PROFILE_CAPTURE_ARGS").as_deref());
-        Some(tracing_tracy::TracyLayer::new(Config(Default::default(), capture_args)))
-    } else {
-        None
-    }
+    tracing_tracy::TracyLayer::new(Config(Default::default(), false))
 }
 
 #[cfg(not(feature = "tracy"))]
@@ -58,21 +59,14 @@ fn tracy_layer() -> tracing_subscriber::layer::Identity {
 
 #[cfg(feature = "tracing-chrome")]
 #[allow(clippy::disallowed_methods)]
-fn chrome_layer<S>() -> (Option<tracing_chrome::ChromeLayer<S>>, Option<tracing_chrome::FlushGuard>)
+fn chrome_layer<S>() -> (tracing_chrome::ChromeLayer<S>, tracing_chrome::FlushGuard)
 where
     S: tracing::Subscriber
         + for<'span> tracing_subscriber::registry::LookupSpan<'span>
         + Send
         + Sync,
 {
-    if env_to_bool(std::env::var_os("SULK_PROFILE").as_deref()) {
-        let capture_args = env_to_bool(std::env::var_os("SULK_PROFILE_CAPTURE_ARGS").as_deref());
-        let (layer, guard) =
-            tracing_chrome::ChromeLayerBuilder::new().include_args(capture_args).build();
-        (Some(layer), Some(guard))
-    } else {
-        (None, None)
-    }
+    tracing_chrome::ChromeLayerBuilder::new().include_args(true).build()
 }
 
 #[cfg(not(feature = "tracing-chrome"))]
