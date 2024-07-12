@@ -4,6 +4,7 @@ use std::mem::ManuallyDrop;
 
 /// Extension trait for [`Bump`].
 #[allow(dead_code)]
+#[allow(clippy::mut_from_ref)] // Arena.
 pub(crate) trait BumpExt {
     /// Allocates a vector of items on the arena.
     fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T];
@@ -67,7 +68,7 @@ mod tests {
     struct DropBomb(i32, bool);
     impl DropBomb {
         fn new(i: i32) -> Self {
-            DropBomb(i, true)
+            Self(i, true)
         }
         fn defuse(&mut self) {
             self.1 = false;

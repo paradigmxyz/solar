@@ -322,9 +322,9 @@ impl fmt::Debug for Declaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Declaration::")?;
         match self {
-            Declaration::Item(id) => id.fmt(f),
-            Declaration::Namespace(id) => id.fmt(f),
-            Declaration::Err(_) => f.write_str("Err"),
+            Self::Item(id) => id.fmt(f),
+            Self::Namespace(id) => id.fmt(f),
+            Self::Err(_) => f.write_str("Err"),
         }
     }
 }

@@ -221,14 +221,14 @@ impl fmt::Debug for ItemId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ItemId::")?;
         match self {
-            ItemId::Contract(id) => id.fmt(f),
-            ItemId::Function(id) => id.fmt(f),
-            ItemId::Var(id) => id.fmt(f),
-            ItemId::Struct(id) => id.fmt(f),
-            ItemId::Enum(id) => id.fmt(f),
-            ItemId::Udvt(id) => id.fmt(f),
-            ItemId::Error(id) => id.fmt(f),
-            ItemId::Event(id) => id.fmt(f),
+            Self::Contract(id) => id.fmt(f),
+            Self::Function(id) => id.fmt(f),
+            Self::Var(id) => id.fmt(f),
+            Self::Struct(id) => id.fmt(f),
+            Self::Enum(id) => id.fmt(f),
+            Self::Udvt(id) => id.fmt(f),
+            Self::Error(id) => id.fmt(f),
+            Self::Event(id) => id.fmt(f),
         }
     }
 }

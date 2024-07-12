@@ -319,9 +319,7 @@ fn token_precedence(t: &Token) -> usize {
 ///
 /// All elements of the vector must be `Some`.
 #[inline]
-unsafe fn vec_option_box_unwrap_unchecked<'ast, T>(
-    vec: Vec<Option<Box<'ast, T>>>,
-) -> Vec<Box<'ast, T>> {
+unsafe fn vec_option_box_unwrap_unchecked<T>(vec: Vec<Option<Box<'_, T>>>) -> Vec<Box<'_, T>> {
     debug_assert!(vec.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
     unsafe { std::mem::transmute(vec) }

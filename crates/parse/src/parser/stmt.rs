@@ -378,7 +378,7 @@ impl<'ast> IndexAccessedPath<'ast> {
     fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Ty<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
-        let Some(first) = path.next() else { return None };
+        let first = path.next()?;
 
         let mut ty = if let IapKind::MemberTy(span, kind) = first {
             debug_assert_eq!(self.n_idents, 1);
