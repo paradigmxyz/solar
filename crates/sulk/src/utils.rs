@@ -1,7 +1,7 @@
 use std::panic::PanicInfo;
 use sulk_interface::{
     diagnostics::{DiagCtxt, ExplicitBug},
-    Result, SessionGlobals,
+    SessionGlobals,
 };
 
 const BUG_REPORT_URL: &str =
@@ -11,18 +11,78 @@ fn early_dcx() -> DiagCtxt {
     DiagCtxt::with_tty_emitter(None)
 }
 
-pub(crate) fn init_logger() -> Result {
-    try_init_logger().map_err(|e| early_dcx().err(e.to_string()).emit())
-}
-
-fn try_init_logger() -> std::result::Result<(), impl std::fmt::Display> {
+#[must_use]
+pub(crate) fn init_logger() -> impl Sized {
     use tracing_subscriber::prelude::*;
 
+    let (chrome_layer, guard) = chrome_layer();
     let registry = tracing_subscriber::Registry::default()
-        .with(tracing_subscriber::EnvFilter::from_default_env());
-    #[cfg(feature = "tracy")]
-    let registry = registry.with(tracing_tracy::TracyLayer::default());
-    registry.with(tracing_subscriber::fmt::layer()).try_init()
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(tracy_layer())
+        .with(chrome_layer)
+        .with(tracing_subscriber::fmt::layer());
+    match registry.try_init() {
+        Ok(()) => guard,
+        Err(e) => {
+            early_dcx().err(e.to_string()).emit();
+            Default::default()
+        }
+    }
+}
+
+#[cfg(feature = "tracy")]
+fn tracy_layer() -> Option<tracing_tracy::TracyLayer<impl tracing_tracy::Config>> {
+    struct Config(tracing_subscriber::fmt::format::DefaultFields, bool);
+    impl tracing_tracy::Config for Config {
+        type Formatter = tracing_subscriber::fmt::format::DefaultFields;
+        fn formatter(&self) -> &Self::Formatter {
+            &self.0
+        }
+        fn format_fields_in_zone_name(&self) -> bool {
+            self.1
+        }
+    }
+
+    if env_to_bool(std::env::var_os("SULK_PROFILE").as_deref()) {
+        let capture_args = env_to_bool(std::env::var_os("SULK_PROFILE_CAPTURE_ARGS").as_deref());
+        Some(tracing_tracy::TracyLayer::new(Config(Default::default(), capture_args)))
+    } else {
+        None
+    }
+}
+
+#[cfg(not(feature = "tracy"))]
+fn tracy_layer() -> tracing_subscriber::layer::Identity {
+    tracing_subscriber::layer::Identity::new()
+}
+
+#[cfg(feature = "tracing-chrome")]
+#[allow(clippy::disallowed_methods)]
+fn chrome_layer<S>() -> (Option<tracing_chrome::ChromeLayer<S>>, Option<tracing_chrome::FlushGuard>)
+where
+    S: tracing::Subscriber
+        + for<'span> tracing_subscriber::registry::LookupSpan<'span>
+        + Send
+        + Sync,
+{
+    if env_to_bool(std::env::var_os("SULK_PROFILE").as_deref()) {
+        let capture_args = env_to_bool(std::env::var_os("SULK_PROFILE_CAPTURE_ARGS").as_deref());
+        let (layer, guard) =
+            tracing_chrome::ChromeLayerBuilder::new().include_args(capture_args).build();
+        (Some(layer), Some(guard))
+    } else {
+        (None, None)
+    }
+}
+
+#[cfg(not(feature = "tracing-chrome"))]
+fn chrome_layer() -> (tracing_subscriber::layer::Identity, ()) {
+    (tracing_subscriber::layer::Identity::new(), ())
+}
+
+#[allow(dead_code)]
+pub(crate) fn env_to_bool(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|value| value == "1" || value == "true")
 }
 
 pub(crate) fn install_panic_hook() {

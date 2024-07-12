@@ -38,9 +38,11 @@ static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 #[cfg(debug_assertions)]
 use tikv_jemallocator as _;
 
+use tracing as _;
+
 fn main() -> ExitCode {
     sigsegv_handler::install();
-    let _ = utils::init_logger();
+    let _guard = utils::init_logger();
     utils::install_panic_hook();
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
