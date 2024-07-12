@@ -2362,10 +2362,10 @@ dependencies = [
 name = "sulk-interface"
 version = "0.0.0"
 dependencies = [
- "alloy-primitives",
  "annotate-snippets",
  "anstream",
  "anstyle",
+ "const-hex",
  "dashmap",
  "itertools 0.13.0",
  "itoa",
@@ -2398,7 +2398,6 @@ version = "0.0.0"
 dependencies = [
  "alloy-primitives",
  "bitflags",
- "const-hex",
  "expect-test",
  "itertools 0.13.0",
  "memchr",

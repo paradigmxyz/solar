@@ -1,5 +1,6 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
+use alloy_primitives::hex;
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
 
 mod errors;

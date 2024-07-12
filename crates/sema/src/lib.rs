@@ -94,16 +94,25 @@ impl Sources {
 
         let mut order = Vec::with_capacity(len);
         let mut seen = FxHashSet::with_capacity_and_hasher(len, Default::default());
-        for id in self.sources.indices() {
-            self.topo_order(id, &mut order, &mut seen);
-        }
-        // Re-map imports.
-        for source in &mut self.sources {
-            for (_, import) in &mut source.imports {
-                *import = SourceId::from_usize(order.iter().position(|id| id == import).unwrap());
+        debug_span!("topo_order").in_scope(|| {
+            for id in self.sources.indices() {
+                self.topo_order(id, &mut order, &mut seen);
             }
-        }
-        sort_by_indices(&mut self.sources, order);
+        });
+
+        // Re-map imports.
+        debug_span!("remap_imports").in_scope(|| {
+            for source in &mut self.sources {
+                for (_, import) in &mut source.imports {
+                    *import =
+                        SourceId::from_usize(order.iter().position(|id| id == import).unwrap());
+                }
+            }
+        });
+
+        debug_span!("sort_by_indices").in_scope(|| {
+            sort_by_indices(&mut self.sources, order);
+        });
     }
 
     fn topo_order(&self, id: SourceId, order: &mut Vec<SourceId>, seen: &mut FxHashSet<SourceId>) {

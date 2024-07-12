@@ -1,5 +1,4 @@
 use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
-use alloy_primitives::hex;
 use std::{
     fmt, io,
     ops::RangeInclusive,

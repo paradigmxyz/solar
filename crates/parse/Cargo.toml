@@ -25,7 +25,6 @@ sulk-interface.workspace = true
 
 alloy-primitives.workspace = true
 bitflags.workspace = true
-hex.workspace = true
 itertools.workspace = true
 memchr.workspace = true
 num-bigint.workspace = true

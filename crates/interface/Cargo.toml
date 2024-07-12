@@ -24,8 +24,8 @@ sulk-config.workspace = true
 sulk-data-structures.workspace = true
 sulk-macros.workspace = true
 
-alloy-primitives.workspace = true
 dashmap.workspace = true
+hex.workspace = true
 itertools.workspace = true
 itoa.workspace = true
 lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
