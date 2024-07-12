@@ -132,7 +132,7 @@ impl std::ops::DerefMut for Sources {
 }
 
 /// Semantic analysis context.
-pub struct Resolver<'a> {
+pub struct Sema<'a> {
     /// The file resolver.
     pub file_resolver: FileResolver<'a>,
     /// The session.
@@ -140,8 +140,8 @@ pub struct Resolver<'a> {
     sources: Sources,
 }
 
-impl<'a> Resolver<'a> {
-    /// Creates a new resolver.
+impl<'a> Sema<'a> {
+    /// Creates a new context.
     pub fn new(sess: &'a Session) -> Self {
         Self { file_resolver: FileResolver::new(sess.source_map()), sess, sources: Sources::new() }
     }
@@ -160,7 +160,7 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
-    /// Loads files into the resolver.
+    /// Loads files into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_files(&mut self, paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Result<()> {
         for path in paths {
@@ -169,7 +169,7 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
-    /// Loads a file into the resolver.
+    /// Loads a file into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
         // Paths must be canonicalized before passing to the resolver.

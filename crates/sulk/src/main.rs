@@ -91,7 +91,7 @@ impl Compiler {
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
-        let mut resolver = sulk_sema::Resolver::new(sess);
+        let mut resolver = sulk_sema::Sema::new(sess);
         let remappings = arg_remappings.chain(args.import_map.iter().cloned());
         for map in remappings {
             resolver.file_resolver.add_import_map(map.map, map.path);
