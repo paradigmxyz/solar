@@ -18,6 +18,7 @@ use std::{
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
+    OnDrop,
 };
 use sulk_interface::{
     diagnostics::DiagCtxt,
@@ -217,10 +218,19 @@ impl<'sess> Sema<'sess> {
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         self.ensure_sources()?;
 
-        let arenas = ThreadLocal::new();
-        let mut sources = self.parse(&arenas);
+        let ast_arenas = OnDrop::new(ThreadLocal::<Bump>::new(), |mut arenas| {
+            debug!(
+                "dropping AST arenas containg {} / {} bytes",
+                arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),
+                arenas.iter_mut().map(|a| a.allocated_bytes_including_metadata()).sum::<usize>(),
+            );
+            debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
+        });
+        let mut sources = self.parse(&ast_arenas);
+
         #[cfg(debug_assertions)]
         sources.debug_assert_unique();
+
         if self.sess.language.is_yul() || self.sess.stop_after.is_some_and(|s| s.is_parsing()) {
             return Ok(());
         }
@@ -257,6 +267,8 @@ impl<'sess> Sema<'sess> {
     /// Parses all the loaded sources, recursing into imports.
     #[instrument(level = "debug", skip_all)]
     fn parse<'ast>(&mut self, arenas: &'ast ThreadLocal<Bump>) -> Sources<'ast> {
+        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the values are
+        // populated, so this is safe.
         let sources: Sources<'static> = std::mem::take(&mut self.sources);
         let mut sources: Sources<'ast> =
             unsafe { std::mem::transmute::<Sources<'static>, Sources<'ast>>(sources) };
@@ -266,7 +278,7 @@ impl<'sess> Sema<'sess> {
         } else {
             self.parse_parallel(&mut sources, arenas);
         }
-        debug!("parsed {} files", sources.len());
+        debug!(sources.len = sources.len(), "parsed");
         sources
     }
 
@@ -329,12 +341,18 @@ impl<'sess> Sema<'sess> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        if self.sess.language.is_yul() {
+        let r = if self.sess.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
-        }
+        };
+        trace!(
+            "AST size {} / {}",
+            arena.allocated_bytes(),
+            arena.allocated_bytes_including_metadata(),
+        );
+        r
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files.

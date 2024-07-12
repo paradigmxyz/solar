@@ -17,8 +17,12 @@ use sulk_interface::{
 };
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower<'hir>(sess: &Session, sources: Sources<'hir>, arena: &'hir Bump) -> Hir<'hir> {
-    let mut lcx = LoweringContext::new(sess, arena);
+pub(crate) fn lower<'hir>(
+    sess: &Session,
+    sources: Sources<'hir>,
+    hir_arena: &'hir Bump,
+) -> Hir<'hir> {
+    let mut lcx = LoweringContext::new(sess, hir_arena);
 
     // Lower AST to HIR.
     lcx.lower_sources(sources.sources);
@@ -268,7 +272,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
 
     #[instrument(level = "debug", skip_all)]
     fn drop_asts(&mut self) {
-        // TODO: Switch back to sequential once the AST is using arenas.
+        // TODO: Literals and paths still own heap-allocated memory.
         self.hir.sources.raw.par_iter_mut().for_each(|source| source.ast = None);
     }
 }
