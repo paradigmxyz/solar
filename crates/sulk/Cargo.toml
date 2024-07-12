@@ -25,9 +25,11 @@ sulk-sema.workspace = true
 
 clap = { workspace = true, features = ["derive"] }
 rayon.workspace = true
+tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 
 tracing-tracy = { version = "0.11", optional = true }
+tracing-chrome = { version = "0.7", optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
@@ -47,6 +49,7 @@ nightly = [
 ]
 jemalloc = ["dep:tikv-jemallocator"]
 tracy = ["dep:tracing-tracy"]
+tracing-chrome = ["dep:tracing-chrome"]
 
 [[test]]
 name = "tests"
