@@ -342,7 +342,7 @@ fn file_to_snippet(
 
 fn to_as_level(level: Level) -> ASLevel {
     match level {
-        Level::Bug | Level::Error => ASLevel::Error,
+        Level::Bug | Level::Fatal | Level::Error => ASLevel::Error,
         Level::Warning => ASLevel::Warning,
         Level::Note | Level::OnceNote | Level::FailureNote => ASLevel::Note,
         Level::Help | Level::OnceHelp => ASLevel::Help,

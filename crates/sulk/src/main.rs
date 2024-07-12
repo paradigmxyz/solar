@@ -42,8 +42,8 @@ use tracing as _;
 
 fn main() -> ExitCode {
     sigsegv_handler::install();
-    let _guard = utils::init_logger();
     utils::install_panic_hook();
+    let _guard = utils::init_logger();
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),

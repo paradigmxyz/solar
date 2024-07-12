@@ -159,6 +159,7 @@ impl JsonEmitter {
             r#type: match severity {
                 Severity::Error => match diagnostic.level {
                     Level::Bug => "InternalCompilerError",
+                    Level::Fatal => "FatalError",
                     Level::Error => "Exception",
                     _ => unreachable!(),
                 },
@@ -342,7 +343,7 @@ enum Severity {
 
 fn to_severity(level: Level) -> Severity {
     match level {
-        Level::Bug | Level::Error => Severity::Error,
+        Level::Bug | Level::Fatal | Level::Error => Severity::Error,
         Level::Warning => Severity::Warning,
         #[rustfmt::skip]
         Level::Note | Level::OnceNote | Level::FailureNote |

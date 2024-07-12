@@ -1,6 +1,6 @@
 use std::panic::PanicInfo;
 use sulk_interface::{
-    diagnostics::{DiagCtxt, ExplicitBug},
+    diagnostics::{DiagCtxt, ExplicitBug, FatalAbort},
     SessionGlobals,
 };
 
@@ -8,32 +8,43 @@ const BUG_REPORT_URL: &str =
     "https://github.com/paradigmxyz/sulk/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
 fn early_dcx() -> DiagCtxt {
-    DiagCtxt::with_tty_emitter(None)
+    DiagCtxt::with_tty_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
 }
 
-#[must_use]
 pub(crate) fn init_logger() -> impl Sized {
+    match try_init_logger() {
+        Ok(guard) => guard,
+        Err(e) => early_dcx().fatal(e).emit(),
+    }
+}
+
+fn try_init_logger() -> std::result::Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
     let (profile_layer, guard) = match std::env::var("SULK_PROFILE").as_deref() {
         Ok("chrome") => {
+            if !cfg!(feature = "tracing-chrome") {
+                return Err("chrome profiler support is not compiled in".to_string());
+            }
             let (layer, guard) = chrome_layer();
             (Some(layer.boxed()), Some(guard))
         }
-        Ok("tracy") => (Some(tracy_layer().boxed()), Default::default()),
-        _ => Default::default(),
+        Ok("tracy") => {
+            if !cfg!(feature = "tracy") {
+                return Err("tracy profiler support is not compiled in".to_string());
+            }
+            (Some(tracy_layer().boxed()), Default::default())
+        }
+        Ok(s) => return Err(format!("unknown profiler '{s}'")),
+        Err(_) => Default::default(),
     };
-    let registry = tracing_subscriber::Registry::default()
+    tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(profile_layer)
-        .with(tracing_subscriber::fmt::layer());
-    match registry.try_init() {
-        Ok(()) => guard,
-        Err(e) => {
-            early_dcx().err(e.to_string()).emit();
-            Default::default()
-        }
-    }
+        .with(tracing_subscriber::fmt::layer())
+        .try_init()
+        .map(|()| guard)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(feature = "tracy")]
@@ -81,6 +92,10 @@ pub(crate) fn env_to_bool(value: Option<&std::ffi::OsStr>) -> bool {
 
 pub(crate) fn install_panic_hook() {
     update_hook(|default_hook, info| {
+        if info.payload().is::<FatalAbort>() {
+            std::process::exit(1);
+        }
+
         // Lock stderr to prevent interleaving of concurrent panics.
         let _guard = std::io::stderr().lock();
 
