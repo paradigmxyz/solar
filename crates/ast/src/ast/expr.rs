@@ -1,10 +1,10 @@
 use super::{Lit, SubDenomination, Ty};
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
 /// A list of named arguments: `{a: "1", b: 2}`.
-pub type NamedArgList<'ast> = Vec<'ast, NamedArg<'ast>>;
+pub type NamedArgList<'ast> = Box<'ast, [NamedArg<'ast>]>;
 
 /// An expression.
 ///
@@ -31,7 +31,7 @@ impl<'ast> Expr<'ast> {
 #[derive(Debug)]
 pub enum ExprKind<'ast> {
     /// An array literal expression: `[a, b, c, d]`.
-    Array(Vec<'ast, Box<'ast, Expr<'ast>>>),
+    Array(Box<'ast, [Box<'ast, Expr<'ast>>]>),
 
     /// An assignment: `a = b`, `a += b`.
     Assign(Box<'ast, Expr<'ast>>, Option<BinOp>, Box<'ast, Expr<'ast>>),
@@ -70,7 +70,7 @@ pub enum ExprKind<'ast> {
     Ternary(Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(Vec<'ast, Option<Box<'ast, Expr<'ast>>>>),
+    Tuple(Box<'ast, [Option<Box<'ast, Expr<'ast>>>]>),
 
     /// A `type()` expression: `type(uint256)`
     TypeCall(Ty<'ast>),

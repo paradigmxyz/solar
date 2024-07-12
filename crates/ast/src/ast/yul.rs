@@ -1,13 +1,13 @@
 //! Yul AST.
 
 use super::{DocComments, Lit, Path, StrLit};
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use sulk_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
-pub type Block<'ast> = Vec<'ast, Stmt<'ast>>;
+pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
 
 /// A Yul object.
 ///
@@ -23,9 +23,9 @@ pub struct Object<'ast> {
     /// The `code` block.
     pub code: CodeBlock<'ast>,
     /// Sub-objects, if any.
-    pub children: Vec<'ast, Object<'ast>>,
+    pub children: Box<'ast, [Object<'ast>]>,
     /// `data` segments, if any.
-    pub data: Vec<'ast, Data>,
+    pub data: Box<'ast, [Data]>,
 }
 
 /// A Yul `code` block. See [`Object`].
@@ -82,7 +82,7 @@ pub enum StmtKind<'ast> {
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Vec<'ast, Path>, ExprCall<'ast>),
+    AssignMulti(Box<'ast, [Path]>, ExprCall<'ast>),
 
     /// An expression statement. This can only be a function call.
     Expr(ExprCall<'ast>),
@@ -119,7 +119,7 @@ pub enum StmtKind<'ast> {
     /// A variable declaration statement: `let x := 0`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
-    VarDecl(Vec<'ast, Ident>, Option<Expr<'ast>>),
+    VarDecl(Box<'ast, [Ident]>, Option<Expr<'ast>>),
 }
 
 /// A Yul switch statement can consist of only a default-case or one
@@ -138,7 +138,7 @@ pub enum StmtKind<'ast> {
 #[derive(Debug)]
 pub struct StmtSwitch<'ast> {
     pub selector: Expr<'ast>,
-    pub branches: Vec<'ast, StmtSwitchCase<'ast>>,
+    pub branches: Box<'ast, [StmtSwitchCase<'ast>]>,
     pub default_case: Option<Block<'ast>>,
 }
 
@@ -157,8 +157,8 @@ pub struct StmtSwitchCase<'ast> {
 #[derive(Debug)]
 pub struct Function<'ast> {
     pub name: Ident,
-    pub parameters: Vec<'ast, Ident>,
-    pub returns: Vec<'ast, Ident>,
+    pub parameters: Box<'ast, [Ident]>,
+    pub returns: Box<'ast, [Ident]>,
     pub body: Block<'ast>,
 }
 
@@ -188,5 +188,5 @@ pub enum ExprKind<'ast> {
 #[derive(Debug)]
 pub struct ExprCall<'ast> {
     pub name: Ident,
-    pub arguments: Vec<'ast, Expr<'ast>>,
+    pub arguments: Box<'ast, [Expr<'ast>]>,
 }

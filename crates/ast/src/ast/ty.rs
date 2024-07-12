@@ -1,5 +1,5 @@
 use super::{Expr, FunctionHeader, ParameterList, Path, StateMutability, Visibility};
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{kw, Ident, Span, Symbol};
 

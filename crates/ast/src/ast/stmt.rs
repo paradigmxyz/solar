@@ -1,9 +1,9 @@
 use super::{yul, CallArgs, DocComments, Expr, ParameterList, Path, StrLit, VariableDefinition};
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
-pub type Block<'ast> = Vec<'ast, Stmt<'ast>>;
+pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
 
 /// A statement, usually ending in a semicolon.
 ///
@@ -27,7 +27,7 @@ pub enum StmtKind<'ast> {
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Vec<'ast, Option<VariableDefinition<'ast>>>, Box<'ast, Expr<'ast>>),
+    DeclMulti(Box<'ast, [Option<VariableDefinition<'ast>>]>, Box<'ast, Expr<'ast>>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block<'ast>),
@@ -81,7 +81,7 @@ pub struct StmtAssembly<'ast> {
     /// The assembly block dialect.
     pub dialect: Option<StrLit>,
     /// Additional flags.
-    pub flags: Vec<'ast, StrLit>,
+    pub flags: Box<'ast, [StrLit]>,
     /// The assembly block.
     pub block: yul::Block<'ast>,
 }
@@ -96,7 +96,7 @@ pub struct StmtTry<'ast> {
     /// The try block.
     pub block: Block<'ast>,
     /// The list of catch clauses. Cannot be parsed empty.
-    pub catch: Vec<'ast, CatchClause<'ast>>,
+    pub catch: Box<'ast, [CatchClause<'ast>]>,
 }
 
 /// A catch clause: `catch (...) { ... }`.
@@ -115,5 +115,5 @@ pub enum VarDeclKind<'ast> {
     /// A single variable declaration: `uint x ...`.
     Single(VariableDefinition<'ast>),
     /// A tuple of variable declarations: `(uint x, uint y) ...`.
-    Tuple(Vec<'ast, Option<VariableDefinition<'ast>>>),
+    Tuple(Box<'ast, [Option<VariableDefinition<'ast>>]>),
 }

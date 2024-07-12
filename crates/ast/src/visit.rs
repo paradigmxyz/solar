@@ -48,7 +48,7 @@ declare_visitors! {
                     }
                 }
                 ImportItems::Aliases(paths) => {
-                    for (import, alias) in paths {
+                    for (import, alias) in paths.iter #_mut() {
                         self.visit_ident #_mut(import);
                         if let Some(alias) = alias {
                             self.visit_ident #_mut(alias);
@@ -70,7 +70,7 @@ declare_visitors! {
                     self.visit_path #_mut(path);
                 }
                 UsingList::Multiple(paths) => {
-                    for (path, _) in paths {
+                    for (path, _) in paths.iter #_mut() {
                         self.visit_path #_mut(path);
                     }
                 }
@@ -83,10 +83,10 @@ declare_visitors! {
         fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) {
             let ItemContract { kind: _, name, inheritance, body } = contract;
             self.visit_ident #_mut(name);
-            for modifier in inheritance {
+            for modifier in inheritance.iter #_mut() {
                 self.visit_modifier #_mut(modifier);
             }
-            for item in body {
+            for item in body.iter #_mut() {
                 self.visit_item #_mut(item);
             }
         }
@@ -102,7 +102,7 @@ declare_visitors! {
         fn visit_item_struct(&mut self, strukt: &'ast #mut ItemStruct<'ast>) {
             let ItemStruct { name, fields } = strukt;
             self.visit_ident #_mut(name);
-            for field in fields {
+            for field in fields.iter #_mut() {
                 self.visit_variable_definition #_mut(field);
             }
         }
@@ -110,7 +110,7 @@ declare_visitors! {
         fn visit_item_enum(&mut self, enum_: &'ast #mut ItemEnum<'ast>) {
             let ItemEnum { name, variants } = enum_;
             self.visit_ident #_mut(name);
-            for variant in variants {
+            for variant in variants.iter #_mut() {
                 self.visit_ident #_mut(variant);
             }
         }
@@ -205,7 +205,7 @@ declare_visitors! {
                 self.visit_ident #_mut(name);
             }
             self.visit_parameter_list #_mut(parameters);
-            for modifier in &#mut modifiers[..] {
+            for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier);
             }
             self.visit_parameter_list #_mut(returns);
@@ -223,7 +223,7 @@ declare_visitors! {
                     self.visit_named_args #_mut(named);
                 }
                 CallArgs::Unnamed(unnamed) => {
-                    for arg in &#mut unnamed[..] {
+                    for arg in unnamed.iter #_mut() {
                         self.visit_expr #_mut(arg);
                     }
                 }
@@ -231,7 +231,7 @@ declare_visitors! {
         }
 
         fn visit_named_args(&mut self, args: &'ast #mut NamedArgList<'ast>) {
-            for NamedArg { name, value } in args {
+            for NamedArg { name, value } in args.iter #_mut() {
                 self.visit_ident #_mut(name);
                 self.visit_expr #_mut(value);
             }
@@ -249,7 +249,7 @@ declare_visitors! {
                     self.visit_variable_definition #_mut(var);
                 }
                 StmtKind::DeclMulti(vars, expr) => {
-                    for var in vars {
+                    for var in vars.iter #_mut() {
                         if let Some(var) = var {
                             self.visit_variable_definition #_mut(var);
                         }
@@ -323,7 +323,7 @@ declare_visitors! {
             self.visit_expr #_mut(expr);
             self.visit_parameter_list #_mut(returns);
             self.visit_block #_mut(block);
-            for catch in catch {
+            for catch in catch.iter #_mut() {
                 self.visit_catch_clause #_mut(catch);
             }
         }
@@ -338,7 +338,7 @@ declare_visitors! {
         }
 
         fn visit_block(&mut self, block: &'ast #mut Block<'ast>) {
-            for stmt in block {
+            for stmt in block.iter #_mut() {
                 self.visit_stmt #_mut(stmt);
             }
         }
@@ -348,7 +348,7 @@ declare_visitors! {
             self.visit_span #_mut(span);
             match kind {
                 ExprKind::Array(exprs) => {
-                    for expr in exprs {
+                    for expr in exprs.iter #_mut() {
                         self.visit_expr #_mut(expr);
                     }
                 }
@@ -411,7 +411,7 @@ declare_visitors! {
                     self.visit_expr #_mut(false_);
                 }
                 ExprKind::Tuple(exprs) => {
-                    for expr in exprs {
+                    for expr in exprs.iter #_mut() {
                         if let Some(expr) = expr {
                             self.visit_expr #_mut(expr);
                         }
@@ -430,7 +430,7 @@ declare_visitors! {
         }
 
         fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) {
-            for param in &#mut list[..] {
+            for param in list.iter #_mut() {
                 self.visit_variable_definition #_mut(param);
             }
         }
@@ -453,7 +453,7 @@ declare_visitors! {
                     self.visit_yul_expr #_mut(expr);
                 }
                 yul::StmtKind::AssignMulti(paths, call) => {
-                    for path in paths {
+                    for path in paths.iter #_mut() {
                         self.visit_path #_mut(path);
                     }
                     self.visit_yul_expr_call #_mut(call);
@@ -481,7 +481,7 @@ declare_visitors! {
                     self.visit_yul_function #_mut(function);
                 }
                 yul::StmtKind::VarDecl(idents, expr) => {
-                    for ident in idents {
+                    for ident in idents.iter #_mut() {
                         self.visit_ident #_mut(ident);
                     }
                     if let Some(expr) = expr {
@@ -492,7 +492,7 @@ declare_visitors! {
         }
 
         fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) {
-            for stmt in block {
+            for stmt in block.iter #_mut() {
                 self.visit_yul_stmt #_mut(stmt);
             }
         }
@@ -500,7 +500,7 @@ declare_visitors! {
         fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) {
             let yul::StmtSwitch { selector, branches, default_case } = switch;
             self.visit_yul_expr #_mut(selector);
-            for case in branches {
+            for case in branches.iter #_mut() {
                 self.visit_yul_stmt_case #_mut(case);
             }
             if let Some(case) = default_case {
@@ -517,10 +517,10 @@ declare_visitors! {
         fn visit_yul_function(&mut self, function: &'ast #mut yul::Function<'ast>) {
             let yul::Function { name, parameters, returns, body } = function;
             self.visit_ident #_mut(name);
-            for ident in parameters {
+            for ident in parameters.iter #_mut() {
                 self.visit_ident #_mut(ident);
             }
-            for ident in returns {
+            for ident in returns.iter #_mut() {
                 self.visit_ident #_mut(ident);
             }
             self.visit_yul_block #_mut(body);
@@ -545,13 +545,13 @@ declare_visitors! {
         fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall<'ast>) {
             let yul::ExprCall { name, arguments } = call;
             self.visit_ident #_mut(name);
-            for arg in arguments {
+            for arg in arguments.iter #_mut() {
                 self.visit_yul_expr #_mut(arg);
             }
         }
 
         fn visit_doc_comments(&mut self, doc_comments: &'ast #mut DocComments<'ast>) {
-            for doc_comment in &#mut doc_comments[..] {
+            for doc_comment in doc_comments.iter #_mut() {
                 self.visit_doc_comment #_mut(doc_comment);
             }
         }

@@ -1,6 +1,6 @@
 use super::{Block, CallArgs, DocComments, Expr, Path, SemverReq, StrLit, Ty};
 use crate::token::Token;
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -127,14 +127,14 @@ impl ItemKind<'_> {
 }
 
 /// A pragma directive: `pragma solidity ^0.8.0;`.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct PragmaDirective<'ast> {
     /// The parsed or unparsed tokens of the pragma directive.
     pub tokens: PragmaTokens<'ast>,
 }
 
 /// The parsed or unparsed tokens of a pragma directive.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum PragmaTokens<'ast> {
     /// A Semantic Versioning requirement: `pragma solidity <req>;`.
     ///
@@ -143,7 +143,7 @@ pub enum PragmaTokens<'ast> {
     /// `pragma <name> [value];`.
     Custom(IdentOrStrLit, Option<IdentOrStrLit>),
     /// Unparsed tokens: `pragma <tokens...>;`.
-    Verbatim(Vec<'ast, Token>),
+    Verbatim(Box<'ast, [Token]>),
 }
 
 impl PragmaTokens<'_> {
@@ -206,7 +206,7 @@ impl IdentOrStrLit {
 /// An import directive: `import "foo.sol";`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective>
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct ImportDirective<'ast> {
     /// The path string literal value.
     pub path: StrLit,
@@ -221,12 +221,12 @@ impl ImportDirective<'_> {
 }
 
 /// The path of an import directive.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub enum ImportItems<'ast> {
     /// A plain import directive: `import "foo.sol" as Foo;`.
     Plain(Option<Ident>),
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
-    Aliases(Vec<'ast, (Ident, Option<Ident>)>),
+    Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
     Glob(Option<Ident>),
 }
@@ -249,7 +249,7 @@ pub enum UsingList<'ast> {
     /// `A.B`
     Single(Path),
     /// `{ A, B.add as + }`
-    Multiple(Vec<'ast, (Path, Option<UserDefinableOperator>)>),
+    Multiple(Box<'ast, [(Path, Option<UserDefinableOperator>)]>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -297,8 +297,8 @@ pub enum UserDefinableOperator {
 pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
-    pub inheritance: Vec<'ast, Modifier<'ast>>,
-    pub body: Vec<'ast, Item<'ast>>,
+    pub inheritance: Box<'ast, [Modifier<'ast>]>,
+    pub body: Box<'ast, [Item<'ast>]>,
 }
 
 /// The kind of contract.
@@ -420,7 +420,7 @@ pub struct Modifier<'ast> {
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Vec<'ast, Path>,
+    pub paths: Box<'ast, [Path]>,
 }
 
 /// A storage location.
@@ -566,7 +566,7 @@ impl VarMut {
 #[derive(Debug)]
 pub struct ItemStruct<'ast> {
     pub name: Ident,
-    pub fields: Vec<'ast, VariableDefinition<'ast>>,
+    pub fields: Box<'ast, [VariableDefinition<'ast>]>,
 }
 
 /// An enum definition: `enum Foo { A, B, C }`.
@@ -575,7 +575,7 @@ pub struct ItemStruct<'ast> {
 #[derive(Debug)]
 pub struct ItemEnum<'ast> {
     pub name: Ident,
-    pub variants: Vec<'ast, Ident>,
+    pub variants: Box<'ast, [Ident]>,
 }
 
 /// A user-defined value type definition: `type Foo is uint256;`.

@@ -25,7 +25,7 @@ sulk-interface.workspace = true
 sulk-macros.workspace = true
 
 alloy-primitives.workspace = true
-bumpalo = { workspace = true, features = ["std", "collections", "boxed"] }
+bumpalo = { workspace = true, features = ["std", "boxed"] }
 semver.workspace = true
 num-bigint.workspace = true
 num-rational.workspace = true

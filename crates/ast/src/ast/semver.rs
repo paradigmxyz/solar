@@ -1,4 +1,4 @@
-use bumpalo::{boxed::Box, collections::Vec};
+use bumpalo::boxed::Box;
 use semver::Op;
 use std::{cmp::Ordering, fmt};
 use sulk_interface::Span;
@@ -178,14 +178,14 @@ impl SemverVersion {
 }
 
 /// A SemVer version requirement. This is a list of components, and is never empty.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SemverReq<'ast> {
     /// The components of this requirement.
     ///
     /// Or-ed list of and-ed components, meaning that `matches` is evaluated as
     /// `any([all(c) for c in dis])`.
     /// E.g.: `^0 <=1 || 0.5.0 - 0.6.0 ... || ...` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...], ...]`
-    pub dis: Vec<'ast, SemverReqCon<'ast>>,
+    pub dis: Box<'ast, [SemverReqCon<'ast>]>,
 }
 
 impl fmt::Display for SemverReq<'_> {
@@ -208,11 +208,11 @@ impl SemverReq<'_> {
 }
 
 /// A list of conjoint SemVer version requirement components.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct SemverReqCon<'ast> {
     pub span: Span,
     /// The list of components. See [`SemverReq::dis`] for more details.
-    pub components: Vec<'ast, SemverReqComponent>,
+    pub components: Box<'ast, [SemverReqComponent]>,
 }
 
 impl fmt::Display for SemverReqCon<'_> {
