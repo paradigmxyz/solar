@@ -7,10 +7,10 @@ use std::fmt;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{kw, Symbol};
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a literal.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_lit(&mut self) -> PResult<'a, Lit> {
+    pub fn parse_lit(&mut self) -> PResult<'sess, Lit> {
         self.parse_spanned(Self::parse_lit_inner).map(|(span, (symbol, kind))| Lit {
             span,
             symbol,
@@ -26,7 +26,7 @@ impl<'a> Parser<'a> {
     /// Returns None if no subdenomination was parsed or if the literal is not a number or rational.
     pub fn parse_lit_with_subdenomination(
         &mut self,
-    ) -> PResult<'a, (Lit, Option<SubDenomination>)> {
+    ) -> PResult<'sess, (Lit, Option<SubDenomination>)> {
         let mut lit = self.parse_lit()?;
         let mut sub = self.parse_subdenomination();
         if let opt @ Some(_) = &mut sub {
@@ -84,7 +84,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_lit_inner(&mut self) -> PResult<'a, (Symbol, LitKind)> {
+    fn parse_lit_inner(&mut self) -> PResult<'sess, (Symbol, LitKind)> {
         if let TokenKind::Ident(symbol @ (kw::True | kw::False)) = self.token.kind {
             self.bump();
             return Ok((symbol, LitKind::Bool(symbol != kw::False)));
@@ -110,7 +110,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an integer literal.
-    fn parse_lit_int(&mut self, symbol: Symbol) -> PResult<'a, LitKind> {
+    fn parse_lit_int(&mut self, symbol: Symbol) -> PResult<'sess, LitKind> {
         use LitError::*;
         match parse_integer(symbol) {
             Ok(l) => Ok(l),
@@ -129,7 +129,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a rational literal.
-    fn parse_lit_rational(&mut self, symbol: Symbol) -> PResult<'a, LitKind> {
+    fn parse_lit_rational(&mut self, symbol: Symbol) -> PResult<'sess, LitKind> {
         use LitError::*;
         match parse_rational(symbol) {
             Ok(l) => Ok(l),
@@ -147,7 +147,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a string literal.
-    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'a, LitKind> {
+    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind> {
         let mode = match lit.kind {
             TokenLitKind::Str => unescape::Mode::Str,
             TokenLitKind::UnicodeStr => unescape::Mode::UnicodeStr,

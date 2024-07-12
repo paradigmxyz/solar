@@ -5,16 +5,16 @@ use std::num::IntErrorKind;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{error_code, kw, sym, Ident, Span};
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_file(&mut self) -> PResult<'a, SourceUnit> {
+    pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
         let items = self.parse_items(&TokenKind::Eof)?;
-        Ok(SourceUnit { items: items.into() })
+        Ok(SourceUnit { items: items.into(), _tmp: std::marker::PhantomData })
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: &TokenKind) -> PResult<'a, Vec<Item>> {
+    fn parse_items(&mut self, end: &TokenKind) -> PResult<'sess, Vec<Item>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -51,13 +51,13 @@ impl<'a> Parser<'a> {
 
     /// Parses an item.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
+    pub fn parse_item(&mut self) -> PResult<'sess, Option<Item>> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_item_kind)
             .map(|(span, kind)| kind.map(|kind| Item { docs, span, kind }))
     }
 
-    fn parse_item_kind(&mut self) -> PResult<'a, Option<ItemKind>> {
+    fn parse_item_kind(&mut self) -> PResult<'sess, Option<ItemKind>> {
         let kind = if self.is_function_like() {
             self.parse_function().map(ItemKind::Function)
         } else if self.eat_keyword(kw::Struct) {
@@ -127,7 +127,7 @@ impl<'a> Parser<'a> {
     /// Parses a function definition.
     ///
     /// Expects the current token to be a function-like keyword.
-    fn parse_function(&mut self) -> PResult<'a, ItemFunction> {
+    fn parse_function(&mut self) -> PResult<'sess, ItemFunction> {
         let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_function_header(
         &mut self,
         flags: FunctionFlags,
-    ) -> PResult<'a, FunctionHeader> {
+    ) -> PResult<'sess, FunctionHeader> {
         let mut header = FunctionHeader::default();
         let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
             VarFlags::FUNCTION_TY
@@ -269,7 +269,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a struct definition.
-    fn parse_struct(&mut self) -> PResult<'a, ItemStruct> {
+    fn parse_struct(&mut self) -> PResult<'sess, ItemStruct> {
         let name = self.parse_ident()?;
         let (fields, _) = self.parse_delim_seq(
             Delimiter::Brace,
@@ -281,7 +281,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an event definition.
-    fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
+    fn parse_event(&mut self) -> PResult<'sess, ItemEvent> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(true, VarFlags::EVENT)?;
         let anonymous = self.eat_keyword(kw::Anonymous);
@@ -290,7 +290,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an error definition.
-    fn parse_error(&mut self) -> PResult<'a, ItemError> {
+    fn parse_error(&mut self) -> PResult<'sess, ItemError> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(true, VarFlags::ERROR)?;
         self.expect_semi()?;
@@ -300,7 +300,7 @@ impl<'a> Parser<'a> {
     /// Parses a contract definition.
     ///
     /// Expects the current token to be a contract-like keyword.
-    fn parse_contract(&mut self) -> PResult<'a, ItemContract> {
+    fn parse_contract(&mut self) -> PResult<'sess, ItemContract> {
         let TokenKind::Ident(kw) = self.token.kind else {
             unreachable!("parse_contract called without contract-like keyword");
         };
@@ -326,7 +326,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an enum definition.
-    fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
+    fn parse_enum(&mut self) -> PResult<'sess, ItemEnum> {
         let name = self.parse_ident()?;
         let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
             // Ignore doc-comments.
@@ -337,7 +337,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a user-defined value type.
-    fn parse_udvt(&mut self) -> PResult<'a, ItemUdvt> {
+    fn parse_udvt(&mut self) -> PResult<'sess, ItemUdvt> {
         let name = self.parse_ident()?;
         self.expect_keyword(kw::Is)?;
         let ty = self.parse_type()?;
@@ -346,7 +346,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a pragma directive.
-    fn parse_pragma(&mut self) -> PResult<'a, PragmaDirective> {
+    fn parse_pragma(&mut self) -> PResult<'sess, PragmaDirective> {
         let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
 
         let tokens = if self.check_keyword(sym::solidity)
@@ -387,7 +387,7 @@ impl<'a> Parser<'a> {
         Ok(PragmaDirective { tokens })
     }
 
-    fn parse_ident_or_strlit(&mut self) -> PResult<'a, IdentOrStrLit> {
+    fn parse_ident_or_strlit(&mut self) -> PResult<'sess, IdentOrStrLit> {
         if self.check_ident() {
             self.parse_ident().map(IdentOrStrLit::Ident)
         } else if self.check_str_lit() {
@@ -400,7 +400,7 @@ impl<'a> Parser<'a> {
     /// Parses a SemVer version requirement.
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
-    fn parse_semver_req(&mut self) -> PResult<'a, SemverReq> {
+    fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq> {
         if self.check_noexpect(&TokenKind::Semi) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
@@ -410,7 +410,7 @@ impl<'a> Parser<'a> {
     }
 
     /// `any(c)`
-    fn parse_semver_req_components_dis(&mut self) -> PResult<'a, Vec<SemverReqCon>> {
+    fn parse_semver_req_components_dis(&mut self) -> PResult<'sess, Vec<SemverReqCon>> {
         // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
@@ -440,7 +440,7 @@ impl<'a> Parser<'a> {
     }
 
     /// `all(c)`
-    fn parse_semver_req_components_con(&mut self) -> PResult<'a, SemverReqCon> {
+    fn parse_semver_req_components_con(&mut self) -> PResult<'sess, SemverReqCon> {
         // component - component (range)
         // or component component* (conjunction)
 
@@ -471,7 +471,7 @@ impl<'a> Parser<'a> {
         Ok(SemverReqCon { span, components })
     }
 
-    fn parse_semver_component(&mut self) -> PResult<'a, (Option<SemverOp>, SemverVersion)> {
+    fn parse_semver_component(&mut self) -> PResult<'sess, (Option<SemverOp>, SemverVersion)> {
         let op = self.parse_semver_op();
         let v = self.parse_semver_version()?;
         Ok((op, v))
@@ -493,7 +493,7 @@ impl<'a> Parser<'a> {
         Some(op)
     }
 
-    fn parse_semver_version(&mut self) -> PResult<'a, SemverVersion> {
+    fn parse_semver_version(&mut self) -> PResult<'sess, SemverVersion> {
         let lo = self.token.span;
         let major;
         let mut minor = None;
@@ -536,7 +536,7 @@ impl<'a> Parser<'a> {
         Ok(SemverVersion { span, major, minor, patch })
     }
 
-    fn parse_semver_number(&mut self) -> PResult<'a, SemverVersionNumber> {
+    fn parse_semver_number(&mut self) -> PResult<'sess, SemverVersionNumber> {
         if self.check_noexpect(&TokenKind::BinOp(BinOpToken::Star))
             || self.token.is_keyword_any(&[sym::x, sym::X])
         {
@@ -571,7 +571,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an import directive.
-    fn parse_import(&mut self) -> PResult<'a, ImportDirective> {
+    fn parse_import(&mut self) -> PResult<'sess, ImportDirective> {
         let path;
         let items = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
             // * as alias from ""
@@ -604,7 +604,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an `as` alias identifier.
-    fn parse_as_alias(&mut self) -> PResult<'a, Option<Ident>> {
+    fn parse_as_alias(&mut self) -> PResult<'sess, Option<Ident>> {
         if self.eat_keyword(kw::As) {
             self.parse_ident().map(Some)
         } else {
@@ -613,7 +613,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a using directive.
-    fn parse_using(&mut self) -> PResult<'a, UsingDirective> {
+    fn parse_using(&mut self) -> PResult<'sess, UsingDirective> {
         let list = self.parse_using_list()?;
         self.expect_keyword(kw::For)?;
         let ty = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
@@ -626,7 +626,7 @@ impl<'a> Parser<'a> {
         Ok(UsingDirective { list, ty, global })
     }
 
-    fn parse_using_list(&mut self) -> PResult<'a, UsingList> {
+    fn parse_using_list(&mut self) -> PResult<'sess, UsingList> {
         if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
             let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
@@ -643,7 +643,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_user_definable_operator(&mut self) -> PResult<'a, UserDefinableOperator> {
+    fn parse_user_definable_operator(&mut self) -> PResult<'sess, UserDefinableOperator> {
         use BinOpToken::*;
         use TokenKind::*;
         use UserDefinableOperator as Op;
@@ -688,7 +688,7 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_variable_definition(
         &mut self,
         flags: VarFlags,
-    ) -> PResult<'a, VariableDefinition> {
+    ) -> PResult<'sess, VariableDefinition> {
         self.parse_variable_definition_with(flags, None)
     }
 
@@ -696,7 +696,7 @@ impl<'a> Parser<'a> {
         &mut self,
         flags: VarFlags,
         ty: Option<Ty>,
-    ) -> PResult<'a, VariableDefinition> {
+    ) -> PResult<'sess, VariableDefinition> {
         let ty = match ty {
             Some(ty) => ty,
             None => {
@@ -827,13 +827,13 @@ impl<'a> Parser<'a> {
         &mut self,
         allow_empty: bool,
         flags: VarFlags,
-    ) -> PResult<'a, ParameterList> {
+    ) -> PResult<'sess, ParameterList> {
         self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
             .map(|(x, _)| x)
     }
 
     /// Parses a list of inheritance specifiers.
-    fn parse_inheritance(&mut self) -> PResult<'a, Vec<Modifier>> {
+    fn parse_inheritance(&mut self) -> PResult<'sess, Vec<Modifier>> {
         self.parse_seq_to_before_end(
             &TokenKind::OpenDelim(Delimiter::Brace),
             SeqSep::trailing_disallowed(TokenKind::Comma),
@@ -844,7 +844,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a single modifier invocation.
-    fn parse_modifier(&mut self) -> PResult<'a, Modifier> {
+    fn parse_modifier(&mut self) -> PResult<'sess, Modifier> {
         let name = self.parse_path()?;
         let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
@@ -857,7 +857,7 @@ impl<'a> Parser<'a> {
     /// Parses a single function override.
     ///
     /// Expects the `override` to have already been eaten.
-    fn parse_override(&mut self) -> PResult<'a, Override> {
+    fn parse_override(&mut self) -> PResult<'sess, Override> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
         let paths = if self.token.is_open_delim(Delimiter::Parenthesis) {
@@ -871,7 +871,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a single string literal. This is only used in import paths and statements, not
     /// expressions.
-    pub(super) fn parse_str_lit(&mut self) -> PResult<'a, StrLit> {
+    pub(super) fn parse_str_lit(&mut self) -> PResult<'sess, StrLit> {
         match self.parse_str_lit_opt() {
             Some(lit) => Ok(lit),
             None => self.unexpected(),
@@ -1220,6 +1220,7 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
@@ -1228,8 +1229,9 @@ mod tests {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
+                let arena = Bump::new();
                 let mut parser =
-                    Parser::from_source_code(&sess, FileName::Custom(name), || Ok(src))?;
+                    Parser::from_source_code(&sess, &arena, FileName::Custom(name), src)?;
 
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);

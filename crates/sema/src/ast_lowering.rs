@@ -17,11 +17,11 @@ use sulk_interface::{
 };
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower<'hir>(sess: &Session, sources: Sources, arena: &'hir Bump) -> Hir<'hir> {
+pub(crate) fn lower<'hir>(sess: &Session, sources: Sources<'hir>, arena: &'hir Bump) -> Hir<'hir> {
     let mut lcx = LoweringContext::new(sess, arena);
 
     // Lower AST to HIR.
-    lcx.lower_sources(sources);
+    lcx.lower_sources(sources.sources);
 
     lcx.collect_exports();
     lcx.perform_imports();
@@ -54,8 +54,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn lower_sources(&mut self, sources: Sources) {
-        let mut sources = sources.sources;
+    fn lower_sources(&mut self, mut sources: IndexVec<hir::SourceId, hir::Source<'hir, 'hir>>) {
         for source in sources.iter_mut() {
             let Some(ast) = &source.ast else { continue };
             let mut items = SmallVec::<[_; 16]>::new();

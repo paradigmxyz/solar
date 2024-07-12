@@ -7,8 +7,8 @@ use sulk_macros::declare_visitors;
 declare_visitors! {
     /// AST traversal.
     pub trait Visit VisitMut <'ast> {
-        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit) {
-            let SourceUnit { items } = source_unit;
+        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) {
+            let SourceUnit { items, _tmp } = source_unit;
             for item in items {
                 self.visit_item #_mut(item);
             }

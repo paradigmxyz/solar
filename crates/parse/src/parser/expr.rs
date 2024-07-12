@@ -2,15 +2,15 @@ use crate::{PResult, Parser};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
     #[inline]
-    pub fn parse_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    pub fn parse_expr(&mut self) -> PResult<'sess, Box<Expr>> {
         self.parse_expr_with(None)
     }
 
     #[instrument(name = "parse_expr", level = "debug", skip_all)]
-    pub(super) fn parse_expr_with(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    pub(super) fn parse_expr_with(&mut self, with: Option<Box<Expr>>) -> PResult<'sess, Box<Expr>> {
         let expr = self.parse_binary_expr(4, with)?;
         if self.eat(&TokenKind::Question) {
             let then = self.parse_expr()?;
@@ -38,7 +38,7 @@ impl<'a> Parser<'a> {
         &mut self,
         min_precedence: usize,
         with: Option<Box<Expr>>,
-    ) -> PResult<'a, Box<Expr>> {
+    ) -> PResult<'sess, Box<Expr>> {
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(&self.token);
         while precedence >= min_precedence {
@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a unary expression.
-    fn parse_unary_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    fn parse_unary_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'sess, Box<Expr>> {
         if self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
             self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
         }
@@ -111,7 +111,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a primary left-hand-side expression.
-    fn parse_lhs_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    fn parse_lhs_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'sess, Box<Expr>> {
         let lo = self.token.span;
         let mut expr = if let Some(with) = with {
             Ok(with)
@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a primary expression.
-    fn parse_primary_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    fn parse_primary_expr(&mut self) -> PResult<'sess, Box<Expr>> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
             let (lit, sub) = self.parse_lit_with_subdenomination()?;
@@ -209,7 +209,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of function call arguments.
     #[track_caller]
-    pub(super) fn parse_call_args(&mut self) -> PResult<'a, CallArgs> {
+    pub(super) fn parse_call_args(&mut self) -> PResult<'sess, CallArgs> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let args = self.parse_named_args().map(CallArgs::Named)?;
@@ -221,7 +221,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a `[]` indexing expression.
-    pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'a, IndexKind> {
+    pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'sess, IndexKind> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Bracket))?;
         let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
             // expr[]
@@ -247,13 +247,13 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
-    fn parse_named_args(&mut self) -> PResult<'a, NamedArgList> {
+    fn parse_named_args(&mut self) -> PResult<'sess, NamedArgList> {
         self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg).map(|(x, _)| x)
     }
 
     /// Parses a single named argument: `a: b`.
     #[track_caller]
-    fn parse_named_arg(&mut self) -> PResult<'a, NamedArg> {
+    fn parse_named_arg(&mut self) -> PResult<'sess, NamedArg> {
         let name = self.parse_ident()?;
         self.expect(&TokenKind::Colon)?;
         let value = self.parse_expr()?;
@@ -263,7 +263,7 @@ impl<'a> Parser<'a> {
     /// Parses a list of expressions: `(a, b, c, ...)`.
     #[allow(clippy::vec_box)]
     #[track_caller]
-    fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Box<Expr>>> {
+    fn parse_unnamed_args(&mut self) -> PResult<'sess, Vec<Box<Expr>>> {
         self.parse_paren_comma_seq(true, Self::parse_expr).map(|(x, _)| x)
     }
 }

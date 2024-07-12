@@ -3,16 +3,16 @@ use crate::{parser::SeqSep, PResult, Parser};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{kw, Ident, Span};
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_stmt(&mut self) -> PResult<'a, Stmt> {
+    pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
     }
 
     /// Parses a statement kind.
-    fn parse_stmt_kind(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_stmt_kind(&mut self) -> PResult<'sess, StmtKind> {
         let mut semi = true;
         let kind = if self.eat_keyword(kw::If) {
             semi = false;
@@ -62,13 +62,13 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a block of statements.
-    pub(super) fn parse_block(&mut self) -> PResult<'a, Block> {
+    pub(super) fn parse_block(&mut self) -> PResult<'sess, Block> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
             .map(|(x, _)| x)
     }
 
     /// Parses an if statement.
-    fn parse_stmt_if(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
@@ -79,7 +79,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a while statement.
-    fn parse_stmt_while(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
@@ -88,7 +88,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a do-while statement.
-    fn parse_stmt_do_while(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind> {
         let block = self.parse_block()?;
         self.expect_keyword(kw::While)?;
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
@@ -98,7 +98,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a for statement.
-    fn parse_stmt_for(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let init =
@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a try statement.
-    fn parse_stmt_try(&mut self) -> PResult<'a, StmtTry> {
+    fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry> {
         let expr = self.parse_expr()?;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an assembly block.
-    fn parse_stmt_assembly(&mut self) -> PResult<'a, StmtAssembly> {
+    fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly> {
         let dialect = self.parse_str_lit_opt();
         let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, Self::parse_str_lit)?.0
@@ -160,7 +160,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a simple statement. These are just variable declarations and expressions.
-    fn parse_simple_stmt(&mut self) -> PResult<'a, Stmt> {
+    fn parse_simple_stmt(&mut self) -> PResult<'sess, Stmt> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt {
             docs,
@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
     /// Parses a simple statement kind. These are just variable declarations and expressions.
     ///
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
-    fn parse_simple_stmt_kind(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind> {
         let lo = self.token.span;
         if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             let mut empty_components = 0;
@@ -234,8 +234,8 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_optional_items_seq<T>(
         &mut self,
         delim: Delimiter,
-        mut f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, Vec<Option<T>>> {
+        mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Vec<Option<T>>> {
         self.expect(&TokenKind::OpenDelim(delim))?;
         let mut out = Vec::new();
         while self.eat(&TokenKind::Comma) {
@@ -251,8 +251,8 @@ impl<'a> Parser<'a> {
         &mut self,
         delim: Delimiter,
         out: &mut Vec<Option<T>>,
-        mut f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, ()> {
+        mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, ()> {
         let close = TokenKind::CloseDelim(delim);
         while !self.eat(&close) {
             self.expect(&TokenKind::Comma)?;
@@ -266,14 +266,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a path and a list of call arguments.
-    fn parse_path_call(&mut self) -> PResult<'a, (Path, CallArgs)> {
+    fn parse_path_call(&mut self) -> PResult<'sess, (Path, CallArgs)> {
         let path = self.parse_path()?;
         let params = self.parse_call_args()?;
         Ok((path, params))
     }
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
-    fn try_parse_iap(&mut self) -> PResult<'a, (LookAheadInfo, IndexAccessedPath)> {
+    fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath)> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
@@ -314,7 +314,7 @@ impl<'a> Parser<'a> {
         LookAheadInfo::Expression
     }
 
-    fn parse_iap(&mut self) -> PResult<'a, IndexAccessedPath> {
+    fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = Vec::new();
         if self.check_nr_ident() {
@@ -368,7 +368,7 @@ struct IndexAccessedPath {
 }
 
 impl IndexAccessedPath {
-    fn into_ty(self, parser: &mut Parser<'_>) -> Option<Ty> {
+    fn into_ty(self, parser: &mut Parser<'_, '_>) -> Option<Ty> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let [first, ..] = &self.path[..] else { return None };
 
@@ -406,7 +406,7 @@ impl IndexAccessedPath {
         Some(ty)
     }
 
-    fn into_expr(self, _parser: &mut Parser<'_>) -> Option<Box<Expr>> {
+    fn into_expr(self, _parser: &mut Parser<'_, '_>) -> Option<Box<Expr>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
@@ -433,6 +433,7 @@ impl IndexAccessedPath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     #[test]
@@ -442,8 +443,9 @@ mod tests {
                 let sess = Session::with_test_emitter();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
+                    let arena = Bump::new();
                     let mut parser =
-                        Parser::from_source_code(&sess, FileName::Custom(name), || Ok(s.into()))?;
+                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
 
                     let list = parser
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)

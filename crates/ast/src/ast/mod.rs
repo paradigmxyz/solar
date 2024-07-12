@@ -173,9 +173,10 @@ impl Path {
 
 /// A Solidity source file.
 #[derive(Clone, Debug)]
-pub struct SourceUnit {
+pub struct SourceUnit<'ast> {
     /// The source unit's items.
     pub items: IndexVec<ItemId, Item>,
+    pub _tmp: std::marker::PhantomData<&'ast ()>,
 }
 
 newtype_index! {

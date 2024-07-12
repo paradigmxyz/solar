@@ -6,13 +6,13 @@ use sulk_ast::{
 };
 use sulk_interface::{error_code, kw, sym, Ident};
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul object or plain block.
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.
     /// See: <https://github.com/ethereum/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_yul_file_object(&mut self) -> PResult<'a, Object> {
+    pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object> {
         let docs = self.parse_doc_comments()?;
         let object = if self.check_keyword(sym::object) {
             self.parse_yul_object().map(|mut obj| {
@@ -35,7 +35,7 @@ impl<'a> Parser<'a> {
     /// Parses a Yul object.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/yul.html#specification-of-yul-object>
-    pub fn parse_yul_object(&mut self) -> PResult<'a, Object> {
+    pub fn parse_yul_object(&mut self) -> PResult<'sess, Object> {
         let docs = self.parse_doc_comments()?;
         let lo = self.token.span;
         self.expect_keyword(sym::object)?;
@@ -61,7 +61,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul code block.
-    fn parse_yul_code(&mut self) -> PResult<'a, CodeBlock> {
+    fn parse_yul_code(&mut self) -> PResult<'sess, CodeBlock> {
         let lo = self.token.span;
         self.expect_keyword(sym::code)?;
         let code = self.parse_yul_block()?;
@@ -70,7 +70,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul data segment.
-    fn parse_yul_data(&mut self) -> PResult<'a, Data> {
+    fn parse_yul_data(&mut self) -> PResult<'sess, Data> {
         let lo = self.token.span;
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
@@ -84,29 +84,29 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul statement.
-    pub fn parse_yul_stmt(&mut self) -> PResult<'a, Stmt> {
+    pub fn parse_yul_stmt(&mut self) -> PResult<'sess, Stmt> {
         self.in_yul(Self::parse_yul_stmt)
     }
 
     /// Parses a Yul statement, without setting `in_yul`.
-    pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'a, Stmt> {
+    pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
     }
 
     /// Parses a Yul block.
-    pub fn parse_yul_block(&mut self) -> PResult<'a, Block> {
+    pub fn parse_yul_block(&mut self) -> PResult<'sess, Block> {
         self.in_yul(Self::parse_yul_block_unchecked)
     }
 
     /// Parses a Yul block, without setting `in_yul`.
-    pub fn parse_yul_block_unchecked(&mut self) -> PResult<'a, Block> {
+    pub fn parse_yul_block_unchecked(&mut self) -> PResult<'sess, Block> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_yul_stmt_unchecked)
             .map(|(x, _)| x)
     }
 
     /// Parses a Yul statement kind.
-    fn parse_yul_stmt_kind(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_yul_stmt_kind(&mut self) -> PResult<'sess, StmtKind> {
         if self.eat_keyword(kw::Let) {
             self.parse_yul_stmt_var_decl()
         } else if self.eat_keyword(kw::Function) {
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul variable declaration.
-    fn parse_yul_stmt_var_decl(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_yul_stmt_var_decl(&mut self) -> PResult<'sess, StmtKind> {
         let mut idents = Vec::new();
         loop {
             idents.push(self.parse_ident()?);
@@ -170,7 +170,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul function definition.
-    fn parse_yul_function(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind> {
         let name = self.parse_ident()?;
         let (parameters, _) = self.parse_paren_comma_seq(true, Self::parse_ident)?;
         let returns = if self.eat(&TokenKind::Arrow) {
@@ -189,14 +189,14 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul if statement.
-    fn parse_yul_stmt_if(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_yul_stmt_if(&mut self) -> PResult<'sess, StmtKind> {
         let cond = self.parse_yul_expr()?;
         let body = self.parse_yul_block_unchecked()?;
         Ok(StmtKind::If(cond, body))
     }
 
     /// Parses a Yul switch statement.
-    fn parse_yul_stmt_switch(&mut self) -> PResult<'a, StmtSwitch> {
+    fn parse_yul_stmt_switch(&mut self) -> PResult<'sess, StmtSwitch> {
         let lo = self.prev_token.span;
         let selector = self.parse_yul_expr()?;
         let mut branches = Vec::new();
@@ -227,7 +227,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul for statement.
-    fn parse_yul_stmt_for(&mut self) -> PResult<'a, StmtKind> {
+    fn parse_yul_stmt_for(&mut self) -> PResult<'sess, StmtKind> {
         let init = self.parse_yul_block_unchecked()?;
         let cond = self.parse_yul_expr()?;
         let step = self.parse_yul_block_unchecked()?;
@@ -236,12 +236,12 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul expression.
-    fn parse_yul_expr(&mut self) -> PResult<'a, Expr> {
+    fn parse_yul_expr(&mut self) -> PResult<'sess, Expr> {
         self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
     }
 
     /// Parses a Yul expression kind.
-    fn parse_yul_expr_kind(&mut self) -> PResult<'a, ExprKind> {
+    fn parse_yul_expr_kind(&mut self) -> PResult<'sess, ExprKind> {
         if self.check_lit() {
             // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
             self.parse_lit().map(ExprKind::Lit)
@@ -261,7 +261,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a Yul function call expression with the given name.
-    fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'a, ExprCall> {
+    fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'sess, ExprCall> {
         if !name.is_yul_evm_builtin() && name.is_reserved(true) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }

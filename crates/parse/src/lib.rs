@@ -18,6 +18,7 @@ mod parser;
 pub use parser::Parser;
 
 // Convenience re-exports.
+pub use bumpalo;
 pub use sulk_ast::{ast, token};
 pub use sulk_interface as interface;
 
