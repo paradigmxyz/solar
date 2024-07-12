@@ -58,7 +58,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         for source in sources.iter_mut() {
             let Some(ast) = &source.ast else { continue };
             let mut items = SmallVec::<[_; 16]>::new();
-            for item in &ast.items {
+            for item in ast.items.iter() {
                 match &item.kind {
                     ast::ItemKind::Pragma(_)
                     | ast::ItemKind::Import(_)
@@ -80,14 +80,14 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
 
     fn lower_contract(
         &mut self,
-        item: &ast::Item,
-        contract: &ast::ItemContract,
+        item: &ast::Item<'_>,
+        contract: &ast::ItemContract<'_>,
     ) -> hir::ContractId {
         let mut ctor = None;
         let mut fallback = None;
         let mut receive = None;
         let mut items = SmallVec::<[_; 16]>::new();
-        for item in &contract.body {
+        for item in contract.body.iter() {
             let id = match &item.kind {
                 ast::ItemKind::Pragma(_)
                 | ast::ItemKind::Import(_)
@@ -144,7 +144,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         id
     }
 
-    fn lower_item(&mut self, item: &ast::Item) -> hir::ItemId {
+    fn lower_item(&mut self, item: &ast::Item<'_>) -> hir::ItemId {
         match &item.kind {
             ast::ItemKind::Pragma(_) | ast::ItemKind::Import(_) | ast::ItemKind::Using(_) => {
                 unreachable!()
@@ -160,7 +160,11 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         }
     }
 
-    fn lower_function(&mut self, item: &ast::Item, i: &ast::ItemFunction) -> hir::FunctionId {
+    fn lower_function(
+        &mut self,
+        item: &ast::Item<'_>,
+        i: &ast::ItemFunction<'_>,
+    ) -> hir::FunctionId {
         self.hir.functions.push(hir::Function {
             name: i.header.name,
             span: item.span,
@@ -168,15 +172,19 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         })
     }
 
-    fn lower_variable(&mut self, item: &ast::Item, i: &ast::VariableDefinition) -> hir::VarId {
+    fn lower_variable(
+        &mut self,
+        item: &ast::Item<'_>,
+        i: &ast::VariableDefinition<'_>,
+    ) -> hir::VarId {
         self.hir.vars.push(hir::Var { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
-    fn lower_struct(&mut self, item: &ast::Item, i: &ast::ItemStruct) -> hir::StructId {
+    fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
         self.hir.structs.push(hir::Struct { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
-    fn lower_enum(&mut self, item: &ast::Item, i: &ast::ItemEnum) -> hir::EnumId {
+    fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
         self.hir.enums.push(hir::Enum {
             name: i.name,
             span: item.span,
@@ -184,15 +192,15 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         })
     }
 
-    fn lower_udvt(&mut self, item: &ast::Item, i: &ast::ItemUdvt) -> hir::UdvtId {
+    fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
         self.hir.udvts.push(hir::Udvt { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
-    fn lower_error(&mut self, item: &ast::Item, i: &ast::ItemError) -> hir::ErrorId {
+    fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
         self.hir.errors.push(hir::Error { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
-    fn lower_event(&mut self, item: &ast::Item, i: &ast::ItemEvent) -> hir::EventId {
+    fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
         self.hir.events.push(hir::Event { name: i.name, span: item.span, _tmp: PhantomData })
     }
 
@@ -232,7 +240,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
                         }
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
-                        for &(import, alias) in aliases {
+                        for &(import, alias) in aliases.iter() {
                             let resolved = import_scope.resolve(import);
                             let name = alias.unwrap_or(import);
                             if resolved.len() == 0 {

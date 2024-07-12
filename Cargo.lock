@@ -2406,6 +2406,7 @@ dependencies = [
  "num-bigint",
  "num-rational",
  "num-traits",
+ "smallvec",
  "sulk-ast",
  "sulk-interface",
  "tracing",

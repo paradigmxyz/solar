@@ -47,7 +47,7 @@ impl<'sess> SymbolCollector<'sess> {
 }
 
 impl<'ast> Visit<'ast> for SymbolCollector<'_> {
-    fn visit_import_directive(&mut self, import: &'ast ast::ImportDirective) {
+    fn visit_import_directive(&mut self, import: &'ast ast::ImportDirective<'ast>) {
         match import.items {
             ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                 if let Some(alias) = alias {
@@ -55,14 +55,14 @@ impl<'ast> Visit<'ast> for SymbolCollector<'_> {
                 }
             }
             ast::ImportItems::Aliases(ref imports) => {
-                for &(import, alias) in imports {
+                for &(import, alias) in imports.iter() {
                     self.add(alias.unwrap_or(import));
                 }
             }
         }
     }
 
-    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract) {
+    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract<'ast>) {
         self.add(contract.name);
         self.in_scope(|this| this.walk_item_contract(contract));
     }

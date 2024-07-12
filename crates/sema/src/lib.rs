@@ -257,7 +257,9 @@ impl<'sess> Sema<'sess> {
     /// Parses all the loaded sources, recursing into imports.
     #[instrument(level = "debug", skip_all)]
     fn parse<'ast>(&mut self, arenas: &'ast ThreadLocal<Bump>) -> Sources<'ast> {
-        let mut sources = std::mem::take(&mut self.sources);
+        let sources: Sources<'static> = std::mem::take(&mut self.sources);
+        let mut sources: Sources<'ast> =
+            unsafe { std::mem::transmute::<Sources<'static>, Sources<'ast>>(sources) };
         assert!(!sources.is_empty(), "no sources to parse");
         if self.sess.is_sequential() {
             self.parse_sequential(&mut sources, arenas.get_or_default());
@@ -336,15 +338,15 @@ impl<'sess> Sema<'sess> {
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files.
-    fn resolve_imports<'b>(
-        &'b self,
+    fn resolve_imports(
+        &self,
         file: &SourceFile,
-        ast: Option<&'b ast::SourceUnit<'_>>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + 'b {
+        ast: Option<&ast::SourceUnit<'_>>,
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
         let parent = match &file.name {
-            FileName::Real(path) => Some(path.clone()),
+            FileName::Real(path) => Some(path.as_path()),
             // Use current directory for stdin.
-            FileName::Stdin => Some(PathBuf::from("")),
+            FileName::Stdin => Some(Path::new("")),
             FileName::Custom(_) => None,
         };
         let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
@@ -362,11 +364,14 @@ impl<'sess> Sema<'sess> {
                 let path_str = import.path.value.as_str();
                 let path = Path::new(path_str);
                 self.file_resolver
-                    .resolve_file(path, parent.as_deref())
+                    .resolve_file(path, parent)
                     .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
                     .ok()
                     .map(|file| (id, file))
             })
+            // TODO: Must collect here due to lifetimes
+            .collect::<Vec<_>>()
+            .into_iter()
     }
 }
 

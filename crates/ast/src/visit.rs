@@ -7,9 +7,11 @@ use sulk_macros::declare_visitors;
 declare_visitors! {
     /// AST traversal.
     pub trait Visit VisitMut <'ast> {
-        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) {
-            let SourceUnit { items, _tmp } = source_unit;
-            for item in items {
+        fn visit_source_unit(&mut self, source_unit: &#mut SourceUnit<'ast>) {
+            // TODO: SAFETY: Idk
+            let source_unit = unsafe { std::mem::transmute::<&#mut SourceUnit<'ast>, &'ast #mut SourceUnit<'ast>>(source_unit) };
+            let SourceUnit { items } = source_unit;
+            for item in items.iter #_mut() {
                 self.visit_item #_mut(item);
             }
         }

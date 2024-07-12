@@ -35,12 +35,12 @@ impl<'sess> AstValidator<'sess> {
 }
 
 impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
-    fn visit_item(&mut self, item: &'ast ast::Item) {
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
         self.span = item.span;
         self.walk_item(item);
     }
 
-    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective) {
+    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
@@ -72,9 +72,9 @@ impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
 
     // Intentionally override unused default implementations to reduce bloat.
 
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr) {}
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
 
-    fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt) {}
+    fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt<'ast>) {}
 
-    fn visit_ty(&mut self, _ty: &'ast ast::Ty) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Ty<'ast>) {}
 }

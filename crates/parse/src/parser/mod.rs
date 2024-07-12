@@ -1,8 +1,8 @@
 use crate::{Lexer, PErr, PResult};
-use bumpalo::Bump;
+use bumpalo::{boxed::Box, Bump};
 use std::fmt::{self, Write};
 use sulk_ast::{
-    ast::{DocComment, Path},
+    ast::{DocComment, DocComments, Path},
     token::{Delimiter, Token, TokenKind},
 };
 use sulk_interface::{
@@ -10,6 +10,9 @@ use sulk_interface::{
     source_map::{FileName, SourceFile},
     Ident, Result, Session, Span, Symbol,
 };
+
+mod bump_ext;
+use bump_ext::BumpExt;
 
 mod expr;
 mod item;
@@ -179,6 +182,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[inline]
     pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
+    }
+
+    /// Allocates an object on the AST arena.
+    pub(crate) fn alloc<T>(&self, value: T) -> Box<'ast, T> {
+        Box::new_in(value, self.arena)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub(crate) fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
+        unsafe { Box::from_raw(self.arena.alloc_vec(values)) }
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -475,7 +488,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
 
@@ -489,7 +502,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
 
@@ -502,7 +515,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         stop: &TokenKind,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         self.parse_seq_to_before_end(
             stop,
             SeqSep::trailing_disallowed(TokenKind::Comma),
@@ -523,7 +536,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         self.parse_unspanned_seq(
             &TokenKind::OpenDelim(delim),
             &TokenKind::CloseDelim(delim),
@@ -545,7 +558,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         self.expect(bra)?;
         self.parse_seq_to_end(ket, sep, allow_empty, f)
     }
@@ -561,7 +574,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
         let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
             self.expect(ket)?;
@@ -580,7 +593,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */, bool /* recovered */)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
@@ -599,7 +612,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */, bool /* recovered */)> {
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
@@ -648,7 +661,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        Ok((v, trailing, recovered))
+        Ok((self.alloc_vec(v), trailing, recovered))
     }
 
     /// Advance the parser by one token.
@@ -730,7 +743,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses contiguous doc comments. Can be empty.
-    pub fn parse_doc_comments(&mut self) -> PResult<'sess, Vec<DocComment>> {
+    pub fn parse_doc_comments(&mut self) -> PResult<'sess, DocComments<'ast>> {
         let mut doc_comments = Vec::new();
         while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
             if !is_doc {
@@ -739,7 +752,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             doc_comments.push(DocComment { kind, span, symbol });
             self.bump();
         }
-        Ok(doc_comments)
+        Ok(self.alloc_vec(doc_comments))
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

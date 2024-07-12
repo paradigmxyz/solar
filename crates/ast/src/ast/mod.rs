@@ -1,6 +1,7 @@
 //! Solidity AST.
 
-use sulk_data_structures::{index::IndexVec, newtype_index, smallvec::SmallVec};
+use bumpalo::boxed::Box;
+use sulk_data_structures::{index::IndexSlice, newtype_index, smallvec::SmallVec};
 
 pub use crate::token::CommentKind;
 pub use sulk_interface::{Ident, Span, Symbol};
@@ -178,8 +179,16 @@ impl Path {
 #[derive(Debug)]
 pub struct SourceUnit<'ast> {
     /// The source unit's items.
-    pub items: IndexVec<ItemId, Item<'ast>>,
-    pub _tmp: std::marker::PhantomData<&'ast ()>,
+    pub items: Box<'ast, IndexSlice<ItemId, [Item<'ast>]>>,
+}
+
+impl<'ast> SourceUnit<'ast> {
+    /// Creates a new source unit from the given items.
+    pub fn new(items: Box<'ast, [Item<'ast>]>) -> Self {
+        // SAFETY: Casting `Box<[T]> -> Box<IndexSlice<[T]>>` is safe.
+        let ptr = Box::into_raw(items) as *mut IndexSlice<ItemId, [Item<'ast>]>;
+        Self { items: unsafe { Box::from_raw(ptr) } }
+    }
 }
 
 newtype_index! {

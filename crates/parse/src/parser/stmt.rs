@@ -1,18 +1,24 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
+use bumpalo::boxed::Box;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{kw, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt> {
+    pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
     }
 
+    /// Parses a statement into a new allocation.
+    pub fn parse_stmt_boxed(&mut self) -> PResult<'sess, Box<'ast, Stmt<'ast>>> {
+        self.parse_stmt().map(|stmt| self.alloc(stmt))
+    }
+
     /// Parses a statement kind.
-    fn parse_stmt_kind(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let mut semi = true;
         let kind = if self.eat_keyword(kw::If) {
             semi = false;
@@ -62,33 +68,33 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a block of statements.
-    pub(super) fn parse_block(&mut self) -> PResult<'sess, Block> {
+    pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
             .map(|(x, _)| x)
     }
 
     /// Parses an if statement.
-    fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let true_stmt = self.parse_stmt()?;
         let else_stmt =
-            if self.eat_keyword(kw::Else) { Some(Box::new(self.parse_stmt()?)) } else { None };
-        Ok(StmtKind::If(expr, Box::new(true_stmt), else_stmt))
+            if self.eat_keyword(kw::Else) { Some(self.parse_stmt_boxed()?) } else { None };
+        Ok(StmtKind::If(expr, self.alloc(true_stmt), else_stmt))
     }
 
     /// Parses a while statement.
-    fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let stmt = self.parse_stmt()?;
-        Ok(StmtKind::While(expr, Box::new(stmt)))
+        Ok(StmtKind::While(expr, self.alloc(stmt)))
     }
 
     /// Parses a do-while statement.
-    fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let block = self.parse_block()?;
         self.expect_keyword(kw::While)?;
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
@@ -98,7 +104,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a for statement.
-    fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let init =
@@ -114,17 +120,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Some(self.parse_expr()?)
         };
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        let body = Box::new(self.parse_stmt()?);
-        Ok(StmtKind::For { init: init.map(Box::new), cond, next, body })
+        let body = self.parse_stmt_boxed()?;
+        Ok(StmtKind::For { init: init.map(|init| self.alloc(init)), cond, next, body })
     }
 
     /// Parses a try statement.
-    fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry> {
+    fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
-            Vec::new()
+            Default::default()
         };
         let block = self.parse_block()?;
 
@@ -135,7 +141,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 self.parse_parameter_list(false, VarFlags::FUNCTION)?
             } else {
-                Vec::new()
+                Default::default()
             };
             let block = self.parse_block()?;
             catch.push(CatchClause { name, args, block });
@@ -144,23 +150,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
+        let catch = self.alloc_vec(catch);
         Ok(StmtTry { expr, returns, block, catch })
     }
 
     /// Parses an assembly block.
-    fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly> {
+    fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
         let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, Self::parse_str_lit)?.0
         } else {
-            Vec::new()
+            Default::default()
         };
         let block = self.parse_yul_block()?;
         Ok(StmtAssembly { dialect, flags, block })
     }
 
     /// Parses a simple statement. These are just variable declarations and expressions.
-    fn parse_simple_stmt(&mut self) -> PResult<'sess, Stmt> {
+    fn parse_simple_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt {
             docs,
@@ -172,10 +179,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a simple statement kind. These are just variable declarations and expressions.
     ///
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
-    fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind> {
+    fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            let mut empty_components = 0;
+            let mut empty_components = 0usize;
             while self.eat(&TokenKind::Comma) {
                 empty_components += 1;
             }
@@ -183,7 +190,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let (statement_type, iap) = self.try_parse_iap()?;
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
-                    let mut variables = vec![None; empty_components];
+                    let mut variables = vec_repeat_none(empty_components);
                     let ty = iap.into_ty(self);
                     variables
                         .push(Some(self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?));
@@ -194,10 +201,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )?;
                     self.expect(&TokenKind::Eq)?;
                     let expr = self.parse_expr()?;
-                    Ok(StmtKind::DeclMulti(variables, expr))
+                    Ok(StmtKind::DeclMulti(self.alloc_vec(variables), expr))
                 }
                 LookAheadInfo::Expression => {
-                    let mut components = vec![None; empty_components];
+                    let mut components = vec_repeat_none(empty_components);
                     let expr = iap.into_expr(self);
                     components.push(Some(self.parse_expr_with(expr)?));
                     self.parse_optional_items_seq_required(
@@ -207,9 +214,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )?;
                     let partially_parsed = Expr {
                         span: lo.to(self.prev_token.span),
-                        kind: ExprKind::Tuple(components),
+                        kind: ExprKind::Tuple(self.alloc_vec(components)),
                     };
-                    self.parse_expr_with(Some(Box::new(partially_parsed))).map(StmtKind::Expr)
+                    self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
                 }
                 LookAheadInfo::IndexAccessStructure => unreachable!(),
             }
@@ -266,14 +273,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a path and a list of call arguments.
-    fn parse_path_call(&mut self) -> PResult<'sess, (Path, CallArgs)> {
+    fn parse_path_call(&mut self) -> PResult<'sess, (Path, CallArgs<'ast>)> {
         let path = self.parse_path()?;
         let params = self.parse_call_args()?;
         Ok((path, params))
     }
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
-    fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath)> {
+    fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
@@ -314,7 +321,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         LookAheadInfo::Expression
     }
 
-    fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath> {
+    fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = Vec::new();
         if self.check_nr_ident() {
@@ -351,35 +358,36 @@ enum LookAheadInfo {
 }
 
 #[derive(Debug)]
-enum IapKind {
+enum IapKind<'ast> {
     /// `[...]`
-    Index(Span, IndexKind),
+    Index(Span, IndexKind<'ast>),
     /// `<ident>` or `.<ident>`
     Member(Ident),
     /// `<ty>`
-    MemberTy(Span, TyKind),
+    MemberTy(Span, TyKind<'ast>),
 }
 
 #[derive(Debug, Default)]
-struct IndexAccessedPath {
-    path: Vec<IapKind>,
+struct IndexAccessedPath<'ast> {
+    path: Vec<IapKind<'ast>>,
     /// The number of elements in `path` that are `IapKind::Member[Ty]` at the start.
     n_idents: usize,
 }
 
-impl IndexAccessedPath {
-    fn into_ty(self, parser: &mut Parser<'_, '_>) -> Option<Ty> {
+impl<'ast> IndexAccessedPath<'ast> {
+    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Ty<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
-        let [first, ..] = &self.path[..] else { return None };
+        let mut path = self.path.into_iter();
+        let Some(first) = path.next() else { return None };
 
         let mut ty = if let IapKind::MemberTy(span, kind) = first {
             debug_assert_eq!(self.n_idents, 1);
-            Ty { span: *span, kind: kind.clone() }
+            Ty { span, kind }
         } else {
             debug_assert!(self.n_idents >= 1);
-            let path: Path = self
-                .path
-                .iter()
+            let first = std::iter::once(&first);
+            let path: Path = first
+                .chain(path.as_slice())
                 .map(|x| match x {
                     IapKind::Member(id) => *id,
                     kind => unreachable!("{kind:?}"),
@@ -389,7 +397,7 @@ impl IndexAccessedPath {
             Ty { span: path.span(), kind: TyKind::Custom(path) }
         };
 
-        for index in self.path.into_iter().skip(self.n_idents) {
+        for index in path.skip(self.n_idents - 1) {
             let IapKind::Index(span, kind) = index else { panic!("parsed too much") };
             let size = match kind {
                 IndexKind::Index(expr) => expr,
@@ -400,23 +408,23 @@ impl IndexAccessedPath {
                 }
             };
             let span = ty.span.to(span);
-            ty = Ty { span, kind: TyKind::Array(Box::new(TypeArray { element: ty, size })) };
+            ty = Ty { span, kind: TyKind::Array(parser.alloc(TypeArray { element: ty, size })) };
         }
 
         Some(ty)
     }
 
-    fn into_expr(self, _parser: &mut Parser<'_, '_>) -> Option<Box<Expr>> {
+    fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
-        let mut expr = Box::new(match path.next()? {
+        let mut expr = parser.alloc(match path.next()? {
             IapKind::Member(ident) => Expr::from_ident(ident),
             IapKind::MemberTy(span, kind) => Expr { span, kind: ExprKind::Type(Ty { span, kind }) },
             IapKind::Index(..) => panic!("should not happen"),
         });
         for index in path {
-            expr = Box::new(match index {
+            expr = parser.alloc(match index {
                 IapKind::Member(ident) => {
                     Expr { span: expr.span.to(ident.span), kind: ExprKind::Member(expr, ident) }
                 }
@@ -428,6 +436,13 @@ impl IndexAccessedPath {
         }
         Some(expr)
     }
+}
+
+/// `T: !Clone`
+fn vec_repeat_none<T>(n: usize) -> Vec<Option<T>> {
+    let mut v = Vec::with_capacity(n.next_power_of_two());
+    v.extend(std::iter::repeat_with(|| None).take(n));
+    v
 }
 
 #[cfg(test)]
