@@ -1,6 +1,7 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
 use bumpalo::boxed::Box;
+use smallvec::SmallVec;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{kw, Ident, Span};
 
@@ -134,7 +135,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let block = self.parse_block()?;
 
-        let mut catch = Vec::new();
+        let mut catch = SmallVec::<[_; 4]>::new();
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
@@ -149,8 +150,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 break;
             }
         }
-
-        let catch = self.alloc_vec(catch);
+        let catch = self.alloc_smallvec(catch);
         Ok(StmtTry { expr, returns, block, catch })
     }
 
@@ -190,7 +190,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let (statement_type, iap) = self.try_parse_iap()?;
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
-                    let mut variables = vec_repeat_none(empty_components);
+                    let mut variables = smallvec_repeat_none(empty_components);
                     let ty = iap.into_ty(self);
                     variables
                         .push(Some(self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?));
@@ -201,10 +201,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )?;
                     self.expect(&TokenKind::Eq)?;
                     let expr = self.parse_expr()?;
-                    Ok(StmtKind::DeclMulti(self.alloc_vec(variables), expr))
+                    Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
                 }
                 LookAheadInfo::Expression => {
-                    let mut components = vec_repeat_none(empty_components);
+                    let mut components = smallvec_repeat_none(empty_components);
                     let expr = iap.into_expr(self);
                     components.push(Some(self.parse_expr_with(expr)?));
                     self.parse_optional_items_seq_required(
@@ -214,7 +214,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     )?;
                     let partially_parsed = Expr {
                         span: lo.to(self.prev_token.span),
-                        kind: ExprKind::Tuple(self.alloc_vec(components)),
+                        kind: ExprKind::Tuple(self.alloc_smallvec(components)),
                     };
                     self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
                 }
@@ -242,22 +242,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Vec<Option<T>>> {
+    ) -> PResult<'sess, Box<'ast, [Option<T>]>> {
         self.expect(&TokenKind::OpenDelim(delim))?;
-        let mut out = Vec::new();
+        let mut out = SmallVec::<[_; 8]>::new();
         while self.eat(&TokenKind::Comma) {
             out.push(None);
         }
         if !self.check(&TokenKind::CloseDelim(delim)) {
             out.push(Some(f(self)?));
         }
-        self.parse_optional_items_seq_required(delim, &mut out, f).map(|()| out)
+        self.parse_optional_items_seq_required(delim, &mut out, f)
+            .map(|()| self.alloc_smallvec(out))
     }
 
     fn parse_optional_items_seq_required<T>(
         &mut self,
         delim: Delimiter,
-        out: &mut Vec<Option<T>>,
+        out: &mut SmallVec<[Option<T>; 8]>,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, ()> {
         let close = TokenKind::CloseDelim(delim);
@@ -439,8 +440,8 @@ impl<'ast> IndexAccessedPath<'ast> {
 }
 
 /// `T: !Clone`
-fn vec_repeat_none<T>(n: usize) -> Vec<Option<T>> {
-    let mut v = Vec::with_capacity(n);
+fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
+    let mut v = SmallVec::with_capacity(n);
     v.extend(std::iter::repeat_with(|| None).take(n));
     v
 }

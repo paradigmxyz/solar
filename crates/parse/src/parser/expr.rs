@@ -206,9 +206,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     return Err(self.dcx().err(msg).span(span));
                 }
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(self.alloc_vec(unsafe { vec_option_box_unwrap_unchecked(list) }))
+                ExprKind::Array(unsafe { vec_option_box_unwrap_unchecked(list) })
             } else {
-                ExprKind::Tuple(self.alloc_vec(list))
+                ExprKind::Tuple(list)
             }
         } else {
             return self.unexpected();
@@ -319,8 +319,10 @@ fn token_precedence(t: &Token) -> usize {
 ///
 /// All elements of the vector must be `Some`.
 #[inline]
-unsafe fn vec_option_box_unwrap_unchecked<T>(vec: Vec<Option<Box<'_, T>>>) -> Vec<Box<'_, T>> {
-    debug_assert!(vec.iter().all(Option::is_some));
+unsafe fn vec_option_box_unwrap_unchecked<'a, 'b, T>(
+    list: Box<'a, [Option<Box<'b, T>>]>,
+) -> Box<'a, [Box<'b, T>]> {
+    debug_assert!(list.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
-    unsafe { std::mem::transmute(vec) }
+    unsafe { std::mem::transmute(list) }
 }
