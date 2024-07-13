@@ -3,7 +3,7 @@ use alloy_primitives::Address;
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::Num;
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{kw, Symbol};
 
@@ -207,13 +207,19 @@ impl fmt::Display for LitError {
 }
 
 fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
-    let symbol = strip_underscores(symbol);
-    let s = symbol.as_str();
-    let base = match s.as_bytes() {
-        [b'0', b'x', ..] => 16,
-        [b'0', b'o', ..] => 8,
-        [b'0', b'b', ..] => 2,
-        _ => 10,
+    /// Primitive type to use for fast-path parsing.
+    type Primitive = u128;
+
+    const fn max_len(base: u32) -> u32 {
+        Primitive::MAX.ilog(base as Primitive) + 1
+    }
+
+    let s = &strip_underscores(&symbol)[..];
+    let (base, fast_path_len) = match s.as_bytes() {
+        [b'0', b'x', ..] => (16, const { max_len(16) }),
+        [b'0', b'o', ..] => (8, const { max_len(8) }),
+        [b'0', b'b', ..] => (2, const { max_len(2) }),
+        _ => (10, const { max_len(10) }),
     };
 
     if base == 10 && s.starts_with('0') && s.len() > 1 {
@@ -235,12 +241,16 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
+    if s.len() <= fast_path_len as usize {
+        if let Ok(n) = Primitive::from_str_radix(s, base) {
+            return Ok(LitKind::Number(BigInt::from(n)));
+        }
+    }
     BigInt::from_str_radix(s, base).map(LitKind::Number).map_err(LitError::ParseInteger)
 }
 
 fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
-    let symbol = strip_underscores(symbol);
-    let s = symbol.as_str();
+    let s = &strip_underscores(&symbol)[..];
     debug_assert!(!s.is_empty());
 
     let (int, rat, exp) = match (s.find('.'), s.find(['e', 'E'])) {
@@ -336,15 +346,16 @@ fn split_at_exclusive(s: &str, idx: usize) -> (&str, &str) {
     unsafe { (s.get_unchecked(..idx), s.get_unchecked(idx + 1..)) }
 }
 
-fn strip_underscores(symbol: Symbol) -> Symbol {
+#[inline]
+fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
     // Do not allocate a new string unless necessary.
     let s = symbol.as_str();
     if s.contains('_') {
         let mut s = s.to_string();
         s.retain(|c| c != '_');
-        return Symbol::intern(&s);
+        return Cow::Owned(s);
     }
-    symbol
+    Cow::Borrowed(s)
 }
 
 #[cfg(test)]
