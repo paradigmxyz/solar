@@ -135,72 +135,162 @@ parser/safeconsole/slang/parse
 
 ### empty (0 LoC, 0 bytes)
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0000008755    | 0.000001152      | N/A            | N/A              | 0               | 0                 |
-| solang | 0.00000001182   | 0.00000009318    | N/A            | N/A              | 0               | 0                 |
-| slang  | N/A             | 0.00003040       | N/A            | N/A              | 0               | 0                 |
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 11.815 ns | N/A     | N/A       |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 875.50 ns | N/A     | N/A       |
+
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 30.396 µs | N/A     | N/A       |
+| solang   | 93.020 ns | N/A     | N/A       |
+| solc     | 1.0000 µs | N/A     | N/A       |
+| sulk     | 1.1522 µs | N/A     | N/A       |
 
 ### Counter (14 LoC, 258 bytes)
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.000001843     | 0.000003786      | 7.598 M        | 140.0 M          | 3.698 M         | 68.15 M           |
-| solang | 0.000001487     | 0.000008431      | 9.414 M        | 173.6 M          | 1.661 M         | 30.61 M           |
-| slang  | N/A             | 0.0009901        | N/A            | N/A              | 141.4 K         | 2.608 M           |
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 1.4874 µs | 9.41M   | 173.50M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 1.8424 µs | 7.60M   | 140.07M   |
 
-### verifier (208 LoC, 11,040 bytes)
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 990.13 µs | 14.14K  | 260.57K   |
+| solang   | 8.4306 µs | 1.66M   | 30.60M    |
+| solc     | 22.400 µs | 625.00K | 11.52M    |
+| sulk     | 3.7864 µs | 3.70M   | 68.15M    |
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.00004047      | 0.0001065        | 5.139 M        | 272.3 M          | 1.958 M         | 103.6 M           |
-| solang | 0.00006296      | 0.0004370        | 3.305 M        | 175.8 M          | 476.6 K         | 25.34 M           |
-| slang  | N/A             | 0.06396          | N/A            | N/A              | 3.255 K         | 172.5 K           |
+### verifier (208 LoC, 11040 bytes)
 
-### OptimizorClub (782 LoC, 35,905 bytes)
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 62.957 µs | 3.30M   | 175.36M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 40.477 µs | 5.14M   | 272.75M   |
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0001257       | 0.0003354        | 6.224 M        | 283.2 M          | 2.330 M         | 106.1 M           |
-| solang | 0.0001958       | 0.001306         | 3.992 M        | 181.5 M          | 598.9 K         | 27.23 M           |
-| slang  | N/A             | 0.1921           | N/A            | N/A              | 4.073 K         | 186.6 K           |
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 63.894 ms | 3.26K   | 172.79K   |
+| solang   | 436.96 µs | 476.02K | 25.27M    |
+| solc     | 647.40 µs | 321.29K | 17.05M    |
+| sulk     | 106.52 µs | 1.95M   | 103.64M   |
 
-### UniswapV3 (3,189 LoC, 146,583 bytes)
+### OptimizorClub (782 LoC, 35905 bytes)
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0003739       | 0.0008248        | 8.531 M        | 391.9 M          | 3.867 M         | 177.6 M           |
-| solang | 0.0006265       | 0.003410         | 5.092 M        | 234.9 M          | 935.0 K         | 43.12 M           |
-| slang  | N/A             | 0.5211           | N/A            | N/A              | 6.125 K         | 281.3 K           |
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 195.80 µs | 3.99M   | 183.38M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 125.71 µs | 6.22M   | 285.62M   |
 
-### Solarray (1,544 LoC, 35,898 bytes)
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 192.11 ms | 4.07K   | 186.90K   |
+| solang   | 1.3059 ms | 598.82K | 27.49M    |
+| solc     | 1.5563 ms | 502.47K | 23.07M    |
+| sulk     | 335.36 µs | 2.33M   | 107.06M   |
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0002234       | 0.0006605        | 6.911 M        | 160.7 M          | 2.338 M         | 54.35 M           |
-| solang | 0.0002947       | 0.002865         | 5.241 M        | 121.9 M          | 538.7 K         | 12.52 M           |
-| slang  | N/A             | 0.3993           | N/A            | N/A              | 3.887 K         | 90.14 K           |
+### UniswapV3 (3189 LoC, 146583 bytes)
 
-### console (1,552 LoC, 67,315 bytes)
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 626.49 µs | 5.09M   | 233.98M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 373.85 µs | 8.53M   | 392.09M   |
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0003177       | 0.0007459        | 4.887 M        | 211.3 M          | 2.082 M         | 89.64 M           |
-| solang | 0.0004410       | 0.003604         | 3.520 M        | 152.7 M          | 430.6 K         | 18.70 M           |
-| slang  | N/A             | 0.4520           | N/A            | N/A              | 3.433 K         | 148.9 K           |
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 520.83 ms | 6.12K   | 281.44K   |
+| solang   | 3.4100 ms | 935.19K | 42.99M    |
+| solc     | 4.5205 ms | 705.45K | 32.43M    |
+| sulk     | 824.85 µs | 3.87M   | 177.71M   |
 
-### Vm (1,763 LoC, 91,405 bytes)
+### Solarray (1544 LoC, 35898 bytes)
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.0002125       | 0.0003618        | 8.297 M        | 429.9 M          | 4.872 M         | 252.3 M           |
-| solang | 0.0003993       | 0.001349         | 4.414 M        | 229.3 M          | 1.306 M         | 62.56 M           |
-| slang  | N/A             | 0.07380          | N/A            | N/A              | 23.91 K         | 1.151 M           |
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 294.65 µs | 5.24M   | 121.83M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 223.38 µs | 6.91M   | 160.70M   |
 
-### safeconsole (13,248 LoC, 397,898 bytes)
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 397.58 ms | 3.88K   | 90.29K    |
+| solang   | 2.8652 ms | 538.88K | 12.53M    |
+| solc     | 2.2148 ms | 697.13K | 16.21M    |
+| sulk     | 660.48 µs | 2.34M   | 54.35M    |
 
-| Tool   | Lexing Time (s) | Parsing Time (s) | LoC/s (lexing) | Bytes/s (lexing) | LoC/s (parsing) | Bytes/s (parsing) |
-|--------|-----------------|------------------|----------------|------------------|-----------------|-------------------|
-| sulk   | 0.001742        | 0.005813         | 7.604 M        | 228.4 M          | 2.280 M         | 68.45 M           |
-| solang | 0.002410        | 0.01939          | 5.495 M        | 165.0 M          | 682.9 K         | 20.49 M           |
-| slang  | N/A             | 3.770            | N/A            | N/A              | 3.513 K         | 105.1 K           |
+### console (1552 LoC, 67315 bytes)
+
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 440.98 µs | 3.52M   | 152.65M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 317.65 µs | 4.89M   | 211.92M   |
+
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 451.94 ms | 3.43K   | 148.95K   |
+| solang   | 3.6035 ms | 430.69K | 18.68M    |
+| solc     | 3.3615 ms | 461.70K | 20.03M    |
+| sulk     | 745.85 µs | 2.08M   | 90.25M    |
+
+### Vm (1763 LoC, 91405 bytes)
+
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 399.35 µs | 4.41M   | 228.88M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 212.46 µs | 8.30M   | 430.22M   |
+
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 73.799 ms | 23.89K  | 1.24M     |
+| solang   | 1.3489 ms | 1.31M   | 67.76M    |
+| solc     | 2.4256 ms | 726.83K | 37.68M    |
+| sulk     | 361.80 µs | 4.87M   | 252.64M   |
+
+### safeconsole (13248 LoC, 397898 bytes)
+
+#### Lex
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | N/A       | N/A     | N/A       |
+| solang   | 2.4099 ms | 5.50M   | 165.11M   |
+| solc     | N/A       | N/A     | N/A       |
+| sulk     | 1.7402 ms | 7.61M   | 228.65M   |
+
+#### Parse
+| Parser   | Time      | LoC/s   | Bytes/s   |
+|:---------|:----------|:--------|:----------|
+| slang    | 3.7703 s  | 3.51K   | 105.53K   |
+| solang   | 19.390 ms | 683.24K | 20.52M    |
+| solc     | 19.213 ms | 689.50K | 20.71M    |
+| sulk     | 5.8126 ms | 2.28M   | 68.45M    |
