@@ -2,7 +2,7 @@
 
 use iai_callgrind::{library_benchmark, library_benchmark_group};
 use std::hint::black_box;
-use sulk_bench::{Parser, Slang, Solang, Source, Sulk, SRCS};
+use sulk_bench::{get_srcs, Parser, Slang, Solang, Source, Sulk};
 
 #[library_benchmark]
 fn sulk_enter() -> usize {
@@ -91,24 +91,34 @@ macro_rules! mk_groups {
     };
 }
 
-mk_groups!("empty", "simple", "verifier", "OptimizorClub", "UniswapV3");
+mk_groups!(
+    "empty",
+    "Counter",
+    "verifier",
+    "OptimizorClub",
+    "UniswapV3",
+    "Solarray",
+    "console",
+    "Vm",
+    "safeconsole",
+);
 
 #[inline]
 fn run_lex(name: &str, parser: &dyn Parser) {
     assert!(parser.can_lex(), "{} can't lex", parser.name());
-    let Source { name: _, src } = get_source(name);
+    let Source { name: _, path: _, src } = get_source(name);
     sulk_parse::interface::enter(|| parser.lex(black_box(src)))
 }
 
 #[inline]
 fn run_parse(name: &str, parser: &dyn Parser) {
-    let Source { name: _, src } = get_source(name);
+    let Source { name: _, path: _, src } = get_source(name);
     sulk_parse::interface::enter(|| parser.parse(black_box(src)))
 }
 
 #[inline]
 fn get_source(name: &str) -> &'static Source {
-    SRCS.iter().find(|s| s.name == name).unwrap()
+    get_srcs().iter().find(|s| s.name == name).unwrap()
 }
 
 // use lex_::lex;
