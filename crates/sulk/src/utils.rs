@@ -7,6 +7,30 @@ use sulk_interface::{
 const BUG_REPORT_URL: &str =
     "https://github.com/paradigmxyz/sulk/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
+// We use jemalloc for performance reasons.
+// Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.
+cfg_if::cfg_if! {
+    if #[cfg(all(feature = "jemalloc", unix, not(debug_assertions)))] {
+        type AllocatorInner = tikv_jemallocator::Jemalloc;
+    } else {
+        type AllocatorInner = std::alloc::System;
+    }
+}
+
+cfg_if::cfg_if! {
+    if #[cfg(feature = "tracy-allocator")] {
+        pub(super) type Allocator = tracing_tracy::client::ProfiledAllocator<AllocatorInner>;
+        pub(super) const fn new_allocator() -> Allocator {
+            Allocator::new(AllocatorInner {}, 100)
+        }
+    } else {
+        pub(super) type Allocator = AllocatorInner;
+        pub(super) const fn new_allocator() -> Allocator {
+            AllocatorInner {}
+        }
+    }
+}
+
 fn early_dcx() -> DiagCtxt {
     DiagCtxt::with_tty_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
 }

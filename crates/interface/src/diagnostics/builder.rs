@@ -67,7 +67,7 @@ impl EmissionGuarantee for FatalAbort {
 
     fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
-        std::panic::panic_any(FatalAbort);
+        std::panic::panic_any(Self);
     }
 }
 

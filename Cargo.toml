@@ -59,7 +59,6 @@ codegen-units = 16
 [profile.profiling]
 inherits = "release"
 debug = 2
-split-debuginfo = "unpacked"
 strip = false
 
 [profile.bench]
@@ -134,6 +133,7 @@ walkdir = "2.4"
 ahash = "0.8"
 bitflags = "2.4"
 bumpalo = "3.14"
+cfg-if = "1.0"
 dashmap = "6.0"
 hex = { package = "const-hex", version = "1.10" }
 index_vec = "0.1.3"

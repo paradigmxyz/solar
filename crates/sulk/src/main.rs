@@ -29,11 +29,8 @@ pub mod sigsegv_handler {
 #[cfg(test)]
 use sulk_tester as _;
 
-// We use jemalloc for performance reasons.
-#[cfg(not(debug_assertions))]
-#[cfg(all(feature = "jemalloc", unix))]
 #[global_allocator]
-static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static ALLOC: utils::Allocator = utils::new_allocator();
 
 #[cfg(debug_assertions)]
 use tikv_jemallocator as _;

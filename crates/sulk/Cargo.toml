@@ -23,6 +23,7 @@ sulk-config = { workspace = true, features = ["clap"] }
 sulk-interface = { workspace = true, features = ["json"] }
 sulk-sema.workspace = true
 
+cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 rayon.workspace = true
 tracing.workspace = true
@@ -50,6 +51,7 @@ nightly = [
 jemalloc = ["dep:tikv-jemallocator"]
 tracing-chrome = ["dep:tracing-chrome"]
 tracy = ["dep:tracing-tracy"]
+tracy-allocator = ["tracy"]
 
 [[test]]
 name = "tests"
