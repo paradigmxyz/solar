@@ -1,4 +1,5 @@
 #![allow(clippy::missing_transmute_annotations)]
+#![allow(clippy::missing_safety_doc)]
 
 /// Changes the lifetime of the given reference.
 pub unsafe fn decouple_lt<'a, T: ?Sized>(x: &T) -> &'a T {
