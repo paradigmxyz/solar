@@ -4,8 +4,9 @@ use sulk_bench::{get_srcs, Source, PARSERS};
 
 fn parser_benches(c: &mut Criterion) {
     for s in get_srcs() {
-        println!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
+        eprintln!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
     }
+    eprintln!();
 
     let mut g = c.benchmark_group("parser");
     g.warm_up_time(Duration::from_secs(3));
