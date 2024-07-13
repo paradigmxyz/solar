@@ -129,7 +129,7 @@ macro_rules! base_index {
                         #[cfg(feature = "nightly")]
                         value,
                         #[cfg(not(feature = "nightly"))]
-                        value: std::mem::transmute::<$primitive, std::num::NonZero<$primitive>>(value.unchecked_add(1)),
+                        value: std::num::NonZero::new_unchecked(value.unchecked_add(1)),
                     }
                 }
             }
