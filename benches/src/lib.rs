@@ -2,34 +2,38 @@ use std::{hint::black_box, io::Write, path::PathBuf, process::Stdio};
 use sulk_parse::interface::Session;
 
 pub const PARSERS: &[&dyn Parser] = &[&Solc, &Sulk, &Solang, &Slang];
-pub const SRCS: &[Source] = &[
-    Source { name: "empty", src: "" },
-    Source {
-        name: "simple",
-        src: r#"
-        pragma solidity ^0.8.0;
 
-        contract A {
-            function f() public pure returns (uint) {
-                return 1;
-            }
-        }
-        "#,
-    },
-    Source {
-        name: "verifier",
-        src: include_str!("../../testdata/solidity/test/benchmarks/verifier.sol"),
-    },
-    Source {
-        name: "OptimizorClub",
-        src: include_str!("../../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
-    },
-    Source { name: "UniswapV3", src: include_str!("../../testdata/UniswapV3.sol") },
-];
+macro_rules! include_source {
+    ($path:literal) => {
+        source_from_path($path, include_str!($path))
+    };
+}
+
+pub fn get_srcs() -> &'static [Source] {
+    static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        vec![
+            Source { name: "empty", path: "", src: "" },
+            include_source!("../../testdata/Counter.sol"),
+            include_source!("../../testdata/solidity/test/benchmarks/verifier.sol"),
+            include_source!("../../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
+            include_source!("../../testdata/UniswapV3.sol"),
+            include_source!("../../testdata/Solarray.sol"),
+            include_source!("../../testdata/console.sol"),
+            include_source!("../../testdata/Vm.sol"),
+            include_source!("../../testdata/safeconsole.sol"),
+        ]
+    })
+}
+
+fn source_from_path(path: &'static str, src: &'static str) -> Source {
+    Source { name: std::path::Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src }
+}
 
 #[derive(Clone, Debug)]
 pub struct Source {
     pub name: &'static str,
+    pub path: &'static str,
     pub src: &'static str,
 }
 
