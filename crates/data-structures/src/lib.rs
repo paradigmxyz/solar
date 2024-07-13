@@ -18,11 +18,15 @@ pub mod index;
 pub mod map;
 pub mod scope;
 pub mod sync;
+pub mod trustme;
+
+mod captures;
+pub use captures::Captures;
 
 mod never;
 pub use never::Never;
 
-pub use smallvec;
-
 mod on_drop;
 pub use on_drop::{defer, OnDrop};
+
+pub use smallvec;

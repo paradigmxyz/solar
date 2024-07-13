@@ -220,7 +220,7 @@ impl<'sess> Sema<'sess> {
 
         let ast_arenas = OnDrop::new(ThreadLocal::<Bump>::new(), |mut arenas| {
             debug!(
-                "dropping AST arenas containg {} / {} bytes",
+                "dropping AST arenas with a total capacity of {} / {} bytes",
                 arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),
                 arenas.iter_mut().map(|a| a.allocated_bytes_including_metadata()).sum::<usize>(),
             );
@@ -290,7 +290,7 @@ impl<'sess> Sema<'sess> {
 
             let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
-            for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
+            for (import_item_id, import) in resolve_imports!(self, &source.file, ast.as_ref()) {
                 sources.add_import(current_file, import_item_id, import);
             }
             let new_files = sources.len() - n_sources;
@@ -317,7 +317,7 @@ impl<'sess> Sema<'sess> {
                 .flat_map_iter(|(i, source)| {
                     debug_assert!(source.ast.is_none(), "source already parsed");
                     source.ast = self.parse_one(&source.file, arenas.get_or_default());
-                    self.resolve_imports(&source.file, source.ast.as_ref())
+                    resolve_imports!(self, &source.file, source.ast.as_ref())
                         .map(move |import| (i, import))
                 })
                 .collect_vec_list();
@@ -348,23 +348,31 @@ impl<'sess> Sema<'sess> {
             parser.parse_file().map_err(|e| e.emit()).ok()
         };
         trace!(
-            "AST size {} / {}",
-            arena.allocated_bytes(),
-            arena.allocated_bytes_including_metadata(),
+            // SAFETY: The data is not read, and the arena is not used during the iteration.
+            total =
+                unsafe { arena.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() },
+            allocated = arena.allocated_bytes(),
+            allocated_with_metadata = arena.allocated_bytes_including_metadata(),
+            "AST arena stats",
         );
         r
     }
+}
 
-    /// Resolves the imports of the given file, returning an iterator over all the imported files.
-    fn resolve_imports(
-        &self,
-        file: &SourceFile,
-        ast: Option<&ast::SourceUnit<'_>>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
+/// Resolves the imports of the given file, returning an iterator over all the imported files.
+///
+/// This is currently a macro as I have not figured out how to win against the borrow checker to
+/// return `impl Iterator` instead of having to collect, since it obviously isn't necessary given
+/// this macro.
+macro_rules! resolve_imports {
+    ($self:expr, $file:expr, $ast:expr) => {{
+        let this = $self;
+        let file = $file;
+        let ast = $ast;
         let parent = match &file.name {
-            FileName::Real(path) => Some(path.as_path()),
+            FileName::Real(path) => Some(path.to_path_buf()),
             // Use current directory for stdin.
-            FileName::Stdin => Some(Path::new("")),
+            FileName::Stdin => Some(Path::new("").to_path_buf()),
             FileName::Custom(_) => None,
         };
         let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
@@ -381,17 +389,15 @@ impl<'sess> Sema<'sess> {
                 // TODO: Unescape
                 let path_str = import.path.value.as_str();
                 let path = Path::new(path_str);
-                self.file_resolver
-                    .resolve_file(path, parent)
-                    .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
+                this.file_resolver
+                    .resolve_file(path, parent.as_deref())
+                    .map_err(|e| this.dcx().err(e.to_string()).span(span).emit())
                     .ok()
                     .map(|file| (id, file))
             })
-            // TODO: Must collect here due to lifetimes
-            .collect::<Vec<_>>()
-            .into_iter()
-    }
+    }};
 }
+use resolve_imports;
 
 /// Sorts `data` according to `indices`.
 ///
