@@ -1,61 +1,73 @@
 use bumpalo::Bump;
 use smallvec::SmallVec;
-use std::mem::ManuallyDrop;
 
 /// Extension trait for [`Bump`].
 #[allow(dead_code)]
 #[allow(clippy::mut_from_ref)] // Arena.
 pub(crate) trait BumpExt {
     /// Allocates a vector of items on the arena.
+    ///
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
+    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
     fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T];
 
-    /// Allocates an array of items on the arena.
-    fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T; N];
-
     /// Allocates a `SmallVector` of items on the arena.
-    fn alloc_smallvec<T, const N: usize>(&self, values: SmallVec<[T; N]>) -> &mut [T; N]
-    where
-        [T; N]: smallvec::Array<Item = T>;
+    ///
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
+    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
+    fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> &mut [A::Item];
 
-    unsafe fn alloc_slice_unchecked<T>(&self, slice: &[T]) -> &mut [T];
+    /// Allocates a slice of items on the arena and copies them in.
+    ///
+    /// # Safety
+    ///
+    /// If `T: !Copy`, the resulting slice must not be wrapped in `Box`, unless ownership is
+    /// moved as well, such as through [`alloc_vec`](Self::alloc_vec) and the other methods in this
+    /// trait.
+    unsafe fn alloc_slice_unchecked<'a, T>(&'a self, slice: &[T]) -> &'a mut [T];
 }
 
 impl BumpExt for Bump {
-    fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T] {
-        // SAFETY:
-        // - `T` and `ManuallyDrop<T>` have the same layout.
-        // - We move the values into a new arena allocation, and deallocate the vector.
+    #[inline]
+    fn alloc_vec<T>(&self, mut values: Vec<T>) -> &mut [T] {
+        if values.is_empty() {
+            return &mut [];
+        }
+
+        // SAFETY: The `Vec` is deallocated, but the elements are not dropped.
         unsafe {
-            let values = std::mem::transmute::<Vec<T>, Vec<ManuallyDrop<T>>>(values);
-            let slice = std::mem::transmute::<&[ManuallyDrop<T>], &[T]>(values.as_slice());
-            self.alloc_slice_unchecked(slice)
+            let r = self.alloc_slice_unchecked(values.as_slice());
+            values.set_len(0);
+            r
         }
     }
 
-    fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T; N] {
-        let values = ManuallyDrop::new(values);
-        // SAFETY:
-        // - `T` and `ManuallyDrop<T>` have the same layout.
-        unsafe { self.alloc_slice_unchecked(values.as_slice()).try_into().unwrap() }
-    }
+    #[inline]
+    fn alloc_smallvec<A: smallvec::Array>(&self, mut values: SmallVec<A>) -> &mut [A::Item] {
+        if values.is_empty() {
+            return &mut [];
+        }
 
-    fn alloc_smallvec<T, const N: usize>(&self, values: SmallVec<[T; N]>) -> &mut [T; N]
-    where
-        [T; N]: smallvec::Array<Item = T>,
-    {
-        match values.into_inner() {
-            Ok(array) => self.alloc_array(array),
-            Err(vec) => self.alloc_vec(vec.into_vec()).try_into().unwrap(),
+        // SAFETY: See `alloc_vec`.
+        unsafe {
+            let r = self.alloc_slice_unchecked(values.as_slice());
+            values.set_len(0);
+            r
         }
     }
 
+    #[inline]
     unsafe fn alloc_slice_unchecked<'a, T>(&'a self, slice: &[T]) -> &'a mut [T] {
-        let src = slice.as_ptr();
-        let data = self.alloc_layout(std::alloc::Layout::for_value(slice)).as_ptr().cast::<T>();
+        if slice.is_empty() {
+            return &mut [];
+        }
+
+        let start_ptr =
+            self.alloc_layout(std::alloc::Layout::for_value(slice)).as_ptr().cast::<T>();
         let len = slice.len();
         unsafe {
-            std::ptr::copy_nonoverlapping(src, data, len);
-            std::slice::from_raw_parts_mut(data, len)
+            slice.as_ptr().copy_to_nonoverlapping(start_ptr, len);
+            std::slice::from_raw_parts_mut(start_ptr, len)
         }
     }
 }

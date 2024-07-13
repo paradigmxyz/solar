@@ -1,5 +1,6 @@
 use crate::{Lexer, PErr, PResult};
 use bumpalo::{boxed::Box, Bump};
+use smallvec::SmallVec;
 use std::fmt::{self, Write};
 use sulk_ast::{
     ast::{DocComment, DocComments, Path},
@@ -134,7 +135,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             arena,
             token: Token::DUMMY,
             prev_token: Token::DUMMY,
-            expected_tokens: Vec::new(),
+            expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             in_yul: false,
             in_contract: false,
@@ -192,6 +193,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Allocates a list of objects on the AST arena.
     pub(crate) fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
         unsafe { Box::from_raw(self.arena.alloc_vec(values)) }
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub(crate) fn alloc_smallvec<A: smallvec::Array>(
+        &self,
+        values: SmallVec<A>,
+    ) -> Box<'ast, [A::Item]> {
+        unsafe { Box::from_raw(self.arena.alloc_smallvec(values)) }
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -616,7 +625,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
-        let mut v = Vec::new();
+        let mut v = SmallVec::<[T; 8]>::new();
 
         if !allow_empty {
             v.push(f(self)?);
@@ -661,7 +670,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        Ok((self.alloc_vec(v), trailing, recovered))
+        Ok((self.alloc_smallvec(v), trailing, recovered))
     }
 
     /// Advance the parser by one token.
@@ -744,7 +753,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses contiguous doc comments. Can be empty.
     pub fn parse_doc_comments(&mut self) -> PResult<'sess, DocComments<'ast>> {
-        let mut doc_comments = Vec::new();
+        let mut doc_comments = SmallVec::<[_; 4]>::new();
         while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
             if !is_doc {
                 self.dcx().bug("comments should not be in the token stream").span(span).emit();
@@ -752,7 +761,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             doc_comments.push(DocComment { kind, span, symbol });
             self.bump();
         }
-        Ok(self.alloc_vec(doc_comments))
+        Ok(self.alloc_smallvec(doc_comments))
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

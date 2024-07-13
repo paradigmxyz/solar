@@ -1,6 +1,7 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use bumpalo::boxed::Box;
+use smallvec::SmallVec;
 use sulk_ast::{
     ast::{yul::*, LitKind, Path, StrKind, StrLit},
     token::*,
@@ -139,12 +140,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Ok(StmtKind::AssignSingle(path, expr))
             } else if self.check(&TokenKind::Comma) {
                 self.check_valid_path(&path);
-                let mut paths = Vec::with_capacity(4);
+                let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
                 while self.eat(&TokenKind::Comma) {
                     paths.push(self.parse_path()?);
                 }
-                let paths = self.alloc_vec(paths);
+                let paths = self.alloc_smallvec(paths);
                 self.expect(&TokenKind::Walrus)?;
                 let expr = self.parse_yul_expr()?;
                 let ExprKind::Call(expr) = expr.kind else {
@@ -162,14 +163,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul variable declaration.
     fn parse_yul_stmt_var_decl(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let mut idents = Vec::new();
+        let mut idents = SmallVec::<[_; 8]>::new();
         loop {
             idents.push(self.parse_ident()?);
             if !self.eat(&TokenKind::Comma) {
                 break;
             }
         }
-        let idents = self.alloc_vec(idents);
+        let idents = self.alloc_smallvec(idents);
         let expr = if self.eat(&TokenKind::Walrus) { Some(self.parse_yul_expr()?) } else { None };
         Ok(StmtKind::VarDecl(idents, expr))
     }
