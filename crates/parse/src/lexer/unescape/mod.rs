@@ -2,6 +2,7 @@
 
 use alloy_primitives::hex;
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
+use sulk_data_structures::trustme;
 
 mod errors;
 pub(crate) use errors::emit_unescape_error;
@@ -68,7 +69,7 @@ where
             let advanced = unsafe { dst.get_unchecked_mut(written..) };
 
             // SAFETY: I don't know why this triggers E0521.
-            dst = unsafe { std::mem::transmute::<&mut [u8], &mut [u8]>(advanced) };
+            dst = unsafe { trustme::decouple_lt_mut(advanced) };
         }
         Err(e) => f(range, e),
     });

@@ -1,7 +1,7 @@
 use crate::{SessionGlobals, Span};
 use lasso::Resolver;
 use std::{cmp, fmt, hash, str};
-use sulk_data_structures::index::BaseIndex32;
+use sulk_data_structures::{index::BaseIndex32, trustme};
 use sulk_macros::symbols;
 
 /// An identifier.
@@ -194,9 +194,7 @@ impl Symbol {
     /// this function is typically used for short-lived things, so in practice
     /// it works out ok.
     pub fn as_str(&self) -> &str {
-        SessionGlobals::with(|g| unsafe {
-            std::mem::transmute::<&str, &str>(g.symbol_interner.get(*self))
-        })
+        SessionGlobals::with(|g| unsafe { trustme::decouple_lt(g.symbol_interner.get(*self)) })
     }
 
     /// Returns the internal representation of the symbol.
