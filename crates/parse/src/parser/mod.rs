@@ -395,6 +395,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
     /// encountered.
+    #[inline]
     fn check(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if !is_present {
@@ -403,6 +404,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         is_present
     }
 
+    #[inline]
     fn check_noexpect(&self, tok: &TokenKind) -> bool {
         self.token.kind == *tok
     }
@@ -809,7 +811,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(Path::new_single(first));
         }
 
-        let mut path = Vec::with_capacity(2);
+        let mut path = Vec::with_capacity(4);
         path.push(first);
         while self.eat(&TokenKind::Dot) {
             path.push(f(self)?);

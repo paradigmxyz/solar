@@ -324,7 +324,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
-        let mut path = Vec::new();
+        let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
             while self.eat(&TokenKind::Dot) {
@@ -370,7 +370,7 @@ enum IapKind<'ast> {
 
 #[derive(Debug, Default)]
 struct IndexAccessedPath<'ast> {
-    path: Vec<IapKind<'ast>>,
+    path: SmallVec<[IapKind<'ast>; 4]>,
     /// The number of elements in `path` that are `IapKind::Member[Ty]` at the start.
     n_idents: usize,
 }
