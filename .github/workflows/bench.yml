@@ -28,18 +28,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
-      - name: Install iai-callgrind-runner
-        run: |
-          echo "::group::Install"
-          version=$(cargo metadata --format-version=1 |\
-            jq '.packages[] | select(.name == "iai-callgrind").version' |\
-            tr -d '"'
-          )
-          cargo binstall iai-callgrind-runner --version $version --no-confirm --no-symlinks --force
-          echo "::endgroup::"
-          echo "::group::Verification"
-          which iai-callgrind-runner
-          echo "::endgroup::"
       - name: Checkout base
         uses: actions/checkout@v4
         with:
@@ -51,11 +39,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      - name: Install iai-callgrind-runner
+        run: ./.github/scripts/install_iai_callgrind_runner.sh
       - name: Save baseline
         run: cargo bench -p sulk-bench --bench iai --features ci -- --save-baseline=$BASELINE
       - name: Checkout PR
         uses: actions/checkout@v4
         with:
           clean: false
+      - name: Install iai-callgrind-runner
+        run: ./.github/scripts/install_iai_callgrind_runner.sh
       - name: Compare PR benchmarks
         run: cargo bench -p sulk-bench --bench iai --features ci -- --baseline=$BASELINE
