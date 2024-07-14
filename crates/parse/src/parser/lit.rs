@@ -241,11 +241,12 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    if s.len() <= fast_path_len as usize {
-        if let Ok(n) = Primitive::from_str_radix(s, base) {
-            return Ok(LitKind::Number(BigInt::from(n)));
-        }
-    }
+    let _ = fast_path_len;
+    // if s.len() <= fast_path_len as usize {
+    //     if let Ok(n) = Primitive::from_str_radix(s, base) {
+    //         return Ok(LitKind::Number(BigInt::from(n)));
+    //     }
+    // }
     BigInt::from_str_radix(s, base).map(LitKind::Number).map_err(LitError::ParseInteger)
 }
 
