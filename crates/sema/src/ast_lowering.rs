@@ -1,54 +1,70 @@
 use crate::{
     hir::{self, Hir},
-    Sources,
+    SmallSource, Sources,
 };
 use bumpalo::Bump;
-use rayon::prelude::*;
 use std::{fmt, marker::PhantomData};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
     map::FxIndexMap,
     smallvec::SmallVec,
+    trustme,
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session,
 };
 
+type Scopes = sulk_data_structures::scope::Scopes<
+    Ident,
+    SmallVec<[Declaration; 2]>,
+    sulk_data_structures::map::FxBuildHasher,
+>;
+
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
     sess: &Session,
-    sources: Sources<'hir>,
+    sources: &Sources<'_>,
     hir_arena: &'hir Bump,
 ) -> Hir<'hir> {
     let mut lcx = LoweringContext::new(sess, hir_arena);
 
     // Lower AST to HIR.
-    lcx.lower_sources(sources.sources);
+    // SAFETY: `sources` outlives `lcx`, which does not outlive this function.
+    let sources = unsafe { trustme::decouple_lt(sources) };
+    lcx.lower_sources(sources);
 
     lcx.collect_exports();
-    lcx.perform_imports();
+    lcx.perform_imports(sources);
+    lcx.collect_contract_declarations();
+    lcx.resolve_contract_bases();
     lcx.resolve();
 
     // Clean up.
-    lcx.drop_asts();
     lcx.shrink_to_fit();
 
-    lcx.hir
+    lcx.finish()
 }
 
-struct LoweringContext<'sess, 'hir> {
+struct LoweringContext<'sess, 'ast, 'hir> {
     sess: &'sess Session,
     arena: &'hir Bump,
     hir: Hir<'hir>,
+    hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
-    source_scopes: IndexVec<hir::SourceId, Scope>,
+    resolver: SymbolResolver<'sess>,
 }
 
-impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
+impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
     fn new(sess: &'sess Session, arena: &'hir Bump) -> Self {
-        Self { sess, arena, hir: Hir::new(), source_scopes: IndexVec::new() }
+        Self {
+            sess,
+            arena,
+            hir: Hir::new(),
+            hir_to_ast: FxIndexMap::default(),
+            resolver: SymbolResolver::new(sess),
+        }
     }
 
     /// Returns the diagnostic context.
@@ -57,35 +73,53 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         &self.sess.dcx
     }
 
+    #[instrument(name = "drop_lcx", level = "debug", skip_all)]
+    fn finish(self) -> Hir<'hir> {
+        self.hir
+    }
+
     #[instrument(level = "debug", skip_all)]
-    fn lower_sources(&mut self, mut sources: IndexVec<hir::SourceId, hir::Source<'hir, 'hir>>) {
-        for source in sources.iter_mut() {
-            let Some(ast) = &source.ast else { continue };
-            let mut items = SmallVec::<[_; 16]>::new();
-            for item in ast.items.iter() {
-                match &item.kind {
-                    ast::ItemKind::Pragma(_)
-                    | ast::ItemKind::Import(_)
-                    | ast::ItemKind::Using(_) => {}
-                    ast::ItemKind::Contract(_)
-                    | ast::ItemKind::Function(_)
-                    | ast::ItemKind::Variable(_)
-                    | ast::ItemKind::Struct(_)
-                    | ast::ItemKind::Enum(_)
-                    | ast::ItemKind::Udvt(_)
-                    | ast::ItemKind::Error(_)
-                    | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
+    fn lower_sources(&mut self, small_sources: &'ast IndexVec<hir::SourceId, SmallSource<'ast>>) {
+        let new_sources = small_sources.iter_enumerated().map(|(id, source)| {
+            let mut new_source = hir::Source {
+                file: source.file.clone(),
+                imports: self.arena.alloc_slice_copy(&source.imports),
+                items: &[],
+            };
+            if let Some(ast) = &source.ast {
+                let mut items = SmallVec::<[_; 16]>::new();
+                for item in ast.items.iter() {
+                    match &item.kind {
+                        ast::ItemKind::Pragma(_)
+                        | ast::ItemKind::Import(_)
+                        | ast::ItemKind::Using(_) => {}
+                        ast::ItemKind::Contract(_)
+                        | ast::ItemKind::Function(_)
+                        | ast::ItemKind::Variable(_)
+                        | ast::ItemKind::Struct(_)
+                        | ast::ItemKind::Enum(_)
+                        | ast::ItemKind::Udvt(_)
+                        | ast::ItemKind::Error(_)
+                        | ast::ItemKind::Event(_) => {
+                            let item_id = self.lower_item(item);
+                            if let hir::ItemId::Contract(contract_id) = item_id {
+                                self.hir.contracts[contract_id].source_id = id;
+                            }
+                            items.push(item_id)
+                        }
+                    }
                 }
-            }
-            source.items = self.arena.alloc_slice_copy(&items);
-        }
-        self.hir.sources = sources;
+                new_source.items = self.arena.alloc_slice_copy(&items);
+            };
+            new_source
+        });
+        self.hir.sources = new_sources.collect();
     }
 
     fn lower_contract(
         &mut self,
         item: &ast::Item<'_>,
-        contract: &ast::ItemContract<'_>,
+        contract: &'ast ast::ItemContract<'ast>,
     ) -> hir::ContractId {
         let mut ctor = None;
         let mut fallback = None;
@@ -139,6 +173,7 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
             name: contract.name,
             span: item.span,
             kind: contract.kind,
+            source_id: hir::SourceId::new(0), // set later
             bases: &[],
             ctor,
             fallback,
@@ -148,8 +183,8 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
         id
     }
 
-    fn lower_item(&mut self, item: &ast::Item<'_>) -> hir::ItemId {
-        match &item.kind {
+    fn lower_item(&mut self, item: &'ast ast::Item<'ast>) -> hir::ItemId {
+        let item_id = match &item.kind {
             ast::ItemKind::Pragma(_) | ast::ItemKind::Import(_) | ast::ItemKind::Using(_) => {
                 unreachable!()
             }
@@ -161,7 +196,9 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
             ast::ItemKind::Udvt(i) => hir::ItemId::Udvt(self.lower_udvt(item, i)),
             ast::ItemKind::Error(i) => hir::ItemId::Error(self.lower_error(item, i)),
             ast::ItemKind::Event(i) => hir::ItemId::Event(self.lower_event(item, i)),
-        }
+        };
+        self.hir_to_ast.insert(item_id, item);
+        item_id
     }
 
     fn lower_function(
@@ -210,12 +247,12 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
 
     #[instrument(level = "debug", skip_all)]
     fn collect_exports(&mut self) {
-        assert!(self.source_scopes.is_empty(), "exports already collected");
-        self.source_scopes = self
+        assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
+        self.resolver.source_scopes = self
             .hir
             .sources()
             .map(|source| {
-                let mut scope = Scope::with_capacity(source.items.len());
+                let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
                     if let Some(name) = self.hir.item(item_id).name() {
                         scope.declare(name, Declaration::Item(item_id));
@@ -227,21 +264,21 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn perform_imports(&mut self) {
+    fn perform_imports(&mut self, sources: &Sources<'_>) {
         for (source_id, source) in self.hir.sources_enumerated() {
-            for &(item_id, import_id) in &source.imports {
-                let item = &source.ast.as_ref().unwrap().items[item_id];
+            for &(item_id, import_id) in source.imports {
+                let item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
                 let dcx = &self.sess.dcx;
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = get_two_mut(
-                        &mut self.source_scopes.raw,
+                        &mut self.resolver.source_scopes.raw,
                         source_id.index(),
                         import_id.index(),
                     );
                     (a, Some(&*b))
                 } else {
-                    (&mut self.source_scopes[source_id], None)
+                    (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
                     ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
@@ -274,28 +311,131 @@ impl<'sess, 'hir> LoweringContext<'sess, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn resolve(&mut self) {}
+    fn collect_contract_declarations(&mut self) {
+        assert!(
+            self.resolver.contract_scopes.is_empty(),
+            "contract declarations already collected"
+        );
+        self.resolver.contract_scopes = self
+            .hir
+            .contracts()
+            .map(|contract| {
+                let mut scope = Declarations::with_capacity(contract.items.len());
+                for &item_id in contract.items {
+                    if let Some(name) = self.hir.item(item_id).name() {
+                        scope.declare(name, Declaration::Item(item_id));
+                    }
+                }
+                scope
+            })
+            .collect();
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn resolve_contract_bases(&mut self) {
+        for contract_id in self.hir.contract_ids() {
+            let item = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
+            let ast::ItemKind::Contract(ast_contract) = &item.kind else { unreachable!() };
+            let mut bases = SmallVec::<[_; 8]>::new();
+            // self.resolver.current_source_id = Some(contract.source_id);
+            self.resolver.current_contract_id = Some(contract_id);
+            for base in ast_contract.bases.iter() {
+                let name = &base.name;
+                let Some(decl) = self.resolver.resolve_path(name) else {
+                    let msg = format!("unresolved contract base `{name}`");
+                    let _guar = self.dcx().err(msg).span(name.span()).emit();
+                    continue;
+                };
+                if let Declaration::Err(_) = decl {
+                    continue;
+                }
+                let Declaration::Item(hir::ItemId::Contract(base_id)) = decl else {
+                    let msg = format!("expected contract, found {}", decl.description());
+                    let _guar = self.dcx().err(msg).span(name.span()).emit();
+                    continue;
+                };
+                bases.push(base_id);
+            }
+            self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    fn resolve(&mut self) {
+        let mut scopes = Scopes::new();
+        // TODO
+    }
 
     #[instrument(level = "debug", skip_all)]
     fn shrink_to_fit(&mut self) {
         self.hir.shrink_to_fit();
     }
+}
 
-    #[instrument(level = "debug", skip_all)]
-    fn drop_asts(&mut self) {
-        // TODO: Literals and paths still own heap-allocated memory.
-        self.hir.sources.raw.par_iter_mut().for_each(|source| source.ast = None);
+struct SymbolResolver<'sess> {
+    sess: &'sess Session,
+
+    source_scopes: IndexVec<hir::SourceId, Declarations>,
+    contract_scopes: IndexVec<hir::ContractId, Declarations>,
+
+    current_source_id: Option<hir::SourceId>,
+    current_contract_id: Option<hir::ContractId>,
+}
+
+impl<'sess> SymbolResolver<'sess> {
+    fn new(sess: &'sess Session) -> Self {
+        Self {
+            sess,
+            source_scopes: IndexVec::new(),
+            contract_scopes: IndexVec::new(),
+            current_source_id: None,
+            current_contract_id: None,
+        }
+    }
+
+    fn resolve_path(&self, path: &ast::Path) -> Option<Declaration> {
+        if let Some(&single) = path.get_ident() {
+            return self.resolve_name(single);
+        }
+
+        let mut current_scope = self.current_scope()?;
+        let mut segments = path.segments().iter();
+        while let Some(&segment) = segments.next() {
+            match current_scope.resolve_single(segment)? {
+                d if segments.len() == 0 => return Some(d),
+                Declaration::Item(hir::ItemId::Contract(c)) => {
+                    current_scope = &self.contract_scopes[c];
+                }
+                Declaration::Namespace(s) => {
+                    current_scope = &self.source_scopes[s];
+                }
+                Declaration::Item(_) | Declaration::Err(_) => return None,
+            }
+        }
+        unreachable!();
+    }
+
+    fn resolve_name(&self, name: Ident) -> Option<Declaration> {
+        self.current_scope()?.resolve_single(name)
+    }
+
+    fn current_scope(&self) -> Option<&Declarations> {
+        if let Some(source) = self.current_source_id {
+            Some(&self.source_scopes[source])
+        } else if let Some(contract) = self.current_contract_id {
+            Some(&self.contract_scopes[contract])
+        } else {
+            None
+        }
     }
 }
 
-#[derive(Clone, Debug)]
-struct Scope {
-    declarations: ScopeInner,
+#[derive(Debug)]
+struct Declarations {
+    declarations: FxIndexMap<Ident, SmallVec<[Declaration; 2]>>,
 }
 
-type ScopeInner = FxIndexMap<Ident, SmallVec<[Declaration; 2]>>;
-
-impl Scope {
+impl Declarations {
     fn with_capacity(capacity: usize) -> Self {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
@@ -307,6 +447,14 @@ impl Scope {
         self.declarations.get(&name).map(std::ops::Deref::deref).unwrap_or_default().iter().copied()
     }
 
+    fn resolve_single(&self, name: Ident) -> Option<Declaration> {
+        let mut iter = self.resolve(name);
+        if iter.len() != 1 {
+            return None;
+        }
+        iter.next()
+    }
+
     fn declare(&mut self, name: Ident, decl: Declaration) {
         self.declarations.entry(name).or_default().push(decl);
     }
@@ -316,6 +464,7 @@ impl Scope {
     }
 
     fn import(&mut self, other: &Self) {
+        self.declarations.reserve(other.declarations.len());
         for (name, decls) in &other.declarations {
             self.declare_many(*name, decls.iter().copied());
         }
@@ -340,6 +489,16 @@ impl fmt::Debug for Declaration {
             Self::Item(id) => id.fmt(f),
             Self::Namespace(id) => id.fmt(f),
             Self::Err(_) => f.write_str("Err"),
+        }
+    }
+}
+
+impl Declaration {
+    fn description(&self) -> &'static str {
+        match self {
+            Self::Item(item) => item.description(),
+            Self::Namespace(_) => "namespace",
+            Self::Err(_) => "<error>",
         }
     }
 }

@@ -37,7 +37,7 @@ pub use sulk_interface as interface;
 mod ast_passes;
 
 pub mod hir;
-use hir::{Source, SourceId};
+use hir::SourceId;
 
 mod ast_lowering;
 
@@ -46,7 +46,7 @@ pub use staging::SymbolCollector;
 
 #[derive(Default)]
 pub(crate) struct Sources<'ast> {
-    pub(crate) sources: IndexVec<SourceId, Source<'ast, 'static>>,
+    pub(crate) sources: IndexVec<SourceId, SmallSource<'ast>>,
 }
 
 #[allow(dead_code)]
@@ -81,7 +81,7 @@ impl<'ast> Sources<'ast> {
             trace!(file = %file.name.display(), "skipping duplicate source file");
             return id;
         }
-        self.sources.push(Source::new(file))
+        self.sources.push(SmallSource::new(file))
     }
 
     #[cfg(debug_assertions)]
@@ -134,8 +134,20 @@ impl<'ast> Sources<'ast> {
     }
 }
 
+struct SmallSource<'ast> {
+    file: Arc<SourceFile>,
+    ast: Option<ast::SourceUnit<'ast>>,
+    imports: Vec<(ast::ItemId, SourceId)>,
+}
+
+impl<'ast> SmallSource<'ast> {
+    fn new(file: Arc<SourceFile>) -> Self {
+        Self { file, ast: None, imports: Vec::new() }
+    }
+}
+
 impl<'ast> std::ops::Deref for Sources<'ast> {
-    type Target = IndexVec<SourceId, Source<'ast, 'static>>;
+    type Target = IndexVec<SourceId, SmallSource<'ast>>;
 
     fn deref(&self) -> &Self::Target {
         &self.sources
@@ -209,12 +221,13 @@ impl<'sess> Sema<'sess> {
         Ok(())
     }
 
-    /// Adds a pre-loaded file to the resolver.
+    /// Adds a preloaded file to the resolver.
     pub fn add_file(&mut self, file: Arc<SourceFile>) {
         self.sources.add_file(file);
     }
 
     /// Parses and semantically analyzes all the loaded sources, recursing into imports.
+    #[instrument(level = "debug", skip_all)]
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         self.ensure_sources()?;
 
@@ -245,12 +258,14 @@ impl<'sess> Sema<'sess> {
 
         sources.topo_sort();
 
-        let arena = bumpalo::Bump::new();
-        let hir = ast_lowering::lower(self.sess, sources, &arena);
+        let hir_arena = Bump::new();
+        let hir = ast_lowering::lower(self.sess, &sources, &hir_arena);
+
+        debug_span!("drop_asts").in_scope(|| drop(sources));
+
+        debug_span!("drop_hir").in_scope(|| drop(hir));
 
         self.dcx().has_errors()?;
-
-        drop(hir);
 
         Ok(())
     }
@@ -272,13 +287,14 @@ impl<'sess> Sema<'sess> {
         let sources: Sources<'static> = std::mem::take(&mut self.sources);
         let mut sources: Sources<'ast> =
             unsafe { std::mem::transmute::<Sources<'static>, Sources<'ast>>(sources) };
-        assert!(!sources.is_empty(), "no sources to parse");
-        if self.sess.is_sequential() {
-            self.parse_sequential(&mut sources, arenas.get_or_default());
-        } else {
-            self.parse_parallel(&mut sources, arenas);
+        if !sources.is_empty() {
+            if self.sess.is_sequential() {
+                self.parse_sequential(&mut sources, arenas.get_or_default());
+            } else {
+                self.parse_parallel(&mut sources, arenas);
+            }
+            debug!(sources.len = sources.len(), "parsed");
         }
-        debug!(sources.len = sources.len(), "parsed");
         sources
     }
 

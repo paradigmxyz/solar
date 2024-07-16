@@ -83,10 +83,10 @@ declare_visitors! {
         }
 
         fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) {
-            let ItemContract { kind: _, name, inheritance, body } = contract;
+            let ItemContract { kind: _, name, bases, body } = contract;
             self.visit_ident #_mut(name);
-            for modifier in inheritance.iter #_mut() {
-                self.visit_modifier #_mut(modifier);
+            for base in bases.iter #_mut() {
+                self.visit_modifier #_mut(base);
             }
             for item in body.iter #_mut() {
                 self.visit_item #_mut(item);

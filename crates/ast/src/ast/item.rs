@@ -297,7 +297,7 @@ pub enum UserDefinableOperator {
 pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
-    pub inheritance: Box<'ast, [Modifier<'ast>]>,
+    pub bases: Box<'ast, [Modifier<'ast>]>,
     pub body: Box<'ast, [Item<'ast>]>,
 }
 

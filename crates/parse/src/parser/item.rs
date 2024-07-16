@@ -325,7 +325,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
             self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
-        Ok(ItemContract { kind, name, inheritance, body })
+        Ok(ItemContract { kind, name, bases: inheritance, body })
     }
 
     /// Parses an enum definition.

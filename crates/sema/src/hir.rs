@@ -14,7 +14,7 @@ pub use sulk_ast::ast::{ContractKind, FunctionKind, StateMutability, Visibility}
 #[derive(Debug)]
 pub struct Hir<'hir> {
     /// All sources.
-    pub(crate) sources: IndexVec<SourceId, Source<'hir, 'hir>>,
+    pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -67,7 +67,7 @@ macro_rules! indexvec_methods {
                 #[doc = "Returns an iterator over all of the " $singular " IDs."]
                 #[inline]
                 pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator {
-                    self.$plural.indices()
+                    (0..self.$plural.len()).map($id::from_usize)
                 }
 
                 #[doc = "Returns an iterator over all of the " $singular " values."]
@@ -79,7 +79,7 @@ macro_rules! indexvec_methods {
                 #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
                 #[inline]
                 pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
-                    self.$plural.iter_enumerated()
+                    self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
                 }
             )*
 
@@ -93,7 +93,7 @@ macro_rules! indexvec_methods {
 }
 
 indexvec_methods! {
-    source => sources, SourceId => Source<'hir, 'hir>;
+    source => sources, SourceId => Source<'hir>;
     contract => contracts, ContractId => Contract<'hir>;
     function => functions, FunctionId => Function<'hir>;
     strukt => structs, StructId => Struct<'hir>;
@@ -150,30 +150,20 @@ newtype_index! {
 }
 
 /// A source file.
-pub struct Source<'ast, 'hir> {
+pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
-    /// The AST of the source. None if Yul, parsing failed, or is after lowering where it's no
-    /// longer needed.
-    pub ast: Option<ast::SourceUnit<'ast>>,
-    pub imports: Vec<(ast::ItemId, SourceId)>,
+    pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
 }
 
-impl fmt::Debug for Source<'_, '_> {
+impl fmt::Debug for Source<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Source")
             .field("file", &self.file.name)
-            .field("ast", &self.ast.is_some())
             .field("imports", &self.imports)
             .field("items", &self.items)
             .finish()
-    }
-}
-
-impl Source<'_, '_> {
-    pub(crate) fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new(), items: &[] }
     }
 }
 
@@ -205,7 +195,7 @@ impl Item<'_, '_> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
@@ -233,6 +223,22 @@ impl fmt::Debug for ItemId {
     }
 }
 
+impl ItemId {
+    /// Returns the description of the item.
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Contract(_) => "contract",
+            Self::Function(_) => "function",
+            Self::Var(_) => "variable",
+            Self::Struct(_) => "struct",
+            Self::Enum(_) => "enum",
+            Self::Udvt(_) => "UDVT",
+            Self::Error(_) => "error",
+            Self::Event(_) => "event",
+        }
+    }
+}
+
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
@@ -242,6 +248,8 @@ pub struct Contract<'hir> {
     pub span: Span,
     /// The contract kind.
     pub kind: ContractKind,
+    /// The source this contract is defined in.
+    pub source_id: SourceId,
     /// The contract bases.
     pub bases: &'hir [ContractId],
     /// The constructor function.
