@@ -18,7 +18,7 @@ macro_rules! newtype_index {
 
         impl std::fmt::Debug for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}({:?})", stringify!($name), self.0)
+                write!(f, "{}({:?})", stringify!($name), self.get())
             }
         }
 

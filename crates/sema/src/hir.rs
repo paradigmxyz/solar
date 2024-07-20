@@ -237,6 +237,15 @@ impl ItemId {
             Self::Event(_) => "event",
         }
     }
+
+    /// Returns the contract ID if this is a contract.
+    pub fn as_contract(&self) -> Option<&ContractId> {
+        if let Self::Contract(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 /// A contract, interface, or library.
@@ -252,6 +261,8 @@ pub struct Contract<'hir> {
     pub source_id: SourceId,
     /// The contract bases.
     pub bases: &'hir [ContractId],
+    /// The linearized contract bases.
+    pub linearized_bases: &'hir [ContractId],
     /// The constructor function.
     pub ctor: Option<FunctionId>,
     /// The `fallback` function.

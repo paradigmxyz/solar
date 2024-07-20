@@ -108,7 +108,6 @@ impl<'ast> Sources<'ast> {
             }
         });
 
-        // Re-map imports.
         debug_span!("remap_imports").in_scope(|| {
             for source in &mut self.sources {
                 for (_, import) in &mut source.imports {

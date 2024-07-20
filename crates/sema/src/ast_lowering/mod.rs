@@ -16,6 +16,8 @@ use sulk_interface::{
     Ident, Session,
 };
 
+mod linearizer;
+
 // type Scopes = sulk_data_structures::scope::Scopes<
 //     Ident,
 //     SmallVec<[Declaration; 2]>,
@@ -39,10 +41,13 @@ pub(crate) fn lower<'hir>(
     lcx.perform_imports(sources);
     lcx.collect_contract_declarations();
     lcx.resolve_base_contracts();
+    lcx.linearize_contracts();
     lcx.resolve();
 
     // Clean up.
     lcx.shrink_to_fit();
+
+    // eprintln!("{:#?}", lcx.hir);
 
     lcx.finish()
 }
@@ -73,7 +78,6 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         &self.sess.dcx
     }
 
-    #[instrument(name = "drop_lcx", level = "debug", skip_all)]
     fn finish(self) -> Hir<'hir> {
         self.hir
     }
@@ -173,8 +177,12 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             name: contract.name,
             span: item.span,
             kind: contract.kind,
-            source_id: hir::SourceId::new(0), // set later
+
+            // set later
+            source_id: hir::SourceId::new(0),
             bases: &[],
+            linearized_bases: &[],
+
             ctor,
             fallback,
             receive,
@@ -368,9 +376,6 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
         }
     }
-
-    #[instrument(level = "debug", skip_all)]
-    fn linearize_contracts(&self) {}
 
     #[instrument(level = "debug", skip_all)]
     fn resolve(&mut self) {
