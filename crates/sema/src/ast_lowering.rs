@@ -16,11 +16,11 @@ use sulk_interface::{
     Ident, Session,
 };
 
-type Scopes = sulk_data_structures::scope::Scopes<
-    Ident,
-    SmallVec<[Declaration; 2]>,
-    sulk_data_structures::map::FxBuildHasher,
->;
+// type Scopes = sulk_data_structures::scope::Scopes<
+//     Ident,
+//     SmallVec<[Declaration; 2]>,
+//     sulk_data_structures::map::FxBuildHasher,
+// >;
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
@@ -38,7 +38,7 @@ pub(crate) fn lower<'hir>(
     lcx.collect_exports();
     lcx.perform_imports(sources);
     lcx.collect_contract_declarations();
-    lcx.resolve_contract_bases();
+    lcx.resolve_base_contracts();
     lcx.resolve();
 
     // Clean up.
@@ -332,18 +332,22 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn resolve_contract_bases(&mut self) {
+    fn resolve_base_contracts(&mut self) {
         for contract_id in self.hir.contract_ids() {
             let item = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
             let ast::ItemKind::Contract(ast_contract) = &item.kind else { unreachable!() };
+            if ast_contract.bases.is_empty() {
+                continue;
+            }
+
+            self.resolver.current_source_id = Some(self.hir.contract(contract_id).source_id);
+            self.resolver.current_contract_id = None;
             let mut bases = SmallVec::<[_; 8]>::new();
-            // self.resolver.current_source_id = Some(contract.source_id);
-            self.resolver.current_contract_id = Some(contract_id);
             for base in ast_contract.bases.iter() {
                 let name = &base.name;
                 let Some(decl) = self.resolver.resolve_path(name) else {
                     let msg = format!("unresolved contract base `{name}`");
-                    let _guar = self.dcx().err(msg).span(name.span()).emit();
+                    self.dcx().err(msg).span(name.span()).emit();
                     continue;
                 };
                 if let Declaration::Err(_) = decl {
@@ -351,9 +355,14 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
                 }
                 let Declaration::Item(hir::ItemId::Contract(base_id)) = decl else {
                     let msg = format!("expected contract, found {}", decl.description());
-                    let _guar = self.dcx().err(msg).span(name.span()).emit();
+                    self.dcx().err(msg).span(name.span()).emit();
                     continue;
                 };
+                if base_id == contract_id {
+                    let msg = "contracts cannot inherit from themselves";
+                    self.dcx().err(msg).span(name.span()).emit();
+                    continue;
+                }
                 bases.push(base_id);
             }
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
@@ -361,8 +370,11 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
     }
 
     #[instrument(level = "debug", skip_all)]
+    fn linearize_contracts(&self) {}
+
+    #[instrument(level = "debug", skip_all)]
     fn resolve(&mut self) {
-        let mut scopes = Scopes::new();
+        // let mut scopes = Scopes::new();
         // TODO
     }
 
@@ -373,6 +385,7 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
 }
 
 struct SymbolResolver<'sess> {
+    #[allow(dead_code)]
     sess: &'sess Session,
 
     source_scopes: IndexVec<hir::SourceId, Declarations>,
@@ -398,35 +411,48 @@ impl<'sess> SymbolResolver<'sess> {
             return self.resolve_name(single);
         }
 
-        let mut current_scope = self.current_scope()?;
         let mut segments = path.segments().iter();
-        while let Some(&segment) = segments.next() {
-            match current_scope.resolve_single(segment)? {
-                d if segments.len() == 0 => return Some(d),
-                Declaration::Item(hir::ItemId::Contract(c)) => {
-                    current_scope = &self.contract_scopes[c];
-                }
-                Declaration::Namespace(s) => {
-                    current_scope = &self.source_scopes[s];
-                }
-                Declaration::Item(_) | Declaration::Err(_) => return None,
+        let mut decl = self.resolve_name(*segments.next().unwrap())?;
+        if let Declaration::Err(_) = decl {
+            return Some(decl);
+        }
+        for &segment in segments {
+            let scope = self.scope_of(decl)?;
+            decl = scope.resolve_single(segment)?;
+            if let Declaration::Err(_) = decl {
+                return Some(decl);
             }
         }
-        unreachable!();
+        Some(decl)
     }
 
     fn resolve_name(&self, name: Ident) -> Option<Declaration> {
-        self.current_scope()?.resolve_single(name)
+        self.resolve_name_with(name, std::iter::empty())
     }
 
-    fn current_scope(&self) -> Option<&Declarations> {
-        if let Some(source) = self.current_source_id {
-            Some(&self.source_scopes[source])
-        } else if let Some(contract) = self.current_contract_id {
-            Some(&self.contract_scopes[contract])
-        } else {
-            None
+    fn resolve_name_with<'a>(
+        &'a self,
+        name: Ident,
+        scopes: impl DoubleEndedIterator<Item = &'a Declarations>,
+    ) -> Option<Declaration> {
+        self.current_scopes().chain(scopes).rev().find_map(move |scope| scope.resolve_single(name))
+    }
+
+    fn scope_of(&self, declaration: Declaration) -> Option<&Declarations> {
+        match declaration {
+            Declaration::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
+            Declaration::Namespace(id) => Some(&self.source_scopes[id]),
+            _ => None,
         }
+    }
+
+    fn current_scopes(&self) -> impl DoubleEndedIterator<Item = &Declarations> {
+        [
+            self.current_source_id.map(|id| &self.source_scopes[id]),
+            self.current_contract_id.map(|id| &self.contract_scopes[id]),
+        ]
+        .into_iter()
+        .flatten()
     }
 }
 

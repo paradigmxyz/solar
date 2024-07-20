@@ -1,0 +1,44 @@
+error: unresolved import `does_not_exist`
+  --> $DIR/bad_inheritance.sol:3:9
+   |
+LL | import {does_not_exist} from "./bad_inheritance.sol";
+   |         ^^^^^^^^^^^^^^
+   |
+
+error: contracts cannot inherit from themselves
+  --> $DIR/bad_inheritance.sol:5:15
+   |
+LL | contract C is C {}
+   |               ^
+   |
+
+error: contracts cannot inherit from themselves
+  --> $DIR/bad_inheritance.sol:6:15
+   |
+LL | contract D is self1.D {}
+   |               ^^^^^^^
+   |
+
+error: contracts cannot inherit from themselves
+  --> $DIR/bad_inheritance.sol:7:15
+   |
+LL | contract E is self2.E {}
+   |               ^^^^^^^
+   |
+
+error: expected contract, found namespace
+  --> $DIR/bad_inheritance.sol:9:15
+   |
+LL | contract F is self1 {}
+   |               ^^^^^
+   |
+
+error: expected contract, found namespace
+  --> $DIR/bad_inheritance.sol:10:15
+   |
+LL | contract G is self2 {}
+   |               ^^^^^
+   |
+
+error: aborting due to 6 previous errors
+
