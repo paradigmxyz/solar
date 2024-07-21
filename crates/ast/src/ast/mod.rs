@@ -1,8 +1,7 @@
 //! Solidity AST.
 
-use std::fmt;
-
 use bumpalo::boxed::Box;
+use std::fmt;
 use sulk_data_structures::{index::IndexSlice, newtype_index, smallvec::SmallVec};
 
 pub use crate::token::CommentKind;
