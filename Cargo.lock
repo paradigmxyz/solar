@@ -1887,6 +1887,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
 
 [[package]]
+name = "rustc-demangle"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+
+[[package]]
 name = "rustc-hash"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2275,6 +2281,7 @@ dependencies = [
  "lasso",
  "match_cfg",
  "normalize-path",
+ "rayon",
  "scoped-tls",
  "serde",
  "serde_json",
@@ -2637,6 +2644,7 @@ checksum = "63de1e1d4115534008d8fd5788b39324d6f58fc707849090533828619351d855"
 dependencies = [
  "loom",
  "once_cell",
+ "rustc-demangle",
  "tracy-client-sys",
 ]
 

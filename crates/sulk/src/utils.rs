@@ -84,6 +84,10 @@ fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
         }
     }
 
+    // Disable demangling as it shows up a lot in allocations.
+    #[cfg(not(feature = "tracy-allocator"))]
+    tracing_tracy::client::register_demangler!();
+
     tracing_tracy::TracyLayer::new(Config(Default::default(), false))
 }
 

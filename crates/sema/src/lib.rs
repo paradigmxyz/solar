@@ -165,6 +165,8 @@ pub struct Sema<'sess> {
     pub file_resolver: FileResolver<'sess>,
     /// The session.
     pub sess: &'sess Session,
+    /// The loaded sources. Consumed once `parse` is called.
+    /// The `'static` lifetime is a lie, as nothing borrowed is ever stored in this field.
     sources: Sources<'static>,
 }
 
@@ -179,7 +181,7 @@ impl<'sess> Sema<'sess> {
         &self.sess.dcx
     }
 
-    /// Loads `stdin` into the resolver.
+    /// Loads `stdin` into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_stdin(&mut self) -> Result<()> {
         let file =
@@ -231,11 +233,7 @@ impl<'sess> Sema<'sess> {
         self.ensure_sources()?;
 
         let ast_arenas = OnDrop::new(ThreadLocal::<Bump>::new(), |mut arenas| {
-            debug!(
-                "dropping AST arenas with a total capacity of {} / {} bytes",
-                arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),
-                arenas.iter_mut().map(|a| a.allocated_bytes_including_metadata()).sum::<usize>(),
-            );
+            debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),);
             debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
         });
         let mut sources = self.parse(&ast_arenas);
@@ -257,10 +255,19 @@ impl<'sess> Sema<'sess> {
 
         sources.topo_sort();
 
-        let hir_arena = Bump::new();
+        let hir_arena = OnDrop::new(Bump::new(), |hir_arena| {
+            debug!(hir_allocated = hir_arena.allocated_bytes());
+            debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
+        });
         let hir = ast_lowering::lower(self.sess, &sources, &hir_arena);
 
-        debug_span!("drop_asts").in_scope(|| drop(sources));
+        // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
+        // even though both are moved in the closure.
+        let sources = unsafe { std::mem::transmute::<Sources<'_>, Sources<'static>>(sources) };
+        self.sess.spawn(move || {
+            debug_span!("drop_asts").in_scope(|| drop(sources));
+            drop(ast_arenas);
+        });
 
         debug_span!("drop_hir").in_scope(|| drop(hir));
 
@@ -292,7 +299,12 @@ impl<'sess> Sema<'sess> {
             } else {
                 self.parse_parallel(&mut sources, arenas);
             }
-            debug!(sources.len = sources.len(), "parsed");
+            debug!(
+                num_sources = sources.len(),
+                total_bytes = sources.iter().map(|s| s.file.src.len()).sum::<usize>(),
+                total_lines = sources.iter().map(|s| s.file.count_lines()).sum::<usize>(),
+                "parsed",
+            );
         }
         sources
     }
@@ -367,7 +379,6 @@ impl<'sess> Sema<'sess> {
             total =
                 unsafe { arena.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() },
             allocated = arena.allocated_bytes(),
-            allocated_with_metadata = arena.allocated_bytes_including_metadata(),
             "AST arena stats",
         );
         r

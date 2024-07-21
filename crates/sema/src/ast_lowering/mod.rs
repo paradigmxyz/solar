@@ -7,7 +7,7 @@ use std::{fmt, marker::PhantomData};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
-    map::FxIndexMap,
+    map::{FxIndexMap, IndexEntry},
     smallvec::SmallVec,
     trustme,
 };
@@ -37,17 +37,33 @@ pub(crate) fn lower<'hir>(
     let sources = unsafe { trustme::decouple_lt(sources) };
     lcx.lower_sources(sources);
 
+    // Resolve source scopes.
     lcx.collect_exports();
     lcx.perform_imports(sources);
+
+    // Resolve contract scopes.
     lcx.collect_contract_declarations();
     lcx.resolve_base_contracts();
     lcx.linearize_contracts();
+
     lcx.resolve();
 
     // Clean up.
     lcx.shrink_to_fit();
 
     // eprintln!("{:#?}", lcx.hir);
+    // eprintln!("{:#?}", lcx.resolver.contract_scopes);
+    // let mut ns = [0usize; 8];
+    // let mut n_other = 0usize;
+    // for scope in &lcx.resolver.source_scopes {
+    //     for (_name, decls) in &scope.declarations {
+    //         *ns.get_mut(decls.len()).unwrap_or(&mut n_other) += 1;
+    //     }
+    // }
+    // for (i, &n) in ns.iter().enumerate() {
+    //     eprintln!("{i}: {n}");
+    // }
+    // eprintln!("other: {n_other}");
 
     lcx.finish()
 }
@@ -78,8 +94,13 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         &self.sess.dcx
     }
 
+    #[instrument(name = "drop_lcx", level = "debug", skip_all)]
     fn finish(self) -> Hir<'hir> {
-        self.hir
+        // NOTE: Explicit scope to drop `self` before the span.
+        {
+            let this = self;
+            this.hir
+        }
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -129,6 +150,7 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         let mut fallback = None;
         let mut receive = None;
         let mut items = SmallVec::<[_; 16]>::new();
+        self.resolver.current_contract_id = Some(self.hir.contracts.next_idx());
         for item in contract.body.iter() {
             let id = match &item.kind {
                 ast::ItemKind::Pragma(_)
@@ -173,6 +195,7 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             };
             items.push(id);
         }
+        self.resolver.current_contract_id = None;
         let id = self.hir.contracts.push(hir::Contract {
             name: contract.name,
             span: item.span,
@@ -217,6 +240,9 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         self.hir.functions.push(hir::Function {
             name: i.header.name,
             span: item.span,
+            kind: i.kind,
+            contract: self.resolver.current_contract_id,
+            visibility: i.header.visibility,
             _tmp: PhantomData,
         })
     }
@@ -226,11 +252,22 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         item: &ast::Item<'_>,
         i: &ast::VariableDefinition<'_>,
     ) -> hir::VarId {
-        self.hir.vars.push(hir::Var { name: i.name, span: item.span, _tmp: PhantomData })
+        self.hir.vars.push(hir::Var {
+            name: i.name,
+            span: item.span,
+            contract: self.resolver.current_contract_id,
+            visibility: i.visibility,
+            _tmp: PhantomData,
+        })
     }
 
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
-        self.hir.structs.push(hir::Struct { name: i.name, span: item.span, _tmp: PhantomData })
+        self.hir.structs.push(hir::Struct {
+            name: i.name,
+            span: item.span,
+            contract: self.resolver.current_contract_id,
+            _tmp: PhantomData,
+        })
     }
 
     fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
@@ -238,19 +275,36 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             name: i.name,
             span: item.span,
             variants: self.arena.alloc_slice_copy(&i.variants),
+            contract: self.resolver.current_contract_id,
         })
     }
 
     fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
-        self.hir.udvts.push(hir::Udvt { name: i.name, span: item.span, _tmp: PhantomData })
+        self.hir.udvts.push(hir::Udvt {
+            name: i.name,
+            span: item.span,
+            contract: self.resolver.current_contract_id,
+            _tmp: PhantomData,
+        })
     }
 
     fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
-        self.hir.errors.push(hir::Error { name: i.name, span: item.span, _tmp: PhantomData })
+        self.hir.errors.push(hir::Error {
+            name: i.name,
+            span: item.span,
+            contract: self.resolver.current_contract_id,
+            _tmp: PhantomData,
+        })
     }
 
     fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
-        self.hir.events.push(hir::Event { name: i.name, span: item.span, _tmp: PhantomData })
+        self.hir.events.push(hir::Event {
+            name: i.name,
+            span: item.span,
+            contract: self.resolver.current_contract_id,
+            anonymous: i.anonymous,
+            _tmp: PhantomData,
+        })
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -279,11 +333,8 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
                 let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
                 let dcx = &self.sess.dcx;
                 let (source_scope, import_scope) = if source_id != import_id {
-                    let (a, b) = get_two_mut(
-                        &mut self.resolver.source_scopes.raw,
-                        source_id.index(),
-                        import_id.index(),
-                    );
+                    let (a, b) =
+                        get_two_mut_idx(&mut self.resolver.source_scopes, source_id, import_id);
                     (a, Some(&*b))
                 } else {
                     (&mut self.resolver.source_scopes[source_id], None)
@@ -298,18 +349,16 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
                         for &(import, alias) in aliases.iter() {
-                            let resolved =
-                                import_scope.map(|import_scope| import_scope.resolve(import));
                             let name = alias.unwrap_or(import);
-                            if resolved.is_none()
-                                || resolved.as_ref().is_some_and(|resolved| resolved.len() == 0)
-                            {
-                                drop(resolved);
+                            let resolved =
+                                import_scope.and_then(|import_scope| import_scope.resolve(import));
+                            if let Some(resolved) = resolved {
+                                debug_assert!(!resolved.is_empty());
+                                source_scope.declare_many(name, resolved.iter().copied());
+                            } else {
                                 let msg = format!("unresolved import `{import}`");
                                 let guar = dcx.err(msg).span(import.span).emit();
                                 source_scope.declare(name, Declaration::Err(guar));
-                            } else if let Some(resolved) = resolved {
-                                source_scope.declare_many(name, resolved);
                             }
                         }
                     }
@@ -471,27 +520,71 @@ impl Declarations {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
-    fn resolve(
-        &self,
-        name: Ident,
-    ) -> impl ExactSizeIterator<Item = Declaration> + '_ + std::fmt::Debug {
-        self.declarations.get(&name).map(std::ops::Deref::deref).unwrap_or_default().iter().copied()
+    fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
+        self.declarations.get(&name).map(std::ops::Deref::deref)
     }
 
     fn resolve_single(&self, name: Ident) -> Option<Declaration> {
-        let mut iter = self.resolve(name);
-        if iter.len() != 1 {
+        let decls = self.resolve(name)?;
+        if decls.len() != 1 {
             return None;
         }
-        iter.next()
+        decls.first().copied()
     }
 
     fn declare(&mut self, name: Ident, decl: Declaration) {
-        self.declarations.entry(name).or_default().push(decl);
+        self.declare_many(name, std::iter::once(decl));
     }
 
     fn declare_many(&mut self, name: Ident, decls: impl IntoIterator<Item = Declaration>) {
-        self.declarations.entry(name).or_default().extend(decls);
+        let v = self.declarations.entry(name).or_default();
+        for decl in decls {
+            if !v.contains(&decl) {
+                v.push(decl);
+            }
+        }
+    }
+
+    fn try_declare(&mut self, name: Ident, decl: Declaration) -> Result<(), Declaration> {
+        match self.declarations.entry(name) {
+            IndexEntry::Occupied(entry) => {
+                if let Some(conflict) = Self::conflicting_declarations(decl, entry.get()) {
+                    return Err(conflict);
+                }
+                entry.into_mut().push(decl);
+            }
+            IndexEntry::Vacant(entry) => {
+                entry.insert(SmallVec::from_slice(&[decl]));
+            }
+        }
+        Ok(())
+    }
+
+    fn conflicting_declarations(
+        decl: Declaration,
+        declarations: &[Declaration],
+    ) -> Option<Declaration> {
+        use hir::ItemId::*;
+        use Declaration::*;
+
+        // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L101
+        if matches!(decl, Item(Function(_) | Event(_))) {
+            for &decl2 in declarations {
+                if matches!(decl, Item(Function(_))) && !matches!(decl2, Item(Function(_))) {
+                    return Some(decl2);
+                }
+                if matches!(decl, Item(Event(_))) && !matches!(decl2, Item(Event(_))) {
+                    return Some(decl2);
+                }
+            }
+            None
+        } else if declarations == [decl] {
+            None
+        } else if !declarations.is_empty() {
+            Some(declarations[0])
+        } else {
+            None
+        }
     }
 
     fn import(&mut self, other: &Self) {
@@ -502,7 +595,7 @@ impl Declarations {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 enum Declaration {
     /// A resolved item.
@@ -524,6 +617,7 @@ impl fmt::Debug for Declaration {
     }
 }
 
+#[allow(dead_code)]
 impl Declaration {
     fn description(&self) -> &'static str {
         match self {
@@ -532,8 +626,30 @@ impl Declaration {
             Self::Err(_) => "<error>",
         }
     }
+
+    fn item_id(&self) -> Option<hir::ItemId> {
+        match self {
+            Self::Item(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Item(a), Self::Item(b)) => a.matches(b),
+            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
+        }
+    }
 }
 
+#[inline]
+#[track_caller]
+fn get_two_mut_idx<I: Idx, T>(sl: &mut IndexVec<I, T>, idx_1: I, idx_2: I) -> (&mut T, &mut T) {
+    get_two_mut(&mut sl.raw, idx_1.index(), idx_2.index())
+}
+
+#[inline]
+#[track_caller]
 fn get_two_mut<T>(sl: &mut [T], idx_1: usize, idx_2: usize) -> (&mut T, &mut T) {
     assert!(idx_1 != idx_2 && idx_1 < sl.len() && idx_2 < sl.len());
     let ptr = sl.as_mut_ptr();

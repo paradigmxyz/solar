@@ -181,6 +181,7 @@ pub enum Item<'a, 'hir> {
 
 impl Item<'_, '_> {
     /// Returns the name of the item.
+    #[inline]
     pub fn name(self) -> Option<Ident> {
         match self {
             Item::Contract(c) => Some(c.name),
@@ -191,6 +192,96 @@ impl Item<'_, '_> {
             Item::Error(e) => Some(e.name),
             Item::Event(e) => Some(e.name),
             Item::Var(v) => v.name,
+        }
+    }
+
+    /// Returns the span of the item.
+    #[inline]
+    pub fn span(self) -> Span {
+        match self {
+            Item::Contract(c) => c.span,
+            Item::Function(f) => f.span,
+            Item::Struct(s) => s.span,
+            Item::Enum(e) => e.span,
+            Item::Udvt(u) => u.span,
+            Item::Error(e) => e.span,
+            Item::Event(e) => e.span,
+            Item::Var(v) => v.span,
+        }
+    }
+
+    /// Returns the contract ID if this item is part of a contract.
+    #[inline]
+    pub fn contract(self) -> Option<ContractId> {
+        match self {
+            Item::Contract(_) => None,
+            Item::Function(f) => f.contract,
+            Item::Struct(s) => s.contract,
+            Item::Enum(e) => e.contract,
+            Item::Udvt(u) => u.contract,
+            Item::Error(e) => e.contract,
+            Item::Event(e) => e.contract,
+            Item::Var(v) => v.contract,
+        }
+    }
+
+    /// Returns `true` if the item is visible in derived contracts.
+    #[inline]
+    pub fn is_visible_in_derived_contracts(self) -> bool {
+        // matches!(self, Item::Struct(_) | Item::Enum(_) | Item::Event(_) | Item::Error(_))
+        // || (
+        self.is_visible_in_contract() && self.visibility() >= Visibility::Internal
+        // )
+    }
+
+    /// Returns `true` if the item is visible in the contract.
+    #[inline]
+    pub fn is_visible_in_contract(self) -> bool {
+        (if let Item::Function(f) = self { f.kind == FunctionKind::Function } else { true })
+            && self.visibility() != Visibility::External
+    }
+
+    /// Returns `true` if the item is public or external.
+    #[inline]
+    pub fn is_public(&self) -> bool {
+        self.visibility() >= Visibility::Public
+    }
+
+    /// Returns the visibility of the item.
+    #[inline]
+    pub fn visibility(self) -> Visibility {
+        self.visibility_opt().unwrap_or_else(|| self.default_visibility())
+    }
+
+    #[inline]
+    fn visibility_opt(self) -> Option<Visibility> {
+        match self {
+            Item::Function(f) => f.visibility,
+            Item::Var(v) => v.visibility,
+            Item::Contract(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Udvt(_)
+            | Item::Error(_)
+            | Item::Event(_) => None,
+        }
+    }
+
+    #[inline]
+    fn default_visibility(self) -> Visibility {
+        match self {
+            Item::Function(f) => match f.kind {
+                _ if f.is_free() => Visibility::Internal,
+                FunctionKind::Modifier => Visibility::Internal,
+                _ => Visibility::Public,
+            },
+            Item::Var(_) => Visibility::Internal,
+            Item::Contract(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Udvt(_)
+            | Item::Error(_)
+            | Item::Event(_) => Visibility::Public,
         }
     }
 }
@@ -238,9 +329,15 @@ impl ItemId {
         }
     }
 
+    /// Returns `true` if the **item kinds** match.
+    #[inline]
+    pub fn matches(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+
     /// Returns the contract ID if this is a contract.
-    pub fn as_contract(&self) -> Option<&ContractId> {
-        if let Self::Contract(v) = self {
+    pub fn as_contract(&self) -> Option<ContractId> {
+        if let Self::Contract(v) = *self {
             Some(v)
         } else {
             None
@@ -281,7 +378,20 @@ pub struct Function<'hir> {
     pub name: Option<Ident>,
     /// The function span.
     pub span: Span,
+    /// The function kind.
+    pub kind: FunctionKind,
+    /// The visibility of the variable.
+    pub visibility: Option<Visibility>,
+    /// The contract this function is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
+}
+
+impl Function<'_> {
+    /// Returns `true` if this is a free function, meaning it is not part of a contract.
+    pub fn is_free(&self) -> bool {
+        self.contract.is_some()
+    }
 }
 
 /// A struct.
@@ -291,6 +401,8 @@ pub struct Struct<'hir> {
     pub name: Ident,
     /// The struct span.
     pub span: Span,
+    /// The contract this struct is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -303,6 +415,8 @@ pub struct Enum<'hir> {
     pub span: Span,
     /// The enum variants.
     pub variants: &'hir [Ident],
+    /// The contract this enum is defined in, if any.
+    pub contract: Option<ContractId>,
 }
 
 /// A user-defined value type.
@@ -312,6 +426,8 @@ pub struct Udvt<'hir> {
     pub name: Ident,
     /// The UDVT span.
     pub span: Span,
+    /// The contract this UDVT is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -322,6 +438,10 @@ pub struct Event<'hir> {
     pub name: Ident,
     /// The event span.
     pub span: Span,
+    /// The contract this event is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// Whether this event is anonymous.
+    pub anonymous: bool,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -332,6 +452,8 @@ pub struct Error<'hir> {
     pub name: Ident,
     /// The error span.
     pub span: Span,
+    /// The contract this error is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -342,7 +464,23 @@ pub struct Var<'hir> {
     pub name: Option<Ident>,
     /// The variable span.
     pub span: Span,
+    /// The contract this variable is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// The visibility of the variable.
+    pub visibility: Option<Visibility>,
     pub _tmp: PhantomData<&'hir ()>,
+}
+
+impl Var<'_> {
+    /// Returns `true` if the variable is a state variable.
+    pub fn is_state_variable(&self) -> bool {
+        self.contract.is_some()
+    }
+
+    /// Returns `true` if the variable is public.
+    pub fn is_public(&self) -> bool {
+        self.visibility >= Some(Visibility::Public)
+    }
 }
 
 /// A statement.

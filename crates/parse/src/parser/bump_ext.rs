@@ -2,7 +2,6 @@ use bumpalo::Bump;
 use smallvec::SmallVec;
 
 /// Extension trait for [`Bump`].
-#[allow(dead_code)]
 #[allow(clippy::mut_from_ref)] // Arena.
 pub(crate) trait BumpExt {
     /// Allocates a vector of items on the arena.

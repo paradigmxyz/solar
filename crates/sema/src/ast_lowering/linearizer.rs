@@ -7,6 +7,7 @@
 //! [C3 linearization algorithm]: https://en.wikipedia.org/wiki/C3_linearization
 //! [`solc`]: https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
 
+use super::Declaration;
 use crate::hir;
 
 impl super::LoweringContext<'_, '_, '_> {
@@ -15,15 +16,73 @@ impl super::LoweringContext<'_, '_, '_> {
         // Must iterate in source order.
         let mut linearizer = ContractLinearizer::new();
         for source in &self.hir.sources {
-            for &contract_id in source.items.iter().filter_map(|item_id| item_id.as_contract()) {
+            for contract_id in source.items.iter().filter_map(hir::ItemId::as_contract) {
                 self.linearize_contract(contract_id, &mut linearizer);
                 if linearizer.result.is_empty() {
                     let msg = "linearization of inheritance graph impossible";
                     self.dcx().err(msg).span(self.hir.contract(contract_id).name.span).emit();
                     continue;
                 }
-                self.hir.contracts[contract_id].linearized_bases =
-                    self.arena.alloc_slice_copy(&linearizer.result);
+                let linearized_bases = &*self.arena.alloc_slice_copy(&linearizer.result);
+                self.hir.contracts[contract_id].linearized_bases = linearized_bases;
+
+                // Import inherited scopes.
+                // https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L352
+                for &base_id in &linearized_bases[1..] {
+                    let (base_scope, contract_scope) = super::get_two_mut_idx(
+                        &mut self.resolver.contract_scopes,
+                        base_id,
+                        contract_id,
+                    );
+                    for (&name, decls) in &base_scope.declarations {
+                        for &decl in decls {
+                            // Import if it was declared in the base, is not the constructor and is
+                            // visible in derived classes.
+                            let Declaration::Item(decl_item_id) = decl else { continue };
+                            let decl_item = self.hir.item(decl_item_id);
+                            if decl_item.contract() != Some(base_id) {
+                                continue;
+                            }
+                            if !decl_item.is_visible_in_derived_contracts() {
+                                continue;
+                            }
+
+                            if let Err(conflict) = contract_scope.try_declare(name, decl) {
+                                use hir::ItemId::*;
+                                use Declaration::*;
+
+                                let Item(conflict) = conflict else { continue };
+                                match (decl_item_id, conflict) {
+                                    // Usual shadowing is not an error.
+                                    (Function(a), Function(b)) => {
+                                        let a = self.hir.function(a);
+                                        let b = self.hir.function(b);
+                                        if a.kind.is_modifier() && b.kind.is_modifier() {
+                                            continue;
+                                        }
+                                    }
+                                    // Public state variable can override functions.
+                                    (Function(_a), Var(b)) => {
+                                        let v = self.hir.var(b);
+                                        if v.is_state_variable() && v.is_public() {
+                                            continue;
+                                        }
+                                    }
+                                    _ => {}
+                                }
+
+                                let msg = "identifier already declared";
+                                let note = "previous declaration here";
+                                let mut first = self.hir.item(decl_item_id).span();
+                                let mut second = self.hir.item(conflict).span();
+                                if first.lo() > second.lo() {
+                                    std::mem::swap(&mut first, &mut second);
+                                }
+                                self.sess.dcx.err(msg).span(first).span_note(second, note).emit();
+                            }
+                        }
+                    }
+                }
             }
         }
     }

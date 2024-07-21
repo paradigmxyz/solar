@@ -404,6 +404,11 @@ impl FunctionKind {
     pub fn allowed_in_global(&self) -> bool {
         matches!(self, Self::Function)
     }
+
+    /// Returns `true` if the function is a modifier.
+    pub fn is_modifier(&self) -> bool {
+        matches!(self, Self::Modifier)
+    }
 }
 
 /// A [modifier invocation][m], or an [inheritance specifier][i].
@@ -480,7 +485,7 @@ impl StateMutability {
 }
 
 /// Visibility ordered from restricted to unrestricted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Visibility {
     /// `private`
     Private,
