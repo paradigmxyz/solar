@@ -90,13 +90,13 @@ impl Compiler {
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
-        let mut resolver = sulk_sema::Sema::new(sess);
+        let mut sema = sulk_sema::Sema::new(sess);
         let remappings = arg_remappings.chain(args.import_map.iter().cloned());
         for map in remappings {
-            resolver.file_resolver.add_import_map(map.map, map.path);
+            sema.file_resolver.add_import_map(map.map, map.path);
         }
         for path in &args.import_path {
-            let new = resolver.file_resolver.add_import_path(path.clone());
+            let new = sema.file_resolver.add_import_path(path.clone());
             if !new {
                 let msg = format!("import path {} already specified", path.display());
                 return Err(sess.dcx.err(msg).emit());
@@ -104,11 +104,11 @@ impl Compiler {
         }
 
         if stdin {
-            resolver.load_stdin()?;
+            sema.load_stdin()?;
         }
-        resolver.load_files(paths)?;
+        sema.load_files(paths)?;
 
-        resolver.parse_and_resolve()?;
+        sema.parse_and_resolve()?;
 
         Ok(())
     }

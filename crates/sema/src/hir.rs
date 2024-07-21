@@ -14,7 +14,7 @@ pub use sulk_ast::ast::{ContractKind, FunctionKind, StateMutability, Visibility}
 #[derive(Debug)]
 pub struct Hir<'hir> {
     /// All sources.
-    pub(crate) sources: IndexVec<SourceId, Source<'hir, 'hir>>,
+    pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -67,7 +67,7 @@ macro_rules! indexvec_methods {
                 #[doc = "Returns an iterator over all of the " $singular " IDs."]
                 #[inline]
                 pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator {
-                    self.$plural.indices()
+                    (0..self.$plural.len()).map($id::from_usize)
                 }
 
                 #[doc = "Returns an iterator over all of the " $singular " values."]
@@ -79,7 +79,7 @@ macro_rules! indexvec_methods {
                 #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
                 #[inline]
                 pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
-                    self.$plural.iter_enumerated()
+                    self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
                 }
             )*
 
@@ -93,7 +93,7 @@ macro_rules! indexvec_methods {
 }
 
 indexvec_methods! {
-    source => sources, SourceId => Source<'hir, 'hir>;
+    source => sources, SourceId => Source<'hir>;
     contract => contracts, ContractId => Contract<'hir>;
     function => functions, FunctionId => Function<'hir>;
     strukt => structs, StructId => Struct<'hir>;
@@ -150,30 +150,20 @@ newtype_index! {
 }
 
 /// A source file.
-pub struct Source<'ast, 'hir> {
+pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
-    /// The AST of the source. None if Yul, parsing failed, or is after lowering where it's no
-    /// longer needed.
-    pub ast: Option<ast::SourceUnit<'ast>>,
-    pub imports: Vec<(ast::ItemId, SourceId)>,
+    pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
 }
 
-impl fmt::Debug for Source<'_, '_> {
+impl fmt::Debug for Source<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Source")
             .field("file", &self.file.name)
-            .field("ast", &self.ast.is_some())
             .field("imports", &self.imports)
             .field("items", &self.items)
             .finish()
-    }
-}
-
-impl Source<'_, '_> {
-    pub(crate) fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new(), items: &[] }
     }
 }
 
@@ -191,6 +181,7 @@ pub enum Item<'a, 'hir> {
 
 impl Item<'_, '_> {
     /// Returns the name of the item.
+    #[inline]
     pub fn name(self) -> Option<Ident> {
         match self {
             Item::Contract(c) => Some(c.name),
@@ -203,9 +194,99 @@ impl Item<'_, '_> {
             Item::Var(v) => v.name,
         }
     }
+
+    /// Returns the span of the item.
+    #[inline]
+    pub fn span(self) -> Span {
+        match self {
+            Item::Contract(c) => c.span,
+            Item::Function(f) => f.span,
+            Item::Struct(s) => s.span,
+            Item::Enum(e) => e.span,
+            Item::Udvt(u) => u.span,
+            Item::Error(e) => e.span,
+            Item::Event(e) => e.span,
+            Item::Var(v) => v.span,
+        }
+    }
+
+    /// Returns the contract ID if this item is part of a contract.
+    #[inline]
+    pub fn contract(self) -> Option<ContractId> {
+        match self {
+            Item::Contract(_) => None,
+            Item::Function(f) => f.contract,
+            Item::Struct(s) => s.contract,
+            Item::Enum(e) => e.contract,
+            Item::Udvt(u) => u.contract,
+            Item::Error(e) => e.contract,
+            Item::Event(e) => e.contract,
+            Item::Var(v) => v.contract,
+        }
+    }
+
+    /// Returns `true` if the item is visible in derived contracts.
+    #[inline]
+    pub fn is_visible_in_derived_contracts(self) -> bool {
+        // matches!(self, Item::Struct(_) | Item::Enum(_) | Item::Event(_) | Item::Error(_))
+        // || (
+        self.is_visible_in_contract() && self.visibility() >= Visibility::Internal
+        // )
+    }
+
+    /// Returns `true` if the item is visible in the contract.
+    #[inline]
+    pub fn is_visible_in_contract(self) -> bool {
+        (if let Item::Function(f) = self { f.kind == FunctionKind::Function } else { true })
+            && self.visibility() != Visibility::External
+    }
+
+    /// Returns `true` if the item is public or external.
+    #[inline]
+    pub fn is_public(&self) -> bool {
+        self.visibility() >= Visibility::Public
+    }
+
+    /// Returns the visibility of the item.
+    #[inline]
+    pub fn visibility(self) -> Visibility {
+        self.visibility_opt().unwrap_or_else(|| self.default_visibility())
+    }
+
+    #[inline]
+    fn visibility_opt(self) -> Option<Visibility> {
+        match self {
+            Item::Function(f) => f.visibility,
+            Item::Var(v) => v.visibility,
+            Item::Contract(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Udvt(_)
+            | Item::Error(_)
+            | Item::Event(_) => None,
+        }
+    }
+
+    #[inline]
+    fn default_visibility(self) -> Visibility {
+        match self {
+            Item::Function(f) => match f.kind {
+                _ if f.is_free() => Visibility::Internal,
+                FunctionKind::Modifier => Visibility::Internal,
+                _ => Visibility::Public,
+            },
+            Item::Var(_) => Visibility::Internal,
+            Item::Contract(_)
+            | Item::Struct(_)
+            | Item::Enum(_)
+            | Item::Udvt(_)
+            | Item::Error(_)
+            | Item::Event(_) => Visibility::Public,
+        }
+    }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
@@ -233,6 +314,37 @@ impl fmt::Debug for ItemId {
     }
 }
 
+impl ItemId {
+    /// Returns the description of the item.
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Contract(_) => "contract",
+            Self::Function(_) => "function",
+            Self::Var(_) => "variable",
+            Self::Struct(_) => "struct",
+            Self::Enum(_) => "enum",
+            Self::Udvt(_) => "UDVT",
+            Self::Error(_) => "error",
+            Self::Event(_) => "event",
+        }
+    }
+
+    /// Returns `true` if the **item kinds** match.
+    #[inline]
+    pub fn matches(&self, other: &Self) -> bool {
+        std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+
+    /// Returns the contract ID if this is a contract.
+    pub fn as_contract(&self) -> Option<ContractId> {
+        if let Self::Contract(v) = *self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+}
+
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
@@ -242,8 +354,12 @@ pub struct Contract<'hir> {
     pub span: Span,
     /// The contract kind.
     pub kind: ContractKind,
+    /// The source this contract is defined in.
+    pub source_id: SourceId,
     /// The contract bases.
     pub bases: &'hir [ContractId],
+    /// The linearized contract bases.
+    pub linearized_bases: &'hir [ContractId],
     /// The constructor function.
     pub ctor: Option<FunctionId>,
     /// The `fallback` function.
@@ -262,7 +378,20 @@ pub struct Function<'hir> {
     pub name: Option<Ident>,
     /// The function span.
     pub span: Span,
+    /// The function kind.
+    pub kind: FunctionKind,
+    /// The visibility of the variable.
+    pub visibility: Option<Visibility>,
+    /// The contract this function is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
+}
+
+impl Function<'_> {
+    /// Returns `true` if this is a free function, meaning it is not part of a contract.
+    pub fn is_free(&self) -> bool {
+        self.contract.is_some()
+    }
 }
 
 /// A struct.
@@ -272,6 +401,8 @@ pub struct Struct<'hir> {
     pub name: Ident,
     /// The struct span.
     pub span: Span,
+    /// The contract this struct is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -284,6 +415,8 @@ pub struct Enum<'hir> {
     pub span: Span,
     /// The enum variants.
     pub variants: &'hir [Ident],
+    /// The contract this enum is defined in, if any.
+    pub contract: Option<ContractId>,
 }
 
 /// A user-defined value type.
@@ -293,6 +426,8 @@ pub struct Udvt<'hir> {
     pub name: Ident,
     /// The UDVT span.
     pub span: Span,
+    /// The contract this UDVT is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -303,6 +438,10 @@ pub struct Event<'hir> {
     pub name: Ident,
     /// The event span.
     pub span: Span,
+    /// The contract this event is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// Whether this event is anonymous.
+    pub anonymous: bool,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -313,6 +452,8 @@ pub struct Error<'hir> {
     pub name: Ident,
     /// The error span.
     pub span: Span,
+    /// The contract this error is defined in, if any.
+    pub contract: Option<ContractId>,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
@@ -323,7 +464,23 @@ pub struct Var<'hir> {
     pub name: Option<Ident>,
     /// The variable span.
     pub span: Span,
+    /// The contract this variable is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// The visibility of the variable.
+    pub visibility: Option<Visibility>,
     pub _tmp: PhantomData<&'hir ()>,
+}
+
+impl Var<'_> {
+    /// Returns `true` if the variable is a state variable.
+    pub fn is_state_variable(&self) -> bool {
+        self.contract.is_some()
+    }
+
+    /// Returns `true` if the variable is public.
+    pub fn is_public(&self) -> bool {
+        self.visibility >= Some(Visibility::Public)
+    }
 }
 
 /// A statement.

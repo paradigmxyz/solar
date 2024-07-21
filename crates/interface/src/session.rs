@@ -80,4 +80,17 @@ impl Session {
     pub fn is_sequential(&self) -> bool {
         self.jobs.get() == 1
     }
+
+    /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
+    /// enabled.
+    // NOTE: This only exists because on a `use_current_thread` thread pool `rayon::spawn` will
+    // never execute.
+    #[inline]
+    pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
+        if self.is_sequential() {
+            f();
+        } else {
+            rayon::spawn(f);
+        }
+    }
 }

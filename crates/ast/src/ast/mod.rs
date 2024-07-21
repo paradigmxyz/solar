@@ -1,6 +1,7 @@
 //! Solidity AST.
 
 use bumpalo::boxed::Box;
+use std::fmt;
 use sulk_data_structures::{index::IndexSlice, newtype_index, smallvec::SmallVec};
 
 pub use crate::token::CommentKind;
@@ -44,8 +45,26 @@ pub struct DocComment {
 /// A qualified identifier: `foo.bar.baz`.
 ///
 /// This is a list of identifiers, and is never empty.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Path(SmallVec<[Ident; 1]>);
+
+impl fmt::Debug for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (i, ident) in self.segments().iter().enumerate() {
+            if i != 0 {
+                f.write_str(".")?;
+            }
+            write!(f, "{ident}")?;
+        }
+        Ok(())
+    }
+}
 
 impl FromIterator<Ident> for Path {
     /// Creates a path from an iterator of idents.

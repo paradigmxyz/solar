@@ -320,12 +320,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let inheritance =
+        let bases =
             if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Default::default() };
         self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
             self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
-        Ok(ItemContract { kind, name, inheritance, body })
+        Ok(ItemContract { kind, name, bases, body })
     }
 
     /// Parses an enum definition.
