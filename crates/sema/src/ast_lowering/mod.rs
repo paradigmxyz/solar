@@ -88,6 +88,11 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
         &self.sess.dcx
     }
 
+    #[instrument(level = "debug", skip_all)]
+    fn shrink_to_fit(&mut self) {
+        self.hir.shrink_to_fit();
+    }
+
     #[instrument(name = "drop_lcx", level = "debug", skip_all)]
     fn finish(self) -> Hir<'hir> {
         // NOTE: Explicit scope to drop `self` before the span.
@@ -95,11 +100,6 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             let this = self;
             this.hir
         }
-    }
-
-    #[instrument(level = "debug", skip_all)]
-    fn shrink_to_fit(&mut self) {
-        self.hir.shrink_to_fit();
     }
 }
 

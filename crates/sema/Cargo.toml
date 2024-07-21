@@ -35,4 +35,5 @@ nightly = [
     "sulk-data-structures/nightly",
     "sulk-interface/nightly",
     "sulk-parse/nightly",
+    "thread_local/nightly",
 ]

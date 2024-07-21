@@ -4,7 +4,7 @@ use sulk_ast::ast;
 use sulk_data_structures::{
     index::IndexVec,
     map::{FxIndexMap, IndexEntry},
-    smallvec::SmallVec,
+    smallvec::{smallvec, SmallVec},
 };
 use sulk_interface::{diagnostics::ErrorGuaranteed, Ident};
 
@@ -264,7 +264,7 @@ impl Declarations {
                 entry.into_mut().push(decl);
             }
             IndexEntry::Vacant(entry) => {
-                entry.insert(SmallVec::from_slice(&[decl]));
+                entry.insert(smallvec![decl]);
             }
         }
         Ok(())
