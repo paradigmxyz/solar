@@ -323,11 +323,7 @@ impl<'sess> SymbolResolver<'sess> {
         Ok(decl)
     }
 
-    fn resolve_name_raw<'a>(
-        &self,
-        name: Ident,
-        scopes: &SymbolResolverScopes,
-    ) -> Option<Declaration> {
+    fn resolve_name_raw(&self, name: Ident, scopes: &SymbolResolverScopes) -> Option<Declaration> {
         scopes.get(self).find_map(move |scope| scope.resolve_single(name))
     }
 

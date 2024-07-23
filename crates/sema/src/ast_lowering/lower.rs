@@ -64,7 +64,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                 | ast::ItemKind::Contract(_) => unreachable!("illegal item in contract body"),
                 ast::ItemKind::Using(_) => continue,
                 ast::ItemKind::Function(func) => {
-                    let id = self.lower_function(item, func);
+                    let hir::ItemId::Function(id) = self.lower_item(item) else { unreachable!() };
                     match func.kind {
                         ast::FunctionKind::Constructor
                         | ast::FunctionKind::Fallback
