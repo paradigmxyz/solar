@@ -3,7 +3,13 @@ use smallvec::SmallVec;
 
 /// Extension trait for [`Bump`].
 #[allow(clippy::mut_from_ref)] // Arena.
-pub(crate) trait BumpExt {
+pub trait BumpExt {
+    /// Allocates an iterator by first collecting it into a (possibly stack-allocated) vector.
+    ///
+    /// Prefer using [`Bump::alloc_slice_fill_iter`] if `iter` is [`ExactSizeIterator`] to avoid
+    /// the intermediate allocation.
+    fn alloc_iter_collect<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T];
+
     /// Allocates a vector of items on the arena.
     ///
     /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
@@ -27,6 +33,11 @@ pub(crate) trait BumpExt {
 }
 
 impl BumpExt for Bump {
+    #[inline]
+    fn alloc_iter_collect<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T] {
+        self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter))
+    }
+
     #[inline]
     fn alloc_vec<T>(&self, mut values: Vec<T>) -> &mut [T] {
         if values.is_empty() {

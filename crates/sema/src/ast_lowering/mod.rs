@@ -18,6 +18,8 @@ mod linearize;
 mod resolve;
 use resolve::{Declaration, SymbolResolver};
 
+// TODO: Use another arena for temporary allocations, like resolver scopes.
+
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
     sess: &Session,
@@ -68,7 +70,10 @@ struct LoweringContext<'sess, 'ast, 'hir> {
     hir: Hir<'hir>,
     hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
-    resolver: SymbolResolver,
+    /// Current contract being lowered.
+    current_contract_id: Option<hir::ContractId>,
+
+    resolver: SymbolResolver<'sess>,
 }
 
 impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
@@ -77,8 +82,9 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             sess,
             arena,
             hir: Hir::new(),
+            current_contract_id: None,
             hir_to_ast: FxIndexMap::default(),
-            resolver: SymbolResolver::new(),
+            resolver: SymbolResolver::new(&sess.dcx),
         }
     }
 

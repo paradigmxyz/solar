@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::{fmt, marker::PhantomData, sync::Arc};
 use sulk_ast::ast;
 use sulk_data_structures::{
@@ -6,7 +7,9 @@ use sulk_data_structures::{
 };
 use sulk_interface::{source_map::SourceFile, Ident, Span};
 
-pub use sulk_ast::ast::{ContractKind, FunctionKind, StateMutability, Visibility};
+pub use sulk_ast::ast::{
+    ContractKind, DataLocation, FunctionKind, StateMutability, VarMut, Visibility,
+};
 
 /// The high-level intermediate representation (HIR).
 ///
@@ -30,7 +33,7 @@ pub struct Hir<'hir> {
     /// All custom errors.
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All constants and variables.
-    pub(crate) vars: IndexVec<VarId, Var<'hir>>,
+    pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
 }
 
 impl<'hir> Hir<'hir> {
@@ -44,7 +47,7 @@ impl<'hir> Hir<'hir> {
             udvts: IndexVec::new(),
             events: IndexVec::new(),
             errors: IndexVec::new(),
-            vars: IndexVec::new(),
+            variables: IndexVec::new(),
         }
     }
 }
@@ -70,16 +73,34 @@ macro_rules! indexvec_methods {
                     (0..self.$plural.len()).map($id::from_usize)
                 }
 
+                #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
+                #[inline]
+                pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> {
+                    (0..self.$plural.len()).into_par_iter().map($id::from_usize)
+                }
+
                 #[doc = "Returns an iterator over all of the " $singular " values."]
                 #[inline]
                 pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator {
                     self.$plural.raw.iter()
                 }
 
+                #[doc = "Returns a parallel iterator over all of the " $singular " values."]
+                #[inline]
+                pub fn [<par_ $plural>](&self) -> impl IndexedParallelIterator<Item = &$type> {
+                    self.$plural.raw.par_iter()
+                }
+
                 #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
                 #[inline]
                 pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
                     self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
+                }
+
+                #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
+                #[inline]
+                pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
+                    self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize(i), v))
                 }
             )*
 
@@ -101,7 +122,7 @@ indexvec_methods! {
     udvt => udvts, UdvtId => Udvt<'hir>;
     event => events, EventId => Event<'hir>;
     error => errors, ErrorId => Error<'hir>;
-    var => vars, VarId => Var<'hir>;
+    variable => variables, VariableId => Variable<'hir>;
 }
 
 impl<'hir> Hir<'hir> {
@@ -110,7 +131,7 @@ impl<'hir> Hir<'hir> {
         match id {
             ItemId::Contract(id) => Item::Contract(self.contract(id)),
             ItemId::Function(id) => Item::Function(self.function(id)),
-            ItemId::Var(id) => Item::Var(self.var(id)),
+            ItemId::Variable(id) => Item::Variable(self.variable(id)),
             ItemId::Struct(id) => Item::Struct(self.strukt(id)),
             ItemId::Enum(id) => Item::Enum(self.enumm(id)),
             ItemId::Udvt(id) => Item::Udvt(self.udvt(id)),
@@ -145,8 +166,8 @@ newtype_index! {
     /// An [`Error`] ID.
     pub struct ErrorId;
 
-    /// A [`Var`] ID.
-    pub struct VarId;
+    /// A [`Variable`] ID.
+    pub struct VariableId;
 }
 
 /// A source file.
@@ -176,7 +197,7 @@ pub enum Item<'a, 'hir> {
     Udvt(&'a Udvt<'hir>),
     Error(&'a Error<'hir>),
     Event(&'a Event<'hir>),
-    Var(&'a Var<'hir>),
+    Variable(&'a Variable<'hir>),
 }
 
 impl Item<'_, '_> {
@@ -191,7 +212,7 @@ impl Item<'_, '_> {
             Item::Udvt(u) => Some(u.name),
             Item::Error(e) => Some(e.name),
             Item::Event(e) => Some(e.name),
-            Item::Var(v) => v.name,
+            Item::Variable(v) => v.name,
         }
     }
 
@@ -206,7 +227,7 @@ impl Item<'_, '_> {
             Item::Udvt(u) => u.span,
             Item::Error(e) => e.span,
             Item::Event(e) => e.span,
-            Item::Var(v) => v.span,
+            Item::Variable(v) => v.span,
         }
     }
 
@@ -221,7 +242,7 @@ impl Item<'_, '_> {
             Item::Udvt(u) => u.contract,
             Item::Error(e) => e.contract,
             Item::Event(e) => e.contract,
-            Item::Var(v) => v.contract,
+            Item::Variable(v) => v.contract,
         }
     }
 
@@ -257,7 +278,7 @@ impl Item<'_, '_> {
     fn visibility_opt(self) -> Option<Visibility> {
         match self {
             Item::Function(f) => f.visibility,
-            Item::Var(v) => v.visibility,
+            Item::Variable(v) => v.visibility,
             Item::Contract(_)
             | Item::Struct(_)
             | Item::Enum(_)
@@ -275,7 +296,7 @@ impl Item<'_, '_> {
                 FunctionKind::Modifier => Visibility::Internal,
                 _ => Visibility::Public,
             },
-            Item::Var(_) => Visibility::Internal,
+            Item::Variable(_) => Visibility::Internal,
             Item::Contract(_)
             | Item::Struct(_)
             | Item::Enum(_)
@@ -290,7 +311,7 @@ impl Item<'_, '_> {
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
-    Var(VarId),
+    Variable(VariableId),
     Struct(StructId),
     Enum(EnumId),
     Udvt(UdvtId),
@@ -304,7 +325,7 @@ impl fmt::Debug for ItemId {
         match self {
             Self::Contract(id) => id.fmt(f),
             Self::Function(id) => id.fmt(f),
-            Self::Var(id) => id.fmt(f),
+            Self::Variable(id) => id.fmt(f),
             Self::Struct(id) => id.fmt(f),
             Self::Enum(id) => id.fmt(f),
             Self::Udvt(id) => id.fmt(f),
@@ -320,7 +341,7 @@ impl ItemId {
         match self {
             Self::Contract(_) => "contract",
             Self::Function(_) => "function",
-            Self::Var(_) => "variable",
+            Self::Variable(_) => "variable",
             Self::Struct(_) => "struct",
             Self::Enum(_) => "enum",
             Self::Udvt(_) => "UDVT",
@@ -373,18 +394,25 @@ pub struct Contract<'hir> {
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
+    /// The function span.
+    pub span: Span,
+    /// The contract this function is defined in, if any.
+    pub contract: Option<ContractId>,
     /// The function name.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
-    /// The function span.
-    pub span: Span,
     /// The function kind.
     pub kind: FunctionKind,
-    /// The visibility of the variable.
+    /// The visibility of the function.
     pub visibility: Option<Visibility>,
-    /// The contract this function is defined in, if any.
-    pub contract: Option<ContractId>,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub state_mutability: Option<StateMutability>,
+    pub modifiers: &'hir [FunctionId],
+    pub virtual_: bool,
+    pub overrides: &'hir [ContractId],
+    /// The function parameters.
+    pub params: &'hir [VariableId],
+    /// The function returns.
+    pub returns: &'hir [VariableId],
 }
 
 impl Function<'_> {
@@ -397,49 +425,55 @@ impl Function<'_> {
 /// A struct.
 #[derive(Debug)]
 pub struct Struct<'hir> {
-    /// The struct name.
-    pub name: Ident,
-    /// The struct span.
-    pub span: Span,
     /// The contract this struct is defined in, if any.
     pub contract: Option<ContractId>,
-    pub _tmp: PhantomData<&'hir ()>,
+    /// The struct span.
+    pub span: Span,
+    /// The struct name.
+    pub name: Ident,
+    pub fields: &'hir [StructField],
+}
+
+#[derive(Debug)]
+pub struct StructField {
+    pub name: Ident,
+    // pub ty: Type, // TODO
 }
 
 /// An enum.
 #[derive(Debug)]
 pub struct Enum<'hir> {
-    /// The enum name.
-    pub name: Ident,
     /// The enum span.
     pub span: Span,
-    /// The enum variants.
-    pub variants: &'hir [Ident],
     /// The contract this enum is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The enum name.
+    pub name: Ident,
+    /// The enum variants.
+    pub variants: &'hir [Ident],
 }
 
 /// A user-defined value type.
 #[derive(Debug)]
 pub struct Udvt<'hir> {
-    /// The UDVT name.
-    pub name: Ident,
     /// The UDVT span.
     pub span: Span,
     /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The UDVT name.
+    pub name: Ident,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// An event.
 #[derive(Debug)]
 pub struct Event<'hir> {
-    /// The event name.
-    pub name: Ident,
     /// The event span.
     pub span: Span,
     /// The contract this event is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The event name.
+    pub name: Ident,
     /// Whether this event is anonymous.
     pub anonymous: bool,
     pub _tmp: PhantomData<&'hir ()>,
@@ -448,30 +482,33 @@ pub struct Event<'hir> {
 /// A custom error.
 #[derive(Debug)]
 pub struct Error<'hir> {
-    /// The error name.
-    pub name: Ident,
     /// The error span.
     pub span: Span,
     /// The contract this error is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The error name.
+    pub name: Ident,
     pub _tmp: PhantomData<&'hir ()>,
 }
 
 /// A constant or variable declaration.
 #[derive(Debug)]
-pub struct Var<'hir> {
-    /// The variable name.
-    pub name: Option<Ident>,
+pub struct Variable<'hir> {
     /// The variable span.
     pub span: Span,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The variable name.
+    pub name: Option<Ident>,
     /// The visibility of the variable.
     pub visibility: Option<Visibility>,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub mutability: Option<VarMut>,
+    pub data_location: Option<DataLocation>,
+    pub indexed: bool,
+    pub initializer: Option<&'hir Expr<'hir>>,
 }
 
-impl Var<'_> {
+impl Variable<'_> {
     /// Returns `true` if the variable is a state variable.
     pub fn is_state_variable(&self) -> bool {
         self.contract.is_some()

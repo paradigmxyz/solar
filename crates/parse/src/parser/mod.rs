@@ -13,7 +13,7 @@ use sulk_interface::{
 };
 
 mod bump_ext;
-use bump_ext::BumpExt;
+pub use bump_ext::BumpExt;
 
 mod expr;
 mod item;

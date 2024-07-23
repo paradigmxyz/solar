@@ -6,7 +6,10 @@ use sulk_data_structures::{
     map::{FxIndexMap, IndexEntry},
     smallvec::{smallvec, SmallVec},
 };
-use sulk_interface::{diagnostics::ErrorGuaranteed, Ident};
+use sulk_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    Ident, Span,
+};
 
 type _Scopes = sulk_data_structures::scope::Scopes<
     Ident,
@@ -101,6 +104,7 @@ impl super::LoweringContext<'_, '_, '_> {
 
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_contracts(&mut self) {
+        let mut scopes = SymbolResolverScopes::new();
         for contract_id in self.hir.contract_ids() {
             let item = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
             let ast::ItemKind::Contract(ast_contract) = &item.kind else { unreachable!() };
@@ -108,22 +112,14 @@ impl super::LoweringContext<'_, '_, '_> {
                 continue;
             }
 
-            self.resolver.current_source_id = Some(self.hir.contract(contract_id).source_id);
-            self.resolver.current_contract_id = None;
+            scopes.clear();
+            scopes.source = Some(self.hir.contract(contract_id).source_id);
             let mut bases = SmallVec::<[_; 8]>::new();
             for base in ast_contract.bases.iter() {
                 let name = &base.name;
-                let Some(decl) = self.resolver.resolve_path(name) else {
-                    let msg = format!("unresolved contract base `{name}`");
-                    self.dcx().err(msg).span(name.span()).emit();
-                    continue;
-                };
-                if let Declaration::Err(_) = decl {
-                    continue;
-                }
-                let Declaration::Item(hir::ItemId::Contract(base_id)) = decl else {
-                    let msg = format!("expected contract, found {}", decl.description());
-                    self.dcx().err(msg).span(name.span()).emit();
+                let Some(base_id) =
+                    self.resolve_path_as::<hir::ContractId>(&base.name, &scopes, "contract")
+                else {
                     continue;
                 };
                 if base_id == contract_id {
@@ -136,61 +132,203 @@ impl super::LoweringContext<'_, '_, '_> {
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
         }
     }
+}
 
+impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve(&mut self) {
-        // TODO
+        let mut scopes = SymbolResolverScopes::new();
+
+        for id in self.hir.variable_ids() {
+            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
+            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+            let Some(init) = &ast_var.initializer else { continue };
+            let var = self.hir.variable(id);
+            scopes.clear();
+            scopes.contract = var.contract;
+            if let Some(c) = var.contract {
+                scopes.source = Some(self.hir.contract(c).source_id);
+            }
+            // TODO
+            let _init = init;
+            // let _init = self.resolve_expr(init, &mut scopes);
+        }
+
+        for id in self.hir.function_ids() {
+            let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
+            let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
+
+            let func = self.hir.function(id);
+            scopes.clear();
+            scopes.contract = func.contract;
+            if let Some(c) = func.contract {
+                scopes.source = Some(self.hir.contract(c).source_id);
+            }
+
+            let mut modifiers = SmallVec::<[_; 8]>::new();
+            for modifier in ast_func.header.modifiers.iter() {
+                let Some(id) = self.resolve_path_as(&modifier.name, &scopes, "modifier") else {
+                    continue;
+                };
+                let f = self.hir.function(id);
+                if !f.kind.is_modifier() {
+                    self.report_expected("modifier", f.kind.to_str(), modifier.name.span());
+                    continue;
+                }
+                modifiers.push(id);
+            }
+            self.hir.functions[id].modifiers = self.arena.alloc_slice_copy(&modifiers);
+
+            let mut overrides = SmallVec::<[_; 8]>::new();
+            if let Some(ov) = &ast_func.header.override_ {
+                for path in ov.paths.iter() {
+                    let Some(id) = self.resolve_path_as(path, &scopes, "contract") else {
+                        continue;
+                    };
+                    overrides.push(id);
+                }
+            }
+            self.hir.functions[id].overrides = self.arena.alloc_slice_copy(&overrides);
+
+            scopes.enter();
+            let scope = scopes.current_scope();
+            let func = self.hir.function(id);
+            for &param in func.params.iter().chain(func.returns) {
+                let Some(name) = self.hir.variable(param).name else { continue };
+                scope
+                    .try_declare(name, Declaration::Item(hir::ItemId::Variable(param)))
+                    .unwrap_or_else(|conflict| self.report_conflict(name, conflict));
+            }
+
+            // TODO
+            let Some(_body) = &ast_func.body else { continue };
+            // let _body = self.resolve_block(body, &mut scopes);
+        }
+    }
+
+    #[allow(unused)]
+    fn resolve_expr(
+        &self,
+        expr: &ast::Expr<'_>,
+        scopes: &mut SymbolResolverScopes,
+    ) -> &'hir hir::Expr<'hir> {
+        todo!()
+    }
+
+    fn resolve_path_as<T: TryFrom<Declaration>>(
+        &self,
+        path: &ast::Path,
+        scopes: &SymbolResolverScopes,
+        description: &str,
+    ) -> Option<T> {
+        let Ok(decl) = self.resolver.resolve_path(path, scopes) else {
+            return None;
+        };
+        if let Declaration::Err(_) = decl {
+            return None;
+        }
+        T::try_from(decl)
+            .inspect_err(|_| self.report_expected(description, decl.description(), path.span()))
+            .ok()
+    }
+
+    fn report_conflict(&self, name: Ident, conflict: Declaration) {
+        let second = match conflict {
+            Declaration::Item(id) => Some(self.hir.item(id).span()),
+            Declaration::Namespace(_) => None,
+            Declaration::Err(_) => None,
+        };
+        report_conflict(self.dcx(), name.span, second)
+    }
+
+    fn report_expected(&self, expected: &str, found: &str, span: Span) {
+        self.dcx().err(format!("expected {expected}, found {found}")).span(span).emit();
     }
 }
 
-pub(super) struct SymbolResolver {
+pub(super) fn report_conflict(dcx: &DiagCtxt, mut first: Span, mut second: Option<Span>) {
+    if let Some(second) = &mut second {
+        if first.lo() > second.lo() {
+            std::mem::swap(&mut first, second);
+        }
+    }
+    let mut err = dcx.err("identifier already declared");
+    if let Some(second) = second {
+        err = err.span_note(second, "previous declaration here");
+    }
+    err.emit();
+}
+
+enum ResolverError {
+    Unresolved(u32),
+    NotAScope(u32),
+}
+
+impl fmt::Display for ResolverError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotAScope(_) | Self::Unresolved(_) => f.write_str("unresolved symbol"),
+        }
+    }
+}
+
+impl ResolverError {
+    fn span(&self, path: &ast::Path) -> Span {
+        match *self {
+            Self::NotAScope(i) | Self::Unresolved(i) => path.segments()[i as usize].span,
+        }
+    }
+}
+
+pub(super) struct SymbolResolver<'sess> {
+    dcx: &'sess DiagCtxt,
     pub(super) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(super) contract_scopes: IndexVec<hir::ContractId, Declarations>,
-
-    pub(super) current_source_id: Option<hir::SourceId>,
-    pub(super) current_contract_id: Option<hir::ContractId>,
 }
 
-impl SymbolResolver {
-    pub(super) fn new() -> Self {
-        Self {
-            source_scopes: IndexVec::new(),
-            contract_scopes: IndexVec::new(),
-            current_source_id: None,
-            current_contract_id: None,
-        }
+impl<'sess> SymbolResolver<'sess> {
+    pub(super) fn new(dcx: &'sess DiagCtxt) -> Self {
+        Self { dcx, source_scopes: IndexVec::new(), contract_scopes: IndexVec::new() }
     }
 
-    pub(super) fn resolve_path(&self, path: &ast::Path) -> Option<Declaration> {
-        if let Some(&single) = path.get_ident() {
-            return self.resolve_name(single);
-        }
+    fn resolve_path(
+        &self,
+        path: &ast::Path,
+        scopes: &SymbolResolverScopes,
+    ) -> Result<Declaration, ErrorGuaranteed> {
+        self.resolve_path_raw(path, scopes)
+            .map_err(|e| self.dcx.err(e.to_string()).span(e.span(path)).emit())
+    }
 
+    fn resolve_path_raw(
+        &self,
+        path: &ast::Path,
+        scopes: &SymbolResolverScopes,
+    ) -> Result<Declaration, ResolverError> {
         let mut segments = path.segments().iter();
-        let mut decl = self.resolve_name(*segments.next().unwrap())?;
+        let mut decl = self
+            .resolve_name_raw(*segments.next().unwrap(), scopes)
+            .ok_or(ResolverError::Unresolved(0))?;
         if let Declaration::Err(_) = decl {
-            return Some(decl);
+            return Ok(decl);
         }
-        for &segment in segments {
-            let scope = self.scope_of(decl)?;
-            decl = scope.resolve_single(segment)?;
+        for (i, &segment) in segments.enumerate() {
+            let i = i as u32 + 1;
+            let scope = self.scope_of(decl).ok_or(ResolverError::NotAScope(i))?;
+            decl = scope.resolve_single(segment).ok_or(ResolverError::Unresolved(i))?;
             if let Declaration::Err(_) = decl {
-                return Some(decl);
+                return Ok(decl);
             }
         }
-        Some(decl)
+        Ok(decl)
     }
 
-    pub(super) fn resolve_name(&self, name: Ident) -> Option<Declaration> {
-        self.resolve_name_with(name, std::iter::empty())
-    }
-
-    fn resolve_name_with<'a>(
-        &'a self,
+    fn resolve_name_raw<'a>(
+        &self,
         name: Ident,
-        scopes: impl DoubleEndedIterator<Item = &'a Declarations>,
+        scopes: &SymbolResolverScopes,
     ) -> Option<Declaration> {
-        self.current_scopes().chain(scopes).rev().find_map(move |scope| scope.resolve_single(name))
+        scopes.get(self).find_map(move |scope| scope.resolve_single(name))
     }
 
     fn scope_of(&self, declaration: Declaration) -> Option<&Declarations> {
@@ -200,15 +338,60 @@ impl SymbolResolver {
             _ => None,
         }
     }
+}
 
+/// Mutable symbol resolution state.
+struct SymbolResolverScopes {
+    source: Option<hir::SourceId>,
+    contract: Option<hir::ContractId>,
+    scopes: Vec<Declarations>,
+}
+
+impl SymbolResolverScopes {
+    #[inline]
+    fn new() -> Self {
+        Self { source: None, contract: None, scopes: Vec::new() }
+    }
+
+    #[inline]
+    fn clear(&mut self) {
+        self.scopes.clear();
+        self.source = None;
+        self.contract = None;
+    }
+
+    #[inline]
     #[allow(clippy::filter_map_identity)] // More efficient than flatten.
-    fn current_scopes(&self) -> impl DoubleEndedIterator<Item = &Declarations> {
-        [
-            self.current_source_id.map(|id| &self.source_scopes[id]),
-            self.current_contract_id.map(|id| &self.contract_scopes[id]),
+    fn get<'a>(
+        &'a self,
+        resolver: &'a SymbolResolver<'_>,
+    ) -> impl Iterator<Item = &Declarations> + Clone + 'a {
+        debug_assert!(self.source.is_some() || self.contract.is_some());
+        let scopes = self.scopes.iter().rev();
+        let outer = [
+            self.contract.map(|id| &resolver.contract_scopes[id]),
+            self.source.map(|id| &resolver.source_scopes[id]),
         ]
         .into_iter()
-        .filter_map(std::convert::identity)
+        .filter_map(std::convert::identity);
+        // let builtins = None::<&Declarations>;
+        scopes.chain(outer) //.chain(builtins)
+    }
+
+    fn enter(&mut self) {
+        self.scopes.push(Declarations::new());
+    }
+
+    #[track_caller]
+    #[inline]
+    fn current_scope(&mut self) -> &mut Declarations {
+        self.scopes.last_mut().expect("missing initial scope")
+    }
+
+    #[allow(dead_code)] // TODO
+    #[track_caller]
+    fn exit(&mut self) {
+        self.scopes.pop().expect("unbalanced enter/exit");
     }
 }
 
@@ -218,6 +401,10 @@ pub(super) struct Declarations {
 }
 
 impl Declarations {
+    fn new() -> Self {
+        Self::with_capacity(0)
+    }
+
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
@@ -323,6 +510,45 @@ impl fmt::Debug for Declaration {
             Self::Item(id) => id.fmt(f),
             Self::Namespace(id) => id.fmt(f),
             Self::Err(_) => f.write_str("Err"),
+        }
+    }
+}
+
+impl From<hir::ItemId> for Declaration {
+    fn from(id: hir::ItemId) -> Self {
+        Self::Item(id)
+    }
+}
+
+impl TryFrom<Declaration> for hir::ItemId {
+    type Error = ();
+
+    fn try_from(decl: Declaration) -> Result<Self, ()> {
+        match decl {
+            Declaration::Item(id) => Ok(id),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Declaration> for hir::FunctionId {
+    type Error = ();
+
+    fn try_from(decl: Declaration) -> Result<Self, Self::Error> {
+        match decl {
+            Declaration::Item(hir::ItemId::Function(id)) => Ok(id),
+            _ => Err(()),
+        }
+    }
+}
+
+impl TryFrom<Declaration> for hir::ContractId {
+    type Error = ();
+
+    fn try_from(decl: Declaration) -> Result<Self, Self::Error> {
+        match decl {
+            Declaration::Item(hir::ItemId::Contract(id)) => Ok(id),
+            _ => Err(()),
         }
     }
 }
