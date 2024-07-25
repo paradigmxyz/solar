@@ -30,3 +30,10 @@ mod on_drop;
 pub use on_drop::{defer, OnDrop};
 
 pub use smallvec;
+
+/// This calls the passed function while ensuring it won't be inlined into the caller.
+#[inline(never)]
+#[cold]
+pub fn outline<R>(f: impl FnOnce() -> R) -> R {
+    f()
+}

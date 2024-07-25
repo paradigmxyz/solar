@@ -76,5 +76,5 @@ impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
 
     fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt<'ast>) {}
 
-    fn visit_ty(&mut self, _ty: &'ast ast::Ty<'ast>) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
 }

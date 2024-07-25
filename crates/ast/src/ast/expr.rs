@@ -1,4 +1,4 @@
-use super::{Lit, SubDenomination, Ty};
+use super::{Lit, SubDenomination, Type};
 use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
@@ -22,7 +22,7 @@ impl<'ast> Expr<'ast> {
     }
 
     /// Creates a new expression from a type.
-    pub fn from_ty(ty: Ty<'ast>) -> Self {
+    pub fn from_ty(ty: Type<'ast>) -> Self {
         Self { span: ty.span, kind: ExprKind::Type(ty) }
     }
 }
@@ -61,7 +61,7 @@ pub enum ExprKind<'ast> {
     Member(Box<'ast, Expr<'ast>>, Ident),
 
     /// A `new` expression: `new Contract`.
-    New(Ty<'ast>),
+    New(Type<'ast>),
 
     /// A `payable` expression: `payable(address(0x...))`.
     Payable(CallArgs<'ast>),
@@ -72,11 +72,11 @@ pub enum ExprKind<'ast> {
     /// A tuple expression: `(a,,, b, c, d)`.
     Tuple(Box<'ast, [Option<Box<'ast, Expr<'ast>>>]>),
 
-    /// A `type()` expression: `type(uint256)`
-    TypeCall(Ty<'ast>),
+    /// A `type()` expression: `type(uint256)`.
+    TypeCall(Type<'ast>),
 
     /// An elementary type name: `uint256`.
-    Type(Ty<'ast>),
+    Type(Type<'ast>),
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, Box<'ast, Expr<'ast>>),

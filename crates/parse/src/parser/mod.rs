@@ -816,7 +816,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while self.eat(&TokenKind::Dot) {
             path.push(f(self)?);
         }
-        Ok(Path::new(path))
+        Ok(Path::from_vec(path))
     }
 
     /// Parses an identifier.

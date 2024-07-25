@@ -8,7 +8,7 @@ pub trait BumpExt {
     ///
     /// Prefer using [`Bump::alloc_slice_fill_iter`] if `iter` is [`ExactSizeIterator`] to avoid
     /// the intermediate allocation.
-    fn alloc_iter_collect<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T];
+    fn alloc_from_iter<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T];
 
     /// Allocates a vector of items on the arena.
     ///
@@ -34,8 +34,13 @@ pub trait BumpExt {
 
 impl BumpExt for Bump {
     #[inline]
-    fn alloc_iter_collect<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T] {
-        self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter))
+    fn alloc_from_iter<T>(&self, mut iter: impl Iterator<Item = T>) -> &mut [T] {
+        match iter.size_hint() {
+            (min, Some(max)) if min == max => self.alloc_slice_fill_with(min, |_| {
+                iter.next().expect("Iterator supplied too few elements")
+            }),
+            _ => self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter)),
+        }
     }
 
     #[inline]
@@ -67,17 +72,13 @@ impl BumpExt for Bump {
     }
 
     #[inline]
-    unsafe fn alloc_slice_unchecked<'a, T>(&'a self, slice: &[T]) -> &'a mut [T] {
-        if slice.is_empty() {
-            return &mut [];
-        }
-
-        let start_ptr =
-            self.alloc_layout(std::alloc::Layout::for_value(slice)).as_ptr().cast::<T>();
-        let len = slice.len();
+    unsafe fn alloc_slice_unchecked<'a, T>(&'a self, src: &[T]) -> &'a mut [T] {
+        // Copied from `alloc_slice_copy`.
+        let layout = std::alloc::Layout::for_value(src);
+        let dst = self.alloc_layout(layout).cast::<T>();
         unsafe {
-            slice.as_ptr().copy_to_nonoverlapping(start_ptr, len);
-            std::slice::from_raw_parts_mut(start_ptr, len)
+            std::ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src.len());
+            std::slice::from_raw_parts_mut(dst.as_ptr(), src.len())
         }
     }
 }

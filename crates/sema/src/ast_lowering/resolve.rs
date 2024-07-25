@@ -10,6 +10,7 @@ use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Span,
 };
+use sulk_parse::BumpExt;
 
 type _Scopes = sulk_data_structures::scope::Scopes<
     Ident,
@@ -165,30 +166,34 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                 scopes.source = Some(self.hir.contract(c).source_id);
             }
 
-            let mut modifiers = SmallVec::<[_; 8]>::new();
-            for modifier in ast_func.header.modifiers.iter() {
-                let Some(id) = self.resolve_path_as(&modifier.name, &scopes, "modifier") else {
-                    continue;
-                };
-                let f = self.hir.function(id);
-                if !f.kind.is_modifier() {
-                    self.report_expected("modifier", f.kind.to_str(), modifier.name.span());
-                    continue;
-                }
-                modifiers.push(id);
-            }
-            self.hir.functions[id].modifiers = self.arena.alloc_slice_copy(&modifiers);
-
-            let mut overrides = SmallVec::<[_; 8]>::new();
-            if let Some(ov) = &ast_func.header.override_ {
-                for path in ov.paths.iter() {
-                    let Some(id) = self.resolve_path_as(path, &scopes, "contract") else {
+            self.hir.functions[id].modifiers = {
+                let mut modifiers = SmallVec::<[_; 8]>::new();
+                for modifier in ast_func.header.modifiers.iter() {
+                    let Some(id) = self.resolve_path_as(&modifier.name, &scopes, "modifier") else {
                         continue;
                     };
-                    overrides.push(id);
+                    let f = self.hir.function(id);
+                    if !f.kind.is_modifier() {
+                        self.report_expected("modifier", f.kind.to_str(), modifier.name.span());
+                        continue;
+                    }
+                    modifiers.push(id);
                 }
-            }
-            self.hir.functions[id].overrides = self.arena.alloc_slice_copy(&overrides);
+                self.arena.alloc_smallvec(modifiers)
+            };
+
+            self.hir.functions[id].overrides = {
+                let mut overrides = SmallVec::<[_; 8]>::new();
+                if let Some(ov) = &ast_func.header.override_ {
+                    for path in ov.paths.iter() {
+                        let Some(id) = self.resolve_path_as(path, &scopes, "contract") else {
+                            continue;
+                        };
+                        overrides.push(id);
+                    }
+                }
+                self.arena.alloc_smallvec(overrides)
+            };
 
             scopes.enter();
             let scope = scopes.current_scope();

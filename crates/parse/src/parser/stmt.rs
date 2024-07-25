@@ -365,7 +365,7 @@ enum IapKind<'ast> {
     /// `<ident>` or `.<ident>`
     Member(Ident),
     /// `<ty>`
-    MemberTy(Span, TyKind<'ast>),
+    MemberTy(Span, ElementaryType),
 }
 
 #[derive(Debug, Default)]
@@ -376,14 +376,14 @@ struct IndexAccessedPath<'ast> {
 }
 
 impl<'ast> IndexAccessedPath<'ast> {
-    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Ty<'ast>> {
+    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
         let mut ty = if let IapKind::MemberTy(span, kind) = first {
             debug_assert_eq!(self.n_idents, 1);
-            Ty { span, kind }
+            Type { span, kind: TypeKind::Elementary(kind) }
         } else {
             debug_assert!(self.n_idents >= 1);
             let first = std::iter::once(&first);
@@ -395,7 +395,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                 })
                 .take(self.n_idents)
                 .collect();
-            Ty { span: path.span(), kind: TyKind::Custom(path) }
+            Type { span: path.span(), kind: TypeKind::Custom(path) }
         };
 
         for index in path.skip(self.n_idents - 1) {
@@ -409,7 +409,8 @@ impl<'ast> IndexAccessedPath<'ast> {
                 }
             };
             let span = ty.span.to(span);
-            ty = Ty { span, kind: TyKind::Array(parser.alloc(TypeArray { element: ty, size })) };
+            ty =
+                Type { span, kind: TypeKind::Array(parser.alloc(TypeArray { element: ty, size })) };
         }
 
         Some(ty)
@@ -421,7 +422,9 @@ impl<'ast> IndexAccessedPath<'ast> {
 
         let mut expr = parser.alloc(match path.next()? {
             IapKind::Member(ident) => Expr::from_ident(ident),
-            IapKind::MemberTy(span, kind) => Expr { span, kind: ExprKind::Type(Ty { span, kind }) },
+            IapKind::MemberTy(span, kind) => {
+                Expr { span, kind: ExprKind::Type(Type { span, kind: TypeKind::Elementary(kind) }) }
+            }
             IapKind::Index(..) => panic!("should not happen"),
         });
         for index in path {

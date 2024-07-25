@@ -701,7 +701,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(super) fn parse_variable_definition_with(
         &mut self,
         flags: VarFlags,
-        ty: Option<Ty<'ast>>,
+        ty: Option<Type<'ast>>,
     ) -> PResult<'sess, VariableDefinition<'ast>> {
         let ty = match ty {
             Some(ty) => ty,

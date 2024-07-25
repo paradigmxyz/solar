@@ -5,10 +5,11 @@ use sulk_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use sulk_interface::{source_map::SourceFile, Ident, Span};
+use sulk_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
 
-pub use sulk_ast::ast::{
-    ContractKind, DataLocation, FunctionKind, StateMutability, VarMut, Visibility,
+pub use ast::{
+    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, StateMutability,
+    UnOp, UnOpKind, VarMut, Visibility,
 };
 
 /// The high-level intermediate representation (HIR).
@@ -533,5 +534,120 @@ pub struct Stmt<'hir> {
 pub struct Expr<'hir> {
     /// The expression span.
     pub span: Span,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub kind: ExprKind<'hir>,
+}
+
+/// A kind of expression.
+#[derive(Debug)]
+pub enum ExprKind<'hir> {
+    /// An array literal expression: `[a, b, c, d]`.
+    Array(&'hir [Expr<'hir>]),
+
+    /// An assignment: `a = b`, `a += b`.
+    Assign(&'hir Expr<'hir>, Option<BinOp>, &'hir Expr<'hir>),
+
+    /// A binary operation: `a + b`, `a >> b`.
+    Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
+
+    /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
+    Call(&'hir Expr<'hir>, &'hir [Expr<'hir>]),
+
+    /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
+    CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
+
+    /// A unary `delete` expression: `delete vector`.
+    Delete(&'hir Expr<'hir>),
+
+    /// An identifier: `foo`. A reference to an item or variable.
+    Ident(ItemId),
+
+    /// A square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
+    Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
+
+    /// A square bracketed slice expression: `slice[l:r]`.
+    Slice(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>, Option<&'hir Expr<'hir>>),
+
+    // /// A literal: `hex"1234"`, `5.6 ether`.
+    // Lit(Lit, Option<SubDenomination>),
+    /// Access of a named member: `obj.k`.
+    Member(&'hir Expr<'hir>, Ident),
+
+    /// A `new` expression: `new Contract`.
+    New(Type<'hir>),
+
+    /// A `payable` expression: `payable(address(0x...))`.
+    Payable(&'hir Expr<'hir>),
+
+    /// A ternary (AKA conditional) expression: `foo ? bar : baz`.
+    Ternary(&'hir Expr<'hir>, &'hir Expr<'hir>, &'hir Expr<'hir>),
+
+    /// A tuple expression: `(a,,, b, c, d)`.
+    Tuple(&'hir [Option<&'hir Expr<'hir>>]),
+
+    /// A `type()` expression: `type(uint256)`.
+    TypeCall(Type<'hir>),
+
+    /// An elementary type name: `uint256`.
+    Type(Type<'hir>),
+
+    /// A unary operation: `!x`, `-x`, `x++`.
+    Unary(UnOp, &'hir Expr<'hir>),
+}
+
+/// A named argument: `name: value`.
+#[derive(Debug)]
+pub struct NamedArg<'hir> {
+    pub name: Ident,
+    pub value: Expr<'hir>,
+}
+
+/// A type name.
+#[derive(Debug)]
+pub struct Type<'hir> {
+    pub span: Span,
+    pub kind: TypeKind<'hir>,
+}
+
+/// The kind of a type.
+#[derive(Debug)]
+pub enum TypeKind<'hir> {
+    /// An elementary/primitive type.
+    Elementary(ElementaryType),
+
+    /// `$element[$($size)?]`
+    Array(&'hir TypeArray<'hir>),
+    /// `function($($parameters),*) $($attributes)* $(returns ($($returns),+))?`
+    Function(&'hir TypeFunction<'hir>),
+    /// `mapping($key $($key_name)? => $value $($value_name)?)`
+    Mapping(&'hir TypeMapping<'hir>),
+
+    /// A custom type name.
+    Custom(ItemId),
+
+    Err(ErrorGuaranteed),
+}
+
+/// An array type.
+#[derive(Debug)]
+pub struct TypeArray<'hir> {
+    pub element: Type<'hir>,
+    pub size: Option<&'hir Expr<'hir>>,
+}
+
+/// A function type name.
+#[derive(Debug)]
+pub struct TypeFunction<'hir> {
+    pub parameters: &'hir [Type<'hir>],
+    pub visibility: Option<Visibility>,
+    pub state_mutability: Option<StateMutability>,
+    pub returns: &'hir [Type<'hir>],
+}
+
+/// A mapping type.
+#[derive(Debug)]
+pub struct TypeMapping<'hir> {
+    pub key: Type<'hir>,
+    pub key_name: Option<Ident>,
+    pub value: Type<'hir>,
+    pub value_name: Option<Ident>,
 }

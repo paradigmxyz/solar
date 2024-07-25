@@ -101,26 +101,26 @@ impl PartialEq<Symbol> for Path {
 }
 
 impl Path {
-    /// Creates a new path from a list of segments.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `segments` is empty.
-    #[inline]
-    pub fn new(segments: Vec<Ident>) -> Self {
-        assert!(!segments.is_empty());
-        Self(SmallVec::from(segments))
-    }
-
     /// Creates a new path from a slice of segments.
     ///
     /// # Panics
     ///
     /// Panics if `segments` is empty.
     #[inline]
-    pub fn from_slice(segments: &[Ident]) -> Self {
+    pub fn new(segments: &[Ident]) -> Self {
         assert!(!segments.is_empty());
         Self(SmallVec::from_slice(segments))
+    }
+
+    /// Creates a new path from a list of segments.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `segments` is empty.
+    #[inline]
+    pub fn from_vec(segments: Vec<Ident>) -> Self {
+        assert!(!segments.is_empty());
+        Self(SmallVec::from_vec(segments))
     }
 
     /// Creates a new path from a single ident.

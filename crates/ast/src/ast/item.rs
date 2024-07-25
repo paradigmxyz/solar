@@ -1,4 +1,4 @@
-use super::{Block, CallArgs, DocComments, Expr, Path, SemverReq, StrLit, Ty};
+use super::{Block, CallArgs, DocComments, Expr, Path, SemverReq, StrLit, Type};
 use crate::token::Token;
 use bumpalo::boxed::Box;
 use std::fmt;
@@ -239,7 +239,7 @@ pub struct UsingDirective<'ast> {
     /// The list of paths.
     pub list: UsingList<'ast>,
     /// The type for which this `using` directive applies. This is `*` if the value is `None`.
-    pub ty: Option<Ty<'ast>>,
+    pub ty: Option<Type<'ast>>,
     pub global: bool,
 }
 
@@ -347,8 +347,6 @@ pub struct ItemFunction<'ast> {
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
-///
-/// Used by all [function items](ItemFunction) and the [function type](super::TyKind::Function).
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
     /// The name of the function.
@@ -520,7 +518,7 @@ impl Visibility {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
 #[derive(Debug)]
 pub struct VariableDefinition<'ast> {
-    pub ty: Ty<'ast>,
+    pub ty: Type<'ast>,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
     pub data_location: Option<DataLocation>,
@@ -589,7 +587,7 @@ pub struct ItemEnum<'ast> {
 #[derive(Debug)]
 pub struct ItemUdvt<'ast> {
     pub name: Ident,
-    pub ty: Ty<'ast>,
+    pub ty: Type<'ast>,
 }
 
 /// An error definition: `error Foo(uint256 a, uint256 b);`.
