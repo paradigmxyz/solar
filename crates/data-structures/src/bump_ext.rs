@@ -4,6 +4,9 @@ use smallvec::SmallVec;
 /// Extension trait for [`Bump`].
 #[allow(clippy::mut_from_ref)] // Arena.
 pub trait BumpExt {
+    /// Returns the number of bytes currently in use.
+    fn used_bytes(&self) -> usize;
+
     /// Allocates an iterator by first collecting it into a (possibly stack-allocated) vector.
     ///
     /// Prefer using [`Bump::alloc_slice_fill_iter`] if `iter` is [`ExactSizeIterator`] to avoid
@@ -33,6 +36,11 @@ pub trait BumpExt {
 }
 
 impl BumpExt for Bump {
+    fn used_bytes(&self) -> usize {
+        // SAFETY: The data is not read, and the arena is not used during the iteration.
+        unsafe { self.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() }
+    }
+
     #[inline]
     fn alloc_from_iter<T>(&self, mut iter: impl Iterator<Item = T>) -> &mut [T] {
         match iter.size_hint() {

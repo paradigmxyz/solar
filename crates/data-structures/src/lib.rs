@@ -20,6 +20,9 @@ pub mod scope;
 pub mod sync;
 pub mod trustme;
 
+mod bump_ext;
+pub use bump_ext::BumpExt;
+
 mod captures;
 pub use captures::Captures;
 

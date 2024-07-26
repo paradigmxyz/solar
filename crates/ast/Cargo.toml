@@ -29,6 +29,7 @@ bumpalo = { workspace = true, features = ["std", "boxed"] }
 semver.workspace = true
 num-bigint.workspace = true
 num-rational.workspace = true
+typed-arena.workspace = true
 
 [features]
 nightly = ["sulk-data-structures/nightly", "sulk-interface/nightly"]

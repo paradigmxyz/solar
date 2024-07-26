@@ -1,6 +1,5 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
-use bumpalo::boxed::Box;
 use itertools::Itertools;
 use std::num::IntErrorKind;
 use sulk_ast::{ast::*, token::*};
@@ -1226,7 +1225,6 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
@@ -1235,7 +1233,7 @@ mod tests {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
-                let arena = Bump::new();
+                let arena = Arena::new();
                 let mut parser =
                     Parser::from_source_code(&sess, &arena, FileName::Custom(name), src)?;
 

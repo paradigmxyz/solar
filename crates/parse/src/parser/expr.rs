@@ -1,5 +1,4 @@
 use crate::{PResult, Parser};
-use bumpalo::boxed::Box;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
 

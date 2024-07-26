@@ -557,7 +557,7 @@ declare_visitors! {
             self.visit_span #_mut(span);
         }
 
-        fn visit_path(&mut self, path: &'ast #mut Path) {
+        fn visit_path(&mut self, path: &'ast #mut PathSlice) {
             for ident in path.segments #_mut() {
                 self.visit_ident #_mut(ident);
             }

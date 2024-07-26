@@ -2,7 +2,6 @@ use crate::{
     hir::{self, Hir},
     Sources,
 };
-use bumpalo::Bump;
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
@@ -24,7 +23,7 @@ use resolve::{Declaration, SymbolResolver};
 pub(crate) fn lower<'hir>(
     sess: &Session,
     sources: &Sources<'_>,
-    hir_arena: &'hir Bump,
+    hir_arena: &'hir hir::Arena,
 ) -> Hir<'hir> {
     let mut lcx = LoweringContext::new(sess, hir_arena);
 
@@ -66,7 +65,7 @@ pub(crate) fn lower<'hir>(
 
 struct LoweringContext<'sess, 'ast, 'hir> {
     sess: &'sess Session,
-    arena: &'hir Bump,
+    arena: &'hir hir::Arena,
     hir: Hir<'hir>,
     hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
@@ -77,7 +76,7 @@ struct LoweringContext<'sess, 'ast, 'hir> {
 }
 
 impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
-    fn new(sess: &'sess Session, arena: &'hir Bump) -> Self {
+    fn new(sess: &'sess Session, arena: &'hir hir::Arena) -> Self {
         Self {
             sess,
             arena,

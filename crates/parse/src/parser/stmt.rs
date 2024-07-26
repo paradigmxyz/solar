@@ -1,8 +1,8 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
-use bumpalo::boxed::Box;
 use smallvec::SmallVec;
 use sulk_ast::{ast::*, token::*};
+use sulk_data_structures::BumpExt;
 use sulk_interface::{kw, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -274,7 +274,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a path and a list of call arguments.
-    fn parse_path_call(&mut self) -> PResult<'sess, (Path, CallArgs<'ast>)> {
+    fn parse_path_call(&mut self) -> PResult<'sess, (AstPath<'ast>, CallArgs<'ast>)> {
         let path = self.parse_path()?;
         let params = self.parse_call_args()?;
         Ok((path, params))
@@ -387,14 +387,14 @@ impl<'ast> IndexAccessedPath<'ast> {
         } else {
             debug_assert!(self.n_idents >= 1);
             let first = std::iter::once(&first);
-            let path: Path = first
+            let path = first
                 .chain(path.as_slice())
                 .map(|x| match x {
                     IapKind::Member(id) => *id,
                     kind => unreachable!("{kind:?}"),
                 })
-                .take(self.n_idents)
-                .collect();
+                .take(self.n_idents);
+            let path = PathSlice::from_mut_slice(parser.arena.alloc_from_iter(path));
             Type { span: path.span(), kind: TypeKind::Custom(path) }
         };
 
@@ -452,7 +452,6 @@ fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     #[test]
@@ -462,7 +461,7 @@ mod tests {
                 let sess = Session::with_test_emitter();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
-                    let arena = Bump::new();
+                    let arena = Arena::new();
                     let mut parser =
                         Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
 

@@ -1,19 +1,16 @@
 use crate::{Lexer, PErr, PResult};
-use bumpalo::{boxed::Box, Bump};
 use smallvec::SmallVec;
 use std::fmt::{self, Write};
 use sulk_ast::{
-    ast::{DocComment, DocComments, Path},
+    ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
     token::{Delimiter, Token, TokenKind},
 };
+use sulk_data_structures::BumpExt;
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
     Ident, Result, Session, Span, Symbol,
 };
-
-mod bump_ext;
-pub use bump_ext::BumpExt;
 
 mod expr;
 mod item;
@@ -27,7 +24,7 @@ pub struct Parser<'sess, 'ast> {
     /// The parser session.
     pub sess: &'sess Session,
     /// The arena where the AST nodes are allocated.
-    pub arena: &'ast Bump,
+    pub arena: &'ast ast::Arena,
 
     /// The current token.
     pub token: Token,
@@ -125,7 +122,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// # Panics
     ///
     /// Panics if any of the tokens are comments.
-    pub fn new(sess: &'sess Session, arena: &'ast Bump, tokens: Vec<Token>) -> Self {
+    pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
         debug_assert!(
             tokens.iter().all(|t| !t.is_comment()),
             "comments should be stripped before parsing"
@@ -148,7 +145,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser from a source code string.
     pub fn from_source_code(
         sess: &'sess Session,
-        arena: &'ast Bump,
+        arena: &'ast ast::Arena,
         filename: FileName,
         src: String,
     ) -> Result<Self> {
@@ -158,7 +155,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser from a source code closure.
     pub fn from_lazy_source_code(
         sess: &'sess Session,
-        arena: &'ast Bump,
+        arena: &'ast ast::Arena,
         filename: FileName,
         get_src: impl FnOnce() -> std::io::Result<String>,
     ) -> Result<Self> {
@@ -170,12 +167,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Creates a new parser from a source file.
-    pub fn from_source_file(sess: &'sess Session, arena: &'ast Bump, file: &SourceFile) -> Self {
+    pub fn from_source_file(
+        sess: &'sess Session,
+        arena: &'ast ast::Arena,
+        file: &SourceFile,
+    ) -> Self {
         Self::from_lexer(arena, Lexer::from_source_file(sess, file))
     }
 
     /// Creates a new parser from a lexer.
-    pub fn from_lexer(arena: &'ast Bump, lexer: Lexer<'sess, '_>) -> Self {
+    pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
         Self::new(lexer.sess, arena, lexer.into_tokens())
     }
 
@@ -186,21 +187,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Allocates an object on the AST arena.
-    pub(crate) fn alloc<T>(&self, value: T) -> Box<'ast, T> {
-        Box::new_in(value, self.arena)
+    pub fn alloc<T>(&self, value: T) -> Box<'ast, T> {
+        self.arena.alloc(value)
     }
 
     /// Allocates a list of objects on the AST arena.
-    pub(crate) fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
-        unsafe { Box::from_raw(self.arena.alloc_vec(values)) }
+    ///
+    /// # Panics
+    ///
+    /// Panics if the list is empty.
+    pub fn alloc_path(&self, values: &[Ident]) -> AstPath<'ast> {
+        PathSlice::from_mut_slice(self.arena.alloc_slice_copy(values))
     }
 
     /// Allocates a list of objects on the AST arena.
-    pub(crate) fn alloc_smallvec<A: smallvec::Array>(
-        &self,
-        values: SmallVec<A>,
-    ) -> Box<'ast, [A::Item]> {
-        unsafe { Box::from_raw(self.arena.alloc_smallvec(values)) }
+    pub fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
+        self.arena.alloc_vec(values)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> Box<'ast, [A::Item]> {
+        self.arena.alloc_smallvec(values)
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -768,14 +775,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a qualified identifier: `foo.bar.baz`.
     #[track_caller]
-    pub fn parse_path(&mut self) -> PResult<'sess, Path> {
+    pub fn parse_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let first = self.parse_ident()?;
         self.parse_path_with(first)
     }
 
     /// Parses a qualified identifier starting with the given identifier.
     #[track_caller]
-    pub fn parse_path_with(&mut self, first: Ident) -> PResult<'sess, Path> {
+    pub fn parse_path_with(&mut self, first: Ident) -> PResult<'sess, AstPath<'ast>> {
         if self.in_yul {
             self.parse_path_with_f(first, Self::parse_yul_path_ident)
         } else {
@@ -795,7 +802,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a qualified identifier: `foo.bar.baz`.
     #[track_caller]
-    pub fn parse_path_any(&mut self) -> PResult<'sess, Path> {
+    pub fn parse_path_any(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let first = self.parse_ident_any()?;
         self.parse_path_with_f(first, Self::parse_ident_any)
     }
@@ -806,17 +813,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         first: Ident,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, Ident>,
-    ) -> PResult<'sess, Path> {
+    ) -> PResult<'sess, AstPath<'ast>> {
         if !self.check_noexpect(&TokenKind::Dot) {
-            return Ok(Path::new_single(first));
+            return Ok(self.alloc_path(&[first]));
         }
 
-        let mut path = Vec::with_capacity(4);
+        let mut path = SmallVec::<[_; 4]>::new();
         path.push(first);
         while self.eat(&TokenKind::Dot) {
             path.push(f(self)?);
         }
-        Ok(Path::from_vec(path))
+        Ok(self.alloc_path(&path))
     }
 
     /// Parses an identifier.

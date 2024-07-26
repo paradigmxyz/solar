@@ -1,6 +1,5 @@
-use super::{Block, CallArgs, DocComments, Expr, Path, SemverReq, StrLit, Type};
+use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
 use crate::token::Token;
-use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -247,9 +246,9 @@ pub struct UsingDirective<'ast> {
 #[derive(Debug)]
 pub enum UsingList<'ast> {
     /// `A.B`
-    Single(Path),
+    Single(AstPath<'ast>),
     /// `{ A, B.add as + }`
-    Multiple(Box<'ast, [(Path, Option<UserDefinableOperator>)]>),
+    Multiple(Box<'ast, [(AstPath<'ast>, Option<UserDefinableOperator>)]>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -415,7 +414,7 @@ impl FunctionKind {
 /// [i]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.inheritanceSpecifier
 #[derive(Debug)]
 pub struct Modifier<'ast> {
-    pub name: Path,
+    pub name: AstPath<'ast>,
     pub arguments: CallArgs<'ast>,
 }
 
@@ -423,7 +422,7 @@ pub struct Modifier<'ast> {
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Box<'ast, [Path]>,
+    pub paths: Box<'ast, [AstPath<'ast>]>,
 }
 
 /// A storage location.

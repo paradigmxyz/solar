@@ -1,5 +1,4 @@
-use super::{Expr, ParameterList, Path, StateMutability, Visibility};
-use bumpalo::boxed::Box;
+use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
 use std::fmt;
 use sulk_interface::{kw, Ident, Span, Symbol};
 
@@ -40,7 +39,7 @@ pub enum TypeKind<'ast> {
     Mapping(Box<'ast, TypeMapping<'ast>>),
 
     /// A custom type.
-    Custom(Path),
+    Custom(AstPath<'ast>),
 }
 
 impl<'ast> TypeKind<'ast> {

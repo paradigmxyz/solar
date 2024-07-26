@@ -1,5 +1,4 @@
-use super::{Lit, SubDenomination, Type};
-use bumpalo::boxed::Box;
+use super::{Box, Lit, SubDenomination, Type};
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -55,7 +54,7 @@ pub enum ExprKind<'ast> {
     Index(Box<'ast, Expr<'ast>>, IndexKind<'ast>),
 
     /// A literal: `hex"1234"`, `5.6 ether`.
-    Lit(Lit, Option<SubDenomination>),
+    Lit(&'ast mut Lit, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
     Member(Box<'ast, Expr<'ast>>, Ident),

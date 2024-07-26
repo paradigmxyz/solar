@@ -10,12 +10,9 @@ use sulk_interface::{kw, Symbol};
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a literal.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_lit(&mut self) -> PResult<'sess, Lit> {
-        self.parse_spanned(Self::parse_lit_inner).map(|(span, (symbol, kind))| Lit {
-            span,
-            symbol,
-            kind,
-        })
+    pub fn parse_lit(&mut self) -> PResult<'sess, &'ast mut Lit> {
+        self.parse_spanned(Self::parse_lit_inner)
+            .map(|(span, (symbol, kind))| self.arena.literals.alloc(Lit { span, symbol, kind }))
     }
 
     /// Parses a literal with an optional subdenomination.
@@ -26,8 +23,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Returns None if no subdenomination was parsed or if the literal is not a number or rational.
     pub fn parse_lit_with_subdenomination(
         &mut self,
-    ) -> PResult<'sess, (Lit, Option<SubDenomination>)> {
-        let mut lit = self.parse_lit()?;
+    ) -> PResult<'sess, (&'ast mut Lit, Option<SubDenomination>)> {
+        let lit = self.parse_lit()?;
         let mut sub = self.parse_subdenomination();
         if let opt @ Some(_) = &mut sub {
             let Some(sub) = opt else { unreachable!() };

@@ -1,5 +1,7 @@
-use super::{yul, CallArgs, DocComments, Expr, ParameterList, Path, StrLit, VariableDefinition};
-use bumpalo::boxed::Box;
+use super::{
+    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
+    VariableDefinition,
+};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -42,7 +44,7 @@ pub enum StmtKind<'ast> {
     DoWhile(Block<'ast>, Box<'ast, Expr<'ast>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(Path, CallArgs<'ast>),
+    Emit(Box<'ast, PathSlice>, CallArgs<'ast>),
 
     /// An expression with a trailing semicolon.
     Expr(Box<'ast, Expr<'ast>>),
@@ -62,7 +64,7 @@ pub enum StmtKind<'ast> {
     Return(Option<Box<'ast, Expr<'ast>>>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(Path, CallArgs<'ast>),
+    Revert(AstPath<'ast>, CallArgs<'ast>),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
     Try(StmtTry<'ast>),

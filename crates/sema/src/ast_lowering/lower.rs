@@ -1,9 +1,8 @@
 use crate::{hir, SmallSource};
 use std::marker::PhantomData;
 use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, smallvec::SmallVec};
+use sulk_data_structures::{index::IndexVec, smallvec::SmallVec, BumpExt};
 use sulk_interface::Span;
-use sulk_parse::BumpExt;
 
 impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]

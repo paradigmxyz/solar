@@ -3,14 +3,52 @@ use std::{fmt, marker::PhantomData, sync::Arc};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
-    newtype_index,
+    newtype_index, BumpExt,
 };
 use sulk_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
 
 pub use ast::{
-    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, StateMutability,
-    UnOp, UnOpKind, VarMut, Visibility,
+    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
+    StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
+
+/// HIR arena allocator.
+pub struct Arena {
+    pub bump: bumpalo::Bump,
+    pub literals: typed_arena::Arena<Lit>,
+}
+
+impl Arena {
+    /// Creates a new HIR arena.
+    pub fn new() -> Self {
+        Self { bump: bumpalo::Bump::new(), literals: typed_arena::Arena::new() }
+    }
+
+    pub fn allocated_bytes(&self) -> usize {
+        self.bump.allocated_bytes()
+            + (self.literals.len() + self.literals.uninitialized_array().len())
+                * std::mem::size_of::<Lit>()
+    }
+
+    pub fn used_bytes(&self) -> usize {
+        self.bump.used_bytes() + self.literals.len() * std::mem::size_of::<Lit>()
+    }
+}
+
+impl Default for Arena {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::ops::Deref for Arena {
+    type Target = bumpalo::Bump;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.bump
+    }
+}
 
 /// The high-level intermediate representation (HIR).
 ///

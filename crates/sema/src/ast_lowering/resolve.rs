@@ -5,12 +5,12 @@ use sulk_data_structures::{
     index::IndexVec,
     map::{FxIndexMap, IndexEntry},
     smallvec::{smallvec, SmallVec},
+    BumpExt,
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Span,
 };
-use sulk_parse::BumpExt;
 
 type _Scopes = sulk_data_structures::scope::Scopes<
     Ident,
@@ -222,7 +222,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
 
     fn resolve_path_as<T: TryFrom<Declaration>>(
         &self,
-        path: &ast::Path,
+        path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
         description: &str,
     ) -> Option<T> {
@@ -278,7 +278,7 @@ impl fmt::Display for ResolverError {
 }
 
 impl ResolverError {
-    fn span(&self, path: &ast::Path) -> Span {
+    fn span(&self, path: &ast::PathSlice) -> Span {
         match *self {
             Self::NotAScope(i) | Self::Unresolved(i) => path.segments()[i as usize].span,
         }
@@ -298,7 +298,7 @@ impl<'sess> SymbolResolver<'sess> {
 
     fn resolve_path(
         &self,
-        path: &ast::Path,
+        path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
     ) -> Result<Declaration, ErrorGuaranteed> {
         self.resolve_path_raw(path, scopes)
@@ -307,7 +307,7 @@ impl<'sess> SymbolResolver<'sess> {
 
     fn resolve_path_raw(
         &self,
-        path: &ast::Path,
+        path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
     ) -> Result<Declaration, ResolverError> {
         let mut segments = path.segments().iter();

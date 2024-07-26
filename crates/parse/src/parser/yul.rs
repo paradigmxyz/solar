@@ -1,9 +1,8 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
-use bumpalo::boxed::Box;
 use smallvec::SmallVec;
 use sulk_ast::{
-    ast::{yul::*, LitKind, Path, StrKind, StrLit},
+    ast::{yul::*, AstPath, Box, LitKind, PathSlice, StrKind, StrLit},
     token::*,
 };
 use sulk_interface::{error_code, kw, sym, Ident};
@@ -74,7 +73,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a Yul data segment.
-    fn parse_yul_data(&mut self) -> PResult<'sess, Data> {
+    fn parse_yul_data(&mut self) -> PResult<'sess, Data<'ast>> {
         let lo = self.token.span;
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
@@ -278,7 +277,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Expects a single identifier path and returns the identifier.
     #[track_caller]
-    fn expect_single_ident_path(&mut self, path: Path) -> Ident {
+    fn expect_single_ident_path(&mut self, path: AstPath<'_>) -> Ident {
         if path.segments().len() > 1 {
             self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
         }
@@ -287,7 +286,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulPath
     #[track_caller]
-    fn check_valid_path(&mut self, path: &Path) {
+    fn check_valid_path(&mut self, path: &PathSlice) {
         let first = path.first();
         if first.is_reserved(true) {
             self.expected_ident_found_other((*first).into(), false).unwrap_err().emit();
