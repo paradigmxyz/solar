@@ -55,8 +55,7 @@ pub enum StmtKind<'ast> {
         body: Box<'ast, Stmt<'ast>>,
     },
 
-    /// An `if` statement with an optional `else` block: `if (expr) { ... } else
-    /// { ... }`.
+    /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>, Option<Box<'ast, Stmt<'ast>>>),
 
     /// A return statement: `return 42;`.
@@ -101,19 +100,10 @@ pub struct StmtTry<'ast> {
 
 /// A catch clause: `catch (...) { ... }`.
 ///
-/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
 pub struct CatchClause<'ast> {
     pub name: Option<Ident>,
     pub args: ParameterList<'ast>,
     pub block: Block<'ast>,
-}
-
-/// A kind of variable declaration statement.
-#[derive(Debug)]
-pub enum VarDeclKind<'ast> {
-    /// A single variable declaration: `uint x ...`.
-    Single(VariableDefinition<'ast>),
-    /// A tuple of variable declarations: `(uint x, uint y) ...`.
-    Tuple(Box<'ast, [Option<VariableDefinition<'ast>>]>),
 }

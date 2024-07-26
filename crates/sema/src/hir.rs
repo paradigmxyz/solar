@@ -171,6 +171,11 @@ newtype_index! {
     pub struct VariableId;
 }
 
+newtype_index! {
+    /// An [`Expr`] ID.
+    pub struct ExprId;
+}
+
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
@@ -492,6 +497,7 @@ pub struct Error<'hir> {
     pub _tmp: PhantomData<&'hir ()>,
 }
 
+// TODO: Split into state variable, event param, etc.
 /// A constant or variable declaration.
 #[derive(Debug)]
 pub struct Variable<'hir> {
@@ -521,20 +527,117 @@ impl Variable<'_> {
     }
 }
 
+/// A block of statements.
+pub type Block<'hir> = &'hir [Stmt<'hir>];
+
 /// A statement.
 #[derive(Debug)]
 pub struct Stmt<'hir> {
     /// The statement span.
     pub span: Span,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub kind: StmtKind<'hir>,
+}
+
+/// A kind of statement.
+#[derive(Debug)]
+pub enum StmtKind<'hir> {
+    // TODO
+    // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
+    // Assembly(StmtAssembly<'hir>),
+    /// A single-variable declaration statement: `uint256 foo = 42;`.
+    DeclSingle(&'hir Variable<'hir>),
+
+    /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
+    ///
+    /// Multi-assignments require an expression on the right-hand side.
+    DeclMulti(&'hir [Option<&'hir Variable<'hir>>], &'hir Expr<'hir>),
+
+    /// A blocked scope: `{ ... }`.
+    Block(Block<'hir>),
+
+    /// A break statement: `break;`.
+    Break,
+
+    /// A continue statement: `continue;`.
+    Continue,
+
+    /// An emit statement: `emit Foo.bar(42);`.
+    Emit(EventId, &'hir [Expr<'hir>]),
+
+    /// An expression with a trailing semicolon.
+    Expr(&'hir Expr<'hir>),
+
+    /// A loop statement. This is desugared from all `for`, `while`, and `do while` statements.
+    Loop(Block<'hir>, LoopSource),
+
+    /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
+    If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
+
+    /// A return statement: `return 42;`.
+    Return(Option<&'hir Expr<'hir>>),
+
+    /// A revert statement: `revert Foo.bar(42);`.
+    Revert(ErrorId, &'hir [Expr<'hir>]),
+
+    /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
+    Try(StmtTry<'hir>),
+
+    /// An unchecked block: `unchecked { ... }`.
+    UncheckedBlock(Block<'hir>),
+}
+
+/// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+#[derive(Debug)]
+pub struct StmtTry<'hir> {
+    pub expr: &'hir Expr<'hir>,
+    pub returns: &'hir [Variable<'hir>],
+    /// The try block.
+    pub block: Block<'hir>,
+    /// The list of catch clauses. Never empty.
+    pub catch: &'hir [CatchClause<'hir>],
+}
+
+/// A catch clause: `catch (...) { ... }`.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
+#[derive(Debug)]
+pub struct CatchClause<'hir> {
+    pub name: Option<Ident>,
+    pub args: &'hir [Variable<'hir>],
+    pub block: Block<'hir>,
+}
+
+/// The loop type that yielded an [`StmtKind::Loop`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopSource {
+    /// A `for (...) {...}` loop.
+    For,
+    /// A `while (...) {...}` loop.
+    While,
+    /// A `do {...} while (...);` loop.
+    DoWhile,
+}
+
+impl LoopSource {
+    /// Returns the name of the loop source.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::For => "for",
+            Self::While => "while",
+            Self::DoWhile => "do while",
+        }
+    }
 }
 
 /// An expression.
 #[derive(Debug)]
 pub struct Expr<'hir> {
+    pub id: ExprId,
+    pub kind: ExprKind<'hir>,
     /// The expression span.
     pub span: Span,
-    pub kind: ExprKind<'hir>,
 }
 
 /// A kind of expression.
@@ -567,8 +670,9 @@ pub enum ExprKind<'hir> {
     /// A square bracketed slice expression: `slice[l:r]`.
     Slice(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>, Option<&'hir Expr<'hir>>),
 
-    // /// A literal: `hex"1234"`, `5.6 ether`.
-    // Lit(Lit, Option<SubDenomination>),
+    /// A literal: `hex"1234"`, `5.6 ether`.
+    Lit(&'hir Lit),
+
     /// Access of a named member: `obj.k`.
     Member(&'hir Expr<'hir>, Ident),
 
