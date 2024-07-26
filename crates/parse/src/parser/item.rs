@@ -429,7 +429,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // or all the values until `||`.
             debug_assert!(
                 matches!(
-                    dis.last().map(|x| &x.components[..]),
+                    dis.last().map(|x| &x.components),
                     Some([
                         ..,
                         SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }

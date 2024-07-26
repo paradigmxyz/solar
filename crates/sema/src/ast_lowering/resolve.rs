@@ -119,7 +119,7 @@ impl super::LoweringContext<'_, '_, '_> {
             for base in ast_contract.bases.iter() {
                 let name = &base.name;
                 let Some(base_id) =
-                    self.resolve_path_as::<hir::ContractId>(&base.name, &scopes, "contract")
+                    self.resolve_path_as::<hir::ContractId>(base.name, &scopes, "contract")
                 else {
                     continue;
                 };
@@ -169,7 +169,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
                 for modifier in ast_func.header.modifiers.iter() {
-                    let Some(id) = self.resolve_path_as(&modifier.name, &scopes, "modifier") else {
+                    let Some(id) = self.resolve_path_as(modifier.name, &scopes, "modifier") else {
                         continue;
                     };
                     let f = self.hir.function(id);
