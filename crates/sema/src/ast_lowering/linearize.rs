@@ -144,7 +144,10 @@ impl ContractLinearizer {
     fn c3_merge(&mut self) {
         self.remove_empty();
         while !self.is_empty() {
-            let Some(candidate) = self.next_candidate() else { return Default::default() };
+            let Some(candidate) = self.next_candidate() else {
+                self.result.clear();
+                return;
+            };
             self.result.push(candidate);
             self.remove_candidate(candidate);
             self.remove_empty();
