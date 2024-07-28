@@ -14,6 +14,12 @@ pub struct Expr<'ast> {
     pub kind: ExprKind<'ast>,
 }
 
+impl<'a> AsRef<Expr<'a>> for Expr<'a> {
+    fn as_ref(&self) -> &Expr<'a> {
+        self
+    }
+}
+
 impl<'ast> Expr<'ast> {
     /// Creates a new expression from an identifier.
     pub fn from_ident(ident: Ident) -> Self {
@@ -82,7 +88,7 @@ pub enum ExprKind<'ast> {
 }
 
 /// A binary operation: `a + b`, `a += b`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct BinOp {
     pub span: Span,
     pub kind: BinOpKind,

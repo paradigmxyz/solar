@@ -1,15 +1,15 @@
 use crate::{hir, Sources};
-use std::fmt;
+use std::{fmt, sync::atomic::AtomicUsize};
 use sulk_ast::ast;
 use sulk_data_structures::{
-    index::IndexVec,
+    index::{Idx, IndexVec},
     map::{FxIndexMap, IndexEntry},
     smallvec::{smallvec, SmallVec},
     BumpExt,
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    Ident, Span,
+    Ident, Session, Span,
 };
 
 type _Scopes = sulk_data_structures::scope::Scopes<
@@ -71,7 +71,12 @@ impl super::LoweringContext<'_, '_, '_> {
                                 debug_assert!(!resolved.is_empty());
                                 source_scope.declare_many(name, resolved.iter().copied());
                             } else {
-                                let msg = format!("unresolved import `{import}`");
+                                let msg = format!(
+                                    "declaration `{import}` not found in {}",
+                                    self.sess
+                                        .source_map()
+                                        .filename_for_diagnostics(&source.file.name)
+                                );
                                 let guar = dcx.err(msg).span(import.span).emit();
                                 source_scope.declare(name, Declaration::Err(guar));
                             }
@@ -118,8 +123,9 @@ impl super::LoweringContext<'_, '_, '_> {
             let mut bases = SmallVec::<[_; 8]>::new();
             for base in ast_contract.bases.iter() {
                 let name = &base.name;
-                let Some(base_id) =
-                    self.resolve_path_as::<hir::ContractId>(base.name, &scopes, "contract")
+                let Ok(base_id) = self
+                    .resolver
+                    .resolve_path_as::<hir::ContractId>(base.name, &scopes, "contract")
                 else {
                     continue;
                 };
@@ -169,26 +175,54 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
                 for modifier in ast_func.header.modifiers.iter() {
-                    let Some(id) = self.resolve_path_as(modifier.name, &scopes, "modifier") else {
+                    let expected = if func.kind.is_constructor() {
+                        "base class or modifier"
+                    } else {
+                        "modifier"
+                    };
+                    let Ok(id) = self.resolver.resolve_path_as(modifier.name, &scopes, expected)
+                    else {
                         continue;
                     };
-                    let f = self.hir.function(id);
-                    if !f.kind.is_modifier() {
-                        self.report_expected("modifier", f.kind.to_str(), modifier.name.span());
-                        continue;
+                    match id {
+                        hir::ItemId::Contract(base)
+                            if func.kind.is_constructor()
+                                && func.contract.is_some_and(|c| {
+                                    self.hir.contract(c).linearized_bases[1..].contains(&base)
+                                }) => {}
+                        hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {}
+                        _ => {
+                            self.resolver.report_expected(
+                                expected,
+                                self.hir.item(id).description(),
+                                modifier.name.span(),
+                            );
+                            continue;
+                        }
                     }
                     modifiers.push(id);
                 }
                 self.arena.alloc_smallvec(modifiers)
             };
 
+            let func = self.hir.function(id);
             self.hir.functions[id].overrides = {
                 let mut overrides = SmallVec::<[_; 8]>::new();
                 if let Some(ov) = &ast_func.header.override_ {
                     for path in ov.paths.iter() {
-                        let Some(id) = self.resolve_path_as(path, &scopes, "contract") else {
+                        let Ok(id) = self.resolver.resolve_path_as(path, &scopes, "contract")
+                        else {
                             continue;
                         };
+                        // TODO: Move to override checker.
+                        let Some(c) = func.contract else {
+                            self.dcx().err("free functions cannot override").span(ov.span).emit();
+                            continue;
+                        };
+                        if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+                            self.dcx().err("override is not a base contract").span(ov.span).emit();
+                            continue;
+                        }
                         overrides.push(id);
                     }
                 }
@@ -211,32 +245,6 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
         }
     }
 
-    #[allow(unused)]
-    fn resolve_expr(
-        &self,
-        expr: &ast::Expr<'_>,
-        scopes: &mut SymbolResolverScopes,
-    ) -> &'hir hir::Expr<'hir> {
-        todo!()
-    }
-
-    fn resolve_path_as<T: TryFrom<Declaration>>(
-        &self,
-        path: &ast::PathSlice,
-        scopes: &SymbolResolverScopes,
-        description: &str,
-    ) -> Option<T> {
-        let Ok(decl) = self.resolver.resolve_path(path, scopes) else {
-            return None;
-        };
-        if let Declaration::Err(_) = decl {
-            return None;
-        }
-        T::try_from(decl)
-            .inspect_err(|_| self.report_expected(description, decl.description(), path.span()))
-            .ok()
-    }
-
     fn report_conflict(&self, name: Ident, conflict: Declaration) {
         let second = match conflict {
             Declaration::Item(id) => Some(self.hir.item(id).span()),
@@ -244,10 +252,6 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             Declaration::Err(_) => None,
         };
         report_conflict(self.dcx(), name.span, second)
-    }
-
-    fn report_expected(&self, expected: &str, found: &str, span: Span) {
-        self.dcx().err(format!("expected {expected}, found {found}")).span(span).emit();
     }
 }
 
@@ -264,15 +268,152 @@ pub(super) fn report_conflict(dcx: &DiagCtxt, mut first: Span, mut second: Optio
     err.emit();
 }
 
+/// Lowers and resolves a single AST body, meaning a variable or function's statements.
+struct ResolveContext<'sess, 'hir, 'lcx> {
+    sess: &'sess Session,
+    arena: &'hir hir::Arena,
+    hir: &'lcx hir::Hir<'hir>,
+    // hir_to_ast: &'lcx FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
+    resolver: &'lcx SymbolResolver<'sess>,
+    scopes: SymbolResolverScopes,
+    next_id: &'lcx AtomicUsize,
+}
+
+impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
+    fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'hir hir::Expr<'hir> {
+        self.arena.alloc(self.lower_expr_mut(expr))
+    }
+
+    fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'hir hir::Expr<'hir>> {
+        expr.map(|expr| self.lower_expr(expr))
+    }
+
+    fn lower_exprs<'a, I, T>(&mut self, exprs: I) -> &'hir [hir::Expr<'hir>]
+    where
+        I: IntoIterator<Item = T>,
+        I::IntoIter: ExactSizeIterator,
+        T: AsRef<ast::Expr<'a>>,
+    {
+        self.arena.alloc_from_iter(exprs.into_iter().map(|e| self.lower_expr_mut(e.as_ref())))
+    }
+
+    fn lower_expr_mut(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'hir> {
+        hir::Expr { id: self.next_id(), kind: self.lower_expr_kind(&expr.kind), span: expr.span }
+    }
+
+    fn lower_expr_kind(&mut self, expr: &ast::ExprKind<'_>) -> hir::ExprKind<'hir> {
+        match expr {
+            ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
+            ast::ExprKind::Assign(lhs, op, rhs) => {
+                hir::ExprKind::Assign(self.lower_expr(lhs), *op, self.lower_expr(rhs))
+            }
+            ast::ExprKind::Binary(lhs, op, rhs) => {
+                hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
+            }
+            ast::ExprKind::Call(callee, args) => {
+                hir::ExprKind::Call(self.lower_expr(callee), self.lower_exprs(&**args))
+            }
+            ast::ExprKind::CallOptions(callee, options) => {
+                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_exprs(&**options))
+            }
+            ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
+            ast::ExprKind::Ident(name) => {
+                match self.resolver.resolve_path_as(
+                    ast::PathSlice::from_ref(name),
+                    &self.scopes,
+                    "item",
+                ) {
+                    Ok(id) => hir::ExprKind::Ident(id),
+                    Err(guar) => hir::ExprKind::Err(guar),
+                }
+            }
+            ast::ExprKind::Index(expr, index) => match index {
+                ast::IndexKind::Index(index) => hir::ExprKind::Index(
+                    self.lower_expr(expr),
+                    index.as_deref().map(|index| self.lower_expr(index)),
+                ),
+                ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
+                    self.lower_expr(expr),
+                    start.as_deref().map(|start| self.lower_expr(start)),
+                    end.as_deref().map(|end| self.lower_expr(end)),
+                ),
+            },
+            ast::ExprKind::Lit(lit, _) => {
+                hir::ExprKind::Lit(self.arena.literals.alloc((*lit).clone()))
+            }
+            ast::ExprKind::Member(expr, member) => {
+                hir::ExprKind::Member(self.lower_expr(expr), *member)
+            }
+            ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
+            ast::ExprKind::Payable(expr) => hir::ExprKind::Payable(self.lower_expr(expr)),
+            ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
+                self.lower_expr(cond),
+                self.lower_expr(then),
+                self.lower_expr(r#else),
+            ),
+            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.lower_exprs(&**exprs)),
+            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
+            ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
+            ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
+        }
+    }
+
+    fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'hir> {
+        hir::Type {
+            // id: self.next_id(),
+            kind: self.lower_type_kind(&ty.kind),
+            span: ty.span,
+        }
+    }
+
+    fn lower_type_kind(&mut self, ty: &ast::TypeKind<'_>) -> hir::TypeKind<'hir> {
+        match ty {
+            ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
+            ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
+                element: self.lower_type(&array.element),
+                size: array.size.as_deref().map(|size| self.lower_expr(size)),
+            })),
+            ast::TypeKind::Function(f) => {
+                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+                    parameters: self.arena.alloc_from_iter(f.parameters.iter().map(|p| {})),
+                    visibility: f.visibility,
+                    state_mutability: f.state_mutability,
+                    returns: self.arena.alloc_from_iter(f.returns.iter().map(|p| {})),
+                }))
+            }
+            ast::TypeKind::Mapping(mapping) => {
+                hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
+                    key: self.lower_type(&mapping.key),
+                    key_name: mapping.key_name,
+                    value: self.lower_type(&mapping.value),
+                    value_name: mapping.value_name,
+                }))
+            }
+            ast::TypeKind::Custom(path) => {
+                match self.resolver.resolve_path_as(path, &self.scopes, "item") {
+                    Ok(id) => hir::TypeKind::Custom(id),
+                    Err(guar) => hir::TypeKind::Err(guar),
+                }
+            }
+        }
+    }
+
+    fn next_id<I: Idx>(&mut self) -> I {
+        I::from_usize(self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
 enum ResolverError {
     Unresolved(u32),
     NotAScope(u32),
+    Reported(ErrorGuaranteed),
 }
 
 impl fmt::Display for ResolverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotAScope(_) | Self::Unresolved(_) => f.write_str("unresolved symbol"),
+            Self::Reported(_) => unreachable!(),
         }
     }
 }
@@ -281,6 +422,7 @@ impl ResolverError {
     fn span(&self, path: &ast::PathSlice) -> Span {
         match *self {
             Self::NotAScope(i) | Self::Unresolved(i) => path.segments()[i as usize].span,
+            Self::Reported(_) => unreachable!(),
         }
     }
 }
@@ -294,6 +436,20 @@ pub(super) struct SymbolResolver<'sess> {
 impl<'sess> SymbolResolver<'sess> {
     pub(super) fn new(dcx: &'sess DiagCtxt) -> Self {
         Self { dcx, source_scopes: IndexVec::new(), contract_scopes: IndexVec::new() }
+    }
+
+    fn resolve_path_as<T: TryFrom<Declaration>>(
+        &self,
+        path: &ast::PathSlice,
+        scopes: &SymbolResolverScopes,
+        description: &str,
+    ) -> Result<T, ErrorGuaranteed> {
+        let decl = self.resolve_path(path, scopes)?;
+        if let Declaration::Err(guard) = decl {
+            return Err(guard);
+        }
+        T::try_from(decl)
+            .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
     fn resolve_path(
@@ -339,9 +495,14 @@ impl<'sess> SymbolResolver<'sess> {
             _ => None,
         }
     }
+
+    fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
+        self.dcx.err(format!("expected {expected}, found {found}")).span(span).emit()
+    }
 }
 
 /// Mutable symbol resolution state.
+#[derive(Debug)]
 struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,

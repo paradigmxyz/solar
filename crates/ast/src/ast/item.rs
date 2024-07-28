@@ -402,6 +402,11 @@ impl FunctionKind {
         matches!(self, Self::Function)
     }
 
+    /// Returns `true` if the function is a constructor.
+    pub fn is_constructor(&self) -> bool {
+        matches!(self, Self::Constructor)
+    }
+
     /// Returns `true` if the function is a modifier.
     pub fn is_modifier(&self) -> bool {
         matches!(self, Self::Modifier)

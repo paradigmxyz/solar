@@ -260,6 +260,20 @@ impl Item<'_, '_> {
         }
     }
 
+    /// Returns the description of the item.
+    pub fn description(self) -> &'static str {
+        match self {
+            Item::Contract(c) => c.kind.to_str(),
+            Item::Function(f) => f.kind.to_str(),
+            Item::Struct(_) => "struct",
+            Item::Enum(_) => "enum",
+            Item::Udvt(_) => "UDVT",
+            Item::Error(_) => "error",
+            Item::Event(_) => "event",
+            Item::Variable(_) => "variable",
+        }
+    }
+
     /// Returns the span of the item.
     #[inline]
     pub fn span(self) -> Span {
@@ -302,8 +316,11 @@ impl Item<'_, '_> {
     /// Returns `true` if the item is visible in the contract.
     #[inline]
     pub fn is_visible_in_contract(self) -> bool {
-        (if let Item::Function(f) = self { f.kind == FunctionKind::Function } else { true })
-            && self.visibility() != Visibility::External
+        (if let Item::Function(f) = self {
+            matches!(f.kind, FunctionKind::Function | FunctionKind::Modifier)
+        } else {
+            true
+        }) && self.visibility() != Visibility::External
     }
 
     /// Returns `true` if the item is public or external.
@@ -335,13 +352,10 @@ impl Item<'_, '_> {
     #[inline]
     fn default_visibility(self) -> Visibility {
         match self {
-            Item::Function(f) => match f.kind {
-                _ if f.is_free() => Visibility::Internal,
-                FunctionKind::Modifier => Visibility::Internal,
-                _ => Visibility::Public,
-            },
+            Item::Function(f) if f.is_free() || f.kind.is_modifier() => Visibility::Internal,
             Item::Variable(_) => Visibility::Internal,
             Item::Contract(_)
+            | Item::Function(_)
             | Item::Struct(_)
             | Item::Enum(_)
             | Item::Udvt(_)
@@ -450,7 +464,8 @@ pub struct Function<'hir> {
     /// The visibility of the function.
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
-    pub modifiers: &'hir [FunctionId],
+    /// Modifiers, or base classes if this is a constructor.
+    pub modifiers: &'hir [ItemId],
     pub virtual_: bool,
     pub overrides: &'hir [ContractId],
     /// The function parameters.
@@ -462,7 +477,7 @@ pub struct Function<'hir> {
 impl Function<'_> {
     /// Returns `true` if this is a free function, meaning it is not part of a contract.
     pub fn is_free(&self) -> bool {
-        self.contract.is_some()
+        self.contract.is_none()
     }
 }
 
@@ -734,6 +749,8 @@ pub enum ExprKind<'hir> {
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, &'hir Expr<'hir>),
+
+    Err(ErrorGuaranteed),
 }
 
 /// A named argument: `name: value`.

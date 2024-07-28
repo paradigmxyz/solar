@@ -1,6 +1,8 @@
 use bumpalo::Bump;
 use smallvec::SmallVec;
 
+use crate::outline;
+
 /// Extension trait for [`Bump`].
 #[allow(clippy::mut_from_ref)] // Arena.
 pub trait BumpExt {
@@ -47,7 +49,7 @@ impl BumpExt for Bump {
             (min, Some(max)) if min == max => self.alloc_slice_fill_with(min, |_| {
                 iter.next().expect("Iterator supplied too few elements")
             }),
-            _ => self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter)),
+            _ => outline(|| self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter))),
         }
     }
 

@@ -59,6 +59,12 @@ impl PartialEq<Symbol> for PathSlice {
 }
 
 impl PathSlice {
+    /// Creates a new path from a single ident.
+    #[inline]
+    pub fn from_ref(segment: &Ident) -> &Self {
+        unsafe { Self::from_slice_unchecked(std::slice::from_ref(segment)) }
+    }
+
     /// Creates a new path from a slice of segments.
     ///
     /// # Panics
@@ -260,6 +266,16 @@ impl Path {
     pub fn from_vec(segments: Vec<Ident>) -> Self {
         assert!(!segments.is_empty());
         Self(SmallVec::from_vec(segments))
+    }
+
+    /// Creates a new path from a list of segments.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `segments` is empty.
+    #[inline]
+    pub fn from_ast(ast: AstPath<'_>) -> Self {
+        Self::new(ast.segments())
     }
 
     /// Creates a new path from a single ident.
