@@ -1,7 +1,6 @@
+use crate::outline;
 use bumpalo::Bump;
 use smallvec::SmallVec;
-
-use crate::outline;
 
 /// Extension trait for [`Bump`].
 #[allow(clippy::mut_from_ref)] // Arena.

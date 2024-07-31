@@ -69,6 +69,8 @@ struct LoweringContext<'sess, 'ast, 'hir> {
     hir: Hir<'hir>,
     hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
+    /// Current source being lowered.
+    current_source_id: hir::SourceId,
     /// Current contract being lowered.
     current_contract_id: Option<hir::ContractId>,
 
@@ -81,6 +83,7 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             sess,
             arena,
             hir: Hir::new(),
+            current_source_id: hir::SourceId::new(0),
             current_contract_id: None,
             hir_to_ast: FxIndexMap::default(),
             resolver: SymbolResolver::new(&sess.dcx),

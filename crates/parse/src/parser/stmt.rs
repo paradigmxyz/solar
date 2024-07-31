@@ -3,7 +3,7 @@ use crate::{parser::SeqSep, PResult, Parser};
 use smallvec::SmallVec;
 use sulk_ast::{ast::*, token::*};
 use sulk_data_structures::BumpExt;
-use sulk_interface::{kw, Ident, Span};
+use sulk_interface::{kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
@@ -59,6 +59,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.check_keyword(kw::Revert) && self.look_ahead(1).is_ident() {
             self.bump(); // `revert`
             self.parse_path_call().map(|(path, params)| StmtKind::Revert(path, params))
+        } else if self.eat_keyword(sym::underscore) {
+            Ok(StmtKind::Placeholder)
         } else {
             self.parse_simple_stmt_kind()
         };

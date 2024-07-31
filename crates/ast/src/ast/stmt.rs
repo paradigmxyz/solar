@@ -74,6 +74,9 @@ pub enum StmtKind<'ast> {
 
     /// A while statement: `while (i < 42) { ... }`.
     While(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>),
+
+    /// A modifier placeholder statement: `_;`.
+    Placeholder,
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.

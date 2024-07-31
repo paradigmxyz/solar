@@ -14,8 +14,8 @@ pub struct Expr<'ast> {
     pub kind: ExprKind<'ast>,
 }
 
-impl<'a> AsRef<Expr<'a>> for Expr<'a> {
-    fn as_ref(&self) -> &Expr<'a> {
+impl AsRef<Self> for Expr<'_> {
+    fn as_ref(&self) -> &Self {
         self
     }
 }

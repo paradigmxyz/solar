@@ -13,6 +13,13 @@ pub struct Ident {
     pub span: Span,
 }
 
+impl Default for Ident {
+    #[inline]
+    fn default() -> Self {
+        Self::DUMMY
+    }
+}
+
 impl PartialEq for Ident {
     #[inline]
     fn eq(&self, rhs: &Self) -> bool {
@@ -58,6 +65,9 @@ impl fmt::Display for Ident {
 }
 
 impl Ident {
+    /// A dummy identifier.
+    pub const DUMMY: Self = Self::new(Symbol::new(0), Span::DUMMY);
+
     /// Constructs a new identifier from a symbol and a span.
     #[inline]
     pub const fn new(name: Symbol, span: Span) -> Self {
@@ -168,7 +178,17 @@ impl Ident {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(BaseIndex32);
 
+impl Default for Symbol {
+    #[inline]
+    fn default() -> Self {
+        Self::DUMMY
+    }
+}
+
 impl Symbol {
+    /// A dummy symbol.
+    pub const DUMMY: Self = sym::underscore;
+
     const fn new(n: u32) -> Self {
         Self(BaseIndex32::new(n))
     }

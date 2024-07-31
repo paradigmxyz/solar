@@ -137,6 +137,7 @@ declare_visitors! {
 
         fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition<'ast>) {
             let VariableDefinition {
+                span,
                 ty,
                 visibility: _,
                 mutability: _,
@@ -146,6 +147,7 @@ declare_visitors! {
                 name,
                 initializer,
             } = var;
+            self.visit_span #_mut(span);
             self.visit_ty #_mut(ty);
             if let Some(name) = name {
                 self.visit_ident #_mut(name);
@@ -306,6 +308,7 @@ declare_visitors! {
                     self.visit_expr #_mut(cond);
                     self.visit_stmt #_mut(stmt);
                 }
+                StmtKind::Placeholder => {}
             }
         }
 

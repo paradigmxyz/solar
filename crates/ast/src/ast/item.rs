@@ -522,6 +522,7 @@ impl Visibility {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
 #[derive(Debug)]
 pub struct VariableDefinition<'ast> {
+    pub span: Span,
     pub ty: Type<'ast>,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,

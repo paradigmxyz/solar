@@ -1,0 +1,44 @@
+error: unresolved symbol
+  --> $DIR/loops.sol:16:12
+   |
+LL |     while (a == 0) uint a = 0;
+   |            ^
+   |
+
+error: unresolved symbol
+  --> $DIR/loops.sol:17:12
+   |
+LL |     while (b == 0) { uint b = 0; }
+   |            ^
+   |
+
+error: unresolved symbol
+  --> $DIR/loops.sol:19:23
+   |
+LL |     do uint c; while (c == 0);
+   |                       ^
+   |
+
+error: unresolved symbol
+  --> $DIR/loops.sol:20:27
+   |
+LL |     do { uint d; } while (d == 0);
+   |                           ^
+   |
+
+error: unresolved symbol
+  --> $DIR/loops.sol:22:19
+   |
+LL |     for (; false; e++) uint e;
+   |                   ^
+   |
+
+error: unresolved symbol
+  --> $DIR/loops.sol:23:19
+   |
+LL |     for (; false; f++) { uint f; }
+   |                   ^
+   |
+
+error: aborting due to 6 previous errors
+

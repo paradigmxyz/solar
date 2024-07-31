@@ -65,6 +65,12 @@ impl PathSlice {
         unsafe { Self::from_slice_unchecked(std::slice::from_ref(segment)) }
     }
 
+    /// Creates a new path from a single ident.
+    #[inline]
+    pub fn from_mut(segment: &mut Ident) -> &mut Self {
+        unsafe { Self::from_mut_slice_unchecked(std::slice::from_mut(segment)) }
+    }
+
     /// Creates a new path from a slice of segments.
     ///
     /// # Panics

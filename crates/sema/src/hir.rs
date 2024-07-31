@@ -1,5 +1,5 @@
 use rayon::prelude::*;
-use std::{fmt, marker::PhantomData, sync::Arc};
+use std::{fmt, sync::Arc};
 use sulk_ast::ast;
 use sulk_data_structures::{
     index::{Idx, IndexVec},
@@ -427,14 +427,14 @@ impl ItemId {
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
-    /// The contract name.
-    pub name: Ident,
+    /// The source this contract is defined in.
+    pub source: SourceId,
     /// The contract span.
     pub span: Span,
+    /// The contract name.
+    pub name: Ident,
     /// The contract kind.
     pub kind: ContractKind,
-    /// The source this contract is defined in.
-    pub source_id: SourceId,
     /// The contract bases.
     pub bases: &'hir [ContractId],
     /// The linearized contract bases.
@@ -452,10 +452,12 @@ pub struct Contract<'hir> {
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
-    /// The function span.
-    pub span: Span,
+    /// The source this function is defined in.
+    pub source: SourceId,
     /// The contract this function is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The function span.
+    pub span: Span,
     /// The function name.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
@@ -472,6 +474,8 @@ pub struct Function<'hir> {
     pub params: &'hir [VariableId],
     /// The function returns.
     pub returns: &'hir [VariableId],
+    /// The function body.
+    pub body: Option<Block<'hir>>,
 }
 
 impl Function<'_> {
@@ -484,28 +488,32 @@ impl Function<'_> {
 /// A struct.
 #[derive(Debug)]
 pub struct Struct<'hir> {
+    /// The source this struct is defined in.
+    pub source: SourceId,
     /// The contract this struct is defined in, if any.
     pub contract: Option<ContractId>,
     /// The struct span.
     pub span: Span,
     /// The struct name.
     pub name: Ident,
-    pub fields: &'hir [StructField],
+    pub fields: &'hir [StructField<'hir>],
 }
 
 #[derive(Debug)]
-pub struct StructField {
+pub struct StructField<'hir> {
     pub name: Ident,
-    // pub ty: Type, // TODO
+    pub ty: Type<'hir>,
 }
 
 /// An enum.
 #[derive(Debug)]
 pub struct Enum<'hir> {
-    /// The enum span.
-    pub span: Span,
+    /// The source this enum is defined in.
+    pub source: SourceId,
     /// The contract this enum is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The enum span.
+    pub span: Span,
     /// The enum name.
     pub name: Ident,
     /// The enum variants.
@@ -515,49 +523,67 @@ pub struct Enum<'hir> {
 /// A user-defined value type.
 #[derive(Debug)]
 pub struct Udvt<'hir> {
-    /// The UDVT span.
-    pub span: Span,
+    /// The source this UDVT is defined in.
+    pub source: SourceId,
     /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The UDVT span.
+    pub span: Span,
     /// The UDVT name.
     pub name: Ident,
-    pub _tmp: PhantomData<&'hir ()>,
+    /// The UDVT type.
+    pub ty: Type<'hir>,
 }
 
 /// An event.
 #[derive(Debug)]
 pub struct Event<'hir> {
-    /// The event span.
-    pub span: Span,
+    /// The source this event is defined in.
+    pub source: SourceId,
     /// The contract this event is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The event span.
+    pub span: Span,
     /// The event name.
     pub name: Ident,
     /// Whether this event is anonymous.
     pub anonymous: bool,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub parameters: &'hir [EventParameter<'hir>],
+}
+
+/// An event parameter.
+#[derive(Debug)]
+pub struct EventParameter<'hir> {
+    pub ty: Type<'hir>,
+    pub indexed: bool,
+    pub name: Ident,
 }
 
 /// A custom error.
 #[derive(Debug)]
 pub struct Error<'hir> {
-    /// The error span.
-    pub span: Span,
+    /// The source this error is defined in.
+    pub source: SourceId,
     /// The contract this error is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The error span.
+    pub span: Span,
     /// The error name.
     pub name: Ident,
-    pub _tmp: PhantomData<&'hir ()>,
+    pub parameters: &'hir [StructField<'hir>],
 }
 
-// TODO: Split into state variable, event param, etc.
 /// A constant or variable declaration.
 #[derive(Debug)]
 pub struct Variable<'hir> {
-    /// The variable span.
-    pub span: Span,
+    /// The source this variable is defined in.
+    pub source: SourceId,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The variable span.
+    pub span: Span,
+    /// The variable type.
+    pub ty: Type<'hir>,
     /// The variable name.
     pub name: Option<Ident>,
     /// The visibility of the variable.
@@ -598,15 +624,27 @@ pub enum StmtKind<'hir> {
     // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
     // Assembly(StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(&'hir Variable<'hir>),
+    DeclSingle(VariableId),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(&'hir [Option<&'hir Variable<'hir>>], &'hir Expr<'hir>),
+    DeclMulti(&'hir [Option<VariableId>], &'hir Expr<'hir>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block<'hir>),
+
+    /// An unchecked block: `unchecked { ... }`.
+    UncheckedBlock(Block<'hir>),
+
+    /// An emit statement: `emit Foo.bar(42);`.
+    Emit(EventId, CallArgs<'hir>),
+
+    /// A revert statement: `revert Foo.bar(42);`.
+    Revert(ErrorId, CallArgs<'hir>),
+
+    /// A return statement: `return 42;`.
+    Return(Option<&'hir Expr<'hir>>),
 
     /// A break statement: `break;`.
     Break,
@@ -614,26 +652,22 @@ pub enum StmtKind<'hir> {
     /// A continue statement: `continue;`.
     Continue,
 
-    /// An emit statement: `emit Foo.bar(42);`.
-    Emit(EventId, &'hir [Expr<'hir>]),
-
-    /// An expression with a trailing semicolon.
-    Expr(&'hir Expr<'hir>),
-
     /// A loop statement. This is desugared from all `for`, `while`, and `do while` statements.
     Loop(Block<'hir>, LoopSource),
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
 
-    /// A return statement: `return 42;`.
-    Return(Option<&'hir Expr<'hir>>),
-
-    /// A revert statement: `revert Foo.bar(42);`.
-    Revert(ErrorId, &'hir [Expr<'hir>]),
-
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
     Try(&'hir StmtTry<'hir>),
+
+    /// An expression with a trailing semicolon.
+    Expr(&'hir Expr<'hir>),
+
+    /// A modifier placeholder statement: `_;`.
+    Placeholder,
+
+    Err(ErrorGuaranteed),
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -642,7 +676,7 @@ pub enum StmtKind<'hir> {
 #[derive(Debug)]
 pub struct StmtTry<'hir> {
     pub expr: Expr<'hir>,
-    pub returns: &'hir [Variable<'hir>],
+    pub returns: &'hir [VariableId],
     /// The try block.
     pub block: Block<'hir>,
     /// The list of catch clauses. Never empty.
@@ -655,7 +689,7 @@ pub struct StmtTry<'hir> {
 #[derive(Debug)]
 pub struct CatchClause<'hir> {
     pub name: Option<Ident>,
-    pub args: &'hir [Variable<'hir>],
+    pub args: &'hir [VariableId],
     pub block: Block<'hir>,
 }
 
@@ -785,6 +819,12 @@ impl CallArgs<'_> {
 pub struct Type<'hir> {
     pub span: Span,
     pub kind: TypeKind<'hir>,
+}
+
+impl Type<'_> {
+    /// Dummy placeholder type.
+    pub const DUMMY: Self =
+        Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
 }
 
 /// The kind of a type.

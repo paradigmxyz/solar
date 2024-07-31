@@ -1,8 +1,9 @@
-use crate::{hir, SmallSource};
-use std::marker::PhantomData;
+use crate::{
+    hir::{self, ContractId, SourceId},
+    SmallSource,
+};
 use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, smallvec::SmallVec, BumpExt};
-use sulk_interface::Span;
+use sulk_data_structures::{index::IndexVec, smallvec::SmallVec};
 
 impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]
@@ -18,6 +19,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();
+                self.current_source_id = id;
                 for item in ast.items.iter() {
                     match &item.kind {
                         ast::ItemKind::Pragma(_)
@@ -30,13 +32,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_) => {
-                            let item_id = self.lower_item(item);
-                            if let hir::ItemId::Contract(contract_id) = item_id {
-                                self.hir.contracts[contract_id].source_id = id;
-                            }
-                            items.push(item_id)
-                        }
+                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
                     }
                 }
                 new_source.items = self.arena.alloc_slice_copy(&items);
@@ -100,14 +96,13 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             };
             items.push(id);
         }
-        self.current_contract_id = None;
         let id = self.hir.contracts.push(hir::Contract {
-            name: contract.name,
+            source: self.current_source_id,
             span: item.span,
+            name: contract.name,
             kind: contract.kind,
 
-            // set later
-            source_id: hir::SourceId::new(0),
+            // Set later.
             bases: &[],
             linearized_bases: &[],
 
@@ -116,6 +111,8 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             receive,
             items: self.arena.alloc_slice_copy(&items),
         });
+        debug_assert_eq!(Some(id), self.current_contract_id);
+        self.current_contract_id = None;
         id
     }
 
@@ -126,7 +123,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             }
             ast::ItemKind::Contract(i) => hir::ItemId::Contract(self.lower_contract(item, i)),
             ast::ItemKind::Function(i) => hir::ItemId::Function(self.lower_function(item, i)),
-            ast::ItemKind::Variable(i) => hir::ItemId::Variable(self.lower_variable(item.span, i)),
+            ast::ItemKind::Variable(i) => hir::ItemId::Variable(self.lower_variable(i)),
             ast::ItemKind::Struct(i) => hir::ItemId::Struct(self.lower_struct(item, i)),
             ast::ItemKind::Enum(i) => hir::ItemId::Enum(self.lower_enum(item, i)),
             ast::ItemKind::Udvt(i) => hir::ItemId::Udvt(self.lower_udvt(item, i)),
@@ -157,8 +154,9 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
         let params = self.lower_variables(parameters);
         let returns = self.lower_variables(returns);
         self.hir.functions.push(hir::Function {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
             kind,
             modifiers: &[],
@@ -168,6 +166,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             state_mutability,
             params,
             returns,
+            body: None,
         })
     }
 
@@ -177,92 +176,111 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     ) -> &'hir [hir::VariableId] {
         let mut vars = SmallVec::<[_; 16]>::new();
         for var in variables {
-            // TODO: Span
-            vars.push(self.lower_variable(Span::DUMMY, var));
+            vars.push(self.lower_variable(var));
         }
         self.arena.alloc_slice_copy(&vars)
     }
 
-    fn lower_variable(&mut self, span: Span, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
-        // handled later: override_, initializer
-        let ast::VariableDefinition {
-            ty: _, // TODO
-            visibility,
-            mutability,
-            data_location,
-            override_: _,
-            indexed,
-            name,
-            initializer: _,
-        } = *i;
-        self.hir.variables.push(hir::Variable {
-            span,
-            contract: self.current_contract_id,
-            name,
-            visibility,
-            mutability,
-            data_location,
-            indexed,
-            initializer: None,
-        })
+    fn lower_variable(&mut self, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
+        lower_variable(&mut self.hir, i, self.current_source_id, self.current_contract_id)
     }
 
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
-        let ast::ItemStruct { name, ref fields } = *i;
-        let mut fields2 = SmallVec::<[_; 8]>::new();
-        for field in fields.iter() {
-            let Some(name) = field.name else { continue };
-            fields2.push(hir::StructField { name });
-        }
+        // handled later: fields
+        let ast::ItemStruct { name, fields: _ } = *i;
         self.hir.structs.push(hir::Struct {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
-            fields: self.arena.alloc_smallvec(fields2),
+            fields: &[],
         })
     }
 
     fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
         let ast::ItemEnum { name, ref variants } = *i;
         self.hir.enums.push(hir::Enum {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
             variants: self.arena.alloc_slice_copy(variants),
         })
     }
 
     fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
-        // TODO: ty
-        let ast::ItemUdvt { name, ty: _ } = *i;
+        let ast::ItemUdvt { name, ref ty } = *i;
         self.hir.udvts.push(hir::Udvt {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
-            _tmp: PhantomData,
+            ty: hir::Type {
+                span: ty.span,
+                kind: if let ast::TypeKind::Elementary(kind) = ty.kind {
+                    hir::TypeKind::Elementary(kind)
+                } else {
+                    let msg = "the underlying type of UDVTs must be an elementary value type";
+                    hir::TypeKind::Err(self.dcx().err(msg).span(ty.span).emit())
+                },
+            },
         })
     }
 
     fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
-        // TODO: parameters
+        // handled later: parameters
         let ast::ItemError { name, parameters: _ } = *i;
         self.hir.errors.push(hir::Error {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
-            _tmp: PhantomData,
+            parameters: &[],
         })
     }
 
     fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
-        // TODO: parameters
+        // handled later: parameters
         let ast::ItemEvent { name, parameters: _, anonymous } = *i;
         self.hir.events.push(hir::Event {
-            span: item.span,
+            source: self.current_source_id,
             contract: self.current_contract_id,
+            span: item.span,
             name,
             anonymous,
-            _tmp: PhantomData,
+            parameters: &[],
         })
     }
+}
+
+pub(super) fn lower_variable(
+    hir: &mut hir::Hir<'_>,
+    i: &ast::VariableDefinition<'_>,
+    source: SourceId,
+    contract: Option<ContractId>,
+) -> hir::VariableId {
+    // handled later: ty, override_, initializer
+    let ast::VariableDefinition {
+        span,
+        ty: _,
+        visibility,
+        mutability,
+        data_location,
+        override_: _,
+        indexed,
+        name,
+        initializer: _,
+    } = *i;
+    hir.variables.push(hir::Variable {
+        source,
+        contract,
+        span,
+        ty: hir::Type::DUMMY,
+        name,
+        visibility,
+        mutability,
+        data_location,
+        indexed,
+        initializer: None,
+    })
 }

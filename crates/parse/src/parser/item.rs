@@ -702,8 +702,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         flags: VarFlags,
         ty: Option<Type<'ast>>,
     ) -> PResult<'sess, VariableDefinition<'ast>> {
+        let mut span = self.token.span;
         let ty = match ty {
-            Some(ty) => ty,
+            Some(ty) => {
+                span = span.with_lo(ty.span.lo());
+                ty
+            }
             None => {
                 // Ignore doc-comments.
                 let _ = self.parse_doc_comments()?;
@@ -799,12 +803,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.expect_semi()?;
         }
 
+        let span = span.to(self.prev_token.span);
+
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";
-            self.dcx().err(msg).span(ty.span.to(self.prev_token.span)).emit();
+            self.dcx().err(msg).span(span).emit();
         }
 
         Ok(VariableDefinition {
+            span,
             ty,
             data_location,
             visibility,

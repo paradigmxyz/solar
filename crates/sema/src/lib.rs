@@ -40,9 +40,6 @@ use hir::SourceId;
 
 mod ast_lowering;
 
-mod staging;
-pub use staging::SymbolCollector;
-
 #[derive(Default)]
 pub(crate) struct Sources<'ast> {
     pub(crate) sources: IndexVec<SourceId, SmallSource<'ast>>,
