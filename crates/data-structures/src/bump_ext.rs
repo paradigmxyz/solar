@@ -27,6 +27,12 @@ pub trait BumpExt {
     /// [`bumpalo::boxed::Box`] if `T: !Copy`.
     fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> &mut [A::Item];
 
+    /// Allocates an array of items on the arena.
+    ///
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
+    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
+    fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T];
+
     /// Allocates a slice of items on the arena and copies them in.
     ///
     /// # Safety
@@ -79,6 +85,17 @@ impl BumpExt for Bump {
             values.set_len(0);
             r
         }
+    }
+
+    #[inline]
+    fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T] {
+        if values.is_empty() {
+            return &mut [];
+        }
+
+        let values = std::mem::ManuallyDrop::new(values);
+        // SAFETY: See `alloc_vec`.
+        unsafe { self.alloc_slice_unchecked(values.as_slice()) }
     }
 
     #[inline]

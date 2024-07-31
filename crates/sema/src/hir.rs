@@ -633,10 +633,7 @@ pub enum StmtKind<'hir> {
     Revert(ErrorId, &'hir [Expr<'hir>]),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
-    Try(StmtTry<'hir>),
-
-    /// An unchecked block: `unchecked { ... }`.
-    UncheckedBlock(Block<'hir>),
+    Try(&'hir StmtTry<'hir>),
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -644,7 +641,7 @@ pub enum StmtKind<'hir> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Debug)]
 pub struct StmtTry<'hir> {
-    pub expr: &'hir Expr<'hir>,
+    pub expr: Expr<'hir>,
     pub returns: &'hir [Variable<'hir>],
     /// The try block.
     pub block: Block<'hir>,
@@ -706,7 +703,7 @@ pub enum ExprKind<'hir> {
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
     /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
-    Call(&'hir Expr<'hir>, &'hir [Expr<'hir>]),
+    Call(&'hir Expr<'hir>, CallArgs<'hir>),
 
     /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
     CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
@@ -758,6 +755,29 @@ pub enum ExprKind<'hir> {
 pub struct NamedArg<'hir> {
     pub name: Ident,
     pub value: Expr<'hir>,
+}
+
+/// A list of function call arguments.
+#[derive(Debug)]
+pub enum CallArgs<'hir> {
+    /// A list of unnamed arguments: `(1, 2, 3)`.
+    Unnamed(&'hir [Expr<'hir>]),
+
+    /// A list of named arguments: `({x: 1, y: 2, z: 3})`.
+    Named(&'hir [NamedArg<'hir>]),
+}
+
+impl Default for CallArgs<'_> {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+impl CallArgs<'_> {
+    /// Creates a new empty list of unnamed arguments.
+    pub fn empty() -> Self {
+        Self::Unnamed(Default::default())
+    }
 }
 
 /// A type name.

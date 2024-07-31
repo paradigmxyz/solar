@@ -257,8 +257,8 @@ declare_visitors! {
                 }
                 StmtKind::Break => {}
                 StmtKind::Continue => {}
-                StmtKind::DoWhile(block, expr) => {
-                    self.visit_block #_mut(block);
+                StmtKind::DoWhile(stmt, expr) => {
+                    self.visit_stmt #_mut(stmt);
                     self.visit_expr #_mut(expr);
                 }
                 StmtKind::Emit(path, args) => {
@@ -302,9 +302,9 @@ declare_visitors! {
                 StmtKind::UncheckedBlock(block) => {
                     self.visit_block #_mut(block);
                 }
-                StmtKind::While(cond, block) => {
+                StmtKind::While(cond, stmt) => {
                     self.visit_expr #_mut(cond);
-                    self.visit_stmt #_mut(block);
+                    self.visit_stmt #_mut(stmt);
                 }
             }
         }

@@ -179,7 +179,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let name = self.parse_ident()?;
         let (parameters, _) = self.parse_paren_comma_seq(true, Self::parse_ident)?;
         let returns = if self.eat(&TokenKind::Arrow) {
-            self.check_ident();
             let (returns, _) = self.parse_nodelim_comma_seq(
                 &TokenKind::OpenDelim(Delimiter::Brace),
                 false,

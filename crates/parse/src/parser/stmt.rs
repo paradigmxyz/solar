@@ -96,12 +96,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a do-while statement.
     fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let block = self.parse_block()?;
+        let stmt = self.parse_stmt()?;
+        let stmt = self.alloc(stmt);
         self.expect_keyword(kw::While)?;
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        Ok(StmtKind::DoWhile(block, expr))
+        Ok(StmtKind::DoWhile(stmt, expr))
     }
 
     /// Parses a for statement.

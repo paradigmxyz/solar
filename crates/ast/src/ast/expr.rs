@@ -204,7 +204,7 @@ impl BinOpKind {
 }
 
 /// A unary operation: `!x`, `-x`, `x++`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct UnOp {
     pub span: Span,
     pub kind: UnOpKind,

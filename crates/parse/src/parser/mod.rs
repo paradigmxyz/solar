@@ -403,6 +403,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
     /// encountered.
     #[inline]
+    #[must_use]
     fn check(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if !is_present {
@@ -412,6 +413,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     #[inline]
+    #[must_use]
     fn check_noexpect(&self, tok: &TokenKind) -> bool {
         self.token.kind == *tok
     }
@@ -420,6 +422,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// the main purpose of this function is to reduce the cluttering of the suggestions list
     /// which using the normal eat method could introduce in some cases.
+    #[must_use]
     pub fn eat_noexpect(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if is_present {
@@ -429,6 +432,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Consumes a token 'tok' if it exists. Returns whether the given token was present.
+    #[must_use]
     pub fn eat(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check(tok);
         if is_present {
@@ -439,6 +443,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// If the next token is the given keyword, returns `true` without eating it.
     /// An expectation is also added for diagnostics purposes.
+    #[must_use]
     fn check_keyword(&mut self, kw: Symbol) -> bool {
         self.expected_tokens.push(ExpectedToken::Keyword(kw));
         self.token.is_keyword(kw)
@@ -446,6 +451,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// If the next token is the given keyword, eats it and returns `true`.
     /// Otherwise, returns `false`. An expectation is also added for diagnostics purposes.
+    #[must_use]
     pub fn eat_keyword(&mut self, kw: Symbol) -> bool {
         if self.check_keyword(kw) {
             self.bump();
@@ -466,30 +472,37 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
+    #[must_use]
     fn check_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
     }
 
+    #[must_use]
     fn check_nr_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
     }
 
+    #[must_use]
     fn check_path(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
     }
 
+    #[must_use]
     fn check_lit(&mut self) -> bool {
         self.check_or_expected(self.token.is_lit(), ExpectedToken::Lit)
     }
 
+    #[must_use]
     fn check_str_lit(&mut self) -> bool {
         self.check_or_expected(self.token.is_str_lit(), ExpectedToken::StrLit)
     }
 
+    #[must_use]
     fn check_elementary_type(&mut self) -> bool {
         self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
     }
 
+    #[must_use]
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
         if !ok {
             self.expected_tokens.push(t);

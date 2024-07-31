@@ -145,6 +145,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve(&mut self) {
         let mut scopes = SymbolResolverScopes::new();
+        let next_id = AtomicUsize::new(0);
 
         for id in self.hir.variable_ids() {
             let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
@@ -156,9 +157,8 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             if let Some(c) = var.contract {
                 scopes.source = Some(self.hir.contract(c).source_id);
             }
-            // TODO
-            let _init = init;
-            // let _init = self.resolve_expr(init, &mut scopes);
+            let init = ResolveContext::new(self, &mut scopes, &next_id).lower_expr(init);
+            self.hir.variables[id].initializer = Some(init);
         }
 
         for id in self.hir.function_ids() {
@@ -272,16 +272,200 @@ pub(super) fn report_conflict(dcx: &DiagCtxt, mut first: Span, mut second: Optio
 struct ResolveContext<'sess, 'hir, 'lcx> {
     sess: &'sess Session,
     arena: &'hir hir::Arena,
-    hir: &'lcx hir::Hir<'hir>,
+    // hir: &'lcx hir::Hir<'hir>,
     // hir_to_ast: &'lcx FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
     resolver: &'lcx SymbolResolver<'sess>,
-    scopes: SymbolResolverScopes,
+
+    scopes: &'lcx mut SymbolResolverScopes,
+
     next_id: &'lcx AtomicUsize,
+
+    in_unchecked: bool,
 }
 
 impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
+    fn new(
+        lcx: &'lcx super::LoweringContext<'sess, '_, 'hir>,
+        scopes: &'lcx mut SymbolResolverScopes,
+        next_id: &'lcx AtomicUsize,
+    ) -> Self {
+        Self {
+            sess: lcx.sess,
+            arena: lcx.arena,
+            // hir: &lcx.hir,
+            // hir_to_ast: &lcx.hir_to_ast,
+            resolver: &lcx.resolver,
+            scopes,
+            next_id,
+            in_unchecked: false,
+        }
+    }
+
+    fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.scopes.enter();
+        let t = f(self);
+        self.scopes.exit();
+        t
+    }
+
+    fn in_scope_if<T>(&mut self, cond: bool, f: impl FnOnce(&mut Self) -> T) -> T {
+        if cond {
+            self.in_scope(f)
+        } else {
+            f(self)
+        }
+    }
+
+    fn in_unchecked<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        let prev = std::mem::replace(&mut self.in_unchecked, true);
+        let t = f(self);
+        self.in_unchecked = prev;
+        t
+    }
+
+    fn lower_block(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
+        self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block))
+    }
+
+    fn lower_stmts(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
+        self.arena.alloc_from_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
+    }
+
+    fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'hir hir::Stmt<'hir> {
+        self.arena.alloc(self.lower_stmt_full(stmt))
+    }
+
+    fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
+        let kind = match &stmt.kind {
+            ast::StmtKind::DeclSingle(var) => {
+                todo!()
+            }
+            ast::StmtKind::DeclMulti(_, _) => todo!(),
+            ast::StmtKind::Assembly(_) => todo!(),
+            ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
+            ast::StmtKind::UncheckedBlock(stmts) => {
+                hir::StmtKind::Block(self.in_unchecked(|this| this.lower_block(stmts)))
+            }
+            ast::StmtKind::Break => hir::StmtKind::Break,
+            ast::StmtKind::Continue => hir::StmtKind::Continue,
+            ast::StmtKind::Return(expr) => {
+                hir::StmtKind::Return(self.lower_expr_opt(expr.as_deref()))
+            }
+            ast::StmtKind::While(_, _)
+            | ast::StmtKind::DoWhile(_, _)
+            | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
+            ast::StmtKind::Emit(_, _) => todo!(),
+            ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
+            ast::StmtKind::Revert(_, _) => todo!(),
+            ast::StmtKind::If(cond, then, else_) => hir::StmtKind::If(
+                self.lower_expr(cond),
+                self.lower_stmt(then),
+                else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
+            ),
+            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+                hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
+                    expr: self.lower_expr_full(expr),
+                    returns: todo!(),
+                    block: self.lower_block(block),
+                    catch: self.arena.alloc_from_iter(catch.iter().map(|catch| hir::CatchClause {
+                        name: catch.name,
+                        args: todo!(),
+                        block: self.lower_block(&catch.block),
+                    })),
+                }))
+            }
+        };
+        hir::Stmt { span: stmt.span, kind }
+    }
+
+    /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.
+    fn lower_loop_stmt(&mut self, stmt: &ast::Stmt<'_>) -> hir::StmtKind<'hir> {
+        let span = stmt.span;
+        match &stmt.kind {
+            // loop {
+            //     if (<cond>) <stmt> else break;
+            // }
+            ast::StmtKind::While(cond, stmt) => {
+                let cond = self.lower_expr(cond);
+                let stmt = self.lower_stmt(stmt);
+                let break_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+                let body = self.arena.alloc(hir::Stmt {
+                    span,
+                    kind: hir::StmtKind::If(cond, stmt, Some(break_stmt)),
+                });
+                hir::StmtKind::Loop(std::slice::from_ref(body), hir::LoopSource::While)
+            }
+
+            // loop {
+            //     { <stmt> }
+            //     if (<cond>) continue else break;
+            // }
+            ast::StmtKind::DoWhile(stmt, cond) => {
+                let stmt = self.in_scope(|this| this.lower_stmt_full(stmt));
+                let cond = self.lower_expr(cond);
+                let cont_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Continue });
+                let break_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+                let check =
+                    hir::Stmt { span, kind: hir::StmtKind::If(cond, cont_stmt, Some(break_stmt)) };
+
+                let body = self.arena.alloc_array([stmt, check]);
+                hir::StmtKind::Loop(body, hir::LoopSource::DoWhile)
+            }
+
+            // {
+            //     <init>;
+            //     loop {
+            //         if (<cond>) {
+            //             { <body> }
+            //             <next>;
+            //         } else break;
+            //     }
+            // }
+            ast::StmtKind::For { init, cond, next, body } => {
+                self.in_scope_if(init.is_some(), |this| {
+                    let init = init.as_deref().map(|stmt| this.lower_stmt_full(stmt));
+                    let cond = this.lower_expr_opt(cond.as_deref());
+                    let mut body =
+                        this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body));
+                    let next = this.lower_expr_opt(next.as_deref());
+
+                    // <body> = { <body>; <next>; }
+                    if let Some(next) = next {
+                        let next = hir::Stmt { span: next.span, kind: hir::StmtKind::Expr(next) };
+                        body = hir::Stmt {
+                            span: body.span,
+                            kind: hir::StmtKind::Block(this.arena.alloc_array([body, next])),
+                        };
+                    }
+
+                    // <body> = if (<cond>) { <body> } else break;
+                    if let Some(cond) = cond {
+                        let break_stmt =
+                            this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+                        body = hir::Stmt {
+                            span: body.span,
+                            kind: hir::StmtKind::If(cond, self.arena.alloc(body), Some(break_stmt)),
+                        };
+                    }
+
+                    let mut kind =
+                        hir::StmtKind::Loop(self.arena.alloc_array([body]), hir::LoopSource::For);
+
+                    if let Some(init) = init {
+                        let s = hir::Stmt { span, kind };
+                        kind = hir::StmtKind::Block(this.arena.alloc_array([init, s]));
+                    }
+
+                    kind
+                })
+            }
+
+            _ => unreachable!(),
+        }
+    }
+
     fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'hir hir::Expr<'hir> {
-        self.arena.alloc(self.lower_expr_mut(expr))
+        self.arena.alloc(self.lower_expr_full(expr))
     }
 
     fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'hir hir::Expr<'hir>> {
@@ -294,15 +478,12 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
         I::IntoIter: ExactSizeIterator,
         T: AsRef<ast::Expr<'a>>,
     {
-        self.arena.alloc_from_iter(exprs.into_iter().map(|e| self.lower_expr_mut(e.as_ref())))
+        self.arena.alloc_from_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
-    fn lower_expr_mut(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'hir> {
-        hir::Expr { id: self.next_id(), kind: self.lower_expr_kind(&expr.kind), span: expr.span }
-    }
-
-    fn lower_expr_kind(&mut self, expr: &ast::ExprKind<'_>) -> hir::ExprKind<'hir> {
-        match expr {
+    #[instrument(name = "lower_expr", level = "debug", skip_all)]
+    fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'hir> {
+        let kind = match &expr.kind {
             ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
             ast::ExprKind::Assign(lhs, op, rhs) => {
                 hir::ExprKind::Assign(self.lower_expr(lhs), *op, self.lower_expr(rhs))
@@ -311,10 +492,10 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
-                hir::ExprKind::Call(self.lower_expr(callee), self.lower_exprs(&**args))
+                hir::ExprKind::Call(self.lower_expr(callee), self.lower_call_args(args))
             }
             ast::ExprKind::CallOptions(callee, options) => {
-                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_exprs(&**options))
+                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_named_args(options))
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
@@ -334,8 +515,8 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
                 ),
                 ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
                     self.lower_expr(expr),
-                    start.as_deref().map(|start| self.lower_expr(start)),
-                    end.as_deref().map(|end| self.lower_expr(end)),
+                    self.lower_expr_opt(start.as_deref()),
+                    self.lower_expr_opt(end.as_deref()),
                 ),
             },
             ast::ExprKind::Lit(lit, _) => {
@@ -345,16 +526,45 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
                 hir::ExprKind::Member(self.lower_expr(expr), *member)
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
-            ast::ExprKind::Payable(expr) => hir::ExprKind::Payable(self.lower_expr(expr)),
+            ast::ExprKind::Payable(args) => 'b: {
+                if let ast::CallArgs::Unnamed(args) = args {
+                    if let [arg] = &args[..] {
+                        break 'b hir::ExprKind::Payable(self.lower_expr(arg));
+                    }
+                }
+                let msg = "expected exactly one unnamed argument";
+                let guar = self.sess.dcx.err(msg).span(expr.span).emit();
+                hir::ExprKind::Err(guar)
+            }
             ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
                 self.lower_expr(cond),
                 self.lower_expr(then),
                 self.lower_expr(r#else),
             ),
-            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.lower_exprs(&**exprs)),
+            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(
+                self.arena
+                    .alloc_from_iter(exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref()))),
+            ),
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
+        };
+        hir::Expr { id: self.next_id(), kind, span: expr.span }
+    }
+
+    fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'hir [hir::NamedArg<'hir>] {
+        self.arena.alloc_from_iter(
+            options.iter().map(|arg| hir::NamedArg {
+                name: arg.name,
+                value: self.lower_expr_full(&arg.value),
+            }),
+        )
+    }
+
+    fn lower_call_args(&mut self, args: &ast::CallArgs<'_>) -> hir::CallArgs<'hir> {
+        match args {
+            ast::CallArgs::Unnamed(args) => hir::CallArgs::Unnamed(self.lower_exprs(&**args)),
+            ast::CallArgs::Named(args) => hir::CallArgs::Named(self.lower_named_args(args)),
         }
     }
 
@@ -373,14 +583,18 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
                 element: self.lower_type(&array.element),
                 size: array.size.as_deref().map(|size| self.lower_expr(size)),
             })),
-            ast::TypeKind::Function(f) => {
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
-                    parameters: self.arena.alloc_from_iter(f.parameters.iter().map(|p| {})),
+            ast::TypeKind::Function(f) => hir::TypeKind::Function(
+                self.arena.alloc(hir::TypeFunction {
+                    parameters: self
+                        .arena
+                        .alloc_from_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
                     visibility: f.visibility,
                     state_mutability: f.state_mutability,
-                    returns: self.arena.alloc_from_iter(f.returns.iter().map(|p| {})),
-                }))
-            }
+                    returns: self
+                        .arena
+                        .alloc_from_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
+                }),
+            ),
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),
@@ -406,14 +620,12 @@ impl<'sess, 'hir, 'lcx> ResolveContext<'sess, 'hir, 'lcx> {
 enum ResolverError {
     Unresolved(u32),
     NotAScope(u32),
-    Reported(ErrorGuaranteed),
 }
 
 impl fmt::Display for ResolverError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NotAScope(_) | Self::Unresolved(_) => f.write_str("unresolved symbol"),
-            Self::Reported(_) => unreachable!(),
         }
     }
 }
@@ -422,7 +634,6 @@ impl ResolverError {
     fn span(&self, path: &ast::PathSlice) -> Span {
         match *self {
             Self::NotAScope(i) | Self::Unresolved(i) => path.segments()[i as usize].span,
-            Self::Reported(_) => unreachable!(),
         }
     }
 }

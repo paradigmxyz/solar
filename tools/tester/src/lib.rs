@@ -90,10 +90,15 @@ pub fn run_tests(cmd: &'static Path) -> i32 {
     }
     tests.sort_by(|a, b| a.desc.name.as_slice().cmp(b.desc.name.as_slice()));
 
+    if opts.list {
+        eprintln!("cannot list tests");
+        return 1;
+    }
+
     match test::run_tests_console(&opts, tests) {
         Ok(true) => 0,
         Ok(false) => {
-            eprintln!("Some tests failed");
+            eprintln!("some tests failed");
             1
         }
         Err(e) => {

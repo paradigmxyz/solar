@@ -41,7 +41,7 @@ pub enum StmtKind<'ast> {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Block<'ast>, Box<'ast, Expr<'ast>>),
+    DoWhile(Box<'ast, Stmt<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
     Emit(Box<'ast, PathSlice>, CallArgs<'ast>),

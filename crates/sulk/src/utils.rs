@@ -87,6 +87,14 @@ fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
     }
 
     // Disable demangling as it shows up a lot in allocations.
+    #[cfg(feature = "tracy-allocator")]
+    #[no_mangle]
+    unsafe extern "C" fn ___tracy_demangle(
+        _mangled: *const std::ffi::c_char,
+    ) -> *const std::ffi::c_char {
+        std::ptr::null()
+    }
+
     #[cfg(not(feature = "tracy-allocator"))]
     tracing_tracy::client::register_demangler!();
 
