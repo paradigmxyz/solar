@@ -24,7 +24,7 @@ pub enum StmtKind<'ast> {
     Assembly(StmtAssembly<'ast>),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDefinition<'ast>),
+    DeclSingle(Box<'ast, VariableDefinition<'ast>>),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
@@ -67,7 +67,7 @@ pub enum StmtKind<'ast> {
     Revert(AstPath<'ast>, CallArgs<'ast>),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
-    Try(StmtTry<'ast>),
+    Try(Box<'ast, StmtTry<'ast>>),
 
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'ast>),

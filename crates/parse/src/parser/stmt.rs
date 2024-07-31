@@ -50,7 +50,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Err(self.dcx().err(msg).span(self.prev_token.span))
         } else if self.eat_keyword(kw::Try) {
             semi = false;
-            self.parse_stmt_try().map(StmtKind::Try)
+            self.parse_stmt_try().map(|stmt| StmtKind::Try(self.alloc(stmt)))
         } else if self.eat_keyword(kw::Assembly) {
             semi = false;
             self.parse_stmt_assembly().map(StmtKind::Assembly)
@@ -226,7 +226,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
                     let ty = iap.into_ty(self);
-                    self.parse_variable_definition_with(VarFlags::VAR, ty).map(StmtKind::DeclSingle)
+                    self.parse_variable_definition_with(VarFlags::VAR, ty)
+                        .map(|var| StmtKind::DeclSingle(self.alloc(var)))
                 }
                 LookAheadInfo::Expression => {
                     let expr = iap.into_expr(self);
