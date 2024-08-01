@@ -1,4 +1,4 @@
-use crate::{hir, Sources};
+use crate::{hir, ParsedSources};
 use std::{fmt, sync::atomic::AtomicUsize};
 use sulk_ast::ast;
 use sulk_data_structures::{
@@ -32,7 +32,7 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn perform_imports(&mut self, sources: &Sources<'_>) {
+    pub(super) fn perform_imports(&mut self, sources: &ParsedSources<'_>) {
         for (source_id, source) in self.hir.sources_enumerated() {
             for &(item_id, import_id) in source.imports {
                 let item = &sources[source_id].ast.as_ref().unwrap().items[item_id];

@@ -1,6 +1,6 @@
 use crate::{
     hir::{self, Hir},
-    Sources,
+    ParsedSources,
 };
 use sulk_ast::ast;
 use sulk_data_structures::{
@@ -22,7 +22,7 @@ use resolve::{Declaration, SymbolResolver};
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
     sess: &Session,
-    sources: &Sources<'_>,
+    sources: &ParsedSources<'_>,
     hir_arena: &'hir hir::Arena,
 ) -> Hir<'hir> {
     let mut lcx = LoweringContext::new(sess, hir_arena);

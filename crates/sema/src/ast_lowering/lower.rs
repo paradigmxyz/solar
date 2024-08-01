@@ -1,6 +1,6 @@
 use crate::{
     hir::{self, ContractId, SourceId},
-    SmallSource,
+    ParsedSource,
 };
 use sulk_ast::ast;
 use sulk_data_structures::{index::IndexVec, smallvec::SmallVec};
@@ -9,10 +9,10 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn lower_sources(
         &mut self,
-        small_sources: &'ast IndexVec<hir::SourceId, SmallSource<'ast>>,
+        parsed_sources: &'ast IndexVec<hir::SourceId, ParsedSource<'ast>>,
     ) {
-        let new_sources = small_sources.iter_enumerated().map(|(id, source)| {
-            let mut new_source = hir::Source {
+        let hir_sources = parsed_sources.iter_enumerated().map(|(id, source)| {
+            let mut hir_source = hir::Source {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
@@ -35,11 +35,11 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                         | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
                     }
                 }
-                new_source.items = self.arena.alloc_slice_copy(&items);
+                hir_source.items = self.arena.alloc_slice_copy(&items);
             };
-            new_source
+            hir_source
         });
-        self.hir.sources = new_sources.collect();
+        self.hir.sources = hir_sources.collect();
     }
 
     fn lower_contract(
