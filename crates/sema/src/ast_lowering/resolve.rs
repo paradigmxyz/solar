@@ -708,7 +708,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn report_conflict(&self, name: Ident, conflict: Declaration) -> ErrorGuaranteed {
-        report_conflict_hir(&self.hir, self.dcx(), name, conflict)
+        report_conflict_hir(self.hir, self.dcx(), name, conflict)
     }
 }
 
