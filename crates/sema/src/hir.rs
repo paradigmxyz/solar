@@ -696,11 +696,11 @@ pub struct CatchClause<'hir> {
 /// The loop type that yielded an [`StmtKind::Loop`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoopSource {
-    /// A `for (...) {...}` loop.
+    /// A `for (...) { ... }` loop.
     For,
-    /// A `while (...) {...}` loop.
+    /// A `while (...) { ... }` loop.
     While,
-    /// A `do {...} while (...);` loop.
+    /// A `do { ... } while (...);` loop.
     DoWhile,
 }
 

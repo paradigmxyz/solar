@@ -1012,7 +1012,7 @@ macro_rules! impl_try_from {
 impl_try_from!(
     hir::ItemId => Declaration::Item(id) => Ok(id),
     hir::ContractId => Declaration::Item(hir::ItemId::Contract(id)) => Ok(id),
-    hir::FunctionId => Declaration::Item(hir::ItemId::Function(id)) => Ok(id),
+    // hir::FunctionId => Declaration::Item(hir::ItemId::Function(id)) => Ok(id),
     hir::EventId => Declaration::Item(hir::ItemId::Event(id)) => Ok(id),
     hir::ErrorId => Declaration::Item(hir::ItemId::Error(id)) => Ok(id),
 );

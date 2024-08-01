@@ -83,7 +83,7 @@ impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
             sess,
             arena,
             hir: Hir::new(),
-            current_source_id: hir::SourceId::new(0),
+            current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxIndexMap::default(),
             resolver: SymbolResolver::new(&sess.dcx),
@@ -120,6 +120,8 @@ fn get_two_mut_idx<I: Idx, T>(sl: &mut IndexVec<I, T>, idx_1: I, idx_2: I) -> (&
 #[inline]
 #[track_caller]
 fn get_two_mut<T>(sl: &mut [T], idx_1: usize, idx_2: usize) -> (&mut T, &mut T) {
+    // TODO: `sl.get_many_mut([idx_1, idx_2])` once stable.
+
     assert!(idx_1 != idx_2 && idx_1 < sl.len() && idx_2 < sl.len());
     let ptr = sl.as_mut_ptr();
     unsafe { (&mut *ptr.add(idx_1), &mut *ptr.add(idx_2)) }

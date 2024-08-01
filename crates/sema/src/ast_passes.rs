@@ -5,7 +5,6 @@ use sulk_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
-    // TODO: Desugar here.
     validate(sess, ast);
 }
 

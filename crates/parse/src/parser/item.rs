@@ -702,10 +702,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         flags: VarFlags,
         ty: Option<Type<'ast>>,
     ) -> PResult<'sess, VariableDefinition<'ast>> {
-        let mut span = self.token.span;
+        let mut lo = self.token.span;
         let ty = match ty {
             Some(ty) => {
-                span = span.with_lo(ty.span.lo());
+                lo = lo.with_lo(ty.span.lo());
                 ty
             }
             None => {
@@ -803,7 +803,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.expect_semi()?;
         }
 
-        let span = span.to(self.prev_token.span);
+        let span = lo.to(self.prev_token.span);
 
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";

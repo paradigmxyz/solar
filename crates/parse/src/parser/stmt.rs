@@ -59,7 +59,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.check_keyword(kw::Revert) && self.look_ahead(1).is_ident() {
             self.bump(); // `revert`
             self.parse_path_call().map(|(path, params)| StmtKind::Revert(path, params))
-        } else if self.eat_keyword(sym::underscore) {
+        } else if self.check_keyword(sym::underscore) && self.look_ahead(1).kind == TokenKind::Semi
+        {
+            self.bump(); // `_`
             Ok(StmtKind::Placeholder)
         } else {
             self.parse_simple_stmt_kind()

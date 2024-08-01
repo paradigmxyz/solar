@@ -66,7 +66,7 @@ impl fmt::Display for Ident {
 
 impl Ident {
     /// A dummy identifier.
-    pub const DUMMY: Self = Self::new(Symbol::new(0), Span::DUMMY);
+    pub const DUMMY: Self = Self::new(Symbol::DUMMY, Span::DUMMY);
 
     /// Constructs a new identifier from a symbol and a span.
     #[inline]
