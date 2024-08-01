@@ -95,7 +95,7 @@ impl Parser for Sulk {
         (|| -> sulk_parse::interface::Result {
             let source_map = sulk_parse::interface::SourceMap::empty();
             let sess = Session::with_tty_emitter(source_map.into());
-            let arena = sulk_parse::bumpalo::Bump::new();
+            let arena = sulk_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
                 sulk_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;

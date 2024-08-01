@@ -1,6 +1,5 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
-use bumpalo::boxed::Box;
 use itertools::Itertools;
 use std::num::IntErrorKind;
 use sulk_ast::{ast::*, token::*};
@@ -430,7 +429,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // or all the values until `||`.
             debug_assert!(
                 matches!(
-                    dis.last().map(|x| &x.components[..]),
+                    dis.last().map(|x| &x.components),
                     Some([
                         ..,
                         SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }
@@ -701,10 +700,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(super) fn parse_variable_definition_with(
         &mut self,
         flags: VarFlags,
-        ty: Option<Ty<'ast>>,
+        ty: Option<Type<'ast>>,
     ) -> PResult<'sess, VariableDefinition<'ast>> {
+        let mut lo = self.token.span;
         let ty = match ty {
-            Some(ty) => ty,
+            Some(ty) => {
+                lo = lo.with_lo(ty.span.lo());
+                ty
+            }
             None => {
                 // Ignore doc-comments.
                 let _ = self.parse_doc_comments()?;
@@ -800,12 +803,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.expect_semi()?;
         }
 
+        let span = lo.to(self.prev_token.span);
+
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";
-            self.dcx().err(msg).span(ty.span.to(self.prev_token.span)).emit();
+            self.dcx().err(msg).span(span).emit();
         }
 
         Ok(VariableDefinition {
+            span,
             ty,
             data_location,
             visibility,
@@ -1226,7 +1232,6 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
@@ -1235,7 +1240,7 @@ mod tests {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
-                let arena = Bump::new();
+                let arena = Arena::new();
                 let mut parser =
                     Parser::from_source_code(&sess, &arena, FileName::Custom(name), src)?;
 

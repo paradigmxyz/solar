@@ -1,9 +1,9 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
-use bumpalo::boxed::Box;
 use smallvec::SmallVec;
 use sulk_ast::{ast::*, token::*};
-use sulk_interface::{kw, Ident, Span};
+use sulk_data_structures::BumpExt;
+use sulk_interface::{kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
@@ -50,7 +50,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Err(self.dcx().err(msg).span(self.prev_token.span))
         } else if self.eat_keyword(kw::Try) {
             semi = false;
-            self.parse_stmt_try().map(StmtKind::Try)
+            self.parse_stmt_try().map(|stmt| StmtKind::Try(self.alloc(stmt)))
         } else if self.eat_keyword(kw::Assembly) {
             semi = false;
             self.parse_stmt_assembly().map(StmtKind::Assembly)
@@ -59,6 +59,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.check_keyword(kw::Revert) && self.look_ahead(1).is_ident() {
             self.bump(); // `revert`
             self.parse_path_call().map(|(path, params)| StmtKind::Revert(path, params))
+        } else if self.check_keyword(sym::underscore) && self.look_ahead(1).kind == TokenKind::Semi
+        {
+            self.bump(); // `_`
+            Ok(StmtKind::Placeholder)
         } else {
             self.parse_simple_stmt_kind()
         };
@@ -96,12 +100,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a do-while statement.
     fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let block = self.parse_block()?;
+        let stmt = self.parse_stmt()?;
+        let stmt = self.alloc(stmt);
         self.expect_keyword(kw::While)?;
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
         self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        Ok(StmtKind::DoWhile(block, expr))
+        Ok(StmtKind::DoWhile(stmt, expr))
     }
 
     /// Parses a for statement.
@@ -225,7 +230,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
                     let ty = iap.into_ty(self);
-                    self.parse_variable_definition_with(VarFlags::VAR, ty).map(StmtKind::DeclSingle)
+                    self.parse_variable_definition_with(VarFlags::VAR, ty)
+                        .map(|var| StmtKind::DeclSingle(self.alloc(var)))
                 }
                 LookAheadInfo::Expression => {
                     let expr = iap.into_expr(self);
@@ -274,7 +280,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a path and a list of call arguments.
-    fn parse_path_call(&mut self) -> PResult<'sess, (Path, CallArgs<'ast>)> {
+    fn parse_path_call(&mut self) -> PResult<'sess, (AstPath<'ast>, CallArgs<'ast>)> {
         let path = self.parse_path()?;
         let params = self.parse_call_args()?;
         Ok((path, params))
@@ -365,7 +371,7 @@ enum IapKind<'ast> {
     /// `<ident>` or `.<ident>`
     Member(Ident),
     /// `<ty>`
-    MemberTy(Span, TyKind<'ast>),
+    MemberTy(Span, ElementaryType),
 }
 
 #[derive(Debug, Default)]
@@ -376,26 +382,26 @@ struct IndexAccessedPath<'ast> {
 }
 
 impl<'ast> IndexAccessedPath<'ast> {
-    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Ty<'ast>> {
+    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
         // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
         let mut ty = if let IapKind::MemberTy(span, kind) = first {
             debug_assert_eq!(self.n_idents, 1);
-            Ty { span, kind }
+            Type { span, kind: TypeKind::Elementary(kind) }
         } else {
             debug_assert!(self.n_idents >= 1);
             let first = std::iter::once(&first);
-            let path: Path = first
+            let path = first
                 .chain(path.as_slice())
                 .map(|x| match x {
                     IapKind::Member(id) => *id,
                     kind => unreachable!("{kind:?}"),
                 })
-                .take(self.n_idents)
-                .collect();
-            Ty { span: path.span(), kind: TyKind::Custom(path) }
+                .take(self.n_idents);
+            let path = PathSlice::from_mut_slice(parser.arena.alloc_from_iter(path));
+            Type { span: path.span(), kind: TypeKind::Custom(path) }
         };
 
         for index in path.skip(self.n_idents - 1) {
@@ -409,7 +415,8 @@ impl<'ast> IndexAccessedPath<'ast> {
                 }
             };
             let span = ty.span.to(span);
-            ty = Ty { span, kind: TyKind::Array(parser.alloc(TypeArray { element: ty, size })) };
+            ty =
+                Type { span, kind: TypeKind::Array(parser.alloc(TypeArray { element: ty, size })) };
         }
 
         Some(ty)
@@ -421,7 +428,9 @@ impl<'ast> IndexAccessedPath<'ast> {
 
         let mut expr = parser.alloc(match path.next()? {
             IapKind::Member(ident) => Expr::from_ident(ident),
-            IapKind::MemberTy(span, kind) => Expr { span, kind: ExprKind::Type(Ty { span, kind }) },
+            IapKind::MemberTy(span, kind) => {
+                Expr { span, kind: ExprKind::Type(Type { span, kind: TypeKind::Elementary(kind) }) }
+            }
             IapKind::Index(..) => panic!("should not happen"),
         });
         for index in path {
@@ -449,7 +458,6 @@ fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bumpalo::Bump;
     use sulk_interface::{source_map::FileName, Result, Session};
 
     #[test]
@@ -459,7 +467,7 @@ mod tests {
                 let sess = Session::with_test_emitter();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
-                    let arena = Bump::new();
+                    let arena = Arena::new();
                     let mut parser =
                         Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
 

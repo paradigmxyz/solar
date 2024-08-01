@@ -1,5 +1,7 @@
-use crate::{hir, SmallSource};
-use std::marker::PhantomData;
+use crate::{
+    hir::{self, ContractId, SourceId},
+    SmallSource,
+};
 use sulk_ast::ast;
 use sulk_data_structures::{index::IndexVec, smallvec::SmallVec};
 
@@ -17,6 +19,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();
+                self.current_source_id = id;
                 for item in ast.items.iter() {
                     match &item.kind {
                         ast::ItemKind::Pragma(_)
@@ -29,13 +32,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_) => {
-                            let item_id = self.lower_item(item);
-                            if let hir::ItemId::Contract(contract_id) = item_id {
-                                self.hir.contracts[contract_id].source_id = id;
-                            }
-                            items.push(item_id)
-                        }
+                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
                     }
                 }
                 new_source.items = self.arena.alloc_slice_copy(&items);
@@ -54,7 +51,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
         let mut fallback = None;
         let mut receive = None;
         let mut items = SmallVec::<[_; 16]>::new();
-        self.resolver.current_contract_id = Some(self.hir.contracts.next_idx());
+        self.current_contract_id = Some(self.hir.contracts.next_idx());
         for item in contract.body.iter() {
             let id = match &item.kind {
                 ast::ItemKind::Pragma(_)
@@ -62,7 +59,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
                 | ast::ItemKind::Contract(_) => unreachable!("illegal item in contract body"),
                 ast::ItemKind::Using(_) => continue,
                 ast::ItemKind::Function(func) => {
-                    let id = self.lower_function(item, func);
+                    let hir::ItemId::Function(id) = self.lower_item(item) else { unreachable!() };
                     match func.kind {
                         ast::FunctionKind::Constructor
                         | ast::FunctionKind::Fallback
@@ -99,14 +96,13 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             };
             items.push(id);
         }
-        self.resolver.current_contract_id = None;
         let id = self.hir.contracts.push(hir::Contract {
-            name: contract.name,
+            source: self.current_source_id,
             span: item.span,
+            name: contract.name,
             kind: contract.kind,
 
-            // set later
-            source_id: hir::SourceId::new(0),
+            // Set later.
             bases: &[],
             linearized_bases: &[],
 
@@ -115,6 +111,8 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             receive,
             items: self.arena.alloc_slice_copy(&items),
         });
+        debug_assert_eq!(Some(id), self.current_contract_id);
+        self.current_contract_id = None;
         id
     }
 
@@ -125,7 +123,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             }
             ast::ItemKind::Contract(i) => hir::ItemId::Contract(self.lower_contract(item, i)),
             ast::ItemKind::Function(i) => hir::ItemId::Function(self.lower_function(item, i)),
-            ast::ItemKind::Variable(i) => hir::ItemId::Var(self.lower_variable(item, i)),
+            ast::ItemKind::Variable(i) => hir::ItemId::Variable(self.lower_variable(i)),
             ast::ItemKind::Struct(i) => hir::ItemId::Struct(self.lower_struct(item, i)),
             ast::ItemKind::Enum(i) => hir::ItemId::Enum(self.lower_enum(item, i)),
             ast::ItemKind::Udvt(i) => hir::ItemId::Udvt(self.lower_udvt(item, i)),
@@ -141,73 +139,148 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
         item: &ast::Item<'_>,
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
+        // handled later: body, modifiers, override_
+        let ast::ItemFunction { kind, ref header, body: _ } = *i;
+        let ast::FunctionHeader {
+            name,
+            ref parameters,
+            visibility,
+            state_mutability,
+            modifiers: _,
+            virtual_,
+            override_: _,
+            ref returns,
+        } = *header;
+        let params = self.lower_variables(parameters);
+        let returns = self.lower_variables(returns);
         self.hir.functions.push(hir::Function {
-            name: i.header.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            kind: i.kind,
-            contract: self.resolver.current_contract_id,
-            visibility: i.header.visibility,
-            _tmp: PhantomData,
+            name,
+            kind,
+            modifiers: &[],
+            virtual_,
+            overrides: &[],
+            visibility,
+            state_mutability,
+            params,
+            returns,
+            body: None,
         })
     }
 
-    fn lower_variable(
+    fn lower_variables(
         &mut self,
-        item: &ast::Item<'_>,
-        i: &ast::VariableDefinition<'_>,
-    ) -> hir::VarId {
-        self.hir.vars.push(hir::Var {
-            name: i.name,
-            span: item.span,
-            contract: self.resolver.current_contract_id,
-            visibility: i.visibility,
-            _tmp: PhantomData,
-        })
+        variables: &[ast::VariableDefinition<'_>],
+    ) -> &'hir [hir::VariableId] {
+        let mut vars = SmallVec::<[_; 16]>::new();
+        for var in variables {
+            vars.push(self.lower_variable(var));
+        }
+        self.arena.alloc_slice_copy(&vars)
+    }
+
+    fn lower_variable(&mut self, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
+        lower_variable(&mut self.hir, i, self.current_source_id, self.current_contract_id)
     }
 
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
+        // handled later: fields
+        let ast::ItemStruct { name, fields: _ } = *i;
         self.hir.structs.push(hir::Struct {
-            name: i.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            contract: self.resolver.current_contract_id,
-            _tmp: PhantomData,
+            name,
+            fields: &[],
         })
     }
 
     fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
+        let ast::ItemEnum { name, ref variants } = *i;
         self.hir.enums.push(hir::Enum {
-            name: i.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            variants: self.arena.alloc_slice_copy(&i.variants),
-            contract: self.resolver.current_contract_id,
+            name,
+            variants: self.arena.alloc_slice_copy(variants),
         })
     }
 
     fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
+        let ast::ItemUdvt { name, ref ty } = *i;
         self.hir.udvts.push(hir::Udvt {
-            name: i.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            contract: self.resolver.current_contract_id,
-            _tmp: PhantomData,
+            name,
+            ty: hir::Type {
+                span: ty.span,
+                kind: if let ast::TypeKind::Elementary(kind) = ty.kind {
+                    hir::TypeKind::Elementary(kind)
+                } else {
+                    let msg = "the underlying type of UDVTs must be an elementary value type";
+                    hir::TypeKind::Err(self.dcx().err(msg).span(ty.span).emit())
+                },
+            },
         })
     }
 
     fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
+        // handled later: parameters
+        let ast::ItemError { name, parameters: _ } = *i;
         self.hir.errors.push(hir::Error {
-            name: i.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            contract: self.resolver.current_contract_id,
-            _tmp: PhantomData,
+            name,
+            parameters: &[],
         })
     }
 
     fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
+        // handled later: parameters
+        let ast::ItemEvent { name, parameters: _, anonymous } = *i;
         self.hir.events.push(hir::Event {
-            name: i.name,
+            source: self.current_source_id,
+            contract: self.current_contract_id,
             span: item.span,
-            contract: self.resolver.current_contract_id,
-            anonymous: i.anonymous,
-            _tmp: PhantomData,
+            name,
+            anonymous,
+            parameters: &[],
         })
     }
+}
+
+pub(super) fn lower_variable(
+    hir: &mut hir::Hir<'_>,
+    i: &ast::VariableDefinition<'_>,
+    source: SourceId,
+    contract: Option<ContractId>,
+) -> hir::VariableId {
+    // handled later: ty, override_, initializer
+    let ast::VariableDefinition {
+        span,
+        ty: _,
+        visibility,
+        mutability,
+        data_location,
+        override_: _,
+        indexed,
+        name,
+        initializer: _,
+    } = *i;
+    hir.variables.push(hir::Variable {
+        source,
+        contract,
+        span,
+        ty: hir::Type::DUMMY,
+        name,
+        visibility,
+        mutability,
+        data_location,
+        indexed,
+        initializer: None,
+    })
 }

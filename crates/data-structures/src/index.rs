@@ -164,6 +164,7 @@ mod tests {
     fn base_index() {
         assert_eq!(BaseIndex32::new(0).get(), 0);
         assert_eq!(BaseIndex32::new(1).get(), 1);
+        assert_eq!(BaseIndex32::MAX.get(), BaseIndex32::MAX_AS);
         assert_eq!(BaseIndex32::MAX.get(), 0xFFFF_FF00);
         assert_eq!(BaseIndex32::new(0xFFFF_FF00).get(), 0xFFFF_FF00);
     }

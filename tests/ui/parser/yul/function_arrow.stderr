@@ -1,0 +1,9 @@
+error: expected identifier, found `{`
+  --> $DIR/function_arrow.yul:2:21
+   |
+LL |     function f() -> {}
+   |                     ^
+   |
+
+error: aborting due to 1 previous error
+

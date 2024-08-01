@@ -5,7 +5,6 @@ use sulk_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
-    // TODO: Desugar here.
     validate(sess, ast);
 }
 
@@ -76,5 +75,5 @@ impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
 
     fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt<'ast>) {}
 
-    fn visit_ty(&mut self, _ty: &'ast ast::Ty<'ast>) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
 }

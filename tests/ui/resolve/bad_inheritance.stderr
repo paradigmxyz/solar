@@ -1,4 +1,4 @@
-error: unresolved import `does_not_exist`
+error: declaration `does_not_exist` not found in $DIR/bad_inheritance.sol
   --> $DIR/bad_inheritance.sol:3:9
    |
 LL | import {does_not_exist} from "./bad_inheritance.sol";

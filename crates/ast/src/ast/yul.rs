@@ -1,7 +1,6 @@
 //! Yul AST.
 
-use super::{DocComments, Lit, Path, StrLit};
-use bumpalo::boxed::Box;
+use super::{AstPath, Box, DocComments, Lit, StrLit};
 use sulk_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
@@ -25,7 +24,7 @@ pub struct Object<'ast> {
     /// Sub-objects, if any.
     pub children: Box<'ast, [Object<'ast>]>,
     /// `data` segments, if any.
-    pub data: Box<'ast, [Data]>,
+    pub data: Box<'ast, [Data<'ast>]>,
 }
 
 /// A Yul `code` block. See [`Object`].
@@ -41,14 +40,14 @@ pub struct CodeBlock<'ast> {
 }
 
 /// A Yul `data` segment. See [`Object`].
-#[derive(Clone, Debug)]
-pub struct Data {
+#[derive(Debug)]
+pub struct Data<'ast> {
     /// The span of the code block, including the `data` keyword.
     pub span: Span,
     /// The name of the data segment.
     pub name: StrLit,
     /// The data. Can only be a `Str` or `HexStr` literal.
-    pub data: Lit,
+    pub data: &'ast mut Lit,
 }
 
 /// A Yul statement.
@@ -75,14 +74,14 @@ pub enum StmtKind<'ast> {
     /// A single-variable assignment statement: `x := 1`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignSingle(Path, Expr<'ast>),
+    AssignSingle(AstPath<'ast>, Expr<'ast>),
 
     /// A multiple-variable assignment statement: `x, y, z := foo(1, 2)`.
     ///
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Box<'ast, [Path]>, ExprCall<'ast>),
+    AssignMulti(Box<'ast, [AstPath<'ast>]>, ExprCall<'ast>),
 
     /// An expression statement. This can only be a function call.
     Expr(ExprCall<'ast>),
@@ -147,7 +146,7 @@ pub struct StmtSwitch<'ast> {
 /// See [`StmtSwitch`] for more information.
 #[derive(Debug)]
 pub struct StmtSwitchCase<'ast> {
-    pub constant: Lit,
+    pub constant: &'ast mut Lit,
     pub body: Block<'ast>,
 }
 
@@ -175,11 +174,11 @@ pub struct Expr<'ast> {
 #[derive(Debug)]
 pub enum ExprKind<'ast> {
     /// A single path.
-    Path(Path),
+    Path(AstPath<'ast>),
     /// A function call: `foo(a, b)`.
     Call(ExprCall<'ast>),
     /// A literal.
-    Lit(Lit),
+    Lit(&'ast mut Lit),
 }
 
 /// A Yul function call expression: `foo(a, b)`.

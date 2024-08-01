@@ -1,5 +1,4 @@
-use super::{Lit, SubDenomination, Ty};
-use bumpalo::boxed::Box;
+use super::{Box, Lit, SubDenomination, Type};
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -15,6 +14,12 @@ pub struct Expr<'ast> {
     pub kind: ExprKind<'ast>,
 }
 
+impl AsRef<Self> for Expr<'_> {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
+
 impl<'ast> Expr<'ast> {
     /// Creates a new expression from an identifier.
     pub fn from_ident(ident: Ident) -> Self {
@@ -22,7 +27,7 @@ impl<'ast> Expr<'ast> {
     }
 
     /// Creates a new expression from a type.
-    pub fn from_ty(ty: Ty<'ast>) -> Self {
+    pub fn from_ty(ty: Type<'ast>) -> Self {
         Self { span: ty.span, kind: ExprKind::Type(ty) }
     }
 }
@@ -55,13 +60,13 @@ pub enum ExprKind<'ast> {
     Index(Box<'ast, Expr<'ast>>, IndexKind<'ast>),
 
     /// A literal: `hex"1234"`, `5.6 ether`.
-    Lit(Lit, Option<SubDenomination>),
+    Lit(&'ast mut Lit, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
     Member(Box<'ast, Expr<'ast>>, Ident),
 
     /// A `new` expression: `new Contract`.
-    New(Ty<'ast>),
+    New(Type<'ast>),
 
     /// A `payable` expression: `payable(address(0x...))`.
     Payable(CallArgs<'ast>),
@@ -72,18 +77,18 @@ pub enum ExprKind<'ast> {
     /// A tuple expression: `(a,,, b, c, d)`.
     Tuple(Box<'ast, [Option<Box<'ast, Expr<'ast>>>]>),
 
-    /// A `type()` expression: `type(uint256)`
-    TypeCall(Ty<'ast>),
+    /// A `type()` expression: `type(uint256)`.
+    TypeCall(Type<'ast>),
 
     /// An elementary type name: `uint256`.
-    Type(Ty<'ast>),
+    Type(Type<'ast>),
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, Box<'ast, Expr<'ast>>),
 }
 
 /// A binary operation: `a + b`, `a += b`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct BinOp {
     pub span: Span,
     pub kind: BinOpKind,
@@ -199,7 +204,7 @@ impl BinOpKind {
 }
 
 /// A unary operation: `!x`, `-x`, `x++`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct UnOp {
     pub span: Span,
     pub kind: UnOpKind,

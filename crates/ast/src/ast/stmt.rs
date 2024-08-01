@@ -1,5 +1,7 @@
-use super::{yul, CallArgs, DocComments, Expr, ParameterList, Path, StrLit, VariableDefinition};
-use bumpalo::boxed::Box;
+use super::{
+    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
+    VariableDefinition,
+};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
@@ -22,7 +24,7 @@ pub enum StmtKind<'ast> {
     Assembly(StmtAssembly<'ast>),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDefinition<'ast>),
+    DeclSingle(Box<'ast, VariableDefinition<'ast>>),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
@@ -39,10 +41,10 @@ pub enum StmtKind<'ast> {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Block<'ast>, Box<'ast, Expr<'ast>>),
+    DoWhile(Box<'ast, Stmt<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(Path, CallArgs<'ast>),
+    Emit(Box<'ast, PathSlice>, CallArgs<'ast>),
 
     /// An expression with a trailing semicolon.
     Expr(Box<'ast, Expr<'ast>>),
@@ -55,24 +57,26 @@ pub enum StmtKind<'ast> {
         body: Box<'ast, Stmt<'ast>>,
     },
 
-    /// An `if` statement with an optional `else` block: `if (expr) { ... } else
-    /// { ... }`.
+    /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>, Option<Box<'ast, Stmt<'ast>>>),
 
     /// A return statement: `return 42;`.
     Return(Option<Box<'ast, Expr<'ast>>>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(Path, CallArgs<'ast>),
+    Revert(AstPath<'ast>, CallArgs<'ast>),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
-    Try(StmtTry<'ast>),
+    Try(Box<'ast, StmtTry<'ast>>),
 
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'ast>),
 
     /// A while statement: `while (i < 42) { ... }`.
     While(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>),
+
+    /// A modifier placeholder statement: `_;`.
+    Placeholder,
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
@@ -101,19 +105,10 @@ pub struct StmtTry<'ast> {
 
 /// A catch clause: `catch (...) { ... }`.
 ///
-/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
 pub struct CatchClause<'ast> {
     pub name: Option<Ident>,
     pub args: ParameterList<'ast>,
     pub block: Block<'ast>,
-}
-
-/// A kind of variable declaration statement.
-#[derive(Debug)]
-pub enum VarDeclKind<'ast> {
-    /// A single variable declaration: `uint x ...`.
-    Single(VariableDefinition<'ast>),
-    /// A tuple of variable declarations: `(uint x, uint y) ...`.
-    Tuple(Box<'ast, [Option<VariableDefinition<'ast>>]>),
 }

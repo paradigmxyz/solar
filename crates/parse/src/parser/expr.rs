@@ -1,5 +1,4 @@
 use crate::{PResult, Parser};
-use bumpalo::boxed::Box;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
 
@@ -181,11 +180,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             ExprKind::TypeCall(ty)
         } else if self.check_elementary_type() {
             let mut ty = self.parse_type()?;
-            if let TyKind::Address(b) = &mut ty.kind {
-                if *b {
+            if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind {
+                if *payable {
                     let msg = "`address payable` cannot be used in an expression";
                     self.dcx().err(msg).span(ty.span).emit();
-                    *b = false;
+                    *payable = false;
                 }
             }
             ExprKind::Type(ty)

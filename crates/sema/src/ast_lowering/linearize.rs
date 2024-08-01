@@ -1,4 +1,4 @@
-//! Performs the [C3 linearization algorithm] on all contracts in the HIR, in source order.
+//! Performs the [C3 linearization algorithm] on all contracts in the HIR.
 //!
 //! Modified from [`solc`].
 //!
@@ -6,6 +6,9 @@
 //!
 //! [C3 linearization algorithm]: https://en.wikipedia.org/wiki/C3_linearization
 //! [`solc`]: https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
+
+// TODO: Don't store our own ID in `linearized_bases`.
+// TODO: Parallelize this.
 
 use super::Declaration;
 use crate::hir;
@@ -62,8 +65,8 @@ impl super::LoweringContext<'_, '_, '_> {
                                         }
                                     }
                                     // Public state variable can override functions.
-                                    (Function(_a), Var(b)) => {
-                                        let v = self.hir.var(b);
+                                    (Function(_a), Variable(b)) => {
+                                        let v = self.hir.variable(b);
                                         if v.is_state_variable() && v.is_public() {
                                             continue;
                                         }
@@ -71,14 +74,11 @@ impl super::LoweringContext<'_, '_, '_> {
                                     _ => {}
                                 }
 
-                                let msg = "identifier already declared";
-                                let note = "previous declaration here";
-                                let mut first = self.hir.item(decl_item_id).span();
-                                let mut second = self.hir.item(conflict).span();
-                                if first.lo() > second.lo() {
-                                    std::mem::swap(&mut first, &mut second);
-                                }
-                                self.sess.dcx.err(msg).span(first).span_note(second, note).emit();
+                                super::resolve::report_conflict(
+                                    &self.sess.dcx,
+                                    self.hir.item(decl_item_id).span(),
+                                    Some(self.hir.item(conflict).span()),
+                                );
                             }
                         }
                     }
@@ -144,7 +144,10 @@ impl ContractLinearizer {
     fn c3_merge(&mut self) {
         self.remove_empty();
         while !self.is_empty() {
-            let Some(candidate) = self.next_candidate() else { return Default::default() };
+            let Some(candidate) = self.next_candidate() else {
+                self.result.clear();
+                return;
+            };
             self.result.push(candidate);
             self.remove_candidate(candidate);
             self.remove_empty();

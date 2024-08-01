@@ -1,4 +1,4 @@
-use bumpalo::boxed::Box;
+use super::Box;
 use semver::Op;
 use std::{cmp::Ordering, fmt};
 use sulk_interface::Span;

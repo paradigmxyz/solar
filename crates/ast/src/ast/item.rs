@@ -1,6 +1,5 @@
-use super::{Block, CallArgs, DocComments, Expr, Path, SemverReq, StrLit, Ty};
+use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
 use crate::token::Token;
-use bumpalo::boxed::Box;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
@@ -239,7 +238,7 @@ pub struct UsingDirective<'ast> {
     /// The list of paths.
     pub list: UsingList<'ast>,
     /// The type for which this `using` directive applies. This is `*` if the value is `None`.
-    pub ty: Option<Ty<'ast>>,
+    pub ty: Option<Type<'ast>>,
     pub global: bool,
 }
 
@@ -247,9 +246,9 @@ pub struct UsingDirective<'ast> {
 #[derive(Debug)]
 pub enum UsingList<'ast> {
     /// `A.B`
-    Single(Path),
+    Single(AstPath<'ast>),
     /// `{ A, B.add as + }`
-    Multiple(Box<'ast, [(Path, Option<UserDefinableOperator>)]>),
+    Multiple(Box<'ast, [(AstPath<'ast>, Option<UserDefinableOperator>)]>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -347,8 +346,6 @@ pub struct ItemFunction<'ast> {
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
-///
-/// Used by all [function items](ItemFunction) and the [function type](super::TyKind::Function).
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
     /// The name of the function.
@@ -405,6 +402,11 @@ impl FunctionKind {
         matches!(self, Self::Function)
     }
 
+    /// Returns `true` if the function is a constructor.
+    pub fn is_constructor(&self) -> bool {
+        matches!(self, Self::Constructor)
+    }
+
     /// Returns `true` if the function is a modifier.
     pub fn is_modifier(&self) -> bool {
         matches!(self, Self::Modifier)
@@ -417,7 +419,7 @@ impl FunctionKind {
 /// [i]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.inheritanceSpecifier
 #[derive(Debug)]
 pub struct Modifier<'ast> {
-    pub name: Path,
+    pub name: AstPath<'ast>,
     pub arguments: CallArgs<'ast>,
 }
 
@@ -425,7 +427,7 @@ pub struct Modifier<'ast> {
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Box<'ast, [Path]>,
+    pub paths: Box<'ast, [AstPath<'ast>]>,
 }
 
 /// A storage location.
@@ -520,7 +522,8 @@ impl Visibility {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
 #[derive(Debug)]
 pub struct VariableDefinition<'ast> {
-    pub ty: Ty<'ast>,
+    pub span: Span,
+    pub ty: Type<'ast>,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
     pub data_location: Option<DataLocation>,
@@ -589,7 +592,7 @@ pub struct ItemEnum<'ast> {
 #[derive(Debug)]
 pub struct ItemUdvt<'ast> {
     pub name: Ident,
-    pub ty: Ty<'ast>,
+    pub ty: Type<'ast>,
 }
 
 /// An error definition: `error Foo(uint256 a, uint256 b);`.

@@ -1,0 +1,16 @@
+error: expected modifier, found function
+  --> $DIR/modifiers.sol:21:28
+   |
+LL |     function bad1() public f1_2 {}
+   |                            ^^^^
+   |
+
+error: expected modifier, found function
+  --> $DIR/modifiers.sol:22:28
+   |
+LL |     function bad2() public f1_2() {}
+   |                            ^^^^
+   |
+
+error: aborting due to 2 previous errors
+

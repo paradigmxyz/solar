@@ -7,9 +7,10 @@ use sulk_interface::kw;
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_type(&mut self) -> PResult<'sess, Ty<'ast>> {
-        let mut ty =
-            self.parse_spanned(Self::parse_basic_ty_kind).map(|(span, kind)| Ty { span, kind })?;
+    pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
+        let mut ty = self
+            .parse_spanned(Self::parse_basic_ty_kind)
+            .map(|(span, kind)| Type { span, kind })?;
 
         // Parse suffixes.
         while self.eat(&TokenKind::OpenDelim(Delimiter::Bracket)) {
@@ -19,9 +20,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Some(self.parse_expr()?)
             };
             self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
-            ty = Ty {
+            ty = Type {
                 span: ty.span.to(self.prev_token.span),
-                kind: TyKind::Array(self.alloc(TypeArray { element: ty, size })),
+                kind: TypeKind::Array(self.alloc(TypeArray { element: ty, size })),
             };
         }
 
@@ -29,26 +30,42 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a type kind. Does not parse suffixes.
-    fn parse_basic_ty_kind(&mut self) -> PResult<'sess, TyKind<'ast>> {
+    fn parse_basic_ty_kind(&mut self) -> PResult<'sess, TypeKind<'ast>> {
         if self.check_elementary_type() {
-            self.parse_elementary_type()
+            self.parse_elementary_type().map(TypeKind::Elementary)
         } else if self.eat_keyword(kw::Function) {
-            self.parse_function_header(FunctionFlags::FUNCTION_TY)
-                .map(|x| TyKind::Function(self.alloc(x)))
+            self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
+                let FunctionHeader {
+                    name: _,
+                    parameters,
+                    visibility,
+                    state_mutability,
+                    modifiers: _,
+                    virtual_: _,
+                    override_: _,
+                    returns,
+                } = f;
+                TypeKind::Function(self.alloc(TypeFunction {
+                    parameters,
+                    visibility,
+                    state_mutability,
+                    returns,
+                }))
+            })
         } else if self.eat_keyword(kw::Mapping) {
-            self.parse_mapping_type().map(|x| TyKind::Mapping(self.alloc(x)))
+            self.parse_mapping_type().map(|x| TypeKind::Mapping(self.alloc(x)))
         } else if self.check_path() {
-            self.parse_path().map(TyKind::Custom)
+            self.parse_path().map(TypeKind::Custom)
         } else {
             self.unexpected()
         }
     }
 
     /// Parses an elementary type.
-    pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, TyKind<'ast>> {
+    pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, ElementaryType> {
         let id = self.parse_ident_any()?;
-        let kind = match id.name {
-            kw::Address => TyKind::Address(match self.parse_state_mutability() {
+        Ok(match id.name {
+            kw::Address => ElementaryType::Address(match self.parse_state_mutability() {
                 Some(StateMutability::Payable) => true,
                 None => false,
                 _ => {
@@ -57,26 +74,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     false
                 }
             }),
-            kw::Bool => TyKind::Bool,
-            kw::String => TyKind::String,
-            kw::Bytes => TyKind::Bytes,
-            kw::Fixed => TyKind::Fixed(TySize::ZERO, TyFixedSize::ZERO),
-            kw::UFixed => TyKind::UFixed(TySize::ZERO, TyFixedSize::ZERO),
-            kw::Int => TyKind::Int(TySize::ZERO),
-            kw::UInt => TyKind::UInt(TySize::ZERO),
-            s => {
-                return self.parse_dynamic_elementary_type(s.as_str()).map_err(|e| e.span(id.span))
-            }
-        };
-        Ok(kind)
+            kw::Bool => ElementaryType::Bool,
+            kw::String => ElementaryType::String,
+            kw::Bytes => ElementaryType::Bytes,
+            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
+            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
+            kw::Int => ElementaryType::Int(TypeSize::ZERO),
+            kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
+            s => self.parse_dynamic_elementary_type(s.as_str()).map_err(|e| e.span(id.span))?,
+        })
     }
 
     /// Parses `intN`, `uintN`, `bytesN`, `fixedMxN`, or `ufixedMxN`.
-    fn parse_dynamic_elementary_type(&mut self, original: &str) -> PResult<'sess, TyKind<'ast>> {
+    fn parse_dynamic_elementary_type(&mut self, original: &str) -> PResult<'sess, ElementaryType> {
         let s = original;
         if let Some(s) = s.strip_prefix("bytes") {
             debug_assert!(!s.is_empty());
-            return Ok(TyKind::FixedBytes(self.parse_fb_size(s)?));
+            return Ok(ElementaryType::FixedBytes(self.parse_fb_size(s)?));
         }
 
         let tmp = s.strip_prefix('u');
@@ -86,33 +100,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if let Some(s) = s.strip_prefix("int") {
             debug_assert!(!s.is_empty());
             let size = self.parse_int_size(s)?;
-            return Ok(if unsigned { TyKind::UInt(size) } else { TyKind::Int(size) });
+            return Ok(if unsigned {
+                ElementaryType::UInt(size)
+            } else {
+                ElementaryType::Int(size)
+            });
         }
 
         if let Some(s) = s.strip_prefix("fixed") {
             debug_assert!(!s.is_empty());
             let (m, n) = self.parse_fixed_size(s)?;
-            return Ok(if unsigned { TyKind::UFixed(m, n) } else { TyKind::Fixed(m, n) });
+            return Ok(if unsigned {
+                ElementaryType::UFixed(m, n)
+            } else {
+                ElementaryType::Fixed(m, n)
+            });
         }
 
         unreachable!("unexpected elementary type: {original:?}");
     }
 
-    fn parse_fb_size(&mut self, s: &str) -> PResult<'sess, TySize> {
-        self.parse_ty_size_u8(s, 1..=32, false).map(|x| TySize::new(x).unwrap())
+    fn parse_fb_size(&mut self, s: &str) -> PResult<'sess, TypeSize> {
+        self.parse_ty_size_u8(s, 1..=32, false).map(|x| TypeSize::new(x).unwrap())
     }
 
-    fn parse_int_size(&mut self, s: &str) -> PResult<'sess, TySize> {
-        self.parse_ty_size_u8(s, 1..=32, true).map(|x| TySize::new(x).unwrap())
+    fn parse_int_size(&mut self, s: &str) -> PResult<'sess, TypeSize> {
+        self.parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new(x).unwrap())
     }
 
-    fn parse_fixed_size(&mut self, s: &str) -> PResult<'sess, (TySize, TyFixedSize)> {
+    fn parse_fixed_size(&mut self, s: &str) -> PResult<'sess, (TypeSize, TypeFixedSize)> {
         let (m, n) = s
             .split_once('x')
             .ok_or_else(|| self.dcx().err("`fixed` sizes must be separated by exactly one 'x'"))?;
         let m = self.parse_int_size(m)?;
         let n = self.parse_ty_size_u8(n, 0..=80, false)?;
-        let n = TyFixedSize::new(n).unwrap();
+        let n = TypeFixedSize::new(n).unwrap();
         Ok((m, n))
     }
 

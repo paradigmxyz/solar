@@ -16,9 +16,11 @@
 pub mod hint;
 pub mod index;
 pub mod map;
-pub mod scope;
 pub mod sync;
 pub mod trustme;
+
+mod bump_ext;
+pub use bump_ext::BumpExt;
 
 mod captures;
 pub use captures::Captures;
@@ -30,3 +32,10 @@ mod on_drop;
 pub use on_drop::{defer, OnDrop};
 
 pub use smallvec;
+
+/// This calls the passed function while ensuring it won't be inlined into the caller.
+#[inline(never)]
+#[cold]
+pub fn outline<R>(f: impl FnOnce() -> R) -> R {
+    f()
+}

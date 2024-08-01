@@ -9,7 +9,6 @@
 #[macro_use]
 extern crate tracing;
 
-use bumpalo::Bump;
 use rayon::prelude::*;
 use std::{
     path::{Path, PathBuf},
@@ -40,9 +39,6 @@ pub mod hir;
 use hir::SourceId;
 
 mod ast_lowering;
-
-mod staging;
-pub use staging::SymbolCollector;
 
 #[derive(Default)]
 pub(crate) struct Sources<'ast> {
@@ -232,8 +228,8 @@ impl<'sess> Sema<'sess> {
     pub fn parse_and_resolve(&mut self) -> Result<()> {
         self.ensure_sources()?;
 
-        let ast_arenas = OnDrop::new(ThreadLocal::<Bump>::new(), |mut arenas| {
-            debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>(),);
+        let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
+            debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
             debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
         });
         let mut sources = self.parse(&ast_arenas);
@@ -255,7 +251,7 @@ impl<'sess> Sema<'sess> {
 
         sources.topo_sort();
 
-        let hir_arena = OnDrop::new(Bump::new(), |hir_arena| {
+        let hir_arena = OnDrop::new(hir::Arena::new(), |hir_arena| {
             debug!(hir_allocated = hir_arena.allocated_bytes());
             debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
         });
@@ -287,7 +283,7 @@ impl<'sess> Sema<'sess> {
 
     /// Parses all the loaded sources, recursing into imports.
     #[instrument(level = "debug", skip_all)]
-    fn parse<'ast>(&mut self, arenas: &'ast ThreadLocal<Bump>) -> Sources<'ast> {
+    fn parse<'ast>(&mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> Sources<'ast> {
         // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the values are
         // populated, so this is safe.
         let sources: Sources<'static> = std::mem::take(&mut self.sources);
@@ -309,7 +305,7 @@ impl<'sess> Sema<'sess> {
         sources
     }
 
-    fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast Bump) {
+    fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast ast::Arena) {
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
             let Some(source) = sources.get(current_file) else { break };
@@ -328,7 +324,11 @@ impl<'sess> Sema<'sess> {
         }
     }
 
-    fn parse_parallel<'ast>(&self, sources: &mut Sources<'ast>, arenas: &'ast ThreadLocal<Bump>) {
+    fn parse_parallel<'ast>(
+        &self,
+        sources: &mut Sources<'ast>,
+        arenas: &'ast ThreadLocal<ast::Arena>,
+    ) {
         let mut start = 0;
         loop {
             let base = start;
@@ -364,7 +364,7 @@ impl<'sess> Sema<'sess> {
     fn parse_one<'ast>(
         &self,
         file: &SourceFile,
-        arena: &'ast Bump,
+        arena: &'ast ast::Arena,
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
@@ -374,13 +374,7 @@ impl<'sess> Sema<'sess> {
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
         };
-        trace!(
-            // SAFETY: The data is not read, and the arena is not used during the iteration.
-            total =
-                unsafe { arena.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() },
-            allocated = arena.allocated_bytes(),
-            "AST arena stats",
-        );
+        trace!(allocated = arena.allocated_bytes(), used = arena.used_bytes(), "AST arena stats");
         r
     }
 }

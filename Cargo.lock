@@ -2231,6 +2231,7 @@ dependencies = [
  "sulk-data-structures",
  "sulk-interface",
  "sulk-macros",
+ "typed-arena",
 ]
 
 [[package]]
@@ -2260,6 +2261,7 @@ dependencies = [
 name = "sulk-data-structures"
 version = "0.0.0"
 dependencies = [
+ "bumpalo",
  "index_vec",
  "indexmap",
  "parking_lot",
@@ -2335,6 +2337,7 @@ dependencies = [
  "sulk-parse",
  "thread_local",
  "tracing",
+ "typed-arena",
 ]
 
 [[package]]
@@ -2656,6 +2659,12 @@ checksum = "98b98232a2447ce0a58f9a0bfb5f5e39647b5c597c994b63945fcccd1306fafb"
 dependencies = [
  "cc",
 ]
+
+[[package]]
+name = "typed-arena"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 
 [[package]]
 name = "typenum"

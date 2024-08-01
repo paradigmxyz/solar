@@ -137,6 +137,7 @@ declare_visitors! {
 
         fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition<'ast>) {
             let VariableDefinition {
+                span,
                 ty,
                 visibility: _,
                 mutability: _,
@@ -146,6 +147,7 @@ declare_visitors! {
                 name,
                 initializer,
             } = var;
+            self.visit_span #_mut(span);
             self.visit_ty #_mut(ty);
             if let Some(name) = name {
                 self.visit_ident #_mut(name);
@@ -155,27 +157,21 @@ declare_visitors! {
             }
         }
 
-        fn visit_ty(&mut self, ty: &'ast #mut Ty<'ast>) {
-            let Ty { span, kind } = ty;
+        fn visit_ty(&mut self, ty: &'ast #mut Type<'ast>) {
+            let Type { span, kind } = ty;
             self.visit_span #_mut(span);
             match kind {
-                TyKind::Address(_payable) => {}
-                TyKind::Bool => {}
-                TyKind::String => {}
-                TyKind::Bytes => {}
-                TyKind::Fixed(_m, _n) => {}
-                TyKind::UFixed(_m, _n) => {}
-                TyKind::Int(_n) => {}
-                TyKind::UInt(_n) => {}
-                TyKind::FixedBytes(_n) => {}
-                TyKind::Array(array) => {
+                TypeKind::Elementary(_) => {}
+                TypeKind::Array(array) => {
                     let TypeArray { element, size: _ } = &#mut **array;
                     self.visit_ty #_mut(element);
                 }
-                TyKind::Function(function) => {
-                    self.visit_function_header #_mut(function);
+                TypeKind::Function(function) => {
+                    let TypeFunction { parameters, visibility: _, state_mutability: _, returns } = &#mut **function;
+                    self.visit_parameter_list #_mut(parameters);
+                    self.visit_parameter_list #_mut(returns);
                 }
-                TyKind::Mapping(mapping) => {
+                TypeKind::Mapping(mapping) => {
                     let TypeMapping { key, key_name, value, value_name } = &#mut **mapping;
                     self.visit_ty #_mut(key);
                     if let Some(key_name) = key_name {
@@ -186,7 +182,7 @@ declare_visitors! {
                         self.visit_ident #_mut(value_name);
                     }
                 }
-                TyKind::Custom(path) => {
+                TypeKind::Custom(path) => {
                     self.visit_path #_mut(path);
                 }
             }
@@ -263,8 +259,8 @@ declare_visitors! {
                 }
                 StmtKind::Break => {}
                 StmtKind::Continue => {}
-                StmtKind::DoWhile(block, expr) => {
-                    self.visit_block #_mut(block);
+                StmtKind::DoWhile(stmt, expr) => {
+                    self.visit_stmt #_mut(stmt);
                     self.visit_expr #_mut(expr);
                 }
                 StmtKind::Emit(path, args) => {
@@ -308,10 +304,11 @@ declare_visitors! {
                 StmtKind::UncheckedBlock(block) => {
                     self.visit_block #_mut(block);
                 }
-                StmtKind::While(cond, block) => {
+                StmtKind::While(cond, stmt) => {
                     self.visit_expr #_mut(cond);
-                    self.visit_stmt #_mut(block);
+                    self.visit_stmt #_mut(stmt);
                 }
+                StmtKind::Placeholder => {}
             }
         }
 
@@ -563,7 +560,7 @@ declare_visitors! {
             self.visit_span #_mut(span);
         }
 
-        fn visit_path(&mut self, path: &'ast #mut Path) {
+        fn visit_path(&mut self, path: &'ast #mut PathSlice) {
             for ident in path.segments #_mut() {
                 self.visit_ident #_mut(ident);
             }

@@ -90,10 +90,15 @@ pub fn run_tests(cmd: &'static Path) -> i32 {
     }
     tests.sort_by(|a, b| a.desc.name.as_slice().cmp(b.desc.name.as_slice()));
 
+    if opts.list {
+        eprintln!("cannot list tests");
+        return 1;
+    }
+
     match test::run_tests_console(&opts, tests) {
         Ok(true) => 0,
         Ok(false) => {
-            eprintln!("Some tests failed");
+            eprintln!("some tests failed");
             1
         }
         Err(e) => {
@@ -211,8 +216,12 @@ fn collect_tests(config: &Config, mode: Mode) -> impl Iterator<Item = walkdir::D
         Mode::SolcYul => true,
     };
     let f = move |entry: &walkdir::DirEntry| {
-        entry.path().extension() == Some("sol".as_ref())
-            || (yul && entry.path().extension() == Some("yul".as_ref()))
+        let path = entry.path();
+        if entry.file_type().is_dir() && path.file_stem() == Some("aux".as_ref()) {
+            return false;
+        }
+        path.extension() == Some("sol".as_ref())
+            || (yul && path.extension() == Some("yul".as_ref()))
     };
     walkdir::WalkDir::new(root).sort_by_file_name().into_iter().filter_map(Result::ok).filter(f)
 }
