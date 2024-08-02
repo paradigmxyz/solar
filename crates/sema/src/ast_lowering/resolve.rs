@@ -63,6 +63,7 @@ impl super::LoweringContext<'_, '_, '_> {
                             // Import all declarations.
                             for (&name, decls) in &import_scope.declarations {
                                 for decl in decls {
+                                    // Re-span to the import statement.
                                     let mut decl = *decl;
                                     decl.span = import_item.span;
                                     let _ = source_scope.declare(self.sess, &self.hir, name, decl);
@@ -115,7 +116,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let resolved = resolved.as_ref();
             debug_assert!(!resolved.is_empty());
             for decl in resolved {
-                // Re-span to the span at the import site.
+                // Re-span to the import name.
                 let mut decl = *decl;
                 decl.span = name.span;
                 let _ = source_scope.declare(sess, hir, name.name, decl);
