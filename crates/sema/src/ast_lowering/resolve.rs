@@ -210,11 +210,11 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
 
         for id in self.hir.strukt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Struct(id)];
-            let ast::ItemKind::Struct(ast_strut) = &ast_item.kind else { unreachable!() };
+            let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             let mut cx = mk_resolver!(strukt);
             self.hir.structs[id].fields =
-                self.arena.alloc_from_iter(ast_strut.fields.iter().map(|field| {
+                self.arena.alloc_from_iter(ast_struct.fields.iter().map(|field| {
                     let name = field.name.unwrap_or_default();
                     let ty = cx.lower_type(&field.ty);
                     hir::StructField { ty, name }
@@ -360,7 +360,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     }
 }
 
-/// Lowers and resolves a single AST body, meaning a variable or function's statements.
+/// Symbol resolution context.
 struct ResolveContext<'sess, 'hir, 'a> {
     sess: &'sess Session,
     arena: &'hir hir::Arena,

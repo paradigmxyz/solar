@@ -222,7 +222,7 @@ macro_rules! resolve_imports {
                 }
             })
             .filter_map(move |(id, import, span)| {
-                let path_bytes = escape_for_import_path(import.path.value.as_str())?;
+                let path_bytes = escape_import_path(import.path.value.as_str())?;
                 let Some(path) = path_from_bytes(&path_bytes[..]) else {
                     this.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
                     return None;
@@ -237,7 +237,7 @@ macro_rules! resolve_imports {
 }
 use resolve_imports;
 
-fn escape_for_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
+fn escape_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
     let mut any_error = false;
     let path_str =
         unescape::try_parse_string_literal(path_str, unescape::Mode::Str, |_, _| any_error = true);

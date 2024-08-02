@@ -1,5 +1,4 @@
 use crate::{SessionGlobals, Span};
-use lasso::Resolver;
 use std::{cmp, fmt, hash, str};
 use sulk_data_structures::{index::BaseIndex32, trustme};
 use sulk_macros::symbols;
@@ -187,7 +186,7 @@ impl Default for Symbol {
 
 impl Symbol {
     /// A dummy symbol.
-    pub const DUMMY: Self = sym::underscore;
+    pub const DUMMY: Self = Self(BaseIndex32::MAX);
 
     const fn new(n: u32) -> Self {
         Self(BaseIndex32::new(n))
@@ -387,7 +386,7 @@ impl LassoInterner {
 
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
-        unsafe { self.0.resolve_unchecked(&symbol) }
+        self.0.resolve(&symbol)
     }
 }
 
