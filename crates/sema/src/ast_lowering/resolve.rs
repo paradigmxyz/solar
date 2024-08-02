@@ -9,7 +9,7 @@ use sulk_data_structures::{
 };
 use sulk_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    Ident, Session, Span,
+    Ident, Session, Span, Symbol,
 };
 
 impl super::LoweringContext<'_, '_, '_> {
@@ -22,8 +22,11 @@ impl super::LoweringContext<'_, '_, '_> {
             .map(|source| {
                 let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
-                    if let Some(name) = self.hir.item(item_id).name() {
-                        scope.declare(name, Declaration::Item(item_id));
+                    let item = self.hir.item(item_id);
+                    if let Some(name) = item.name() {
+                        let decl =
+                            Declaration { kind: DeclarationKind::Item(item_id), span: name.span };
+                        let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
                 scope
@@ -35,8 +38,8 @@ impl super::LoweringContext<'_, '_, '_> {
     pub(super) fn perform_imports(&mut self, sources: &ParsedSources<'_>) {
         for (source_id, source) in self.hir.sources_enumerated() {
             for &(item_id, import_id) in source.imports {
-                let item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
-                let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
+                let import_item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
+                let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = super::get_two_mut_idx(
                         &mut self.resolver.source_scopes,
@@ -50,9 +53,21 @@ impl super::LoweringContext<'_, '_, '_> {
                 match import.items {
                     ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                         if let Some(alias) = alias {
-                            source_scope.declare(alias, Declaration::Namespace(import_id));
+                            let _ = source_scope.declare_kind(
+                                self.sess,
+                                &self.hir,
+                                alias,
+                                DeclarationKind::Namespace(import_id),
+                            );
                         } else if let Some(import_scope) = import_scope {
-                            source_scope.import(import_scope);
+                            // Import all declarations.
+                            for (&name, decls) in &import_scope.declarations {
+                                for decl in decls {
+                                    let mut decl = *decl;
+                                    decl.span = import_item.span;
+                                    let _ = source_scope.declare(self.sess, &self.hir, name, decl);
+                                }
+                            }
                         }
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
@@ -61,6 +76,7 @@ impl super::LoweringContext<'_, '_, '_> {
                             if let Some(import_scope) = import_scope {
                                 Self::perform_alias_import(
                                     self.sess,
+                                    &self.hir,
                                     source,
                                     source_scope,
                                     name,
@@ -70,6 +86,7 @@ impl super::LoweringContext<'_, '_, '_> {
                             } else {
                                 Self::perform_alias_import(
                                     self.sess,
+                                    &self.hir,
                                     source,
                                     source_scope,
                                     name,
@@ -87,6 +104,7 @@ impl super::LoweringContext<'_, '_, '_> {
     /// Separate function to avoid cloning `resolved` when the import is not a self-import.
     fn perform_alias_import(
         sess: &Session,
+        hir: &hir::Hir<'_>,
         source: &hir::Source<'_>,
         source_scope: &mut Declarations,
         name: Ident,
@@ -96,14 +114,19 @@ impl super::LoweringContext<'_, '_, '_> {
         if let Some(resolved) = resolved {
             let resolved = resolved.as_ref();
             debug_assert!(!resolved.is_empty());
-            source_scope.declare_many(name, resolved.iter().copied());
+            for decl in resolved {
+                // Re-span to the span at the import site.
+                let mut decl = *decl;
+                decl.span = name.span;
+                let _ = source_scope.declare(sess, hir, name.name, decl);
+            }
         } else {
             let msg = format!(
                 "declaration `{import}` not found in {}",
                 sess.source_map().filename_for_diagnostics(&source.file.name)
             );
             let guar = sess.dcx.err(msg).span(import.span).emit();
-            source_scope.declare(name, Declaration::Err(guar));
+            let _ = source_scope.declare_kind(sess, hir, name, DeclarationKind::Err(guar));
         }
     }
 
@@ -120,7 +143,8 @@ impl super::LoweringContext<'_, '_, '_> {
                 let mut scope = Declarations::with_capacity(contract.items.len());
                 for &item_id in contract.items {
                     if let Some(name) = self.hir.item(item_id).name() {
-                        scope.declare(name, Declaration::Item(item_id));
+                        let _ =
+                            self.declare_kind_in(&mut scope, name, DeclarationKind::Item(item_id));
                     }
                 }
                 scope
@@ -302,9 +326,11 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             let func = self.hir.function(id);
             for &param in func.params.iter().chain(func.returns) {
                 let Some(name) = self.hir.variable(param).name else { continue };
-                scope
-                    .try_declare(name, Declaration::Item(hir::ItemId::Variable(param)))
-                    .unwrap_or_else(|conflict| _ = self.report_conflict(name, conflict));
+                let _ = self.declare_kind_in(
+                    scope,
+                    name,
+                    DeclarationKind::Item(hir::ItemId::Variable(param)),
+                );
             }
 
             if let Some(body) = &ast_func.body {
@@ -314,40 +340,23 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
         }
     }
 
-    fn report_conflict(&self, name: Ident, conflict: Declaration) -> ErrorGuaranteed {
-        report_conflict_hir(&self.hir, self.dcx(), name, conflict)
+    fn declare_kind_in(
+        &self,
+        scope: &mut Declarations,
+        name: Ident,
+        decl: DeclarationKind,
+    ) -> Result<(), ErrorGuaranteed> {
+        scope.declare_kind(self.sess, &self.hir, name, decl)
     }
-}
 
-fn report_conflict_hir(
-    hir: &hir::Hir<'_>,
-    dcx: &DiagCtxt,
-    name: Ident,
-    conflict: Declaration,
-) -> ErrorGuaranteed {
-    let second = match conflict {
-        Declaration::Item(id) => Some(hir.item(id).span()),
-        Declaration::Namespace(_) => None,
-        Declaration::Err(_) => None,
-    };
-    report_conflict(dcx, name.span, second)
-}
-
-pub(super) fn report_conflict(
-    dcx: &DiagCtxt,
-    mut first: Span,
-    mut second: Option<Span>,
-) -> ErrorGuaranteed {
-    if let Some(second) = &mut second {
-        if first.lo() > second.lo() {
-            std::mem::swap(&mut first, second);
-        }
+    fn declare_in(
+        &self,
+        scope: &mut Declarations,
+        name: Symbol,
+        decl: Declaration,
+    ) -> Result<(), ErrorGuaranteed> {
+        scope.declare(self.sess, &self.hir, name, decl)
     }
-    let mut err = dcx.err("identifier already declared");
-    if let Some(second) = second {
-        err = err.span_note(second, "previous declaration here");
-    }
-    err.emit()
 }
 
 /// Lowers and resolves a single AST body, meaning a variable or function's statements.
@@ -395,7 +404,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         }
     }
 
-    fn resolve_path_as<T: TryFrom<Declaration>>(
+    fn resolve_path_as<T: TryFrom<DeclarationKind>>(
         &self,
         path: &ast::PathSlice,
         description: &str,
@@ -500,10 +509,8 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             // Should've been reported already.
             return Err(ErrorGuaranteed::new_unchecked());
         };
-        let decl = Declaration::Item(hir::ItemId::Variable(id));
-        if let Err(conflict) = self.scopes.current_scope().try_declare(name, decl) {
-            return Err(self.report_conflict(name, conflict));
-        }
+        let decl = DeclarationKind::Item(hir::ItemId::Variable(id));
+        let _ = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
         Ok(id)
     }
 
@@ -732,10 +739,6 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     fn next_id<I: Idx>(&self) -> I {
         I::from_usize(self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
     }
-
-    fn report_conflict(&self, name: Ident, conflict: Declaration) -> ErrorGuaranteed {
-        report_conflict_hir(self.hir, self.dcx(), name, conflict)
-    }
 }
 
 enum ResolverError {
@@ -770,17 +773,17 @@ impl<'sess> SymbolResolver<'sess> {
         Self { dcx, source_scopes: IndexVec::new(), contract_scopes: IndexVec::new() }
     }
 
-    fn resolve_path_as<T: TryFrom<Declaration>>(
+    fn resolve_path_as<T: TryFrom<DeclarationKind>>(
         &self,
         path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         let decl = self.resolve_path(path, scopes)?;
-        if let Declaration::Err(guard) = decl {
+        if let DeclarationKind::Err(guard) = decl.kind {
             return Err(guard);
         }
-        T::try_from(decl)
+        T::try_from(decl.kind)
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
@@ -802,14 +805,14 @@ impl<'sess> SymbolResolver<'sess> {
         let mut decl = self
             .resolve_name_raw(*segments.next().unwrap(), scopes)
             .ok_or(ResolverError::Unresolved(0))?;
-        if let Declaration::Err(_) = decl {
+        if decl.is_err() {
             return Ok(decl);
         }
         for (i, &segment) in segments.enumerate() {
             let i = i as u32 + 1;
-            let scope = self.scope_of(decl).ok_or(ResolverError::NotAScope(i))?;
+            let scope = self.scope_of(decl.kind).ok_or(ResolverError::NotAScope(i))?;
             decl = scope.resolve_single(segment).ok_or(ResolverError::Unresolved(i))?;
-            if let Declaration::Err(_) = decl {
+            if decl.is_err() {
                 return Ok(decl);
             }
         }
@@ -820,10 +823,10 @@ impl<'sess> SymbolResolver<'sess> {
         scopes.get(self).find_map(move |scope| scope.resolve_single(name))
     }
 
-    fn scope_of(&self, declaration: Declaration) -> Option<&Declarations> {
+    fn scope_of(&self, declaration: DeclarationKind) -> Option<&Declarations> {
         match declaration {
-            Declaration::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
-            Declaration::Namespace(id) => Some(&self.source_scopes[id]),
+            DeclarationKind::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
+            DeclarationKind::Namespace(id) => Some(&self.source_scopes[id]),
             _ => None,
         }
     }
@@ -895,10 +898,10 @@ impl SymbolResolverScopes {
 
 #[derive(Debug)]
 pub(super) struct Declarations {
-    pub(super) declarations: FxIndexMap<Ident, DeclarationsInner>,
+    pub(super) declarations: FxIndexMap<Symbol, DeclarationsInner>,
 }
 
-type DeclarationsInner = SmallVec<[Declaration; 2]>;
+type DeclarationsInner = SmallVec<[Declaration; 1]>;
 
 impl Declarations {
     fn new() -> Self {
@@ -910,11 +913,11 @@ impl Declarations {
     }
 
     pub(super) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
-        self.declarations.get(&name).map(std::ops::Deref::deref)
+        self.declarations.get(&name.name).map(std::ops::Deref::deref)
     }
 
     pub(super) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
-        self.declarations.get(&name).cloned()
+        self.declarations.get(&name.name).cloned()
     }
 
     pub(super) fn resolve_single(&self, name: Ident) -> Option<Declaration> {
@@ -925,34 +928,42 @@ impl Declarations {
         decls.first().copied()
     }
 
-    pub(super) fn declare(&mut self, name: Ident, decl: Declaration) {
-        self.declare_many(name, std::iter::once(decl));
+    /// Declares `Ident { name, span } => kind` by converting it to
+    /// `name => Declaration { kind, span }`.
+    #[inline]
+    pub(super) fn declare_kind(
+        &mut self,
+        sess: &Session,
+        hir: &hir::Hir<'_>,
+        name: Ident,
+        kind: DeclarationKind,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.declare(sess, hir, name.name, Declaration { kind, span: name.span })
     }
 
-    pub(super) fn declare_many(
+    pub(super) fn declare(
         &mut self,
-        name: Ident,
-        decls: impl IntoIterator<Item = Declaration>,
-    ) {
-        let v = self.declarations.entry(name).or_default();
-        for decl in decls {
-            if !v.contains(&decl) {
-                v.push(decl);
-            }
-        }
+        sess: &Session,
+        hir: &hir::Hir<'_>,
+        name: Symbol,
+        decl: Declaration,
+    ) -> Result<(), ErrorGuaranteed> {
+        self.try_declare(hir, name, decl)
+            .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
     }
 
     pub(super) fn try_declare(
         &mut self,
-        name: Ident,
+        hir: &hir::Hir<'_>,
+        name: Symbol,
         decl: Declaration,
     ) -> Result<(), Declaration> {
         match self.declarations.entry(name) {
             IndexEntry::Occupied(entry) => {
-                let declarations = entry.into_mut();
-                if let Some(conflict) = Self::conflicting_declaration(decl, declarations) {
+                if let Some(conflict) = Self::conflicting_declaration(hir, decl, entry.get()) {
                     return Err(conflict);
                 }
+                let declarations = entry.into_mut();
                 if !declarations.contains(&decl) {
                     declarations.push(decl);
                 }
@@ -965,43 +976,64 @@ impl Declarations {
     }
 
     fn conflicting_declaration(
+        hir: &hir::Hir<'_>,
         decl: Declaration,
         declarations: &[Declaration],
     ) -> Option<Declaration> {
         use hir::ItemId::*;
-        use Declaration::*;
+        use DeclarationKind::*;
 
-        // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L101
-        if matches!(decl, Item(Function(_) | Event(_))) {
-            for &decl2 in declarations {
-                if matches!(decl, Item(Function(_))) && !matches!(decl2, Item(Function(_))) {
-                    return Some(decl2);
-                }
-                if matches!(decl, Item(Event(_))) && !matches!(decl2, Item(Event(_))) {
-                    return Some(decl2);
+        if declarations.is_empty() {
+            return None;
+        }
+
+        // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
+        if matches!(decl.kind, Item(Function(_) | Event(_))) {
+            if let Item(Function(f)) = decl.kind {
+                let f = hir.function(f);
+                if !f.kind.is_ordinary() {
+                    return Some(declarations[0]);
                 }
             }
-            None
+            let same_kind = |decl2: &Declaration| match &decl2.kind {
+                Item(Function(f)) => hir.function(*f).kind.is_ordinary(),
+                k => k.matches(&decl.kind),
+            };
+            declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
         } else if declarations == [decl] {
             None
-        } else if !declarations.is_empty() {
-            Some(declarations[0])
         } else {
-            None
-        }
-    }
-
-    pub(super) fn import(&mut self, other: &Self) {
-        self.declarations.reserve(other.declarations.len());
-        for (name, decls) in &other.declarations {
-            self.declare_many(*name, decls.iter().copied());
+            Some(declarations[0])
         }
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Declaration {
+    pub(super) kind: DeclarationKind,
+    pub(super) span: Span,
+}
+
+impl std::ops::Deref for Declaration {
+    type Target = DeclarationKind;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.kind
+    }
+}
+
+impl PartialEq for Declaration {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Eq for Declaration {}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub(super) enum Declaration {
+pub(super) enum DeclarationKind {
     /// A resolved item.
     Item(hir::ItemId),
     /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
@@ -1010,7 +1042,7 @@ pub(super) enum Declaration {
     Err(ErrorGuaranteed),
 }
 
-impl fmt::Debug for Declaration {
+impl fmt::Debug for DeclarationKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Declaration::")?;
         match self {
@@ -1021,7 +1053,7 @@ impl fmt::Debug for Declaration {
     }
 }
 
-impl From<hir::ItemId> for Declaration {
+impl From<hir::ItemId> for DeclarationKind {
     fn from(id: hir::ItemId) -> Self {
         Self::Item(id)
     }
@@ -1030,10 +1062,10 @@ impl From<hir::ItemId> for Declaration {
 macro_rules! impl_try_from {
     ($($t:ty => $pat:pat => $e:expr),* $(,)?) => {
         $(
-            impl TryFrom<Declaration> for $t {
+            impl TryFrom<DeclarationKind> for $t {
                 type Error = ();
 
-                fn try_from(decl: Declaration) -> Result<Self, ()> {
+                fn try_from(decl: DeclarationKind) -> Result<Self, ()> {
                     match decl {
                         $pat => $e,
                         _ => Err(()),
@@ -1045,15 +1077,15 @@ macro_rules! impl_try_from {
 }
 
 impl_try_from!(
-    hir::ItemId => Declaration::Item(id) => Ok(id),
-    hir::ContractId => Declaration::Item(hir::ItemId::Contract(id)) => Ok(id),
+    hir::ItemId => DeclarationKind::Item(id) => Ok(id),
+    hir::ContractId => DeclarationKind::Item(hir::ItemId::Contract(id)) => Ok(id),
     // hir::FunctionId => Declaration::Item(hir::ItemId::Function(id)) => Ok(id),
-    hir::EventId => Declaration::Item(hir::ItemId::Event(id)) => Ok(id),
-    hir::ErrorId => Declaration::Item(hir::ItemId::Error(id)) => Ok(id),
+    hir::EventId => DeclarationKind::Item(hir::ItemId::Event(id)) => Ok(id),
+    hir::ErrorId => DeclarationKind::Item(hir::ItemId::Error(id)) => Ok(id),
 );
 
 #[allow(dead_code)]
-impl Declaration {
+impl DeclarationKind {
     pub(super) fn description(&self) -> &'static str {
         match self {
             Self::Item(item) => item.description(),
@@ -1075,4 +1107,34 @@ impl Declaration {
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
+
+    pub(super) fn is_err(&self) -> bool {
+        matches!(self, Self::Err(_))
+    }
+}
+
+pub(super) fn report_conflict(
+    hir: &hir::Hir<'_>,
+    sess: &Session,
+    name: Symbol,
+    decl: Declaration,
+    mut previous: Declaration,
+) -> ErrorGuaranteed {
+    debug_assert_ne!(decl.span, previous.span);
+
+    let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
+
+    // If `previous` is coming from an import, show both the import and the real span.
+    if let DeclarationKind::Item(item_id) = previous.kind {
+        if let Ok(snippet) = sess.source_map().span_to_snippet(previous.span) {
+            if snippet.starts_with("import") {
+                err = err.span_note(previous.span, "previous declaration imported here");
+                let real_span = hir.item(item_id).span();
+                previous.span = real_span;
+            }
+        }
+    }
+
+    err = err.span_note(previous.span, "previous declaration declared here");
+    err.emit()
 }

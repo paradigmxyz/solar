@@ -399,6 +399,11 @@ impl FunctionKind {
 
     /// Returns `true` if the function is allowed in global scope.
     pub fn allowed_in_global(&self) -> bool {
+        self.is_ordinary()
+    }
+
+    /// Returns `true` if the function is an ordinary function.
+    pub fn is_ordinary(&self) -> bool {
         matches!(self, Self::Function)
     }
 

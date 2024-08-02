@@ -10,7 +10,7 @@
 // TODO: Don't store our own ID in `linearized_bases`.
 // TODO: Parallelize this.
 
-use super::Declaration;
+use super::DeclarationKind;
 use crate::hir;
 
 impl super::LoweringContext<'_, '_, '_> {
@@ -41,7 +41,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         for &decl in decls {
                             // Import if it was declared in the base, is not the constructor and is
                             // visible in derived classes.
-                            let Declaration::Item(decl_item_id) = decl else { continue };
+                            let DeclarationKind::Item(decl_item_id) = decl.kind else { continue };
                             let decl_item = self.hir.item(decl_item_id);
                             if decl_item.contract() != Some(base_id) {
                                 continue;
@@ -50,12 +50,13 @@ impl super::LoweringContext<'_, '_, '_> {
                                 continue;
                             }
 
-                            if let Err(conflict) = contract_scope.try_declare(name, decl) {
+                            if let Err(conflict) = contract_scope.try_declare(&self.hir, name, decl)
+                            {
                                 use hir::ItemId::*;
-                                use Declaration::*;
+                                use DeclarationKind::*;
 
-                                let Item(conflict) = conflict else { continue };
-                                match (decl_item_id, conflict) {
+                                let Item(conflict_id) = conflict.kind else { continue };
+                                match (decl_item_id, conflict_id) {
                                     // Usual shadowing is not an error.
                                     (Function(a), Function(b)) => {
                                         let a = self.hir.function(a);
@@ -75,9 +76,7 @@ impl super::LoweringContext<'_, '_, '_> {
                                 }
 
                                 super::resolve::report_conflict(
-                                    &self.sess.dcx,
-                                    self.hir.item(decl_item_id).span(),
-                                    Some(self.hir.item(conflict).span()),
+                                    &self.hir, self.sess, name, decl, conflict,
                                 );
                             }
                         }

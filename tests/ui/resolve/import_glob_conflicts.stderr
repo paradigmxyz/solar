@@ -1,0 +1,16 @@
+error: identifier `MyUdvt` already declared
+  --> $DIR/import_glob_conflicts.sol:1:1
+   |
+LL | import "./aux/udvt.sol";
+   | ------------------------ note: previous declaration imported here
+LL | import * from "./aux/udvt2.sol";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+  ::: $DIR/aux/udvt.sol:1:1
+   |
+LL | type MyUdvt is uint256;
+   | ----------------------- note: previous declaration declared here
+   |
+
+error: aborting due to 1 previous error
+

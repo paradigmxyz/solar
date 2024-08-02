@@ -1,0 +1,13 @@
+error: identifier `MyUdvt` already declared
+  --> $DIR/import_conflicts.sol:1:9
+   |
+LL | import {MyUdvt, MyUdvt as MyUdvt} from "./aux/udvt.sol";
+   |         ------ note: previous declaration declared here
+LL | import {MyUdvt as MyUdvt2, MyUdvt as MyUdvt2} from "./aux/udvt.sol";
+LL | 
+LL | import "./aux/udvt.sol" as MyUdvt;
+   |                            ^^^^^^
+   |
+
+error: aborting due to 1 previous error
+

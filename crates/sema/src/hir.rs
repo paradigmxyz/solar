@@ -246,7 +246,6 @@ pub enum Item<'a, 'hir> {
 
 impl Item<'_, '_> {
     /// Returns the name of the item.
-    #[inline]
     pub fn name(self) -> Option<Ident> {
         match self {
             Item::Contract(c) => Some(c.name),
@@ -275,7 +274,6 @@ impl Item<'_, '_> {
     }
 
     /// Returns the span of the item.
-    #[inline]
     pub fn span(self) -> Span {
         match self {
             Item::Contract(c) => c.span,
@@ -290,7 +288,6 @@ impl Item<'_, '_> {
     }
 
     /// Returns the contract ID if this item is part of a contract.
-    #[inline]
     pub fn contract(self) -> Option<ContractId> {
         match self {
             Item::Contract(_) => None,
@@ -307,10 +304,7 @@ impl Item<'_, '_> {
     /// Returns `true` if the item is visible in derived contracts.
     #[inline]
     pub fn is_visible_in_derived_contracts(self) -> bool {
-        // matches!(self, Item::Struct(_) | Item::Enum(_) | Item::Event(_) | Item::Error(_))
-        // || (
         self.is_visible_in_contract() && self.visibility() >= Visibility::Internal
-        // )
     }
 
     /// Returns `true` if the item is visible in the contract.
