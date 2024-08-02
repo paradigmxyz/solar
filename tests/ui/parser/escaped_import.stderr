@@ -1,0 +1,9 @@
+error: unknown character escape
+  --> $DIR/escaped_import.sol:1:10
+   |
+LL | import "\?";
+   |          ^
+   |
+
+error: aborting due to 1 previous error
+
