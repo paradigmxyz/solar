@@ -968,10 +968,10 @@ bitflags::bitflags! {
         const INTERNAL    = 1 << 4;
         const PUBLIC      = 1 << 5;
         const EXTERNAL    = 1 << 6; // Never accepted, just for error messages.
-        const VISIBILITY  = Self::PRIVATE.bits() |
-                            Self::INTERNAL.bits() |
-                            Self::PUBLIC.bits() |
-                            Self::EXTERNAL.bits();
+        const VISIBILITY  = Self::PRIVATE.bits()
+                          | Self::INTERNAL.bits()
+                          | Self::PUBLIC.bits()
+                          | Self::EXTERNAL.bits();
 
         const CONSTANT    = 1 << 7;
         const IMMUTABLE   = 1 << 8;
@@ -991,22 +991,22 @@ bitflags::bitflags! {
         const FUNCTION_TY  = Self::DATALOC.bits() | Self::NAME_WARN.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration
-        const STATE_VAR    = Self::TRANSIENT.bits() |
-                             Self::PRIVATE.bits() |
-                             Self::INTERNAL.bits() |
-                             Self::PUBLIC.bits() |
-                             Self::CONSTANT.bits() |
-                             Self::IMMUTABLE.bits() |
-                             Self::OVERRIDE.bits() |
-                             Self::NAME.bits() |
-                             Self::INITIALIZER.bits() |
-                             Self::SEMI.bits();
+        const STATE_VAR    = Self::TRANSIENT.bits()
+                           | Self::PRIVATE.bits()
+                           | Self::INTERNAL.bits()
+                           | Self::PUBLIC.bits()
+                           | Self::CONSTANT.bits()
+                           | Self::IMMUTABLE.bits()
+                           | Self::OVERRIDE.bits()
+                           | Self::NAME.bits()
+                           | Self::INITIALIZER.bits()
+                           | Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration
-        const CONSTANT_VAR = Self::CONSTANT.bits() |
-                             Self::NAME.bits() |
-                             Self::INITIALIZER.bits() |
-                             Self::SEMI.bits();
+        const CONSTANT_VAR = Self::CONSTANT.bits()
+                           | Self::NAME.bits()
+                           | Self::INITIALIZER.bits()
+                           | Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclarationStatement
         const VAR = Self::DATALOC.bits() | Self::INITIALIZER.bits();
@@ -1027,18 +1027,18 @@ bitflags::bitflags! {
         const INTERNAL         = 1 << 4;
         const PUBLIC           = 1 << 5;
         const EXTERNAL         = 1 << 6;
-        const VISIBILITY       = Self::PRIVATE.bits() |
-                                 Self::INTERNAL.bits() |
-                                 Self::PUBLIC.bits() |
-                                 Self::EXTERNAL.bits();
+        const VISIBILITY       = Self::PRIVATE.bits()
+                               | Self::INTERNAL.bits()
+                               | Self::PUBLIC.bits()
+                               | Self::EXTERNAL.bits();
 
         // StateMutability
         const PURE             = 1 << 7;
         const VIEW             = 1 << 8;
         const PAYABLE          = 1 << 9;
-        const STATE_MUTABILITY = Self::PURE.bits() |
-                                 Self::VIEW.bits() |
-                                 Self::PAYABLE.bits();
+        const STATE_MUTABILITY = Self::PURE.bits()
+                               | Self::VIEW.bits()
+                               | Self::PAYABLE.bits();
 
         const MODIFIERS        = 1 << 10;
         const VIRTUAL          = 1 << 11;
@@ -1049,47 +1049,47 @@ bitflags::bitflags! {
         const ONLY_BLOCK       = 1 << 14;
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
-        const CONSTRUCTOR = Self::MODIFIERS.bits() |
-                            Self::PAYABLE.bits() |
-                            Self::INTERNAL.bits() |
-                            Self::PUBLIC.bits() |
-                            Self::ONLY_BLOCK.bits();
+        const CONSTRUCTOR = Self::MODIFIERS.bits()
+                          | Self::PAYABLE.bits()
+                          | Self::INTERNAL.bits()
+                          | Self::PUBLIC.bits()
+                          | Self::ONLY_BLOCK.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition
-        const FUNCTION    = Self::NAME.bits() |
-                            Self::VISIBILITY.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits() |
-                            Self::RETURNS.bits();
+        const FUNCTION    = Self::NAME.bits()
+                          | Self::VISIBILITY.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits()
+                          | Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition
-        const MODIFIER    = Self::NAME.bits() |
-                            Self::NO_PARENS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+        const MODIFIER    = Self::NAME.bits()
+                          | Self::NO_PARENS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.fallbackFunctionDefinition
-        const FALLBACK    = Self::EXTERNAL.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits() |
-                            Self::RETURNS.bits();
+        const FALLBACK    = Self::EXTERNAL.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits()
+                          | Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.receiveFunctionDefinition
-        const RECEIVE     = Self::EXTERNAL.bits() |
-                            Self::PAYABLE.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+        const RECEIVE     = Self::EXTERNAL.bits()
+                          | Self::PAYABLE.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName
-        const FUNCTION_TY = Self::PARAM_NAME.bits() |
-                            Self::VISIBILITY.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::RETURNS.bits();
+        const FUNCTION_TY = Self::PARAM_NAME.bits()
+                          | Self::VISIBILITY.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::RETURNS.bits();
     }
 }
 
