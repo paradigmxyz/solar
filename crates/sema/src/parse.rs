@@ -234,7 +234,7 @@ macro_rules! resolve_imports {
 }
 use resolve_imports;
 
-/// Parsed sources, returned by [`Sema::parse`].
+/// Parsed sources, returned by [`ParsingContext::parse`].
 #[derive(Default, Debug)]
 pub struct ParsedSources<'ast> {
     /// The list of parsed sources.
