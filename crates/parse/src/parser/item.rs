@@ -713,9 +713,9 @@ impl<'a> Parser<'a> {
         let mut indexed = false;
         loop {
             if let Some(s) = self.parse_data_location() {
-                if !(matches!(s, DataLocation::Transient) && flags.contains(VarFlags::TRANSIENT))
-                    && !flags.contains(VarFlags::DATALOC)
-                {
+                let transient =
+                    matches!(s, DataLocation::Transient) && flags.contains(VarFlags::TRANSIENT);
+                if !(transient || flags.contains(VarFlags::DATALOC)) {
                     let msg = "data locations are not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if data_location.is_some() {
@@ -906,7 +906,7 @@ impl<'a> Parser<'a> {
         } else if self.check_keyword(sym::transient)
             && !matches!(self.look_ahead(1).kind, TokenKind::Eq | TokenKind::Semi)
         {
-            let _ = self.bump(); // `transient`
+            self.bump(); // `transient`
             Some(DataLocation::Transient)
         } else {
             None
