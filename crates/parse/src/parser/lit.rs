@@ -151,14 +151,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             TokenLitKind::HexStr => unescape::Mode::HexStr,
             _ => unreachable!(),
         };
-        let parse = |s: Symbol| unescape::parse_string_literal(s.as_str(), mode, |_, _| {});
 
-        let mut value = parse(lit.symbol);
+        let mut value = unescape::parse_string_literal(lit.symbol.as_str(), mode);
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
-            value.append(&mut parse(symbol));
+            value
+                .to_mut()
+                .extend_from_slice(&unescape::parse_string_literal(symbol.as_str(), mode));
             self.bump();
         }
 

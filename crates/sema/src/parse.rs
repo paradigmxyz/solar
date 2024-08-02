@@ -1,6 +1,7 @@
 use crate::hir::SourceId;
 use rayon::prelude::*;
 use std::{
+    borrow::Cow,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -14,7 +15,7 @@ use sulk_interface::{
     source_map::{FileName, FileResolver, SourceFile},
     Result, Session,
 };
-use sulk_parse::{Lexer, Parser};
+use sulk_parse::{unescape, Lexer, Parser};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {
@@ -221,9 +222,11 @@ macro_rules! resolve_imports {
                 }
             })
             .filter_map(move |(id, import, span)| {
-                // TODO: Unescape
-                let path_str = import.path.value.as_str();
-                let path = Path::new(path_str);
+                let path_bytes = escape_for_import_path(import.path.value.as_str())?;
+                let Some(path) = path_from_bytes(&path_bytes[..]) else {
+                    this.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+                    return None;
+                };
                 this.file_resolver
                     .resolve_file(path, parent.as_deref())
                     .map_err(|e| this.dcx().err(e.to_string()).span(span).emit())
@@ -234,6 +237,27 @@ macro_rules! resolve_imports {
 }
 use resolve_imports;
 
+fn escape_for_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
+    let mut any_error = false;
+    let path_str =
+        unescape::try_parse_string_literal(path_str, unescape::Mode::Str, |_, _| any_error = true);
+    if any_error {
+        return None;
+    }
+    Some(path_str)
+}
+
+#[cfg(unix)]
+fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
+    use std::os::unix::ffi::OsStrExt;
+    Some(Path::new(std::ffi::OsStr::from_bytes(bytes)))
+}
+
+#[cfg(not(unix))]
+fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
+    std::str::from_utf8(bytes).ok().map(Path::new)
+}
+
 /// Parsed sources, returned by [`ParsingContext::parse`].
 #[derive(Default, Debug)]
 pub struct ParsedSources<'ast> {
@@ -242,7 +266,8 @@ pub struct ParsedSources<'ast> {
 }
 
 impl<'ast> ParsedSources<'ast> {
-    fn new() -> Self {
+    /// Creates a new empty list of parsed sources.
+    pub fn new() -> Self {
         Self { sources: IndexVec::new() }
     }
 
