@@ -713,8 +713,10 @@ impl<'a> Parser<'a> {
         let mut indexed = false;
         loop {
             if let Some(s) = self.parse_data_location() {
-                if !flags.contains(VarFlags::DATALOC) {
-                    let msg = "storage specifiers are not allowed here";
+                if !(matches!(s, DataLocation::Transient) && flags.contains(VarFlags::TRANSIENT))
+                    && !flags.contains(VarFlags::DATALOC)
+                {
+                    let msg = "data locations are not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if data_location.is_some() {
                     let msg = "data location already specified";
@@ -893,14 +895,19 @@ impl<'a> Parser<'a> {
         Some(StrLit { span, value: symbol })
     }
 
-    /// Parses a storage location: `storage | memory | calldata`.
-    pub(super) fn parse_data_location(&mut self) -> Option<DataLocation> {
+    /// Parses a storage location: `storage | memory | calldata | transient`.
+    fn parse_data_location(&mut self) -> Option<DataLocation> {
         if self.eat_keyword(kw::Storage) {
             Some(DataLocation::Storage)
         } else if self.eat_keyword(kw::Memory) {
             Some(DataLocation::Memory)
         } else if self.eat_keyword(kw::Calldata) {
             Some(DataLocation::Calldata)
+        } else if self.check_keyword(sym::transient)
+            && !matches!(self.look_ahead(1).kind, TokenKind::Eq | TokenKind::Semi)
+        {
+            let _ = self.bump(); // `transient`
+            Some(DataLocation::Transient)
         } else {
             None
         }
@@ -940,28 +947,30 @@ bitflags::bitflags! {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub(super) struct VarFlags: u16 {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
-        const DATALOC     = 1 << 0;
-        const INDEXED     = 1 << 1;
 
-        const PRIVATE     = 1 << 2;
-        const INTERNAL    = 1 << 3;
-        const PUBLIC      = 1 << 4;
-        const EXTERNAL    = 1 << 5; // Never accepted, just for error messages.
+        const TRANSIENT   = 1 << 0;
+        const DATALOC     = Self::TRANSIENT.bits() | 1 << 1;
+        const INDEXED     = 1 << 2;
+
+        const PRIVATE     = 1 << 3;
+        const INTERNAL    = 1 << 4;
+        const PUBLIC      = 1 << 5;
+        const EXTERNAL    = 1 << 6; // Never accepted, just for error messages.
         const VISIBILITY  = Self::PRIVATE.bits() |
                             Self::INTERNAL.bits() |
                             Self::PUBLIC.bits() |
                             Self::EXTERNAL.bits();
 
-        const CONSTANT    = 1 << 6;
-        const IMMUTABLE   = 1 << 7;
+        const CONSTANT    = 1 << 7;
+        const IMMUTABLE   = 1 << 8;
 
-        const OVERRIDE    = 1 << 8;
+        const OVERRIDE    = 1 << 9;
 
-        const NAME        = 1 << 9;
-        const NAME_WARN   = 1 << 10;
+        const NAME        = 1 << 10;
+        const NAME_WARN   = 1 << 11;
 
-        const INITIALIZER = 1 << 11;
-        const SEMI        = 1 << 12;
+        const INITIALIZER = 1 << 12;
+        const SEMI        = 1 << 13;
 
         const STRUCT       = Self::NAME.bits();
         const ERROR        = 0;
@@ -970,7 +979,8 @@ bitflags::bitflags! {
         const FUNCTION_TY  = Self::DATALOC.bits() | Self::NAME_WARN.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration
-        const STATE_VAR    = Self::PRIVATE.bits() |
+        const STATE_VAR    = Self::TRANSIENT.bits() |
+                             Self::PRIVATE.bits() |
                              Self::INTERNAL.bits() |
                              Self::PUBLIC.bits() |
                              Self::CONSTANT.bits() |
