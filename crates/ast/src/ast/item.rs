@@ -438,10 +438,12 @@ pub struct Override<'ast> {
 /// A storage location.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DataLocation {
-    /// `memory`
-    Memory,
     /// `storage`
     Storage,
+    /// `transient`
+    Transient,
+    /// `memory`
+    Memory,
     /// `calldata`
     Calldata,
 }
@@ -456,8 +458,9 @@ impl DataLocation {
     /// Returns the string representation of the storage location.
     pub const fn to_str(self) -> &'static str {
         match self {
-            Self::Memory => "memory",
             Self::Storage => "storage",
+            Self::Transient => "transient",
+            Self::Memory => "memory",
             Self::Calldata => "calldata",
         }
     }

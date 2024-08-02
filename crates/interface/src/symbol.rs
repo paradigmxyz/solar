@@ -797,6 +797,7 @@ symbols! {
         Itself:        "itself",
         StaticAssert:  "static_assert",
         Builtin:       "__builtin",
+        ForAll:        "forall",
     }
 
     // Pre-interned symbols that can be referred to with `sym::*`.
@@ -828,6 +829,7 @@ symbols! {
         global,
         object,
         solidity,
+        transient,
         underscore: "_",
         x,
     }
