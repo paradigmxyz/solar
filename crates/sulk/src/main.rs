@@ -135,7 +135,8 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
                 Box::new(human)
             }
             cli::ErrorFormat::Json | cli::ErrorFormat::RichJson => {
-                let json = JsonEmitter::new(Box::new(std::io::stderr()), source_map.clone())
+                let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
+                let json = JsonEmitter::new(writer, source_map.clone())
                     .pretty(args.pretty_json)
                     .rustc_like(matches!(args.error_format, cli::ErrorFormat::RichJson))
                     .ui_testing(ui_testing);

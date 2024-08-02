@@ -556,7 +556,7 @@ pub struct Event<'hir> {
 pub struct EventParameter<'hir> {
     pub ty: Type<'hir>,
     pub indexed: bool,
-    pub name: Ident,
+    pub name: Option<Ident>,
 }
 
 /// A custom error.
@@ -570,7 +570,14 @@ pub struct Error<'hir> {
     pub span: Span,
     /// The error name.
     pub name: Ident,
-    pub parameters: &'hir [StructField<'hir>],
+    pub parameters: &'hir [ErrorParameter<'hir>],
+}
+
+/// A custom error parameter.
+#[derive(Debug)]
+pub struct ErrorParameter<'hir> {
+    pub name: Option<Ident>,
+    pub ty: Type<'hir>,
 }
 
 /// A constant or variable declaration.

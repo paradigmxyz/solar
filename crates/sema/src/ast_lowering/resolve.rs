@@ -37,7 +37,6 @@ impl super::LoweringContext<'_, '_, '_> {
             for &(item_id, import_id) in source.imports {
                 let item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &item.kind else { unreachable!() };
-                let dcx = &self.sess.dcx;
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = super::get_two_mut_idx(
                         &mut self.resolver.source_scopes,
@@ -59,25 +58,52 @@ impl super::LoweringContext<'_, '_, '_> {
                     ast::ImportItems::Aliases(ref aliases) => {
                         for &(import, alias) in aliases.iter() {
                             let name = alias.unwrap_or(import);
-                            let resolved =
-                                import_scope.and_then(|import_scope| import_scope.resolve(import));
-                            if let Some(resolved) = resolved {
-                                debug_assert!(!resolved.is_empty());
-                                source_scope.declare_many(name, resolved.iter().copied());
+                            if let Some(import_scope) = import_scope {
+                                Self::perform_alias_import(
+                                    self.sess,
+                                    source,
+                                    source_scope,
+                                    name,
+                                    import,
+                                    import_scope.resolve(import),
+                                )
                             } else {
-                                let msg = format!(
-                                    "declaration `{import}` not found in {}",
-                                    self.sess
-                                        .source_map()
-                                        .filename_for_diagnostics(&source.file.name)
-                                );
-                                let guar = dcx.err(msg).span(import.span).emit();
-                                source_scope.declare(name, Declaration::Err(guar));
+                                Self::perform_alias_import(
+                                    self.sess,
+                                    source,
+                                    source_scope,
+                                    name,
+                                    import,
+                                    source_scope.resolve_cloned(import),
+                                )
                             }
                         }
                     }
                 }
             }
+        }
+    }
+
+    /// Separate function to avoid cloning `resolved` when the import is not a self-import.
+    fn perform_alias_import(
+        sess: &Session,
+        source: &hir::Source<'_>,
+        source_scope: &mut Declarations,
+        name: Ident,
+        import: Ident,
+        resolved: Option<impl AsRef<[Declaration]>>,
+    ) {
+        if let Some(resolved) = resolved {
+            let resolved = resolved.as_ref();
+            debug_assert!(!resolved.is_empty());
+            source_scope.declare_many(name, resolved.iter().copied());
+        } else {
+            let msg = format!(
+                "declaration `{import}` not found in {}",
+                sess.source_map().filename_for_diagnostics(&source.file.name)
+            );
+            let guar = sess.dcx.err(msg).span(import.span).emit();
+            source_scope.declare(name, Declaration::Err(guar));
         }
     }
 
@@ -177,9 +203,9 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             let mut cx = mk_resolver!(error);
             self.hir.errors[id].parameters =
                 self.arena.alloc_from_iter(ast_error.parameters.iter().map(|param| {
-                    let name = param.name.unwrap_or_default();
+                    let name = param.name;
                     let ty = cx.lower_type(&param.ty);
-                    hir::StructField { ty, name }
+                    hir::ErrorParameter { ty, name }
                 }));
         }
 
@@ -190,7 +216,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             let mut cx = mk_resolver!(event);
             self.hir.events[id].parameters =
                 self.arena.alloc_from_iter(ast_event.parameters.iter().map(|param| {
-                    let name = param.name.unwrap_or_default();
+                    let name = param.name;
                     let ty = cx.lower_type(&param.ty);
                     hir::EventParameter { ty, indexed: param.indexed, name }
                 }));
@@ -869,8 +895,10 @@ impl SymbolResolverScopes {
 
 #[derive(Debug)]
 pub(super) struct Declarations {
-    pub(super) declarations: FxIndexMap<Ident, SmallVec<[Declaration; 2]>>,
+    pub(super) declarations: FxIndexMap<Ident, DeclarationsInner>,
 }
+
+type DeclarationsInner = SmallVec<[Declaration; 2]>;
 
 impl Declarations {
     fn new() -> Self {
@@ -883,6 +911,10 @@ impl Declarations {
 
     pub(super) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
         self.declarations.get(&name).map(std::ops::Deref::deref)
+    }
+
+    pub(super) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
+        self.declarations.get(&name).cloned()
     }
 
     pub(super) fn resolve_single(&self, name: Ident) -> Option<Declaration> {
@@ -917,10 +949,13 @@ impl Declarations {
     ) -> Result<(), Declaration> {
         match self.declarations.entry(name) {
             IndexEntry::Occupied(entry) => {
-                if let Some(conflict) = Self::conflicting_declarations(decl, entry.get()) {
+                let declarations = entry.into_mut();
+                if let Some(conflict) = Self::conflicting_declaration(decl, declarations) {
                     return Err(conflict);
                 }
-                entry.into_mut().push(decl);
+                if !declarations.contains(&decl) {
+                    declarations.push(decl);
+                }
             }
             IndexEntry::Vacant(entry) => {
                 entry.insert(smallvec![decl]);
@@ -929,7 +964,7 @@ impl Declarations {
         Ok(())
     }
 
-    fn conflicting_declarations(
+    fn conflicting_declaration(
         decl: Declaration,
         declarations: &[Declaration],
     ) -> Option<Declaration> {

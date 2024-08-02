@@ -266,6 +266,19 @@ impl<'ast> ParsedSources<'ast> {
         }
         self.sources.push(ParsedSource::new(file))
     }
+
+    /// Asserts that all sources are unique.
+    fn assert_unique(&self) {
+        if self.sources.len() <= 1 {
+            return;
+        }
+
+        debug_assert_eq!(
+            self.sources.iter().map(|s| s.file.stable_id).collect::<FxHashSet<_>>().len(),
+            self.sources.len(),
+            "parsing produced duplicate source files"
+        );
+    }
 }
 
 impl<'ast> ParsedSources<'ast> {
@@ -277,15 +290,6 @@ impl<'ast> ParsedSources<'ast> {
     /// Returns a parallel iterator over all the ASTs.
     pub fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit<'ast>> {
         self.sources.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
-    }
-
-    /// Asserts that all sources are unique.
-    fn assert_unique(&self) {
-        debug_assert_eq!(
-            self.sources.iter().map(|s| s.file.stable_id).collect::<FxHashSet<_>>().len(),
-            self.sources.len(),
-            "parsing produced duplicate source files"
-        );
     }
 
     /// Sorts the sources topologically in-place. Invalidates all indices.
