@@ -1,3 +1,5 @@
+#![allow(deprecated)] // PanicInfo -> PanicInfoHook since 1.82
+
 use std::panic::PanicInfo;
 use sulk_interface::{
     diagnostics::{DiagCtxt, ExplicitBug},
