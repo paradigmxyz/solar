@@ -68,7 +68,7 @@ impl<'a, T> PartialEq for Interned<'a, T> {
 impl<'a, T> Eq for Interned<'a, T> {}
 
 impl<'a, T: PartialOrd> PartialOrd for Interned<'a, T> {
-    fn partial_cmp(&self, other: &Interned<'a, T>) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // Pointer equality implies equality, due to the uniqueness constraint,
         // but the contents must be compared otherwise.
         if ptr::eq(self.0, other.0) {
@@ -82,7 +82,7 @@ impl<'a, T: PartialOrd> PartialOrd for Interned<'a, T> {
 }
 
 impl<'a, T: Ord> Ord for Interned<'a, T> {
-    fn cmp(&self, other: &Interned<'a, T>) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         // Pointer equality implies equality, due to the uniqueness constraint,
         // but the contents must be compared otherwise.
         if ptr::eq(self.0, other.0) {
@@ -124,8 +124,9 @@ mod tests {
 
     impl Eq for S {}
 
+    #[allow(clippy::non_canonical_partial_ord_impl)]
     impl PartialOrd for S {
-        fn partial_cmp(&self, other: &S) -> Option<Ordering> {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
             // The `==` case should be handled by `Interned`.
             assert_ne!(self.0, other.0);
             self.0.partial_cmp(&other.0)
@@ -133,7 +134,7 @@ mod tests {
     }
 
     impl Ord for S {
-        fn cmp(&self, other: &S) -> Ordering {
+        fn cmp(&self, other: &Self) -> Ordering {
             // The `==` case should be handled by `Interned`.
             assert_ne!(self.0, other.0);
             self.0.cmp(&other.0)

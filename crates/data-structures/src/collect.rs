@@ -67,7 +67,7 @@ impl<T, R, E> CollectAndApply<T, R> for Result<T, E> {
     /// Equivalent to `Ok(f(&iter.collect::<Result<Vec<_>>>()?))`.
     fn collect_and_apply<I, F>(mut iter: I, f: F) -> Result<R, E>
     where
-        I: Iterator<Item = Result<T, E>>,
+        I: Iterator<Item = Self>,
         F: FnOnce(&[T]) -> R,
     {
         // This code is hot enough that it's worth specializing for the most
