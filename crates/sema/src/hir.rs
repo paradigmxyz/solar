@@ -1,3 +1,5 @@
+//! High-level intermediate representation (HIR).
+
 use rayon::prelude::*;
 use std::{fmt, sync::Arc};
 use sulk_ast::ast;

@@ -46,20 +46,6 @@ pub(crate) fn lower<'hir>(
     // Clean up.
     lcx.shrink_to_fit();
 
-    // eprintln!("{:#?}", lcx.hir);
-    // eprintln!("{:#?}", lcx.resolver.contract_scopes);
-    // let mut ns = [0usize; 8];
-    // let mut n_other = 0usize;
-    // for scope in &lcx.resolver.source_scopes {
-    //     for (_name, decls) in &scope.declarations {
-    //         *ns.get_mut(decls.len()).unwrap_or(&mut n_other) += 1;
-    //     }
-    // }
-    // for (i, &n) in ns.iter().enumerate() {
-    //     eprintln!("{i}: {n}");
-    // }
-    // eprintln!("other: {n_other}");
-
     lcx.finish()
 }
 

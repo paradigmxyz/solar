@@ -22,9 +22,8 @@ sulk-interface.workspace = true
 sulk-parse.workspace = true
 
 bumpalo.workspace = true
-# itertools.workspace = true
+dashmap = { workspace = true, features = ["raw-api"] }
 paste.workspace = true
-# petgraph.workspace = true
 rayon.workspace = true
 tracing.workspace = true
 thread_local = "1.1"

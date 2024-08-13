@@ -124,15 +124,31 @@ impl TypeSize {
         }
     }
 
-    /// Returns the number of **bytes**.
+    /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
     #[inline]
     pub const fn bytes(self) -> u8 {
+        if self.0 == 0 {
+            Self::MAX
+        } else {
+            self.0
+        }
+    }
+
+    /// Returns the number of **bytes**.
+    #[inline]
+    pub const fn bytes_raw(self) -> u8 {
         self.0
+    }
+
+    /// Returns the number of **bits**, with `0` defaulting to `MAX*8`.
+    #[inline]
+    pub const fn bits(self) -> u16 {
+        self.bytes() as u16 * 8
     }
 
     /// Returns the number of **bits**.
     #[inline]
-    pub const fn bits(self) -> u16 {
+    pub const fn bits_raw(self) -> u16 {
         self.0 as u16 * 8
     }
 

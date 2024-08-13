@@ -722,9 +722,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut indexed = false;
         loop {
             if let Some(s) = self.parse_data_location() {
-                let transient =
-                    matches!(s, DataLocation::Transient) && flags.contains(VarFlags::TRANSIENT);
-                if !(transient || flags.contains(VarFlags::DATALOC)) {
+                let transient = matches!(s, DataLocation::Transient);
+                let transient_allowed = flags.contains(VarFlags::TRANSIENT);
+                if transient && !transient_allowed {
+                    let msg = "`transient` data location is not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if !(transient || flags.contains(VarFlags::DATALOC)) {
                     let msg = "data locations are not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if data_location.is_some() {
@@ -916,7 +919,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Calldata) {
             Some(DataLocation::Calldata)
         } else if self.check_keyword(sym::transient)
-            && !matches!(self.look_ahead(1).kind, TokenKind::Eq | TokenKind::Semi)
+            && !matches!(
+                self.look_ahead(1).kind,
+                TokenKind::Eq | TokenKind::Semi | TokenKind::CloseDelim(_) | TokenKind::Comma
+            )
         {
             self.bump(); // `transient`
             Some(DataLocation::Transient)
@@ -961,7 +967,7 @@ bitflags::bitflags! {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
 
         const TRANSIENT   = 1 << 0;
-        const DATALOC     = Self::TRANSIENT.bits() | 1 << 1;
+        const DATALOC     = 1 << 1;
         const INDEXED     = 1 << 2;
 
         const PRIVATE     = 1 << 3;

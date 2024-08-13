@@ -21,13 +21,14 @@ pub use sulk_ast::ast;
 pub use sulk_interface as interface;
 
 mod ast_lowering;
-
 mod ast_passes;
 
 mod parse;
 pub use parse::{ParsedSource, ParsedSources, ParsingContext};
 
+pub mod builtins;
 pub mod hir;
+pub mod ty;
 
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {

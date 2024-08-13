@@ -2329,6 +2329,7 @@ name = "sulk-sema"
 version = "0.0.0"
 dependencies = [
  "bumpalo",
+ "dashmap",
  "paste",
  "rayon",
  "sulk-ast",

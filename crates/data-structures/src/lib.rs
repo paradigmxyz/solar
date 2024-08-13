@@ -22,6 +22,9 @@ pub mod trustme;
 mod bump_ext;
 pub use bump_ext::BumpExt;
 
+mod collect;
+pub use collect::CollectAndApply;
+
 mod captures;
 pub use captures::Captures;
 
@@ -30,6 +33,9 @@ pub use never::Never;
 
 mod on_drop;
 pub use on_drop::{defer, OnDrop};
+
+mod interned;
+pub use interned::Interned;
 
 pub use smallvec;
 
