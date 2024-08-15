@@ -238,23 +238,23 @@ impl<'gcx> Ty<'gcx> {
         Self::new(interner, TyKind::IntLiteral(size))
     }
 
-    pub fn new_ref(interner: &Interner<'gcx>, ty: Ty<'gcx>, loc: DataLocation) -> Self {
+    pub fn new_ref(interner: &Interner<'gcx>, ty: Self, loc: DataLocation) -> Self {
         Self::new(interner, TyKind::Ref(ty, loc))
     }
 
-    pub fn new_dyn_array(interner: &Interner<'gcx>, ty: Ty<'gcx>) -> Self {
+    pub fn new_dyn_array(interner: &Interner<'gcx>, ty: Self) -> Self {
         Self::new(interner, TyKind::DynArray(ty))
     }
 
-    pub fn new_array(interner: &Interner<'gcx>, ty: Ty<'gcx>, len: u64) -> Self {
+    pub fn new_array(interner: &Interner<'gcx>, ty: Self, len: u64) -> Self {
         Self::new(interner, TyKind::Array(ty, len))
     }
 
-    pub fn new_tuple(interner: &Interner<'gcx>, tys: &'gcx [Ty<'gcx>]) -> Self {
+    pub fn new_tuple(interner: &Interner<'gcx>, tys: &'gcx [Self]) -> Self {
         Self::new(interner, TyKind::Tuple(tys))
     }
 
-    pub fn new_mapping(interner: &Interner<'gcx>, key: Ty<'gcx>, value: Ty<'gcx>) -> Self {
+    pub fn new_mapping(interner: &Interner<'gcx>, key: Self, value: Self) -> Self {
         Self::new(interner, TyKind::Mapping(key, value))
     }
 
