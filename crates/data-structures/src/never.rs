@@ -47,6 +47,7 @@ mod tests {
     fn never() {
         let r = Ok::<i32, Never>(42);
 
+        #[allow(unreachable_patterns)]
         let x = match r {
             Ok(x) => x,
             // This would be an error if `Never` was not exactly the primitive `!` type.
