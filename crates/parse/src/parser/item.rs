@@ -549,10 +549,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return Ok(SemverVersionNumber::Wildcard);
         }
 
-        let Token {
-            kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, symbol }),
-            span,
-        } = self.token
+        let Token { kind: TokenKind::Literal(TokenLitKind::Integer, symbol), span } = self.token
         else {
             self.expected_tokens.push(ExpectedToken::VersionNumber);
             return self.unexpected();
@@ -901,9 +898,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Str, symbol }), span } =
-            self.token
-        else {
+        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
             unreachable!()
         };
         self.bump();

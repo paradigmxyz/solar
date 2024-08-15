@@ -248,7 +248,7 @@ pub enum TokenKind {
     /// A literal token.
     ///
     /// Note that this does not include boolean literals.
-    Literal(TokenLit),
+    Literal(TokenLitKind, Symbol),
 
     /// Identifier token.
     Ident(Symbol),
@@ -271,7 +271,7 @@ impl fmt::Display for TokenKind {
 impl TokenKind {
     /// Creates a new literal token kind.
     pub fn lit(kind: TokenLitKind, symbol: Symbol) -> Self {
-        Self::Literal(TokenLit::new(kind, symbol))
+        Self::Literal(kind, symbol)
     }
 
     /// Returns the string representation of the token kind.
@@ -310,7 +310,7 @@ impl TokenKind {
             Self::OpenDelim(Delimiter::Bracket) => "[",
             Self::CloseDelim(Delimiter::Bracket) => "]",
 
-            Self::Literal(lit) => return format!("<{}>", lit.description()).into(),
+            Self::Literal(kind, _) => return format!("<{}>", kind.description()).into(),
             Self::Ident(symbol) => return symbol.to_string().into(),
             Self::Comment(false, CommentKind::Block, _symbol) => "<block comment>",
             Self::Comment(true, CommentKind::Block, _symbol) => "<block doc-comment>",
@@ -438,7 +438,7 @@ impl TokenKind {
 
             Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
             | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
-            | OpenDelim(_) | CloseDelim(_) | Literal(_) | Ident(_) | Comment(..) | Eof => {
+            | OpenDelim(_) | CloseDelim(_) | Literal(..) | Ident(_) | Comment(..) | Eof => {
                 return None
             }
         })
@@ -494,7 +494,7 @@ impl Token {
     #[inline]
     pub const fn lit(&self) -> Option<TokenLit> {
         match self.kind {
-            TokenKind::Literal(lit) => Some(lit),
+            TokenKind::Literal(kind, symbol) => Some(TokenLit::new(kind, symbol)),
             _ => None,
         }
     }
@@ -503,7 +503,7 @@ impl Token {
     #[inline]
     pub const fn lit_kind(&self) -> Option<TokenLitKind> {
         match self.kind {
-            TokenKind::Literal(TokenLit { kind, .. }) => Some(kind),
+            TokenKind::Literal(kind, _) => Some(kind),
             _ => None,
         }
     }
@@ -541,7 +541,7 @@ impl Token {
     /// Returns `true` if the token is a literal. Includes `bool` literals.
     #[inline]
     pub fn is_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(_)) || self.is_bool_lit()
+        matches!(self.kind, TokenKind::Literal(..)) || self.is_bool_lit()
     }
 
     /// Returns `true` if the token is a given keyword, `kw`.
@@ -594,26 +594,22 @@ impl Token {
 
     /// Returns `true` if the token is a numeric literal.
     pub fn is_numeric_lit(&self) -> bool {
-        matches!(
-            self.kind,
-            TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, .. })
-                | TokenKind::Literal(TokenLit { kind: TokenLitKind::Rational, .. })
-        )
+        matches!(self.kind, TokenKind::Literal(TokenLitKind::Integer | TokenLitKind::Rational, _))
     }
 
     /// Returns `true` if the token is the integer literal.
     pub fn is_integer_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLitKind::Integer, _))
     }
 
     /// Returns `true` if the token is the rational literal.
     pub fn is_rational_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Rational, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLitKind::Rational, _))
     }
 
     /// Returns `true` if the token is a string literal.
     pub fn is_str_lit(&self) -> bool {
-        matches!(self.kind, TokenKind::Literal(TokenLit { kind: TokenLitKind::Str, .. }))
+        matches!(self.kind, TokenKind::Literal(TokenLitKind::Str, _))
     }
 
     /// Returns `true` if the token is an identifier for which `pred` holds.

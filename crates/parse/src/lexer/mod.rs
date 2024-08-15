@@ -2,7 +2,7 @@
 
 use sulk_ast::{
     ast::Base,
-    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLit, TokenLitKind},
+    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
 };
 use sulk_interface::{
     diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Session, Span, Symbol,
@@ -177,7 +177,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 }
                 RawTokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
-                    TokenKind::Literal(TokenLit { kind, symbol })
+                    TokenKind::Literal(kind, symbol)
                 }
 
                 RawTokenKind::Semi => TokenKind::Semi,
@@ -507,7 +507,7 @@ mod tests {
     }
 
     fn lit(kind: TokenLitKind, symbol: &str) -> TokenKind {
-        Literal(TokenLit { kind, symbol: sym(symbol) })
+        Literal(kind, sym(symbol))
     }
 
     fn id(symbol: &str) -> TokenKind {
