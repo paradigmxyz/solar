@@ -14,11 +14,14 @@ mod utils;
 pub use strum;
 
 str_enum! {
-    /// Stop execution after the given compiler stage.
+    /// Compiler stage.
     #[derive(strum::EnumIs)]
     #[strum(serialize_all = "lowercase")]
-    pub enum StopAfter {
-        Parsing,
+    pub enum CompilerStage {
+        /// Source code was parsed into an AST.
+        #[strum(serialize = "parsed", serialize = "parsing")]
+        Parsed,
+        // TODO: More
     }
 }
 

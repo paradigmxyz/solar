@@ -16,11 +16,17 @@ pub struct Interner<'gcx> {
     arena: &'gcx ThreadLocal<hir::Arena>,
     tys: FxDashSet<&'gcx TyData<'gcx>>,
     ty_lists: FxDashSet<&'gcx [Ty<'gcx>]>,
+    fn_ptrs: FxDashSet<&'gcx TyFnPtr<'gcx>>,
 }
 
 impl<'gcx> Interner<'gcx> {
     pub fn new(arena: &'gcx ThreadLocal<hir::Arena>) -> Self {
-        Self { arena, tys: Default::default(), ty_lists: Default::default() }
+        Self {
+            arena,
+            tys: Default::default(),
+            ty_lists: Default::default(),
+            fn_ptrs: Default::default(),
+        }
     }
 
     pub fn intern_ty(&self, kind: TyKind<'gcx>) -> Ty<'gcx> {
@@ -40,13 +46,16 @@ impl<'gcx> Interner<'gcx> {
     pub fn intern_ty_iter(&self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
         sulk_data_structures::CollectAndApply::collect_and_apply(tys, |tys| self.intern_tys(tys))
     }
+
+    pub fn intern_fn_ptr(&self, ptr: TyFnPtr<'gcx>) -> &'gcx TyFnPtr<'gcx> {
+        self.fn_ptrs.intern(ptr, |ptr| self.arena.get_or_default().bump.alloc(ptr))
+    }
 }
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
     /// Empty tuple `()`, AKA unit, void.
     pub unit: Ty<'gcx>,
-    // pub never: Ty<'gcx>,
     /// `bool`.
     pub bool: Ty<'gcx>,
 
@@ -206,6 +215,54 @@ impl<'gcx> std::ops::Deref for Ty<'gcx> {
     }
 }
 
+impl<'gcx> Ty<'gcx> {
+    pub fn new(interner: &Interner<'gcx>, kind: TyKind<'gcx>) -> Self {
+        interner.intern_ty(kind)
+    }
+
+    pub fn new_elementary(interner: &Interner<'gcx>, ty: ElementaryType) -> Self {
+        Self::new(interner, TyKind::Elementary(ty))
+    }
+
+    pub fn new_string_literal(interner: &Interner<'gcx>, s: &[u8]) -> Self {
+        Self::new(
+            interner,
+            TyKind::StringLiteral(
+                core::str::from_utf8(s).is_ok(),
+                TypeSize::new(s.len().min(32) as u8).unwrap(),
+            ),
+        )
+    }
+
+    pub fn new_int_literal(interner: &Interner<'gcx>, size: TypeSize) -> Self {
+        Self::new(interner, TyKind::IntLiteral(size))
+    }
+
+    pub fn new_ref(interner: &Interner<'gcx>, ty: Ty<'gcx>, loc: DataLocation) -> Self {
+        Self::new(interner, TyKind::Ref(ty, loc))
+    }
+
+    pub fn new_dyn_array(interner: &Interner<'gcx>, ty: Ty<'gcx>) -> Self {
+        Self::new(interner, TyKind::DynArray(ty))
+    }
+
+    pub fn new_array(interner: &Interner<'gcx>, ty: Ty<'gcx>, len: u64) -> Self {
+        Self::new(interner, TyKind::Array(ty, len))
+    }
+
+    pub fn new_tuple(interner: &Interner<'gcx>, tys: &'gcx [Ty<'gcx>]) -> Self {
+        Self::new(interner, TyKind::Tuple(tys))
+    }
+
+    pub fn new_mapping(interner: &Interner<'gcx>, key: Ty<'gcx>, value: Ty<'gcx>) -> Self {
+        Self::new(interner, TyKind::Mapping(key, value))
+    }
+
+    pub fn new_fn_ptr(interner: &Interner<'gcx>, ptr: &'gcx TyFnPtr<'gcx>) -> Self {
+        Self::new(interner, TyKind::FnPtr(ptr))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct TyData<'gcx> {
     pub kind: TyKind<'gcx>,
@@ -231,16 +288,23 @@ pub enum TyKind<'gcx> {
     /// Dynamic array: `T[]`.
     DynArray(Ty<'gcx>),
 
-    /// Array: `T[N]`.
+    /// Fixed-size array: `T[N]`.
     Array(Ty<'gcx>, u64),
 
+    /// Tuple: `(T1, T2, ...)`.
     Tuple(&'gcx [Ty<'gcx>]),
 
+    /// Mapping: `mapping(K => V)`.
     Mapping(Ty<'gcx>, Ty<'gcx>),
 
+    /// Function pointer: `function(...) returns (...)`.
+    FnPtr(&'gcx TyFnPtr<'gcx>),
+
+    /// An invalid type. Silences further errors.
     Err(ErrorGuaranteed),
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct TyFnPtr<'gcx> {
     pub parameters: &'gcx [Ty<'gcx>],
     pub returns: &'gcx [Ty<'gcx>],

@@ -1,6 +1,6 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
 use std::{num::NonZeroUsize, sync::Arc};
-use sulk_config::{EvmVersion, Language, StopAfter};
+use sulk_config::{CompilerStage, EvmVersion, Language};
 
 /// Information about the current compiler session.
 pub struct Session {
@@ -14,7 +14,7 @@ pub struct Session {
     /// Source code language.
     pub language: Language,
     /// Stop execution after the given compiler stage.
-    pub stop_after: Option<StopAfter>,
+    pub stop_after: Option<CompilerStage>,
     /// Number of threads to use. Already resolved to a non-zero value.
     pub jobs: NonZeroUsize,
 }
@@ -73,6 +73,12 @@ impl Session {
     #[inline]
     pub fn clone_source_map(&self) -> Arc<SourceMap> {
         self.source_map.clone()
+    }
+
+    /// Returns `true` if compilation should stop after the given stage.
+    #[inline]
+    pub fn stop_after(&self, stage: CompilerStage) -> bool {
+        self.stop_after >= Some(stage)
     }
 
     /// Returns `true` if parallelism is not enabled.

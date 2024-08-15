@@ -11,7 +11,7 @@ extern crate tracing;
 
 use rayon::prelude::*;
 use sulk_data_structures::OnDrop;
-use sulk_interface::{Result, Session};
+use sulk_interface::{config::CompilerStage, Result, Session};
 use thread_local::ThreadLocal;
 
 // Convenience re-exports.
@@ -46,7 +46,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     });
     let mut sources = pcx.parse(&ast_arenas);
 
-    if sess.language.is_yul() || sess.stop_after.is_some_and(|s| s.is_parsing()) {
+    if sess.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
         return Ok(());
     }
 

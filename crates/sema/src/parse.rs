@@ -317,7 +317,7 @@ impl<'ast> ParsedSources<'ast> {
         self.sources.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }
 
-    /// Sorts the sources topologically in-place. Invalidates all indices.
+    /// Sorts the sources topologically in-place. Invalidates all source IDs.
     #[instrument(level = "debug", skip_all)]
     pub fn topo_sort(&mut self) {
         let len = self.len();

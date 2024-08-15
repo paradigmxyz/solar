@@ -1,6 +1,6 @@
 use clap::{ColorChoice, Parser, ValueHint};
 use std::path::PathBuf;
-use sulk_config::{EvmVersion, Language, StopAfter};
+use sulk_config::{CompilerStage, EvmVersion, Language};
 
 const VERSION_MESSAGE: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -37,7 +37,7 @@ pub struct Args {
     pub evm_version: EvmVersion,
     /// Stop execution after the given compiler stage.
     #[arg(long, value_enum)]
-    pub stop_after: Option<StopAfter>,
+    pub stop_after: Option<CompilerStage>,
 
     /// Coloring.
     #[arg(long, value_enum, default_value_t)]
