@@ -59,7 +59,9 @@ impl Parser for Solc {
     fn lex(&self, _: &str) {}
 
     fn parse(&self, src: &str) {
-        let mut cmd = std::process::Command::new("solc");
+        let solc = std::env::var_os("SOLC");
+        let solc = solc.as_deref().unwrap_or_else(|| "solc".as_ref());
+        let mut cmd = std::process::Command::new(solc);
         cmd.arg("-");
         cmd.arg("--stop-after=parsing");
         // cmd.arg("--ast-compact-json");

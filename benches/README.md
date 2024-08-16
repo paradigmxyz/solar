@@ -23,6 +23,13 @@ For this compiler:
 
 In practice all of these are one-time costs.
 
+Run with:
+```sh
+cargo criterion -p sulk-bench --bench bench -- --quiet --format terse --output-format bencher
+# Copy paste the output into benches/tables.in and into the block below.
+./benches/tables.py < benches/tables.in
+```
+
 Criterion results on `x86_64-unknown-linux-gnu` on AMD Ryzen 7 7950X;
 `solc 0.8.26`, `sulk @ bb6bf9c`, `solang-parser =0.3.4`, `slang =0.15.1`:
 

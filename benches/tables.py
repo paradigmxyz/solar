@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Generates markdown tables from criterion textual output.
 
 import re
 import sys
@@ -8,6 +9,13 @@ from tabulate import tabulate
 
 def main():
     lines = sys.stdin.readlines()
+    if len(lines) == 0:
+        return
+    while ":" not in lines[0]:
+        lines = lines[1:]
+    lines = list(filter(lambda x: "Warning" not in x, lines))
+    if len(lines) == 0:
+        return
 
     benchmark_re = re.compile(r"(\w+): (\d+) LoC, (\d+) bytes")
     benchmarks = []
