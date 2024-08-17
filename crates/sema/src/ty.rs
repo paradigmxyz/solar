@@ -7,10 +7,78 @@ use std::{
 };
 use sulk_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use sulk_data_structures::Interned;
-use sulk_interface::diagnostics::ErrorGuaranteed;
+use sulk_interface::{diagnostics::ErrorGuaranteed, Symbol};
 use thread_local::ThreadLocal;
 
 type FxDashSet<T> = dashmap::DashMap<T, (), sulk_data_structures::map::FxBuildHasher>;
+
+/// Reference to the [global context](GlobalCtxt).
+pub struct Gcx<'gcx>(pub(crate) &'gcx GlobalCtxt<'gcx>);
+
+impl<'gcx> std::ops::Deref for Gcx<'gcx> {
+    type Target = &'gcx GlobalCtxt<'gcx>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// The global compilation context.
+pub struct GlobalCtxt<'gcx> {
+    pub interner: Interner<'gcx>,
+    pub types: CommonTypes<'gcx>,
+}
+
+impl<'gcx> Gcx<'gcx> {
+    pub fn mk_signature(self, name: Symbol, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
+        let mut s = String::with_capacity(64);
+        s.push_str(name.as_str());
+        TyPrinter::new(self, &mut s).print_tuple(tys).unwrap();
+        s
+    }
+}
+
+struct TyPrinter<'gcx, W> {
+    #[allow(dead_code)]
+    gcx: Gcx<'gcx>,
+    buf: W,
+}
+
+impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
+    fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+        Self { gcx, buf }
+    }
+
+    fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
+        use TyKind::*;
+        match ty.kind {
+            Elementary(ty) => write!(self.buf, "{}", ty.to_abi_str()),
+            Ref(ty, _loc) => self.print(ty),
+            DynArray(ty) => {
+                self.print(ty)?;
+                write!(self.buf, "[]")
+            }
+            Array(ty, len) => {
+                self.print(ty)?;
+                write!(self.buf, "[{len}]")
+            }
+            Tuple(tys) => self.print_tuple(tys.iter().copied()),
+            _ => panic!("printing invalid type: {ty:?}"),
+        }
+    }
+
+    fn print_tuple(&mut self, tys: impl IntoIterator<Item = Ty<'gcx>>) -> fmt::Result {
+        write!(self.buf, "(")?;
+        for (i, ty) in tys.into_iter().enumerate() {
+            if i > 0 {
+                write!(self.buf, ", ")?;
+            }
+            self.print(ty)?;
+        }
+        write!(self.buf, ")")
+    }
+}
 
 pub struct Interner<'gcx> {
     arena: &'gcx ThreadLocal<hir::Arena>,

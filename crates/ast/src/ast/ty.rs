@@ -1,5 +1,5 @@
 use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
-use std::fmt;
+use std::{borrow::Cow, fmt};
 use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
@@ -95,6 +95,23 @@ pub enum ElementaryType {
     /// `size @ 1..=32 => bytes{size}`
     /// `0 | 33.. => unreachable!()`
     FixedBytes(TypeSize),
+}
+
+impl ElementaryType {
+    /// Returns the Solidity ABI representation of the type as a string.
+    pub fn to_abi_str(&self) -> Cow<'static, str> {
+        match self {
+            Self::Address(_) => "address".into(),
+            Self::Bool => "bool".into(),
+            Self::String => "string".into(),
+            Self::Bytes => "bytes".into(),
+            Self::Fixed(_size, _fixed) => "fixed".into(),
+            Self::UFixed(_size, _fixed) => "ufixed".into(),
+            Self::Int(size) => size.int_keyword().as_str().to_string().into(),
+            Self::UInt(size) => size.uint_keyword().as_str().to_string().into(),
+            Self::FixedBytes(size) => size.bytes_keyword().as_str().to_string().into(),
+        }
+    }
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
