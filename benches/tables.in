@@ -8,121 +8,107 @@ console: 1552 LoC, 67315 bytes
 Vm: 1763 LoC, 91405 bytes
 safeconsole: 13248 LoC, 397898 bytes
 
-parser/empty/solc/parse time:   [1.7095 ms 1.7167 ms 1.7268 ms]
-parser/empty/sulk/lex   time:   [929.72 ns 932.70 ns 935.60 ns]
-parser/empty/sulk/parse time:   [1.3479 µs 1.3752 µs 1.4277 µs]
-parser/empty/solang/lex time:   [8.9850 ns 9.0080 ns 9.0325 ns]
-parser/empty/solang/parse
-                        time:   [111.17 ns 111.71 ns 112.66 ns]
-parser/empty/slang/parse
-                        time:   [32.165 µs 32.212 µs 32.284 µs]
+parser/empty/solc/parse time:   [1.3433 ms 1.3534 ms 1.3671 ms]                                    
+parser/empty/sulk/lex   time:   [899.40 ns 900.60 ns 901.76 ns]                                 
+parser/empty/sulk/parse time:   [1.2432 µs 1.2441 µs 1.2453 µs]                                    
+parser/empty/solang/lex time:   [12.175 ns 12.183 ns 12.196 ns]                                    
+parser/empty/solang/parse                                                                           
+                        time:   [99.264 ns 99.453 ns 99.668 ns]
+parser/empty/slang/parse                                                                            
+                        time:   [30.699 µs 30.727 µs 30.751 µs]
 
-parser/Counter/solc/parse
-                        time:   [1.7867 ms 1.7880 ms 1.7889 ms]
-                        Performance has improved.
-parser/Counter/sulk/lex time:   [1.8414 µs 1.8435 µs 1.8466 µs]
-parser/Counter/sulk/parse
-                        time:   [4.1981 µs 4.2226 µs 4.2529 µs]
-parser/Counter/solang/lex
-                        time:   [1.9789 µs 2.0008 µs 2.0361 µs]
-parser/Counter/solang/parse
-                        time:   [10.703 µs 10.843 µs 11.014 µs]
-parser/Counter/slang/parse
-                        time:   [1.1930 ms 1.2180 ms 1.2449 ms]
+parser/Counter/solc/parse                                                                            
+                        time:   [1.4660 ms 1.4716 ms 1.4775 ms]
+parser/Counter/sulk/lex time:   [1.9003 µs 1.9020 µs 1.9033 µs]                                    
+parser/Counter/sulk/parse                                                                            
+                        time:   [3.6554 µs 3.6630 µs 3.6689 µs]
+parser/Counter/solang/lex                                                                            
+                        time:   [1.5520 µs 1.5604 µs 1.5720 µs]
+parser/Counter/solang/parse                                                                            
+                        time:   [8.4944 µs 8.5010 µs 8.5108 µs]
+parser/Counter/slang/parse                                                                            
+                        time:   [967.39 µs 967.73 µs 967.97 µs]
 
-parser/verifier/solc/parse
-                        time:   [3.4721 ms 3.5210 ms 3.6007 ms]
-                        Performance has improved.
-parser/verifier/sulk/lex
-                        time:   [38.888 µs 39.978 µs 41.911 µs]
-parser/verifier/sulk/parse
-                        time:   [103.51 µs 109.48 µs 118.67 µs]
-parser/verifier/solang/lex
-                        time:   [80.568 µs 81.554 µs 82.359 µs]
-parser/verifier/solang/parse
-                        time:   [529.58 µs 543.95 µs 565.78 µs]
+parser/verifier/solc/parse                                                                            
+                        time:   [2.0360 ms 2.0447 ms 2.0518 ms]
+parser/verifier/sulk/lex                                                                            
+                        time:   [37.900 µs 37.958 µs 38.054 µs]
+parser/verifier/sulk/parse                                                                            
+                        time:   [90.800 µs 91.192 µs 91.608 µs]
+parser/verifier/solang/lex                                                                            
+                        time:   [60.674 µs 60.760 µs 60.823 µs]
+parser/verifier/solang/parse                                                                           
+                        time:   [456.22 µs 457.39 µs 458.84 µs]
+parser/verifier/slang/parse                                                                           
+                        time:   [60.732 ms 60.795 ms 60.886 ms]
 
-parser/verifier/slang/parse
-                        time:   [77.649 ms 79.896 ms 81.913 ms]
+parser/OptimizorClub/solc/parse                                                                            
+                        time:   [2.9213 ms 2.9297 ms 2.9380 ms]
+parser/OptimizorClub/sulk/lex                                                                           
+                        time:   [119.12 µs 120.55 µs 122.04 µs]
+parser/OptimizorClub/sulk/parse                                                                           
+                        time:   [274.39 µs 279.00 µs 285.41 µs]
+parser/OptimizorClub/solang/lex                                                                           
+                        time:   [191.73 µs 193.95 µs 196.28 µs]
+parser/OptimizorClub/solang/parse                                                                            
+                        time:   [1.2964 ms 1.3101 ms 1.3258 ms]
+parser/OptimizorClub/slang/parse                                                                          
+                        time:   [186.51 ms 186.62 ms 186.73 ms]
 
-parser/OptimizorClub/solc/parse
-                        time:   [6.6424 ms 6.8432 ms 7.0932 ms]
-                        Performance has improved.
-parser/OptimizorClub/sulk/lex
-                        time:   [154.01 µs 156.76 µs 159.89 µs]
-parser/OptimizorClub/sulk/parse
-                        time:   [337.32 µs 344.66 µs 354.27 µs]
-                        Performance has regressed.
-parser/OptimizorClub/solang/lex
-                        time:   [245.06 µs 247.72 µs 251.18 µs]
-parser/OptimizorClub/solang/parse
-                        time:   [1.4808 ms 1.4979 ms 1.5324 ms]
-parser/OptimizorClub/slang/parse
-                        time:   [216.82 ms 218.62 ms 220.99 ms]
+parser/UniswapV3/solc/parse                                                                            
+                        time:   [6.0144 ms 6.0342 ms 6.0483 ms]
+parser/UniswapV3/sulk/lex                                                                           
+                        time:   [348.32 µs 348.89 µs 349.74 µs]
+parser/UniswapV3/sulk/parse                                                                           
+                        time:   [733.32 µs 734.64 µs 736.06 µs]
+parser/UniswapV3/solang/lex                                                                           
+                        time:   [668.94 µs 674.57 µs 679.37 µs]
+parser/UniswapV3/solang/parse                                                                            
+                        time:   [3.4440 ms 3.4850 ms 3.5193 ms]
+parser/UniswapV3/slang/parse                                                                          
+                        time:   [521.71 ms 523.17 ms 524.63 ms]
 
-parser/UniswapV3/solc/parse
-                        time:   [19.751 ms 19.767 ms 19.788 ms]
-                        Performance has improved.
-parser/UniswapV3/sulk/lex
-                        time:   [405.44 µs 407.04 µs 409.75 µs]
-parser/UniswapV3/sulk/parse
-                        time:   [846.64 µs 846.75 µs 846.86 µs]
-parser/UniswapV3/solang/lex
-                        time:   [839.41 µs 841.67 µs 843.21 µs]
-parser/UniswapV3/solang/parse
-                        time:   [4.0430 ms 4.0707 ms 4.1068 ms]
+parser/Solarray/solc/parse                                                                            
+                        time:   [3.5923 ms 3.6048 ms 3.6189 ms]
+parser/Solarray/sulk/lex                                                                           
+                        time:   [211.54 µs 212.32 µs 213.56 µs]
+parser/Solarray/sulk/parse                                                                           
+                        time:   [559.89 µs 568.74 µs 575.52 µs]
+parser/Solarray/solang/lex                                                                           
+                        time:   [294.11 µs 294.65 µs 295.15 µs]
+parser/Solarray/solang/parse                                                                            
+                        time:   [2.7473 ms 2.7633 ms 2.7722 ms]
+parser/Solarray/slang/parse                                                                          
+                        time:   [382.95 ms 384.38 ms 385.97 ms]
 
-parser/UniswapV3/slang/parse
-                        time:   [605.01 ms 605.17 ms 605.32 ms]
+parser/console/solc/parse                                                                            
+                        time:   [4.6215 ms 4.6491 ms 4.6749 ms]
+parser/console/sulk/lex time:   [306.46 µs 308.51 µs 310.56 µs]                                   
+parser/console/sulk/parse                                                                           
+                        time:   [653.96 µs 655.10 µs 656.24 µs]
+parser/console/solang/lex                                                                           
+                        time:   [442.65 µs 445.00 µs 446.91 µs]
+parser/console/solang/parse                                                                            
+                        time:   [3.5584 ms 3.5673 ms 3.5836 ms]
+parser/console/slang/parse                                                                          
+                        time:   [422.64 ms 424.58 ms 426.62 ms]
 
-parser/Solarray/solc/parse
-                        time:   [7.1356 ms 7.1379 ms 7.1406 ms]
-                        Performance has improved.
-parser/Solarray/sulk/lex
-                        time:   [203.89 µs 203.95 µs 204.02 µs]
-parser/Solarray/sulk/parse
-                        time:   [548.83 µs 548.97 µs 549.13 µs]
-parser/Solarray/solang/lex
-                        time:   [348.38 µs 348.65 µs 348.94 µs]
-parser/Solarray/solang/parse
-                        time:   [3.2365 ms 3.2370 ms 3.2374 ms]
-parser/Solarray/slang/parse
-                        time:   [440.79 ms 441.01 ms 441.34 ms]
+parser/Vm/solc/parse    time:   [3.8192 ms 3.8359 ms 3.8494 ms]                                 
+parser/Vm/sulk/lex      time:   [199.36 µs 199.64 µs 199.98 µs]                              
+parser/Vm/sulk/parse    time:   [356.30 µs 358.58 µs 360.07 µs]                                
+parser/Vm/solang/lex    time:   [410.24 µs 411.61 µs 412.84 µs]                                
+parser/Vm/solang/parse  time:   [1.3992 ms 1.4055 ms 1.4100 ms]                                   
+parser/Vm/slang/parse   time:   [73.307 ms 73.501 ms 73.675 ms]                                 
 
-parser/console/solc/parse
-                        time:   [10.726 ms 10.729 ms 10.732 ms]
-                        Performance has improved.
-parser/console/sulk/lex time:   [316.16 µs 316.31 µs 316.51 µs]
-parser/console/sulk/parse
-                        time:   [689.54 µs 690.05 µs 690.97 µs]
-parser/console/solang/lex
-                        time:   [540.98 µs 541.26 µs 541.58 µs]
-parser/console/solang/parse
-                        time:   [4.1051 ms 4.1057 ms 4.1063 ms]
-
-parser/console/slang/parse
-                        time:   [506.01 ms 512.59 ms 525.43 ms]
-
-parser/Vm/solc/parse    time:   [12.249 ms 12.533 ms 12.856 ms]
-parser/Vm/sulk/lex      time:   [227.10 µs 231.22 µs 236.78 µs]
-parser/Vm/sulk/parse    time:   [439.64 µs 440.02 µs 440.62 µs]
-parser/Vm/solang/lex    time:   [525.25 µs 525.76 µs 526.45 µs]
-parser/Vm/solang/parse  time:   [1.6001 ms 1.6016 ms 1.6040 ms]
-
-parser/Vm/slang/parse   time:   [86.329 ms 86.346 ms 86.368 ms]
-
-
-parser/safeconsole/solc/parse
-                        time:   [52.941 ms 53.014 ms 53.079 ms]
-                        Performance has improved.
-parser/safeconsole/sulk/lex
-                        time:   [1.6479 ms 1.6490 ms 1.6501 ms]
-parser/safeconsole/sulk/parse
-                        time:   [4.2143 ms 4.2677 ms 4.3577 ms]
-parser/safeconsole/solang/lex
-                        time:   [2.8853 ms 2.8880 ms 2.8913 ms]
-parser/safeconsole/solang/parse
-                        time:   [18.188 ms 18.359 ms 18.505 ms]
-
-parser/safeconsole/slang/parse
-                        time:   [4.2658 s 4.2826 s 4.3045 s]
+parser/safeconsole/solc/parse                                                                           
+                        time:   [20.815 ms 21.013 ms 21.192 ms]
+parser/safeconsole/sulk/lex                                                                            
+                        time:   [1.6436 ms 1.6641 ms 1.6775 ms]
+parser/safeconsole/sulk/parse                                                                            
+                        time:   [5.1074 ms 5.1281 ms 5.1561 ms]
+parser/safeconsole/solang/lex                                                                            
+                        time:   [2.4431 ms 2.4540 ms 2.4652 ms]
+parser/safeconsole/solang/parse                                                                           
+                        time:   [21.561 ms 24.186 ms 28.122 ms]
+parser/safeconsole/slang/parse                                                                          
+                        time:   [3.6266 s 3.6457 s 3.6646 s]
