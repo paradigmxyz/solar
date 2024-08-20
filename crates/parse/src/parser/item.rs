@@ -331,8 +331,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
         let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
-            // Ignore doc-comments.
-            let _ = this.parse_doc_comments()?;
+            this.ignore_doc_comments();
             this.parse_ident()
         })?;
         Ok(ItemEnum { name, variants })
@@ -706,8 +705,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 ty
             }
             None => {
-                // Ignore doc-comments.
-                let _ = self.parse_doc_comments()?;
+                self.ignore_doc_comments();
                 self.parse_type()?
             }
         };
