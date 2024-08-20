@@ -2,7 +2,7 @@ use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use sulk_ast::{
-    ast::{yul::*, AstPath, Box, LitKind, PathSlice, StrKind, StrLit},
+    ast::{yul::*, AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit},
     token::*,
 };
 use sulk_interface::{error_code, kw, sym, Ident};
@@ -16,10 +16,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
         let docs = self.parse_doc_comments()?;
         let object = if self.check_keyword(sym::object) {
-            self.parse_yul_object().map(|mut obj| {
-                obj.docs = docs;
-                obj
-            })
+            self.parse_yul_object(docs)
         } else {
             let lo = self.token.span;
             self.parse_yul_block().map(|code| {
@@ -36,8 +33,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul object.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/yul.html#specification-of-yul-object>
-    pub fn parse_yul_object(&mut self) -> PResult<'sess, Object<'ast>> {
-        let docs = self.parse_doc_comments()?;
+    pub fn parse_yul_object(&mut self, docs: DocComments<'ast>) -> PResult<'sess, Object<'ast>> {
         let lo = self.token.span;
         self.expect_keyword(sym::object)?;
         let name = self.parse_str_lit()?;
@@ -47,8 +43,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut children = Vec::new();
         let mut data = Vec::new();
         loop {
+            let docs = self.parse_doc_comments()?;
             if self.check_keyword(sym::object) {
-                children.push(self.parse_yul_object()?);
+                children.push(self.parse_yul_object(docs)?);
             } else if self.check_keyword(sym::data) {
                 data.push(self.parse_yul_data()?);
             } else {
@@ -242,6 +239,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'sess, Expr<'ast>> {
+        self.ignore_doc_comments();
         self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
     }
 

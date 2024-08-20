@@ -713,6 +713,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// This always-inlined version should only be used on hot code paths.
     #[inline(always)]
     fn inlined_bump_with(&mut self, next_token: Token) {
+        #[cfg(debug_assertions)]
+        if next_token.is_comment() {
+            self.comment_in_stream(next_token.span);
+        }
         self.prev_token = std::mem::replace(&mut self.token, next_token);
         self.expected_tokens.clear();
     }
@@ -773,17 +777,50 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
+    /// Parses and ignores contiguous doc comments.
+    #[inline]
+    pub fn ignore_doc_comments(&mut self) {
+        if matches!(self.token.kind, TokenKind::Comment(..)) {
+            self.ignore_doc_comments_inner();
+        }
+    }
+
+    #[cold]
+    fn ignore_doc_comments_inner(&mut self) {
+        while let Token { span, kind: TokenKind::Comment(is_doc, _kind, _symbol) } = self.token {
+            if !is_doc {
+                self.comment_in_stream(span);
+            }
+            self.bump();
+        }
+    }
+
     /// Parses contiguous doc comments. Can be empty.
+    #[inline]
     pub fn parse_doc_comments(&mut self) -> PResult<'sess, DocComments<'ast>> {
+        if matches!(self.token.kind, TokenKind::Comment(..)) {
+            self.parse_doc_comments_inner()
+        } else {
+            Ok(Default::default())
+        }
+    }
+
+    #[cold]
+    fn parse_doc_comments_inner(&mut self) -> PResult<'sess, DocComments<'ast>> {
         let mut doc_comments = SmallVec::<[_; 4]>::new();
         while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
             if !is_doc {
-                self.dcx().bug("comments should not be in the token stream").span(span).emit();
+                self.comment_in_stream(span);
             }
             doc_comments.push(DocComment { kind, span, symbol });
             self.bump();
         }
         Ok(self.alloc_smallvec(doc_comments))
+    }
+
+    #[cold]
+    fn comment_in_stream(&self, span: Span) -> ! {
+        self.dcx().bug("comments should not be in the token stream").span(span).emit()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
