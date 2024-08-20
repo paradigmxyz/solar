@@ -23,7 +23,7 @@ semver.workspace = true
 
 [dev-dependencies]
 criterion = "0.5"
-iai-callgrind = "0.11"
+iai-callgrind = "0.13"
 paste.workspace = true
 
 [features]
