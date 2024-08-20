@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::hir;
 use dashmap::SharedValue;
 use std::{
