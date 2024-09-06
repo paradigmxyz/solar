@@ -2,6 +2,8 @@
 
 use smallvec::SmallVec;
 
+/// Implements `f(&iter.collect::<Vec<_>>())` more efficiently.
+///
 /// Imagine you have a function `F: FnOnce(&[T]) -> R`, plus an iterator `iter`
 /// that produces `T` items. You could combine them with
 /// `f(&iter.collect::<Vec<_>>())`, but this requires allocating memory for the

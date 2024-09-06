@@ -868,7 +868,7 @@ impl SymbolResolverScopes {
     fn get<'a>(
         &'a self,
         resolver: &'a SymbolResolver<'_>,
-    ) -> impl Iterator<Item = &Declarations> + Clone + 'a {
+    ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
         debug_assert!(self.source.is_some() || self.contract.is_some());
         let scopes = self.scopes.iter().rev();
         let outer = [

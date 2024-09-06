@@ -4,9 +4,10 @@ use sulk_data_structures::{defer, sync::Lock};
 
 scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 
-/// Per-session global variables: this struct is stored in thread-local storage
-/// in such a way that it is accessible without any kind of handle to all
-/// threads within the compilation session, but is not accessible outside the
+/// Per-session global variables.
+///
+/// This struct is stored in thread-local storage in such a way that it is accessible without any
+/// kind of handle to all threads within the compilation session, but is not accessible outside the
 /// session.
 pub struct SessionGlobals {
     pub(crate) symbol_interner: crate::symbol::Interner,
