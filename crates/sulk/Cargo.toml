@@ -41,7 +41,7 @@ tikv-jemallocator = { workspace = true, optional = true }
 sulk-tester.workspace = true
 
 [features]
-default = ["jemalloc", "tracing-chrome"]
+default = ["jemalloc"]
 nightly = [
     "sulk-config/nightly",
     "sulk-interface/nightly",
