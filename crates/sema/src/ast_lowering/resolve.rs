@@ -707,7 +707,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
-                size: array.size.as_deref().map(|size| self.lower_expr(size)),
+                size: self.lower_expr_opt(array.size.as_deref()),
             })),
             ast::TypeKind::Function(f) => hir::TypeKind::Function(
                 self.arena.alloc(hir::TypeFunction {
@@ -781,8 +781,8 @@ impl<'sess> SymbolResolver<'sess> {
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         let decl = self.resolve_path(path, scopes)?;
-        if let DeclarationKind::Err(guard) = decl.kind {
-            return Err(guard);
+        if let DeclarationKind::Err(guar) = decl.kind {
+            return Err(guar);
         }
         T::try_from(decl.kind)
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))

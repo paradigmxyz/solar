@@ -331,6 +331,26 @@ impl<'gcx> Ty<'gcx> {
     pub fn new_fn_ptr(interner: &Interner<'gcx>, ptr: &'gcx TyFnPtr<'gcx>) -> Self {
         Self::new(interner, TyKind::FnPtr(ptr))
     }
+
+    pub fn new_contract(interner: &Interner<'gcx>, id: hir::ContractId) -> Self {
+        Self::new(interner, TyKind::Contract(id))
+    }
+
+    pub fn new_struct(interner: &Interner<'gcx>, fields: &'gcx [Self], id: hir::StructId) -> Self {
+        Self::new(interner, TyKind::Struct(fields, id))
+    }
+
+    pub fn new_enum(interner: &Interner<'gcx>, id: hir::EnumId) -> Self {
+        Self::new(interner, TyKind::Enum(id))
+    }
+
+    pub fn new_udvt(interner: &Interner<'gcx>, ty: Self, id: hir::UdvtId) -> Self {
+        Self::new(interner, TyKind::Udvt(ty, id))
+    }
+
+    pub fn new_err(interner: &Interner<'gcx>, guar: ErrorGuaranteed) -> Self {
+        Self::new(interner, TyKind::Err(guar))
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -369,6 +389,18 @@ pub enum TyKind<'gcx> {
 
     /// Function pointer: `function(...) returns (...)`.
     FnPtr(&'gcx TyFnPtr<'gcx>),
+
+    /// Contract.
+    Contract(hir::ContractId),
+
+    /// Struct. Contains the fields.
+    Struct(&'gcx [Ty<'gcx>], hir::StructId),
+
+    /// Enum. Contains the variants.
+    Enum(hir::EnumId),
+
+    /// A user-defined value type. `Ty` can only be `Elementary`.
+    Udvt(Ty<'gcx>, hir::UdvtId),
 
     /// An invalid type. Silences further errors.
     Err(ErrorGuaranteed),
