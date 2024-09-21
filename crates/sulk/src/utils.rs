@@ -44,7 +44,7 @@ pub(crate) fn init_logger() -> impl Sized {
     }
 }
 
-fn try_init_logger() -> std::result::Result<impl Sized, String> {
+fn try_init_logger() -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
     let (profile_layer, guard) = match std::env::var("SULK_PROFILE").as_deref() {
@@ -61,7 +61,7 @@ fn try_init_logger() -> std::result::Result<impl Sized, String> {
             }
             (Some(tracy_layer().boxed()), Default::default())
         }
-        Ok(s) => return Err(format!("unknown profiler '{s}'")),
+        Ok(s) => return Err(format!("unknown profiler '{s}'; valid values: 'chrome', 'tracy'")),
         Err(_) => Default::default(),
     };
     tracing_subscriber::Registry::default()
@@ -75,30 +75,20 @@ fn try_init_logger() -> std::result::Result<impl Sized, String> {
 
 #[cfg(feature = "tracy")]
 fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
-    struct Config(tracing_subscriber::fmt::format::DefaultFields, bool);
+    struct Config(tracing_subscriber::fmt::format::DefaultFields);
     impl tracing_tracy::Config for Config {
         type Formatter = tracing_subscriber::fmt::format::DefaultFields;
         fn formatter(&self) -> &Self::Formatter {
             &self.0
         }
         fn format_fields_in_zone_name(&self) -> bool {
-            self.1
+            false
         }
     }
 
-    // Disable demangling as it shows up a lot in allocations.
-    #[cfg(feature = "tracy-allocator")]
-    #[no_mangle]
-    unsafe extern "C" fn ___tracy_demangle(
-        _mangled: *const std::ffi::c_char,
-    ) -> *const std::ffi::c_char {
-        std::ptr::null()
-    }
-
-    #[cfg(not(feature = "tracy-allocator"))]
     tracing_tracy::client::register_demangler!();
 
-    tracing_tracy::TracyLayer::new(Config(Default::default(), false))
+    tracing_tracy::TracyLayer::new(Config(Default::default()))
 }
 
 #[cfg(not(feature = "tracy"))]
@@ -107,7 +97,6 @@ fn tracy_layer() -> tracing_subscriber::layer::Identity {
 }
 
 #[cfg(feature = "tracing-chrome")]
-#[allow(clippy::disallowed_methods)]
 fn chrome_layer<S>() -> (tracing_chrome::ChromeLayer<S>, tracing_chrome::FlushGuard)
 where
     S: tracing::Subscriber

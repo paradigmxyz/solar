@@ -1,6 +1,9 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
-use std::fmt::{self, Write};
+use std::{
+    fmt::{self, Write},
+    path::Path,
+};
 use sulk_ast::{
     ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
     token::{Delimiter, Token, TokenKind},
@@ -150,6 +153,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         src: String,
     ) -> Result<Self> {
         Self::from_lazy_source_code(sess, arena, filename, || Ok(src))
+    }
+
+    /// Creates a new parser from a file.
+    pub fn from_file(sess: &'sess Session, arena: &'ast ast::Arena, path: &Path) -> Result<Self> {
+        Self::from_lazy_source_code(sess, arena, FileName::Real(path.to_path_buf()), || {
+            std::fs::read_to_string(path)
+        })
     }
 
     /// Creates a new parser from a source code closure.
