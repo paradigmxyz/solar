@@ -273,7 +273,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a struct definition.
     fn parse_struct(&mut self) -> PResult<'sess, ItemStruct<'ast>> {
         let name = self.parse_ident()?;
-        let (fields, _) = self.parse_delim_seq(
+        let fields = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
             false,
@@ -330,7 +330,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+        let variants = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
             this.ignore_doc_comments();
             this.parse_ident()
         })?;
@@ -582,7 +582,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             ImportItems::Glob(alias)
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
             // { x as y, ... } from ""
-            let (list, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            let list = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
                 let alias = this.parse_as_alias()?;
                 Ok((name, alias))
@@ -629,7 +629,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_using_list(&mut self) -> PResult<'sess, UsingList<'ast>> {
         if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
-            let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
                 let op = if this.eat_keyword(kw::As) {
                     Some(this.parse_user_definable_operator()?)
@@ -637,8 +637,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     None
                 };
                 Ok((path, op))
-            })?;
-            Ok(UsingList::Multiple(paths))
+            })
+            .map(UsingList::Multiple)
         } else {
             self.parse_path().map(UsingList::Single)
         }
@@ -841,7 +841,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         flags: VarFlags,
     ) -> PResult<'sess, ParameterList<'ast>> {
         self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
-            .map(|(x, _)| x)
     }
 
     /// Parses a list of inheritance specifiers.
@@ -852,7 +851,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             false,
             Self::parse_modifier,
         )
-        .map(|(x, _, _)| x)
+        .map(|(x, _)| x)
     }
 
     /// Parses a single modifier invocation.
@@ -873,7 +872,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
         let paths = if self.token.is_open_delim(Delimiter::Parenthesis) {
-            self.parse_paren_comma_seq(false, Self::parse_path)?.0
+            self.parse_paren_comma_seq(false, Self::parse_path)?
         } else {
             Default::default()
         };

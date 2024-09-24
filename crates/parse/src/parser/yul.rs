@@ -102,7 +102,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul block, without setting `in_yul`.
     pub fn parse_yul_block_unchecked(&mut self) -> PResult<'sess, Block<'ast>> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_yul_stmt_unchecked)
-            .map(|(x, _)| x)
     }
 
     /// Parses a Yul statement kind.
@@ -174,14 +173,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul function definition.
     fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let name = self.parse_ident()?;
-        let (parameters, _) = self.parse_paren_comma_seq(true, Self::parse_ident)?;
+        let parameters = self.parse_paren_comma_seq(true, Self::parse_ident)?;
         let returns = if self.eat(&TokenKind::Arrow) {
-            let (returns, _) = self.parse_nodelim_comma_seq(
+            self.parse_nodelim_comma_seq(
                 &TokenKind::OpenDelim(Delimiter::Brace),
                 false,
                 Self::parse_ident,
-            )?;
-            returns
+            )?
         } else {
             Default::default()
         };
@@ -268,7 +266,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !name.is_yul_evm_builtin() && name.is_reserved(true) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }
-        let (arguments, _) = self.parse_paren_comma_seq(true, Self::parse_yul_expr)?;
+        let arguments = self.parse_paren_comma_seq(true, Self::parse_yul_expr)?;
         Ok(ExprCall { name, arguments })
     }
 

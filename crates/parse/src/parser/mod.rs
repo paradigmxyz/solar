@@ -90,6 +90,7 @@ impl ExpectedToken {
 }
 
 /// A sequence separator.
+#[derive(Debug)]
 struct SeqSep {
     /// The separator token.
     sep: Option<TokenKind>,
@@ -109,7 +110,6 @@ impl SeqSep {
         Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: true }
     }
 
-    #[allow(dead_code)]
     fn trailing_disallowed(t: TokenKind) -> Self {
         Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: false }
     }
@@ -529,7 +529,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
 
@@ -543,7 +543,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
 
@@ -556,14 +556,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         stop: &TokenKind,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_seq_to_before_end(
             stop,
             SeqSep::trailing_disallowed(TokenKind::Comma),
             allow_empty,
             f,
         )
-        .map(|(v, trailing, _recovered)| (v, trailing))
+        .map(|(v, _recovered)| v)
     }
 
     /// Parses a `sep`-separated sequence, including both delimiters.
@@ -577,7 +577,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_unspanned_seq(
             &TokenKind::OpenDelim(delim),
             &TokenKind::CloseDelim(delim),
@@ -599,7 +599,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.expect(bra)?;
         self.parse_seq_to_end(ket, sep, allow_empty, f)
     }
@@ -615,12 +615,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */)> {
-        let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
+    ) -> PResult<'sess, Box<'ast, [T]>> {
+        let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
             self.expect(ket)?;
         }
-        Ok((val, trailing))
+        Ok(val)
     }
 
     /// Parses a sequence, not including the delimiters. The function
@@ -634,12 +634,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
     /// Checks if the next token is contained within `kets`, and returns `true` if so.
-    fn expect_any(&mut self, kets: &[&TokenKind]) -> bool {
+    fn check_any(&mut self, kets: &[&TokenKind]) -> bool {
         kets.iter().any(|k| self.check(k))
     }
 
@@ -653,7 +653,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* trailing */, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
@@ -664,18 +664,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             first = false;
         }
 
-        while !self.expect_any(kets) {
+        while !self.check_any(kets) {
             if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
                 break;
             }
 
-            if let Some(tk) = &sep.sep {
+            if let Some(sep_kind) = &sep.sep {
                 if first {
                     // no separator for the first element
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(tk) {
+                    match self.expect(sep_kind) {
                         Ok(recovered_) => {
                             if recovered_ {
                                 recovered = true;
@@ -684,25 +684,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         }
                         Err(e) => return Err(e),
                     }
+
+                    if self.check_any(kets) {
+                        trailing = true;
+                        break;
+                    }
                 }
             }
 
-            if sep.trailing_sep_allowed && self.expect_any(kets) {
-                trailing = true;
-                break;
-            }
-
-            let t = f(self)?;
-            v.push(t);
+            v.push(f(self)?);
         }
 
-        if sep.trailing_sep_required && !trailing {
-            if let Some(tk) = &sep.sep {
-                self.expect(tk)?;
+        if let Some(sep_kind) = &sep.sep {
+            if sep.trailing_sep_required && !trailing {
+                if let Err(e) = self.expect(sep_kind) {
+                    e.emit();
+                }
+            }
+            if !sep.trailing_sep_allowed && trailing {
+                let msg = format!("trailing `{sep_kind}` separator is not allowed");
+                self.dcx().err(msg).span(self.prev_token.span).emit();
             }
         }
 
-        Ok((self.alloc_smallvec(v), trailing, recovered))
+        Ok((self.alloc_smallvec(v), recovered))
     }
 
     /// Advance the parser by one token.

@@ -75,7 +75,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
-            .map(|(x, _)| x)
     }
 
     /// Parses an if statement.
@@ -163,7 +162,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
         let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            self.parse_paren_comma_seq(false, Self::parse_str_lit)?.0
+            self.parse_paren_comma_seq(false, Self::parse_str_lit)?
         } else {
             Default::default()
         };

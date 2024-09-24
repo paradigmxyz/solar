@@ -257,7 +257,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
     fn parse_named_args(&mut self) -> PResult<'sess, NamedArgList<'ast>> {
-        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg).map(|(x, _)| x)
+        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg)
     }
 
     /// Parses a single named argument: `a: b`.
@@ -273,7 +273,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[allow(clippy::vec_box)]
     #[track_caller]
     fn parse_unnamed_args(&mut self) -> PResult<'sess, Box<'ast, [Box<'ast, Expr<'ast>>]>> {
-        self.parse_paren_comma_seq(true, Self::parse_expr).map(|(x, _)| x)
+        self.parse_paren_comma_seq(true, Self::parse_expr)
     }
 }
 
