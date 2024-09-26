@@ -1,0 +1,9 @@
+error: `transient` data location is not allowed here
+  --> $DIR/transient.sol:26:24
+   |
+LL |     function g(uint256 transient transient) {
+   |                        ^^^^^^^^^
+   |
+
+error: aborting due to 1 previous error
+

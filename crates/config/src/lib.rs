@@ -14,11 +14,14 @@ mod utils;
 pub use strum;
 
 str_enum! {
-    /// Stop execution after the given compiler stage.
+    /// Compiler stage.
     #[derive(strum::EnumIs)]
     #[strum(serialize_all = "lowercase")]
-    pub enum StopAfter {
-        Parsing,
+    pub enum CompilerStage {
+        /// Source code was parsed into an AST.
+        #[strum(serialize = "parsed", serialize = "parsing")]
+        Parsed,
+        // TODO: More
     }
 }
 
@@ -91,6 +94,15 @@ impl EvmVersion {
     }
     pub fn has_push0(self) -> bool {
         self >= Self::Shanghai
+    }
+}
+
+str_enum! {
+    /// Type of output for the compiler to emit.
+    #[strum(serialize_all = "kebab-case")]
+    pub enum CompilerOutput {
+        /// Raw Yul JSON.
+        RawYul,
     }
 }
 

@@ -2,22 +2,25 @@ use crate::{PResult, Parser};
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::kw;
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
     #[inline]
-    pub fn parse_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         self.parse_expr_with(None)
     }
 
     #[instrument(name = "parse_expr", level = "debug", skip_all)]
-    pub(super) fn parse_expr_with(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    pub(super) fn parse_expr_with(
+        &mut self,
+        with: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let expr = self.parse_binary_expr(4, with)?;
         if self.eat(&TokenKind::Question) {
             let then = self.parse_expr()?;
             self.expect(&TokenKind::Colon)?;
             let else_ = self.parse_expr()?;
             let span = expr.span.to(self.prev_token.span);
-            Ok(Box::new(Expr { span, kind: ExprKind::Ternary(expr, then, else_) }))
+            Ok(self.alloc(Expr { span, kind: ExprKind::Ternary(expr, then, else_) }))
         } else {
             let kind = if let Some(binop_eq) = self.token.as_binop_eq() {
                 Some(binop_eq)
@@ -29,7 +32,7 @@ impl<'a> Parser<'a> {
             self.bump(); // binop token
             let rhs = self.parse_expr()?;
             let span = expr.span.to(self.prev_token.span);
-            Ok(Box::new(Expr { span, kind: ExprKind::Assign(expr, kind, rhs) }))
+            Ok(self.alloc(Expr { span, kind: ExprKind::Assign(expr, kind, rhs) }))
         }
     }
 
@@ -37,8 +40,8 @@ impl<'a> Parser<'a> {
     fn parse_binary_expr(
         &mut self,
         min_precedence: usize,
-        with: Option<Box<Expr>>,
-    ) -> PResult<'a, Box<Expr>> {
+        with: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let mut expr = self.parse_unary_expr(with)?;
         let mut precedence = token_precedence(&self.token);
         while precedence >= min_precedence {
@@ -67,7 +70,7 @@ impl<'a> Parser<'a> {
                     let msg = format!("unknown binop token: {token:?}");
                     self.dcx().bug(msg).span(span).emit();
                 };
-                expr = Box::new(Expr { span, kind });
+                expr = self.alloc(Expr { span, kind });
             }
             precedence -= 1;
         }
@@ -75,7 +78,10 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a unary expression.
-    fn parse_unary_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    fn parse_unary_expr(
+        &mut self,
+        with: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         if self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
             self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
         }
@@ -86,7 +92,7 @@ impl<'a> Parser<'a> {
                 if let Some(unop) = this.token.as_unop(true) {
                     this.bump(); // unop
                     let span = lo.to(this.prev_token.span);
-                    Box::new(Expr { span, kind: ExprKind::Unary(unop, expr) })
+                    this.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
                 } else {
                     expr
                 }
@@ -97,13 +103,13 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Delete) {
             self.parse_unary_expr(None).map(|expr| {
                 let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::Delete(expr) })
+                self.alloc(Expr { span, kind: ExprKind::Delete(expr) })
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
             self.parse_unary_expr(None).map(|expr| {
                 let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::Unary(unop, expr) })
+                self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })
             })
         } else {
             parse_lhs(self, None)
@@ -111,19 +117,22 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a primary left-hand-side expression.
-    fn parse_lhs_expr(&mut self, with: Option<Box<Expr>>) -> PResult<'a, Box<Expr>> {
+    fn parse_lhs_expr(
+        &mut self,
+        with: Option<Box<'ast, Expr<'ast>>>,
+    ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
         let mut expr = if let Some(with) = with {
             Ok(with)
         } else if self.eat_keyword(kw::New) {
             self.parse_type().map(|ty| {
                 let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::New(ty) })
+                self.alloc(Expr { span, kind: ExprKind::New(ty) })
             })
         } else if self.eat_keyword(kw::Payable) {
             self.parse_call_args().map(|args| {
                 let span = lo.to(self.prev_token.span);
-                Box::new(Expr { span, kind: ExprKind::Payable(args) })
+                self.alloc(Expr { span, kind: ExprKind::Payable(args) })
             })
         } else {
             self.parse_primary_expr()
@@ -153,13 +162,13 @@ impl<'a> Parser<'a> {
                 break;
             };
             let span = lo.to(self.prev_token.span);
-            expr = Box::new(Expr { span, kind });
+            expr = self.alloc(Expr { span, kind });
         }
         Ok(expr)
     }
 
     /// Parses a primary expression.
-    fn parse_primary_expr(&mut self) -> PResult<'a, Box<Expr>> {
+    fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
             let (lit, sub) = self.parse_lit_with_subdenomination()?;
@@ -171,11 +180,11 @@ impl<'a> Parser<'a> {
             ExprKind::TypeCall(ty)
         } else if self.check_elementary_type() {
             let mut ty = self.parse_type()?;
-            if let TyKind::Address(b) = &mut ty.kind {
-                if *b {
+            if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind {
+                if *payable {
                     let msg = "`address payable` cannot be used in an expression";
                     self.dcx().err(msg).span(ty.span).emit();
-                    *b = false;
+                    *payable = false;
                 }
             }
             ExprKind::Type(ty)
@@ -204,12 +213,12 @@ impl<'a> Parser<'a> {
             return self.unexpected();
         };
         let span = lo.to(self.prev_token.span);
-        Ok(Box::new(Expr { span, kind }))
+        Ok(self.alloc(Expr { span, kind }))
     }
 
     /// Parses a list of function call arguments.
     #[track_caller]
-    pub(super) fn parse_call_args(&mut self) -> PResult<'a, CallArgs> {
+    pub(super) fn parse_call_args(&mut self) -> PResult<'sess, CallArgs<'ast>> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let args = self.parse_named_args().map(CallArgs::Named)?;
@@ -221,7 +230,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a `[]` indexing expression.
-    pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'a, IndexKind> {
+    pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'sess, IndexKind<'ast>> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Bracket))?;
         let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
             // expr[]
@@ -247,13 +256,13 @@ impl<'a> Parser<'a> {
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
-    fn parse_named_args(&mut self) -> PResult<'a, NamedArgList> {
-        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg).map(|(x, _)| x)
+    fn parse_named_args(&mut self) -> PResult<'sess, NamedArgList<'ast>> {
+        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg)
     }
 
     /// Parses a single named argument: `a: b`.
     #[track_caller]
-    fn parse_named_arg(&mut self) -> PResult<'a, NamedArg> {
+    fn parse_named_arg(&mut self) -> PResult<'sess, NamedArg<'ast>> {
         let name = self.parse_ident()?;
         self.expect(&TokenKind::Colon)?;
         let value = self.parse_expr()?;
@@ -263,8 +272,8 @@ impl<'a> Parser<'a> {
     /// Parses a list of expressions: `(a, b, c, ...)`.
     #[allow(clippy::vec_box)]
     #[track_caller]
-    fn parse_unnamed_args(&mut self) -> PResult<'a, Vec<Box<Expr>>> {
-        self.parse_paren_comma_seq(true, Self::parse_expr).map(|(x, _)| x)
+    fn parse_unnamed_args(&mut self) -> PResult<'sess, Box<'ast, [Box<'ast, Expr<'ast>>]>> {
+        self.parse_paren_comma_seq(true, Self::parse_expr)
     }
 }
 
@@ -300,17 +309,19 @@ fn token_precedence(t: &Token) -> usize {
     }
 }
 
-/// Converts a vector of `Option<Box<T>>` into a vector of `Box<T>`.
+/// Converts a vector of `Option<Box<'ast, T>>` into a vector of `Box<'ast, T>`.
 ///
-/// This only works because `Option<Box<T>>` is guaranteed to be a valid `Box<T>` when `Some` when
-/// `T: Sized`.
+/// This only works because `Option<Box<'ast, T>>` is guaranteed to be a valid `Box<'ast, T>` when
+/// `Some` when `T: Sized`.
 ///
 /// # Safety
 ///
 /// All elements of the vector must be `Some`.
 #[inline]
-unsafe fn vec_option_box_unwrap_unchecked<T>(vec: Vec<Option<Box<T>>>) -> Vec<Box<T>> {
-    debug_assert!(vec.iter().all(Option::is_some));
+unsafe fn vec_option_box_unwrap_unchecked<'a, 'b, T>(
+    list: Box<'a, [Option<Box<'b, T>>]>,
+) -> Box<'a, [Box<'b, T>]> {
+    debug_assert!(list.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
-    unsafe { std::mem::transmute(vec) }
+    unsafe { std::mem::transmute(list) }
 }

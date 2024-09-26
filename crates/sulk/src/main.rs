@@ -29,11 +29,8 @@ pub mod sigsegv_handler {
 #[cfg(test)]
 use sulk_tester as _;
 
-// We use jemalloc for performance reasons.
-#[cfg(not(debug_assertions))]
-#[cfg(all(feature = "jemalloc", unix))]
 #[global_allocator]
-static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static ALLOC: utils::Allocator = utils::new_allocator();
 
 #[cfg(debug_assertions)]
 use tikv_jemallocator as _;
@@ -42,8 +39,8 @@ use tracing as _;
 
 fn main() -> ExitCode {
     sigsegv_handler::install();
-    let _guard = utils::init_logger();
     utils::install_panic_hook();
+    let _guard = utils::init_logger();
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
@@ -93,23 +90,25 @@ impl Compiler {
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
-        let mut resolver = sulk_sema::Resolver::new(sess);
+        let mut pcx = sulk_sema::ParsingContext::new(sess);
         let remappings = arg_remappings.chain(args.import_map.iter().cloned());
         for map in remappings {
-            resolver.file_resolver.add_import_map(map.map, map.path);
+            pcx.file_resolver.add_import_map(map.map, map.path);
         }
         for path in &args.import_path {
-            let new = resolver.file_resolver.add_import_path(path.clone());
+            let new = pcx.file_resolver.add_import_path(path.clone());
             if !new {
                 let msg = format!("import path {} already specified", path.display());
                 return Err(sess.dcx.err(msg).emit());
             }
         }
-        resolver.add_files_from_args(stdin, paths)?;
 
-        resolver.parse_and_resolve()?;
+        if stdin {
+            pcx.load_stdin()?;
+        }
+        pcx.load_files(paths)?;
 
-        sess.dcx.has_errors()?;
+        pcx.parse_and_resolve()?;
 
         Ok(())
     }
@@ -136,7 +135,8 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
                 Box::new(human)
             }
             cli::ErrorFormat::Json | cli::ErrorFormat::RichJson => {
-                let json = JsonEmitter::new(Box::new(std::io::stderr()), source_map.clone())
+                let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
+                let json = JsonEmitter::new(writer, source_map.clone())
                     .pretty(args.pretty_json)
                     .rustc_like(matches!(args.error_format, cli::ErrorFormat::RichJson))
                     .ui_testing(ui_testing);

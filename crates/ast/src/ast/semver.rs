@@ -1,3 +1,4 @@
+use super::Box;
 use semver::Op;
 use std::{cmp::Ordering, fmt};
 use sulk_interface::Span;
@@ -177,17 +178,17 @@ impl SemverVersion {
 }
 
 /// A SemVer version requirement. This is a list of components, and is never empty.
-#[derive(Clone, Debug)]
-pub struct SemverReq {
+#[derive(Debug)]
+pub struct SemverReq<'ast> {
     /// The components of this requirement.
     ///
     /// Or-ed list of and-ed components, meaning that `matches` is evaluated as
     /// `any([all(c) for c in dis])`.
     /// E.g.: `^0 <=1 || 0.5.0 - 0.6.0 ... || ...` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...], ...]`
-    pub dis: Vec<SemverReqCon>,
+    pub dis: Box<'ast, [SemverReqCon<'ast>]>,
 }
 
-impl fmt::Display for SemverReq {
+impl fmt::Display for SemverReq<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, con) in self.dis.iter().enumerate() {
             if i > 0 {
@@ -199,7 +200,7 @@ impl fmt::Display for SemverReq {
     }
 }
 
-impl SemverReq {
+impl SemverReq<'_> {
     /// Returns `true` if the given version satisfies this requirement.
     pub fn matches(&self, version: &SemverVersion) -> bool {
         self.dis.iter().any(|c| c.matches(version))
@@ -207,14 +208,14 @@ impl SemverReq {
 }
 
 /// A list of conjoint SemVer version requirement components.
-#[derive(Clone, Debug)]
-pub struct SemverReqCon {
+#[derive(Debug)]
+pub struct SemverReqCon<'ast> {
     pub span: Span,
     /// The list of components. See [`SemverReq::dis`] for more details.
-    pub components: Vec<SemverReqComponent>,
+    pub components: Box<'ast, [SemverReqComponent]>,
 }
 
-impl fmt::Display for SemverReqCon {
+impl fmt::Display for SemverReqCon<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (j, component) in self.components.iter().enumerate() {
             if j > 0 {
@@ -226,7 +227,7 @@ impl fmt::Display for SemverReqCon {
     }
 }
 
-impl SemverReqCon {
+impl SemverReqCon<'_> {
     /// Returns `true` if the given version satisfies this requirement.
     pub fn matches(&self, version: &SemverVersion) -> bool {
         self.components.iter().all(|c| c.matches(version))

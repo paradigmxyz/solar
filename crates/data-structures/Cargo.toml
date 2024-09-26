@@ -20,6 +20,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
+bumpalo.workspace = true
 index_vec.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true

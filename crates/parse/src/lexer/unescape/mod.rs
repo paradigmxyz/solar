@@ -1,6 +1,8 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
+use alloy_primitives::hex;
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
+use sulk_data_structures::trustme;
 
 mod errors;
 pub(crate) use errors::emit_unescape_error;
@@ -18,8 +20,14 @@ pub enum Mode {
 }
 
 /// Parses a string literal (without quotes) into a byte array.
-#[instrument(level = "debug", skip_all)]
-pub fn parse_string_literal<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
+pub fn parse_string_literal(src: &str, mode: Mode) -> Cow<'_, [u8]> {
+    try_parse_string_literal(src, mode, |_, _| {})
+}
+
+/// Parses a string literal (without quotes) into a byte array.
+/// `f` is called for each escape error.
+#[instrument(name = "parse_string_literal", level = "debug", skip_all)]
+pub fn try_parse_string_literal<F>(src: &str, mode: Mode, f: F) -> Cow<'_, [u8]>
 where
     F: FnMut(Range<usize>, EscapeError),
 {
@@ -34,7 +42,7 @@ where
             bytes = Cow::Owned(decoded);
         }
     }
-    bytes.into_owned()
+    bytes
 }
 
 #[cold]
@@ -56,7 +64,7 @@ where
     debug_assert!(dst_buf.is_empty());
     debug_assert!(dst_buf.capacity() >= src.len());
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
-    unescape_literal(src, mode, |range, res| match res {
+    unescape_literal_unchecked(src, mode, |range, res| match res {
         Ok(c) => {
             // NOTE: We can't use `char::encode_utf8` because `c` can be an invalid unicode code.
             let written = super::utf8::encode_utf8_raw(c, dst).len();
@@ -67,7 +75,7 @@ where
             let advanced = unsafe { dst.get_unchecked_mut(written..) };
 
             // SAFETY: I don't know why this triggers E0521.
-            dst = unsafe { std::mem::transmute::<&mut [u8], &mut [u8]>(advanced) };
+            dst = unsafe { trustme::decouple_lt_mut(advanced) };
         }
         Err(e) => f(range, e),
     });
@@ -308,7 +316,7 @@ mod tests {
         assert_eq!(ok, expected_str, "{panic_str}");
 
         let mut errs2 = Vec::with_capacity(errs.len());
-        let out = parse_string_literal(src, mode, |range, e| {
+        let out = try_parse_string_literal(src, mode, |range, e| {
             errs2.push((range, e));
         });
         assert_eq!(errs2, errs, "{panic_str}");

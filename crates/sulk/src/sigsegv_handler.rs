@@ -44,20 +44,18 @@ macro_rules! raw_errln {
 /// Signal handler installed for SIGSEGV
 extern "C" fn print_stack_trace(_: libc::c_int) {
     const MAX_FRAMES: usize = 256;
-    // Reserve data segment so we don't have to malloc in a signal handler, which might fail
-    // in incredibly undesirable and unexpected ways due to e.g. the allocator deadlocking
-    static mut STACK_TRACE: [*mut libc::c_void; MAX_FRAMES] = [ptr::null_mut(); MAX_FRAMES];
+    let mut stack_trace = [ptr::null_mut(); MAX_FRAMES];
     let stack = unsafe {
         // Collect return addresses
-        let depth = libc::backtrace(STACK_TRACE.as_mut_ptr(), MAX_FRAMES as i32);
+        let depth = libc::backtrace(stack_trace.as_mut_ptr(), MAX_FRAMES as i32);
         if depth == 0 {
             return;
         }
-        &STACK_TRACE.as_slice()[0..(depth as _)]
+        &stack_trace.as_slice()[0..(depth as _)]
     };
 
     // Just a stack trace is cryptic. Explain what we're doing.
-    raw_errln!("error: reth interrupted by SIGSEGV, printing backtrace\n");
+    raw_errln!("error: sulk interrupted by SIGSEGV, printing backtrace\n");
     let mut written = 1;
     let mut consumed = 0;
     // Begin elaborating return addrs into symbols and writing them directly to stderr
@@ -101,14 +99,14 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
         // technically speculation, but assert it with confidence anyway.
         // We only arrived in this signal handler because bad things happened
         // and this message is for explaining it's not the programmer's fault
-        raw_errln!("note: reth unexpectedly overflowed its stack! this is a bug");
+        raw_errln!("note: sulk unexpectedly overflowed its stack! this is a bug");
         written += 1;
     }
     if stack.len() == MAX_FRAMES {
         raw_errln!("note: maximum backtrace depth reached, frames may have been lost");
         written += 1;
     }
-    raw_errln!("note: we would appreciate a report at https://github.com/paradigmxyz/reth");
+    raw_errln!("note: we would appreciate a report at https://github.com/paradigmxyz/sulk");
     written += 1;
     if written > 24 {
         // We probably just scrolled the earlier "we got SIGSEGV" message off the terminal

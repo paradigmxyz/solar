@@ -1,6 +1,6 @@
 use super::{
     emitter::HumanEmitter, BugAbort, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
-    EmissionGuarantee, ErrorGuaranteed, Level, SilentEmitter,
+    EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -174,6 +174,12 @@ impl DiagCtxt {
         self.diag(Level::Bug, msg)
     }
 
+    /// Creates a builder at the `Fatal` level with the given `msg`.
+    #[track_caller]
+    pub fn fatal(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
+        self.diag(Level::Fatal, msg)
+    }
+
     /// Creates a builder at the `Error` level with the given `msg`.
     #[track_caller]
     pub fn err(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ErrorGuaranteed> {
@@ -218,7 +224,7 @@ impl DiagCtxtInner {
             return Ok(());
         }
 
-        if matches!(diagnostic.level, Level::Error) && self.treat_err_as_bug() {
+        if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_err_as_bug() {
             diagnostic.level = Level::Bug;
         }
 

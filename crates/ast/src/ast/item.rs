@@ -1,21 +1,21 @@
-use super::{Block, CallArgs, DocComment, Expr, Path, SemverReq, StrLit, Ty};
+use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
 use crate::token::Token;
 use std::fmt;
 use sulk_interface::{Ident, Span};
 
 /// A list of variable declarations.
-pub type ParameterList = Vec<VariableDefinition>;
+pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
 
 /// A top-level item in a Solidity source file.
-#[derive(Clone, Debug)]
-pub struct Item {
-    pub docs: Vec<DocComment>,
+#[derive(Debug)]
+pub struct Item<'ast> {
+    pub docs: DocComments<'ast>,
     pub span: Span,
     /// The item's kind.
-    pub kind: ItemKind,
+    pub kind: ItemKind<'ast>,
 }
 
-impl Item {
+impl Item<'_> {
     /// Returns the name of the item, if any.
     pub fn name(&self) -> Option<Ident> {
         self.kind.name()
@@ -35,46 +35,46 @@ impl Item {
 /// An AST item. A more expanded version of a [Solidity source unit][ref].
 ///
 /// [ref]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit
-#[derive(Clone, Debug)]
-pub enum ItemKind {
+#[derive(Debug)]
+pub enum ItemKind<'ast> {
     /// A pragma directive: `pragma solidity ^0.8.0;`
-    Pragma(PragmaDirective),
+    Pragma(PragmaDirective<'ast>),
 
     /// An import directive: `import "foo.sol";`
-    Import(ImportDirective),
+    Import(ImportDirective<'ast>),
 
     /// A `using` directive: `using { A, B.add as + } for uint256 global;`
-    Using(UsingDirective),
+    Using(UsingDirective<'ast>),
 
     /// A contract, abstract contract, interface, or library definition:
     /// `contract Foo is Bar, Baz { ... }`
-    Contract(ItemContract),
+    Contract(ItemContract<'ast>),
 
     /// A function, constructor, fallback, receive, or modifier definition:
     /// `function helloWorld() external pure returns(string memory);`
-    Function(ItemFunction),
+    Function(ItemFunction<'ast>),
 
     /// A state variable or constant definition: `uint256 constant FOO = 42;`
-    Variable(VariableDefinition),
+    Variable(VariableDefinition<'ast>),
 
     /// A struct definition: `struct Foo { uint256 bar; }`
-    Struct(ItemStruct),
+    Struct(ItemStruct<'ast>),
 
     /// An enum definition: `enum Foo { A, B, C }`
-    Enum(ItemEnum),
+    Enum(ItemEnum<'ast>),
 
     /// A user-defined value type definition: `type Foo is uint256;`
-    Udvt(ItemUdvt),
+    Udvt(ItemUdvt<'ast>),
 
     /// An error definition: `error Foo(uint256 a, uint256 b);`
-    Error(ItemError),
+    Error(ItemError<'ast>),
 
     /// An event definition:
     /// `event Transfer(address indexed from, address indexed to, uint256 value);`
-    Event(ItemEvent),
+    Event(ItemEvent<'ast>),
 }
 
-impl ItemKind {
+impl ItemKind<'_> {
     /// Returns the name of the item, if any.
     pub fn name(&self) -> Option<Ident> {
         match self {
@@ -126,26 +126,26 @@ impl ItemKind {
 }
 
 /// A pragma directive: `pragma solidity ^0.8.0;`.
-#[derive(Clone, Debug)]
-pub struct PragmaDirective {
+#[derive(Debug)]
+pub struct PragmaDirective<'ast> {
     /// The parsed or unparsed tokens of the pragma directive.
-    pub tokens: PragmaTokens,
+    pub tokens: PragmaTokens<'ast>,
 }
 
 /// The parsed or unparsed tokens of a pragma directive.
-#[derive(Clone, Debug)]
-pub enum PragmaTokens {
+#[derive(Debug)]
+pub enum PragmaTokens<'ast> {
     /// A Semantic Versioning requirement: `pragma solidity <req>;`.
     ///
     /// Note that this is parsed differently from the [`semver`] crate.
-    Version(Ident, SemverReq),
+    Version(Ident, SemverReq<'ast>),
     /// `pragma <name> [value];`.
     Custom(IdentOrStrLit, Option<IdentOrStrLit>),
     /// Unparsed tokens: `pragma <tokens...>;`.
-    Verbatim(Vec<Token>),
+    Verbatim(Box<'ast, [Token]>),
 }
 
-impl PragmaTokens {
+impl PragmaTokens<'_> {
     /// Returns the name and value of the pragma directive, if any.
     ///
     /// # Examples
@@ -205,14 +205,14 @@ impl IdentOrStrLit {
 /// An import directive: `import "foo.sol";`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.importDirective>
-#[derive(Clone, Debug)]
-pub struct ImportDirective {
+#[derive(Debug)]
+pub struct ImportDirective<'ast> {
     /// The path string literal value.
     pub path: StrLit,
-    pub items: ImportItems,
+    pub items: ImportItems<'ast>,
 }
 
-impl ImportDirective {
+impl ImportDirective<'_> {
     /// Returns `true` if the import directive imports all items from the target.
     pub fn imports_all(&self) -> bool {
         matches!(self.items, ImportItems::Glob(None) | ImportItems::Plain(None))
@@ -220,12 +220,12 @@ impl ImportDirective {
 }
 
 /// The path of an import directive.
-#[derive(Clone, Debug)]
-pub enum ImportItems {
+#[derive(Debug)]
+pub enum ImportItems<'ast> {
     /// A plain import directive: `import "foo.sol" as Foo;`.
     Plain(Option<Ident>),
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
-    Aliases(Vec<(Ident, Option<Ident>)>),
+    Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
     Glob(Option<Ident>),
 }
@@ -233,22 +233,22 @@ pub enum ImportItems {
 /// A `using` directive: `using { A, B.add as + } for uint256 global;`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.usingDirective>
-#[derive(Clone, Debug)]
-pub struct UsingDirective {
+#[derive(Debug)]
+pub struct UsingDirective<'ast> {
     /// The list of paths.
-    pub list: UsingList,
+    pub list: UsingList<'ast>,
     /// The type for which this `using` directive applies. This is `*` if the value is `None`.
-    pub ty: Option<Ty>,
+    pub ty: Option<Type<'ast>>,
     pub global: bool,
 }
 
 /// The path list of a `using` directive.
-#[derive(Clone, Debug)]
-pub enum UsingList {
+#[derive(Debug)]
+pub enum UsingList<'ast> {
     /// `A.B`
-    Single(Path),
+    Single(AstPath<'ast>),
     /// `{ A, B.add as + }`
-    Multiple(Vec<(Path, Option<UserDefinableOperator>)>),
+    Multiple(Box<'ast, [(AstPath<'ast>, Option<UserDefinableOperator>)]>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -292,12 +292,12 @@ pub enum UserDefinableOperator {
 /// `contract Foo is Bar("foo"), Baz { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemContract {
+#[derive(Debug)]
+pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
-    pub inheritance: Vec<Modifier>,
-    pub body: Vec<Item>,
+    pub bases: Box<'ast, [Modifier<'ast>]>,
+    pub body: Box<'ast, [Item<'ast>]>,
 }
 
 /// The kind of contract.
@@ -335,35 +335,33 @@ impl ContractKind {
 /// `function helloWorld() external pure returns(string memory);`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemFunction {
+#[derive(Debug)]
+pub struct ItemFunction<'ast> {
     /// What kind of function this is.
     pub kind: FunctionKind,
     /// The function header.
-    pub header: FunctionHeader,
+    pub header: FunctionHeader<'ast>,
     /// The body of the function. This is `;` when the value is `None`.
-    pub body: Option<Block>,
+    pub body: Option<Block<'ast>>,
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
-///
-/// Used by all [function items](ItemFunction) and the [function type](super::TyKind::Function).
-#[derive(Clone, Debug, Default)]
-pub struct FunctionHeader {
+#[derive(Debug, Default)]
+pub struct FunctionHeader<'ast> {
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
     /// The parameters of the function.
-    pub parameters: ParameterList,
+    pub parameters: ParameterList<'ast>,
 
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
-    pub modifiers: Vec<Modifier>,
+    pub modifiers: Box<'ast, [Modifier<'ast>]>,
     pub virtual_: bool,
-    pub override_: Option<Override>,
+    pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
-    pub returns: ParameterList,
+    pub returns: ParameterList<'ast>,
 }
 
 /// A kind of function.
@@ -401,7 +399,22 @@ impl FunctionKind {
 
     /// Returns `true` if the function is allowed in global scope.
     pub fn allowed_in_global(&self) -> bool {
+        self.is_ordinary()
+    }
+
+    /// Returns `true` if the function is an ordinary function.
+    pub fn is_ordinary(&self) -> bool {
         matches!(self, Self::Function)
+    }
+
+    /// Returns `true` if the function is a constructor.
+    pub fn is_constructor(&self) -> bool {
+        matches!(self, Self::Constructor)
+    }
+
+    /// Returns `true` if the function is a modifier.
+    pub fn is_modifier(&self) -> bool {
+        matches!(self, Self::Modifier)
     }
 }
 
@@ -409,17 +422,17 @@ impl FunctionKind {
 ///
 /// [m]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierInvocation
 /// [i]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.inheritanceSpecifier
-#[derive(Clone, Debug)]
-pub struct Modifier {
-    pub name: Path,
-    pub arguments: CallArgs,
+#[derive(Debug)]
+pub struct Modifier<'ast> {
+    pub name: AstPath<'ast>,
+    pub arguments: CallArgs<'ast>,
 }
 
 /// An override specifier: `override(a, b.c)`.
-#[derive(Clone, Debug)]
-pub struct Override {
+#[derive(Debug)]
+pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Vec<Path>,
+    pub paths: Box<'ast, [AstPath<'ast>]>,
 }
 
 /// A storage location.
@@ -482,7 +495,7 @@ impl StateMutability {
 }
 
 /// Visibility ordered from restricted to unrestricted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Visibility {
     /// `private`
     Private,
@@ -515,16 +528,17 @@ impl Visibility {
 /// A state variable or constant definition: `uint256 constant FOO = 42;`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration>
-#[derive(Clone, Debug)]
-pub struct VariableDefinition {
-    pub ty: Ty,
+#[derive(Debug)]
+pub struct VariableDefinition<'ast> {
+    pub span: Span,
+    pub ty: Type<'ast>,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
     pub data_location: Option<DataLocation>,
-    pub override_: Option<Override>,
+    pub override_: Option<Override<'ast>>,
     pub indexed: bool,
     pub name: Option<Ident>,
-    pub initializer: Option<Box<Expr>>,
+    pub initializer: Option<Box<'ast, Expr<'ast>>>,
 }
 
 /// The mutability of a variable.
@@ -565,46 +579,46 @@ impl VarMut {
 /// A struct definition: `struct Foo { uint256 bar; }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.structDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemStruct {
+#[derive(Debug)]
+pub struct ItemStruct<'ast> {
     pub name: Ident,
-    pub fields: Vec<VariableDefinition>,
+    pub fields: Box<'ast, [VariableDefinition<'ast>]>,
 }
 
 /// An enum definition: `enum Foo { A, B, C }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.enumDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemEnum {
+#[derive(Debug)]
+pub struct ItemEnum<'ast> {
     pub name: Ident,
-    pub variants: Vec<Ident>,
+    pub variants: Box<'ast, [Ident]>,
 }
 
 /// A user-defined value type definition: `type Foo is uint256;`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.userDefinedValueTypeDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemUdvt {
+#[derive(Debug)]
+pub struct ItemUdvt<'ast> {
     pub name: Ident,
-    pub ty: Ty,
+    pub ty: Type<'ast>,
 }
 
 /// An error definition: `error Foo(uint256 a, uint256 b);`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.errorDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemError {
+#[derive(Debug)]
+pub struct ItemError<'ast> {
     pub name: Ident,
-    pub parameters: ParameterList,
+    pub parameters: ParameterList<'ast>,
 }
 
 /// An event definition:
 /// `event Transfer(address indexed from, address indexed to, uint256 value);`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.eventDefinition>
-#[derive(Clone, Debug)]
-pub struct ItemEvent {
+#[derive(Debug)]
+pub struct ItemEvent<'ast> {
     pub name: Ident,
-    pub parameters: ParameterList,
+    pub parameters: ParameterList<'ast>,
     pub anonymous: bool,
 }

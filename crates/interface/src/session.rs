@@ -1,6 +1,6 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
 use std::{num::NonZeroUsize, sync::Arc};
-use sulk_config::{EvmVersion, Language, StopAfter};
+use sulk_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 
 /// Information about the current compiler session.
 pub struct Session {
@@ -14,7 +14,9 @@ pub struct Session {
     /// Source code language.
     pub language: Language,
     /// Stop execution after the given compiler stage.
-    pub stop_after: Option<StopAfter>,
+    pub stop_after: Option<CompilerStage>,
+    /// Types of output to emit.
+    pub emit: Vec<CompilerOutput>,
     /// Number of threads to use. Already resolved to a non-zero value.
     pub jobs: NonZeroUsize,
 }
@@ -28,6 +30,7 @@ impl Session {
             evm_version: EvmVersion::default(),
             language: Language::default(),
             stop_after: None,
+            emit: Vec::new(),
             jobs: NonZeroUsize::MIN,
         }
     }
@@ -75,9 +78,33 @@ impl Session {
         self.source_map.clone()
     }
 
+    /// Returns `true` if compilation should stop after the given stage.
+    #[inline]
+    pub fn stop_after(&self, stage: CompilerStage) -> bool {
+        self.stop_after >= Some(stage)
+    }
+
     /// Returns `true` if parallelism is not enabled.
     #[inline]
     pub fn is_sequential(&self) -> bool {
         self.jobs.get() == 1
+    }
+
+    /// Returns `true` if the given output should be emitted.
+    pub fn do_emit(&self, output: CompilerOutput) -> bool {
+        self.emit.contains(&output)
+    }
+
+    /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
+    /// enabled.
+    // NOTE: This only exists because on a `use_current_thread` thread pool `rayon::spawn` will
+    // never execute.
+    #[inline]
+    pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
+        if self.is_sequential() {
+            f();
+        } else {
+            rayon::spawn(f);
+        }
     }
 }

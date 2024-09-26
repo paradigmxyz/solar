@@ -6,6 +6,10 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+// Convenience re-exports.
+pub use bumpalo;
+pub use sulk_interface as interface;
+
 pub mod ast;
 pub mod token;
 pub mod visit;

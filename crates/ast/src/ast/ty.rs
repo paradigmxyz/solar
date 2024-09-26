@@ -1,17 +1,17 @@
-use super::{Expr, FunctionHeader, ParameterList, Path, StateMutability, Visibility};
-use std::fmt;
+use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
+use std::{borrow::Cow, fmt};
 use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.typeName>
-#[derive(Clone, Debug)]
-pub struct Ty {
+#[derive(Debug)]
+pub struct Type<'ast> {
     pub span: Span,
-    pub kind: TyKind,
+    pub kind: TypeKind<'ast>,
 }
 
-impl Ty {
+impl Type<'_> {
     /// Returns `true` if the type is an elementary type.
     #[inline]
     pub fn is_elementary(&self) -> bool {
@@ -26,9 +26,41 @@ impl Ty {
 }
 
 /// The kind of a type.
-#[derive(Clone, Debug)]
-pub enum TyKind {
-    // `elementary-type-name`: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
+#[derive(Debug)]
+pub enum TypeKind<'ast> {
+    /// An elementary/primitive type.
+    Elementary(ElementaryType),
+
+    /// `$element[$($size)?]`
+    Array(Box<'ast, TypeArray<'ast>>),
+    /// `function($($parameters),*) $($attributes)* $(returns ($($returns),+))?`
+    Function(Box<'ast, TypeFunction<'ast>>),
+    /// `mapping($key $($key_name)? => $value $($value_name)?)`
+    Mapping(Box<'ast, TypeMapping<'ast>>),
+
+    /// A custom type.
+    Custom(AstPath<'ast>),
+}
+
+impl<'ast> TypeKind<'ast> {
+    /// Returns `true` if the type is an elementary type.
+    ///
+    /// Note that this does not include `Custom` types.
+    pub fn is_elementary(&self) -> bool {
+        matches!(self, Self::Elementary(_))
+    }
+
+    /// Returns `true` if the type is a custom type.
+    pub fn is_custom(&self) -> bool {
+        matches!(self, Self::Custom(_))
+    }
+}
+
+/// Elementary/primitive type.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ElementaryType {
     /// Ethereum address, 20-byte fixed-size byte array.
     /// `address $(payable)?`
     Address(/* payable: */ bool),
@@ -41,82 +73,65 @@ pub enum TyKind {
     /// Dynamic byte array.
     /// `bytes`
     Bytes,
+
     /// Signed fixed-point number.
     /// `fixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
-    Fixed(TySize, TyFixedSize),
+    Fixed(TypeSize, TypeFixedSize),
     /// Unsigned fixed-point number.
     /// `ufixedMxN where M @ 0..=32, N @ 0..=80`. M is the number of bytes, **not bits**.
-    UFixed(TySize, TyFixedSize),
+    UFixed(TypeSize, TypeFixedSize),
+
     /// Signed integer. The number is the number of bytes, **not bits**.
     /// `0 => int`
     /// `size @ 1..=32 => int{size*8}`
     /// `33.. => unreachable!()`
-    Int(TySize),
+    Int(TypeSize),
     /// Unsigned integer. The number is the number of bytes, **not bits**.
     /// `0 => uint`
     /// `size @ 1..=32 => uint{size*8}`
     /// `33.. => unreachable!()`
-    UInt(TySize),
+    UInt(TypeSize),
     /// Fixed-size byte array.
     /// `size @ 1..=32 => bytes{size}`
     /// `0 | 33.. => unreachable!()`
-    FixedBytes(TySize),
-
-    /// `$element[$($size)?]`
-    Array(Box<TypeArray>),
-    /// `function($($parameters),*) $($attributes)* $(returns ($($returns),+))?`
-    Function(Box<FunctionHeader>),
-    /// `mapping($key $($key_name)? => $value $($value_name)?)`
-    Mapping(Box<TypeMapping>),
-
-    /// A custom type.
-    Custom(Path),
+    FixedBytes(TypeSize),
 }
 
-impl TyKind {
-    /// Returns `true` if the type is an elementary type.
-    ///
-    /// Note that this does not include `Custom` types.
-    pub fn is_elementary(&self) -> bool {
-        // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName
-        matches!(
-            self,
-            Self::Address(_)
-                | Self::Bool
-                | Self::String
-                | Self::Bytes
-                | Self::Int(..)
-                | Self::UInt(..)
-                | Self::FixedBytes(..)
-                | Self::Fixed(..)
-                | Self::UFixed(..)
-        )
-    }
-
-    /// Returns `true` if the type is a custom type.
-    pub fn is_custom(&self) -> bool {
-        matches!(self, Self::Custom(..))
+impl ElementaryType {
+    /// Returns the Solidity ABI representation of the type as a string.
+    pub fn to_abi_str(&self) -> Cow<'static, str> {
+        match self {
+            Self::Address(_) => "address".into(),
+            Self::Bool => "bool".into(),
+            Self::String => "string".into(),
+            Self::Bytes => "bytes".into(),
+            Self::Fixed(_size, _fixed) => "fixed".into(),
+            Self::UFixed(_size, _fixed) => "ufixed".into(),
+            Self::Int(size) => size.int_keyword().as_str().to_string().into(),
+            Self::UInt(size) => size.uint_keyword().as_str().to_string().into(),
+            Self::FixedBytes(size) => size.bytes_keyword().as_str().to_string().into(),
+        }
     }
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TySize(u8);
+pub struct TypeSize(u8);
 
-impl fmt::Debug for TySize {
+impl fmt::Debug for TypeSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TySize({})", self.0)
+        write!(f, "TypeSize({})", self.0)
     }
 }
 
-impl TySize {
+impl TypeSize {
     /// The value zero. Note that this is not a valid size for a fixed-bytes type.
     pub const ZERO: Self = Self(0);
 
-    /// The maximum byte value of a `TySize`.
+    /// The maximum byte value of a `TypeSize`.
     pub const MAX: u8 = 32;
 
-    /// Creates a new `TySize` from a `u8` number of **bytes**.
+    /// Creates a new `TypeSize` from a `u8` number of **bytes**.
     #[inline]
     pub const fn new(bytes: u8) -> Option<Self> {
         if bytes > Self::MAX {
@@ -126,16 +141,32 @@ impl TySize {
         }
     }
 
-    /// Returns the number of **bytes**.
+    /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
     #[inline]
     pub const fn bytes(self) -> u8 {
+        if self.0 == 0 {
+            Self::MAX
+        } else {
+            self.0
+        }
+    }
+
+    /// Returns the number of **bytes**.
+    #[inline]
+    pub const fn bytes_raw(self) -> u8 {
         self.0
+    }
+
+    /// Returns the number of **bits**, with `0` defaulting to `MAX*8`.
+    #[inline]
+    pub const fn bits(self) -> u16 {
+        self.bytes() as u16 * 8
     }
 
     /// Returns the number of **bits**.
     #[inline]
-    pub const fn bits(self) -> u8 {
-        self.0 * 8
+    pub const fn bits_raw(self) -> u16 {
+        self.0 as u16 * 8
     }
 
     /// Returns the `int` symbol for the type name.
@@ -164,22 +195,22 @@ impl TySize {
 
 /// Size of a fixed-point number (N) type. Valid values: 0..=80.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TyFixedSize(u8);
+pub struct TypeFixedSize(u8);
 
-impl fmt::Debug for TyFixedSize {
+impl fmt::Debug for TypeFixedSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TyFixedSize({})", self.0)
+        write!(f, "TypeFixedSize({})", self.0)
     }
 }
 
-impl TyFixedSize {
+impl TypeFixedSize {
     /// The value zero.
     pub const ZERO: Self = Self(0);
 
-    /// The maximum value of a `TyFixedSize`.
+    /// The maximum value of a `TypeFixedSize`.
     pub const MAX: u8 = 80;
 
-    /// Creates a new `TyFixedSize` from a `u8`.
+    /// Creates a new `TypeFixedSize` from a `u8`.
     #[inline]
     pub const fn new(value: u8) -> Option<Self> {
         if value > Self::MAX {
@@ -197,30 +228,30 @@ impl TyFixedSize {
 }
 
 /// An array type.
-#[derive(Clone, Debug)]
-pub struct TypeArray {
-    pub element: Ty,
-    pub size: Option<Box<Expr>>,
+#[derive(Debug)]
+pub struct TypeArray<'ast> {
+    pub element: Type<'ast>,
+    pub size: Option<Box<'ast, Expr<'ast>>>,
 }
 
 /// A function type name.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName>
-#[derive(Clone, Debug)]
-pub struct TypeFunction {
-    pub parameters: ParameterList,
+#[derive(Debug)]
+pub struct TypeFunction<'ast> {
+    pub parameters: ParameterList<'ast>,
     pub visibility: Option<Visibility>,
     pub state_mutability: Option<StateMutability>,
-    pub returns: ParameterList,
+    pub returns: ParameterList<'ast>,
 }
 
 /// A mapping type.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.mappingType>
-#[derive(Clone, Debug)]
-pub struct TypeMapping {
-    pub key: Ty,
+#[derive(Debug)]
+pub struct TypeMapping<'ast> {
+    pub key: Type<'ast>,
     pub key_name: Option<Ident>,
-    pub value: Ty,
+    pub value: Type<'ast>,
     pub value_name: Option<Ident>,
 }

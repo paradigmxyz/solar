@@ -1,6 +1,6 @@
 use clap::{ColorChoice, Parser, ValueHint};
 use std::path::PathBuf;
-use sulk_config::{EvmVersion, Language, StopAfter};
+use sulk_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 
 const VERSION_MESSAGE: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -37,7 +37,7 @@ pub struct Args {
     pub evm_version: EvmVersion,
     /// Stop execution after the given compiler stage.
     #[arg(long, value_enum)]
-    pub stop_after: Option<StopAfter>,
+    pub stop_after: Option<CompilerStage>,
 
     /// Coloring.
     #[arg(long, value_enum, default_value_t)]
@@ -55,6 +55,9 @@ pub struct Args {
     // TODO: Default to `0` once we're actually using rayon.
     #[arg(long, short = 'j', visible_alias = "jobs", default_value = "1")]
     pub threads: usize,
+    /// Comma separated list of types of output for the compiler to emit.
+    #[arg(long)]
+    pub emit: Vec<CompilerOutput>,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///

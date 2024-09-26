@@ -1,9 +1,14 @@
 use crate::{Lexer, PErr, PResult};
-use std::fmt::{self, Write};
+use smallvec::SmallVec;
+use std::{
+    fmt::{self, Write},
+    path::Path,
+};
 use sulk_ast::{
-    ast::{DocComment, Path},
+    ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
     token::{Delimiter, Token, TokenKind},
 };
+use sulk_data_structures::BumpExt;
 use sulk_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
@@ -18,9 +23,11 @@ mod ty;
 mod yul;
 
 /// Solidity parser.
-pub struct Parser<'a> {
+pub struct Parser<'sess, 'ast> {
     /// The parser session.
-    pub sess: &'a Session,
+    pub sess: &'sess Session,
+    /// The arena where the AST nodes are allocated.
+    pub arena: &'ast ast::Arena,
 
     /// The current token.
     pub token: Token,
@@ -83,6 +90,7 @@ impl ExpectedToken {
 }
 
 /// A sequence separator.
+#[derive(Debug)]
 struct SeqSep {
     /// The separator token.
     sep: Option<TokenKind>,
@@ -102,7 +110,6 @@ impl SeqSep {
         Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: true }
     }
 
-    #[allow(dead_code)]
     fn trailing_disallowed(t: TokenKind) -> Self {
         Self { sep: Some(t), trailing_sep_required: false, trailing_sep_allowed: false }
     }
@@ -112,22 +119,23 @@ impl SeqSep {
     }
 }
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
     ///
     /// # Panics
     ///
     /// Panics if any of the tokens are comments.
-    pub fn new(sess: &'a Session, tokens: Vec<Token>) -> Self {
+    pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
         debug_assert!(
             tokens.iter().all(|t| !t.is_comment()),
             "comments should be stripped before parsing"
         );
         let mut parser = Self {
             sess,
+            arena,
             token: Token::DUMMY,
             prev_token: Token::DUMMY,
-            expected_tokens: Vec::new(),
+            expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
             in_yul: false,
             in_contract: false,
@@ -139,7 +147,25 @@ impl<'a> Parser<'a> {
 
     /// Creates a new parser from a source code string.
     pub fn from_source_code(
-        sess: &'a Session,
+        sess: &'sess Session,
+        arena: &'ast ast::Arena,
+        filename: FileName,
+        src: String,
+    ) -> Result<Self> {
+        Self::from_lazy_source_code(sess, arena, filename, || Ok(src))
+    }
+
+    /// Creates a new parser from a file.
+    pub fn from_file(sess: &'sess Session, arena: &'ast ast::Arena, path: &Path) -> Result<Self> {
+        Self::from_lazy_source_code(sess, arena, FileName::Real(path.to_path_buf()), || {
+            std::fs::read_to_string(path)
+        })
+    }
+
+    /// Creates a new parser from a source code closure.
+    pub fn from_lazy_source_code(
+        sess: &'sess Session,
+        arena: &'ast ast::Arena,
         filename: FileName,
         get_src: impl FnOnce() -> std::io::Result<String>,
     ) -> Result<Self> {
@@ -147,36 +173,64 @@ impl<'a> Parser<'a> {
             .source_map()
             .new_source_file(filename, get_src)
             .map_err(|e| sess.dcx.err(e.to_string()).emit())?;
-        Ok(Self::from_source_file(sess, &file))
+        Ok(Self::from_source_file(sess, arena, &file))
     }
 
     /// Creates a new parser from a source file.
-    pub fn from_source_file(sess: &'a Session, file: &SourceFile) -> Self {
-        Self::from_lexer(Lexer::from_source_file(sess, file))
+    pub fn from_source_file(
+        sess: &'sess Session,
+        arena: &'ast ast::Arena,
+        file: &SourceFile,
+    ) -> Self {
+        Self::from_lexer(arena, Lexer::from_source_file(sess, file))
     }
 
     /// Creates a new parser from a lexer.
-    pub fn from_lexer(lexer: Lexer<'a, '_>) -> Self {
-        Self::new(lexer.sess, lexer.into_tokens())
+    pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
+        Self::new(lexer.sess, arena, lexer.into_tokens())
     }
 
     /// Returns the diagnostic context.
     #[inline]
-    pub fn dcx(&self) -> &'a DiagCtxt {
+    pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
+    }
+
+    /// Allocates an object on the AST arena.
+    pub fn alloc<T>(&self, value: T) -> Box<'ast, T> {
+        self.arena.alloc(value)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the list is empty.
+    pub fn alloc_path(&self, values: &[Ident]) -> AstPath<'ast> {
+        PathSlice::from_mut_slice(self.arena.alloc_slice_copy(values))
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
+        self.arena.alloc_vec(values)
+    }
+
+    /// Allocates a list of objects on the AST arena.
+    pub fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> Box<'ast, [A::Item]> {
+        self.arena.alloc_smallvec(values)
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
     #[inline]
     #[track_caller]
-    pub fn unexpected<T>(&mut self) -> PResult<'a, T> {
+    pub fn unexpected<T>(&mut self) -> PResult<'sess, T> {
         Err(self.unexpected_error())
     }
 
     /// Returns an "unexpected token" error for the current token.
     #[inline]
     #[track_caller]
-    pub fn unexpected_error(&mut self) -> PErr<'a> {
+    pub fn unexpected_error(&mut self) -> PErr<'sess> {
         #[cold]
         #[inline(never)]
         #[track_caller]
@@ -191,7 +245,7 @@ impl<'a> Parser<'a> {
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
     #[track_caller]
-    pub fn expect(&mut self, tok: &TokenKind) -> PResult<'a, bool /* recovered */> {
+    pub fn expect(&mut self, tok: &TokenKind) -> PResult<'sess, bool /* recovered */> {
         if self.expected_tokens.is_empty() {
             if self.check_noexpect(tok) {
                 self.bump();
@@ -206,7 +260,7 @@ impl<'a> Parser<'a> {
 
     /// Creates a [`PErr`] for an unexpected token `t`.
     #[track_caller]
-    fn unexpected_error_with(&mut self, t: &TokenKind) -> PErr<'a> {
+    fn unexpected_error_with(&mut self, t: &TokenKind) -> PErr<'sess> {
         let prev_span = if self.prev_token.span.is_dummy() {
             // We don't want to point at the following span after a dummy span.
             // This happens when the parser finds an empty token stream.
@@ -242,7 +296,7 @@ impl<'a> Parser<'a> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'a, bool /* recovered */> {
+    ) -> PResult<'sess, bool /* recovered */> {
         if edible.contains(&self.token.kind) {
             self.bump();
             Ok(false)
@@ -263,7 +317,7 @@ impl<'a> Parser<'a> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'a, bool> {
+    ) -> PResult<'sess, bool> {
         let mut expected = edible
             .iter()
             .chain(inedible)
@@ -350,7 +404,7 @@ impl<'a> Parser<'a> {
 
     /// Expects and consumes a semicolon.
     #[track_caller]
-    fn expect_semi(&mut self) -> PResult<'a, ()> {
+    fn expect_semi(&mut self) -> PResult<'sess, ()> {
         self.expect(&TokenKind::Semi).map(drop)
     }
 
@@ -358,6 +412,8 @@ impl<'a> Parser<'a> {
     ///
     /// This method will automatically add `tok` to `expected_tokens` if `tok` is not
     /// encountered.
+    #[inline]
+    #[must_use]
     fn check(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if !is_present {
@@ -366,6 +422,8 @@ impl<'a> Parser<'a> {
         is_present
     }
 
+    #[inline]
+    #[must_use]
     fn check_noexpect(&self, tok: &TokenKind) -> bool {
         self.token.kind == *tok
     }
@@ -374,6 +432,7 @@ impl<'a> Parser<'a> {
     ///
     /// the main purpose of this function is to reduce the cluttering of the suggestions list
     /// which using the normal eat method could introduce in some cases.
+    #[must_use]
     pub fn eat_noexpect(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if is_present {
@@ -383,6 +442,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Consumes a token 'tok' if it exists. Returns whether the given token was present.
+    #[must_use]
     pub fn eat(&mut self, tok: &TokenKind) -> bool {
         let is_present = self.check(tok);
         if is_present {
@@ -393,6 +453,7 @@ impl<'a> Parser<'a> {
 
     /// If the next token is the given keyword, returns `true` without eating it.
     /// An expectation is also added for diagnostics purposes.
+    #[must_use]
     fn check_keyword(&mut self, kw: Symbol) -> bool {
         self.expected_tokens.push(ExpectedToken::Keyword(kw));
         self.token.is_keyword(kw)
@@ -400,6 +461,7 @@ impl<'a> Parser<'a> {
 
     /// If the next token is the given keyword, eats it and returns `true`.
     /// Otherwise, returns `false`. An expectation is also added for diagnostics purposes.
+    #[must_use]
     pub fn eat_keyword(&mut self, kw: Symbol) -> bool {
         if self.check_keyword(kw) {
             self.bump();
@@ -412,7 +474,7 @@ impl<'a> Parser<'a> {
     /// If the given word is not a keyword, signals an error.
     /// If the next token is not the given word, signals an error.
     /// Otherwise, eats it.
-    fn expect_keyword(&mut self, kw: Symbol) -> PResult<'a, ()> {
+    fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
         if !self.eat_keyword(kw) {
             self.unexpected()
         } else {
@@ -420,30 +482,37 @@ impl<'a> Parser<'a> {
         }
     }
 
+    #[must_use]
     fn check_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Ident)
     }
 
+    #[must_use]
     fn check_nr_ident(&mut self) -> bool {
         self.check_or_expected(self.token.is_non_reserved_ident(self.in_yul), ExpectedToken::Ident)
     }
 
+    #[must_use]
     fn check_path(&mut self) -> bool {
         self.check_or_expected(self.token.is_ident(), ExpectedToken::Path)
     }
 
+    #[must_use]
     fn check_lit(&mut self) -> bool {
         self.check_or_expected(self.token.is_lit(), ExpectedToken::Lit)
     }
 
+    #[must_use]
     fn check_str_lit(&mut self) -> bool {
         self.check_or_expected(self.token.is_str_lit(), ExpectedToken::StrLit)
     }
 
+    #[must_use]
     fn check_elementary_type(&mut self) -> bool {
         self.check_or_expected(self.token.is_elementary_type(), ExpectedToken::ElementaryType)
     }
 
+    #[must_use]
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
         if !ok {
             self.expected_tokens.push(t);
@@ -459,8 +528,8 @@ impl<'a> Parser<'a> {
     fn parse_paren_comma_seq<T>(
         &mut self,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
 
@@ -473,8 +542,8 @@ impl<'a> Parser<'a> {
         &mut self,
         delim: Delimiter,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
 
@@ -486,15 +555,15 @@ impl<'a> Parser<'a> {
         &mut self,
         stop: &TokenKind,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_seq_to_before_end(
             stop,
             SeqSep::trailing_disallowed(TokenKind::Comma),
             allow_empty,
             f,
         )
-        .map(|(v, trailing, _recovered)| (v, trailing))
+        .map(|(v, _recovered)| v)
     }
 
     /// Parses a `sep`-separated sequence, including both delimiters.
@@ -507,8 +576,8 @@ impl<'a> Parser<'a> {
         delim: Delimiter,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.parse_unspanned_seq(
             &TokenKind::OpenDelim(delim),
             &TokenKind::CloseDelim(delim),
@@ -529,8 +598,8 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
         self.expect(bra)?;
         self.parse_seq_to_end(ket, sep, allow_empty, f)
     }
@@ -545,13 +614,13 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */)> {
-        let (val, trailing, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, Box<'ast, [T]>> {
+        let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if !recovered {
             self.expect(ket)?;
         }
-        Ok((val, trailing))
+        Ok(val)
     }
 
     /// Parses a sequence, not including the delimiters. The function
@@ -564,13 +633,13 @@ impl<'a> Parser<'a> {
         ket: &TokenKind,
         sep: SeqSep,
         allow_empty: bool,
-        f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+        f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
     /// Checks if the next token is contained within `kets`, and returns `true` if so.
-    fn expect_any(&mut self, kets: &[&TokenKind]) -> bool {
+    fn check_any(&mut self, kets: &[&TokenKind]) -> bool {
         kets.iter().any(|k| self.check(k))
     }
 
@@ -583,30 +652,30 @@ impl<'a> Parser<'a> {
         kets: &[&TokenKind],
         sep: SeqSep,
         allow_empty: bool,
-        mut f: impl FnMut(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Vec<T>, bool /* trailing */, bool /* recovered */)> {
+        mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
         let mut first = true;
         let mut recovered = false;
         let mut trailing = false;
-        let mut v = Vec::new();
+        let mut v = SmallVec::<[T; 8]>::new();
 
         if !allow_empty {
             v.push(f(self)?);
             first = false;
         }
 
-        while !self.expect_any(kets) {
+        while !self.check_any(kets) {
             if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
                 break;
             }
 
-            if let Some(tk) = &sep.sep {
+            if let Some(sep_kind) = &sep.sep {
                 if first {
                     // no separator for the first element
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(tk) {
+                    match self.expect(sep_kind) {
                         Ok(recovered_) => {
                             if recovered_ {
                                 recovered = true;
@@ -615,25 +684,30 @@ impl<'a> Parser<'a> {
                         }
                         Err(e) => return Err(e),
                     }
+
+                    if self.check_any(kets) {
+                        trailing = true;
+                        break;
+                    }
                 }
             }
 
-            if sep.trailing_sep_allowed && self.expect_any(kets) {
-                trailing = true;
-                break;
-            }
-
-            let t = f(self)?;
-            v.push(t);
+            v.push(f(self)?);
         }
 
-        if sep.trailing_sep_required && !trailing {
-            if let Some(tk) = &sep.sep {
-                self.expect(tk)?;
+        if let Some(sep_kind) = &sep.sep {
+            if sep.trailing_sep_required && !trailing {
+                if let Err(e) = self.expect(sep_kind) {
+                    e.emit();
+                }
+            }
+            if !sep.trailing_sep_allowed && trailing {
+                let msg = format!("trailing `{sep_kind}` separator is not allowed");
+                self.dcx().err(msg).span(self.prev_token.span).emit();
             }
         }
 
-        Ok((v, trailing, recovered))
+        Ok((self.alloc_smallvec(v), recovered))
     }
 
     /// Advance the parser by one token.
@@ -654,6 +728,10 @@ impl<'a> Parser<'a> {
     /// This always-inlined version should only be used on hot code paths.
     #[inline(always)]
     fn inlined_bump_with(&mut self, next_token: Token) {
+        #[cfg(debug_assertions)]
+        if next_token.is_comment() {
+            self.comment_in_stream(next_token.span);
+        }
         self.prev_token = std::mem::replace(&mut self.token, next_token);
         self.expected_tokens.clear();
     }
@@ -697,13 +775,13 @@ impl<'a> Parser<'a> {
 }
 
 /// Common parsing methods.
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Provides a spanned parser.
     #[track_caller]
     pub fn parse_spanned<T>(
         &mut self,
-        f: impl FnOnce(&mut Self) -> PResult<'a, T>,
-    ) -> PResult<'a, (Span, T)> {
+        f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, (Span, T)> {
         let lo = self.token.span;
         let res = f(self);
         let span = lo.to(self.prev_token.span);
@@ -714,29 +792,62 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses and ignores contiguous doc comments.
+    #[inline]
+    pub fn ignore_doc_comments(&mut self) {
+        if matches!(self.token.kind, TokenKind::Comment(..)) {
+            self.ignore_doc_comments_inner();
+        }
+    }
+
+    #[cold]
+    fn ignore_doc_comments_inner(&mut self) {
+        while let Token { span, kind: TokenKind::Comment(is_doc, _kind, _symbol) } = self.token {
+            if !is_doc {
+                self.comment_in_stream(span);
+            }
+            self.bump();
+        }
+    }
+
     /// Parses contiguous doc comments. Can be empty.
-    pub fn parse_doc_comments(&mut self) -> PResult<'a, Vec<DocComment>> {
-        let mut doc_comments = Vec::new();
+    #[inline]
+    pub fn parse_doc_comments(&mut self) -> PResult<'sess, DocComments<'ast>> {
+        if matches!(self.token.kind, TokenKind::Comment(..)) {
+            self.parse_doc_comments_inner()
+        } else {
+            Ok(Default::default())
+        }
+    }
+
+    #[cold]
+    fn parse_doc_comments_inner(&mut self) -> PResult<'sess, DocComments<'ast>> {
+        let mut doc_comments = SmallVec::<[_; 4]>::new();
         while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
             if !is_doc {
-                self.dcx().bug("comments should not be in the token stream").span(span).emit();
+                self.comment_in_stream(span);
             }
             doc_comments.push(DocComment { kind, span, symbol });
             self.bump();
         }
-        Ok(doc_comments)
+        Ok(self.alloc_smallvec(doc_comments))
+    }
+
+    #[cold]
+    fn comment_in_stream(&self, span: Span) -> ! {
+        self.dcx().bug("comments should not be in the token stream").span(span).emit()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
     #[track_caller]
-    pub fn parse_path(&mut self) -> PResult<'a, Path> {
+    pub fn parse_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let first = self.parse_ident()?;
         self.parse_path_with(first)
     }
 
     /// Parses a qualified identifier starting with the given identifier.
     #[track_caller]
-    pub fn parse_path_with(&mut self, first: Ident) -> PResult<'a, Path> {
+    pub fn parse_path_with(&mut self, first: Ident) -> PResult<'sess, AstPath<'ast>> {
         if self.in_yul {
             self.parse_path_with_f(first, Self::parse_yul_path_ident)
         } else {
@@ -745,7 +856,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses either an identifier or a Yul EVM builtin.
-    fn parse_yul_path_ident(&mut self) -> PResult<'a, Ident> {
+    fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
         if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
             self.expected_ident_found_err().emit();
@@ -756,7 +867,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a qualified identifier: `foo.bar.baz`.
     #[track_caller]
-    pub fn parse_path_any(&mut self) -> PResult<'a, Path> {
+    pub fn parse_path_any(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let first = self.parse_ident_any()?;
         self.parse_path_with_f(first, Self::parse_ident_any)
     }
@@ -766,29 +877,29 @@ impl<'a> Parser<'a> {
     fn parse_path_with_f(
         &mut self,
         first: Ident,
-        mut f: impl FnMut(&mut Self) -> PResult<'a, Ident>,
-    ) -> PResult<'a, Path> {
+        mut f: impl FnMut(&mut Self) -> PResult<'sess, Ident>,
+    ) -> PResult<'sess, AstPath<'ast>> {
         if !self.check_noexpect(&TokenKind::Dot) {
-            return Ok(Path::new_single(first));
+            return Ok(self.alloc_path(&[first]));
         }
 
-        let mut path = Vec::with_capacity(2);
+        let mut path = SmallVec::<[_; 4]>::new();
         path.push(first);
         while self.eat(&TokenKind::Dot) {
             path.push(f(self)?);
         }
-        Ok(Path::new(path))
+        Ok(self.alloc_path(&path))
     }
 
     /// Parses an identifier.
     #[track_caller]
-    pub fn parse_ident(&mut self) -> PResult<'a, Ident> {
+    pub fn parse_ident(&mut self) -> PResult<'sess, Ident> {
         self.parse_ident_common(true)
     }
 
     /// Parses an identifier. Does not check if the identifier is a reserved keyword.
     #[track_caller]
-    pub fn parse_ident_any(&mut self) -> PResult<'a, Ident> {
+    pub fn parse_ident_any(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
         self.bump();
         Ok(ident)
@@ -796,7 +907,7 @@ impl<'a> Parser<'a> {
 
     /// Parses an optional identifier.
     #[track_caller]
-    pub fn parse_ident_opt(&mut self) -> PResult<'a, Option<Ident>> {
+    pub fn parse_ident_opt(&mut self) -> PResult<'sess, Option<Ident>> {
         if self.check_ident() {
             self.parse_ident().map(Some)
         } else {
@@ -805,7 +916,7 @@ impl<'a> Parser<'a> {
     }
 
     #[track_caller]
-    fn parse_ident_common(&mut self, recover: bool) -> PResult<'a, Ident> {
+    fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
         if ident.is_reserved(self.in_yul) {
             let err = self.expected_ident_found_err();
@@ -821,7 +932,7 @@ impl<'a> Parser<'a> {
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.
     #[track_caller]
-    fn ident_or_err(&mut self, recover: bool) -> PResult<'a, Ident> {
+    fn ident_or_err(&mut self, recover: bool) -> PResult<'sess, Ident> {
         match self.token.ident() {
             Some(ident) => Ok(ident),
             None => self.expected_ident_found(recover),
@@ -829,12 +940,12 @@ impl<'a> Parser<'a> {
     }
 
     #[track_caller]
-    fn expected_ident_found(&mut self, recover: bool) -> PResult<'a, Ident> {
+    fn expected_ident_found(&mut self, recover: bool) -> PResult<'sess, Ident> {
         self.expected_ident_found_other(self.token.clone(), recover)
     }
 
     #[track_caller]
-    fn expected_ident_found_other(&mut self, token: Token, recover: bool) -> PResult<'a, Ident> {
+    fn expected_ident_found_other(&mut self, token: Token, recover: bool) -> PResult<'sess, Ident> {
         let msg = format!("expected identifier, found {}", token.full_description());
         let span = token.span;
         let mut err = self.dcx().err(msg).span(span);
@@ -860,7 +971,7 @@ impl<'a> Parser<'a> {
     }
 
     #[track_caller]
-    fn expected_ident_found_err(&mut self) -> PErr<'a> {
+    fn expected_ident_found_err(&mut self) -> PErr<'sess> {
         self.expected_ident_found(false).unwrap_err()
     }
 }

@@ -1,7 +1,6 @@
 use crate::{SessionGlobals, Span};
-use lasso::Resolver;
 use std::{cmp, fmt, hash, str};
-use sulk_data_structures::index::BaseIndex32;
+use sulk_data_structures::{index::BaseIndex32, trustme};
 use sulk_macros::symbols;
 
 /// An identifier.
@@ -11,6 +10,13 @@ pub struct Ident {
     pub name: Symbol,
     /// The identifier's span.
     pub span: Span,
+}
+
+impl Default for Ident {
+    #[inline]
+    fn default() -> Self {
+        Self::DUMMY
+    }
 }
 
 impl PartialEq for Ident {
@@ -58,6 +64,9 @@ impl fmt::Display for Ident {
 }
 
 impl Ident {
+    /// A dummy identifier.
+    pub const DUMMY: Self = Self::new(Symbol::DUMMY, Span::DUMMY);
+
     /// Constructs a new identifier from a symbol and a span.
     #[inline]
     pub const fn new(name: Symbol, span: Span) -> Self {
@@ -168,7 +177,17 @@ impl Ident {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Symbol(BaseIndex32);
 
+impl Default for Symbol {
+    #[inline]
+    fn default() -> Self {
+        Self::DUMMY
+    }
+}
+
 impl Symbol {
+    /// A dummy symbol.
+    pub const DUMMY: Self = Self(BaseIndex32::MAX);
+
     const fn new(n: u32) -> Self {
         Self(BaseIndex32::new(n))
     }
@@ -194,9 +213,7 @@ impl Symbol {
     /// this function is typically used for short-lived things, so in practice
     /// it works out ok.
     pub fn as_str(&self) -> &str {
-        SessionGlobals::with(|g| unsafe {
-            std::mem::transmute::<&str, &str>(g.symbol_interner.get(*self))
-        })
+        SessionGlobals::with(|g| unsafe { trustme::decouple_lt(g.symbol_interner.get(*self)) })
     }
 
     /// Returns the internal representation of the symbol.
@@ -369,7 +386,7 @@ impl LassoInterner {
 
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
-        unsafe { self.0.resolve_unchecked(&symbol) }
+        self.0.resolve(&symbol)
     }
 }
 

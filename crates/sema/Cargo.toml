@@ -21,8 +21,13 @@ sulk-data-structures.workspace = true
 sulk-interface.workspace = true
 sulk-parse.workspace = true
 
+bumpalo.workspace = true
+dashmap = { workspace = true, features = ["raw-api"] }
+paste.workspace = true
 rayon.workspace = true
 tracing.workspace = true
+thread_local = "1.1"
+typed-arena.workspace = true
 
 [features]
 nightly = [
@@ -30,4 +35,5 @@ nightly = [
     "sulk-data-structures/nightly",
     "sulk-interface/nightly",
     "sulk-parse/nightly",
+    "thread_local/nightly",
 ]

@@ -59,7 +59,9 @@ impl Parser for Solc {
     fn lex(&self, _: &str) {}
 
     fn parse(&self, src: &str) {
-        let mut cmd = std::process::Command::new("solc");
+        let solc = std::env::var_os("SOLC");
+        let solc = solc.as_deref().unwrap_or_else(|| "solc".as_ref());
+        let mut cmd = std::process::Command::new(solc);
         cmd.arg("-");
         cmd.arg("--stop-after=parsing");
         // cmd.arg("--ast-compact-json");
@@ -95,9 +97,10 @@ impl Parser for Sulk {
         (|| -> sulk_parse::interface::Result {
             let source_map = sulk_parse::interface::SourceMap::empty();
             let sess = Session::with_tty_emitter(source_map.into());
+            let arena = sulk_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                sulk_parse::Parser::from_source_code(&sess, filename.into(), || Ok(src.into()))?;
+                sulk_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);

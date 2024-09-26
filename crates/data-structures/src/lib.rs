@@ -16,27 +16,32 @@
 pub mod hint;
 pub mod index;
 pub mod map;
-pub mod scope;
 pub mod sync;
+pub mod trustme;
+
+mod bump_ext;
+pub use bump_ext::BumpExt;
+
+mod collect;
+pub use collect::CollectAndApply;
+
+mod captures;
+pub use captures::Captures;
 
 mod never;
 pub use never::Never;
 
+mod on_drop;
+pub use on_drop::{defer, OnDrop};
+
+mod interned;
+pub use interned::Interned;
+
 pub use smallvec;
 
-/// Returns a structure that calls `f` when dropped.
-#[inline]
-pub fn defer<F: FnOnce()>(f: F) -> impl Drop {
-    struct OnDrop<F: FnOnce()>(Option<F>);
-
-    impl<F: FnOnce()> Drop for OnDrop<F> {
-        #[inline]
-        fn drop(&mut self) {
-            if let Some(f) = self.0.take() {
-                f();
-            }
-        }
-    }
-
-    OnDrop(Some(f))
+/// This calls the passed function while ensuring it won't be inlined into the caller.
+#[inline(never)]
+#[cold]
+pub fn outline<R>(f: impl FnOnce() -> R) -> R {
+    f()
 }

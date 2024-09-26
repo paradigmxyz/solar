@@ -5,16 +5,15 @@ use std::num::IntErrorKind;
 use sulk_ast::{ast::*, token::*};
 use sulk_interface::{error_code, kw, sym, Ident, Span};
 
-impl<'a> Parser<'a> {
+impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_file(&mut self) -> PResult<'a, SourceUnit> {
-        let items = self.parse_items(&TokenKind::Eof)?;
-        Ok(SourceUnit { items })
+    pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
+        self.parse_items(&TokenKind::Eof).map(SourceUnit::new)
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: &TokenKind) -> PResult<'a, Vec<Item>> {
+    fn parse_items(&mut self, end: &TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -46,18 +45,18 @@ impl<'a> Parser<'a> {
             let (msg, note) = get_msg_note(self);
             return Err(self.dcx().err(msg).span(self.token.span).note(note));
         }
-        Ok(items)
+        Ok(self.alloc_vec(items))
     }
 
     /// Parses an item.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse_item(&mut self) -> PResult<'a, Option<Item>> {
+    pub fn parse_item(&mut self) -> PResult<'sess, Option<Item<'ast>>> {
         let docs = self.parse_doc_comments()?;
         self.parse_spanned(Self::parse_item_kind)
             .map(|(span, kind)| kind.map(|kind| Item { docs, span, kind }))
     }
 
-    fn parse_item_kind(&mut self) -> PResult<'a, Option<ItemKind>> {
+    fn parse_item_kind(&mut self) -> PResult<'sess, Option<ItemKind<'ast>>> {
         let kind = if self.is_function_like() {
             self.parse_function().map(ItemKind::Function)
         } else if self.eat_keyword(kw::Struct) {
@@ -127,7 +126,7 @@ impl<'a> Parser<'a> {
     /// Parses a function definition.
     ///
     /// Expects the current token to be a function-like keyword.
-    fn parse_function(&mut self) -> PResult<'a, ItemFunction> {
+    fn parse_function(&mut self) -> PResult<'sess, ItemFunction<'ast>> {
         let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
@@ -162,7 +161,7 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_function_header(
         &mut self,
         flags: FunctionFlags,
-    ) -> PResult<'a, FunctionHeader> {
+    ) -> PResult<'sess, FunctionHeader<'ast>> {
         let mut header = FunctionHeader::default();
         let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
             VarFlags::FUNCTION_TY
@@ -203,6 +202,7 @@ impl<'a> Parser<'a> {
             header.parameters = self.parse_parameter_list(true, var_flags)?;
         }
 
+        let mut modifiers = Vec::new();
         loop {
             // This is needed to skip parsing surrounding variable's visibility in function types.
             // E.g. in `function(uint) external internal e;` the `internal` is the surrounding
@@ -255,11 +255,13 @@ impl<'a> Parser<'a> {
             } else if flags.contains(FunctionFlags::MODIFIERS)
                 && self.token.is_non_reserved_ident(false)
             {
-                header.modifiers.push(self.parse_modifier()?);
+                modifiers.push(self.parse_modifier()?);
             } else {
                 break;
             }
         }
+
+        header.modifiers = self.alloc_vec(modifiers);
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
             header.returns = self.parse_parameter_list(false, var_flags)?;
@@ -269,9 +271,9 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a struct definition.
-    fn parse_struct(&mut self) -> PResult<'a, ItemStruct> {
+    fn parse_struct(&mut self) -> PResult<'sess, ItemStruct<'ast>> {
         let name = self.parse_ident()?;
-        let (fields, _) = self.parse_delim_seq(
+        let fields = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
             false,
@@ -281,7 +283,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an event definition.
-    fn parse_event(&mut self) -> PResult<'a, ItemEvent> {
+    fn parse_event(&mut self) -> PResult<'sess, ItemEvent<'ast>> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(true, VarFlags::EVENT)?;
         let anonymous = self.eat_keyword(kw::Anonymous);
@@ -290,7 +292,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an error definition.
-    fn parse_error(&mut self) -> PResult<'a, ItemError> {
+    fn parse_error(&mut self) -> PResult<'sess, ItemError<'ast>> {
         let name = self.parse_ident()?;
         let parameters = self.parse_parameter_list(true, VarFlags::ERROR)?;
         self.expect_semi()?;
@@ -300,7 +302,7 @@ impl<'a> Parser<'a> {
     /// Parses a contract definition.
     ///
     /// Expects the current token to be a contract-like keyword.
-    fn parse_contract(&mut self) -> PResult<'a, ItemContract> {
+    fn parse_contract(&mut self) -> PResult<'sess, ItemContract<'ast>> {
         let TokenKind::Ident(kw) = self.token.kind else {
             unreachable!("parse_contract called without contract-like keyword");
         };
@@ -317,27 +319,26 @@ impl<'a> Parser<'a> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let inheritance =
-            if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Vec::new() };
+        let bases =
+            if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Default::default() };
         self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
             self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
-        Ok(ItemContract { kind, name, inheritance, body })
+        Ok(ItemContract { kind, name, bases, body })
     }
 
     /// Parses an enum definition.
-    fn parse_enum(&mut self) -> PResult<'a, ItemEnum> {
+    fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let (variants, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
-            // Ignore doc-comments.
-            let _ = this.parse_doc_comments()?;
+        let variants = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            this.ignore_doc_comments();
             this.parse_ident()
         })?;
         Ok(ItemEnum { name, variants })
     }
 
     /// Parses a user-defined value type.
-    fn parse_udvt(&mut self) -> PResult<'a, ItemUdvt> {
+    fn parse_udvt(&mut self) -> PResult<'sess, ItemUdvt<'ast>> {
         let name = self.parse_ident()?;
         self.expect_keyword(kw::Is)?;
         let ty = self.parse_type()?;
@@ -346,7 +347,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a pragma directive.
-    fn parse_pragma(&mut self) -> PResult<'a, PragmaDirective> {
+    fn parse_pragma(&mut self) -> PResult<'sess, PragmaDirective<'ast>> {
         let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
 
         let tokens = if self.check_keyword(sym::solidity)
@@ -381,13 +382,13 @@ impl<'a> Parser<'a> {
                 let msg = "expected at least one token in pragma directive";
                 self.dcx().err(msg).span(self.prev_token.span).emit();
             }
-            PragmaTokens::Verbatim(tokens)
+            PragmaTokens::Verbatim(self.alloc_vec(tokens))
         };
         self.expect_semi()?;
         Ok(PragmaDirective { tokens })
     }
 
-    fn parse_ident_or_strlit(&mut self) -> PResult<'a, IdentOrStrLit> {
+    fn parse_ident_or_strlit(&mut self) -> PResult<'sess, IdentOrStrLit> {
         if self.check_ident() {
             self.parse_ident().map(IdentOrStrLit::Ident)
         } else if self.check_str_lit() {
@@ -400,7 +401,7 @@ impl<'a> Parser<'a> {
     /// Parses a SemVer version requirement.
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
-    fn parse_semver_req(&mut self) -> PResult<'a, SemverReq> {
+    fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq<'ast>> {
         if self.check_noexpect(&TokenKind::Semi) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
@@ -410,7 +411,9 @@ impl<'a> Parser<'a> {
     }
 
     /// `any(c)`
-    fn parse_semver_req_components_dis(&mut self) -> PResult<'a, Vec<SemverReqCon>> {
+    fn parse_semver_req_components_dis(
+        &mut self,
+    ) -> PResult<'sess, Box<'ast, [SemverReqCon<'ast>]>> {
         // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
@@ -425,7 +428,7 @@ impl<'a> Parser<'a> {
             // or all the values until `||`.
             debug_assert!(
                 matches!(
-                    dis.last().map(|x| x.components.as_slice()),
+                    dis.last().map(|x| &x.components),
                     Some([
                         ..,
                         SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }
@@ -436,11 +439,11 @@ impl<'a> Parser<'a> {
             );
             return Err(self.dcx().err("ranges can only be combined using the || operator"));
         }
-        Ok(dis)
+        Ok(self.alloc_vec(dis))
     }
 
     /// `all(c)`
-    fn parse_semver_req_components_con(&mut self) -> PResult<'a, SemverReqCon> {
+    fn parse_semver_req_components_con(&mut self) -> PResult<'sess, SemverReqCon<'ast>> {
         // component - component (range)
         // or component component* (conjunction)
 
@@ -468,10 +471,11 @@ impl<'a> Parser<'a> {
             }
         }
         let span = lo.to(self.prev_token.span);
+        let components = self.alloc_vec(components);
         Ok(SemverReqCon { span, components })
     }
 
-    fn parse_semver_component(&mut self) -> PResult<'a, (Option<SemverOp>, SemverVersion)> {
+    fn parse_semver_component(&mut self) -> PResult<'sess, (Option<SemverOp>, SemverVersion)> {
         let op = self.parse_semver_op();
         let v = self.parse_semver_version()?;
         Ok((op, v))
@@ -493,7 +497,7 @@ impl<'a> Parser<'a> {
         Some(op)
     }
 
-    fn parse_semver_version(&mut self) -> PResult<'a, SemverVersion> {
+    fn parse_semver_version(&mut self) -> PResult<'sess, SemverVersion> {
         let lo = self.token.span;
         let major;
         let mut minor = None;
@@ -536,7 +540,7 @@ impl<'a> Parser<'a> {
         Ok(SemverVersion { span, major, minor, patch })
     }
 
-    fn parse_semver_number(&mut self) -> PResult<'a, SemverVersionNumber> {
+    fn parse_semver_number(&mut self) -> PResult<'sess, SemverVersionNumber> {
         if self.check_noexpect(&TokenKind::BinOp(BinOpToken::Star))
             || self.token.is_keyword_any(&[sym::x, sym::X])
         {
@@ -544,10 +548,7 @@ impl<'a> Parser<'a> {
             return Ok(SemverVersionNumber::Wildcard);
         }
 
-        let Token {
-            kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Integer, symbol }),
-            span,
-        } = self.token
+        let Token { kind: TokenKind::Literal(TokenLitKind::Integer, symbol), span } = self.token
         else {
             self.expected_tokens.push(ExpectedToken::VersionNumber);
             return self.unexpected();
@@ -571,7 +572,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an import directive.
-    fn parse_import(&mut self) -> PResult<'a, ImportDirective> {
+    fn parse_import(&mut self) -> PResult<'sess, ImportDirective<'ast>> {
         let path;
         let items = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
             // * as alias from ""
@@ -581,7 +582,7 @@ impl<'a> Parser<'a> {
             ImportItems::Glob(alias)
         } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
             // { x as y, ... } from ""
-            let (list, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            let list = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
                 let alias = this.parse_as_alias()?;
                 Ok((name, alias))
@@ -604,7 +605,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses an `as` alias identifier.
-    fn parse_as_alias(&mut self) -> PResult<'a, Option<Ident>> {
+    fn parse_as_alias(&mut self) -> PResult<'sess, Option<Ident>> {
         if self.eat_keyword(kw::As) {
             self.parse_ident().map(Some)
         } else {
@@ -613,7 +614,7 @@ impl<'a> Parser<'a> {
     }
 
     /// Parses a using directive.
-    fn parse_using(&mut self) -> PResult<'a, UsingDirective> {
+    fn parse_using(&mut self) -> PResult<'sess, UsingDirective<'ast>> {
         let list = self.parse_using_list()?;
         self.expect_keyword(kw::For)?;
         let ty = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
@@ -626,9 +627,9 @@ impl<'a> Parser<'a> {
         Ok(UsingDirective { list, ty, global })
     }
 
-    fn parse_using_list(&mut self) -> PResult<'a, UsingList> {
+    fn parse_using_list(&mut self) -> PResult<'sess, UsingList<'ast>> {
         if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
-            let (paths, _) = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+            self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
                 let op = if this.eat_keyword(kw::As) {
                     Some(this.parse_user_definable_operator()?)
@@ -636,14 +637,14 @@ impl<'a> Parser<'a> {
                     None
                 };
                 Ok((path, op))
-            })?;
-            Ok(UsingList::Multiple(paths))
+            })
+            .map(UsingList::Multiple)
         } else {
             self.parse_path().map(UsingList::Single)
         }
     }
 
-    fn parse_user_definable_operator(&mut self) -> PResult<'a, UserDefinableOperator> {
+    fn parse_user_definable_operator(&mut self) -> PResult<'sess, UserDefinableOperator> {
         use BinOpToken::*;
         use TokenKind::*;
         use UserDefinableOperator as Op;
@@ -688,20 +689,23 @@ impl<'a> Parser<'a> {
     pub(super) fn parse_variable_definition(
         &mut self,
         flags: VarFlags,
-    ) -> PResult<'a, VariableDefinition> {
+    ) -> PResult<'sess, VariableDefinition<'ast>> {
         self.parse_variable_definition_with(flags, None)
     }
 
     pub(super) fn parse_variable_definition_with(
         &mut self,
         flags: VarFlags,
-        ty: Option<Ty>,
-    ) -> PResult<'a, VariableDefinition> {
+        ty: Option<Type<'ast>>,
+    ) -> PResult<'sess, VariableDefinition<'ast>> {
+        let mut lo = self.token.span;
         let ty = match ty {
-            Some(ty) => ty,
+            Some(ty) => {
+                lo = lo.with_lo(ty.span.lo());
+                ty
+            }
             None => {
-                // Ignore doc-comments.
-                let _ = self.parse_doc_comments()?;
+                self.ignore_doc_comments();
                 self.parse_type()?
             }
         };
@@ -713,9 +717,12 @@ impl<'a> Parser<'a> {
         let mut indexed = false;
         loop {
             if let Some(s) = self.parse_data_location() {
-                let transient =
-                    matches!(s, DataLocation::Transient) && flags.contains(VarFlags::TRANSIENT);
-                if !(transient || flags.contains(VarFlags::DATALOC)) {
+                let transient = matches!(s, DataLocation::Transient);
+                let transient_allowed = flags.contains(VarFlags::TRANSIENT);
+                if transient && !transient_allowed {
+                    let msg = "`transient` data location is not allowed here";
+                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                } else if !(transient || flags.contains(VarFlags::DATALOC)) {
                     let msg = "data locations are not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if data_location.is_some() {
@@ -796,12 +803,15 @@ impl<'a> Parser<'a> {
             self.expect_semi()?;
         }
 
+        let span = lo.to(self.prev_token.span);
+
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";
-            self.dcx().err(msg).span(ty.span.to(self.prev_token.span)).emit();
+            self.dcx().err(msg).span(span).emit();
         }
 
         Ok(VariableDefinition {
+            span,
             ty,
             data_location,
             visibility,
@@ -829,24 +839,23 @@ impl<'a> Parser<'a> {
         &mut self,
         allow_empty: bool,
         flags: VarFlags,
-    ) -> PResult<'a, ParameterList> {
+    ) -> PResult<'sess, ParameterList<'ast>> {
         self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
-            .map(|(x, _)| x)
     }
 
     /// Parses a list of inheritance specifiers.
-    fn parse_inheritance(&mut self) -> PResult<'a, Vec<Modifier>> {
+    fn parse_inheritance(&mut self) -> PResult<'sess, Box<'ast, [Modifier<'ast>]>> {
         self.parse_seq_to_before_end(
             &TokenKind::OpenDelim(Delimiter::Brace),
             SeqSep::trailing_disallowed(TokenKind::Comma),
             false,
             Self::parse_modifier,
         )
-        .map(|(x, _, _)| x)
+        .map(|(x, _)| x)
     }
 
     /// Parses a single modifier invocation.
-    fn parse_modifier(&mut self) -> PResult<'a, Modifier> {
+    fn parse_modifier(&mut self) -> PResult<'sess, Modifier<'ast>> {
         let name = self.parse_path()?;
         let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
@@ -859,13 +868,13 @@ impl<'a> Parser<'a> {
     /// Parses a single function override.
     ///
     /// Expects the `override` to have already been eaten.
-    fn parse_override(&mut self) -> PResult<'a, Override> {
+    fn parse_override(&mut self) -> PResult<'sess, Override<'ast>> {
         debug_assert!(self.prev_token.is_keyword(kw::Override));
         let lo = self.prev_token.span;
         let paths = if self.token.is_open_delim(Delimiter::Parenthesis) {
-            self.parse_paren_comma_seq(false, Self::parse_path)?.0
+            self.parse_paren_comma_seq(false, Self::parse_path)?
         } else {
-            Vec::new()
+            Default::default()
         };
         let span = lo.to(self.prev_token.span);
         Ok(Override { span, paths })
@@ -873,7 +882,7 @@ impl<'a> Parser<'a> {
 
     /// Parses a single string literal. This is only used in import paths and statements, not
     /// expressions.
-    pub(super) fn parse_str_lit(&mut self) -> PResult<'a, StrLit> {
+    pub(super) fn parse_str_lit(&mut self) -> PResult<'sess, StrLit> {
         match self.parse_str_lit_opt() {
             Some(lit) => Ok(lit),
             None => self.unexpected(),
@@ -886,9 +895,7 @@ impl<'a> Parser<'a> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLit { kind: TokenLitKind::Str, symbol }), span } =
-            self.token
-        else {
+        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
             unreachable!()
         };
         self.bump();
@@ -904,7 +911,10 @@ impl<'a> Parser<'a> {
         } else if self.eat_keyword(kw::Calldata) {
             Some(DataLocation::Calldata)
         } else if self.check_keyword(sym::transient)
-            && !matches!(self.look_ahead(1).kind, TokenKind::Eq | TokenKind::Semi)
+            && !matches!(
+                self.look_ahead(1).kind,
+                TokenKind::Eq | TokenKind::Semi | TokenKind::CloseDelim(_) | TokenKind::Comma
+            )
         {
             self.bump(); // `transient`
             Some(DataLocation::Transient)
@@ -949,17 +959,17 @@ bitflags::bitflags! {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
 
         const TRANSIENT   = 1 << 0;
-        const DATALOC     = Self::TRANSIENT.bits() | 1 << 1;
+        const DATALOC     = 1 << 1;
         const INDEXED     = 1 << 2;
 
         const PRIVATE     = 1 << 3;
         const INTERNAL    = 1 << 4;
         const PUBLIC      = 1 << 5;
         const EXTERNAL    = 1 << 6; // Never accepted, just for error messages.
-        const VISIBILITY  = Self::PRIVATE.bits() |
-                            Self::INTERNAL.bits() |
-                            Self::PUBLIC.bits() |
-                            Self::EXTERNAL.bits();
+        const VISIBILITY  = Self::PRIVATE.bits()
+                          | Self::INTERNAL.bits()
+                          | Self::PUBLIC.bits()
+                          | Self::EXTERNAL.bits();
 
         const CONSTANT    = 1 << 7;
         const IMMUTABLE   = 1 << 8;
@@ -979,22 +989,22 @@ bitflags::bitflags! {
         const FUNCTION_TY  = Self::DATALOC.bits() | Self::NAME_WARN.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration
-        const STATE_VAR    = Self::TRANSIENT.bits() |
-                             Self::PRIVATE.bits() |
-                             Self::INTERNAL.bits() |
-                             Self::PUBLIC.bits() |
-                             Self::CONSTANT.bits() |
-                             Self::IMMUTABLE.bits() |
-                             Self::OVERRIDE.bits() |
-                             Self::NAME.bits() |
-                             Self::INITIALIZER.bits() |
-                             Self::SEMI.bits();
+        const STATE_VAR    = Self::TRANSIENT.bits()
+                           | Self::PRIVATE.bits()
+                           | Self::INTERNAL.bits()
+                           | Self::PUBLIC.bits()
+                           | Self::CONSTANT.bits()
+                           | Self::IMMUTABLE.bits()
+                           | Self::OVERRIDE.bits()
+                           | Self::NAME.bits()
+                           | Self::INITIALIZER.bits()
+                           | Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constantVariableDeclaration
-        const CONSTANT_VAR = Self::CONSTANT.bits() |
-                             Self::NAME.bits() |
-                             Self::INITIALIZER.bits() |
-                             Self::SEMI.bits();
+        const CONSTANT_VAR = Self::CONSTANT.bits()
+                           | Self::NAME.bits()
+                           | Self::INITIALIZER.bits()
+                           | Self::SEMI.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.variableDeclarationStatement
         const VAR = Self::DATALOC.bits() | Self::INITIALIZER.bits();
@@ -1015,18 +1025,18 @@ bitflags::bitflags! {
         const INTERNAL         = 1 << 4;
         const PUBLIC           = 1 << 5;
         const EXTERNAL         = 1 << 6;
-        const VISIBILITY       = Self::PRIVATE.bits() |
-                                 Self::INTERNAL.bits() |
-                                 Self::PUBLIC.bits() |
-                                 Self::EXTERNAL.bits();
+        const VISIBILITY       = Self::PRIVATE.bits()
+                               | Self::INTERNAL.bits()
+                               | Self::PUBLIC.bits()
+                               | Self::EXTERNAL.bits();
 
         // StateMutability
         const PURE             = 1 << 7;
         const VIEW             = 1 << 8;
         const PAYABLE          = 1 << 9;
-        const STATE_MUTABILITY = Self::PURE.bits() |
-                                 Self::VIEW.bits() |
-                                 Self::PAYABLE.bits();
+        const STATE_MUTABILITY = Self::PURE.bits()
+                               | Self::VIEW.bits()
+                               | Self::PAYABLE.bits();
 
         const MODIFIERS        = 1 << 10;
         const VIRTUAL          = 1 << 11;
@@ -1037,47 +1047,47 @@ bitflags::bitflags! {
         const ONLY_BLOCK       = 1 << 14;
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.constructorDefinition
-        const CONSTRUCTOR = Self::MODIFIERS.bits() |
-                            Self::PAYABLE.bits() |
-                            Self::INTERNAL.bits() |
-                            Self::PUBLIC.bits() |
-                            Self::ONLY_BLOCK.bits();
+        const CONSTRUCTOR = Self::MODIFIERS.bits()
+                          | Self::PAYABLE.bits()
+                          | Self::INTERNAL.bits()
+                          | Self::PUBLIC.bits()
+                          | Self::ONLY_BLOCK.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionDefinition
-        const FUNCTION    = Self::NAME.bits() |
-                            Self::VISIBILITY.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits() |
-                            Self::RETURNS.bits();
+        const FUNCTION    = Self::NAME.bits()
+                          | Self::VISIBILITY.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits()
+                          | Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.modifierDefinition
-        const MODIFIER    = Self::NAME.bits() |
-                            Self::NO_PARENS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+        const MODIFIER    = Self::NAME.bits()
+                          | Self::NO_PARENS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.fallbackFunctionDefinition
-        const FALLBACK    = Self::EXTERNAL.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits() |
-                            Self::RETURNS.bits();
+        const FALLBACK    = Self::EXTERNAL.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits()
+                          | Self::RETURNS.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.receiveFunctionDefinition
-        const RECEIVE     = Self::EXTERNAL.bits() |
-                            Self::PAYABLE.bits() |
-                            Self::MODIFIERS.bits() |
-                            Self::VIRTUAL.bits() |
-                            Self::OVERRIDE.bits();
+        const RECEIVE     = Self::EXTERNAL.bits()
+                          | Self::PAYABLE.bits()
+                          | Self::MODIFIERS.bits()
+                          | Self::VIRTUAL.bits()
+                          | Self::OVERRIDE.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.functionTypeName
-        const FUNCTION_TY = Self::PARAM_NAME.bits() |
-                            Self::VISIBILITY.bits() |
-                            Self::STATE_MUTABILITY.bits() |
-                            Self::RETURNS.bits();
+        const FUNCTION_TY = Self::PARAM_NAME.bits()
+                          | Self::VISIBILITY.bits()
+                          | Self::STATE_MUTABILITY.bits()
+                          | Self::RETURNS.bits();
     }
 }
 
@@ -1238,8 +1248,9 @@ mod tests {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");
+                let arena = Arena::new();
                 let mut parser =
-                    Parser::from_source_code(&sess, FileName::Custom(name), || Ok(src))?;
+                    Parser::from_source_code(&sess, &arena, FileName::Custom(name), src)?;
 
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);

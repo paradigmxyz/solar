@@ -42,6 +42,7 @@ mod symbol;
 pub use symbol::{kw, sym, Ident, Symbol};
 
 pub use anstream::ColorChoice;
+pub use sulk_config as config;
 
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;

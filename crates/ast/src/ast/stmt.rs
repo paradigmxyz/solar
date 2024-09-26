@@ -1,35 +1,38 @@
-use super::{yul, CallArgs, DocComment, Expr, ParameterList, Path, StrLit, VariableDefinition};
+use super::{
+    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
+    VariableDefinition,
+};
 use sulk_interface::{Ident, Span};
 
 /// A block of statements.
-pub type Block = Vec<Stmt>;
+pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
 
 /// A statement, usually ending in a semicolon.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.statement>
-#[derive(Clone, Debug)]
-pub struct Stmt {
-    pub docs: Vec<DocComment>,
+#[derive(Debug)]
+pub struct Stmt<'ast> {
+    pub docs: DocComments<'ast>,
     pub span: Span,
-    pub kind: StmtKind,
+    pub kind: StmtKind<'ast>,
 }
 
 /// A kind of statement.
-#[derive(Clone, Debug)]
-pub enum StmtKind {
+#[derive(Debug)]
+pub enum StmtKind<'ast> {
     /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-    Assembly(StmtAssembly),
+    Assembly(StmtAssembly<'ast>),
 
     /// A single-variable declaration statement: `uint256 foo = 42;`.
-    DeclSingle(VariableDefinition),
+    DeclSingle(Box<'ast, VariableDefinition<'ast>>),
 
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Vec<Option<VariableDefinition>>, Box<Expr>),
+    DeclMulti(Box<'ast, [Option<VariableDefinition<'ast>>]>, Box<'ast, Expr<'ast>>),
 
     /// A blocked scope: `{ ... }`.
-    Block(Block),
+    Block(Block<'ast>),
 
     /// A break statement: `break;`.
     Break,
@@ -38,81 +41,74 @@ pub enum StmtKind {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Block, Box<Expr>),
+    DoWhile(Box<'ast, Stmt<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(Path, CallArgs),
+    Emit(Box<'ast, PathSlice>, CallArgs<'ast>),
 
     /// An expression with a trailing semicolon.
-    Expr(Box<Expr>),
+    Expr(Box<'ast, Expr<'ast>>),
 
     /// A for statement: `for (uint256 i; i < 42; ++i) { ... }`.
     For {
-        init: Option<Box<Stmt>>,
-        cond: Option<Box<Expr>>,
-        next: Option<Box<Expr>>,
-        body: Box<Stmt>,
+        init: Option<Box<'ast, Stmt<'ast>>>,
+        cond: Option<Box<'ast, Expr<'ast>>>,
+        next: Option<Box<'ast, Expr<'ast>>>,
+        body: Box<'ast, Stmt<'ast>>,
     },
 
-    /// An `if` statement with an optional `else` block: `if (expr) { ... } else
-    /// { ... }`.
-    If(Box<Expr>, Box<Stmt>, Option<Box<Stmt>>),
+    /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
+    If(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>, Option<Box<'ast, Stmt<'ast>>>),
 
     /// A return statement: `return 42;`.
-    Return(Option<Box<Expr>>),
+    Return(Option<Box<'ast, Expr<'ast>>>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(Path, CallArgs),
+    Revert(AstPath<'ast>, CallArgs<'ast>),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
-    Try(StmtTry),
+    Try(Box<'ast, StmtTry<'ast>>),
 
     /// An unchecked block: `unchecked { ... }`.
-    UncheckedBlock(Block),
+    UncheckedBlock(Block<'ast>),
 
     /// A while statement: `while (i < 42) { ... }`.
-    While(Box<Expr>, Box<Stmt>),
+    While(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>),
+
+    /// A modifier placeholder statement: `_;`.
+    Placeholder,
 }
 
 /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-#[derive(Clone, Debug)]
-pub struct StmtAssembly {
+#[derive(Debug)]
+pub struct StmtAssembly<'ast> {
     /// The assembly block dialect.
     pub dialect: Option<StrLit>,
     /// Additional flags.
-    pub flags: Vec<StrLit>,
+    pub flags: Box<'ast, [StrLit]>,
     /// The assembly block.
-    pub block: yul::Block,
+    pub block: yul::Block<'ast>,
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
-#[derive(Clone, Debug)]
-pub struct StmtTry {
-    pub expr: Box<Expr>,
-    pub returns: ParameterList,
+#[derive(Debug)]
+pub struct StmtTry<'ast> {
+    pub expr: Box<'ast, Expr<'ast>>,
+    pub returns: ParameterList<'ast>,
     /// The try block.
-    pub block: Block,
+    pub block: Block<'ast>,
     /// The list of catch clauses. Cannot be parsed empty.
-    pub catch: Vec<CatchClause>,
+    pub catch: Box<'ast, [CatchClause<'ast>]>,
 }
 
 /// A catch clause: `catch (...) { ... }`.
 ///
-/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
-#[derive(Clone, Debug)]
-pub struct CatchClause {
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
+#[derive(Debug)]
+pub struct CatchClause<'ast> {
     pub name: Option<Ident>,
-    pub args: ParameterList,
-    pub block: Block,
-}
-
-/// A kind of variable declaration statement.
-#[derive(Clone, Debug)]
-pub enum VarDeclKind {
-    /// A single variable declaration: `uint x ...`.
-    Single(VariableDefinition),
-    /// A tuple of variable declarations: `(uint x, uint y) ...`.
-    Tuple(Vec<Option<VariableDefinition>>),
+    pub args: ParameterList<'ast>,
+    pub block: Block<'ast>,
 }

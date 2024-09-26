@@ -45,6 +45,9 @@ pub struct BugAbort;
 /// etc.
 pub struct ExplicitBug;
 
+/// Marker type which enables implementation of fatal diagnostics.
+pub struct FatalAbort;
+
 /// Diagnostic ID.
 ///
 /// Use [`error_code!`](crate::error_code) to create an error code diagnostic ID.
@@ -103,6 +106,12 @@ pub enum Level {
     /// Its `EmissionGuarantee` is `BugAbort`.
     Bug,
 
+    /// An error that causes an immediate abort. Used for things like configuration errors,
+    /// internal overflows, some file operation errors.
+    ///
+    /// Its `EmissionGuarantee` is `FatalAbort`.
+    Fatal,
+
     /// An error in the code being compiled, which prevents compilation from finishing. This is the
     /// most common case.
     ///
@@ -152,7 +161,7 @@ impl Level {
     pub fn to_str(self) -> &'static str {
         match self {
             Self::Bug => "error: internal compiler error",
-            Self::Error => "error",
+            Self::Fatal | Self::Error => "error",
             Self::Warning => "warning",
             Self::Note | Self::OnceNote => "note",
             Self::Help | Self::OnceHelp => "help",
@@ -167,7 +176,7 @@ impl Level {
     #[inline]
     pub fn is_error(self) -> bool {
         match self {
-            Self::Bug | Self::Error | Self::FailureNote => true,
+            Self::Bug | Self::Fatal | Self::Error | Self::FailureNote => true,
 
             Self::Warning
             | Self::Note
@@ -198,7 +207,7 @@ impl Level {
     pub const fn ansi_color(self) -> Option<AnsiColor> {
         // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
         match self {
-            Self::Bug | Self::Error => Some(AnsiColor::BrightRed),
+            Self::Bug | Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
             Self::Warning => Some(AnsiColor::BrightYellow),
             Self::Note | Self::OnceNote => Some(AnsiColor::BrightGreen),
             Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),
