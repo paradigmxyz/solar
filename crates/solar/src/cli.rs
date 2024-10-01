@@ -1,6 +1,6 @@
 use clap::{ColorChoice, Parser, ValueHint};
+use solar_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 use std::path::PathBuf;
-use sulk_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 
 const VERSION_MESSAGE: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -14,7 +14,7 @@ const VERSION_MESSAGE: &str = concat!(
 /// Blazingly fast Solidity compiler.
 #[derive(Parser)]
 #[command(
-    name = "sulk",
+    name = "solar",
     version = VERSION_MESSAGE,
     // after_help = "Find more information in the book: http://book.getfoundry.sh/reference/forge/forge.html",
     next_display_order = None,
@@ -163,20 +163,20 @@ mod tests {
             .map_err(|e| UnwrapDisplay(e.render().ansi().to_string()))
         }
 
-        let unstable = parse(&["sulk", "a.sol"]).unwrap();
+        let unstable = parse(&["solar", "a.sol"]).unwrap();
         assert!(!unstable.test_bool);
 
-        let unstable = parse(&["sulk", "-Ztest-bool", "a.sol"]).unwrap();
+        let unstable = parse(&["solar", "-Ztest-bool", "a.sol"]).unwrap();
         assert!(unstable.test_bool);
-        let unstable = parse(&["sulk", "-Z", "test-bool", "a.sol"]).unwrap();
+        let unstable = parse(&["solar", "-Z", "test-bool", "a.sol"]).unwrap();
         assert!(unstable.test_bool);
 
-        assert!(parse(&["sulk", "-Ztest-value", "a.sol"]).is_err());
-        assert!(parse(&["sulk", "-Z", "test-value", "a.sol"]).is_err());
-        assert!(parse(&["sulk", "-Ztest-value", "2", "a.sol"]).is_err());
-        let unstable = parse(&["sulk", "-Ztest-value=2", "a.sol"]).unwrap();
+        assert!(parse(&["solar", "-Ztest-value", "a.sol"]).is_err());
+        assert!(parse(&["solar", "-Z", "test-value", "a.sol"]).is_err());
+        assert!(parse(&["solar", "-Ztest-value", "2", "a.sol"]).is_err());
+        let unstable = parse(&["solar", "-Ztest-value=2", "a.sol"]).unwrap();
         assert_eq!(unstable.test_value, Some(2));
-        let unstable = parse(&["sulk", "-Z", "test-value=2", "a.sol"]).unwrap();
+        let unstable = parse(&["solar", "-Z", "test-value=2", "a.sol"]).unwrap();
         assert_eq!(unstable.test_value, Some(2));
     }
 }

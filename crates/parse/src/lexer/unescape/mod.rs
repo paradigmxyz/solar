@@ -1,8 +1,8 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
 use alloy_primitives::hex;
+use solar_data_structures::trustme;
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
-use sulk_data_structures::trustme;
 
 mod errors;
 pub(crate) use errors::emit_unescape_error;

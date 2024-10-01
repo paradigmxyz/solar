@@ -1,8 +1,8 @@
 //! Solidity source code token.
 
 use crate::ast::{BinOp, BinOpKind, UnOp, UnOpKind};
+use solar_interface::{Ident, Span, Symbol};
 use std::{borrow::Cow, fmt};
-use sulk_interface::{Ident, Span, Symbol};
 
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

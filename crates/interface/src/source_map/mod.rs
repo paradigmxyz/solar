@@ -2,14 +2,14 @@
 
 use crate::{BytePos, CharPos, Pos, Span};
 use dashmap::{DashMap, Entry};
+use solar_data_structures::{
+    map::FxBuildHasher,
+    sync::{ReadGuard, RwLock},
+};
 use std::{
     io::{self, Read},
     path::{Path, PathBuf},
     sync::Arc,
-};
-use sulk_data_structures::{
-    map::FxBuildHasher,
-    sync::{ReadGuard, RwLock},
 };
 
 mod analyze;

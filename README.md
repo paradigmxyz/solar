@@ -1,4 +1,4 @@
-# sulk
+# solar
 
 [![Crates.io][crates-badge]][crates-io]
 [![Downloads][downloads-badge]][crates-io]
@@ -23,12 +23,12 @@ for inclusion in these crates by you, as defined in the Apache-2.0 license,
 shall be dual licensed as above, without any additional terms or conditions.
 </sub>
 
-[crates-badge]: https://img.shields.io/crates/v/sulk.svg
-[crates-io]: https://crates.io/crates/sulk
-[downloads-badge]: https://img.shields.io/crates/d/sulk
+[crates-badge]: https://img.shields.io/crates/v/solar.svg
+[crates-io]: https://crates.io/crates/solar
+[downloads-badge]: https://img.shields.io/crates/d/solar
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
 [apache-badge]: https://img.shields.io/badge/license-Apache--2.0-blue.svg
 [mit-url]: LICENSE-MIT
 [apache-url]: LICENSE-APACHE
-[actions-badge]: https://github.com/paradigmxyz/sulk/workflows/CI/badge.svg
-[actions-url]: https://github.com/paradigmxyz/sulk/actions?query=workflow%3ACI+branch%3Amain
+[actions-badge]: https://github.com/paradigmxyz/solar/workflows/CI/badge.svg
+[actions-url]: https://github.com/paradigmxyz/solar/actions?query=workflow%3ACI+branch%3Amain

@@ -1,10 +1,10 @@
 //! Solidity lexer.
 
-use sulk_ast::{
+use solar_ast::{
     ast::Base,
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
 };
-use sulk_interface::{
+use solar_interface::{
     diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Session, Span, Symbol,
 };
 
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn literals() {
         use TokenLitKind::*;
-        sulk_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("\"\"", &[(0..2, lit(Str, ""))]),
                 ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
@@ -571,7 +571,7 @@ mod tests {
 
     #[test]
     fn idents() {
-        sulk_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("$", &[(0..1, id("$"))]),
                 ("a$", &[(0..2, id("a$"))]),
@@ -593,7 +593,7 @@ mod tests {
             Comment(true, kind, sym(symbol))
         }
 
-        sulk_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::new().set(|| {
             checks(&[
                 ("// line comment", &[]),
                 ("// / line comment", &[]),

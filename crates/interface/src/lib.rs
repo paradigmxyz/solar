@@ -12,7 +12,7 @@
 //! This API is completely unstable and subject to change.
 
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/sulk/main/assets/logo.jpg",
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.jpg",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
@@ -42,7 +42,7 @@ mod symbol;
 pub use symbol::{kw, sym, Ident, Symbol};
 
 pub use anstream::ColorChoice;
-pub use sulk_config as config;
+pub use solar_config as config;
 
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;

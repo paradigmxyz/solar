@@ -1,7 +1,7 @@
 use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
 use crate::token::Token;
+use solar_interface::{Ident, Span};
 use std::fmt;
-use sulk_interface::{Ident, Span};
 
 /// A list of variable declarations.
 pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;

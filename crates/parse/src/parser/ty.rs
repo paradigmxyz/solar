@@ -1,8 +1,8 @@
 use super::item::FunctionFlags;
 use crate::{PResult, Parser};
+use solar_ast::{ast::*, token::*};
+use solar_interface::kw;
 use std::{fmt, ops::RangeInclusive};
-use sulk_ast::{ast::*, token::*};
-use sulk_interface::kw;
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.

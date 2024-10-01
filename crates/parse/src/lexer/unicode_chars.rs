@@ -4,8 +4,8 @@
 #![allow(unused_imports, dead_code)]
 
 use super::Lexer;
-use sulk_ast::token::{BinOpToken, Delimiter, TokenKind};
-use sulk_interface::{sym, BytePos, Pos, Span};
+use solar_ast::token::{BinOpToken, Delimiter, TokenKind};
+use solar_interface::{sym, BytePos, Pos, Span};
 
 #[rustfmt::skip] // for line breaks
 pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[

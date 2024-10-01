@@ -1,21 +1,21 @@
 use crate::hir::SourceId;
 use rayon::prelude::*;
+use solar_ast::ast;
+use solar_data_structures::{
+    index::{Idx, IndexVec},
+    map::FxHashSet,
+};
+use solar_interface::{
+    diagnostics::DiagCtxt,
+    source_map::{FileName, FileResolver, SourceFile},
+    Result, Session,
+};
+use solar_parse::{unescape, Lexer, Parser};
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use sulk_ast::ast;
-use sulk_data_structures::{
-    index::{Idx, IndexVec},
-    map::FxHashSet,
-};
-use sulk_interface::{
-    diagnostics::DiagCtxt,
-    source_map::{FileName, FileResolver, SourceFile},
-    Result, Session,
-};
-use sulk_parse::{unescape, Lexer, Parser};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {

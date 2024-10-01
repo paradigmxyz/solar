@@ -9,8 +9,8 @@ Vm: 1763 LoC, 91405 bytes
 safeconsole: 13248 LoC, 397898 bytes
 
 parser/empty/solc/parse time:   [1.3433 ms 1.3534 ms 1.3671 ms]                                    
-parser/empty/sulk/lex   time:   [899.40 ns 900.60 ns 901.76 ns]                                 
-parser/empty/sulk/parse time:   [1.2432 µs 1.2441 µs 1.2453 µs]                                    
+parser/empty/solar/lex   time:   [899.40 ns 900.60 ns 901.76 ns]                                 
+parser/empty/solar/parse time:   [1.2432 µs 1.2441 µs 1.2453 µs]                                    
 parser/empty/solang/lex time:   [12.175 ns 12.183 ns 12.196 ns]                                    
 parser/empty/solang/parse                                                                           
                         time:   [99.264 ns 99.453 ns 99.668 ns]
@@ -19,8 +19,8 @@ parser/empty/slang/parse
 
 parser/Counter/solc/parse                                                                            
                         time:   [1.4660 ms 1.4716 ms 1.4775 ms]
-parser/Counter/sulk/lex time:   [1.9003 µs 1.9020 µs 1.9033 µs]                                    
-parser/Counter/sulk/parse                                                                            
+parser/Counter/solar/lex time:   [1.9003 µs 1.9020 µs 1.9033 µs]                                    
+parser/Counter/solar/parse                                                                            
                         time:   [3.6554 µs 3.6630 µs 3.6689 µs]
 parser/Counter/solang/lex                                                                            
                         time:   [1.5520 µs 1.5604 µs 1.5720 µs]
@@ -31,9 +31,9 @@ parser/Counter/slang/parse
 
 parser/verifier/solc/parse                                                                            
                         time:   [2.0360 ms 2.0447 ms 2.0518 ms]
-parser/verifier/sulk/lex                                                                            
+parser/verifier/solar/lex                                                                            
                         time:   [37.900 µs 37.958 µs 38.054 µs]
-parser/verifier/sulk/parse                                                                            
+parser/verifier/solar/parse                                                                            
                         time:   [90.800 µs 91.192 µs 91.608 µs]
 parser/verifier/solang/lex                                                                            
                         time:   [60.674 µs 60.760 µs 60.823 µs]
@@ -44,9 +44,9 @@ parser/verifier/slang/parse
 
 parser/OptimizorClub/solc/parse                                                                            
                         time:   [2.9213 ms 2.9297 ms 2.9380 ms]
-parser/OptimizorClub/sulk/lex                                                                           
+parser/OptimizorClub/solar/lex                                                                           
                         time:   [119.12 µs 120.55 µs 122.04 µs]
-parser/OptimizorClub/sulk/parse                                                                           
+parser/OptimizorClub/solar/parse                                                                           
                         time:   [274.39 µs 279.00 µs 285.41 µs]
 parser/OptimizorClub/solang/lex                                                                           
                         time:   [191.73 µs 193.95 µs 196.28 µs]
@@ -57,9 +57,9 @@ parser/OptimizorClub/slang/parse
 
 parser/UniswapV3/solc/parse                                                                            
                         time:   [6.0144 ms 6.0342 ms 6.0483 ms]
-parser/UniswapV3/sulk/lex                                                                           
+parser/UniswapV3/solar/lex                                                                           
                         time:   [348.32 µs 348.89 µs 349.74 µs]
-parser/UniswapV3/sulk/parse                                                                           
+parser/UniswapV3/solar/parse                                                                           
                         time:   [733.32 µs 734.64 µs 736.06 µs]
 parser/UniswapV3/solang/lex                                                                           
                         time:   [668.94 µs 674.57 µs 679.37 µs]
@@ -70,9 +70,9 @@ parser/UniswapV3/slang/parse
 
 parser/Solarray/solc/parse                                                                            
                         time:   [3.5923 ms 3.6048 ms 3.6189 ms]
-parser/Solarray/sulk/lex                                                                           
+parser/Solarray/solar/lex                                                                           
                         time:   [211.54 µs 212.32 µs 213.56 µs]
-parser/Solarray/sulk/parse                                                                           
+parser/Solarray/solar/parse                                                                           
                         time:   [559.89 µs 568.74 µs 575.52 µs]
 parser/Solarray/solang/lex                                                                           
                         time:   [294.11 µs 294.65 µs 295.15 µs]
@@ -83,8 +83,8 @@ parser/Solarray/slang/parse
 
 parser/console/solc/parse                                                                            
                         time:   [4.6215 ms 4.6491 ms 4.6749 ms]
-parser/console/sulk/lex time:   [306.46 µs 308.51 µs 310.56 µs]                                   
-parser/console/sulk/parse                                                                           
+parser/console/solar/lex time:   [306.46 µs 308.51 µs 310.56 µs]                                   
+parser/console/solar/parse                                                                           
                         time:   [653.96 µs 655.10 µs 656.24 µs]
 parser/console/solang/lex                                                                           
                         time:   [442.65 µs 445.00 µs 446.91 µs]
@@ -94,17 +94,17 @@ parser/console/slang/parse
                         time:   [422.64 ms 424.58 ms 426.62 ms]
 
 parser/Vm/solc/parse    time:   [3.8192 ms 3.8359 ms 3.8494 ms]                                 
-parser/Vm/sulk/lex      time:   [199.36 µs 199.64 µs 199.98 µs]                              
-parser/Vm/sulk/parse    time:   [356.30 µs 358.58 µs 360.07 µs]                                
+parser/Vm/solar/lex      time:   [199.36 µs 199.64 µs 199.98 µs]                              
+parser/Vm/solar/parse    time:   [356.30 µs 358.58 µs 360.07 µs]                                
 parser/Vm/solang/lex    time:   [410.24 µs 411.61 µs 412.84 µs]                                
 parser/Vm/solang/parse  time:   [1.3992 ms 1.4055 ms 1.4100 ms]                                   
 parser/Vm/slang/parse   time:   [73.307 ms 73.501 ms 73.675 ms]                                 
 
 parser/safeconsole/solc/parse                                                                           
                         time:   [20.815 ms 21.013 ms 21.192 ms]
-parser/safeconsole/sulk/lex                                                                            
+parser/safeconsole/solar/lex                                                                            
                         time:   [1.6436 ms 1.6641 ms 1.6775 ms]
-parser/safeconsole/sulk/parse                                                                            
+parser/safeconsole/solar/parse                                                                            
                         time:   [5.1074 ms 5.1281 ms 5.1561 ms]
 parser/safeconsole/solang/lex                                                                            
                         time:   [2.4431 ms 2.4540 ms 2.4652 ms]

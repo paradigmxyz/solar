@@ -1,7 +1,7 @@
 //! AST-related passes.
 
-use sulk_ast::{ast, visit::Visit};
-use sulk_interface::{diagnostics::DiagCtxt, sym, Session, Span};
+use solar_ast::{ast, visit::Visit};
+use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {

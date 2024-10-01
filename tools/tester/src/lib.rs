@@ -1,6 +1,6 @@
-//! Sulk test runner.
+//! Solar test runner.
 //!
-//! This crate is invoked in `crates/sulk/tests.rs`.
+//! This crate is invoked in `crates/solar/tests.rs`.
 
 #![allow(unreachable_pub)]
 #![cfg_attr(feature = "nightly", feature(test))]

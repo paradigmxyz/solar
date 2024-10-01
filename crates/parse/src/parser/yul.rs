@@ -1,11 +1,11 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
-use sulk_ast::{
+use solar_ast::{
     ast::{yul::*, AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit},
     token::*,
 };
-use sulk_interface::{error_code, kw, sym, Ident};
+use solar_interface::{error_code, kw, sym, Ident};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul object or plain block.

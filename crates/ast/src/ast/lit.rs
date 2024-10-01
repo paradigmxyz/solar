@@ -1,6 +1,6 @@
 use alloy_primitives::Address;
+use solar_interface::{kw, Span, Symbol};
 use std::{fmt, sync::Arc};
-use sulk_interface::{kw, Span, Symbol};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
 ///

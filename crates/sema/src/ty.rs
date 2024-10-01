@@ -2,17 +2,17 @@
 
 use crate::hir;
 use dashmap::SharedValue;
+use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
+use solar_data_structures::Interned;
+use solar_interface::{diagnostics::ErrorGuaranteed, Symbol};
 use std::{
     borrow::Borrow,
     fmt,
     hash::{BuildHasher, Hash},
 };
-use sulk_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use sulk_data_structures::Interned;
-use sulk_interface::{diagnostics::ErrorGuaranteed, Symbol};
 use thread_local::ThreadLocal;
 
-type FxDashSet<T> = dashmap::DashMap<T, (), sulk_data_structures::map::FxBuildHasher>;
+type FxDashSet<T> = dashmap::DashMap<T, (), solar_data_structures::map::FxBuildHasher>;
 
 /// Reference to the [global context](GlobalCtxt).
 pub struct Gcx<'gcx>(pub(crate) &'gcx GlobalCtxt<'gcx>);
@@ -114,7 +114,7 @@ impl<'gcx> Interner<'gcx> {
     }
 
     pub fn intern_ty_iter(&self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
-        sulk_data_structures::CollectAndApply::collect_and_apply(tys, |tys| self.intern_tys(tys))
+        solar_data_structures::CollectAndApply::collect_and_apply(tys, |tys| self.intern_tys(tys))
     }
 
     pub fn intern_fn_ptr(&self, ptr: TyFnPtr<'gcx>) -> &'gcx TyFnPtr<'gcx> {

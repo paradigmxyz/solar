@@ -55,7 +55,7 @@ pub struct FatalAbort;
 /// # Examples
 ///
 /// ```
-/// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
+/// # use solar_interface::{diagnostics::DiagnosticId, error_code};
 /// let id: DiagnosticId = error_code!(1234);
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -86,7 +86,7 @@ impl DiagnosticId {
 /// # Examples
 ///
 /// ```
-/// # use sulk_interface::{diagnostics::DiagnosticId, error_code};
+/// # use solar_interface::{diagnostics::DiagnosticId, error_code};
 /// let code: DiagnosticId = error_code!(1234);
 /// ```
 #[macro_export]

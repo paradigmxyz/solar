@@ -1,7 +1,7 @@
 use super::Box;
 use semver::Op;
+use solar_interface::Span;
 use std::{cmp::Ordering, fmt};
-use sulk_interface::Span;
 
 pub use semver::Op as SemverOp;
 

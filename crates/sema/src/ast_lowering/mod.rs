@@ -2,13 +2,13 @@ use crate::{
     hir::{self, Hir},
     ParsedSources,
 };
-use sulk_ast::ast;
-use sulk_data_structures::{
+use solar_ast::ast;
+use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxIndexMap,
     trustme,
 };
-use sulk_interface::{diagnostics::DiagCtxt, Session};
+use solar_interface::{diagnostics::DiagCtxt, Session};
 
 mod lower;
 

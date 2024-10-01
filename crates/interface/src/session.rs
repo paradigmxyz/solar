@@ -1,6 +1,6 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
+use solar_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 use std::{num::NonZeroUsize, sync::Arc};
-use sulk_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
 
 /// Information about the current compiler session.
 pub struct Session {

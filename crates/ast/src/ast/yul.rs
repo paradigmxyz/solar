@@ -1,7 +1,7 @@
 //! Yul AST.
 
 use super::{AstPath, Box, DocComments, Lit, StrLit};
-use sulk_interface::{Ident, Span};
+use solar_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
 ///

@@ -1,18 +1,18 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
-use std::{
-    fmt::{self, Write},
-    path::Path,
-};
-use sulk_ast::{
+use solar_ast::{
     ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
     token::{Delimiter, Token, TokenKind},
 };
-use sulk_data_structures::BumpExt;
-use sulk_interface::{
+use solar_data_structures::BumpExt;
+use solar_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
     Ident, Result, Session, Span, Symbol,
+};
+use std::{
+    fmt::{self, Write},
+    path::Path,
 };
 
 mod expr;

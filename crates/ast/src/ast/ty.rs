@@ -1,6 +1,6 @@
 use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
+use solar_interface::{kw, Ident, Span, Symbol};
 use std::{borrow::Cow, fmt};
-use sulk_interface::{kw, Ident, Span, Symbol};
 
 /// A type name.
 ///

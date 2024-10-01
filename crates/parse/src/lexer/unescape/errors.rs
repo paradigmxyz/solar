@@ -1,5 +1,5 @@
+use solar_interface::{diagnostics::DiagCtxt, BytePos, Span};
 use std::ops::Range;
-use sulk_interface::{diagnostics::DiagCtxt, BytePos, Span};
 
 /// Errors and warnings that can occur during string unescaping.
 #[derive(Debug, PartialEq, Eq)]

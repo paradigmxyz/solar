@@ -2196,6 +2196,165 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar"
+version = "0.0.0"
+dependencies = [
+ "cfg-if",
+ "clap",
+ "libc",
+ "rayon",
+ "solar-config",
+ "solar-interface",
+ "solar-sema",
+ "solar-tester",
+ "tikv-jemallocator",
+ "tracing",
+ "tracing-chrome",
+ "tracing-subscriber",
+ "tracing-tracy",
+ "vergen",
+]
+
+[[package]]
+name = "solar-ast"
+version = "0.0.0"
+dependencies = [
+ "alloy-primitives",
+ "bumpalo",
+ "num-bigint",
+ "num-rational",
+ "semver 1.0.23",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-macros",
+ "typed-arena",
+]
+
+[[package]]
+name = "solar-bench"
+version = "0.0.0"
+dependencies = [
+ "criterion",
+ "iai-callgrind",
+ "paste",
+ "semver 1.0.23",
+ "slang_solidity",
+ "solang-parser",
+ "solar-parse",
+]
+
+[[package]]
+name = "solar-config"
+version = "0.0.0"
+dependencies = [
+ "clap_builder",
+ "serde",
+ "serde_json",
+ "strum",
+]
+
+[[package]]
+name = "solar-data-structures"
+version = "0.0.0"
+dependencies = [
+ "bumpalo",
+ "index_vec",
+ "indexmap",
+ "parking_lot",
+ "rustc-hash",
+ "smallvec",
+]
+
+[[package]]
+name = "solar-interface"
+version = "0.0.0"
+dependencies = [
+ "annotate-snippets",
+ "anstream",
+ "anstyle",
+ "const-hex",
+ "dashmap",
+ "itertools 0.13.0",
+ "itoa",
+ "lasso",
+ "match_cfg",
+ "normalize-path",
+ "rayon",
+ "scoped-tls",
+ "serde",
+ "serde_json",
+ "solar-config",
+ "solar-data-structures",
+ "solar-macros",
+ "thiserror",
+ "tracing",
+ "unicode-width",
+]
+
+[[package]]
+name = "solar-macros"
+version = "0.0.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "solar-parse"
+version = "0.0.0"
+dependencies = [
+ "alloy-primitives",
+ "bitflags",
+ "bumpalo",
+ "expect-test",
+ "itertools 0.13.0",
+ "memchr",
+ "num-bigint",
+ "num-rational",
+ "num-traits",
+ "smallvec",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "tracing",
+]
+
+[[package]]
+name = "solar-sema"
+version = "0.0.0"
+dependencies = [
+ "bumpalo",
+ "dashmap",
+ "paste",
+ "rayon",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-parse",
+ "thread_local",
+ "tracing",
+ "typed-arena",
+]
+
+[[package]]
+name = "solar-tester"
+version = "0.0.0"
+dependencies = [
+ "assert_cmd",
+ "diff",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tester",
+ "unified-diff",
+ "walkdir",
+ "yansi 1.0.1",
+]
+
+[[package]]
 name = "spki"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2257,165 +2416,6 @@ name = "subtle"
 version = "2.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
-
-[[package]]
-name = "sulk"
-version = "0.0.0"
-dependencies = [
- "cfg-if",
- "clap",
- "libc",
- "rayon",
- "sulk-config",
- "sulk-interface",
- "sulk-sema",
- "sulk-tester",
- "tikv-jemallocator",
- "tracing",
- "tracing-chrome",
- "tracing-subscriber",
- "tracing-tracy",
- "vergen",
-]
-
-[[package]]
-name = "sulk-ast"
-version = "0.0.0"
-dependencies = [
- "alloy-primitives",
- "bumpalo",
- "num-bigint",
- "num-rational",
- "semver 1.0.23",
- "sulk-data-structures",
- "sulk-interface",
- "sulk-macros",
- "typed-arena",
-]
-
-[[package]]
-name = "sulk-bench"
-version = "0.0.0"
-dependencies = [
- "criterion",
- "iai-callgrind",
- "paste",
- "semver 1.0.23",
- "slang_solidity",
- "solang-parser",
- "sulk-parse",
-]
-
-[[package]]
-name = "sulk-config"
-version = "0.0.0"
-dependencies = [
- "clap_builder",
- "serde",
- "serde_json",
- "strum",
-]
-
-[[package]]
-name = "sulk-data-structures"
-version = "0.0.0"
-dependencies = [
- "bumpalo",
- "index_vec",
- "indexmap",
- "parking_lot",
- "rustc-hash",
- "smallvec",
-]
-
-[[package]]
-name = "sulk-interface"
-version = "0.0.0"
-dependencies = [
- "annotate-snippets",
- "anstream",
- "anstyle",
- "const-hex",
- "dashmap",
- "itertools 0.13.0",
- "itoa",
- "lasso",
- "match_cfg",
- "normalize-path",
- "rayon",
- "scoped-tls",
- "serde",
- "serde_json",
- "sulk-config",
- "sulk-data-structures",
- "sulk-macros",
- "thiserror",
- "tracing",
- "unicode-width",
-]
-
-[[package]]
-name = "sulk-macros"
-version = "0.0.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "sulk-parse"
-version = "0.0.0"
-dependencies = [
- "alloy-primitives",
- "bitflags",
- "bumpalo",
- "expect-test",
- "itertools 0.13.0",
- "memchr",
- "num-bigint",
- "num-rational",
- "num-traits",
- "smallvec",
- "sulk-ast",
- "sulk-data-structures",
- "sulk-interface",
- "tracing",
-]
-
-[[package]]
-name = "sulk-sema"
-version = "0.0.0"
-dependencies = [
- "bumpalo",
- "dashmap",
- "paste",
- "rayon",
- "sulk-ast",
- "sulk-data-structures",
- "sulk-interface",
- "sulk-parse",
- "thread_local",
- "tracing",
- "typed-arena",
-]
-
-[[package]]
-name = "sulk-tester"
-version = "0.0.0"
-dependencies = [
- "assert_cmd",
- "diff",
- "once_cell",
- "regex",
- "serde",
- "serde_json",
- "tempfile",
- "tester",
- "unified-diff",
- "walkdir",
- "yansi 1.0.1",
-]
 
 [[package]]
 name = "syn"

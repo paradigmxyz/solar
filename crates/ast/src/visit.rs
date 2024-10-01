@@ -1,8 +1,8 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use sulk_interface::{Ident, Span};
-use sulk_macros::declare_visitors;
+use solar_interface::{Ident, Span};
+use solar_macros::declare_visitors;
 
 declare_visitors! {
     /// AST traversal.

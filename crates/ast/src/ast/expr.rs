@@ -1,6 +1,6 @@
 use super::{Box, Lit, SubDenomination, Type};
+use solar_interface::{Ident, Span};
 use std::fmt;
-use sulk_interface::{Ident, Span};
 
 /// A list of named arguments: `{a: "1", b: 2}`.
 pub type NamedArgList<'ast> = Box<'ast, [NamedArg<'ast>]>;
