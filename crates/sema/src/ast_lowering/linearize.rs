@@ -76,7 +76,7 @@ impl super::LoweringContext<'_, '_, '_> {
                                 }
 
                                 super::resolve::report_conflict(
-                                    &self.hir, self.sess, name, decl, conflict,
+                                    &self.hir, self.sess, name, conflict, decl,
                                 );
                             }
                         }

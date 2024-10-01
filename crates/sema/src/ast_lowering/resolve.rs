@@ -499,17 +499,17 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         &mut self,
         var: &ast::VariableDefinition<'_>,
     ) -> Result<hir::VariableId, ErrorGuaranteed> {
+        let Some(name) = var.name else {
+            // Should've been reported already.
+            return Err(ErrorGuaranteed::new_unchecked());
+        };
+
         let id = super::lower::lower_variable(
             self.hir,
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
         );
-
-        let Some(name) = var.name else {
-            // Should've been reported already.
-            return Err(ErrorGuaranteed::new_unchecked());
-        };
         let decl = DeclarationKind::Item(hir::ItemId::Variable(id));
         let _ = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
         Ok(id)
@@ -522,32 +522,32 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             // loop {
             //     if (<cond>) <stmt> else break;
             // }
-            ast::StmtKind::While(cond, stmt) => {
-                let cond = self.lower_expr(cond);
-                let stmt = self.lower_stmt(stmt);
-                let break_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
-                let body = self.arena.alloc(hir::Stmt {
+            ast::StmtKind::While(cond, stmt) => self.in_scope(|this| {
+                let cond = this.lower_expr(cond);
+                let stmt = this.lower_stmt(stmt);
+                let break_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+                let body = this.arena.alloc(hir::Stmt {
                     span,
                     kind: hir::StmtKind::If(cond, stmt, Some(break_stmt)),
                 });
                 hir::StmtKind::Loop(std::slice::from_ref(body), hir::LoopSource::While)
-            }
+            }),
 
             // loop {
             //     { <stmt> }
             //     if (<cond>) continue else break;
             // }
-            ast::StmtKind::DoWhile(stmt, cond) => {
-                let stmt = self.in_scope(|this| this.lower_stmt_full(stmt));
-                let cond = self.lower_expr(cond);
-                let cont_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Continue });
-                let break_stmt = self.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+            ast::StmtKind::DoWhile(stmt, cond) => self.in_scope(|this| {
+                let stmt = this.in_scope(|this| this.lower_stmt_full(stmt));
+                let cond = this.lower_expr(cond);
+                let cont_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Continue });
+                let break_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
                 let check =
                     hir::Stmt { span, kind: hir::StmtKind::If(cond, cont_stmt, Some(break_stmt)) };
 
-                let body = self.arena.alloc_array([stmt, check]);
+                let body = this.arena.alloc_array([stmt, check]);
                 hir::StmtKind::Loop(body, hir::LoopSource::DoWhile)
-            }
+            }),
 
             // {
             //     <init>;
@@ -872,6 +872,7 @@ impl SymbolResolverScopes {
         debug_assert!(self.source.is_some() || self.contract.is_some());
         let scopes = self.scopes.iter().rev();
         let outer = [
+            // NOTE: Inheritance is flattened into each contract.
             self.contract.map(|id| &resolver.contract_scopes[id]),
             self.source.map(|id| &resolver.source_scopes[id]),
         ]
