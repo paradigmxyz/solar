@@ -187,18 +187,36 @@ impl<'gcx> CommonTypes<'gcx> {
         }
     }
 
+    /// `int<bits>`.
+    #[inline]
+    #[track_caller]
+    pub fn int(&self, bits: u16) -> Ty<'gcx> {
+        self.int_(TypeSize::new_int_bits(bits))
+    }
     /// `int<size>`.
-    pub fn int(&self, size: TypeSize) -> Ty<'gcx> {
+    pub fn int_(&self, size: TypeSize) -> Ty<'gcx> {
         self.ints[size.bytes() as usize - 1]
     }
 
+    /// `uint<bits>`.
+    #[inline]
+    #[track_caller]
+    pub fn uint(&self, bits: u16) -> Ty<'gcx> {
+        self.uint_(TypeSize::new_int_bits(bits))
+    }
     /// `uint<size>`.
-    pub fn uint(&self, size: TypeSize) -> Ty<'gcx> {
+    pub fn uint_(&self, size: TypeSize) -> Ty<'gcx> {
         self.uints[size.bytes() as usize - 1]
     }
 
+    /// `bytes<bytes>`.
+    #[inline]
+    #[track_caller]
+    pub fn fixed_bytes(&self, bytes: u8) -> Ty<'gcx> {
+        self.fixed_bytes_(TypeSize::new_fb_bytes(bytes))
+    }
     /// `bytes<size>`.
-    pub fn fixed_bytes(&self, size: TypeSize) -> Ty<'gcx> {
+    pub fn fixed_bytes_(&self, size: TypeSize) -> Ty<'gcx> {
         self.fbs[size.bytes() as usize - 1]
     }
 }
