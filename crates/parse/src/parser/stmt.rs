@@ -1,9 +1,9 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
 use smallvec::SmallVec;
-use sulk_ast::{ast::*, token::*};
-use sulk_data_structures::BumpExt;
-use sulk_interface::{kw, sym, Ident, Span};
+use solar_ast::{ast::*, token::*};
+use solar_data_structures::BumpExt;
+use solar_interface::{kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
@@ -457,12 +457,12 @@ fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sulk_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{source_map::FileName, Result, Session};
 
     #[test]
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
-            sulk_interface::enter(|| -> Result {
+            solar_interface::enter(|| -> Result {
                 let sess = Session::with_test_emitter();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();

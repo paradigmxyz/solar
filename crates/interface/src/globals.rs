@@ -1,6 +1,6 @@
 use crate::SourceMap;
+use solar_data_structures::{defer, sync::Lock};
 use std::sync::Arc;
-use sulk_data_structures::{defer, sync::Lock};
 
 scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 

@@ -165,7 +165,7 @@ impl StableSourceFileId {
         // stable_crate_id: Option<StableCrateId>,
     ) -> Self {
         use std::hash::{Hash, Hasher};
-        let mut hasher = sulk_data_structures::map::FxHasher::default();
+        let mut hasher = solar_data_structures::map::FxHasher::default();
         filename.hash(&mut hasher);
         // stable_crate_id.hash(&mut hasher);
         Self(hasher.finish())

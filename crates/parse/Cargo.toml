@@ -1,7 +1,7 @@
 [package]
-name = "sulk-parse"
+name = "solar-parse"
 description = "Solidity lexer and parser"
-homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/parse"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/parse"
 
 version.workspace = true
 authors.workspace = true
@@ -20,9 +20,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
-sulk-ast.workspace = true
-sulk-data-structures.workspace = true
-sulk-interface.workspace = true
+solar-ast.workspace = true
+solar-data-structures.workspace = true
+solar-interface.workspace = true
 
 alloy-primitives.workspace = true
 bitflags.workspace = true
@@ -39,4 +39,4 @@ tracing.workspace = true
 expect-test.workspace = true
 
 [features]
-nightly = ["sulk-ast/nightly", "sulk-interface/nightly"]
+nightly = ["solar-ast/nightly", "solar-interface/nightly"]

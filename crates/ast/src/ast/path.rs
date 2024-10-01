@@ -1,7 +1,7 @@
 use super::Box;
+use solar_data_structures::smallvec::SmallVec;
+use solar_interface::{Ident, Span, Symbol};
 use std::fmt;
-use sulk_data_structures::smallvec::SmallVec;
-use sulk_interface::{Ident, Span, Symbol};
 
 /// A boxed [`PathSlice`].
 pub type AstPath<'ast> = Box<'ast, PathSlice>;

@@ -1,9 +1,9 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
+use solar_ast::{ast::*, token::*};
+use solar_interface::{error_code, kw, sym, Ident, Span};
 use std::num::IntErrorKind;
-use sulk_ast::{ast::*, token::*};
-use sulk_interface::{error_code, kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -1240,10 +1240,10 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sulk_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        sulk_interface::enter(|| -> Result {
+        solar_interface::enter(|| -> Result {
             let sess = Session::with_test_emitter();
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();

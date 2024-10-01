@@ -2,7 +2,7 @@ use super::{
     yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
     VariableDefinition,
 };
-use sulk_interface::{Ident, Span};
+use solar_interface::{Ident, Span};
 
 /// A block of statements.
 pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;

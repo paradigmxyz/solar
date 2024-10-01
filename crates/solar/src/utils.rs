@@ -1,13 +1,13 @@
 #![allow(deprecated)] // PanicInfo -> PanicInfoHook since 1.82
 
-use std::panic::PanicInfo;
-use sulk_interface::{
+use solar_interface::{
     diagnostics::{DiagCtxt, ExplicitBug, FatalAbort},
     SessionGlobals,
 };
+use std::panic::PanicInfo;
 
 const BUG_REPORT_URL: &str =
-    "https://github.com/paradigmxyz/sulk/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
+    "https://github.com/paradigmxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
 // We use jemalloc for performance reasons.
 // Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.
@@ -47,7 +47,7 @@ pub(crate) fn init_logger() -> impl Sized {
 fn try_init_logger() -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
-    let (profile_layer, guard) = match std::env::var("SULK_PROFILE").as_deref() {
+    let (profile_layer, guard) = match std::env::var("SOLAR_PROFILE").as_deref() {
         Ok("chrome") => {
             if !cfg!(feature = "tracing-chrome") {
                 return Err("chrome profiler support is not compiled in".to_string());
@@ -155,7 +155,7 @@ pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
     f: impl FnOnce(usize) -> R + Send,
 ) -> R {
     let mut builder =
-        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("sulk-{i}")).num_threads(threads);
+        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
     // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator` don't
     // install their own thread pool.
     if threads == 1 {

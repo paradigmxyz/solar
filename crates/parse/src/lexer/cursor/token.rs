@@ -1,6 +1,6 @@
 //! Raw, low-level tokens. Created using [`Cursor`](crate::Cursor).
 
-use sulk_ast::ast::Base;
+use solar_ast::ast::Base;
 
 /// A raw token.
 ///

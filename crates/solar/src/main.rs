@@ -1,14 +1,14 @@
-//! The main entry point for the Sulk compiler.
+//! The main entry point for the Solar compiler.
 
 #![cfg_attr(feature = "nightly", feature(panic_update_hook))]
 
 use clap::Parser as _;
 use cli::Args;
-use std::{num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
-use sulk_interface::{
+use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
 };
+use std::{num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
 
 pub mod cli;
 mod utils;
@@ -27,7 +27,7 @@ pub mod sigsegv_handler {
 
 // Used in integration tests. See `../tests.rs`.
 #[cfg(test)]
-use sulk_tester as _;
+use solar_tester as _;
 
 #[global_allocator]
 static ALLOC: utils::Allocator = utils::new_allocator();
@@ -90,7 +90,7 @@ impl Compiler {
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
-        let mut pcx = sulk_sema::ParsingContext::new(sess);
+        let mut pcx = solar_sema::ParsingContext::new(sess);
         let remappings = arg_remappings.chain(args.import_map.iter().cloned());
         for map in remappings {
             pcx.file_resolver.add_import_map(map.map, map.path);
@@ -125,9 +125,9 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         let emitter: Box<DynEmitter> = match args.error_format {
             cli::ErrorFormat::Human => {
                 let color = match args.color {
-                    clap::ColorChoice::Always => sulk_interface::ColorChoice::Always,
-                    clap::ColorChoice::Auto => sulk_interface::ColorChoice::Auto,
-                    clap::ColorChoice::Never => sulk_interface::ColorChoice::Never,
+                    clap::ColorChoice::Always => solar_interface::ColorChoice::Always,
+                    clap::ColorChoice::Auto => solar_interface::ColorChoice::Auto,
+                    clap::ColorChoice::Never => solar_interface::ColorChoice::Never,
                 };
                 let human = HumanEmitter::stderr(color)
                     .source_map(Some(source_map.clone()))

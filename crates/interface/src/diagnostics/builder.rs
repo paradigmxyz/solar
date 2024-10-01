@@ -4,13 +4,13 @@ use super::{
 };
 use crate::Span;
 use core::fmt;
+use solar_data_structures::Never;
 use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     panic::Location,
 };
-use sulk_data_structures::Never;
 
 /// Trait for types that `DiagnosticBuilder::emit` can return as a "guarantee" (or "proof") token
 /// that the emission happened.

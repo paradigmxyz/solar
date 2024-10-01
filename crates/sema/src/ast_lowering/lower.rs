@@ -2,8 +2,8 @@ use crate::{
     hir::{self, ContractId, SourceId},
     ParsedSource,
 };
-use sulk_ast::ast;
-use sulk_data_structures::{index::IndexVec, smallvec::SmallVec};
+use solar_ast::ast;
+use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
 
 impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]

@@ -1,7 +1,7 @@
 [package]
-name = "sulk-ast"
+name = "solar-ast"
 description = "Solidity Abstract Syntax Tree"
-homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/ast"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/ast"
 
 version.workspace = true
 authors.workspace = true
@@ -20,9 +20,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
-sulk-data-structures.workspace = true
-sulk-interface.workspace = true
-sulk-macros.workspace = true
+solar-data-structures.workspace = true
+solar-interface.workspace = true
+solar-macros.workspace = true
 
 alloy-primitives.workspace = true
 bumpalo = { workspace = true, features = ["std", "boxed"] }
@@ -32,4 +32,4 @@ num-rational.workspace = true
 typed-arena.workspace = true
 
 [features]
-nightly = ["sulk-data-structures/nightly", "sulk-interface/nightly"]
+nightly = ["solar-data-structures/nightly", "solar-interface/nightly"]

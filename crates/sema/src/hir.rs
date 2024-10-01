@@ -1,13 +1,13 @@
 //! High-level intermediate representation (HIR).
 
 use rayon::prelude::*;
-use std::{fmt, sync::Arc};
-use sulk_ast::ast;
-use sulk_data_structures::{
+use solar_ast::ast;
+use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index, BumpExt,
 };
-use sulk_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
+use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
+use std::{fmt, sync::Arc};
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,

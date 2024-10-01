@@ -1,7 +1,7 @@
+use solar_parse::interface::Session;
 use std::{hint::black_box, io::Write, path::PathBuf, process::Stdio};
-use sulk_parse::interface::Session;
 
-pub const PARSERS: &[&dyn Parser] = &[&Solc, &Sulk, &Solang, &Slang];
+pub const PARSERS: &[&dyn Parser] = &[&Solc, &Solar, &Solang, &Slang];
 
 macro_rules! include_source {
     ($path:literal) => {
@@ -78,29 +78,29 @@ impl Parser for Solc {
     }
 }
 
-pub struct Sulk;
-impl Parser for Sulk {
+pub struct Solar;
+impl Parser for Solar {
     fn name(&self) -> &'static str {
-        "sulk"
+        "solar"
     }
 
     fn lex(&self, src: &str) {
-        let source_map = sulk_parse::interface::SourceMap::empty();
+        let source_map = solar_parse::interface::SourceMap::empty();
         let sess = Session::with_tty_emitter(source_map.into());
-        for token in sulk_parse::Lexer::new(&sess, src) {
+        for token in solar_parse::Lexer::new(&sess, src) {
             black_box(token);
         }
         sess.dcx.has_errors().unwrap();
     }
 
     fn parse(&self, src: &str) {
-        (|| -> sulk_parse::interface::Result {
-            let source_map = sulk_parse::interface::SourceMap::empty();
+        (|| -> solar_parse::interface::Result {
+            let source_map = solar_parse::interface::SourceMap::empty();
             let sess = Session::with_tty_emitter(source_map.into());
-            let arena = sulk_parse::ast::Arena::new();
+            let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                sulk_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;
+                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);

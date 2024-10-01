@@ -10,7 +10,7 @@ edition = "2021"
 rust-version = "1.79" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/paradigmxyz/sulk"
+repository = "https://github.com/paradigmxyz/solar"
 keywords = ["ethereum", "solidity", "solc", "crypto", "compiler"]
 categories = ["compilers", "cryptography", "cryptography::cryptocurrencies"]
 
@@ -66,16 +66,16 @@ inherits = "profiling"
 
 [workspace.dependencies]
 # compiler crates
-sulk-ast = { version = "0.0.0", path = "crates/ast" }
-sulk-config = { version = "0.0.0", path = "crates/config" }
-sulk-data-structures = { version = "0.0.0", path = "crates/data-structures" }
-sulk-interface = { version = "0.0.0", path = "crates/interface" }
-sulk-macros = { version = "0.0.0", path = "crates/macros" }
-sulk-parse = { version = "0.0.0", path = "crates/parse" }
-sulk-sema = { version = "0.0.0", path = "crates/sema" }
+solar-ast = { version = "0.0.0", path = "crates/ast" }
+solar-config = { version = "0.0.0", path = "crates/config" }
+solar-data-structures = { version = "0.0.0", path = "crates/data-structures" }
+solar-interface = { version = "0.0.0", path = "crates/interface" }
+solar-macros = { version = "0.0.0", path = "crates/macros" }
+solar-parse = { version = "0.0.0", path = "crates/parse" }
+solar-sema = { version = "0.0.0", path = "crates/sema" }
 
 # internal crates
-sulk-tester = { version = "0.0.0", path = "tools/tester" }
+solar-tester = { version = "0.0.0", path = "tools/tester" }
 
 # Ethereum
 alloy-primitives = "0.8"

@@ -1,7 +1,7 @@
 [package]
-name = "sulk-interface"
+name = "solar-interface"
 description = "Source positions, diagnostics, and related helper functions"
-homepage = "https://github.com/paradigmxyz/sulk/tree/main/crates/interface"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/interface"
 
 version.workspace = true
 authors.workspace = true
@@ -20,9 +20,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 workspace = true
 
 [dependencies]
-sulk-config.workspace = true
-sulk-data-structures.workspace = true
-sulk-macros.workspace = true
+solar-config.workspace = true
+solar-data-structures.workspace = true
+solar-macros.workspace = true
 
 dashmap.workspace = true
 hex.workspace = true
@@ -50,4 +50,4 @@ serde_json = { workspace = true, optional = true }
 [features]
 json = ["dep:serde", "dep:serde_json"]
 
-nightly = ["sulk-data-structures/nightly", "sulk-macros/nightly"]
+nightly = ["solar-data-structures/nightly", "solar-macros/nightly"]

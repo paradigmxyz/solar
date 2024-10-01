@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, Criterion};
+use solar_bench::{get_srcs, Source, PARSERS};
 use std::time::Duration;
-use sulk_bench::{get_srcs, Source, PARSERS};
 
 fn parser_benches(c: &mut Criterion) {
     for s in get_srcs() {
@@ -14,7 +14,7 @@ fn parser_benches(c: &mut Criterion) {
     g.sample_size(20);
     g.noise_threshold(0.05);
 
-    sulk_parse::interface::enter(|| {
+    solar_parse::interface::enter(|| {
         for &Source { name: sname, path: _, src } in get_srcs() {
             for &parser in PARSERS {
                 let pname = parser.name();

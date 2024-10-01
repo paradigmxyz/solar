@@ -42,7 +42,7 @@ jobs:
       - name: Install iai-callgrind-runner
         run: ./.github/scripts/install_iai_callgrind_runner.sh
       - name: Save baseline
-        run: cargo bench -p sulk-bench --bench iai --features ci -- --save-baseline=$BASELINE
+        run: cargo bench -p solar-bench --bench iai --features ci -- --save-baseline=$BASELINE
       - name: Checkout PR
         uses: actions/checkout@v4
         with:
@@ -50,4 +50,4 @@ jobs:
       - name: Install iai-callgrind-runner
         run: ./.github/scripts/install_iai_callgrind_runner.sh
       - name: Compare PR benchmarks
-        run: cargo bench -p sulk-bench --bench iai --features ci -- --baseline=$BASELINE
+        run: cargo bench -p solar-bench --bench iai --features ci -- --baseline=$BASELINE

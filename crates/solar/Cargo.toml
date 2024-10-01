@@ -1,7 +1,7 @@
 [package]
-name = "sulk"
+name = "solar"
 description = "Solidity compiler"
-homepage = "https://github.com/paradigmxyz/sulk/"
+homepage = "https://github.com/paradigmxyz/solar/"
 
 version.workspace = true
 authors.workspace = true
@@ -19,9 +19,9 @@ workspace = true
 vergen = { workspace = true, features = ["build", "git", "gitcl"] }
 
 [dependencies]
-sulk-config = { workspace = true, features = ["clap"] }
-sulk-interface = { workspace = true, features = ["json"] }
-sulk-sema.workspace = true
+solar-config = { workspace = true, features = ["clap"] }
+solar-interface = { workspace = true, features = ["json"] }
+solar-sema.workspace = true
 
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -38,15 +38,15 @@ libc.workspace = true
 tikv-jemallocator = { workspace = true, optional = true }
 
 [dev-dependencies]
-sulk-tester.workspace = true
+solar-tester.workspace = true
 
 [features]
 default = ["jemalloc"]
 nightly = [
-    "sulk-config/nightly",
-    "sulk-interface/nightly",
-    "sulk-sema/nightly",
-    "sulk-tester/nightly",
+    "solar-config/nightly",
+    "solar-interface/nightly",
+    "solar-sema/nightly",
+    "solar-tester/nightly",
 ]
 jemalloc = ["dep:tikv-jemallocator"]
 tracing-chrome = ["dep:tracing-chrome"]

@@ -24,10 +24,10 @@ body:
     id: version
     attributes:
       label: Rust Version
-      description: Please provide the `sulk` version, `sulk --version`. Make sure that you're using the latest version of the compiler!
+      description: Please provide the `solar` version, `solar --version`. Make sure that you're using the latest version of the compiler!
       placeholder: |
-        $ sulk --version
-        sulk X.Y.Z (SHORTHASH DATE)
+        $ solar --version
+        solar X.Y.Z (SHORTHASH DATE)
       render: Shell
     validations:
       required: true
@@ -36,7 +36,7 @@ body:
     id: output
     attributes:
       label: Current error output
-      description: Please provide the `sulk` output you see, including any backtraces
+      description: Please provide the `solar` output you see, including any backtraces
       placeholder: output
       render: Shell
     validations:

@@ -1,7 +1,7 @@
 use crate::{SessionGlobals, Span};
+use solar_data_structures::{index::BaseIndex32, trustme};
+use solar_macros::symbols;
 use std::{cmp, fmt, hash, str};
-use sulk_data_structures::{index::BaseIndex32, trustme};
-use sulk_macros::symbols;
 
 /// An identifier.
 #[derive(Clone, Copy)]
@@ -358,7 +358,7 @@ impl Interner {
 }
 
 // TODO: We could finalize the interner after parsing to a `RodeoResolver`, making it read-only.
-struct LassoInterner(lasso::ThreadedRodeo<Symbol, sulk_data_structures::map::FxBuildHasher>);
+struct LassoInterner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
 
 impl LassoInterner {
     fn prefill(init: &[&'static str]) -> Self {

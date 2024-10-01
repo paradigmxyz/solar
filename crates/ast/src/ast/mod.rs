@@ -1,9 +1,9 @@
 //! Solidity AST.
 
-use sulk_data_structures::{index::IndexSlice, newtype_index, BumpExt};
+use solar_data_structures::{index::IndexSlice, newtype_index, BumpExt};
 
 pub use crate::token::CommentKind;
-pub use sulk_interface::{Ident, Span, Symbol};
+pub use solar_interface::{Ident, Span, Symbol};
 
 mod expr;
 pub use expr::*;

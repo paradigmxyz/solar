@@ -1,7 +1,7 @@
 //! Semantic analysis.
 
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/sulk/main/assets/logo.jpg",
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.jpg",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
@@ -10,15 +10,15 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use sulk_data_structures::OnDrop;
-use sulk_interface::{config::CompilerStage, Result, Session};
+use solar_data_structures::OnDrop;
+use solar_interface::{config::CompilerStage, Result, Session};
 use thread_local::ThreadLocal;
 
 // Convenience re-exports.
 pub use ::thread_local;
 pub use bumpalo;
-pub use sulk_ast::ast;
-pub use sulk_interface as interface;
+pub use solar_ast::ast;
+pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;

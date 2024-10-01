@@ -11,7 +11,7 @@ use xshell::{cmd, Shell};
 
 mod flags;
 
-const INT_FLAGS: &[&str] = &["--package=sulk", "--test=tests"];
+const INT_FLAGS: &[&str] = &["--package=solar", "--test=tests"];
 
 fn main() -> anyhow::Result<()> {
     let flags = flags::Xtask::from_env_or_exit();

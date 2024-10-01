@@ -1,6 +1,6 @@
 use crate::{PResult, Parser};
-use sulk_ast::{ast::*, token::*};
-use sulk_interface::kw;
+use solar_ast::{ast::*, token::*};
+use solar_interface::kw;
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.

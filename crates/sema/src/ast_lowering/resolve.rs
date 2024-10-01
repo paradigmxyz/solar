@@ -1,16 +1,16 @@
 use crate::{hir, ParsedSources};
-use std::{fmt, sync::atomic::AtomicUsize};
-use sulk_ast::ast;
-use sulk_data_structures::{
+use solar_ast::ast;
+use solar_data_structures::{
     index::{Idx, IndexVec},
     map::{FxIndexMap, IndexEntry},
     smallvec::{smallvec, SmallVec},
     BumpExt,
 };
-use sulk_interface::{
+use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session, Span, Symbol,
 };
+use std::{fmt, sync::atomic::AtomicUsize};
 
 impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]

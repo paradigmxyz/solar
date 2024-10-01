@@ -3,9 +3,9 @@ use alloy_primitives::Address;
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::Num;
+use solar_ast::{ast::*, token::*};
+use solar_interface::{kw, Symbol};
 use std::{borrow::Cow, fmt};
-use sulk_ast::{ast::*, token::*};
-use sulk_interface::{kw, Symbol};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a literal.
@@ -361,7 +361,7 @@ mod tests {
     use super::*;
     use crate::Lexer;
     use alloy_primitives::address;
-    use sulk_interface::Session;
+    use solar_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.
 
@@ -411,7 +411,7 @@ mod tests {
             }
         }
 
-        sulk_interface::enter(|| {
+        solar_interface::enter(|| {
             check_int("00", Err(IntegerLeadingZeros));
             check_int("01", Err(IntegerLeadingZeros));
             check_int("00", Err(IntegerLeadingZeros));
@@ -511,7 +511,7 @@ mod tests {
             assert_eq!(res, expected, "{src:?}");
         }
 
-        sulk_interface::enter(|| {
+        solar_interface::enter(|| {
             check_int("00", Err(IntegerLeadingZeros));
             check_int("0_0", Err(IntegerLeadingZeros));
             check_int("01", Err(IntegerLeadingZeros));
