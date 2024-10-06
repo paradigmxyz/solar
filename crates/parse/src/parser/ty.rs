@@ -62,18 +62,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an elementary type.
+    ///
+    /// Must be used after checking that the next token is an elementary type.
     pub(super) fn parse_elementary_type(&mut self) -> PResult<'sess, ElementaryType> {
         let id = self.parse_ident_any()?;
-        Ok(match id.name {
-            kw::Address => ElementaryType::Address(match self.parse_state_mutability() {
-                Some(StateMutability::Payable) => true,
-                None => false,
-                _ => {
-                    let msg = "address types can only be payable or non-payable";
-                    self.dcx().err(msg).span(id.span.to(self.prev_token.span)).emit();
-                    false
-                }
-            }),
+        debug_assert!(id.is_elementary_type());
+        let mut ty = match id.name {
+            kw::Address => ElementaryType::Address(false),
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
@@ -81,73 +76,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
             kw::Int => ElementaryType::Int(TypeSize::ZERO),
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
-            s => self.parse_dynamic_elementary_type(s.as_str()).map_err(|e| e.span(id.span))?,
-        })
-    }
+            s if s >= kw::UInt8 && s <= kw::UInt256 => {
+                let bytes = s.as_u32() - kw::UInt8.as_u32() + 1;
+                ElementaryType::UInt(TypeSize::new(bytes as u8).unwrap())
+            }
+            s if s >= kw::Int8 && s <= kw::Int256 => {
+                let bytes = s.as_u32() - kw::Int8.as_u32() + 1;
+                ElementaryType::Int(TypeSize::new(bytes as u8).unwrap())
+            }
+            s if s >= kw::Bytes1 && s <= kw::Bytes32 => {
+                let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
+                ElementaryType::FixedBytes(TypeSize::new(bytes as u8).unwrap())
+            }
+            s => unreachable!("unexpected elementary type: {s}"),
+        };
 
-    /// Parses `intN`, `uintN`, `bytesN`, `fixedMxN`, or `ufixedMxN`.
-    fn parse_dynamic_elementary_type(&mut self, original: &str) -> PResult<'sess, ElementaryType> {
-        let s = original;
-        if let Some(s) = s.strip_prefix("bytes") {
-            debug_assert!(!s.is_empty());
-            return Ok(ElementaryType::FixedBytes(self.parse_fb_size(s)?));
+        let sm = self.parse_state_mutability();
+        match (&mut ty, sm) {
+            (ElementaryType::Address(p), Some(StateMutability::Payable)) => *p = true,
+            (_, None) => {}
+            (_, Some(_)) => {
+                let msg = if matches!(ty, ElementaryType::Address(_)) {
+                    "address types can only be payable or non-payable"
+                } else {
+                    "only address types can have state mutability"
+                };
+                self.dcx().err(msg).span(id.span.to(self.prev_token.span)).emit();
+            }
         }
 
-        let tmp = s.strip_prefix('u');
-        let unsigned = tmp.is_some();
-        let s = tmp.unwrap_or(s);
+        // TODO: Move to type checking.
+        // if matches!(ty, ElementaryType::Fixed(..) | ElementaryType::UFixed(..)) {
+        //     self.dcx().err("`fixed` types are not yet supported").span(id.span).emit();
+        // }
 
-        if let Some(s) = s.strip_prefix("int") {
-            debug_assert!(!s.is_empty());
-            let size = self.parse_int_size(s)?;
-            return Ok(if unsigned {
-                ElementaryType::UInt(size)
-            } else {
-                ElementaryType::Int(size)
-            });
-        }
-
-        if let Some(s) = s.strip_prefix("fixed") {
-            debug_assert!(!s.is_empty());
-            let (m, n) = self.parse_fixed_size(s)?;
-            return Ok(if unsigned {
-                ElementaryType::UFixed(m, n)
-            } else {
-                ElementaryType::Fixed(m, n)
-            });
-        }
-
-        unreachable!("unexpected elementary type: {original:?}");
-    }
-
-    fn parse_fb_size(&mut self, s: &str) -> PResult<'sess, TypeSize> {
-        self.parse_ty_size_u8(s, 1..=32, false).map(|x| TypeSize::new(x).unwrap())
-    }
-
-    fn parse_int_size(&mut self, s: &str) -> PResult<'sess, TypeSize> {
-        self.parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new(x).unwrap())
-    }
-
-    fn parse_fixed_size(&mut self, s: &str) -> PResult<'sess, (TypeSize, TypeFixedSize)> {
-        let (m, n) = s
-            .split_once('x')
-            .ok_or_else(|| self.dcx().err("`fixed` sizes must be separated by exactly one 'x'"))?;
-        let m = self.parse_int_size(m)?;
-        let n = self.parse_ty_size_u8(n, 0..=80, false)?;
-        let n = TypeFixedSize::new(n).unwrap();
-        Ok((m, n))
-    }
-
-    /// Parses a type size. The size must be in the range `range`.
-    /// If `to_bytes` is true, the size is checked to be a multiple of 8 and then converted from
-    /// bits to bytes.
-    fn parse_ty_size_u8(
-        &mut self,
-        s: &str,
-        range: RangeInclusive<u8>,
-        to_bytes: bool,
-    ) -> PResult<'sess, u8> {
-        parse_ty_size_u8(s, range, to_bytes).map_err(|e| self.dcx().err(e.to_string()))
+        Ok(ty)
     }
 
     /// Parses a mapping type.
@@ -155,6 +118,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
+        // TODO: Move to type checking.
         if !key.is_elementary() && !key.is_custom() {
             let msg =
                 "only elementary types or used-defined types can be used as key types in mappings";
@@ -179,6 +143,7 @@ enum ParseTySizeError {
     TryFrom(std::num::TryFromIntError),
     NotMultipleOf8,
     OutOfRange(RangeInclusive<u16>),
+    FixedX,
 }
 
 impl fmt::Display for ParseTySizeError {
@@ -190,8 +155,49 @@ impl fmt::Display for ParseTySizeError {
             Self::OutOfRange(range) => {
                 write!(f, "size is out of range of {}:{} (inclusive)", range.start(), range.end())
             }
+            Self::FixedX => f.write_str("`fixed` sizes must be separated by exactly one 'x'"),
         }
     }
+}
+
+/// Parses `fixedMxN` or `ufixedMxN`.
+#[allow(dead_code)]
+fn parse_fixed_type(original: &str) -> Result<Option<ElementaryType>, ParseTySizeError> {
+    let s = original;
+    let tmp = s.strip_prefix('u');
+    let unsigned = tmp.is_some();
+    let s = tmp.unwrap_or(s);
+
+    if let Some(s) = s.strip_prefix("fixed") {
+        debug_assert!(!s.is_empty());
+        let (m, n) = parse_fixed_size(s)?;
+        return Ok(Some(if unsigned {
+            ElementaryType::UFixed(m, n)
+        } else {
+            ElementaryType::Fixed(m, n)
+        }));
+    }
+
+    Ok(None)
+}
+
+#[allow(dead_code)]
+fn parse_fb_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
+    parse_ty_size_u8(s, 1..=32, false).map(|x| TypeSize::new(x).unwrap())
+}
+
+#[allow(dead_code)]
+fn parse_int_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
+    parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new(x).unwrap())
+}
+
+#[allow(dead_code)]
+fn parse_fixed_size(s: &str) -> Result<(TypeSize, TypeFixedSize), ParseTySizeError> {
+    let (m, n) = s.split_once('x').ok_or(ParseTySizeError::FixedX)?;
+    let m = parse_int_size(m)?;
+    let n = parse_ty_size_u8(n, 0..=80, false)?;
+    let n = TypeFixedSize::new(n).unwrap();
+    Ok((m, n))
 }
 
 /// Parses a type size.

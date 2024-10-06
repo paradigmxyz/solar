@@ -340,9 +340,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.bump(); // `id`
                 path.push(IapKind::Member(id));
             }
-        } else {
+        } else if self.check_elementary_type() {
             let (span, kind) = self.parse_spanned(Self::parse_elementary_type)?;
             path.push(IapKind::MemberTy(span, kind));
+        } else {
+            return self.unexpected();
         }
         let n_idents = path.len();
 

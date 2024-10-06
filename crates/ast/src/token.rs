@@ -577,14 +577,10 @@ impl Token {
     }
 
     /// Returns `true` if the token is an elementary type name.
+    ///
+    /// Note that this does not include `[u]fixedMxN` types.
     pub fn is_elementary_type(&self) -> bool {
-        self.is_ident_where(Ident::is_elementary_type) || self.is_fixed()
-    }
-
-    /// Returns `true` if the token is a `[u]fixedMxN` type name, excluding `fixed` and `ufixed`.
-    // TODO
-    fn is_fixed(&self) -> bool {
-        false
+        self.is_ident_where(Ident::is_elementary_type)
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
