@@ -139,20 +139,18 @@ impl<'ast, 'hir> super::LoweringContext<'_, 'ast, 'hir> {
         item: &ast::Item<'_>,
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
-        // handled later: body, modifiers, override_
+        // handled later: parameters, body, modifiers, override_, returns
         let ast::ItemFunction { kind, ref header, body: _ } = *i;
         let ast::FunctionHeader {
             name,
-            ref parameters,
+            parameters: _,
             visibility,
             state_mutability,
             modifiers: _,
             virtual_,
             override_: _,
-            ref returns,
+            returns: _,
         } = *header;
-        let params = self.lower_variables(parameters);
-        let returns = self.lower_variables(returns);
         self.hir.functions.push(hir::Function {
             source: self.current_source_id,
             contract: self.current_contract_id,
@@ -164,25 +162,14 @@ impl<'ast, 'hir> super::LoweringContext<'_, 'ast, 'hir> {
             overrides: &[],
             visibility: visibility.unwrap_or(ast::Visibility::Public),
             state_mutability,
-            parameters: params,
-            returns,
+            parameters: &[],
+            returns: &[],
             body: None,
         })
     }
 
-    fn lower_variables(
-        &mut self,
-        variables: &[ast::VariableDefinition<'_>],
-    ) -> &'hir [hir::VariableId] {
-        let mut vars = SmallVec::<[_; 16]>::new();
-        for var in variables {
-            vars.push(self.lower_variable(var));
-        }
-        self.arena.alloc_slice_copy(&vars)
-    }
-
     fn lower_variable(&mut self, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
-        lower_variable(&mut self.hir, i, self.current_source_id, self.current_contract_id)
+        lower_variable_partial(&mut self.hir, i, self.current_source_id, self.current_contract_id)
     }
 
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
@@ -253,7 +240,7 @@ impl<'ast, 'hir> super::LoweringContext<'_, 'ast, 'hir> {
     }
 }
 
-pub(super) fn lower_variable(
+pub(super) fn lower_variable_partial(
     hir: &mut hir::Hir<'_>,
     i: &ast::VariableDefinition<'_>,
     source: SourceId,

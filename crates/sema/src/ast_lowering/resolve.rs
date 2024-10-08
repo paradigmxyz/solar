@@ -312,25 +312,22 @@ impl super::LoweringContext<'_, '_, '_> {
             };
 
             scopes.enter();
-            let scope = scopes.current_scope();
-            let func = self.hir.function(id);
-            for &param in func.parameters.iter().chain(func.returns) {
-                let Some(name) = self.hir.variable(param).name else { continue };
-                let _ = self.declare_kind_in(
-                    scope,
-                    name,
-                    DeclarationKind::Item(hir::ItemId::Variable(param)),
-                );
+            let mut cx = ResolveContext::new(self, scopes, next_id);
+            for var in ast_func.header.parameters.iter().chain(ast_func.header.returns.iter()) {
+                let _ = cx.lower_variable(var);
             }
 
             if let Some(body) = &ast_func.body {
-                let body = ResolveContext::new(self, scopes, next_id).lower_stmts(body);
-                self.hir.functions[id].body = Some(body);
+                cx.hir.functions[id].body = Some(cx.lower_stmts(body));
             }
         }
 
         for id in self.hir.variable_ids() {
-            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
+            let Some(ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
+                let v = self.hir.variable(id);
+                assert!(!v.ty.is_dummy(), "{v:#?}");
+                continue;
+            };
             let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
             let var = self.hir.variable(id);
             let mut cx = mk_resolver!(var);
@@ -499,19 +496,18 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         &mut self,
         var: &ast::VariableDefinition<'_>,
     ) -> Result<hir::VariableId, ErrorGuaranteed> {
-        let Some(name) = var.name else {
-            // Should've been reported already.
-            return Err(ErrorGuaranteed::new_unchecked());
-        };
-
-        let id = super::lower::lower_variable(
+        let id = super::lower::lower_variable_partial(
             self.hir,
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
         );
-        let decl = DeclarationKind::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
+        self.hir.variables[id].ty = self.lower_type(&var.ty);
+        self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
+        if let Some(name) = var.name {
+            let decl = DeclarationKind::Item(hir::ItemId::Variable(id));
+            self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl)?;
+        }
         Ok(id)
     }
 

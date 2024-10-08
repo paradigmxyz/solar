@@ -861,6 +861,10 @@ impl Type<'_> {
     /// Dummy placeholder type.
     pub const DUMMY: Self =
         Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
+
+    pub fn is_dummy(&self) -> bool {
+        self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
+    }
 }
 
 /// The kind of a type.
