@@ -1,5 +1,5 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
-use solar_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
+use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// Information about the current compiler session.
@@ -17,6 +17,8 @@ pub struct Session {
     pub stop_after: Option<CompilerStage>,
     /// Types of output to emit.
     pub emit: Vec<CompilerOutput>,
+    /// Internal state to dump to stdout.
+    pub dump: Option<Dump>,
     /// Number of threads to use. Already resolved to a non-zero value.
     pub jobs: NonZeroUsize,
 }
@@ -31,6 +33,7 @@ impl Session {
             language: Language::default(),
             stop_after: None,
             emit: Vec::new(),
+            dump: None,
             jobs: NonZeroUsize::MIN,
         }
     }

@@ -6,6 +6,8 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+use strum::EnumIs;
+
 #[macro_use]
 mod macros;
 
@@ -101,6 +103,41 @@ str_enum! {
     pub enum CompilerOutput {
         /// Raw Yul JSON.
         RawYul,
+    }
+}
+
+/// `-Zdump=kind[=paths...]`.
+#[derive(Clone, Debug)]
+pub struct Dump {
+    pub kind: DumpKind,
+    pub paths: Option<Vec<String>>,
+}
+
+#[cfg(feature = "clap")]
+impl std::str::FromStr for Dump {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (kind, paths) = if let Some((kind, paths)) = s.split_once('=') {
+            let paths = paths.split(',').map(ToString::to_string).collect();
+            (kind, Some(paths))
+        } else {
+            (s, None)
+        };
+        let kind = <DumpKind as clap_builder::ValueEnum>::from_str(kind, false)?;
+        Ok(Self { kind, paths })
+    }
+}
+
+str_enum! {
+    /// What kind of output to dump. See [`Dump`].
+    #[derive(EnumIs)]
+    #[strum(serialize_all = "kebab-case")]
+    pub enum DumpKind {
+        /// Print the AST.
+        Ast,
+        /// Print the HIR.
+        Hir,
     }
 }
 

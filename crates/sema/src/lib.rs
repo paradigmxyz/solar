@@ -46,6 +46,12 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     });
     let mut sources = pcx.parse(&ast_arenas);
 
+    if let Some(dump) = &sess.dump {
+        if dump.kind.is_ast() {
+            dump_ast(sess, &sources, dump.paths.as_deref())?;
+        }
+    }
+
     if sess.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
         return Ok(());
     }
@@ -57,6 +63,12 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
     });
     let hir = resolve(sess, &sources, &hir_arena)?;
+
+    if let Some(dump) = &sess.dump {
+        if dump.kind.is_hir() {
+            dump_hir(sess, &hir, dump.paths.as_deref())?;
+        }
+    }
 
     // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
     // even though both are moved in the closure.
@@ -89,4 +101,43 @@ pub fn resolve<'hir>(
     let hir = ast_lowering::lower(sess, sources, arena);
 
     Ok(hir)
+}
+
+fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
+    if let Some(paths) = paths {
+        for path in paths {
+            if let Some(source) = sources.iter().find(|s| match_file_name(&s.file.name, path)) {
+                println!("{source:#?}");
+            } else {
+                return Err(sess
+                    .dcx
+                    .err("`-Zdump=ast` paths must match exactly a single input file")
+                    .emit());
+            }
+        }
+    } else {
+        println!("{sources:#?}");
+    }
+
+    Ok(())
+}
+
+fn dump_hir(sess: &Session, hir: &hir::Hir<'_>, paths: Option<&[String]>) -> Result<()> {
+    if let Some(paths) = paths {
+        let _ = sess;
+        todo!("{paths:#?}")
+    } else {
+        println!("{hir:#?}");
+    }
+    Ok(())
+}
+
+fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> bool {
+    match name {
+        solar_interface::source_map::FileName::Real(path_buf) => {
+            path_buf.as_os_str() == path || path_buf.file_stem() == Some(path.as_ref())
+        }
+        solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
+        solar_interface::source_map::FileName::Custom(name) => path == name,
+    }
 }

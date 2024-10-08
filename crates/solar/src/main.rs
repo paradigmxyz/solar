@@ -153,6 +153,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         sess.evm_version = args.evm_version;
         sess.language = args.language;
         sess.stop_after = args.stop_after;
+        sess.dump = args.unstable.dump.clone();
         sess.jobs = NonZeroUsize::new(jobs).unwrap();
 
         let compiler = Compiler { sess, args };

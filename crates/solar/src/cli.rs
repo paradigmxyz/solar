@@ -1,5 +1,5 @@
 use clap::{ColorChoice, Parser, ValueHint};
-use solar_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
+use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::path::PathBuf;
 
 const VERSION_MESSAGE: &str = concat!(
@@ -126,6 +126,9 @@ pub struct UnstableFeatures {
     /// Enables parsing Yul files for testing.
     #[arg(long)]
     pub parse_yul: bool,
+    /// Print additional information about the compiler's internal state.
+    #[arg(long, value_name = "KIND[=PATHS...]")]
+    pub dump: Option<Dump>,
 
     #[cfg(test)]
     #[arg(long)]

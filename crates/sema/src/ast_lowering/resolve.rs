@@ -247,17 +247,6 @@ impl super::LoweringContext<'_, '_, '_> {
                 }));
         }
 
-        for id in self.hir.variable_ids() {
-            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
-            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
-            let var = self.hir.variable(id);
-            let mut cx = mk_resolver!(var);
-            let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
-            let ty = cx.lower_type(&ast_var.ty);
-            self.hir.variables[id].initializer = init;
-            self.hir.variables[id].ty = ty;
-        }
-
         for id in self.hir.function_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
@@ -338,6 +327,17 @@ impl super::LoweringContext<'_, '_, '_> {
                 let body = ResolveContext::new(self, scopes, next_id).lower_stmts(body);
                 self.hir.functions[id].body = Some(body);
             }
+        }
+
+        for id in self.hir.variable_ids() {
+            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
+            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+            let var = self.hir.variable(id);
+            let mut cx = mk_resolver!(var);
+            let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
+            let ty = cx.lower_type(&ast_var.ty);
+            self.hir.variables[id].initializer = init;
+            self.hir.variables[id].ty = ty;
         }
     }
 
