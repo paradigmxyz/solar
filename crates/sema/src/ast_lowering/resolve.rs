@@ -186,7 +186,7 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 }
 
-impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
+impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve(&mut self) {
         let next_id = &AtomicUsize::new(0);
@@ -325,7 +325,7 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             scopes.enter();
             let scope = scopes.current_scope();
             let func = self.hir.function(id);
-            for &param in func.params.iter().chain(func.returns) {
+            for &param in func.parameters.iter().chain(func.returns) {
                 let Some(name) = self.hir.variable(param).name else { continue };
                 let _ = self.declare_kind_in(
                     scope,
@@ -714,7 +714,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     parameters: self
                         .arena
                         .alloc_from_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
-                    visibility: f.visibility,
+                    visibility: f.visibility.unwrap_or(ast::Visibility::Public),
                     state_mutability: f.state_mutability,
                     returns: self
                         .arena

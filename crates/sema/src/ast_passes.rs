@@ -33,7 +33,7 @@ impl<'sess> AstValidator<'sess> {
     }
 }
 
-impl<'ast, 'sess> Visit<'ast> for AstValidator<'sess> {
+impl<'ast> Visit<'ast> for AstValidator<'_> {
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
         self.span = item.span;
         self.walk_item(item);

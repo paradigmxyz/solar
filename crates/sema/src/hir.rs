@@ -1,5 +1,6 @@
 //! High-level intermediate representation (HIR).
 
+use derive_more::derive::From;
 use rayon::prelude::*;
 use solar_ast::ast;
 use solar_data_structures::{
@@ -77,7 +78,7 @@ pub struct Hir<'hir> {
     pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
 }
 
-impl<'hir> Hir<'hir> {
+impl Hir<'_> {
     pub(crate) fn new() -> Self {
         Self {
             sources: IndexVec::new(),
@@ -328,28 +329,8 @@ impl Item<'_, '_> {
     /// Returns the visibility of the item.
     #[inline]
     pub fn visibility(self) -> Visibility {
-        self.visibility_opt().unwrap_or_else(|| self.default_visibility())
-    }
-
-    #[inline]
-    fn visibility_opt(self) -> Option<Visibility> {
         match self {
-            Item::Function(f) => f.visibility,
-            Item::Variable(v) => v.visibility,
-            Item::Contract(_)
-            | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Udvt(_)
-            | Item::Error(_)
-            | Item::Event(_) => None,
-        }
-    }
-
-    #[inline]
-    fn default_visibility(self) -> Visibility {
-        match self {
-            Item::Function(f) if f.is_free() || f.kind.is_modifier() => Visibility::Internal,
-            Item::Variable(_) => Visibility::Internal,
+            Item::Variable(v) => v.visibility.unwrap_or(Visibility::Internal),
             Item::Contract(_)
             | Item::Function(_)
             | Item::Struct(_)
@@ -361,7 +342,7 @@ impl Item<'_, '_> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From)]
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
@@ -418,6 +399,24 @@ impl ItemId {
             None
         }
     }
+
+    /// Returns the function ID if this is a function.
+    pub fn as_function(&self) -> Option<FunctionId> {
+        if let Self::Function(v) = *self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the variable ID if this is a variable.
+    pub fn as_variable(&self) -> Option<VariableId> {
+        if let Self::Variable(v) = *self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 /// A contract, interface, or library.
@@ -445,6 +444,31 @@ pub struct Contract<'hir> {
     pub items: &'hir [ItemId],
 }
 
+impl Contract<'_> {
+    /// Returns an iterator over functions in the contract.
+    ///
+    /// Note that this does not include the constructor and fallback functions, as they are stored
+    /// separately. Use [`Contract::all_functions`] to include them.
+    pub fn functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+        self.items.iter().filter_map(ItemId::as_function)
+    }
+
+    /// Returns an iterator over all functions in the contract.
+    pub fn all_functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+        self.functions().chain(self.ctor).chain(self.fallback).chain(self.receive)
+    }
+
+    /// Returns an iterator over all variables in the contract.
+    pub fn variables(&self) -> impl Iterator<Item = VariableId> + Clone + '_ {
+        self.items.iter().filter_map(ItemId::as_variable)
+    }
+
+    /// Returns `true` if the contract can be deployed.
+    pub fn can_be_deployed(&self) -> bool {
+        matches!(self.kind, ContractKind::Contract | ContractKind::Library)
+    }
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
@@ -460,14 +484,15 @@ pub struct Function<'hir> {
     /// The function kind.
     pub kind: FunctionKind,
     /// The visibility of the function.
-    pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub visibility: Visibility,
+    /// The state mutability of the function.
+    pub state_mutability: StateMutability,
     /// Modifiers, or base classes if this is a constructor.
     pub modifiers: &'hir [ItemId],
     pub virtual_: bool,
     pub overrides: &'hir [ContractId],
     /// The function parameters.
-    pub params: &'hir [VariableId],
+    pub parameters: &'hir [VariableId],
     /// The function returns.
     pub returns: &'hir [VariableId],
     /// The function body.
@@ -478,6 +503,14 @@ impl Function<'_> {
     /// Returns `true` if this is a free function, meaning it is not part of a contract.
     pub fn is_free(&self) -> bool {
         self.contract.is_none()
+    }
+
+    pub fn is_ordinary(&self) -> bool {
+        self.kind.is_ordinary()
+    }
+
+    pub fn is_part_of_external_interface(&self) -> bool {
+        self.is_ordinary() && self.visibility >= Visibility::Public
     }
 }
 
@@ -860,8 +893,8 @@ pub struct TypeArray<'hir> {
 #[derive(Debug)]
 pub struct TypeFunction<'hir> {
     pub parameters: &'hir [Type<'hir>],
-    pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub visibility: Visibility,
+    pub state_mutability: StateMutability,
     pub returns: &'hir [Type<'hir>],
 }
 

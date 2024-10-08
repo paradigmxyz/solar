@@ -225,11 +225,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
                     let msg = state_mutability_error(state_mutability, flags.state_mutabilities());
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.state_mutability.is_some() {
+                } else if !header.state_mutability.is_non_payable() {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.state_mutability = Some(state_mutability);
+                    header.state_mutability = state_mutability;
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
@@ -1184,6 +1184,7 @@ impl FunctionFlags {
             StateMutability::Pure => Self::PURE,
             StateMutability::View => Self::VIEW,
             StateMutability::Payable => Self::PAYABLE,
+            StateMutability::NonPayable => unreachable!(),
         }
     }
 

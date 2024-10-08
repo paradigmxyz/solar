@@ -2,6 +2,7 @@ use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit,
 use crate::token::Token;
 use solar_interface::{Ident, Span};
 use std::fmt;
+use strum::EnumIs;
 
 /// A list of variable declarations.
 pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
@@ -301,7 +302,7 @@ pub struct ItemContract<'ast> {
 }
 
 /// The kind of contract.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
 pub enum ContractKind {
     /// `contract`
     Contract,
@@ -355,7 +356,7 @@ pub struct FunctionHeader<'ast> {
     pub parameters: ParameterList<'ast>,
 
     pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub state_mutability: StateMutability,
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
     pub virtual_: bool,
     pub override_: Option<Override<'ast>>,
@@ -467,7 +468,7 @@ impl DataLocation {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs)]
 pub enum StateMutability {
     /// `pure`
     Pure,
@@ -475,6 +476,9 @@ pub enum StateMutability {
     View,
     /// `payable`
     Payable,
+    /// Not specified.
+    #[default]
+    NonPayable,
 }
 
 impl fmt::Display for StateMutability {
@@ -490,6 +494,7 @@ impl StateMutability {
             Self::Pure => "pure",
             Self::View => "view",
             Self::Payable => "payable",
+            Self::NonPayable => "nonpayable",
         }
     }
 }
@@ -497,19 +502,19 @@ impl StateMutability {
 /// Visibility ordered from restricted to unrestricted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Visibility {
-    /// `private`
+    /// `private`: visible only in the current contract.
     Private,
-    /// `internal`
+    /// `internal`: visible only in the current contract and contracts deriving from it.
     Internal,
-    /// `public`
+    /// `public`: visible internally and externally.
     Public,
-    /// `external`
+    /// `external`: visible only externally.
     External,
 }
 
 impl fmt::Display for Visibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.to_str())
+        self.to_str().fmt(f)
     }
 }
 

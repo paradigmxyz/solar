@@ -11,8 +11,6 @@ mod macros;
 
 mod utils;
 
-pub use strum;
-
 str_enum! {
     /// Compiler stage.
     #[derive(strum::EnumIs)]

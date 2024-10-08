@@ -5,7 +5,7 @@ use crate::{
 use solar_ast::ast;
 use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
 
-impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
+impl<'ast, 'hir> super::LoweringContext<'_, 'ast, 'hir> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn lower_sources(
         &mut self,
@@ -162,9 +162,9 @@ impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
             modifiers: &[],
             virtual_,
             overrides: &[],
-            visibility,
+            visibility: visibility.unwrap_or(ast::Visibility::Public),
             state_mutability,
-            params,
+            parameters: params,
             returns,
             body: None,
         })

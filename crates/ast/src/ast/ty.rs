@@ -42,7 +42,7 @@ pub enum TypeKind<'ast> {
     Custom(AstPath<'ast>),
 }
 
-impl<'ast> TypeKind<'ast> {
+impl TypeKind<'_> {
     /// Returns `true` if the type is an elementary type.
     ///
     /// Note that this does not include `Custom` types.
@@ -99,7 +99,7 @@ pub enum ElementaryType {
 
 impl ElementaryType {
     /// Returns the Solidity ABI representation of the type as a string.
-    pub fn to_abi_str(&self) -> Cow<'static, str> {
+    pub fn to_abi_str(self) -> Cow<'static, str> {
         match self {
             Self::Address(_) => "address".into(),
             Self::Bool => "bool".into(),
@@ -107,10 +107,25 @@ impl ElementaryType {
             Self::Bytes => "bytes".into(),
             Self::Fixed(_size, _fixed) => "fixed".into(),
             Self::UFixed(_size, _fixed) => "ufixed".into(),
-            Self::Int(size) => size.int_keyword().as_str().to_string().into(),
-            Self::UInt(size) => size.uint_keyword().as_str().to_string().into(),
-            Self::FixedBytes(size) => size.bytes_keyword().as_str().to_string().into(),
+            Self::Int(size) => format!("int{}", size.bits()).into(),
+            Self::UInt(size) => format!("uint{}", size.bits()).into(),
+            Self::FixedBytes(size) => format!("bytes{}", size.bytes()).into(),
         }
+    }
+
+    /// Writes the Solidity ABI representation of the type to a formatter.
+    pub fn write_abi_str(self, f: &mut impl fmt::Write) -> fmt::Result {
+        f.write_str(match self {
+            Self::Address(_) => "address",
+            Self::Bool => "bool",
+            Self::String => "string",
+            Self::Bytes => "bytes",
+            Self::Fixed(_size, _fixed) => "fixed",
+            Self::UFixed(_size, _fixed) => "ufixed",
+            Self::Int(size) => return write!(f, "int{}", size.bits()),
+            Self::UInt(size) => return write!(f, "uint{}", size.bits()),
+            Self::FixedBytes(size) => return write!(f, "bytes{}", size.bytes()),
+        })
     }
 }
 
@@ -282,7 +297,7 @@ pub struct TypeArray<'ast> {
 pub struct TypeFunction<'ast> {
     pub parameters: ParameterList<'ast>,
     pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub state_mutability: StateMutability,
     pub returns: ParameterList<'ast>,
 }
 

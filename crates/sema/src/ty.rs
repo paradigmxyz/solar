@@ -1,10 +1,12 @@
-#![allow(dead_code)]
-
-use crate::hir;
+use crate::{
+    builtins::members::{self, MemberMap},
+    hir::{self, Hir},
+};
+use alloy_primitives::{keccak256, Selector, B256};
 use dashmap::SharedValue;
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use solar_data_structures::Interned;
-use solar_interface::{diagnostics::ErrorGuaranteed, Symbol};
+use solar_data_structures::{map::FxBuildHasher, BumpExt, Interned};
+use solar_interface::{diagnostics::ErrorGuaranteed, Ident};
 use std::{
     borrow::Borrow,
     fmt,
@@ -12,10 +14,13 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-type FxDashSet<T> = dashmap::DashMap<T, (), solar_data_structures::map::FxBuildHasher>;
+type FxDashSet<T> = dashmap::DashMap<T, (), FxBuildHasher>;
+
+type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 
 /// Reference to the [global context](GlobalCtxt).
-pub struct Gcx<'gcx>(pub(crate) &'gcx GlobalCtxt<'gcx>);
+#[derive(Clone, Copy)]
+pub struct Gcx<'gcx>(&'gcx GlobalCtxt<'gcx>);
 
 impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     type Target = &'gcx GlobalCtxt<'gcx>;
@@ -26,19 +31,331 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+#[cfg(test)]
+fn _gcx_traits() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Gcx<'static>>();
+}
+
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
     pub interner: Interner<'gcx>,
     pub types: CommonTypes<'gcx>,
+    pub hir: Hir<'gcx>,
+
+    cache: Cache<'gcx>,
+}
+
+impl<'gcx> GlobalCtxt<'gcx> {
+    pub(crate) fn new(arena: &'gcx ThreadLocal<hir::Arena>, hir: Hir<'gcx>) -> Self {
+        let interner = Interner::new(arena);
+        let types = CommonTypes::new(&interner);
+        Self { interner, types, hir, cache: Cache::default() }
+    }
 }
 
 impl<'gcx> Gcx<'gcx> {
-    pub fn mk_signature(self, name: Symbol, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
+    pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
+        Self(gcx)
+    }
+
+    pub fn arena(self) -> &'gcx hir::Arena {
+        self.0.interner.arena.get_or_default()
+    }
+
+    pub fn bump(self) -> &'gcx bumpalo::Bump {
+        &self.arena().bump
+    }
+
+    pub fn alloc<T>(self, value: T) -> &'gcx T {
+        self.bump().alloc(value)
+    }
+
+    pub fn mk_signature(self, name: &str, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
         let mut s = String::with_capacity(64);
-        s.push_str(name.as_str());
+        s.push_str(name);
         TyPrinter::new(self, &mut s).print_tuple(tys).unwrap();
         s
     }
+
+    pub(crate) fn mk_builtin_fn(
+        self,
+        parameters: &[Ty<'gcx>],
+        state_mutability: StateMutability,
+        returns: &[Ty<'gcx>],
+    ) -> Ty<'gcx> {
+        self.mk_fn_type(parameters, state_mutability, Visibility::Internal, returns)
+    }
+
+    pub fn mk_fn_type(
+        self,
+        parameters: &[Ty<'gcx>],
+        state_mutability: StateMutability,
+        visibility: Visibility,
+        returns: &[Ty<'gcx>],
+    ) -> Ty<'gcx> {
+        Ty::new_fn_ptr(
+            &self.interner,
+            TyFnPtr {
+                parameters: self.interner.intern_tys(parameters),
+                returns: self.interner.intern_tys(returns),
+                state_mutability,
+                visibility,
+            },
+        )
+    }
+
+    pub fn item_name(self, id: hir::ItemId) -> Ident {
+        self.hir
+            .item(id)
+            .name()
+            .unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
+    }
+
+    pub fn opt_item_name(self, id: hir::ItemId) -> Option<Ident> {
+        self.hir.item(id).name()
+    }
+
+    /// Returns the short (4-byte) selector of the given item. Only accepts functions and errors.
+    pub fn short_selector(self, id: hir::ItemId) -> Selector {
+        assert!(
+            matches!(id, hir::ItemId::Function(_) | hir::ItemId::Error(_)),
+            "short_selector: invalid item {id:?}"
+        );
+        self.long_selector_impl(id)[..4].try_into().unwrap()
+    }
+
+    /// Returns the long (32-byte) selector of the given event.
+    pub fn long_selector(self, id: hir::EventId) -> B256 {
+        self.long_selector_impl(id.into())
+    }
+
+    pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
+        let kind = match ty.kind {
+            hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
+            hir::TypeKind::Array(array) => {
+                let ty = self.type_of_hir_ty(&array.element);
+                match array.size {
+                    // TODO
+                    Some(_size) => TyKind::Array(ty, 1),
+                    None => TyKind::DynArray(ty),
+                }
+            }
+            hir::TypeKind::Function(f) => {
+                let parameters = self
+                    .interner
+                    .intern_ty_iter(f.parameters.iter().map(|ty| self.type_of_hir_ty(ty)));
+                let returns = self
+                    .interner
+                    .intern_ty_iter(f.returns.iter().map(|ty| self.type_of_hir_ty(ty)));
+                TyKind::FnPtr(self.interner.intern_fn_ptr(TyFnPtr {
+                    parameters,
+                    returns,
+                    state_mutability: f.state_mutability,
+                    visibility: f.visibility,
+                }))
+            }
+            hir::TypeKind::Mapping(mapping) => {
+                let key = self.type_of_hir_ty(&mapping.key);
+                let value = self.type_of_hir_ty(&mapping.value);
+                TyKind::Mapping(key, value)
+            }
+            hir::TypeKind::Custom(id) => return self.type_of_item(id),
+            hir::TypeKind::Err(guar) => TyKind::Err(guar),
+        };
+        Ty::new(&self.interner, kind)
+    }
+}
+
+macro_rules! cached {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: Gcx<'gcx>, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
+        #[derive(Default)]
+        struct Cache<'gcx> {
+            $(
+                $name: FxOnceMap<$key_type, $value>,
+            )*
+        }
+
+        impl<'gcx> Gcx<'gcx> {
+            $(
+                $(#[$attr])*
+                $vis fn $name(self, $key: $key_type) -> $value {
+                    once_map_insert(&self.cache.$name, $key, move |&$key| {
+                        let $gcx = self;
+                        $imp
+                    })
+                }
+            )*
+        }
+    };
+}
+
+/// A function exported by a contract.
+#[derive(Clone, Copy, Debug)]
+pub struct InterfaceFunction<'gcx> {
+    /// The function 4-byte selector.
+    pub selector: Selector,
+    /// The function ID.
+    pub id: hir::FunctionId,
+    /// The function type. This is always a function pointer.
+    pub ty: Ty<'gcx>,
+}
+
+/// List of all the functions exported by a contract.
+///
+/// Return type of [`Gcx::interface_functions`].
+#[derive(Clone, Copy, Debug)]
+pub struct InterfaceFunctions<'gcx> {
+    /// The exported functions along with their selector.
+    pub functions: &'gcx [InterfaceFunction<'gcx>],
+    /// The index in `functions` where the inherited functions start.
+    pub inheritance_start: usize,
+}
+
+impl<'gcx> InterfaceFunctions<'gcx> {
+    pub fn all_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        self.functions
+    }
+
+    pub fn own_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        &self.functions[..self.inheritance_start]
+    }
+
+    pub fn inherited_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        &self.functions[self.inheritance_start..]
+    }
+}
+
+cached! {
+/// Returns the interface ID of the given contract.
+///
+/// This is the XOR of the selectors of all functions in the interface, excluding any inheritance.
+pub fn interface_id(gcx: Gcx<'gcx>, id: hir::ContractId) -> Selector {
+    debug_assert!(gcx.hir.contract(id).kind.is_interface());
+    let selectors = gcx.interface_functions(id).own_functions().iter().map(|f| f.selector);
+    selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
+}
+
+/// Returns all the exported functions of the given contract.
+pub fn interface_functions(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
+    let c = gcx.hir.contract(id);
+    let mut inheritance_start = None;
+    let functions = c.linearized_bases.iter().flat_map(|&base| {
+        let b = gcx.hir.contract(base);
+        let functions =
+            b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface());
+        if base == id {
+            assert!(inheritance_start.is_none(), "duplicate self ID in linearized_bases");
+            inheritance_start = Some(functions.clone().count());
+        }
+        functions.map(|id| InterfaceFunction {
+            selector: gcx.short_selector(id.into()),
+            id,
+            ty: gcx.type_of_item(id.into()),
+        })
+    });
+    let functions = gcx.bump().alloc_from_iter(functions);
+    let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
+    InterfaceFunctions { functions, inheritance_start }
+}
+
+/// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
+pub fn item_signature(gcx: Gcx<'gcx>, id: hir::ItemId) -> &'gcx str {
+    let name = gcx.item_name(id);
+    let ty = gcx.type_of_item(id);
+    let tys = match ty.kind {
+        TyKind::FnPtr(f) => f.parameters,
+        TyKind::Event(parameters, _) | TyKind::Error(parameters, _) => parameters,
+        _ => panic!("item_signature: invalid item type {ty:?}"),
+    };
+    gcx.bump().alloc_str(&gcx.mk_signature(name.as_str(), tys.iter().copied()))
+}
+
+fn long_selector_impl(gcx: Gcx<'gcx>, id: hir::ItemId) -> B256 {
+    keccak256(gcx.item_signature(id))
+}
+
+/// Returns the type of the given item.
+pub fn type_of_item(gcx: Gcx<'gcx>, id: hir::ItemId) -> Ty<'gcx> {
+    let kind = match id {
+        hir::ItemId::Contract(id) => TyKind::Contract(id),
+        hir::ItemId::Function(id) => {
+            let f = gcx.hir.function(id);
+            TyKind::FnPtr(gcx.interner.intern_fn_ptr(TyFnPtr {
+                parameters: gcx
+                .interner
+                .intern_ty_iter(f.parameters.iter().map(|&var| gcx.type_of_item(var.into()))),
+                returns: gcx
+                .interner
+                .intern_ty_iter(f.returns.iter().map(|&var| gcx.type_of_item(var.into()))),
+                state_mutability: f.state_mutability,
+                visibility: f.visibility,
+            }))
+        }
+        hir::ItemId::Variable(id) => {
+            let var = gcx.hir.variable(id);
+            let ty = gcx.type_of_hir_ty(&var.ty);
+            match (var.contract, var.data_location) {
+                (_, Some(loc)) => TyKind::Ref(ty, loc),
+                (Some(_), None) => TyKind::Ref(ty, DataLocation::Storage),
+                (None, None) => return ty,
+            }
+        }
+        hir::ItemId::Struct(id) => {
+            let field_types = gcx.hir.strukt(id).fields.iter().map(|f| gcx.type_of_hir_ty(&f.ty));
+            TyKind::Struct(gcx.interner.intern_ty_iter(field_types), id)
+        }
+        hir::ItemId::Enum(id) => TyKind::Enum(id),
+        hir::ItemId::Udvt(id) => {
+            let ty = gcx.type_of_hir_ty(&gcx.hir.udvt(id).ty);
+            TyKind::Udvt(ty, id)
+        }
+        hir::ItemId::Error(id) => {
+            let tys = gcx.hir.error(id).parameters.iter().map(|p| gcx.type_of_hir_ty(&p.ty));
+            TyKind::Error(gcx.interner.intern_ty_iter(tys), id)
+        }
+        hir::ItemId::Event(id) => {
+            let tys = gcx.hir.event(id).parameters.iter().map(|p| gcx.type_of_hir_ty(&p.ty));
+            TyKind::Event(gcx.interner.intern_ty_iter(tys), id)
+        }
+    };
+    Ty::new(&gcx.interner, kind)
+}
+
+/// Returns the members of the given type.
+pub fn members_of(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
+    let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
+    gcx.bump().alloc_vec(match ty.kind {
+        TyKind::Elementary(elementary_type) => match elementary_type {
+            ElementaryType::Address(false) => members::address(gcx),
+            ElementaryType::Address(true) => members::address_payable(gcx),
+            ElementaryType::Bool => Default::default(),
+            ElementaryType::String => Default::default(),
+            ElementaryType::Bytes => expected_ref(),
+            ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => Default::default(),
+            ElementaryType::Int(_size) => Default::default(),
+            ElementaryType::UInt(_size) => Default::default(),
+            ElementaryType::FixedBytes(_size) => members::fixed_bytes(gcx),
+        },
+        TyKind::StringLiteral(_utf8, _size) => Default::default(),
+        TyKind::IntLiteral(_size) => Default::default(),
+        TyKind::Ref(inner, loc) => members::reference(gcx, ty, inner, loc),
+        TyKind::DynArray(_ty) => expected_ref(),
+        TyKind::Array(_ty, _len) => expected_ref(),
+        TyKind::Tuple(_tys) => Default::default(),
+        TyKind::Mapping(..) => Default::default(),
+        TyKind::FnPtr(f) => members::function(gcx, f),
+        TyKind::Contract(id) => members::contract(gcx, id),
+        TyKind::Struct(_tys, _id) => expected_ref(),
+        TyKind::Enum(_id) => Default::default(),
+        TyKind::Udvt(_ty, _id) => Default::default(),
+        TyKind::Error(_tys, _id) => members::error(gcx),
+        TyKind::Event(_tys, _id) => members::event(gcx),
+        TyKind::Slf(_ty) => members::slf(gcx, ty),
+        TyKind::Meta(_ty) => members::meta(gcx, ty),
+        TyKind::Err(_guar) => Default::default(),
+    })
+}
 }
 
 struct TyPrinter<'gcx, W> {
@@ -55,7 +372,12 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
     fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         use TyKind::*;
         match ty.kind {
-            Elementary(ty) => write!(self.buf, "{}", ty.to_abi_str()),
+            Elementary(ty) => ty.write_abi_str(&mut self.buf),
+            Contract(_) => self.buf.write_str("address"),
+            FnPtr(_) => self.buf.write_str("function"),
+            Struct(tys, _) => self.print_tuple(tys.iter().copied()),
+            Enum(_) => self.buf.write_str("uint8"),
+            Udvt(ty, _) => self.print(ty),
             Ref(ty, _loc) => self.print(ty),
             DynArray(ty) => {
                 self.print(ty)?;
@@ -65,7 +387,6 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
                 self.print(ty)?;
                 write!(self.buf, "[{len}]")
             }
-            Tuple(tys) => self.print_tuple(tys.iter().copied()),
             _ => panic!("printing invalid type: {ty:?}"),
         }
     }
@@ -74,7 +395,7 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
         write!(self.buf, "(")?;
         for (i, ty) in tys.into_iter().enumerate() {
             if i > 0 {
-                write!(self.buf, ", ")?;
+                write!(self.buf, ",")?;
             }
             self.print(ty)?;
         }
@@ -90,7 +411,7 @@ pub struct Interner<'gcx> {
 }
 
 impl<'gcx> Interner<'gcx> {
-    pub fn new(arena: &'gcx ThreadLocal<hir::Arena>) -> Self {
+    fn new(arena: &'gcx ThreadLocal<hir::Arena>) -> Self {
         Self {
             arena,
             tys: Default::default(),
@@ -99,18 +420,20 @@ impl<'gcx> Interner<'gcx> {
         }
     }
 
+    fn bump(&self) -> &'gcx bumpalo::Bump {
+        &self.arena.get_or_default().bump
+    }
+
     pub fn intern_ty(&self, kind: TyKind<'gcx>) -> Ty<'gcx> {
         let key = TyData { kind };
-        Ty(Interned::new_unchecked(
-            self.tys.intern(key, |key| self.arena.get_or_default().bump.alloc(key)),
-        ))
+        Ty(Interned::new_unchecked(self.tys.intern(key, |key| self.bump().alloc(key))))
     }
 
     pub fn intern_tys(&self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
         if tys.is_empty() {
             return &[];
         }
-        self.ty_lists.intern_ref(tys, || self.arena.get_or_default().bump.alloc_slice_copy(tys))
+        self.ty_lists.intern_ref(tys, || self.bump().alloc_slice_copy(tys))
     }
 
     pub fn intern_ty_iter(&self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
@@ -118,7 +441,7 @@ impl<'gcx> Interner<'gcx> {
     }
 
     pub fn intern_fn_ptr(&self, ptr: TyFnPtr<'gcx>) -> &'gcx TyFnPtr<'gcx> {
-        self.fn_ptrs.intern(ptr, |ptr| self.arena.get_or_default().bump.alloc(ptr))
+        self.fn_ptrs.intern(ptr, |ptr| self.bump().alloc(ptr))
     }
 }
 
@@ -157,11 +480,11 @@ impl<'gcx> CommonTypes<'gcx> {
         use TyKind::*;
 
         let mk = |kind| interner.intern_ty(kind);
-        let mk_refs = |kind| EachDataLoc {
-            storage: mk(Ref(kind, DataLocation::Storage)),
-            transient: mk(Ref(kind, DataLocation::Transient)),
-            memory: mk(Ref(kind, DataLocation::Memory)),
-            calldata: mk(Ref(kind, DataLocation::Calldata)),
+        let mk_refs = |ty| EachDataLoc {
+            storage: mk(Ref(ty, DataLocation::Storage)),
+            transient: mk(Ref(ty, DataLocation::Transient)),
+            memory: mk(Ref(ty, DataLocation::Memory)),
+            calldata: mk(Ref(ty, DataLocation::Calldata)),
         };
 
         let string = mk(Elementary(String));
@@ -288,9 +611,7 @@ pub struct Ty<'gcx>(Interned<'gcx, TyData<'gcx>>);
 
 impl fmt::Debug for Ty<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Ty(")?;
-        self.0.fmt(f)?;
-        f.write_str(")")
+        self.0.fmt(f)
     }
 }
 
@@ -308,10 +629,6 @@ impl<'gcx> Ty<'gcx> {
         interner.intern_ty(kind)
     }
 
-    pub fn new_elementary(interner: &Interner<'gcx>, ty: ElementaryType) -> Self {
-        Self::new(interner, TyKind::Elementary(ty))
-    }
-
     pub fn new_string_literal(interner: &Interner<'gcx>, s: &[u8]) -> Self {
         Self::new(
             interner,
@@ -326,54 +643,105 @@ impl<'gcx> Ty<'gcx> {
         Self::new(interner, TyKind::IntLiteral(size))
     }
 
-    pub fn new_ref(interner: &Interner<'gcx>, ty: Self, loc: DataLocation) -> Self {
-        Self::new(interner, TyKind::Ref(ty, loc))
-    }
-
-    pub fn new_dyn_array(interner: &Interner<'gcx>, ty: Self) -> Self {
-        Self::new(interner, TyKind::DynArray(ty))
-    }
-
-    pub fn new_array(interner: &Interner<'gcx>, ty: Self, len: u64) -> Self {
-        Self::new(interner, TyKind::Array(ty, len))
-    }
-
-    pub fn new_tuple(interner: &Interner<'gcx>, tys: &'gcx [Self]) -> Self {
-        Self::new(interner, TyKind::Tuple(tys))
-    }
-
-    pub fn new_mapping(interner: &Interner<'gcx>, key: Self, value: Self) -> Self {
-        Self::new(interner, TyKind::Mapping(key, value))
-    }
-
-    pub fn new_fn_ptr(interner: &Interner<'gcx>, ptr: &'gcx TyFnPtr<'gcx>) -> Self {
-        Self::new(interner, TyKind::FnPtr(ptr))
-    }
-
-    pub fn new_contract(interner: &Interner<'gcx>, id: hir::ContractId) -> Self {
-        Self::new(interner, TyKind::Contract(id))
-    }
-
-    pub fn new_struct(interner: &Interner<'gcx>, fields: &'gcx [Self], id: hir::StructId) -> Self {
-        Self::new(interner, TyKind::Struct(fields, id))
-    }
-
-    pub fn new_enum(interner: &Interner<'gcx>, id: hir::EnumId) -> Self {
-        Self::new(interner, TyKind::Enum(id))
-    }
-
-    pub fn new_udvt(interner: &Interner<'gcx>, ty: Self, id: hir::UdvtId) -> Self {
-        Self::new(interner, TyKind::Udvt(ty, id))
-    }
-
-    pub fn new_err(interner: &Interner<'gcx>, guar: ErrorGuaranteed) -> Self {
-        Self::new(interner, TyKind::Err(guar))
+    pub fn new_fn_ptr(interner: &Interner<'gcx>, ptr: TyFnPtr<'gcx>) -> Self {
+        Self::new(interner, TyKind::FnPtr(interner.intern_fn_ptr(ptr)))
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+impl<'gcx> Ty<'gcx> {
+    pub fn with_loc(self, interner: &Interner<'gcx>, loc: DataLocation) -> Self {
+        let mut ty = self;
+        if let TyKind::Ref(inner, l2) = self.kind {
+            if l2 == loc {
+                return self;
+            }
+            ty = inner;
+        }
+        Self::new(interner, TyKind::Ref(ty, loc))
+    }
+
+    pub fn as_externally_callable_function(self, interner: &Interner<'gcx>) -> Self {
+        let TyKind::FnPtr(f) = self.kind else { return self };
+        let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
+        let any_parameter = f.parameters.iter().any(is_calldata);
+        let any_return = f.returns.iter().any(is_calldata);
+        if !any_parameter && !any_return {
+            return self;
+        }
+        Self::new_fn_ptr(
+            interner,
+            TyFnPtr {
+                parameters: if any_parameter {
+                    interner.intern_ty_iter(f.parameters.iter().map(|param| {
+                        if is_calldata(param) {
+                            param.with_loc(interner, DataLocation::Memory)
+                        } else {
+                            *param
+                        }
+                    }))
+                } else {
+                    f.parameters
+                },
+                returns: if any_return {
+                    interner.intern_ty_iter(f.returns.iter().map(|ret| {
+                        if is_calldata(ret) {
+                            ret.with_loc(interner, DataLocation::Memory)
+                        } else {
+                            *ret
+                        }
+                    }))
+                } else {
+                    f.returns
+                },
+                state_mutability: f.state_mutability,
+                visibility: f.visibility,
+            },
+        )
+    }
+
+    pub fn make_ref(self, interner: &Interner<'gcx>, loc: DataLocation) -> Self {
+        if self.is_ref_at(loc) {
+            return self;
+        }
+        Self::new(interner, TyKind::Ref(self, loc))
+    }
+
+    pub fn make_slf(self, interner: &Interner<'gcx>) -> Self {
+        if let TyKind::Slf(_) = self.kind {
+            return self;
+        }
+        Self::new(interner, TyKind::Slf(self))
+    }
+
+    pub fn make_meta(self, interner: &Interner<'gcx>) -> Self {
+        if let TyKind::Meta(_) = self.kind {
+            return self;
+        }
+        Self::new(interner, TyKind::Meta(self))
+    }
+
+    /// Returns `true` if the type is a reference.
+    #[inline]
+    pub fn is_ref(self) -> bool {
+        matches!(self.kind, TyKind::Ref(..))
+    }
+
+    /// Returns `true` if the type is a reference to the given location.
+    #[inline]
+    pub fn is_ref_at(self, loc: DataLocation) -> bool {
+        matches!(self.kind, TyKind::Ref(_, l) if l == loc)
+    }
+}
+
+#[derive(PartialEq, Eq, Hash)]
 pub struct TyData<'gcx> {
     pub kind: TyKind<'gcx>,
+}
+
+impl fmt::Debug for TyData<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -411,14 +779,27 @@ pub enum TyKind<'gcx> {
     /// Contract.
     Contract(hir::ContractId),
 
-    /// Struct. Contains the fields.
+    /// A struct.
     Struct(&'gcx [Ty<'gcx>], hir::StructId),
 
-    /// Enum. Contains the variants.
+    /// An enum.
     Enum(hir::EnumId),
+
+    /// A custom error.
+    Error(&'gcx [Ty<'gcx>], hir::ErrorId),
+
+    /// An event.
+    Event(&'gcx [Ty<'gcx>], hir::EventId),
 
     /// A user-defined value type. `Ty` can only be `Elementary`.
     Udvt(Ty<'gcx>, hir::UdvtId),
+
+    /// The self-referential type, e.g. `Enum` in `Enum.Variant`.
+    /// Corresponds to `TypeType` in solc.
+    Slf(Ty<'gcx>),
+
+    /// The meta type: `type(<inner_type>)`.
+    Meta(Ty<'gcx>),
 
     /// An invalid type. Silences further errors.
     Err(ErrorGuaranteed),
@@ -428,7 +809,7 @@ pub enum TyKind<'gcx> {
 pub struct TyFnPtr<'gcx> {
     pub parameters: &'gcx [Ty<'gcx>],
     pub returns: &'gcx [Ty<'gcx>],
-    pub mutability: StateMutability,
+    pub state_mutability: StateMutability,
     pub visibility: Visibility,
 }
 
@@ -492,4 +873,18 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> DashMapExt<K> for dashmap::Das
         };
         unsafe { bucket.as_ref() }.0
     }
+}
+
+/// `OnceMap::insert` but with `Copy` keys and values.
+fn once_map_insert<K, V, S>(
+    map: &once_map::OnceMap<K, V, S>,
+    key: K,
+    make_val: impl FnOnce(&K) -> V,
+) -> V
+where
+    K: Copy + Eq + Hash,
+    V: Copy,
+    S: BuildHasher,
+{
+    map.map_insert(key, make_val, |_k, v| *v)
 }
