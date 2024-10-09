@@ -815,7 +815,7 @@ impl<'sess> SymbolResolver<'sess> {
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
-    fn emit_resolver_error<'a>(&'a self) -> impl Fn(ResolverError) -> ErrorGuaranteed + 'a {
+    fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
         move |e| self.dcx.err(e.format()).span(e.span()).emit()
     }
 

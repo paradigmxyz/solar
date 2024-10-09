@@ -11,12 +11,7 @@ use solar_interface::{
     Result, Session,
 };
 use solar_parse::{unescape, Lexer, Parser};
-use std::{
-    borrow::Cow,
-    fmt,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{borrow::Cow, fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {
@@ -71,7 +66,7 @@ impl<'sess> ParsingContext<'sess> {
             Ok(path) => {
                 // Base paths from arguments to the current directory for shorter diagnostics
                 // output.
-                match path.strip_prefix(std::env::current_dir().unwrap_or(PathBuf::new())) {
+                match path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
                     Ok(path) => path.to_path_buf(),
                     Err(_) => path,
                 }
