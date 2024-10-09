@@ -856,6 +856,8 @@ symbols! {
         sha256,
         sig,
         solidity,
+        super_: "super",
+        this,
         transfer,
         transient,
         tx,

@@ -1,0 +1,44 @@
+error: identifier `this` already declared
+  --> $DIR/super_type.sol:14:12
+   |
+LL |     struct this { uint x; }
+   |            ^^^^
+   |
+
+error: identifier `super` already declared
+  --> $DIR/super_type.sol:15:12
+   |
+LL |     struct super { uint x; }
+   |            ^^^^^
+   |
+
+error: `this` is a builtin, which cannot be indexed in type paths
+  --> $DIR/super_type.sol:18:9
+   |
+LL |         this.S1 memory x0;
+   |         ^^^^
+   |
+
+error: `super` is a builtin, which cannot be indexed in type paths
+  --> $DIR/super_type.sol:19:9
+   |
+LL |         super.S1 memory x1;
+   |         ^^^^^
+   |
+
+error: `super` is a builtin, which cannot be indexed in type paths
+  --> $DIR/super_type.sol:20:9
+   |
+LL |         super.S2 memory x2;
+   |         ^^^^^
+   |
+
+error: `super` is a builtin, which cannot be indexed in type paths
+  --> $DIR/super_type.sol:21:9
+   |
+LL |         super.super.S2 memory x3;
+   |         ^^^^^
+   |
+
+error: aborting due to 6 previous errors
+

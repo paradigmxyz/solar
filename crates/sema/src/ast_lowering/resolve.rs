@@ -8,7 +8,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    Ident, Session, Span, Symbol,
+    sym, Ident, Session, Span, Symbol,
 };
 use std::sync::atomic::AtomicUsize;
 
@@ -144,12 +144,21 @@ impl super::LoweringContext<'_, '_, '_> {
             .hir
             .contracts()
             .map(|contract| {
-                let mut scope = Declarations::with_capacity(contract.items.len());
+                let mut scope = Declarations::with_capacity(contract.items.len() + 2);
+
+                // Declare `this` and `super`.
+                let span = Span::DUMMY;
+                let this = Declaration { kind: Res::Builtin(Builtin::This), span };
+                let _ = self.declare_in(&mut scope, sym::this, this);
+                let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span };
+                let _ = self.declare_in(&mut scope, sym::super_, super_);
+
                 for &item_id in contract.items {
                     if let Some(name) = self.hir.item(item_id).name() {
                         let _ = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                     }
                 }
+
                 scope
             })
             .collect();
@@ -208,6 +217,15 @@ impl super::LoweringContext<'_, '_, '_> {
                     next_id,
                 }
             };
+        }
+
+        // Register `this` and `super`.
+        for (id, c) in self.hir.contracts_enumerated() {
+            let this = Declaration { kind: Res::Builtin(Builtin::This), span: c.name.span };
+            self.resolver.contract_scopes[id].declarations.insert(sym::this, smallvec![this]);
+            let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span: c.name.span };
+            self.resolver.contract_scopes[id].declarations.insert(sym::super_, smallvec![super_]);
+            if c.linearized_bases.len() > 1 {}
         }
 
         for id in self.hir.strukt_ids() {
@@ -1104,6 +1122,9 @@ pub(super) fn report_conflict(
         }
     }
 
-    err = err.span_note(previous.span, "previous declaration declared here");
+    if !previous.span.is_dummy() {
+        err = err.span_note(previous.span, "previous declaration declared here");
+    }
+
     err.emit()
 }

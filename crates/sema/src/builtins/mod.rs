@@ -105,6 +105,9 @@ declare_builtins! {
     Abi                    => sym::abi
                            => gcx.mk_builtin_fn(&[], SM::View, &[]);
 
+    This                   => sym::this   => unreachable!();
+    Super                  => sym::super_ => unreachable!();
+
     // `block`
     BlockCoinbase          => kw::Coinbase
                            => gcx.types.address_payable;
