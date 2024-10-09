@@ -1,0 +1,16 @@
+error: unresolved symbol `C`
+  --> $DIR/type_paths.sol:12:14
+   |
+LL |         self.C.Unknown memory d
+   |              ^
+   |
+
+error: unresolved symbol `C`
+  --> $DIR/type_paths.sol:19:14
+   |
+LL |         self.C.Unknown memory h = self.C.Unknown(3);
+   |              ^
+   |
+
+error: aborting due to 2 previous errors
+

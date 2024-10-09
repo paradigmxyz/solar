@@ -751,6 +751,88 @@ impl LoopSource {
     }
 }
 
+/// Resolved name.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Res {
+    /// A resolved item.
+    Item(ItemId),
+    /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
+    Namespace(SourceId),
+    /// An error occurred while resolving the item. Silences further errors regarding this name.
+    Err(ErrorGuaranteed),
+}
+
+impl fmt::Debug for Res {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Declaration::")?;
+        match self {
+            Self::Item(id) => id.fmt(f),
+            Self::Namespace(id) => id.fmt(f),
+            Self::Err(_) => f.write_str("Err"),
+        }
+    }
+}
+
+impl From<ItemId> for Res {
+    fn from(id: ItemId) -> Self {
+        Self::Item(id)
+    }
+}
+
+macro_rules! impl_try_from {
+    ($($t:ty => $pat:pat => $e:expr),* $(,)?) => {
+        $(
+            impl TryFrom<Res> for $t {
+                type Error = ();
+
+                fn try_from(decl: Res) -> Result<Self, ()> {
+                    match decl {
+                        $pat => $e,
+                        _ => Err(()),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_try_from!(
+    ItemId => Res::Item(id) => Ok(id),
+    ContractId => Res::Item(ItemId::Contract(id)) => Ok(id),
+    // FunctionId => Res::Item(ItemId::Function(id)) => Ok(id),
+    EventId => Res::Item(ItemId::Event(id)) => Ok(id),
+    ErrorId => Res::Item(ItemId::Error(id)) => Ok(id),
+);
+
+#[allow(dead_code)]
+impl Res {
+    pub(super) fn description(&self) -> &'static str {
+        match self {
+            Self::Item(item) => item.description(),
+            Self::Namespace(_) => "namespace",
+            Self::Err(_) => "<error>",
+        }
+    }
+
+    pub(super) fn item_id(&self) -> Option<ItemId> {
+        match self {
+            Self::Item(id) => Some(*id),
+            _ => None,
+        }
+    }
+
+    pub(super) fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Item(a), Self::Item(b)) => a.matches(b),
+            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
+        }
+    }
+
+    pub(super) fn is_err(&self) -> bool {
+        matches!(self, Self::Err(_))
+    }
+}
+
 /// An expression.
 #[derive(Debug)]
 pub struct Expr<'hir> {
@@ -781,10 +863,12 @@ pub enum ExprKind<'hir> {
     /// A unary `delete` expression: `delete vector`.
     Delete(&'hir Expr<'hir>),
 
-    /// An identifier: `foo`. A reference to an item or variable.
-    Ident(ItemId),
+    /// A resolved symbol: `foo`.
+    ///
+    /// Potentially multiple references if it refers to something like an overloaded function.
+    Ident(&'hir [Res]),
 
-    /// A square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
+    /// A square bracketed indexing expression: `vector[index]`.
     Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
 
     /// A square bracketed slice expression: `slice[l:r]`.

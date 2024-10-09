@@ -15,7 +15,7 @@ mod lower;
 mod linearize;
 
 mod resolve;
-use resolve::{DeclarationKind, SymbolResolver};
+use resolve::{Res, SymbolResolver};
 
 // TODO: Use another arena for temporary allocations, like resolver scopes.
 
