@@ -1,3 +1,4 @@
+use super::Builtin;
 use crate::{
     hir,
     ty::{Gcx, Ty, TyFnPtr, TyKind},
@@ -5,8 +6,6 @@ use crate::{
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability as SM};
 use solar_data_structures::BumpExt;
 use solar_interface::{kw, sym, Symbol};
-
-use super::Builtin;
 
 pub type MemberMap<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberMapOwned<'gcx> = Vec<Member<'gcx>>;
@@ -37,9 +36,19 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> 
         TyKind::Struct(_tys, _id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
-        TyKind::Error(_tys, _id) => error(gcx),
-        TyKind::Event(_tys, _id) => event(gcx),
-        TyKind::Slf(_ty) => slf(gcx, ty),
+        TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::ErrorSelector]),
+        TyKind::Event(_tys, _id) => Member::of_builtins(gcx, [Builtin::EventSelector]),
+        TyKind::Module(_id) => {
+            // TODO: needs symbol resolver
+            Default::default()
+        }
+        TyKind::BuiltinModule(builtin) => builtin
+            .inner()
+            .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
+            .iter()
+            .map(|&b| Member::of_builtin(gcx, b))
+            .collect(),
+        TyKind::Type(_ty) => type_type(gcx, ty),
         TyKind::Meta(_ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),
     })
@@ -133,14 +142,6 @@ fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberMapOwned<'gcx
     todo!()
 }
 
-fn error(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
-    Member::of_builtins(gcx, [Builtin::ErrorSelector])
-}
-
-fn event(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
-    Member::of_builtins(gcx, [Builtin::EventSelector])
-}
-
 fn reference<'gcx>(
     gcx: Gcx<'gcx>,
     this: Ty<'gcx>,
@@ -182,7 +183,7 @@ fn reference<'gcx>(
 }
 
 // `Enum.Variant`, `Udvt.wrap`
-fn slf<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
+fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
     match ty.kind {
         // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
         TyKind::Contract(_) => Default::default(),

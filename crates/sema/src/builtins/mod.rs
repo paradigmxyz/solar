@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir,
@@ -95,15 +93,14 @@ declare_builtins! {
     EcRecover              => sym::ecrecover
                            => gcx.mk_builtin_fn(&[gcx.types.fixed_bytes(32), gcx.types.uint(8), gcx.types.fixed_bytes(32), gcx.types.fixed_bytes(32)], SM::View, &[gcx.types.address]);
 
-    // TODO: Builtin namespace type
     Block                  => sym::block
-                           => gcx.mk_builtin_fn(&[], SM::View, &[]);
+                           => gcx.mk_builtin_mod(Self::Block);
     Msg                    => sym::msg
-                           => gcx.mk_builtin_fn(&[], SM::View, &[]);
+                           => gcx.mk_builtin_mod(Self::Msg);
     Tx                     => sym::tx
-                           => gcx.mk_builtin_fn(&[], SM::View, &[]);
+                           => gcx.mk_builtin_mod(Self::Tx);
     Abi                    => sym::abi
-                           => gcx.mk_builtin_fn(&[], SM::View, &[]);
+                           => gcx.mk_builtin_mod(Self::Abi);
 
     This                   => sym::this   => unreachable!();
     Super                  => sym::super_ => unreachable!();
@@ -210,7 +207,7 @@ declare_builtins! {
     TypeMin                => sym::min => unreachable!();
     TypeMax                => sym::max => unreachable!();
 
-    // `TyKind::Sfl` (Udvt.wrap, on the type, not the value)
+    // `TyKind::Type` (`string.concat`, on the `string` type, not a string value)
     UdvtWrap               => sym::wrap   => unreachable!();
     UdvtUnwrap             => sym::unwrap => unreachable!();
 
@@ -224,8 +221,9 @@ declare_builtins! {
 }
 
 impl Builtin {
+    /// Returns an iterator over all builtins.
     #[inline]
-    fn iter() -> impl ExactSizeIterator<Item = Self> {
+    pub fn iter() -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> Self> {
         (0..Self::COUNT).map(|i| Self::from_index(i).unwrap())
     }
 

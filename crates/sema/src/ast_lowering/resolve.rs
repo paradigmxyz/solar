@@ -403,10 +403,6 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         }
     }
 
-    fn dcx(&self) -> &'sess DiagCtxt {
-        &self.sess.dcx
-    }
-
     fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
         self.scopes.enter();
         let t = f(self);
@@ -427,6 +423,11 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         path: &ast::PathSlice,
     ) -> Result<&'a [Declaration], ErrorGuaranteed> {
         self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
+    }
+
+    fn resolve_path_as_res(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
+        self.resolve_paths(path)
+            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)))
     }
 
     fn resolve_path_as<T: TryFrom<Res>>(
@@ -465,7 +466,8 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 hir::StmtKind::DeclMulti(self.arena.alloc_smallvec(ids), self.lower_expr(expr))
             }
             ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
+                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
+                ErrorGuaranteed::new_unchecked(),
             ),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
@@ -479,12 +481,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::While(_, _)
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_path_as(path, "event") {
-                Ok(id) => hir::StmtKind::Emit(id, self.lower_call_args(args)),
+            ast::StmtKind::Emit(path, args) => match self.resolve_path_as_res(path) {
+                Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Revert(path, args) => match self.resolve_path_as(path, "error") {
-                Ok(id) => hir::StmtKind::Revert(id, self.lower_call_args(args)),
+            ast::StmtKind::Revert(path, args) => match self.resolve_path_as_res(path) {
+                Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),

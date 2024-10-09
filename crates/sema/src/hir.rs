@@ -675,10 +675,10 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(EventId, CallArgs<'hir>),
+    Emit(&'hir [Res], CallArgs<'hir>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(ErrorId, CallArgs<'hir>),
+    Revert(&'hir [Res], CallArgs<'hir>),
 
     /// A return statement: `return 42;`.
     Return(Option<&'hir Expr<'hir>>),

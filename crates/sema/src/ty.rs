@@ -1,5 +1,8 @@
 use crate::{
-    builtins::members::{self, MemberMap},
+    builtins::{
+        members::{self, MemberMap},
+        Builtin,
+    },
     hir::{self, Hir},
 };
 use alloy_primitives::{keccak256, Selector, B256};
@@ -17,6 +20,42 @@ use thread_local::ThreadLocal;
 type FxDashSet<T> = dashmap::DashMap<T, (), FxBuildHasher>;
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+
+/// A function exported by a contract.
+#[derive(Clone, Copy, Debug)]
+pub struct InterfaceFunction<'gcx> {
+    /// The function 4-byte selector.
+    pub selector: Selector,
+    /// The function ID.
+    pub id: hir::FunctionId,
+    /// The function type. This is always a function pointer.
+    pub ty: Ty<'gcx>,
+}
+
+/// List of all the functions exported by a contract.
+///
+/// Return type of [`Gcx::interface_functions`].
+#[derive(Clone, Copy, Debug)]
+pub struct InterfaceFunctions<'gcx> {
+    /// The exported functions along with their selector.
+    pub functions: &'gcx [InterfaceFunction<'gcx>],
+    /// The index in `functions` where the inherited functions start.
+    pub inheritance_start: usize,
+}
+
+impl<'gcx> InterfaceFunctions<'gcx> {
+    pub fn all_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        self.functions
+    }
+
+    pub fn own_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        &self.functions[..self.inheritance_start]
+    }
+
+    pub fn inherited_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+        &self.functions[self.inheritance_start..]
+    }
+}
 
 /// Reference to the [global context](GlobalCtxt).
 #[derive(Clone, Copy)]
@@ -85,6 +124,10 @@ impl<'gcx> Gcx<'gcx> {
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
         self.mk_fn_type(parameters, state_mutability, Visibility::Internal, returns)
+    }
+
+    pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {
+        Ty::new(&self.interner, TyKind::BuiltinModule(builtin))
     }
 
     pub fn mk_fn_type(
@@ -160,10 +203,22 @@ impl<'gcx> Gcx<'gcx> {
                 let value = self.type_of_hir_ty(&mapping.value);
                 TyKind::Mapping(key, value)
             }
-            hir::TypeKind::Custom(id) => return self.type_of_item(id),
+            hir::TypeKind::Custom(item) => return self.type_of_item(item),
             hir::TypeKind::Err(guar) => TyKind::Err(guar),
         };
         Ty::new(&self.interner, kind)
+    }
+
+    #[allow(dead_code)]
+    fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
+        match res {
+            hir::Res::Item(id) => self.type_of_item(id),
+            hir::Res::Namespace(id) => Ty::new(&self.interner, TyKind::Module(id)),
+            hir::Res::Builtin(builtin) => builtin.ty(self),
+            hir::Res::Err(error_guaranteed) => {
+                Ty::new(&self.interner, TyKind::Err(error_guaranteed))
+            }
+        }
     }
 }
 
@@ -188,42 +243,6 @@ macro_rules! cached {
             )*
         }
     };
-}
-
-/// A function exported by a contract.
-#[derive(Clone, Copy, Debug)]
-pub struct InterfaceFunction<'gcx> {
-    /// The function 4-byte selector.
-    pub selector: Selector,
-    /// The function ID.
-    pub id: hir::FunctionId,
-    /// The function type. This is always a function pointer.
-    pub ty: Ty<'gcx>,
-}
-
-/// List of all the functions exported by a contract.
-///
-/// Return type of [`Gcx::interface_functions`].
-#[derive(Clone, Copy, Debug)]
-pub struct InterfaceFunctions<'gcx> {
-    /// The exported functions along with their selector.
-    pub functions: &'gcx [InterfaceFunction<'gcx>],
-    /// The index in `functions` where the inherited functions start.
-    pub inheritance_start: usize,
-}
-
-impl<'gcx> InterfaceFunctions<'gcx> {
-    pub fn all_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
-        self.functions
-    }
-
-    pub fn own_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
-        &self.functions[..self.inheritance_start]
-    }
-
-    pub fn inherited_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
-        &self.functions[self.inheritance_start..]
-    }
 }
 
 cached! {
@@ -676,11 +695,11 @@ impl<'gcx> Ty<'gcx> {
         Self::new(interner, TyKind::Ref(self, loc))
     }
 
-    pub fn make_slf(self, interner: &Interner<'gcx>) -> Self {
-        if let TyKind::Slf(_) = self.kind {
+    pub fn make_type_type(self, interner: &Interner<'gcx>) -> Self {
+        if let TyKind::Type(_) = self.kind {
             return self;
         }
-        Self::new(interner, TyKind::Slf(self))
+        Self::new(interner, TyKind::Type(self))
     }
 
     pub fn make_meta(self, interner: &Interner<'gcx>) -> Self {
@@ -764,9 +783,15 @@ pub enum TyKind<'gcx> {
     /// A user-defined value type. `Ty` can only be `Elementary`.
     Udvt(Ty<'gcx>, hir::UdvtId),
 
+    /// A source imported as a module: `import "path" as Module;`.
+    Module(hir::SourceId),
+
+    /// Builtin module.
+    BuiltinModule(Builtin),
+
     /// The self-referential type, e.g. `Enum` in `Enum.Variant`.
     /// Corresponds to `TypeType` in solc.
-    Slf(Ty<'gcx>),
+    Type(Ty<'gcx>),
 
     /// The meta type: `type(<inner_type>)`.
     Meta(Ty<'gcx>),
