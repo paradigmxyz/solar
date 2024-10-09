@@ -131,7 +131,7 @@ regex = "1.10"
 walkdir = "2.4"
 
 # misc
-ahash = "0.8"
+arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
 cfg-if = "1.0"

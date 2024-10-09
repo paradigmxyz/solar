@@ -1,4 +1,7 @@
-use crate::{context::TestOutput, Config, TestCx, TestFns, TestResult};
+use crate::{
+    context::{PathBufExt, TestOutput},
+    Config, TestCx, TestFns, TestResult,
+};
 use std::path::Path;
 
 pub(crate) const FNS: TestFns = TestFns { check, run };
@@ -11,9 +14,10 @@ fn run(cx: &TestCx<'_>) -> TestResult {
     let path = cx.paths.file.as_path();
     let mut cmd = cx.cmd();
     cmd.arg(path);
-    if path.extension() == Some(std::ffi::OsStr::new("yul")) {
+    if path.extension() == Some("yul".as_ref()) {
         cmd.arg("--language=yul").arg("-Zparse-yul");
     }
+    cmd.args(&cx.props.compile_flags);
     let output = cx.run_cmd(cmd);
 
     let errors = cx.load_compare_outputs(&output, TestOutput::Compile, false);
@@ -29,6 +33,19 @@ fn run(cx: &TestCx<'_>) -> TestResult {
     }
 
     cx.check_expected_errors(&output);
+
+    if cx.props.filecheck_stdout {
+        let stdout_path = cx.output_base_name().with_extra_extension("stdout");
+        assert!(
+            stdout_path.exists(),
+            "stdout file missing for filecheck: {}",
+            stdout_path.display()
+        );
+        let output = cx.verify_with_filecheck(&stdout_path);
+        if !output.status.success() {
+            cx.fatal_proc_rec("filecheck failed", &output);
+        }
+    }
 
     TestResult::Passed
 }

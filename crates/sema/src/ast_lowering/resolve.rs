@@ -1,4 +1,4 @@
-use crate::{hir, ParsedSources};
+use crate::{builtins::Builtin, hir, ParsedSources};
 use solar_ast::ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
@@ -794,11 +794,20 @@ pub(super) struct SymbolResolver<'sess> {
     dcx: &'sess DiagCtxt,
     pub(super) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(super) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    global_builtin_scope: Declarations,
+    inner_builtin_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
 impl<'sess> SymbolResolver<'sess> {
     pub(super) fn new(dcx: &'sess DiagCtxt) -> Self {
-        Self { dcx, source_scopes: IndexVec::new(), contract_scopes: IndexVec::new() }
+        let (global_builtin_scope, inner_builtin_scopes) = crate::builtins::scopes();
+        Self {
+            dcx,
+            source_scopes: IndexVec::new(),
+            contract_scopes: IndexVec::new(),
+            global_builtin_scope,
+            inner_builtin_scopes,
+        }
     }
 
     fn resolve_path_as<T: TryFrom<Res>>(
@@ -857,7 +866,7 @@ impl<'sess> SymbolResolver<'sess> {
                 ResolverError::from_path(path, prev_i, ResolverErrorKind::NotAScope(decl.kind))
             })?;
             decls = scope.resolve(segment).ok_or_else(|| {
-                ResolverError::from_path(path, prev_i, ResolverErrorKind::Unresolved)
+                ResolverError::from_path(path, prev_i + 1, ResolverErrorKind::Unresolved)
             })?;
         }
         Ok(decls)
@@ -875,6 +884,7 @@ impl<'sess> SymbolResolver<'sess> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
+            Res::Builtin(builtin) => self.inner_builtin_scopes[builtin as usize].as_ref(),
             _ => None,
         }
     }
@@ -911,22 +921,21 @@ impl SymbolResolverScopes {
     }
 
     #[inline]
-    #[allow(clippy::filter_map_identity)] // More efficient than flatten.
     fn get<'a>(
         &'a self,
         resolver: &'a SymbolResolver<'_>,
     ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
         debug_assert!(self.source.is_some() || self.contract.is_some());
-        let scopes = self.scopes.iter().rev();
-        let outer = [
+        let mut scopes = arrayvec::ArrayVec::<_, 3>::new();
+        if let Some(contract) = self.contract {
             // NOTE: Inheritance is flattened into each contract.
-            self.contract.map(|id| &resolver.contract_scopes[id]),
-            self.source.map(|id| &resolver.source_scopes[id]),
-        ]
-        .into_iter()
-        .filter_map(std::convert::identity);
-        // let builtins = None::<&Declarations>;
-        scopes.chain(outer) //.chain(builtins)
+            scopes.push(&resolver.contract_scopes[contract]);
+        }
+        if let Some(source) = self.source {
+            scopes.push(&resolver.source_scopes[source]);
+        }
+        scopes.push(&resolver.global_builtin_scope);
+        self.scopes.iter().rev().chain(scopes)
     }
 
     fn enter(&mut self) {
@@ -946,33 +955,33 @@ impl SymbolResolverScopes {
 }
 
 #[derive(Debug)]
-pub(super) struct Declarations {
-    pub(super) declarations: FxIndexMap<Symbol, DeclarationsInner>,
+pub(crate) struct Declarations {
+    pub(crate) declarations: FxIndexMap<Symbol, DeclarationsInner>,
 }
 
 type DeclarationsInner = SmallVec<[Declaration; 1]>;
 
 impl Declarations {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::with_capacity(0)
     }
 
-    pub(super) fn with_capacity(capacity: usize) -> Self {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
-    pub(super) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
+    pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
         self.declarations.get(&name.name).map(std::ops::Deref::deref)
     }
 
-    pub(super) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
+    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
         self.declarations.get(&name.name).cloned()
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to
     /// `name => Declaration { kind, span }`.
     #[inline]
-    pub(super) fn declare_kind(
+    pub(crate) fn declare_kind(
         &mut self,
         sess: &Session,
         hir: &hir::Hir<'_>,
@@ -982,7 +991,7 @@ impl Declarations {
         self.declare(sess, hir, name.name, Declaration { kind, span: name.span })
     }
 
-    pub(super) fn declare(
+    pub(crate) fn declare(
         &mut self,
         sess: &Session,
         hir: &hir::Hir<'_>,
@@ -993,7 +1002,7 @@ impl Declarations {
             .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
     }
 
-    pub(super) fn try_declare(
+    pub(crate) fn try_declare(
         &mut self,
         hir: &hir::Hir<'_>,
         name: Symbol,
@@ -1050,9 +1059,9 @@ impl Declarations {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Declaration {
-    pub(super) kind: Res,
-    pub(super) span: Span,
+pub(crate) struct Declaration {
+    pub(crate) kind: Res,
+    pub(crate) span: Span,
 }
 
 impl std::ops::Deref for Declaration {

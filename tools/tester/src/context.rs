@@ -255,6 +255,34 @@ impl TestCx<'_> {
         }
     }
 
+    pub fn verify_with_filecheck(&self, output: &Path) -> ProcRes {
+        let mut filecheck = Command::new("FileCheck");
+        filecheck.arg("--input-file").arg(output).arg(&self.paths.file);
+
+        // FIXME: Consider making some of these prefix flags opt-in per test,
+        // via `filecheck-flags` or by adding new header directives.
+
+        // Because we use custom prefixes, we also have to register the default prefix.
+        filecheck.arg("--check-prefix=CHECK");
+
+        // Some tests use the current revision name as a check prefix.
+        if let Some(rev) = self.revision {
+            filecheck.arg("--check-prefix").arg(rev);
+        }
+
+        // The filecheck tool normally fails if a prefix is defined but not used.
+        // However, we define several prefixes globally for all tests.
+        filecheck.arg("--allow-unused-prefixes");
+
+        // Provide more context on failures.
+        filecheck.args(["--dump-input-context", "100"]);
+
+        // // Add custom flags supplied by the `filecheck-flags:` test header.
+        // filecheck.args(&self.props.filecheck_flags);
+
+        self.run_cmd(filecheck)
+    }
+
     pub fn check_expected_errors(&self, output: &ProcRes) {
         let expected_errors = &self.props.expected_errors[..];
 

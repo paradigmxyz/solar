@@ -14,7 +14,7 @@ mod lower;
 
 mod linearize;
 
-mod resolve;
+pub(crate) mod resolve;
 use resolve::{Res, SymbolResolver};
 
 // TODO: Use another arena for temporary allocations, like resolver scopes.

@@ -3,32 +3,110 @@ use crate::{
     ty::{Gcx, Ty, TyFnPtr, TyKind},
 };
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability as SM};
+use solar_data_structures::BumpExt;
 use solar_interface::{kw, sym, Symbol};
 
-pub(crate) use super::builtin_members::*;
+use super::Builtin;
 
 pub type MemberMap<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberMapOwned<'gcx> = Vec<Member<'gcx>>;
+
+pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
+    let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
+    gcx.bump().alloc_vec(match ty.kind {
+        TyKind::Elementary(elementary_type) => match elementary_type {
+            ElementaryType::Address(false) => address(gcx).collect(),
+            ElementaryType::Address(true) => address_payable(gcx).collect(),
+            ElementaryType::Bool => Default::default(),
+            ElementaryType::String => Default::default(),
+            ElementaryType::Bytes => expected_ref(),
+            ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => Default::default(),
+            ElementaryType::Int(_size) => Default::default(),
+            ElementaryType::UInt(_size) => Default::default(),
+            ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
+        },
+        TyKind::StringLiteral(_utf8, _size) => Default::default(),
+        TyKind::IntLiteral(_size) => Default::default(),
+        TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
+        TyKind::DynArray(_ty) => expected_ref(),
+        TyKind::Array(_ty, _len) => expected_ref(),
+        TyKind::Tuple(_tys) => Default::default(),
+        TyKind::Mapping(..) => Default::default(),
+        TyKind::FnPtr(f) => function(gcx, f),
+        TyKind::Contract(id) => contract(gcx, id),
+        TyKind::Struct(_tys, _id) => expected_ref(),
+        TyKind::Enum(_id) => Default::default(),
+        TyKind::Udvt(_ty, _id) => Default::default(),
+        TyKind::Error(_tys, _id) => error(gcx),
+        TyKind::Event(_tys, _id) => event(gcx),
+        TyKind::Slf(_ty) => slf(gcx, ty),
+        TyKind::Meta(_ty) => meta(gcx, ty),
+        TyKind::Err(_guar) => Default::default(),
+    })
+}
 
 #[derive(Clone, Copy)]
 pub struct Member<'gcx> {
     pub name: Symbol,
     pub ty: Ty<'gcx>,
-    pub id: Option<hir::ItemId>,
+    pub res: Option<hir::Res>,
 }
 
 impl<'gcx> Member<'gcx> {
     pub fn new(name: Symbol, ty: Ty<'gcx>) -> Self {
-        Self { name, ty, id: None }
+        Self { name, ty, res: None }
     }
 
-    pub fn with_id(name: Symbol, ty: Ty<'gcx>, id: hir::ItemId) -> Self {
-        Self { name, ty, id: Some(id) }
+    pub fn with_res(name: Symbol, ty: Ty<'gcx>, res: impl Into<hir::Res>) -> Self {
+        Self { name, ty, res: Some(res.into()) }
+    }
+
+    pub fn with_builtin(builtin: Builtin, ty: Ty<'gcx>) -> Self {
+        Self::with_res(builtin.name(), ty, builtin)
+    }
+
+    pub fn of_builtin(gcx: Gcx<'gcx>, builtin: Builtin) -> Self {
+        Self { name: builtin.name(), ty: builtin.ty(gcx), res: None }
+    }
+
+    pub fn of_builtins(
+        gcx: Gcx<'gcx>,
+        builtins: impl IntoIterator<Item = Builtin>,
+    ) -> MemberMapOwned<'gcx> {
+        Self::of_builtins_iter(gcx, builtins).collect()
+    }
+
+    pub fn of_builtins_iter(
+        gcx: Gcx<'gcx>,
+        builtins: impl IntoIterator<Item = Builtin>,
+    ) -> impl Iterator<Item = Self> {
+        builtins.into_iter().map(move |builtin| Self::of_builtin(gcx, builtin))
     }
 }
 
-pub(crate) fn address_payable(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
-    address_iter(gcx).chain(_address_payable_iter(gcx)).collect()
+fn address(gcx: Gcx<'_>) -> impl Iterator<Item = Member<'_>> {
+    Member::of_builtins_iter(
+        gcx,
+        [
+            Builtin::AddressBalance,
+            Builtin::AddressCode,
+            Builtin::AddressCodehash,
+            Builtin::AddressCall,
+            Builtin::AddressDelegatecall,
+            Builtin::AddressStaticcall,
+        ],
+    )
+}
+
+fn address_payable(gcx: Gcx<'_>) -> impl Iterator<Item = Member<'_>> {
+    address(gcx).chain(Member::of_builtins_iter(
+        gcx,
+        [Builtin::AddressPayableTransfer, Builtin::AddressPayableSend],
+    ))
+}
+
+fn fixed_bytes(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::FixedBytesLength])
 }
 
 pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberMapOwned<'_> {
@@ -40,21 +118,30 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberMapOwned<'_> 
         .all_functions()
         .iter()
         .map(|f| {
-            Member::with_id(
-                gcx.item_name(f.id.into()).name,
+            let id = hir::ItemId::from(f.id);
+            Member::with_res(
+                gcx.item_name(id).name,
                 f.ty.as_externally_callable_function(&gcx.interner),
-                f.id.into(),
+                id,
             )
         })
         .collect()
 }
 
-pub(crate) fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberMapOwned<'gcx> {
+fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberMapOwned<'gcx> {
     let _ = (gcx, f);
     todo!()
 }
 
-pub(crate) fn reference<'gcx>(
+fn error(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::ErrorSelector])
+}
+
+fn event(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::EventSelector])
+}
+
+fn reference<'gcx>(
     gcx: Gcx<'gcx>,
     this: Ty<'gcx>,
     inner: Ty<'gcx>,
@@ -80,10 +167,7 @@ pub(crate) fn reference<'gcx>(
                 gcx.types.fixed_bytes(1)
             };
             vec![
-                Member::new(
-                    sym::length,
-                    gcx.mk_builtin_fn(&[this], SM::View, &[gcx.types.uint(256)]),
-                ),
+                Member::new(sym::length, gcx.types.uint(256)),
                 Member::new(sym::push, gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[])),
                 Member::new(sym::push, gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner])),
                 Member::new(kw::Pop, gcx.mk_builtin_fn(&[this], SM::NonPayable, &[])),
@@ -98,7 +182,7 @@ pub(crate) fn reference<'gcx>(
 }
 
 // `Enum.Variant`, `Udvt.wrap`
-pub(crate) fn slf<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
+fn slf<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
     match ty.kind {
         // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
         TyKind::Contract(_) => Default::default(),
@@ -107,18 +191,24 @@ pub(crate) fn slf<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
         }
         TyKind::Udvt(inner, _id) => {
             vec![
-                Member::new(sym::wrap, gcx.mk_builtin_fn(&[inner], SM::Pure, &[ty])),
-                Member::new(sym::unwrap, gcx.mk_builtin_fn(&[ty], SM::Pure, &[inner])),
+                Member::with_builtin(
+                    Builtin::UdvtWrap,
+                    gcx.mk_builtin_fn(&[inner], SM::Pure, &[ty]),
+                ),
+                Member::with_builtin(
+                    Builtin::UdvtUnwrap,
+                    gcx.mk_builtin_fn(&[ty], SM::Pure, &[inner]),
+                ),
             ]
         }
-        TyKind::Elementary(ElementaryType::String) => String(gcx),
-        TyKind::Elementary(ElementaryType::Bytes) => Bytes(gcx),
+        TyKind::Elementary(ElementaryType::String) => string_ty(gcx),
+        TyKind::Elementary(ElementaryType::Bytes) => bytes_ty(gcx),
         _ => Default::default(),
     }
 }
 
 // `type(T)`
-pub(crate) fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
+fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
     match ty.kind {
         TyKind::Contract(id) => {
             if gcx.hir.contract(id).can_be_deployed() {
@@ -128,8 +218,34 @@ pub(crate) fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
             }
         }
         TyKind::Elementary(ElementaryType::Int(_) | ElementaryType::UInt(_)) | TyKind::Enum(_) => {
-            vec![Member::new(sym::min, ty), Member::new(sym::max, ty)]
+            vec![
+                Member::with_builtin(Builtin::TypeMin, ty),
+                Member::with_builtin(Builtin::TypeMax, ty),
+            ]
         }
         _ => Default::default(),
     }
+}
+
+fn array(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::ArrayLength])
+}
+
+fn string_ty(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::StringConcat])
+}
+
+fn bytes_ty(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::BytesConcat])
+}
+
+fn type_contract(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(
+        gcx,
+        [Builtin::ContractCreationCode, Builtin::ContractRuntimeCode, Builtin::ContractName],
+    )
+}
+
+fn type_interface(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+    Member::of_builtins(gcx, [Builtin::InterfaceId, Builtin::ContractName])
 }

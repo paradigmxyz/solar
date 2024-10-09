@@ -26,7 +26,6 @@ impl Type<'_> {
 }
 
 /// The kind of a type.
-#[derive(Debug)]
 pub enum TypeKind<'ast> {
     /// An elementary/primitive type.
     Elementary(ElementaryType),
@@ -40,6 +39,18 @@ pub enum TypeKind<'ast> {
 
     /// A custom type.
     Custom(AstPath<'ast>),
+}
+
+impl fmt::Debug for TypeKind<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Elementary(ty) => write!(f, "Elementary({ty:?})"),
+            Self::Array(ty) => write!(f, "Array({ty:?})"),
+            Self::Function(ty) => write!(f, "Function({ty:?})"),
+            Self::Mapping(ty) => write!(f, "Mapping({ty:?})"),
+            Self::Custom(path) => write!(f, "Custom({path:?})"),
+        }
+    }
 }
 
 impl TypeKind<'_> {
@@ -59,7 +70,7 @@ impl TypeKind<'_> {
 /// Elementary/primitive type.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ElementaryType {
     /// Ethereum address, 20-byte fixed-size byte array.
     /// `address $(payable)?`
@@ -95,6 +106,23 @@ pub enum ElementaryType {
     /// `size @ 1..=32 => bytes{size}`
     /// `0 | 33.. => unreachable!()`
     FixedBytes(TypeSize),
+}
+
+impl fmt::Debug for ElementaryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Address(false) => f.write_str("Address"),
+            Self::Address(true) => f.write_str("AddressPayable"),
+            Self::Bool => f.write_str("Bool"),
+            Self::String => f.write_str("String"),
+            Self::Bytes => f.write_str("Bytes"),
+            Self::Fixed(size, fixed) => write!(f, "Fixed({}, {})", size.bytes_raw(), fixed.get()),
+            Self::UFixed(size, fixed) => write!(f, "UFixed({}, {})", size.bytes_raw(), fixed.get()),
+            Self::Int(size) => write!(f, "Int({})", size.bits_raw()),
+            Self::UInt(size) => write!(f, "UInt({})", size.bits_raw()),
+            Self::FixedBytes(size) => write!(f, "FixedBytes({})", size.bytes_raw()),
+        }
+    }
 }
 
 impl ElementaryType {

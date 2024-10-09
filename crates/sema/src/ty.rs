@@ -324,37 +324,7 @@ pub fn type_of_item(gcx: Gcx<'gcx>, id: hir::ItemId) -> Ty<'gcx> {
 
 /// Returns the members of the given type.
 pub fn members_of(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
-    let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
-    gcx.bump().alloc_vec(match ty.kind {
-        TyKind::Elementary(elementary_type) => match elementary_type {
-            ElementaryType::Address(false) => members::address(gcx),
-            ElementaryType::Address(true) => members::address_payable(gcx),
-            ElementaryType::Bool => Default::default(),
-            ElementaryType::String => Default::default(),
-            ElementaryType::Bytes => expected_ref(),
-            ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => Default::default(),
-            ElementaryType::Int(_size) => Default::default(),
-            ElementaryType::UInt(_size) => Default::default(),
-            ElementaryType::FixedBytes(_size) => members::fixed_bytes(gcx),
-        },
-        TyKind::StringLiteral(_utf8, _size) => Default::default(),
-        TyKind::IntLiteral(_size) => Default::default(),
-        TyKind::Ref(inner, loc) => members::reference(gcx, ty, inner, loc),
-        TyKind::DynArray(_ty) => expected_ref(),
-        TyKind::Array(_ty, _len) => expected_ref(),
-        TyKind::Tuple(_tys) => Default::default(),
-        TyKind::Mapping(..) => Default::default(),
-        TyKind::FnPtr(f) => members::function(gcx, f),
-        TyKind::Contract(id) => members::contract(gcx, id),
-        TyKind::Struct(_tys, _id) => expected_ref(),
-        TyKind::Enum(_id) => Default::default(),
-        TyKind::Udvt(_ty, _id) => Default::default(),
-        TyKind::Error(_tys, _id) => members::error(gcx),
-        TyKind::Event(_tys, _id) => members::event(gcx),
-        TyKind::Slf(_ty) => members::slf(gcx, ty),
-        TyKind::Meta(_ty) => members::meta(gcx, ty),
-        TyKind::Err(_guar) => Default::default(),
-    })
+    members::members_of(gcx, ty)
 }
 }
 

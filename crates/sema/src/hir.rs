@@ -1,5 +1,6 @@
 //! High-level intermediate representation (HIR).
 
+use crate::builtins::Builtin;
 use derive_more::derive::From;
 use rayon::prelude::*;
 use solar_ast::ast;
@@ -752,30 +753,27 @@ impl LoopSource {
 }
 
 /// Resolved name.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, From)]
 pub enum Res {
     /// A resolved item.
     Item(ItemId),
     /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
     Namespace(SourceId),
+    /// A builtin symbol.
+    Builtin(Builtin),
     /// An error occurred while resolving the item. Silences further errors regarding this name.
     Err(ErrorGuaranteed),
 }
 
 impl fmt::Debug for Res {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declaration::")?;
+        f.write_str("Res::")?;
         match self {
-            Self::Item(id) => id.fmt(f),
-            Self::Namespace(id) => id.fmt(f),
+            Self::Item(id) => write!(f, "Item({id:?})"),
+            Self::Namespace(id) => write!(f, "Namespace({id:?})"),
+            Self::Builtin(b) => write!(f, "Builtin({b:?})"),
             Self::Err(_) => f.write_str("Err"),
         }
-    }
-}
-
-impl From<ItemId> for Res {
-    fn from(id: ItemId) -> Self {
-        Self::Item(id)
     }
 }
 
@@ -804,31 +802,24 @@ impl_try_from!(
     ErrorId => Res::Item(ItemId::Error(id)) => Ok(id),
 );
 
-#[allow(dead_code)]
 impl Res {
-    pub(super) fn description(&self) -> &'static str {
+    pub fn description(&self) -> &'static str {
         match self {
             Self::Item(item) => item.description(),
             Self::Namespace(_) => "namespace",
+            Self::Builtin(_) => "builtin",
             Self::Err(_) => "<error>",
         }
     }
 
-    pub(super) fn item_id(&self) -> Option<ItemId> {
-        match self {
-            Self::Item(id) => Some(*id),
-            _ => None,
-        }
-    }
-
-    pub(super) fn matches(&self, other: &Self) -> bool {
+    pub fn matches(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Item(a), Self::Item(b)) => a.matches(b),
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
 
-    pub(super) fn is_err(&self) -> bool {
+    pub fn is_err(&self) -> bool {
         matches!(self, Self::Err(_))
     }
 }

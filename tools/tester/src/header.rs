@@ -16,7 +16,10 @@ pub struct TestProps {
     pub dont_check_compiler_stderr: bool,
     pub compare_output_lines_by_subset: bool,
 
+    pub filecheck_stdout: bool,
+
     pub evm_version: Option<String>,
+    pub compile_flags: Vec<String>,
 
     pub test_value: Option<String>,
 }
@@ -37,7 +40,9 @@ impl TestProps {
             dont_check_compiler_stdout: false,
             dont_check_compiler_stderr: false,
             compare_output_lines_by_subset: false,
+            filecheck_stdout: false,
             evm_version: None,
+            compile_flags: Vec::new(),
             test_value: None,
         }
     }
@@ -54,8 +59,21 @@ impl TestProps {
             let mut parser = DirectiveParser::new(line);
             parser.parse_directive();
             match parser.directive.kind {
-                DirectiveKind::Dummy => {}
+                DirectiveKind::DontCheckCompilerStdout => {
+                    parser.bool(&mut props.dont_check_compiler_stdout)
+                }
+                DirectiveKind::DontCheckCompilerStderr => {
+                    parser.bool(&mut props.dont_check_compiler_stderr)
+                }
+                DirectiveKind::CompareOutputLinesBySubset => {
+                    parser.bool(&mut props.compare_output_lines_by_subset)
+                }
+                DirectiveKind::FilecheckStdout => parser.bool(&mut props.filecheck_stdout),
+
                 DirectiveKind::EvmVersion => parser.word_value(&mut props.evm_version),
+                DirectiveKind::CompileFlags => parser.words(&mut props.compile_flags),
+
+                DirectiveKind::Dummy => {}
                 DirectiveKind::TestValue => parser.word_value(&mut props.test_value),
             }
         });
@@ -95,16 +113,29 @@ impl TestDirective {
 
 #[derive(Debug, PartialEq, Eq)]
 enum DirectiveKind {
-    Dummy,
+    DontCheckCompilerStdout,
+    DontCheckCompilerStderr,
+    CompareOutputLinesBySubset,
+    FilecheckStdout,
+
     EvmVersion,
+
+    CompileFlags,
+
+    Dummy,
     TestValue,
 }
 
 impl DirectiveKind {
     fn from_str_(s: &str) -> Option<Self> {
         match s {
+            "dont-check-compiler-stdout" => Some(Self::DontCheckCompilerStdout),
+            "dont-check-compiler-stderr" => Some(Self::DontCheckCompilerStderr),
+            "compare-output-lines-by-subset" => Some(Self::CompareOutputLinesBySubset),
+            "filecheck-stdout" => Some(Self::FilecheckStdout),
             "evm-version" => Some(Self::EvmVersion),
             "test-value" => Some(Self::TestValue),
+            "compile-flags" => Some(Self::CompileFlags),
             _ => None,
         }
     }
@@ -137,6 +168,11 @@ impl<'a> DirectiveParser<'a> {
         self.directive = TestDirective { negative, kind };
     }
 
+    #[inline]
+    fn bool(&mut self, value: &mut bool) {
+        *value = !self.directive.negative;
+    }
+
     fn word_value<T>(&mut self, value: &mut Option<T>)
     where
         T: std::str::FromStr,
@@ -153,6 +189,19 @@ impl<'a> DirectiveParser<'a> {
         }
         self.line = &self.line[word.len()..];
         *value = Some(word.parse().unwrap());
+    }
+
+    fn words<T>(&mut self, value: &mut Vec<T>)
+    where
+        T: std::str::FromStr,
+        T::Err: std::fmt::Debug,
+    {
+        self.expect_no_negative();
+
+        self.char(':');
+        self.whitespace();
+
+        value.extend(self.line.split_ascii_whitespace().map(|s| s.parse().unwrap()));
     }
 
     fn char(&mut self, c: char) {

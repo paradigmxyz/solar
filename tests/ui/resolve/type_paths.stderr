@@ -1,15 +1,15 @@
-error: unresolved symbol `C`
-  --> $DIR/type_paths.sol:12:14
+error: unresolved symbol `Unknown`
+  --> $DIR/type_paths.sol:12:16
    |
 LL |         self.C.Unknown memory d
-   |              ^
+   |                ^^^^^^^
    |
 
-error: unresolved symbol `C`
-  --> $DIR/type_paths.sol:19:14
+error: unresolved symbol `Unknown`
+  --> $DIR/type_paths.sol:19:16
    |
 LL |         self.C.Unknown memory h = self.C.Unknown(3);
-   |              ^
+   |                ^^^^^^^
    |
 
 error: aborting due to 2 previous errors
