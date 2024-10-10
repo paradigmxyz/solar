@@ -4,7 +4,7 @@ use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::Num;
 use solar_ast::{ast::*, token::*};
-use solar_interface::{kw, Symbol};
+use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
 use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -101,7 +101,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             TokenLitKind::Str | TokenLitKind::UnicodeStr | TokenLitKind::HexStr => {
                 self.parse_lit_str(lit)
             }
-            TokenLitKind::Err => Ok(LitKind::Err),
+            TokenLitKind::Err(guar) => Ok(LitKind::Err(guar)),
         };
         kind.map(|kind| (lit.symbol, kind))
     }
@@ -114,7 +114,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // User error.
             Err(e @ IntegerLeadingZeros) => Err(self.dcx().err(e.to_string())),
             // User error, but already emitted.
-            Err(EmptyInteger) => Ok(LitKind::Err),
+            Err(EmptyInteger) => Ok(LitKind::Err(ErrorGuaranteed::new_unchecked())),
             // Lexer internal error.
             Err(e @ ParseInteger(_)) => panic!("failed to parse integer literal {symbol:?}: {e}"),
             // Should never happen.
@@ -135,7 +135,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Err(self.dcx().err(e.to_string()))
             }
             // User error, but already emitted.
-            Err(EmptyExponent | EmptyInteger | EmptyRational) => Ok(LitKind::Err),
+            Err(EmptyExponent | EmptyInteger | EmptyRational) => {
+                Ok(LitKind::Err(ErrorGuaranteed::new_unchecked()))
+            }
             // Lexer internal error.
             Err(e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_))) => {
                 panic!("failed to parse rational literal {symbol:?}: {e}")

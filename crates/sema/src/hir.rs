@@ -170,8 +170,8 @@ indexvec_methods! {
 
 impl<'hir> Hir<'hir> {
     /// Returns the item associated with the given ID.
-    pub fn item(&self, id: ItemId) -> Item<'_, 'hir> {
-        match id {
+    pub fn item(&self, id: impl Into<ItemId>) -> Item<'_, 'hir> {
+        match id.into() {
             ItemId::Contract(id) => Item::Contract(self.contract(id)),
             ItemId::Function(id) => Item::Function(self.function(id)),
             ItemId::Variable(id) => Item::Variable(self.variable(id)),

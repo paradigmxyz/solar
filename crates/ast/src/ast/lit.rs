@@ -1,5 +1,5 @@
 use alloy_primitives::Address;
-use solar_interface::{kw, Span, Symbol};
+use solar_interface::{diagnostics::ErrorGuaranteed, kw, Span, Symbol};
 use std::{fmt, sync::Arc};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
@@ -37,7 +37,7 @@ pub enum LitKind {
     /// A boolean literal.
     Bool(bool),
     /// An error occurred while parsing the literal, which has been emitted.
-    Err,
+    Err(ErrorGuaranteed),
 }
 
 /// A single UTF-8 string literal. Only used in import paths and statements, not expressions.

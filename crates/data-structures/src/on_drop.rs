@@ -7,13 +7,25 @@ pub fn defer<F: FnOnce()>(f: F) -> OnDrop<(), impl FnOnce(())> {
 }
 
 /// Runs `F` on `T` when the instance is dropped.
-pub struct OnDrop<T, F: FnOnce(T)>(ManuallyDrop<(T, Option<F>)>);
+pub struct OnDrop<T, F: FnOnce(T)>(pub ManuallyDrop<(T, Option<F>)>);
 
 impl<T, F: FnOnce(T)> OnDrop<T, F> {
     /// Creates a new `OnDrop` instance.
     #[inline(always)]
     pub fn new(value: T, f: F) -> Self {
         Self(ManuallyDrop::new((value, Some(f))))
+    }
+
+    /// Returns a reference to the inner value.
+    #[inline(always)]
+    pub fn inner(&self) -> &T {
+        &self.0 .0
+    }
+
+    /// Returns a mutable reference to the inner value.
+    #[inline(always)]
+    pub fn inner_mut(&mut self) -> &mut T {
+        &mut self.0 .0
     }
 
     /// Consumes the instance and returns the inner value.
@@ -58,5 +70,27 @@ impl<T, F: FnOnce(T)> Drop for OnDrop<T, F> {
                 ManuallyDrop::drop(&mut self.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_defer() {
+        let mut x = 0usize;
+        let defer = defer(|| x += 1);
+        drop(defer);
+        assert_eq!(x, 1);
+    }
+
+    #[test]
+    fn test_on_drop() {
+        let mut x = 0usize;
+        let on_drop = OnDrop::new(&mut x, |x| *x += 1);
+        assert_eq!(**on_drop.inner(), 0);
+        drop(on_drop);
+        assert_eq!(x, 1);
     }
 }

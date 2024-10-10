@@ -232,9 +232,9 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast_item = self.hir_to_ast[&hir::ItemId::Struct(id)];
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
-            let mut cx = mk_resolver!(strukt);
+            let mut cx: ResolveContext<'_, '_, '_> = mk_resolver!(strukt);
             self.hir.structs[id].fields =
-                self.arena.alloc_from_iter(ast_struct.fields.iter().map(|field| {
+                self.arena.alloc_slice_fill_iter(ast_struct.fields.iter().map(|field| {
                     let name = field.name.unwrap_or_default();
                     let ty = cx.lower_type(&field.ty);
                     hir::StructField { ty, name }
@@ -247,7 +247,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let error = self.hir.error(id);
             let mut cx = mk_resolver!(error);
             self.hir.errors[id].parameters =
-                self.arena.alloc_from_iter(ast_error.parameters.iter().map(|param| {
+                self.arena.alloc_slice_fill_iter(ast_error.parameters.iter().map(|param| {
                     let name = param.name;
                     let ty = cx.lower_type(&param.ty);
                     hir::ErrorParameter { ty, name }
@@ -260,7 +260,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let event = self.hir.event(id);
             let mut cx = mk_resolver!(event);
             self.hir.events[id].parameters =
-                self.arena.alloc_from_iter(ast_event.parameters.iter().map(|param| {
+                self.arena.alloc_slice_fill_iter(ast_event.parameters.iter().map(|param| {
                     let name = param.name;
                     let ty = cx.lower_type(&param.ty);
                     hir::EventParameter { ty, indexed: param.indexed, name }
@@ -333,10 +333,12 @@ impl super::LoweringContext<'_, '_, '_> {
 
             scopes.enter();
             let mut cx = ResolveContext::new(self, scopes, next_id);
-            for var in ast_func.header.parameters.iter().chain(ast_func.header.returns.iter()) {
-                let _ = cx.lower_variable(var);
-            }
-
+            cx.hir.functions[id].parameters = cx.arena.alloc_from_iter(
+                ast_func.header.parameters.iter().filter_map(|param| cx.lower_variable(param).ok()),
+            );
+            cx.hir.functions[id].returns = cx.arena.alloc_from_iter(
+                ast_func.header.returns.iter().filter_map(|ret| cx.lower_variable(ret).ok()),
+            );
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_stmts(body));
             }
@@ -444,7 +446,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_stmts(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
-        self.arena.alloc_from_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
+        self.arena.alloc_slice_fill_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
     }
 
     fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'hir hir::Stmt<'hir> {
@@ -500,10 +502,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     expr: self.lower_expr_full(expr),
                     returns: self.lower_variables(returns),
                     block: self.lower_block(block),
-                    catch: self.arena.alloc_from_iter(catch.iter().map(|catch| hir::CatchClause {
-                        name: catch.name,
-                        args: self.lower_variables(catch.args),
-                        block: self.lower_block(catch.block),
+                    catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
+                        hir::CatchClause {
+                            name: catch.name,
+                            args: self.lower_variables(catch.args),
+                            block: self.lower_block(catch.block),
+                        }
                     })),
                 }))
             }
@@ -640,7 +644,8 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         I::IntoIter: ExactSizeIterator,
         T: AsRef<ast::Expr<'b>>,
     {
-        self.arena.alloc_from_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
+        self.arena
+            .alloc_slice_fill_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
     #[instrument(name = "lower_expr", level = "debug", skip_all)]
@@ -701,10 +706,9 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.lower_expr(then),
                 self.lower_expr(r#else),
             ),
-            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(
-                self.arena
-                    .alloc_from_iter(exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref()))),
-            ),
+            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
+                exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref())),
+            )),
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
@@ -713,7 +717,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'hir [hir::NamedArg<'hir>] {
-        self.arena.alloc_from_iter(
+        self.arena.alloc_slice_fill_iter(
             options.iter().map(|arg| hir::NamedArg {
                 name: arg.name,
                 value: self.lower_expr_full(arg.value),
@@ -740,12 +744,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.arena.alloc(hir::TypeFunction {
                     parameters: self
                         .arena
-                        .alloc_from_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
+                        .alloc_slice_fill_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
                     visibility: f.visibility.unwrap_or(ast::Visibility::Public),
                     state_mutability: f.state_mutability,
                     returns: self
                         .arena
-                        .alloc_from_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
+                        .alloc_slice_fill_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
                 }),
             ),
             ast::TypeKind::Mapping(mapping) => {

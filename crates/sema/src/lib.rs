@@ -13,6 +13,7 @@ use rayon::prelude::*;
 use solar_data_structures::OnDrop;
 use solar_interface::{config::CompilerStage, Result, Session};
 use thread_local::ThreadLocal;
+use ty::Gcx;
 
 // Convenience re-exports.
 pub use ::thread_local;
@@ -58,17 +59,11 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
 
     sources.topo_sort();
 
-    let hir_arena = OnDrop::new(hir::Arena::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.allocated_bytes());
+    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
         debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
     });
-    let hir = resolve(sess, &sources, &hir_arena)?;
-
-    if let Some(dump) = &sess.dump {
-        if dump.kind.is_hir() {
-            dump_hir(sess, &hir, dump.paths.as_deref())?;
-        }
-    }
+    let hir = resolve(sess, &sources, hir_arena.get_or_default())?;
 
     // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
     // even though both are moved in the closure.
@@ -79,7 +74,21 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         drop(ast_arenas);
     });
 
-    debug_span!("drop_hir").in_scope(|| drop(hir));
+    let global_context = ty::GlobalCtxt::new(sess, &hir_arena, hir);
+    // TODO: Leaks `hir`
+    let gcx = ty::Gcx::new(hir_arena.get_or_default().alloc(global_context));
+
+    if let Some(dump) = &gcx.sess.dump {
+        if dump.kind.is_hir() {
+            dump_hir(gcx, dump.paths.as_deref())?;
+        }
+    }
+
+    gcx.sess.dcx.has_errors()?;
+
+    for id in gcx.hir.contract_ids() {
+        let _ = gcx.interface_functions(id);
+    }
 
     Ok(())
 }
@@ -122,12 +131,11 @@ fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]
     Ok(())
 }
 
-fn dump_hir(sess: &Session, hir: &hir::Hir<'_>, paths: Option<&[String]>) -> Result<()> {
+fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
-        let _ = sess;
         todo!("{paths:#?}")
     } else {
-        println!("{hir:#?}");
+        println!("{:#?}", gcx.hir);
     }
     Ok(())
 }

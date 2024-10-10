@@ -306,8 +306,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             RawLiteralKind::Str { terminated, unicode } => {
                 if !terminated {
                     let span = self.new_span(start, end);
-                    self.dcx().err("unterminated string").span(span).emit();
-                    (TokenLitKind::Err, self.symbol_from_to(start, end))
+                    let guar = self.dcx().err("unterminated string").span(span).emit();
+                    (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
                     let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
                     let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
@@ -317,8 +317,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             RawLiteralKind::HexStr { terminated } => {
                 if !terminated {
                     let span = self.new_span(start, end);
-                    self.dcx().err("unterminated hex string").span(span).emit();
-                    (TokenLitKind::Err, self.symbol_from_to(start, end))
+                    let guar = self.dcx().err("unterminated hex string").span(span).emit();
+                    (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
                     let prefix_len = 3; // `hex`
                     self.cook_quoted(TokenLitKind::HexStr, start, end, prefix_len)

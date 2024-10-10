@@ -8,8 +8,14 @@ use crate::{
 use alloy_primitives::{keccak256, Selector, B256};
 use dashmap::SharedValue;
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use solar_data_structures::{map::FxBuildHasher, BumpExt, Interned};
-use solar_interface::{diagnostics::ErrorGuaranteed, Ident};
+use solar_data_structures::{
+    map::{FxBuildHasher, FxHashMap},
+    BumpExt, Interned,
+};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    Ident, Session, Span,
+};
 use std::{
     borrow::Borrow,
     fmt,
@@ -78,6 +84,7 @@ fn _gcx_traits() {
 
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
+    pub sess: &'gcx Session,
     pub interner: Interner<'gcx>,
     pub types: CommonTypes<'gcx>,
     pub hir: Hir<'gcx>,
@@ -86,16 +93,25 @@ pub struct GlobalCtxt<'gcx> {
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {
-    pub(crate) fn new(arena: &'gcx ThreadLocal<hir::Arena>, hir: Hir<'gcx>) -> Self {
+    pub(crate) fn new(
+        sess: &'gcx Session,
+        arena: &'gcx ThreadLocal<hir::Arena>,
+        hir: Hir<'gcx>,
+    ) -> Self {
         let interner = Interner::new(arena);
         let types = CommonTypes::new(&interner);
-        Self { interner, types, hir, cache: Cache::default() }
+        Self { sess, interner, types, hir, cache: Cache::default() }
     }
 }
 
 impl<'gcx> Gcx<'gcx> {
     pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
         Self(gcx)
+    }
+
+    /// Returns the diagnostics context.
+    pub fn dcx(self) -> &'gcx DiagCtxt {
+        &self.sess.dcx
     }
 
     pub fn arena(self) -> &'gcx hir::Arena {
@@ -148,19 +164,22 @@ impl<'gcx> Gcx<'gcx> {
         )
     }
 
-    pub fn item_name(self, id: hir::ItemId) -> Ident {
-        self.hir
-            .item(id)
-            .name()
-            .unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
+    pub fn item_name(self, id: impl Into<hir::ItemId>) -> Ident {
+        let id = id.into();
+        self.opt_item_name(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
     }
 
-    pub fn opt_item_name(self, id: hir::ItemId) -> Option<Ident> {
+    pub fn opt_item_name(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
     }
 
+    pub fn item_span(self, id: impl Into<hir::ItemId>) -> Span {
+        self.hir.item(id).span()
+    }
+
     /// Returns the short (4-byte) selector of the given item. Only accepts functions and errors.
-    pub fn short_selector(self, id: hir::ItemId) -> Selector {
+    pub fn short_selector(self, id: impl Into<hir::ItemId>) -> Selector {
+        let id = id.into();
         assert!(
             matches!(id, hir::ItemId::Function(_) | hir::ItemId::Error(_)),
             "short_selector: invalid item {id:?}"
@@ -259,6 +278,7 @@ pub fn interface_id(gcx: Gcx<'gcx>, id: hir::ContractId) -> Selector {
 pub fn interface_functions(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
     let mut inheritance_start = None;
+    let mut duplicates = FxHashMap::default();
     let functions = c.linearized_bases.iter().flat_map(|&base| {
         let b = gcx.hir.contract(base);
         let functions =
@@ -267,11 +287,21 @@ pub fn interface_functions(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceFunc
             assert!(inheritance_start.is_none(), "duplicate self ID in linearized_bases");
             inheritance_start = Some(functions.clone().count());
         }
-        functions.map(|id| InterfaceFunction {
-            selector: gcx.short_selector(id.into()),
-            id,
-            ty: gcx.type_of_item(id.into()),
-        })
+        functions
+    }).map(|f_id| {
+        let selector = gcx.short_selector(f_id);
+        if let Some(prev) = duplicates.insert(selector, f_id) {
+            let f = gcx.hir.function(f_id);
+            let f2 = gcx.hir.function(prev);
+            let msg = "function signature hash collision";
+            let full_note = format!("the functions `{}` and `{}` produce the same 4-byte signature hash `{selector}`", f.name.unwrap(), f2.name.unwrap());
+            gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
+        }
+        InterfaceFunction {
+            selector,
+            id: f_id,
+            ty: gcx.type_of_item(f_id.into()),
+        }
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");

@@ -1,7 +1,7 @@
 //! Solidity source code token.
 
 use crate::ast::{BinOp, BinOpKind, UnOp, UnOpKind};
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{diagnostics::ErrorGuaranteed, Ident, Span, Symbol};
 use std::{borrow::Cow, fmt};
 
 /// The type of a comment.
@@ -131,7 +131,7 @@ impl fmt::Display for TokenLit {
             TokenLitKind::Str => write!(f, "\"{symbol}\""),
             TokenLitKind::UnicodeStr => write!(f, "unicode\"{symbol}\""),
             TokenLitKind::HexStr => write!(f, "hex\"{symbol}\""),
-            TokenLitKind::Integer | TokenLitKind::Rational | TokenLitKind::Err => {
+            TokenLitKind::Integer | TokenLitKind::Rational | TokenLitKind::Err(_) => {
                 write!(f, "{symbol}")
             }
         }
@@ -165,7 +165,7 @@ pub enum TokenLitKind {
     /// A hex string literal token.
     HexStr,
     /// An error occurred while lexing the literal token.
-    Err,
+    Err(ErrorGuaranteed),
 }
 
 impl TokenLitKind {
@@ -177,7 +177,7 @@ impl TokenLitKind {
             Self::Str => "string",
             Self::UnicodeStr => "unicode string",
             Self::HexStr => "hex string",
-            Self::Err => "error",
+            Self::Err(_) => "error",
         }
     }
 }
