@@ -112,7 +112,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " IDs."]
                 #[inline]
-                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator {
+                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator + Clone {
                     (0..self.$plural.len()).map($id::from_usize)
                 }
 
@@ -124,7 +124,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " values."]
                 #[inline]
-                pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator {
+                pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator + Clone {
                     self.$plural.raw.iter()
                 }
 
@@ -136,7 +136,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
                 #[inline]
-                pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
+                pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator + Clone {
                     self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
                 }
 
@@ -181,6 +181,32 @@ impl<'hir> Hir<'hir> {
             ItemId::Error(id) => Item::Error(self.error(id)),
             ItemId::Event(id) => Item::Event(self.event(id)),
         }
+    }
+
+    /// Returns an iterator over all item IDs.
+    pub fn item_ids(&self) -> impl DoubleEndedIterator<Item = ItemId> + Clone {
+        std::iter::empty::<ItemId>()
+            .chain(self.contract_ids().map(ItemId::Contract))
+            .chain(self.function_ids().map(ItemId::Function))
+            .chain(self.variable_ids().map(ItemId::Variable))
+            .chain(self.strukt_ids().map(ItemId::Struct))
+            .chain(self.enumm_ids().map(ItemId::Enum))
+            .chain(self.udvt_ids().map(ItemId::Udvt))
+            .chain(self.error_ids().map(ItemId::Error))
+            .chain(self.event_ids().map(ItemId::Event))
+    }
+
+    /// Returns a parallel iterator over all item IDs.
+    pub fn par_item_ids(&self) -> impl ParallelIterator<Item = ItemId> {
+        rayon::iter::empty::<ItemId>()
+            .chain(self.par_contract_ids().map(ItemId::Contract))
+            .chain(self.par_function_ids().map(ItemId::Function))
+            .chain(self.par_variable_ids().map(ItemId::Variable))
+            .chain(self.par_strukt_ids().map(ItemId::Struct))
+            .chain(self.par_enumm_ids().map(ItemId::Enum))
+            .chain(self.par_udvt_ids().map(ItemId::Udvt))
+            .chain(self.par_error_ids().map(ItemId::Error))
+            .chain(self.par_event_ids().map(ItemId::Event))
     }
 }
 
@@ -959,6 +985,13 @@ pub enum TypeKind<'hir> {
     Custom(ItemId),
 
     Err(ErrorGuaranteed),
+}
+
+impl TypeKind<'_> {
+    /// Returns `true` if the type is an elementary type.
+    pub fn is_elementary(&self) -> bool {
+        matches!(self, Self::Elementary(_))
+    }
 }
 
 /// An array type.

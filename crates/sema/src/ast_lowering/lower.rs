@@ -196,21 +196,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     }
 
     fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
-        let ast::ItemUdvt { name, ref ty } = *i;
+        // Handled later: ty
+        let ast::ItemUdvt { name, ty: _ } = *i;
         self.hir.udvts.push(hir::Udvt {
             source: self.current_source_id,
             contract: self.current_contract_id,
             span: item.span,
             name,
-            ty: hir::Type {
-                span: ty.span,
-                kind: if let ast::TypeKind::Elementary(kind) = ty.kind {
-                    hir::TypeKind::Elementary(kind)
-                } else {
-                    let msg = "the underlying type of UDVTs must be an elementary value type";
-                    hir::TypeKind::Err(self.dcx().err(msg).span(ty.span).emit())
-                },
-            },
+            ty: hir::Type::DUMMY,
         })
     }
 

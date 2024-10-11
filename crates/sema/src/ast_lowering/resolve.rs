@@ -225,14 +225,21 @@ impl super::LoweringContext<'_, '_, '_> {
             self.resolver.contract_scopes[id].declarations.insert(sym::this, smallvec![this]);
             let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span: c.name.span };
             self.resolver.contract_scopes[id].declarations.insert(sym::super_, smallvec![super_]);
-            if c.linearized_bases.len() > 1 {}
+        }
+
+        for id in self.hir.udvt_ids() {
+            let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
+            let ast::ItemKind::Udvt(ast_udvt) = &ast_item.kind else { unreachable!() };
+            let udvt = self.hir.udvt(id);
+            let mut cx = mk_resolver!(udvt);
+            self.hir.udvts[id].ty = cx.lower_type(&ast_udvt.ty);
         }
 
         for id in self.hir.strukt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Struct(id)];
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
-            let mut cx: ResolveContext<'_, '_, '_> = mk_resolver!(strukt);
+            let mut cx = mk_resolver!(strukt);
             self.hir.structs[id].fields =
                 self.arena.alloc_slice_fill_iter(ast_struct.fields.iter().map(|field| {
                     let name = field.name.unwrap_or_default();
@@ -333,11 +340,11 @@ impl super::LoweringContext<'_, '_, '_> {
 
             scopes.enter();
             let mut cx = ResolveContext::new(self, scopes, next_id);
-            cx.hir.functions[id].parameters = cx.arena.alloc_from_iter(
-                ast_func.header.parameters.iter().filter_map(|param| cx.lower_variable(param).ok()),
+            cx.hir.functions[id].parameters = cx.arena.alloc_slice_fill_iter(
+                ast_func.header.parameters.iter().map(|param| cx.lower_variable(param).0),
             );
-            cx.hir.functions[id].returns = cx.arena.alloc_from_iter(
-                ast_func.header.returns.iter().filter_map(|ret| cx.lower_variable(ret).ok()),
+            cx.hir.functions[id].returns = cx.arena.alloc_slice_fill_iter(
+                ast_func.header.returns.iter().map(|ret| cx.lower_variable(ret).0),
             );
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_stmts(body));
@@ -457,16 +464,15 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => match self.lower_variable(var) {
-                Ok(id) => hir::StmtKind::DeclSingle(id),
-                Err(guar) => hir::StmtKind::Err(guar),
+                (id, Ok(())) => hir::StmtKind::DeclSingle(id),
+                (_, Err(guar)) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::DeclMulti(vars, expr) => {
-                let ids = vars
-                    .iter()
-                    .map(|var| var.as_ref().and_then(|var| self.lower_variable(var).ok()))
-                    .collect::<SmallVec<[_; 8]>>();
-                hir::StmtKind::DeclMulti(self.arena.alloc_smallvec(ids), self.lower_expr(expr))
-            }
+            ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
+                self.arena.alloc_slice_fill_iter(
+                    vars.iter().map(|var| var.as_ref().map(|var| self.lower_variable(var).0)),
+                ),
+                self.lower_expr(expr),
+            ),
             ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
                 // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
                 ErrorGuaranteed::new_unchecked(),
@@ -517,18 +523,14 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_variables(&mut self, vars: &[ast::VariableDefinition<'_>]) -> &'hir [hir::VariableId] {
-        let vars = vars
-            .iter()
-            .filter_map(|var| self.lower_variable(var).ok())
-            .collect::<SmallVec<[_; 8]>>();
-        self.arena.alloc_smallvec(vars)
+        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var).0))
     }
 
     /// Lowers `var` to HIR and declares it in the current scope.
     fn lower_variable(
         &mut self,
         var: &ast::VariableDefinition<'_>,
-    ) -> Result<hir::VariableId, ErrorGuaranteed> {
+    ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
         let id = super::lower::lower_variable_partial(
             self.hir,
             var,
@@ -537,11 +539,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
+        let mut guar = Ok(());
         if let Some(name) = var.name {
             let decl = Res::Item(hir::ItemId::Variable(id));
-            self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl)?;
+            guar = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
         }
-        Ok(id)
+        (id, guar)
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.

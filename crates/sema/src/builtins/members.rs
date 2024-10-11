@@ -33,7 +33,7 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> 
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
-        TyKind::Struct(_tys, _id) => expected_ref(),
+        TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
         TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::ErrorSelector]),
@@ -54,7 +54,7 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> 
     })
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Member<'gcx> {
     pub name: Symbol,
     pub ty: Ty<'gcx>,
@@ -149,8 +149,9 @@ fn reference<'gcx>(
     loc: DataLocation,
 ) -> MemberMapOwned<'gcx> {
     match (&inner.kind, loc) {
-        (&TyKind::Struct(tys, id), _) => {
+        (&TyKind::Struct(id), _) => {
             let fields = gcx.hir.strukt(id).fields;
+            let tys = gcx.struct_field_types(id);
             debug_assert_eq!(fields.len(), tys.len());
             fields
                 .iter()

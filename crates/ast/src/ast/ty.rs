@@ -155,6 +155,23 @@ impl ElementaryType {
             Self::FixedBytes(size) => return write!(f, "bytes{}", size.bytes()),
         })
     }
+
+    /// Returns `true` if the type is a value type.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/types.html#value-types>
+    #[inline]
+    pub const fn is_value_type(self) -> bool {
+        matches!(
+            self,
+            Self::Address(_)
+                | Self::Bool
+                | Self::Fixed(..)
+                | Self::UFixed(..)
+                | Self::Int(..)
+                | Self::UInt(..)
+                | Self::FixedBytes(..)
+        )
+    }
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.

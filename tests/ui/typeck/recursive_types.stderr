@@ -1,0 +1,23 @@
+error: the underlying type of UDVTs must be an elementary value type
+  --> $DIR/recursive_types.sol:17:16
+   |
+LL |     type U1 is U1;
+   |                ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/recursive_types.sol:14:14
+   |
+LL |     event E1(E2);
+   |              ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/recursive_types.sol:15:14
+   |
+LL |     event E2(E1);
+   |              ^^
+   |
+
+error: aborting due to 3 previous errors
+

@@ -164,6 +164,10 @@ impl<'gcx> Gcx<'gcx> {
         )
     }
 
+    pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
+        Ty::new(&self.interner, TyKind::Err(guar))
+    }
+
     pub fn item_name(self, id: impl Into<hir::ItemId>) -> Ident {
         let id = id.into();
         self.opt_item_name(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
@@ -222,10 +226,23 @@ impl<'gcx> Gcx<'gcx> {
                 let value = self.type_of_hir_ty(&mapping.value);
                 TyKind::Mapping(key, value)
             }
-            hir::TypeKind::Custom(item) => return self.type_of_item(item),
+            hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),
             hir::TypeKind::Err(guar) => TyKind::Err(guar),
         };
         Ty::new(&self.interner, kind)
+    }
+
+    fn type_of_item_simple(self, id: hir::ItemId, span: Span) -> Ty<'gcx> {
+        match id {
+            hir::ItemId::Contract(_)
+            | hir::ItemId::Struct(_)
+            | hir::ItemId::Enum(_)
+            | hir::ItemId::Udvt(_) => self.type_of_item(id),
+            _ => {
+                let msg = "name has to refer to a valid user-defined type";
+                self.mk_ty_err(self.dcx().err(msg).span(span).emit())
+            }
+        }
     }
 
     #[allow(dead_code)]
@@ -254,10 +271,14 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
-                    once_map_insert(&self.cache.$name, $key, move |&$key| {
+                    let mut hit = true;
+                    let r = once_map_insert(&self.cache.$name, $key, |&$key| {
+                        hit = false;
                         let $gcx = self;
                         $imp
-                    })
+                    });
+                    log_cache_query(stringify!($name), &$key, &r, hit);
+                    r
                 }
             )*
         }
@@ -350,14 +371,21 @@ pub fn type_of_item(gcx: Gcx<'gcx>, id: hir::ItemId) -> Ty<'gcx> {
                 (None, None) => return ty,
             }
         }
-        hir::ItemId::Struct(id) => {
-            let field_types = gcx.hir.strukt(id).fields.iter().map(|f| gcx.type_of_hir_ty(&f.ty));
-            TyKind::Struct(gcx.interner.intern_ty_iter(field_types), id)
-        }
+        hir::ItemId::Struct(id) => TyKind::Struct(id),
         hir::ItemId::Enum(id) => TyKind::Enum(id),
         hir::ItemId::Udvt(id) => {
-            let ty = gcx.type_of_hir_ty(&gcx.hir.udvt(id).ty);
-            TyKind::Udvt(ty, id)
+            let udvt = gcx.hir.udvt(id);
+            // TODO: let-chains plz
+            let ty;
+            if udvt.ty.kind.is_elementary() && {
+                ty = gcx.type_of_hir_ty(&udvt.ty);
+                ty.is_value_type()
+            } {
+                TyKind::Udvt(ty, id)
+            } else {
+                let msg = "the underlying type of UDVTs must be an elementary value type";
+                TyKind::Err(gcx.dcx().err(msg).span(udvt.ty.span).emit())
+            }
         }
         hir::ItemId::Error(id) => {
             let tys = gcx.hir.error(id).parameters.iter().map(|p| gcx.type_of_hir_ty(&p.ty));
@@ -371,6 +399,12 @@ pub fn type_of_item(gcx: Gcx<'gcx>, id: hir::ItemId) -> Ty<'gcx> {
     Ty::new(&gcx.interner, kind)
 }
 
+/// Returns the types of the fields of the given struct.
+pub fn struct_field_types(gcx: Gcx<'gcx>, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
+    let fields = gcx.hir.strukt(id).fields;
+    gcx.interner.intern_ty_iter(fields.iter().map(|f| gcx.type_of_hir_ty(&f.ty)))
+}
+
 /// Returns the members of the given type.
 pub fn members_of(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
     members::members_of(gcx, ty)
@@ -378,7 +412,6 @@ pub fn members_of(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
 }
 
 struct TyPrinter<'gcx, W> {
-    #[allow(dead_code)]
     gcx: Gcx<'gcx>,
     buf: W,
 }
@@ -394,7 +427,7 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
             Elementary(ty) => ty.write_abi_str(&mut self.buf),
             Contract(_) => self.buf.write_str("address"),
             FnPtr(_) => self.buf.write_str("function"),
-            Struct(tys, _) => self.print_tuple(tys.iter().copied()),
+            Struct(id) => self.print_tuple(self.gcx.struct_field_types(id).iter().copied()),
             Enum(_) => self.buf.write_str("uint8"),
             Udvt(ty, _) => self.print(ty),
             Ref(ty, _loc) => self.print(ty),
@@ -665,9 +698,8 @@ impl<'gcx> Ty<'gcx> {
     pub fn new_fn_ptr(interner: &Interner<'gcx>, ptr: TyFnPtr<'gcx>) -> Self {
         Self::new(interner, TyKind::FnPtr(interner.intern_fn_ptr(ptr)))
     }
-}
 
-impl<'gcx> Ty<'gcx> {
+    // TODO: with_loc_if_ref ?
     pub fn with_loc(self, interner: &Interner<'gcx>, loc: DataLocation) -> Self {
         let mut ty = self;
         if let TyKind::Ref(inner, l2) = self.kind {
@@ -750,6 +782,18 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_ref_at(self, loc: DataLocation) -> bool {
         matches!(self.kind, TyKind::Ref(_, l) if l == loc)
     }
+
+    /// Returns `true` if the type is a value type.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/types.html#value-types>
+    #[inline]
+    pub fn is_value_type(self) -> bool {
+        match self.kind {
+            TyKind::Elementary(t) => t.is_value_type(),
+            TyKind::Contract(_) | TyKind::FnPtr(_) | TyKind::Enum(_) | TyKind::Udvt(..) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Hash)]
@@ -799,7 +843,9 @@ pub enum TyKind<'gcx> {
     Contract(hir::ContractId),
 
     /// A struct.
-    Struct(&'gcx [Ty<'gcx>], hir::StructId),
+    ///
+    /// Cannot contain the types of its fields because it can be recursive.
+    Struct(hir::StructId),
 
     /// An enum.
     Enum(hir::EnumId),
@@ -912,4 +958,8 @@ where
     S: BuildHasher,
 {
     map.map_insert(key, make_val, |_k, v| *v)
+}
+
+fn log_cache_query(name: &str, key: &dyn fmt::Debug, value: &dyn fmt::Debug, hit: bool) {
+    trace!("`gcx.{name}` {kind}: {key:?} -> {value:?}", kind = if hit { " hit" } else { "miss" });
 }

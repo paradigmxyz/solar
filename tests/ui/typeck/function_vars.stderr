@@ -1,0 +1,44 @@
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:12:5
+   |
+LL |     f a;
+   |     ^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:13:5
+   |
+LL |     E1 b;
+   |     ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:14:5
+   |
+LL |     E2 c;
+   |     ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:6:5
+   |
+LL |     f a;
+   |     ^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:7:5
+   |
+LL |     E1 b;
+   |     ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> $DIR/function_vars.sol:8:5
+   |
+LL |     E2 c;
+   |     ^^
+   |
+
+error: aborting due to 6 previous errors
+

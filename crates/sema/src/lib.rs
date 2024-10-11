@@ -31,6 +31,8 @@ pub mod builtins;
 pub mod hir;
 pub mod ty;
 
+mod typeck;
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let sess = pcx.sess;
@@ -86,9 +88,18 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
 
     gcx.sess.dcx.has_errors()?;
 
-    for id in gcx.hir.contract_ids() {
-        let _ = gcx.interface_functions(id);
-    }
+    check_type_cycles(gcx);
+    gcx.sess.dcx.has_errors()?;
+
+    gcx.hir.par_item_ids().for_each(|id| {
+        if let hir::ItemId::Contract(id) = id {
+            let _ = gcx.interface_functions(id);
+        }
+        let _ = gcx.type_of_item(id);
+        if let hir::ItemId::Struct(id) = id {
+            let _ = gcx.struct_field_types(id);
+        }
+    });
 
     Ok(())
 }
@@ -110,6 +121,14 @@ pub fn resolve<'hir>(
     let hir = ast_lowering::lower(sess, sources, arena);
 
     Ok(hir)
+}
+
+fn check_type_cycles(gcx: Gcx<'_>) {
+    let _ = gcx;
+    // TODO
+    // gcx.hir.par_structs().for_each(|s| {
+    //     s.fields
+    // });
 }
 
 fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
