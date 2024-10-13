@@ -11,7 +11,7 @@ pub struct Session {
 
     /// EVM version.
     pub evm_version: EvmVersion,
-    /// Source code language. Currently unused.
+    /// Source code language.
     pub language: Language,
     /// Stop execution after the given compiler stage.
     pub stop_after: Option<CompilerStage>,
