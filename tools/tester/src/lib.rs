@@ -93,7 +93,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     };
 
     // Clear the `rustc` flags.
-    config.comment_defaults = Default::default();
+    config.comment_defaults.base().custom.clear();
     config.custom_comments.clear();
     macro_rules! register_custom_flags {
         ($($ty:ty),* $(,)?) => {
@@ -107,8 +107,10 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     }
     register_custom_flags![];
 
-    // config.comment_defaults.base().exit_status = None.into();
-    // config.comment_defaults.base().require_annotations = None.into();
+    config.comment_defaults.base().exit_status = None.into();
+    config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+    config.comment_defaults.base().require_annotations_for_level =
+        Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
     let filters = [
         (root.to_str().unwrap(), "ROOT"),
@@ -148,14 +150,22 @@ fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Opti
 }
 
 fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: MyConfig<'_>) {
-    if !cfg.mode.is_solc() {
-        return;
-    }
-    // For solc tests, we can't expect errors normally since we have different diagnostics.
-    // Instead, we check just the error code and ignore other output.
     let Ok(src) = std::str::from_utf8(&file.content) else {
         return;
     };
+    let path = file.span.file.as_path();
+
+    if cfg.mode.is_solc() {
+        return solc_per_file_config(config, src, path, cfg);
+    }
+
+    debug_assert_eq!(config.comment_start, "//");
+    config.comment_defaults.base().require_annotations = Spanned::dummy(src.contains("//~")).into();
+}
+
+// For solc tests, we can't expect errors normally since we have different diagnostics.
+// Instead, we check just the error code and ignore other output.
+fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cfg: MyConfig<'_>) {
     let expected_errors = errors::Error::load_solc(src);
     let expected_error = expected_errors.iter().find(|e| e.is_error());
     let code = if let Some(expected_error) = expected_error {
@@ -171,7 +181,6 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     config.comment_defaults.base().exit_status = code.map(Spanned::dummy).into();
 
     if matches!(cfg.mode, Mode::SolcSolidity) {
-        let path = &file.span.file;
         let flags = &mut config.comment_defaults.base().compile_flags;
         let has_delimiters = solc::solidity::handle_delimiters(src, path, cfg.tmp_dir, |arg| {
             flags.push(arg.into_string().unwrap())

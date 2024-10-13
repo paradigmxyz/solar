@@ -22,8 +22,9 @@ fn main() -> anyhow::Result<()> {
             if let Some(t) = test_name {
                 if matches!(t.as_str(), "ui" | "solc-solidity" | "solc-yul") {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
+                } else {
+                    cmd = cmd.arg(t);
                 }
-                cmd = cmd.arg(t);
             }
             cmd = cmd.arg("--");
             if bless {
