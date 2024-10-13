@@ -1,26 +1,26 @@
 error: number too large to fit in target type
-  --> $DIR/pragma_versions.sol:45:18
+  --> ROOT/tests/ui/parser/pragma_versions.sol:LL:CC
    |
 LL | pragma solidity ^4294967296;
    |                  ^^^^^^^^^^
    |
 
 error: number too large to fit in target type
-  --> $DIR/pragma_versions.sol:47:18
+  --> ROOT/tests/ui/parser/pragma_versions.sol:LL:CC
    |
 LL | pragma solidity ^0.4294967296;
    |                  ^^^^^^^^^^^^
    |
 
 error: invalid digit found in string
-  --> $DIR/pragma_versions.sol:50:17
+  --> ROOT/tests/ui/parser/pragma_versions.sol:LL:CC
    |
 LL | pragma solidity 88_;
    |                 ^^^
    |
 
 error: ranges can only be combined using the || operator
-  --> $DIR/pragma_versions.sol:53:1
+  --> ROOT/tests/ui/parser/pragma_versions.sol:LL:CC
    |
 LL | pragma solidity 0 - 1 0 - 2;
    | ^^^^^^^^^^^^^^^^^^^^^

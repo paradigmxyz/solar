@@ -1,40 +1,40 @@
-error: declaration `does_not_exist` not found in $DIR/bad_inheritance.sol
-  --> $DIR/bad_inheritance.sol:3:9
+error: declaration `does_not_exist` not found in ROOT/tests/ui/resolve/bad_inheritance.sol
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | import {does_not_exist} from "./bad_inheritance.sol";
    |         ^^^^^^^^^^^^^^
    |
 
 error: contracts cannot inherit from themselves
-  --> $DIR/bad_inheritance.sol:5:15
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | contract C is C {}
    |               ^
    |
 
 error: contracts cannot inherit from themselves
-  --> $DIR/bad_inheritance.sol:6:15
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | contract D is self1.D {}
    |               ^^^^^^^
    |
 
 error: contracts cannot inherit from themselves
-  --> $DIR/bad_inheritance.sol:7:15
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | contract E is self2.E {}
    |               ^^^^^^^
    |
 
 error: expected contract, found namespace
-  --> $DIR/bad_inheritance.sol:9:15
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | contract F is self1 {}
    |               ^^^^^
    |
 
 error: expected contract, found namespace
-  --> $DIR/bad_inheritance.sol:10:15
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
    |
 LL | contract G is self2 {}
    |               ^^^^^

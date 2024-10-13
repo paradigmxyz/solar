@@ -1,19 +1,19 @@
 error: unterminated string
-  --> $DIR/unterminated_unicode_string.sol:1:1
+  --> ROOT/tests/ui/lexer/unterminated_unicode_string.sol:LL:CC
    |
 LL | / unicode"
 LL | |
 LL | |
-   | |________________________________^
+   | |_________________________________^
    |
 
 error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `<error>`
-  --> $DIR/unterminated_unicode_string.sol:1:1
+  --> ROOT/tests/ui/lexer/unterminated_unicode_string.sol:LL:CC
    |
 LL | / unicode"
 LL | |
 LL | |
-   | |________________________________^
+   | |_________________________________^
    |
    = note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
 

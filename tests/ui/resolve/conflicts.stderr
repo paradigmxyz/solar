@@ -1,5 +1,5 @@
 error: identifier `Er1` already declared
-  --> $DIR/conflicts.sol:9:7
+  --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL | error Er1(uint);
    |       --- note: previous declaration declared here
@@ -8,7 +8,7 @@ LL | error Er1(int);
    |
 
 error: identifier `C` already declared
-  --> $DIR/conflicts.sol:12:10
+  --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL | contract C {
    |          - note: previous declaration declared here
@@ -20,7 +20,7 @@ LL | contract C {}
    |
 
 error: identifier `m` already declared
-  --> $DIR/conflicts.sol:21:14
+  --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     modifier m(uint) { _; }
    |              - note: previous declaration declared here
@@ -29,7 +29,7 @@ LL |     modifier m(int) { _; }
    |
 
 error: identifier `Er2` already declared
-  --> $DIR/conflicts.sol:24:11
+  --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     error Er2(uint);
    |           --- note: previous declaration declared here

@@ -19,17 +19,19 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
             let mut cmd = cmd!(sh, "cargo test");
-            if bless {
-                cmd = cmd.args(INT_FLAGS).env("TESTER_BLESS", "1");
-            }
             if let Some(t) = test_name {
                 if matches!(t.as_str(), "ui" | "solc-solidity" | "solc-yul") {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
+                } else {
+                    cmd = cmd.arg(t);
                 }
-                cmd = cmd.arg(t);
+            }
+            cmd = cmd.arg("--");
+            if bless {
+                cmd = cmd.arg("--bless");
             }
             if !rest.is_empty() {
-                cmd = cmd.arg("--").args(rest);
+                cmd = cmd.args(rest);
             }
             cmd.run()?;
         }

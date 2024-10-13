@@ -17,17 +17,10 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
-assert_cmd.workspace = true
-diff.workspace = true
 once_cell.workspace = true
 regex.workspace = true
-serde = { workspace = true, features = ["derive"] }
-serde_json.workspace = true
 tempfile.workspace = true
-tester.workspace = true
-unified-diff.workspace = true
-walkdir.workspace = true
-yansi = { workspace = true, features = ["detect-env", "detect-tty"] }
+ui_test = "0.27"
 
 [features]
 nightly = []

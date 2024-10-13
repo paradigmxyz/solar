@@ -7,7 +7,7 @@ resolver = "2"
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
-rust-version = "1.79" # MSRV
+rust-version = "1.80" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -45,6 +45,16 @@ all = "warn"
 # https://davidlattimore.github.io/posts/2024/02/04/speeding-up-the-rust-edit-build-run-cycle.html
 debug = "line-tables-only"
 split-debuginfo = "unpacked"
+
+[profile.dev.package]
+solar-tester.opt-level = 3
+console.opt-level = 3
+indicatif.opt-level = 3
+regex-automata.opt-level = 3
+regex-syntax.opt-level = 3
+regex.opt-level = 3
+ui_test.opt-level = 3
+unicode-width.opt-level = 3
 
 [profile.release]
 opt-level = 3
@@ -152,6 +162,10 @@ semver = "1.0"
 smallvec = "1"
 tikv-jemallocator = "0.6"
 typed-arena = "2.0"
-unicode-width = "0.1"
+unicode-width = "0.2"
 vergen = "8.3"
 yansi = "1.0"
+
+[patch.crates-io]
+# https://github.com/oli-obk/ui_test/pull/286
+ui_test = { git = "https://github.com/danipopes/ui_test", branch = "export-parser" }

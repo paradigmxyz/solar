@@ -43,12 +43,12 @@ pragma solidity 0.4 - 1 || 0.3 - 0.5.16;
 
 pragma solidity ^4294967295;
 pragma solidity ^4294967296;
-//~^ ERROR too large
+//~^ ERROR: too large
 pragma solidity ^0.4294967296;
-//~^ ERROR too large
+//~^ ERROR: too large
 
 pragma solidity 88_;
-//~^ ERROR invalid digit
+//~^ ERROR: invalid digit
 
 pragma solidity 0 - 1 0 - 2;
-//~^ ERROR ranges can only be combined using the || operator
+//~^ ERROR: ranges can only be combined using the || operator

@@ -1,33 +1,8 @@
-use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
-use std::path::Path;
+use crate::utils::path_contains;
+use regex::Regex;
+use std::{path::Path, sync::LazyLock};
 
-pub(crate) const FNS: TestFns = TestFns { check, run };
-
-fn check(config: &Config, path: &Path) -> TestResult {
-    let rel_path = path.strip_prefix(config.root).expect("test path not in root");
-
-    if let Some(reason) = should_skip(rel_path) {
-        return TestResult::Skipped(reason);
-    }
-
-    TestResult::Passed
-}
-
-fn run(cx: &TestCx<'_>) -> TestResult {
-    let path = cx.paths.file.as_path();
-    let mut cmd = cx.cmd();
-    cmd.arg(path).arg("--language=yul").arg("-Zparse-yul");
-    cmd.arg("--stop-after=parsing");
-    let output = cx.run_cmd(cmd);
-    // TODO: Typed identifiers.
-    if output.stderr.contains("found `:`") {
-        return TestResult::Skipped("typed identifiers");
-    }
-    cx.check_expected_errors(&output);
-    TestResult::Passed
-}
-
-fn should_skip(path: &Path) -> Option<&'static str> {
+pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/recursion_depth.yul") {
         return Some("recursion stack overflow");
     }
@@ -79,5 +54,18 @@ fn should_skip(path: &Path) -> Option<&'static str> {
     ) {
         return Some("manually skipped");
     };
+
+    if has_typed_identifier(path) {
+        return Some("typed identifiers are not implemented");
+    }
+
     None
+}
+
+fn has_typed_identifier(path: &Path) -> bool {
+    static TYPED_IDENTIFIER_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\w+:\s*\w+").unwrap());
+
+    let Ok(s) = std::fs::read_to_string(path) else { return false };
+    TYPED_IDENTIFIER_RE.is_match(&s)
 }

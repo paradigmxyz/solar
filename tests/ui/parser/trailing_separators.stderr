@@ -1,5 +1,5 @@
 error: expected `;`, found `}`
-  --> $DIR/trailing_separators.sol:2:11
+  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
    |
 LL |     uint x
    |           ^ expected `;`
@@ -8,14 +8,14 @@ LL | }
    |
 
 error: trailing `,` separator is not allowed
-  --> $DIR/trailing_separators.sol:6:6
+  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
    |
 LL |     V,
    |      ^
    |
 
 error: trailing `,` separator is not allowed
-  --> $DIR/trailing_separators.sol:9:17
+  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
    |
 LL | function f(E arg,) {
    |                 ^

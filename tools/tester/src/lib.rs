@@ -3,227 +3,193 @@
 //! This crate is invoked in `crates/solar/tests.rs`.
 
 #![allow(unreachable_pub)]
-#![cfg_attr(feature = "nightly", feature(test))]
 
-#[cfg(feature = "nightly")]
-extern crate test;
-#[cfg(feature = "nightly")]
-use tester as _;
-
-#[cfg(not(feature = "nightly"))]
-use tester as test;
-
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-
-mod compute_diff;
-
-mod context;
-use context::{ProcRes, TestCx, TestPaths};
+use eyre::{eyre, Result};
+use std::path::Path;
+use ui_test::{color_eyre::eyre, spanned::Spanned};
 
 mod errors;
-
-mod header;
-use header::TestProps;
-
 mod solc;
-
-mod json;
-
-mod ui;
-
 mod utils;
-use utils::TestResult;
 
-pub fn run_tests(cmd: &'static Path) -> i32 {
-    utils::enable_paint();
+pub fn run_tests(cmd: &'static Path) -> Result<()> {
+    ui_test::color_eyre::install()?;
 
-    let args = std::env::args().collect::<Vec<_>>();
-    let mut opts = match test::test::parse_opts(&args) {
-        Some(Ok(o)) => o,
-        Some(Err(msg)) => {
-            eprintln!("error: {msg}");
-            return 101;
-        }
-        None => return 0,
-    };
+    let mut args = ui_test::Args::test()?;
     // Condense output if not explicitly requested.
-    let requested_pretty = || args.iter().any(|x| x.contains("--format"));
-    if opts.format == test::OutputFormat::Pretty && !requested_pretty() {
-        opts.format = test::OutputFormat::Terse;
-    }
-    // [`tester`] currently (0.9.1) uses `num_cpus::get_physical`;
-    // use all available threads instead.
-    if opts.test_threads.is_none() {
-        opts.test_threads = std::thread::available_parallelism().map(|x| x.get()).ok();
-    }
-    if matches!(opts.color, test::ColorConfig::AutoColor) {
-        if std::env::var_os("NOCOLOR").is_some_and(|s| s != "0") {
-            opts.color = test::ColorConfig::NeverColor;
-        } else if let Ok(s) = std::env::var("CARGO_TERM_COLOR") {
-            match s.as_str() {
-                "always" => opts.color = test::ColorConfig::AlwaysColor,
-                "never" => opts.color = test::ColorConfig::NeverColor,
-                _ => {}
-            }
-        }
+    let requested_pretty = || std::env::args().any(|x| x.contains("--format"));
+    if matches!(args.format, ui_test::Format::Pretty) && !requested_pretty() {
+        args.format = ui_test::Format::Terse;
     }
 
     let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
-        mode_tmp = match mode.as_str() {
-            "ui" => Mode::Ui,
-            "solc-solidity" => Mode::SolcSolidity,
-            "solc-yul" => Mode::SolcYul,
-            _ => panic!("unknown mode: {mode}"),
-        };
+        mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
         modes = std::slice::from_ref(&mode_tmp);
     }
 
-    let mut tests = Vec::new();
-    let config = Arc::new(Config::new(cmd));
+    let tmp_dir = tempfile::tempdir()?;
+    let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
     for &mode in modes {
-        make_tests(&config, &mut tests, mode);
-    }
-    tests.sort_by(|a, b| a.desc.name.as_slice().cmp(b.desc.name.as_slice()));
+        let cfg = MyConfig::<'static> { mode, tmp_dir };
+        let config = config(cmd, &args, mode);
 
-    if opts.list {
-        eprintln!("cannot list tests");
-        return 1;
-    }
-
-    match test::run_tests_console(&opts, tests) {
-        Ok(true) => 0,
-        Ok(false) => {
-            eprintln!("some tests failed");
-            1
-        }
-        Err(e) => {
-            eprintln!("I/O failure during tests: {e}");
-            101
-        }
-    }
-}
-
-fn make_tests(config: &Arc<Config>, tests: &mut Vec<test::TestDescAndFn>, mode: Mode) {
-    let TestFns { check, run } = match mode {
-        Mode::Ui => ui::FNS,
-        Mode::SolcSolidity => solc::solidity::FNS,
-        Mode::SolcYul => solc::yul::FNS,
-    };
-    let load = if mode.solc_props() { TestProps::load_solc } else { TestProps::load };
-
-    for input in collect_tests(config, mode) {
-        let mut make_test = |revision: Option<String>| {
-            let config = Arc::clone(config);
-            let path = input.path().to_path_buf();
-            let rel_path = path.strip_prefix(config.root).unwrap_or(&path);
-            let relative_dir = rel_path.parent().unwrap().to_path_buf();
-
-            if !mode.solc_props() {
-                let build_path = context::output_relative_path(&config, &relative_dir);
-                std::fs::create_dir_all(build_path).unwrap();
-            }
-
-            let mode = match mode {
-                Mode::Ui => "ui",
-                Mode::SolcSolidity => "solc-solidity",
-                Mode::SolcYul => "solc-yul",
-            };
-            let rev_name = revision.as_ref().map(|r| format!("#{r}")).unwrap_or_default();
-            let name = format!("[{mode}] {}{rev_name}", rel_path.display());
-            let ignore_reason = match check(&config, &path) {
-                TestResult::Skipped(reason) => Some(reason),
-                _ => None,
-            };
-
-            tests.push(test::TestDescAndFn {
-                #[cfg(feature = "nightly")]
-                desc: test::TestDesc {
-                    name: test::TestName::DynTestName(name),
-                    ignore: ignore_reason.is_some(),
-                    ignore_message: ignore_reason,
-                    source_file: "",
-                    start_line: 0,
-                    start_col: 0,
-                    end_line: 0,
-                    end_col: 0,
-                    should_panic: test::ShouldPanic::No,
-                    compile_fail: false,
-                    no_run: false,
-                    test_type: test::TestType::Unknown,
-                },
-                #[cfg(not(feature = "nightly"))]
-                desc: test::TestDesc {
-                    name: test::TestName::DynTestName(name),
-                    ignore: ignore_reason.is_some(),
-                    should_panic: test::ShouldPanic::No,
-                    allow_fail: false,
-                    test_type: test::TestType::Unknown,
-                },
-                testfn: test::DynTestFn(Box::new(move || {
-                    let src = std::fs::read_to_string(&path).unwrap();
-                    let props = load(&src, revision.as_deref());
-                    let revision = revision.as_deref();
-                    let paths = TestPaths { file: path, relative_dir };
-
-                    let cx = TestCx { config: &config, paths, src, props, revision };
-                    std::fs::create_dir_all(cx.output_base_dir()).unwrap();
-                    let r = run(&cx);
-                    if r == TestResult::Failed {
-                        #[cfg(not(feature = "nightly"))]
-                        panic!("test failed");
-                        #[cfg(feature = "nightly")]
-                        return Err(String::from("test failed"));
-                    }
-                    #[cfg(feature = "nightly")]
-                    Ok(())
-                })),
-            });
+        let text_emitter = match args.format {
+            ui_test::Format::Terse => ui_test::status_emitter::Text::quiet(),
+            ui_test::Format::Pretty => ui_test::status_emitter::Text::verbose(),
         };
+        let gha_emitter = ui_test::status_emitter::Gha::<true> { name: mode.to_string() };
+        let status_emitter = (text_emitter, gha_emitter);
 
-        if matches!(mode, Mode::Ui) {
-            let revisions = TestProps::load_revisions(input.path());
-            if !revisions.is_empty() {
-                for rev in revisions {
-                    make_test(Some(rev));
-                }
-                continue;
-            }
-        }
-
-        make_test(None);
+        ui_test::run_tests_generic(
+            vec![config],
+            move |path, config| file_filter(path, config, cfg),
+            move |config, contents| per_file_config(config, contents, cfg),
+            status_emitter,
+        )?;
     }
+
+    Ok(())
 }
 
-fn collect_tests(config: &Config, mode: Mode) -> impl Iterator<Item = walkdir::DirEntry> {
+fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
+    let mut root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
+    if let Ok(cwd) = std::env::current_dir() {
+        root = root.strip_prefix(cwd).unwrap_or(root);
+    }
+
     let path = match mode {
         Mode::Ui => "tests/ui/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
-    let root = config.root.join(path);
+    let tests_root = root.join(path);
     assert!(
-        root.exists(),
+        tests_root.exists(),
         "tests root directory does not exist: {path}; you may need to initialize submodules"
     );
-    let yul = match mode {
-        Mode::Ui => true,
-        Mode::SolcSolidity => false,
-        Mode::SolcYul => true,
+
+    // Use `rustc` for the (private) diagnostics parser.
+    let mut config = ui_test::Config::rustc(tests_root);
+
+    // `host` and `target` are unused, but we still have to specify `host` so that `ui_test` doesn't
+    // invoke the command with `-vV` and try to parse the output since it will fail.
+    config.host = Some(String::from("unused"));
+
+    config.program = ui_test::CommandBuilder {
+        program: cmd.into(),
+        args: {
+            let mut args = vec!["-j1", "--error-format=rich-json", "-Zui-testing", "-Zparse-yul"];
+            if mode.is_solc() {
+                args.push("--stop-after=parsing");
+            }
+            args.into_iter().map(Into::into).collect()
+        },
+        out_dir_flag: None,
+        input_file_flag: None,
+        envs: vec![],
+        cfg_flag: None,
     };
-    let f = move |entry: &walkdir::DirEntry| {
-        let path = entry.path();
-        if entry.file_type().is_dir() && path.file_stem() == Some("aux".as_ref()) {
-            return false;
+
+    // Clear the `rustc` flags.
+    config.comment_defaults.base().custom.clear();
+    config.custom_comments.clear();
+    macro_rules! register_custom_flags {
+        ($($ty:ty),* $(,)?) => {
+            $(
+                config.custom_comments.insert(<$ty>::NAME, <$ty>::parse);
+                if let Some(default) = <$ty>::DEFAULT {
+                    config.comment_defaults.base().add_custom(<$ty>::NAME, default);
+                }
+            )*
+        };
+    }
+    register_custom_flags![];
+
+    config.comment_defaults.base().exit_status = None.into();
+    config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+    config.comment_defaults.base().require_annotations_for_level =
+        Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
+
+    let filters = [
+        (root.to_str().unwrap(), "ROOT"),
+        // erase line and column info
+        (r"\.(\w+):[0-9]+:[0-9]+(: [0-9]+:[0-9]+)?", ".$1:LL:CC"),
+    ];
+    for (pattern, replacement) in filters {
+        config.filter(pattern, replacement);
+    }
+
+    config.bless_command = Some("cargo uibless".into());
+
+    config.with_args(args);
+
+    if mode.is_solc() {
+        // Override `bless` handler, since we don't want to write Solc tests.
+        config.output_conflict_handling = ui_test::ignore_output_conflict;
+        // Skip parsing comments since they result in false positives.
+        config.comment_start = "\0";
+        config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+    }
+
+    config
+}
+
+fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
+    path.extension().filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+    if !ui_test::default_any_file_filter(path, config) {
+        return Some(false);
+    }
+    let skip = match cfg.mode {
+        Mode::Ui => false,
+        Mode::SolcSolidity => solc::solidity::should_skip(path).is_some(),
+        Mode::SolcYul => solc::yul::should_skip(path).is_some(),
+    };
+    Some(!skip)
+}
+
+fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: MyConfig<'_>) {
+    let Ok(src) = std::str::from_utf8(&file.content) else {
+        return;
+    };
+    let path = file.span.file.as_path();
+
+    if cfg.mode.is_solc() {
+        return solc_per_file_config(config, src, path, cfg);
+    }
+
+    debug_assert_eq!(config.comment_start, "//");
+    config.comment_defaults.base().require_annotations = Spanned::dummy(src.contains("//~")).into();
+}
+
+// For solc tests, we can't expect errors normally since we have different diagnostics.
+// Instead, we check just the error code and ignore other output.
+fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cfg: MyConfig<'_>) {
+    let expected_errors = errors::Error::load_solc(src);
+    let expected_error = expected_errors.iter().find(|e| e.is_error());
+    let code = if let Some(expected_error) = expected_error {
+        // Expect failure only for parser errors, otherwise ignore exit code.
+        if expected_error.solc_kind.is_some_and(|kind| kind.is_parser_error()) {
+            Some(1)
+        } else {
+            None
         }
-        path.extension() == Some("sol".as_ref())
-            || (yul && path.extension() == Some("yul".as_ref()))
+    } else {
+        Some(0)
     };
-    walkdir::WalkDir::new(root).sort_by_file_name().into_iter().filter_map(Result::ok).filter(f)
+    config.comment_defaults.base().exit_status = code.map(Spanned::dummy).into();
+
+    if matches!(cfg.mode, Mode::SolcSolidity) {
+        let flags = &mut config.comment_defaults.base().compile_flags;
+        let has_delimiters = solc::solidity::handle_delimiters(src, path, cfg.tmp_dir, |arg| {
+            flags.push(arg.into_string().unwrap())
+        });
+        if has_delimiters {
+            // HACK: skip the input file argument by using a dummy flag.
+            config.program.input_file_flag = Some("-I".into());
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -234,37 +200,40 @@ enum Mode {
 }
 
 impl Mode {
-    fn solc_props(self) -> bool {
-        matches!(self, Self::SolcSolidity | Self::SolcYul)
+    fn parse(s: &str) -> Option<Self> {
+        Some(match s {
+            "ui" => Self::Ui,
+            "solc-solidity" => Self::SolcSolidity,
+            "solc-yul" => Self::SolcYul,
+            _ => return None,
+        })
     }
-}
 
-struct TestFns {
-    check: fn(&Config, &Path) -> TestResult,
-    run: fn(&TestCx<'_>) -> TestResult,
-}
-
-struct Config {
-    cmd: &'static Path,
-    root: &'static Path,
-    build_base: PathBuf,
-
-    #[allow(dead_code)]
-    verbose: bool,
-    bless: bool,
-}
-
-impl Config {
-    fn new(cmd: &'static Path) -> Self {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-        let build_base = root.join("target/tester");
-        std::fs::create_dir_all(&build_base).unwrap();
-        Self {
-            cmd,
-            root,
-            build_base,
-            verbose: false,
-            bless: std::env::var("TESTER_BLESS").is_ok_and(|x| x != "0"),
+    fn to_str(self) -> &'static str {
+        match self {
+            Self::Ui => "ui",
+            Self::SolcSolidity => "solc-solidity",
+            Self::SolcYul => "solc-yul",
         }
     }
+
+    fn is_solc(self) -> bool {
+        matches!(self, Self::SolcSolidity | Self::SolcYul)
+    }
+
+    fn allows_yul(self) -> bool {
+        !matches!(self, Self::SolcSolidity)
+    }
+}
+
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.to_str())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MyConfig<'a> {
+    mode: Mode,
+    tmp_dir: &'a Path,
 }
