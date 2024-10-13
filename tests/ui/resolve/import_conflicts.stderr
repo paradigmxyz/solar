@@ -1,5 +1,5 @@
 error: identifier `MyUdvt` already declared
-  --> $DIR/import_conflicts.sol:1:9
+  --> ROOT/tests/ui/resolve/import_conflicts.sol:LL:CC
    |
 LL | import {MyUdvt, MyUdvt as MyUdvt} from "./aux/udvt.sol";
    |         ------ note: previous declaration declared here

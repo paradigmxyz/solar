@@ -1,5 +1,5 @@
 error: unknown character escape
-  --> $DIR/escaped_import.sol:1:10
+  --> ROOT/tests/ui/parser/escaped_import.sol:LL:CC
    |
 LL | import "\?";
    |          ^

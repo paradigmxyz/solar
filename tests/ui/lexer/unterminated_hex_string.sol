@@ -1,3 +1,3 @@
 hex"
-//~^ ERROR unterminated hex string
-//~| ERROR expected global item
+//~^ ERROR: unterminated hex string
+//~| ERROR: expected global item

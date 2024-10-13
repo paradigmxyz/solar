@@ -1,89 +1,89 @@
 error: unresolved symbol
-  --> $DIR/loops.sol:16:12
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     while (a == 0) uint a = 0;
    |            ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:17:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     a;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:18:12
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     while (b == 0) { uint b = 0; }
    |            ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:19:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     b;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:21:23
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     do uint c; while (c == 0);
    |                       ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:22:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     c;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:23:27
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     do { uint d; } while (d == 0);
    |                           ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:24:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     d;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:26:19
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     for (; false; e++) uint e;
    |                   ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:27:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     e;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:28:19
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     for (; false; f++) { uint f; }
    |                   ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:29:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     f;
    |     ^
    |
 
 error: unresolved symbol
-  --> $DIR/loops.sol:33:5
+  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
 LL |     g;
    |     ^

@@ -1,12 +1,12 @@
 error: expected modifier, found function
-  --> $DIR/modifiers.sol:21:28
+  --> ROOT/tests/ui/resolve/modifiers.sol:LL:CC
    |
 LL |     function bad1() public f1_2 {}
    |                            ^^^^
    |
 
 error: expected modifier, found function
-  --> $DIR/modifiers.sol:22:28
+  --> ROOT/tests/ui/resolve/modifiers.sol:LL:CC
    |
 LL |     function bad2() public f1_2() {}
    |                            ^^^^

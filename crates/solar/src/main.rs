@@ -154,6 +154,9 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         sess.language = args.language;
         sess.stop_after = args.stop_after;
         sess.jobs = NonZeroUsize::new(jobs).unwrap();
+        if args.input.iter().all(|arg| arg.extension() == Some("yul".as_ref())) {
+            sess.language = solar_config::Language::Yul;
+        }
 
         let compiler = Compiler { sess, args };
 

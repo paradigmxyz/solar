@@ -18,6 +18,6 @@ contract E is D {
 }
 
 contract Bad is E {
-    function bad1() public f1_2 {} //~ ERROR expected modifier, found function
-    function bad2() public f1_2() {} //~ ERROR expected modifier, found function
+    function bad1() public f1_2 {} //~ ERROR: expected modifier, found function
+    function bad2() public f1_2() {} //~ ERROR: expected modifier, found function
 }

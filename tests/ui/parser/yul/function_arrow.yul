@@ -1,3 +1,3 @@
 {
-    function f() -> {} //~ ERROR expected identifier
+    function f() -> {} //~ ERROR: expected identifier
 }

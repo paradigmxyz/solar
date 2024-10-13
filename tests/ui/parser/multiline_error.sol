@@ -4,6 +4,6 @@ contract C {
      
  
 
-        new string[](4) //~ ERROR expected one of
+        new string[](4) //~ ERROR: expected one of
     }
 }

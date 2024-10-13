@@ -1,5 +1,5 @@
 error: `transient` data location is not allowed here
-  --> $DIR/transient.sol:26:24
+  --> ROOT/tests/ui/parser/transient.sol:LL:CC
    |
 LL |     function g(uint256 transient transient) {
    |                        ^^^^^^^^^
