@@ -1,40 +1,40 @@
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:12:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     f a;
    |     ^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:13:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     E1 b;
    |     ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:14:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     E2 c;
    |     ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:6:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     f a;
    |     ^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:7:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     E1 b;
    |     ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/function_vars.sol:8:5
+  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
    |
 LL |     E2 c;
    |     ^^

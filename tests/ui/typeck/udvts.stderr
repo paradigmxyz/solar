@@ -1,33 +1,33 @@
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/udvts.sol:1:13
+  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
    |
 LL | type U01 is U01;
    |             ^^^
    |
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/udvts.sol:2:13
+  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
    |
 LL | type U02 is string;
    |             ^^^^^^
    |
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/udvts.sol:3:13
+  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
    |
 LL | type U03 is bytes;
    |             ^^^^^
    |
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/udvts.sol:4:13
+  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
    |
 LL | type U04 is uint[];
    |             ^^^^^^
    |
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/udvts.sol:5:13
+  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
    |
 LL | type U05 is U06;
    |             ^^^

@@ -3,6 +3,6 @@ contract C {
 }
 
 contract D is C {
-    //~^ ERROR function signature hash collision
+    //~^ ERROR: function signature hash collision
     function BlazingIt4490597615() public {}
 }

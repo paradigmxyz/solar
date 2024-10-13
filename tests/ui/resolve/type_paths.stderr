@@ -1,12 +1,12 @@
 error: unresolved symbol `Unknown`
-  --> $DIR/type_paths.sol:12:16
+  --> ROOT/tests/ui/resolve/type_paths.sol:LL:CC
    |
 LL |         self.C.Unknown memory d
    |                ^^^^^^^
    |
 
 error: unresolved symbol `Unknown`
-  --> $DIR/type_paths.sol:19:16
+  --> ROOT/tests/ui/resolve/type_paths.sol:LL:CC
    |
 LL |         self.C.Unknown memory h = self.C.Unknown(3);
    |                ^^^^^^^

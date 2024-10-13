@@ -1,5 +1,5 @@
 error: identifier `S2` already declared
-  --> $DIR/bad_type_path.sol:7:8
+  --> ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    |
 LL | struct S2 {
    |        -- note: previous declaration declared here
@@ -10,28 +10,28 @@ LL | struct S2 {
    |
 
 error: `S` is a struct, which cannot be indexed in type paths
-  --> $DIR/bad_type_path.sol:19:5
+  --> ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    |
 LL |     S.x s2;
    |     ^
    |
 
 error: `S2` is a struct, which cannot be indexed in type paths
-  --> $DIR/bad_type_path.sol:22:5
+  --> ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    |
 LL |     S2.x s4;
    |     ^^
    |
 
 error: symbol `f` resolved to multiple declarations
-  --> $DIR/bad_type_path.sol:24:5
+  --> ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    |
 LL |     f f1;
    |     ^
    |
 
 error: symbol `f` resolved to multiple declarations
-  --> $DIR/bad_type_path.sol:25:5
+  --> ROOT/tests/ui/resolve/bad_type_path.sol:LL:CC
    |
 LL |     f.x f2;
    |     ^

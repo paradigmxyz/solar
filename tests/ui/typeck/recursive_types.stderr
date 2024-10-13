@@ -1,19 +1,19 @@
 error: the underlying type of UDVTs must be an elementary value type
-  --> $DIR/recursive_types.sol:17:16
+  --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
 LL |     type U1 is U1;
    |                ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/recursive_types.sol:14:14
+  --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
 LL |     event E1(E2);
    |              ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> $DIR/recursive_types.sol:15:14
+  --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
 LL |     event E2(E1);
    |              ^^

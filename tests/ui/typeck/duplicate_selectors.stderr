@@ -1,5 +1,5 @@
 error: function signature hash collision
-  --> $DIR/duplicate_selectors.sol:2:5
+  --> ROOT/tests/ui/typeck/duplicate_selectors.sol:LL:CC
    |
 LL |     function mintEfficientN2M_001Z5BWH() public {}
    |     ---------------------------------------------- note: first function
