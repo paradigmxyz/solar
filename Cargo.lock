@@ -2228,6 +2228,7 @@ dependencies = [
 name = "solar"
 version = "0.0.0"
 dependencies = [
+ "alloy-primitives",
  "cfg-if",
  "clap",
  "libc",

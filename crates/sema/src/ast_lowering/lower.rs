@@ -47,11 +47,28 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         item: &ast::Item<'_>,
         contract: &'ast ast::ItemContract<'ast>,
     ) -> hir::ContractId {
+        let id = self.hir.contracts.push(hir::Contract {
+            source: self.current_source_id,
+            span: item.span,
+            name: contract.name,
+            kind: contract.kind,
+
+            // Set later.
+            bases: &[],
+            linearized_bases: &[],
+
+            ctor: None,
+            fallback: None,
+            receive: None,
+            items: &[],
+        });
+        let prev_contract_id = std::mem::replace(&mut self.current_contract_id, Some(id));
+        debug_assert_eq!(prev_contract_id, None);
+
         let mut ctor = None;
         let mut fallback = None;
         let mut receive = None;
         let mut items = SmallVec::<[_; 16]>::new();
-        self.current_contract_id = Some(self.hir.contracts.next_idx());
         for item in contract.body.iter() {
             let id = match &item.kind {
                 ast::ItemKind::Pragma(_)
@@ -96,23 +113,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             };
             items.push(id);
         }
-        let id = self.hir.contracts.push(hir::Contract {
-            source: self.current_source_id,
-            span: item.span,
-            name: contract.name,
-            kind: contract.kind,
+        let contract = &mut self.hir.contracts[id];
+        contract.ctor = ctor;
+        contract.fallback = fallback;
+        contract.receive = receive;
+        contract.items = self.arena.alloc_slice_copy(&items);
 
-            // Set later.
-            bases: &[],
-            linearized_bases: &[],
+        self.current_contract_id = prev_contract_id;
 
-            ctor,
-            fallback,
-            receive,
-            items: self.arena.alloc_slice_copy(&items),
-        });
-        debug_assert_eq!(Some(id), self.current_contract_id);
-        self.current_contract_id = None;
         id
     }
 
@@ -148,7 +156,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             state_mutability,
             modifiers: _,
             virtual_,
-            override_: _,
+            ref override_,
             returns: _,
         } = *header;
         self.hir.functions.push(hir::Function {
@@ -158,7 +166,12 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             name,
             kind,
             modifiers: &[],
-            virtual_,
+            marked_virtual: virtual_,
+            virtual_: virtual_
+                || self
+                    .current_contract_id
+                    .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
+            override_: override_.is_some(),
             overrides: &[],
             visibility: visibility.unwrap_or(ast::Visibility::Public),
             state_mutability,

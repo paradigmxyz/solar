@@ -126,7 +126,7 @@ impl<'gcx> Gcx<'gcx> {
         self.bump().alloc(value)
     }
 
-    pub fn mk_signature(self, name: &str, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
+    fn mk_signature(self, name: &str, tys: impl IntoIterator<Item = Ty<'gcx>>) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
         TyPrinter::new(self, &mut s).print_tuple(tys).unwrap();
@@ -168,32 +168,39 @@ impl<'gcx> Gcx<'gcx> {
         Ty::new(&self.interner, TyKind::Err(guar))
     }
 
+    /// Returns the name of the given item.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the item has no name, such as unnamed function parameters.
     pub fn item_name(self, id: impl Into<hir::ItemId>) -> Ident {
         let id = id.into();
         self.opt_item_name(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
     }
 
+    /// Returns the name of the given item.
     pub fn opt_item_name(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
     }
 
+    /// Returns the span of the given item.
     pub fn item_span(self, id: impl Into<hir::ItemId>) -> Span {
         self.hir.item(id).span()
     }
 
-    /// Returns the short (4-byte) selector of the given item. Only accepts functions and errors.
-    pub fn short_selector(self, id: impl Into<hir::ItemId>) -> Selector {
+    /// Returns the 4-byte selector of the given item. Only accepts functions and errors.
+    pub fn function_selector(self, id: impl Into<hir::ItemId>) -> Selector {
         let id = id.into();
         assert!(
             matches!(id, hir::ItemId::Function(_) | hir::ItemId::Error(_)),
-            "short_selector: invalid item {id:?}"
+            "function_selector: invalid item {id:?}"
         );
-        self.long_selector_impl(id)[..4].try_into().unwrap()
+        self.item_selector(id)[..4].try_into().unwrap()
     }
 
-    /// Returns the long (32-byte) selector of the given event.
-    pub fn long_selector(self, id: hir::EventId) -> B256 {
-        self.long_selector_impl(id.into())
+    /// Returns the 32-byte selector of the given event.
+    pub fn event_selector(self, id: hir::EventId) -> B256 {
+        self.item_selector(id.into())
     }
 
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
@@ -286,16 +293,25 @@ macro_rules! cached {
 }
 
 cached! {
-/// Returns the interface ID of the given contract.
+/// Returns the [ERC-165] interface ID of the given contract.
 ///
-/// This is the XOR of the selectors of all functions in the interface, excluding any inheritance.
+/// This is the XOR of the selectors of all function selectors in the interface.
+///
+/// The solc implementation excludes inheritance: <https://github.com/ethereum/solidity/blob/ad2644c52b3afbe80801322c5fe44edb59383500/libsolidity/ast/AST.cpp#L310-L316>
+///
+/// See [ERC-165] for more details.
+///
+/// [ERC-165]: https://eips.ethereum.org/EIPS/eip-165
 pub fn interface_id(gcx: Gcx<'gcx>, id: hir::ContractId) -> Selector {
-    debug_assert!(gcx.hir.contract(id).kind.is_interface());
+    let kind = gcx.hir.contract(id).kind;
+    assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
     let selectors = gcx.interface_functions(id).own_functions().iter().map(|f| f.selector);
     selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
 }
 
 /// Returns all the exported functions of the given contract.
+///
+/// The contract doesn't have to be an interface.
 pub fn interface_functions(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
     let mut inheritance_start = None;
@@ -310,12 +326,16 @@ pub fn interface_functions(gcx: Gcx<'gcx>, id: hir::ContractId) -> InterfaceFunc
         }
         functions
     }).map(|f_id| {
-        let selector = gcx.short_selector(f_id);
+        let selector = gcx.function_selector(f_id);
         if let Some(prev) = duplicates.insert(selector, f_id) {
             let f = gcx.hir.function(f_id);
             let f2 = gcx.hir.function(prev);
             let msg = "function signature hash collision";
-            let full_note = format!("the functions `{}` and `{}` produce the same 4-byte signature hash `{selector}`", f.name.unwrap(), f2.name.unwrap());
+            let full_note = format!(
+                "the function signatures `{}` and `{}` produce the same 4-byte selector `{selector}`",
+                gcx.item_signature(f_id.into()),
+                gcx.item_signature(prev.into()),
+            );
             gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
         }
         InterfaceFunction {
@@ -341,7 +361,7 @@ pub fn item_signature(gcx: Gcx<'gcx>, id: hir::ItemId) -> &'gcx str {
     gcx.bump().alloc_str(&gcx.mk_signature(name.as_str(), tys.iter().copied()))
 }
 
-fn long_selector_impl(gcx: Gcx<'gcx>, id: hir::ItemId) -> B256 {
+fn item_selector(gcx: Gcx<'gcx>, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 

@@ -516,7 +516,12 @@ pub struct Function<'hir> {
     pub state_mutability: StateMutability,
     /// Modifiers, or base classes if this is a constructor.
     pub modifiers: &'hir [ItemId],
+    /// Whether this function is marked with the `virtual` keyword.
+    pub marked_virtual: bool,
+    /// Whether this function is marked with the `virtual` keyword or is defined in an interface.
     pub virtual_: bool,
+    /// Whether this function is marked with the `override` keyword.
+    pub override_: bool,
     pub overrides: &'hir [ContractId],
     /// The function parameters.
     pub parameters: &'hir [VariableId],

@@ -205,7 +205,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     return Err(self.dcx().err(msg).span(span));
                 }
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe { vec_option_box_unwrap_unchecked(list) })
+                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list) })
             } else {
                 ExprKind::Tuple(list)
             }
@@ -309,16 +309,16 @@ fn token_precedence(t: &Token) -> usize {
     }
 }
 
-/// Converts a vector of `Option<Box<'ast, T>>` into a vector of `Box<'ast, T>`.
+/// Converts a list of `Option<Box<'ast, T>>` into a list of `Box<'ast, T>`.
 ///
 /// This only works because `Option<Box<'ast, T>>` is guaranteed to be a valid `Box<'ast, T>` when
 /// `Some` when `T: Sized`.
 ///
 /// # Safety
 ///
-/// All elements of the vector must be `Some`.
+/// All elements of the list must be `Some`.
 #[inline]
-unsafe fn vec_option_box_unwrap_unchecked<'a, 'b, T>(
+unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
     list: Box<'a, [Option<Box<'b, T>>]>,
 ) -> Box<'a, [Box<'b, T>]> {
     debug_assert!(list.iter().all(Option::is_some));

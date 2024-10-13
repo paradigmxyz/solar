@@ -25,6 +25,9 @@ pub mod sigsegv_handler {
     pub fn install() {}
 }
 
+// `asm` feature.
+use alloy_primitives as _;
+
 // Used in integration tests. See `../tests.rs`.
 #[cfg(test)]
 use solar_tester as _;

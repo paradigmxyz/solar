@@ -429,7 +429,7 @@ pub struct Modifier<'ast> {
     pub arguments: CallArgs<'ast>,
 }
 
-/// An override specifier: `override(a, b.c)`.
+/// An override specifier: `override`, `override(a, b.c)`.
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,

@@ -434,7 +434,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
     }
 
-    fn resolve_path_as_res(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
+    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
         self.resolve_paths(path)
             .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)))
     }
@@ -489,11 +489,11 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::While(_, _)
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_path_as_res(path) {
+            ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
                 Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Revert(path, args) => match self.resolve_path_as_res(path) {
+            ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
                 Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
