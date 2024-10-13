@@ -198,7 +198,7 @@ macro_rules! forward {
 }
 
 /// Forwarded methods to [`Diagnostic`].
-impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
+impl<G: EmissionGuarantee> DiagnosticBuilder<'_, G> {
     forward! {
         pub fn span(span: impl Into<MultiSpan>);
         pub fn code(code: impl Into<DiagnosticId>);

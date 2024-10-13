@@ -63,7 +63,7 @@ struct LoweringContext<'sess, 'ast, 'hir> {
     resolver: SymbolResolver<'sess>,
 }
 
-impl<'sess, 'ast, 'hir> LoweringContext<'sess, 'ast, 'hir> {
+impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
     fn new(sess: &'sess Session, arena: &'hir hir::Arena) -> Self {
         Self {
             sess,
