@@ -23,7 +23,7 @@ contract E {
         transient = 4;
     }
 
-    function g(uint256 transient transient) { //~ ERROR not allowed here
+    function g(uint256 transient transient) { //~ ERROR: not allowed here
         transient = 5;
     }
 }

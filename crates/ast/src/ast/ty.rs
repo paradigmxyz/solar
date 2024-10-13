@@ -44,10 +44,10 @@ pub enum TypeKind<'ast> {
 impl fmt::Debug for TypeKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Elementary(ty) => write!(f, "Elementary({ty:?})"),
-            Self::Array(ty) => write!(f, "Array({ty:?})"),
-            Self::Function(ty) => write!(f, "Function({ty:?})"),
-            Self::Mapping(ty) => write!(f, "Mapping({ty:?})"),
+            Self::Elementary(ty) => ty.fmt(f),
+            Self::Array(ty) => ty.fmt(f),
+            Self::Function(ty) => ty.fmt(f),
+            Self::Mapping(ty) => ty.fmt(f),
             Self::Custom(path) => write!(f, "Custom({path:?})"),
         }
     }

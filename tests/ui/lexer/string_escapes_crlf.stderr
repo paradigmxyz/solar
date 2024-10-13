@@ -1,96 +1,96 @@
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:6:24
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                        ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:6:25
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                         ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:6:25
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                         ^
    |
 
 error: cannot skip multiple lines with `\`
-  --> $DIR/string_escapes_crlf.sol:15:1
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | 
    | ^
    |
 
 error: cannot skip multiple lines with `\`
-  --> $DIR/string_escapes_crlf.sol:18:1
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | 
    | ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:20:24
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                        ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:20:25
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                         ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:20:25
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                         ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:21:1
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | ...
    | ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:21:1
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | 
    | ^
    |
 
 error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:31:22
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | string constant s = "
    |                      ^
    |
 
 error: unescaped newline
-  --> $DIR/string_escapes_crlf.sol:33:29
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | string constant s = unicode"
    |                             ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:35:24
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"
    |                        ^
    |
 
 error: invalid hex digit
-  --> $DIR/string_escapes_crlf.sol:35:24
+  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | bytes constant s = hex"
    |                        ^

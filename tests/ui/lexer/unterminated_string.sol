@@ -1,3 +1,3 @@
 "
-//~^ ERROR unterminated string
-//~| ERROR expected global item
+//~^ ERROR: unterminated string
+//~| ERROR: expected global item

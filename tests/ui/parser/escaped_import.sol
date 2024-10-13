@@ -1,1 +1,1 @@
-import "\?"; //~ ERROR unknown character escape
+import "\?"; //~ ERROR: unknown character escape

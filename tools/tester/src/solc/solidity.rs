@@ -1,36 +1,12 @@
-use crate::{utils::path_contains, Config, TestCx, TestFns, TestResult};
-use assert_cmd::Command;
-use std::{fs, path::Path};
-use tempfile::TempDir;
+use crate::utils::path_contains;
+use std::{
+    ffi::OsString,
+    fs,
+    path::Path,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
-pub(crate) const FNS: TestFns = TestFns { check, run };
-
-fn check(config: &Config, path: &Path) -> TestResult {
-    let rel_path = path.strip_prefix(config.root).expect("test path not in root");
-
-    if let Some(reason) = should_skip(rel_path) {
-        return TestResult::Skipped(reason);
-    }
-
-    TestResult::Passed
-}
-
-fn run(cx: &TestCx<'_>) -> TestResult {
-    let path = cx.paths.file.as_path();
-    let mut cmd = cx.cmd();
-    cmd.arg("--stop-after=parsing");
-    let _guard = if has_delimiters(&cx.src) {
-        handle_delimiters(&cx.src, path, &mut cmd)
-    } else {
-        cmd.arg(path).arg("-I").arg(path.parent().unwrap());
-        None
-    };
-    let output = cx.run_cmd(cmd);
-    cx.check_expected_errors(&output);
-    TestResult::Passed
-}
-
-fn should_skip(path: &Path) -> Option<&'static str> {
+pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
     if path_contains(path, "/libyul/") {
         return Some("actually a Yul test");
     }
@@ -121,14 +97,47 @@ fn should_skip(path: &Path) -> Option<&'static str> {
     None
 }
 
+/// Handles `====` and `==== ExternalSource: ... ====` delimiters in a solc test file.
+///
+/// Returns `true` if it contains delimiters and the caller should not compile the original file.
+#[must_use]
+pub(crate) fn handle_delimiters(
+    src: &str,
+    path: &Path,
+    tmp_dir: &Path,
+    mut arg: impl FnMut(OsString),
+) -> bool {
+    if has_delimiters(src) {
+        handle_delimiters_(src, path, tmp_dir, arg)
+    } else {
+        arg("-I".into());
+        arg(path.parent().unwrap().into());
+        false
+    }
+}
+
 fn has_delimiters(src: &str) -> bool {
     src.contains("==== ")
 }
 
-fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDir> {
-    let mut tempdir = None;
-    let insert_tempdir =
-        || tempfile::Builder::new().prefix(path.file_stem().unwrap()).tempdir().unwrap();
+#[must_use]
+fn handle_delimiters_(
+    src: &str,
+    path: &Path,
+    tmp_dir: &Path,
+    mut arg: impl FnMut(OsString),
+) -> bool {
+    let mut tmp_dir2 = None;
+    let make_tmp_dir = || {
+        static COUNTER: AtomicUsize = AtomicUsize::new(0);
+        let path = tmp_dir.join(format!(
+            "{}-{}",
+            path.file_stem().unwrap().to_str().unwrap(),
+            COUNTER.fetch_add(1, Ordering::Relaxed),
+        ));
+        std::fs::create_dir(&path).unwrap();
+        path
+    };
     let mut lines = src.lines().peekable();
     let mut add_import_path = false;
     while let Some(line) = lines.next() {
@@ -143,14 +152,15 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
                 contents.push('\n');
             }
 
-            let tempdir = tempdir.get_or_insert_with(insert_tempdir);
-            let path = tempdir.path().join(name);
+            let tmp_dir = tmp_dir2.get_or_insert_with(make_tmp_dir);
+            let path = tmp_dir.join(name);
             fs::create_dir_all(path.parent().unwrap()).unwrap();
             fs::write(&path, contents).unwrap();
-            cmd.arg(path);
+            arg(path.into());
         } else if let Some(eq) = external_source_delim(line) {
             if eq.contains('=') {
-                cmd.arg("-m").arg(eq);
+                arg("-m".into());
+                arg(eq.into());
             }
             add_import_path = true;
         } else {
@@ -161,20 +171,22 @@ fn handle_delimiters(src: &str, path: &Path, cmd: &mut Command) -> Option<TempDi
                 contents.push_str(line);
                 contents.push('\n');
             }
-            let tempdir = tempdir.get_or_insert_with(insert_tempdir);
-            let path = tempdir.path().join("test.sol");
+            let tmp_dir = tmp_dir2.get_or_insert_with(make_tmp_dir);
+            let path = tmp_dir.join("test.sol");
             fs::write(&path, contents).unwrap();
-            cmd.arg(path);
+            arg(path.into());
             break;
         }
     }
-    if let Some(tempdir) = &tempdir {
-        cmd.arg("-I").arg(tempdir.path());
+    if let Some(tmp_dir) = &tmp_dir2 {
+        arg("-I".into());
+        arg(tmp_dir.into());
     }
     if add_import_path {
-        cmd.arg("-I").arg(path.parent().unwrap());
+        arg("-I".into());
+        arg(path.parent().unwrap().into());
     }
-    tempdir
+    tmp_dir2.is_some()
 }
 
 fn source_delim(line: &str) -> Option<&str> {

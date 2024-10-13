@@ -3,7 +3,7 @@ contract A {
 }
 
 contract B is A {
-    uint public x = 1; //~ ERROR identifier `x` already declared
+    uint public x = 1; //~ ERROR: identifier `x` already declared
 }
 
 contract AA {
@@ -11,7 +11,7 @@ contract AA {
 }
 
 contract BB {
-    uint public y = 3; //~ ERROR identifier `y` already declared
+    uint public y = 3; //~ ERROR: identifier `y` already declared
 }
 
 contract CC is AA, BB {}

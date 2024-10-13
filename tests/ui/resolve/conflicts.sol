@@ -7,7 +7,7 @@ event Ev1(int);
 
 // Not OK
 error Er1(uint);
-error Er1(int); //~ ERROR already declared
+error Er1(int); //~ ERROR: already declared
 
 contract C {
     // OK
@@ -19,10 +19,10 @@ contract C {
 
     // Not OK
     modifier m(uint) { _; }
-    modifier m(int) { _; } //~ ERROR already declared
+    modifier m(int) { _; } //~ ERROR: already declared
 
     error Er2(uint);
-    error Er2(int); //~ ERROR already declared
+    error Er2(int); //~ ERROR: already declared
 }
 
-contract C {} //~ ERROR already declared
+contract C {} //~ ERROR: already declared

@@ -1,33 +1,33 @@
 error: unknown pragma
-  --> $DIR/pragma_unknown.sol:2:1
+  --> ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    |
 LL | pragma foo bar;
    | ^^^^^^^^^^^^^^^
    |
 
 error: unknown pragma
-  --> $DIR/pragma_unknown.sol:4:1
+  --> ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    |
 LL | pragma amogus;
    | ^^^^^^^^^^^^^^
    |
 
 error: unknown pragma
-  --> $DIR/pragma_unknown.sol:6:1
+  --> ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    |
 LL | pragma amogus sus;
    | ^^^^^^^^^^^^^^^^^^
    |
 
 error: unknown pragma
-  --> $DIR/pragma_unknown.sol:8:1
+  --> ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    |
 LL | pragma amogus 69;
    | ^^^^^^^^^^^^^^^^^
    |
 
 error: unknown pragma
-  --> $DIR/pragma_unknown.sol:10:1
+  --> ROOT/tests/ui/parser/pragma_unknown.sol:LL:CC
    |
 LL | pragma amogus 69 diwqbn9ru3b2q945 390ru31290r 0qjr09wadm;
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

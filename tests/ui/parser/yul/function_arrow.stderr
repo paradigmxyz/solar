@@ -1,5 +1,5 @@
 error: expected identifier, found `{`
-  --> $DIR/function_arrow.yul:2:21
+  --> ROOT/tests/ui/parser/yul/function_arrow.yul:LL:CC
    |
 LL |     function f() -> {}
    |                     ^
