@@ -186,7 +186,7 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 }
 
-impl<'sess, 'ast, 'hir> super::LoweringContext<'sess, 'ast, 'hir> {
+impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve(&mut self) {
         let next_id = &AtomicUsize::new(0);

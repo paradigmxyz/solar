@@ -9,7 +9,7 @@ impl<T: std::str::FromStr + strum::VariantNames> StrumVisitor<T> {
 }
 
 #[cfg(feature = "serde")]
-impl<'de, T: std::str::FromStr + strum::VariantNames> serde::de::Visitor<'de> for StrumVisitor<T> {
+impl<T: std::str::FromStr + strum::VariantNames> serde::de::Visitor<'_> for StrumVisitor<T> {
     type Value = T;
 
     fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

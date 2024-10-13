@@ -77,7 +77,7 @@ pub struct Hir<'hir> {
     pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
 }
 
-impl<'hir> Hir<'hir> {
+impl Hir<'_> {
     pub(crate) fn new() -> Self {
         Self {
             sources: IndexVec::new(),

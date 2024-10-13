@@ -42,7 +42,7 @@ pub enum TypeKind<'ast> {
     Custom(AstPath<'ast>),
 }
 
-impl<'ast> TypeKind<'ast> {
+impl TypeKind<'_> {
     /// Returns `true` if the type is an elementary type.
     ///
     /// Note that this does not include `Custom` types.

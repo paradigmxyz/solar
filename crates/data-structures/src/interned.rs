@@ -40,15 +40,15 @@ impl<'a, T> Interned<'a, T> {
     }
 }
 
-impl<'a, T> Clone for Interned<'a, T> {
+impl<T> Clone for Interned<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<'a, T> Copy for Interned<'a, T> {}
+impl<T> Copy for Interned<'_, T> {}
 
-impl<'a, T> Deref for Interned<'a, T> {
+impl<T> Deref for Interned<'_, T> {
     type Target = T;
 
     #[inline]
@@ -57,7 +57,7 @@ impl<'a, T> Deref for Interned<'a, T> {
     }
 }
 
-impl<'a, T> PartialEq for Interned<'a, T> {
+impl<T> PartialEq for Interned<'_, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         // Pointer equality implies equality, due to the uniqueness constraint.
@@ -65,9 +65,9 @@ impl<'a, T> PartialEq for Interned<'a, T> {
     }
 }
 
-impl<'a, T> Eq for Interned<'a, T> {}
+impl<T> Eq for Interned<'_, T> {}
 
-impl<'a, T: PartialOrd> PartialOrd for Interned<'a, T> {
+impl<T: PartialOrd> PartialOrd for Interned<'_, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         // Pointer equality implies equality, due to the uniqueness constraint,
         // but the contents must be compared otherwise.
@@ -81,7 +81,7 @@ impl<'a, T: PartialOrd> PartialOrd for Interned<'a, T> {
     }
 }
 
-impl<'a, T: Ord> Ord for Interned<'a, T> {
+impl<T: Ord> Ord for Interned<'_, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // Pointer equality implies equality, due to the uniqueness constraint,
         // but the contents must be compared otherwise.
@@ -95,7 +95,7 @@ impl<'a, T: Ord> Ord for Interned<'a, T> {
     }
 }
 
-impl<'a, T> Hash for Interned<'a, T> {
+impl<T> Hash for Interned<'_, T> {
     #[inline]
     fn hash<H: Hasher>(&self, s: &mut H) {
         // Pointer hashing is sufficient, due to the uniqueness constraint.

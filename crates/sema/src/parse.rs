@@ -265,7 +265,7 @@ pub struct ParsedSources<'ast> {
     pub sources: IndexVec<SourceId, ParsedSource<'ast>>,
 }
 
-impl<'ast> ParsedSources<'ast> {
+impl ParsedSources<'_> {
     /// Creates a new empty list of parsed sources.
     pub fn new() -> Self {
         Self { sources: IndexVec::new() }
@@ -385,7 +385,7 @@ pub struct ParsedSource<'ast> {
     pub imports: Vec<(ast::ItemId, SourceId)>,
 }
 
-impl<'ast> ParsedSource<'ast> {
+impl ParsedSource<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new() }
