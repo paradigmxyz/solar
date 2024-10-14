@@ -21,3 +21,6 @@ contract C is A, B {
         super.super.S2 memory x3; //~ ERROR: `super` is a builtin, which cannot be indexed in type paths
     }
 }
+
+contract D is this.C {} //~ ERROR: unresolved symbol `this`
+contract E is super.C {} //~ ERROR: unresolved symbol `super`

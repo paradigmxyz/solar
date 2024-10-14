@@ -219,14 +219,6 @@ impl super::LoweringContext<'_, '_, '_> {
             };
         }
 
-        // Register `this` and `super`.
-        for (id, c) in self.hir.contracts_enumerated() {
-            let this = Declaration { kind: Res::Builtin(Builtin::This), span: c.name.span };
-            self.resolver.contract_scopes[id].declarations.insert(sym::this, smallvec![this]);
-            let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span: c.name.span };
-            self.resolver.contract_scopes[id].declarations.insert(sym::super_, smallvec![super_]);
-        }
-
         for id in self.hir.udvt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
             let ast::ItemKind::Udvt(ast_udvt) = &ast_item.kind else { unreachable!() };

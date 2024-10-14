@@ -12,6 +12,20 @@ LL |     struct super { uint x; }
    |            ^^^^^
    |
 
+error: unresolved symbol `this`
+  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   |
+LL | contract D is this.C {}
+   |               ^^^^
+   |
+
+error: unresolved symbol `super`
+  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   |
+LL | contract E is super.C {}
+   |               ^^^^^
+   |
+
 error: `this` is a builtin, which cannot be indexed in type paths
   --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
    |
@@ -40,5 +54,5 @@ LL |         super.super.S2 memory x3;
    |         ^^^^^
    |
 
-error: aborting due to 6 previous errors
+error: aborting due to 8 previous errors
 
