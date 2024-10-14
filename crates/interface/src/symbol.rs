@@ -1,7 +1,8 @@
 use crate::{SessionGlobals, Span};
 use solar_data_structures::{index::BaseIndex32, trustme};
 use solar_macros::symbols;
-use std::{cmp, fmt, hash, str};
+use std::{cmp, fmt, hash, str, sync::atomic::AtomicUsize};
+use thread_local::ThreadLocal;
 
 /// An identifier.
 #[derive(Clone, Copy)]
@@ -329,7 +330,7 @@ impl fmt::Display for Symbol {
     }
 }
 
-type InternerInner = LassoInterner;
+type InternerInner = SccInterner;
 
 /// Symbol interner.
 ///
@@ -354,6 +355,59 @@ impl Interner {
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
         self.0.get(symbol)
+    }
+}
+
+struct SccInterner {
+    arena: ThreadLocal<bumpalo::Bump>,
+    str_to_symbol: scc::HashIndex<&'static str, Symbol, solar_data_structures::map::FxBuildHasher>,
+    symbol_to_str: scc::HashIndex<Symbol, &'static str, solar_data_structures::map::FxBuildHasher>,
+    count: AtomicUsize,
+}
+
+impl SccInterner {
+    fn prefill(init: &[&'static str]) -> Self {
+        let this = Self {
+            arena: ThreadLocal::new(),
+            str_to_symbol: Default::default(),
+            symbol_to_str: Default::default(),
+            count: AtomicUsize::new(init.len()),
+        };
+        for (i, &s) in init.iter().enumerate() {
+            let symbol = Symbol::new(i as u32);
+            this.str_to_symbol.insert(s, symbol).unwrap();
+            this.symbol_to_str.insert(symbol, s).unwrap();
+        }
+        this
+    }
+
+    #[inline]
+    fn intern(&self, string: &str) -> Symbol {
+        if let Some(s) = self.str_to_symbol.peek_with(string, |_, v| *v) {
+            return s;
+        }
+        self.intern_slow(string)
+    }
+
+    #[cold]
+    fn intern_slow(&self, string: &str) -> Symbol {
+        let s = &*self.arena.get_or_default().alloc_str(string);
+        let s = unsafe { trustme::decouple_lt(s) };
+        match self.str_to_symbol.entry(s) {
+            scc::hash_index::Entry::Occupied(e) => *e.get(),
+            scc::hash_index::Entry::Vacant(e) => {
+                let count = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let symbol = Symbol::new(count as u32);
+                e.insert_entry(symbol);
+                self.symbol_to_str.entry(symbol).or_insert(s);
+                symbol
+            }
+        }
+    }
+
+    #[inline]
+    fn get(&self, symbol: Symbol) -> &str {
+        self.symbol_to_str.peek_with(&symbol, |_, v| *v).unwrap()
     }
 }
 
