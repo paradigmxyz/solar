@@ -141,7 +141,6 @@ impl DiagCtxt {
     /// Returns `Err` if any errors have been emitted.
     pub fn has_errors(&self) -> Result<(), ErrorGuaranteed> {
         if self.inner.lock().has_errors() {
-            #[allow(deprecated)]
             Err(ErrorGuaranteed::new_unchecked())
         } else {
             Ok(())
@@ -255,7 +254,6 @@ impl DiagCtxtInner {
 
         if diagnostic.is_error() {
             self.bump_err_count();
-            #[allow(deprecated)]
             Err(ErrorGuaranteed::new_unchecked())
         } else {
             self.bump_warn_count();

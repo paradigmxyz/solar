@@ -286,7 +286,7 @@ impl<'gcx> Gcx<'gcx> {
 }
 
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
@@ -298,13 +298,14 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
+                    let _guard = log_cache_query(stringify!($name), &$key);
                     let mut hit = true;
                     let r = once_map_insert(&self.cache.$name, $key, |&$key| {
                         hit = false;
                         let $gcx = self;
                         $imp
                     });
-                    log_cache_query(stringify!($name), &$key, &r, hit);
+                    log_cache_query_result(&r, hit);
                     r
                 }
             )*
@@ -322,7 +323,7 @@ cached! {
 /// See [ERC-165] for more details.
 ///
 /// [ERC-165]: https://eips.ethereum.org/EIPS/eip-165
-pub fn interface_id(gcx, id: hir::ContractId) -> Selector {
+pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
     let kind = gcx.hir.contract(id).kind;
     assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
     let selectors = gcx.interface_functions(id).own_functions().iter().map(|f| f.selector);
@@ -332,7 +333,7 @@ pub fn interface_id(gcx, id: hir::ContractId) -> Selector {
 /// Returns all the exported functions of the given contract.
 ///
 /// The contract doesn't have to be an interface.
-pub fn interface_functions(gcx, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
+pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
     let mut inheritance_start = None;
     let mut duplicates = FxHashMap::default();
@@ -395,7 +396,7 @@ pub fn interface_functions(gcx, id: hir::ContractId) -> InterfaceFunctions<'gcx>
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
-pub fn item_signature(gcx, id: hir::ItemId) -> &'gcx str {
+pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let ty = gcx.type_of_item(id);
     let tys = match ty.kind {
@@ -406,21 +407,20 @@ pub fn item_signature(gcx, id: hir::ItemId) -> &'gcx str {
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
 }
 
-fn item_selector(gcx, id: hir::ItemId) -> B256 {
+fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
 /// Returns the type of the given item.
-pub fn type_of_item(gcx, id: hir::ItemId) -> Ty<'gcx> {
+pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
     let kind = match id {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
             TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(TyFnPtr {
-                parameters: gcx
-                .mk_ty_iter(f.parameters.iter().map(|&var| gcx.type_of_item(var.into()))),
-                returns: gcx
-                .mk_ty_iter(f.returns.iter().map(|&var| gcx.type_of_item(var.into()))),
+                parameters:
+                    gcx.mk_ty_iter(f.parameters.iter().map(|&var| gcx.type_of_item(var.into()))),
+                returns: gcx.mk_ty_iter(f.returns.iter().map(|&var| gcx.type_of_item(var.into()))),
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
             }))
@@ -434,7 +434,7 @@ pub fn type_of_item(gcx, id: hir::ItemId) -> Ty<'gcx> {
                 (None, None) => return ty,
             }
         }
-        hir::ItemId::Struct(id) => TyKind::Struct(id, ),
+        hir::ItemId::Struct(id) => TyKind::Struct(id),
         hir::ItemId::Enum(id) => TyKind::Enum(id),
         hir::ItemId::Udvt(id) => {
             let udvt = gcx.hir.udvt(id);
@@ -463,13 +463,13 @@ pub fn type_of_item(gcx, id: hir::ItemId) -> Ty<'gcx> {
 }
 
 /// Returns the types of the fields of the given struct.
-pub fn struct_field_types(gcx, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
+pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
     let fields = gcx.hir.strukt(id).fields;
     gcx.mk_ty_iter(fields.iter().map(|f| gcx.type_of_hir_ty(&f.ty)))
 }
 
 /// Returns the members of the given type.
-pub fn members_of(gcx, ty: Ty<'gcx>) -> MemberMap<'gcx> {
+pub fn members_of(gcx: _, ty: Ty<'gcx>) -> MemberMap<'gcx> {
     members::members_of(gcx, ty)
 }
 }
@@ -488,6 +488,12 @@ where
     map.map_insert(key, make_val, |_k, v| *v)
 }
 
-fn log_cache_query(name: &str, key: &dyn fmt::Debug, value: &dyn fmt::Debug, hit: bool) {
-    trace!("`gcx.{name}` {kind}: {key:?} -> {value:?}", kind = if hit { " hit" } else { "miss" });
+fn log_cache_query(name: &str, key: &dyn fmt::Debug) -> tracing::span::EnteredSpan {
+    let guard = trace_span!("query", %name, ?key).entered();
+    trace!("entered");
+    guard
+}
+
+fn log_cache_query_result(result: &dyn fmt::Debug, hit: bool) {
+    trace!(?result, hit);
 }

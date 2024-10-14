@@ -1,7 +1,6 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Pos, Span};
-use dashmap::{DashMap, Entry};
 use solar_data_structures::{
     map::FxBuildHasher,
     sync::{ReadGuard, RwLock},
@@ -99,7 +98,7 @@ pub struct FileLines {
 pub struct SourceMap {
     // INVARIANT: The only operation allowed on `source_files` is `push`.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
-    stable_id_to_source_file: DashMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    stable_id_to_source_file: scc::HashIndex<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -114,7 +113,7 @@ impl SourceMap {
     pub fn new(hash_kind: SourceFileHashAlgorithm) -> Self {
         Self {
             source_files: RwLock::new(Vec::new()),
-            stable_id_to_source_file: DashMap::with_capacity_and_hasher(0, Default::default()),
+            stable_id_to_source_file: Default::default(),
             hash_kind,
         }
     }
@@ -161,8 +160,8 @@ impl SourceMap {
     ) -> io::Result<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
         match self.stable_id_to_source_file.entry(stable_id) {
-            Entry::Occupied(entry) => Ok(entry.get().clone()),
-            Entry::Vacant(entry) => {
+            scc::hash_index::Entry::Occupied(entry) => Ok(entry.get().clone()),
+            scc::hash_index::Entry::Vacant(entry) => {
                 let mut file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
 
                 // Let's make sure the file_id we generated above actually matches
@@ -183,7 +182,7 @@ impl SourceMap {
 
                 let file = Arc::new(file);
                 source_files.push(file.clone());
-                entry.insert(file.clone());
+                entry.insert_entry(file.clone());
 
                 Ok(file)
             }

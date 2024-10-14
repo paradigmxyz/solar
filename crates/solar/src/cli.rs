@@ -52,8 +52,7 @@ pub struct Args {
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,
     /// Number of threads to use. Zero specifies the number of logical cores.
-    // TODO: Default to `0` once we're actually using rayon.
-    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "1")]
+    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
     pub threads: usize,
     /// Comma separated list of types of output for the compiler to emit.
     #[arg(long)]

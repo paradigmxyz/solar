@@ -99,6 +99,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     gcx.hir.par_contract_ids().for_each(|id| {
         let _ = gcx.interface_functions(id);
     });
+    gcx.sess.dcx.has_errors()?;
 
     Ok(())
 }

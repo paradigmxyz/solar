@@ -4,7 +4,6 @@
 
 use super::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
 use crate::hir::{self};
-use dashmap::SharedValue;
 use solar_data_structures::{map::FxBuildHasher, Interned};
 use std::{
     borrow::Borrow,
@@ -12,14 +11,14 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-type FxDashSet<T> = dashmap::DashMap<T, (), FxBuildHasher>;
+type InternSet<T> = scc::HashMap<T, (), FxBuildHasher>;
 
 pub(super) struct Interner<'gcx> {
     pub(super) arena: &'gcx ThreadLocal<hir::Arena>,
 
-    pub(super) tys: FxDashSet<&'gcx TyData<'gcx>>,
-    pub(super) ty_lists: FxDashSet<&'gcx [Ty<'gcx>]>,
-    pub(super) fn_ptrs: FxDashSet<&'gcx TyFnPtr<'gcx>>,
+    pub(super) tys: InternSet<&'gcx TyData<'gcx>>,
+    pub(super) ty_lists: InternSet<&'gcx [Ty<'gcx>]>,
+    pub(super) fn_ptrs: InternSet<&'gcx TyFnPtr<'gcx>>,
 }
 
 impl<'gcx> Interner<'gcx> {
@@ -63,26 +62,48 @@ impl<'gcx> Interner<'gcx> {
     }
 }
 
-trait DashMapExt<K> {
-    fn intern_ref<Q>(&self, value: &Q, make: impl FnOnce() -> K) -> K
-    where
-        K: Borrow<Q>,
-        Q: ?Sized + Hash + Eq;
-
-    fn intern<Q>(&self, value: Q, make: impl FnOnce(Q) -> K) -> K
+trait Intern<K> {
+    fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: Hash + Eq;
+
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Hash + Eq;
 }
 
-impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> DashMapExt<K> for dashmap::DashMap<K, (), S> {
+/*
+use dashmap::{Map, SharedValue};
+impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> MapIntern<K> for dashmap::DashMap<K, (), S> {
+    fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        let hash = self.hasher().hash_one(&key);
+        let shard = self.determine_shard(hash as usize);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
+
+        let bucket = match shard.find_or_find_insert_slot(
+            hash,
+            |(k, _v)| *k.borrow() == key,
+            |(k, _v)| self.hasher().hash_one(k),
+        ) {
+            Ok(elem) => elem,
+            Err(slot) => unsafe {
+                shard.insert_in_slot(hash, slot, (make(key), SharedValue::new(())))
+            },
+        };
+        unsafe { bucket.as_ref() }.0
+    }
+
     fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
-        use dashmap::Map;
-
         let hash = self.hasher().hash_one(key);
         let shard = self.determine_shard(hash as usize);
         let mut shard = unsafe { self._yield_write_shard(shard) };
@@ -99,28 +120,29 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> DashMapExt<K> for dashmap::Das
         };
         unsafe { bucket.as_ref() }.0
     }
+}
+*/
 
+impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> Intern<K> for scc::HashMap<K, (), S> {
     fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        use dashmap::Map;
+        if let Some(key) = self.read(&key, |k, _| *k) {
+            return key;
+        }
+        *self.entry(make(key)).or_insert(()).key()
+    }
 
-        let hash = self.hasher().hash_one(&key);
-        let shard = self.determine_shard(hash as usize);
-        let mut shard = unsafe { self._yield_write_shard(shard) };
-
-        let bucket = match shard.find_or_find_insert_slot(
-            hash,
-            |(k, _v)| *k.borrow() == key,
-            |(k, _v)| self.hasher().hash_one(k),
-        ) {
-            Ok(elem) => elem,
-            Err(slot) => unsafe {
-                shard.insert_in_slot(hash, slot, (make(key), SharedValue::new(())))
-            },
-        };
-        unsafe { bucket.as_ref() }.0
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        if let Some(key) = self.read(key, |k, _| *k) {
+            return key;
+        }
+        *self.entry(make()).or_insert(()).key()
     }
 }

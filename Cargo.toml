@@ -160,6 +160,7 @@ once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
 petgraph = "0.6"
 rustc-hash = "2.0"
+scc = "2"
 scoped-tls = "1.0"
 semver = "1.0"
 smallvec = "1"
