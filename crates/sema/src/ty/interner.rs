@@ -1,0 +1,126 @@
+//! Type interner.
+//!
+//! Creates and stores unique instances of types, type lists, and function pointers.
+
+use super::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
+use crate::hir::{self};
+use dashmap::SharedValue;
+use solar_data_structures::{map::FxBuildHasher, Interned};
+use std::{
+    borrow::Borrow,
+    hash::{BuildHasher, Hash},
+};
+use thread_local::ThreadLocal;
+
+type FxDashSet<T> = dashmap::DashMap<T, (), FxBuildHasher>;
+
+pub(super) struct Interner<'gcx> {
+    pub(super) arena: &'gcx ThreadLocal<hir::Arena>,
+
+    pub(super) tys: FxDashSet<&'gcx TyData<'gcx>>,
+    pub(super) ty_lists: FxDashSet<&'gcx [Ty<'gcx>]>,
+    pub(super) fn_ptrs: FxDashSet<&'gcx TyFnPtr<'gcx>>,
+}
+
+impl<'gcx> Interner<'gcx> {
+    pub(super) fn new(arena: &'gcx ThreadLocal<hir::Arena>) -> Self {
+        Self {
+            arena,
+            tys: Default::default(),
+            ty_lists: Default::default(),
+            fn_ptrs: Default::default(),
+        }
+    }
+
+    fn bump(&self) -> &'gcx bumpalo::Bump {
+        &self.arena.get_or_default().bump
+    }
+
+    pub(super) fn intern_ty_with_flags(
+        &self,
+        kind: TyKind<'gcx>,
+        mk_flags: impl FnOnce(&TyKind<'gcx>) -> TyFlags,
+    ) -> Ty<'gcx> {
+        Ty(Interned::new_unchecked(
+            self.tys
+                .intern(kind, |kind| self.bump().alloc(TyData { flags: mk_flags(&kind), kind })),
+        ))
+    }
+
+    pub(super) fn intern_tys(&self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
+        if tys.is_empty() {
+            return &[];
+        }
+        self.ty_lists.intern_ref(tys, || self.bump().alloc_slice_copy(tys))
+    }
+
+    pub(super) fn intern_ty_iter(&self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
+        solar_data_structures::CollectAndApply::collect_and_apply(tys, |tys| self.intern_tys(tys))
+    }
+
+    pub(super) fn intern_ty_fn_ptr(&self, ptr: TyFnPtr<'gcx>) -> &'gcx TyFnPtr<'gcx> {
+        self.fn_ptrs.intern(ptr, |ptr| self.bump().alloc(ptr))
+    }
+}
+
+trait DashMapExt<K> {
+    fn intern_ref<Q>(&self, value: &Q, make: impl FnOnce() -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Hash + Eq;
+
+    fn intern<Q>(&self, value: Q, make: impl FnOnce(Q) -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq;
+}
+
+impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> DashMapExt<K> for dashmap::DashMap<K, (), S> {
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        use dashmap::Map;
+
+        let hash = self.hasher().hash_one(key);
+        let shard = self.determine_shard(hash as usize);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
+
+        let bucket = match shard.find_or_find_insert_slot(
+            hash,
+            |(k, _v)| k.borrow() == key,
+            |(k, _v)| self.hasher().hash_one(k),
+        ) {
+            Ok(elem) => elem,
+            Err(slot) => unsafe {
+                shard.insert_in_slot(hash, slot, (make(), SharedValue::new(())))
+            },
+        };
+        unsafe { bucket.as_ref() }.0
+    }
+
+    fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        use dashmap::Map;
+
+        let hash = self.hasher().hash_one(&key);
+        let shard = self.determine_shard(hash as usize);
+        let mut shard = unsafe { self._yield_write_shard(shard) };
+
+        let bucket = match shard.find_or_find_insert_slot(
+            hash,
+            |(k, _v)| *k.borrow() == key,
+            |(k, _v)| self.hasher().hash_one(k),
+        ) {
+            Ok(elem) => elem,
+            Err(slot) => unsafe {
+                shard.insert_in_slot(hash, slot, (make(key), SharedValue::new(())))
+            },
+        };
+        unsafe { bucket.as_ref() }.0
+    }
+}

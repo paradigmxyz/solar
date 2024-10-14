@@ -1,0 +1,348 @@
+use super::Gcx;
+use crate::{builtins::Builtin, hir};
+use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
+use solar_data_structures::{map::FxHashSet, smallvec::SmallVec, Interned};
+use solar_interface::diagnostics::ErrorGuaranteed;
+use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Ty<'gcx>(pub(super) Interned<'gcx, TyData<'gcx>>);
+
+impl fmt::Debug for Ty<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<'gcx> std::ops::Deref for Ty<'gcx> {
+    type Target = &'gcx TyData<'gcx>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.0 .0
+    }
+}
+
+impl<'gcx> Ty<'gcx> {
+    pub fn new(gcx: Gcx<'gcx>, kind: TyKind<'gcx>) -> Self {
+        gcx.mk_ty(kind)
+    }
+
+    // TODO: with_loc_if_ref ?
+    pub fn with_loc(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
+        let mut ty = self;
+        if let TyKind::Ref(inner, l2) = self.kind {
+            if l2 == loc {
+                return self;
+            }
+            ty = inner;
+        }
+        Self::new(gcx, TyKind::Ref(ty, loc))
+    }
+
+    pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::FnPtr(f) = self.kind else { return self };
+        let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
+        let any_parameter = f.parameters.iter().any(is_calldata);
+        let any_return = f.returns.iter().any(is_calldata);
+        if !any_parameter && !any_return {
+            return self;
+        }
+        gcx.mk_ty_fn_ptr(TyFnPtr {
+            parameters: if any_parameter {
+                gcx.mk_ty_iter(f.parameters.iter().map(|param| {
+                    if is_calldata(param) {
+                        param.with_loc(gcx, DataLocation::Memory)
+                    } else {
+                        *param
+                    }
+                }))
+            } else {
+                f.parameters
+            },
+            returns: if any_return {
+                gcx.mk_ty_iter(f.returns.iter().map(|ret| {
+                    if is_calldata(ret) {
+                        ret.with_loc(gcx, DataLocation::Memory)
+                    } else {
+                        *ret
+                    }
+                }))
+            } else {
+                f.returns
+            },
+            state_mutability: f.state_mutability,
+            visibility: f.visibility,
+        })
+    }
+
+    pub fn make_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
+        if self.is_ref_at(loc) {
+            return self;
+        }
+        Self::new(gcx, TyKind::Ref(self, loc))
+    }
+
+    pub fn make_type_type(self, gcx: Gcx<'gcx>) -> Self {
+        if let TyKind::Type(_) = self.kind {
+            return self;
+        }
+        Self::new(gcx, TyKind::Type(self))
+    }
+
+    pub fn make_meta(self, gcx: Gcx<'gcx>) -> Self {
+        if let TyKind::Meta(_) = self.kind {
+            return self;
+        }
+        Self::new(gcx, TyKind::Meta(self))
+    }
+
+    /// Returns `true` if the type is a reference.
+    #[inline]
+    pub fn is_ref(self) -> bool {
+        matches!(self.kind, TyKind::Ref(..))
+    }
+
+    /// Returns `true` if the type is a reference to the given location.
+    #[inline]
+    pub fn is_ref_at(self, loc: DataLocation) -> bool {
+        matches!(self.kind, TyKind::Ref(_, l) if l == loc)
+    }
+
+    /// Returns `true` if the type is a value type.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/types.html#value-types>
+    #[inline]
+    pub fn is_value_type(self) -> bool {
+        match self.kind {
+            TyKind::Elementary(t) => t.is_value_type(),
+            TyKind::Contract(_) | TyKind::FnPtr(_) | TyKind::Enum(_) | TyKind::Udvt(..) => true,
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if the type is recursive.
+    pub fn is_recursive(self) -> bool {
+        self.flags.contains(TyFlags::IS_RECURSIVE)
+    }
+
+    /// Returns `true` if this type contains a mapping.
+    pub fn has_mapping(self) -> bool {
+        self.flags.contains(TyFlags::HAS_MAPPING)
+    }
+
+    /// Returns `true` if this type contains an error.
+    pub fn has_error(self) -> bool {
+        self.flags.contains(TyFlags::HAS_ERROR)
+    }
+
+    /// Returns `true` if this type can be part of an externally callable function.
+    #[inline]
+    pub fn can_be_exported(self) -> bool {
+        !(self.is_recursive() || self.has_mapping() || self.has_error())
+    }
+}
+
+#[derive(PartialEq, Eq, Hash)]
+pub struct TyData<'gcx> {
+    pub kind: TyKind<'gcx>,
+    pub flags: TyFlags,
+}
+
+impl<'gcx> Borrow<TyKind<'gcx>> for &TyData<'gcx> {
+    fn borrow(&self) -> &TyKind<'gcx> {
+        &self.kind
+    }
+}
+
+impl fmt::Debug for TyData<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind.fmt(f)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum TyKind<'gcx> {
+    /// An elementary/primitive type.
+    Elementary(ElementaryType),
+
+    /// Any string literal. Contains `(is_valid_utf8(s), min(s.len(), 32))`.
+    /// - all string literals can coerce to `bytes`
+    /// - only valid UTF-8 string literals can coerce to `string`
+    /// - only string literals with `len <= N` can coerce to `bytesN`
+    StringLiteral(bool, TypeSize),
+
+    /// Any integer or fixed-point number literal. Contains `min(s.len(), 32)`.
+    IntLiteral(TypeSize),
+
+    /// A reference to another type which lives in the data location.
+    Ref(Ty<'gcx>, DataLocation),
+
+    /// Dynamic array: `T[]`.
+    DynArray(Ty<'gcx>),
+
+    /// Fixed-size array: `T[N]`.
+    Array(Ty<'gcx>, u64),
+
+    /// Tuple: `(T1, T2, ...)`.
+    Tuple(&'gcx [Ty<'gcx>]),
+
+    /// Mapping: `mapping(K => V)`.
+    Mapping(Ty<'gcx>, Ty<'gcx>),
+
+    /// Function pointer: `function(...) returns (...)`.
+    FnPtr(&'gcx TyFnPtr<'gcx>),
+
+    /// Contract.
+    Contract(hir::ContractId),
+
+    /// A struct.
+    ///
+    /// Cannot contain the types of its fields because it can be recursive.
+    Struct(hir::StructId),
+
+    /// An enum.
+    Enum(hir::EnumId),
+
+    /// A custom error.
+    Error(&'gcx [Ty<'gcx>], hir::ErrorId),
+
+    /// An event.
+    Event(&'gcx [Ty<'gcx>], hir::EventId),
+
+    /// A user-defined value type. `Ty` can only be `Elementary`.
+    Udvt(Ty<'gcx>, hir::UdvtId),
+
+    /// A source imported as a module: `import "path" as Module;`.
+    Module(hir::SourceId),
+
+    /// Builtin module.
+    BuiltinModule(Builtin),
+
+    /// The self-referential type, e.g. `Enum` in `Enum.Variant`.
+    /// Corresponds to `TypeType` in solc.
+    Type(Ty<'gcx>),
+
+    /// The meta type: `type(<inner_type>)`.
+    Meta(Ty<'gcx>),
+
+    /// An invalid type. Silences further errors.
+    Err(ErrorGuaranteed),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct TyFnPtr<'gcx> {
+    pub parameters: &'gcx [Ty<'gcx>],
+    pub returns: &'gcx [Ty<'gcx>],
+    pub state_mutability: StateMutability,
+    pub visibility: Visibility,
+}
+
+impl<'gcx> TyFnPtr<'gcx> {
+    /// Returns an iterator over all the types in the function pointer.
+    pub fn tys(&self) -> impl DoubleEndedIterator<Item = Ty<'gcx>> + Clone {
+        self.parameters.iter().copied().chain(self.returns.iter().copied())
+    }
+}
+
+bitflags::bitflags! {
+    /// [`Ty`] flags.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct TyFlags: u8 {
+        /// Whether this type is recursive.
+        const IS_RECURSIVE = 1 << 0;
+        /// Whether this type contains a mapping.
+        const HAS_MAPPING  = 1 << 1;
+        /// Whether an error is reachable.
+        const HAS_ERROR    = 1 << 2;
+    }
+}
+
+impl TyFlags {
+    pub(super) fn calculate<'gcx>(gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) -> Self {
+        let mut flags = Self::empty();
+        flags.add_ty_kind(gcx, ty);
+        flags
+    }
+
+    fn add_ty_kind<'gcx>(&mut self, gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) {
+        match *ty {
+            TyKind::Elementary(_)
+            | TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(_)
+            | TyKind::Contract(_)
+            | TyKind::FnPtr(_)
+            | TyKind::Enum(_)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_) => {}
+
+            TyKind::Ref(ty, _)
+            | TyKind::DynArray(ty)
+            | TyKind::Array(ty, _)
+            | TyKind::Udvt(ty, _)
+            | TyKind::Type(ty)
+            | TyKind::Meta(ty) => self.add_ty(ty),
+
+            TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
+                self.add_tys(list)
+            }
+
+            TyKind::Mapping(k, v) => {
+                self.add_ty(k);
+                self.add_ty(v);
+                self.add(Self::HAS_MAPPING);
+            }
+
+            TyKind::Struct(id) => {
+                if struct_is_recursive(gcx, id) {
+                    self.add(Self::IS_RECURSIVE);
+                } else {
+                    self.add_tys(gcx.struct_field_types(id));
+                }
+            }
+
+            TyKind::Err(_) => self.add(Self::HAS_ERROR),
+        }
+    }
+
+    #[inline]
+    fn add(&mut self, other: Self) {
+        *self |= other;
+    }
+
+    #[inline]
+    fn add_ty(&mut self, ty: Ty<'_>) {
+        self.add(ty.flags);
+    }
+
+    #[inline]
+    fn add_tys(&mut self, tys: &[Ty<'_>]) {
+        for ty in tys {
+            self.add_ty(*ty);
+        }
+    }
+}
+
+fn struct_is_recursive(gcx: Gcx<'_>, id: hir::StructId) -> bool {
+    let mut seen = FxHashSet::default();
+    let mut ids = SmallVec::<[_; 16]>::new();
+    seen.insert(id);
+    ids.push(id);
+    while let Some(id) = ids.pop() {
+        for field in gcx.hir.strukt(id).fields {
+            let r = field.ty.visit(&mut |ty| {
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(other_id)) = ty.kind {
+                    if !seen.insert(other_id) {
+                        return ControlFlow::Break(());
+                    }
+                    ids.push(other_id);
+                }
+                ControlFlow::Continue(())
+            });
+            if r.is_break() {
+                return true;
+            }
+        }
+    }
+    false
+}
