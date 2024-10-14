@@ -399,7 +399,7 @@ impl SccInterner {
                 let count = self.count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 let symbol = Symbol::new(count as u32);
                 e.insert_entry(symbol);
-                self.symbol_to_str.entry(symbol).or_insert(s);
+                self.symbol_to_str.insert(symbol, s).unwrap();
                 symbol
             }
         }
@@ -408,51 +408,6 @@ impl SccInterner {
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
         self.symbol_to_str.peek_with(&symbol, |_, v| *v).unwrap()
-    }
-}
-
-// TODO: We could finalize the interner after parsing to a `RodeoResolver`, making it read-only.
-struct LassoInterner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
-
-impl LassoInterner {
-    fn prefill(init: &[&'static str]) -> Self {
-        let capacity = if init.is_empty() {
-            Default::default()
-        } else {
-            let actual_string = init.len();
-            let strings = actual_string.next_power_of_two();
-            let actual_bytes = PREINTERNED_SYMBOLS_BYTES as usize;
-            let bytes = actual_bytes.next_power_of_two().max(4096);
-            trace!(strings, bytes, "prefill capacity");
-            lasso::Capacity::new(strings, std::num::NonZeroUsize::new(bytes).unwrap())
-        };
-        let rodeo = lasso::ThreadedRodeo::with_capacity_and_hasher(capacity, Default::default());
-        for &s in init {
-            rodeo.get_or_intern_static(s);
-        }
-        Self(rodeo)
-    }
-
-    #[inline]
-    fn intern(&self, string: &str) -> Symbol {
-        self.0.get_or_intern(string)
-    }
-
-    #[inline]
-    fn get(&self, symbol: Symbol) -> &str {
-        self.0.resolve(&symbol)
-    }
-}
-
-unsafe impl lasso::Key for Symbol {
-    #[inline]
-    fn into_usize(self) -> usize {
-        self.as_u32() as usize
-    }
-
-    #[inline]
-    fn try_from_usize(int: usize) -> Option<Self> {
-        int.try_into().ok().map(Self::new)
     }
 }
 
