@@ -70,31 +70,35 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         "tests root directory does not exist: {path}; you may need to initialize submodules"
     );
 
-    // Use `rustc` for the (private) diagnostics parser.
-    let mut config = ui_test::Config::rustc(tests_root);
-
-    // `host` and `target` are unused, but we still have to specify `host` so that `ui_test` doesn't
-    // invoke the command with `-vV` and try to parse the output since it will fail.
-    config.host = Some(String::from("unused"));
-
-    config.program = ui_test::CommandBuilder {
-        program: cmd.into(),
-        args: {
-            let mut args = vec!["-j1", "--error-format=rich-json", "-Zui-testing", "-Zparse-yul"];
-            if mode.is_solc() {
-                args.push("--stop-after=parsing");
-            }
-            args.into_iter().map(Into::into).collect()
+    let mut config = ui_test::Config {
+        // `host` and `target` are unused, but we still have to specify `host` so that `ui_test`
+        // doesn't invoke the command with `-vV` and try to parse the output which will fail.
+        host: Some(String::from("unused")),
+        target: Some(String::from("unused")),
+        root_dir: tests_root,
+        program: ui_test::CommandBuilder {
+            program: cmd.into(),
+            args: {
+                let mut args =
+                    vec!["-j1", "--error-format=rich-json", "-Zui-testing", "-Zparse-yul"];
+                if mode.is_solc() {
+                    args.push("--stop-after=parsing");
+                }
+                args.into_iter().map(Into::into).collect()
+            },
+            out_dir_flag: None,
+            input_file_flag: None,
+            envs: vec![],
+            cfg_flag: None,
         },
-        out_dir_flag: None,
-        input_file_flag: None,
-        envs: vec![],
-        cfg_flag: None,
+        output_conflict_handling: ui_test::error_on_output_conflict,
+        bless_command: Some("cargo uibless".into()),
+        out_dir: root.join("target/ui"),
+        comment_start: "//",
+        diagnostic_extractor: ui_test::diagnostics::rustc::rustc_diagnostics_extractor,
+        ..ui_test::Config::dummy()
     };
 
-    // Clear the `rustc` flags.
-    config.comment_defaults.base().custom.clear();
-    config.custom_comments.clear();
     macro_rules! register_custom_flags {
         ($($ty:ty),* $(,)?) => {
             $(
@@ -114,14 +118,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
 
     let filters = [
         (root.to_str().unwrap(), "ROOT"),
-        // erase line and column info
+        // Erase line and column info.
         (r"\.(\w+):[0-9]+:[0-9]+(: [0-9]+:[0-9]+)?", ".$1:LL:CC"),
     ];
     for (pattern, replacement) in filters {
         config.filter(pattern, replacement);
     }
-
-    config.bless_command = Some("cargo uibless".into());
 
     config.with_args(args);
 

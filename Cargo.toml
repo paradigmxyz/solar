@@ -171,4 +171,5 @@ yansi = "1.0"
 
 [patch.crates-io]
 # https://github.com/oli-obk/ui_test/pull/286
-ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "02ba57d14cfd783728e3d53bfb35db6e31dc50eb" }
+# https://github.com/oli-obk/ui_test/pull/289
+ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "fb3c75bf0b0cc3b7b44e4431bacdafa210c00489" }
