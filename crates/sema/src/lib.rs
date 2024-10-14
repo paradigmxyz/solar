@@ -4,6 +4,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.jpg",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
+#![cfg_attr(feature = "nightly", feature(rustc_attrs), allow(internal_features))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[macro_use]
@@ -86,19 +87,17 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         }
     }
 
-    gcx.sess.dcx.has_errors()?;
-
-    check_type_cycles(gcx);
-    gcx.sess.dcx.has_errors()?;
-
+    // Collect the types first to check and fail on recursive types.
     gcx.hir.par_item_ids().for_each(|id| {
-        if let hir::ItemId::Contract(id) = id {
-            let _ = gcx.interface_functions(id);
-        }
         let _ = gcx.type_of_item(id);
         if let hir::ItemId::Struct(id) = id {
             let _ = gcx.struct_field_types(id);
         }
+    });
+    gcx.sess.dcx.has_errors()?;
+
+    gcx.hir.par_contract_ids().for_each(|id| {
+        let _ = gcx.interface_functions(id);
     });
 
     Ok(())
@@ -121,14 +120,6 @@ pub fn resolve<'hir>(
     let hir = ast_lowering::lower(sess, sources, arena);
 
     Ok(hir)
-}
-
-fn check_type_cycles(gcx: Gcx<'_>) {
-    let _ = gcx;
-    // TODO
-    // gcx.hir.par_structs().for_each(|s| {
-    //     s.fields
-    // });
 }
 
 fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {

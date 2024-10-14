@@ -128,11 +128,7 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberMapOwned<'_> 
         .iter()
         .map(|f| {
             let id = hir::ItemId::from(f.id);
-            Member::with_res(
-                gcx.item_name(id).name,
-                f.ty.as_externally_callable_function(&gcx.interner),
-                id,
-            )
+            Member::with_res(gcx.item_name(id).name, f.ty.as_externally_callable_function(gcx), id)
         })
         .collect()
 }
@@ -156,7 +152,7 @@ fn reference<'gcx>(
             fields
                 .iter()
                 .zip(tys)
-                .map(|(f, &ty)| Member::new(f.name.name, ty.with_loc(&gcx.interner, loc)))
+                .map(|(f, &ty)| Member::new(f.name.name, ty.with_loc(gcx, loc)))
                 .collect()
         }
         (

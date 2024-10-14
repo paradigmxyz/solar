@@ -1,5 +1,8 @@
-use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
+use super::{
+    AstPath, BinOpKind, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type, UnOpKind,
+};
 use crate::token::Token;
+use either::Either;
 use solar_interface::{Ident, Span};
 use std::fmt;
 use strum::EnumIs;
@@ -287,6 +290,29 @@ pub enum UserDefinableOperator {
     Lt,
     /// `!=`
     Ne,
+}
+
+impl UserDefinableOperator {
+    /// Returns this operator as a binary or unary operator.
+    pub const fn to_op(self) -> Either<UnOpKind, BinOpKind> {
+        match self {
+            Self::BitAnd => Either::Right(BinOpKind::BitAnd),
+            Self::BitNot => Either::Left(UnOpKind::BitNot),
+            Self::BitOr => Either::Right(BinOpKind::BitOr),
+            Self::BitXor => Either::Right(BinOpKind::BitXor),
+            Self::Add => Either::Right(BinOpKind::Add),
+            Self::Div => Either::Right(BinOpKind::Div),
+            Self::Rem => Either::Right(BinOpKind::Rem),
+            Self::Mul => Either::Right(BinOpKind::Mul),
+            Self::Sub => Either::Right(BinOpKind::Sub),
+            Self::Eq => Either::Right(BinOpKind::Eq),
+            Self::Ge => Either::Right(BinOpKind::Ge),
+            Self::Gt => Either::Right(BinOpKind::Gt),
+            Self::Le => Either::Right(BinOpKind::Le),
+            Self::Lt => Either::Right(BinOpKind::Lt),
+            Self::Ne => Either::Right(BinOpKind::Ne),
+        }
+    }
 }
 
 /// A contract, abstract contract, interface, or library definition:

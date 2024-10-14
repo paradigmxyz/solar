@@ -1,0 +1,44 @@
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function a1(A) public {}
+   |                 ^
+   |
+
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function b1(B) public {}
+   |                 ^
+   |
+
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function c1(C) public {}
+   |                 ^
+   |
+
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function a2() public returns(A) {}
+   |                                  ^
+   |
+
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function b2() public returns(B) {}
+   |                                  ^
+   |
+
+error: recursive types cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
+   |
+LL |     function c2() public returns(C) {}
+   |                                  ^
+   |
+
+error: aborting due to 6 previous errors
+

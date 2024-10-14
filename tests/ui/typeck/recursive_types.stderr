@@ -1,3 +1,17 @@
+error: name has to refer to a valid user-defined type
+  --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
+   |
+LL |     function d(E1) public {}
+   |                ^^
+   |
+
+error: name has to refer to a valid user-defined type
+  --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
+   |
+LL |     function e(E2) public {}
+   |                ^^
+   |
+
 error: the underlying type of UDVTs must be an elementary value type
   --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
@@ -19,5 +33,5 @@ LL |     event E2(E1);
    |              ^^
    |
 
-error: aborting due to 3 previous errors
+error: aborting due to 5 previous errors
 

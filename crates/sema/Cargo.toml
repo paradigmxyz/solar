@@ -23,6 +23,7 @@ solar-parse.workspace = true
 
 alloy-primitives.workspace = true
 arrayvec.workspace = true
+bitflags.workspace = true
 bumpalo.workspace = true
 dashmap = { workspace = true, features = ["raw-api"] }
 derive_more.workspace = true

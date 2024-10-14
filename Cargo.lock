@@ -2425,6 +2425,7 @@ version = "0.0.0"
 dependencies = [
  "alloy-primitives",
  "bumpalo",
+ "either",
  "num-bigint",
  "num-rational",
  "semver 1.0.23",
@@ -2531,6 +2532,7 @@ version = "0.0.0"
 dependencies = [
  "alloy-primitives",
  "arrayvec",
+ "bitflags",
  "bumpalo",
  "dashmap",
  "derive_more 1.0.0",

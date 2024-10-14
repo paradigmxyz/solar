@@ -9,7 +9,7 @@ use solar_data_structures::{
     newtype_index, BumpExt,
 };
 use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
-use std::{fmt, sync::Arc};
+use std::{fmt, ops::ControlFlow, sync::Arc};
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
@@ -544,6 +544,11 @@ impl Function<'_> {
     pub fn is_part_of_external_interface(&self) -> bool {
         self.is_ordinary() && self.visibility >= Visibility::Public
     }
+
+    /// Returns an iterator over all variables in the function.
+    pub fn vars(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + '_ {
+        self.parameters.iter().copied().chain(self.returns.iter().copied())
+    }
 }
 
 /// A struct.
@@ -970,6 +975,29 @@ impl Type<'_> {
 
     pub fn is_dummy(&self) -> bool {
         self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
+    }
+
+    pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
+        f(self)?;
+        match self.kind {
+            TypeKind::Elementary(_) => ControlFlow::Continue(()),
+            TypeKind::Array(ty) => ty.element.visit(f),
+            TypeKind::Function(ty) => {
+                for ty in ty.parameters {
+                    ty.visit(f)?;
+                }
+                for ty in ty.returns {
+                    ty.visit(f)?;
+                }
+                ControlFlow::Continue(())
+            }
+            TypeKind::Mapping(ty) => {
+                ty.key.visit(f)?;
+                ty.value.visit(f)
+            }
+            TypeKind::Custom(_) => ControlFlow::Continue(()),
+            TypeKind::Err(_) => ControlFlow::Continue(()),
+        }
     }
 }
 

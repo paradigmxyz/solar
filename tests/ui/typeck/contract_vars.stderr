@@ -1,19 +1,19 @@
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+  --> ROOT/tests/ui/typeck/contract_vars.sol:LL:CC
    |
 LL |     f a;
    |     ^
    |
 
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+  --> ROOT/tests/ui/typeck/contract_vars.sol:LL:CC
    |
 LL |     E1 b;
    |     ^^
    |
 
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+  --> ROOT/tests/ui/typeck/contract_vars.sol:LL:CC
    |
 LL |     E2 c;
    |     ^^

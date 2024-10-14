@@ -1,5 +1,4 @@
 contract CC {
-    // TODO: Reject these 2
     struct A {
         B b;
     }
@@ -16,6 +15,10 @@ contract CC {
 
     type U1 is U1; //~ ERROR: the underlying type of UDVTs must be an elementary value type
 
-    // TODO: cannot print signature recursively
-    // function f(A, B, C, E1, E2, U1) public {}
+    function a(A) public {}
+    function b(B) public {}
+    function c(C) public {}
+    function d(E1) public {} //~ ERROR: name has to refer to a valid user-defined type
+    function e(E2) public {} //~ ERROR: name has to refer to a valid user-defined type
+    function f(U1) public {}
 }
