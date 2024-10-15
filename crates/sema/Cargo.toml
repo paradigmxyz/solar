@@ -22,7 +22,6 @@ solar-interface.workspace = true
 solar-parse.workspace = true
 
 alloy-primitives.workspace = true
-arrayvec.workspace = true
 bitflags.workspace = true
 bumpalo.workspace = true
 derive_more.workspace = true

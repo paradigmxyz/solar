@@ -1,0 +1,19 @@
+contract C {
+    struct S {
+        mapping(uint => uint) x;
+    }
+
+    function f1(S memory) public {}            //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function f2(S storage) public {}           //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function f3() public returns(S memory) {}  //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function f4() public returns(S storage) {} //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    
+    struct Nested {
+        S s;
+    }
+
+    function n1(Nested memory) public {}            //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function n2(Nested storage) public {}           //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function n3() public returns(Nested memory) {}  //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+    function n4() public returns(Nested storage) {} //~ ERROR: types containing mappings cannot be parameter or return types of public functions
+}

@@ -2546,7 +2546,6 @@ name = "solar-sema"
 version = "0.0.0"
 dependencies = [
  "alloy-primitives",
- "arrayvec",
  "bitflags",
  "bumpalo",
  "derive_more 1.0.0",

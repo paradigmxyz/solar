@@ -1,0 +1,58 @@
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function f1(S memory) public {}
+   |                 ^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function f2(S storage) public {}
+   |                 ^^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function f3() public returns(S memory) {}
+   |                                  ^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function f4() public returns(S storage) {}
+   |                                  ^^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function n1(Nested memory) public {}
+   |                 ^^^^^^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function n2(Nested storage) public {}
+   |                 ^^^^^^^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function n3() public returns(Nested memory) {}
+   |                                  ^^^^^^^^^^^^^
+   |
+
+error: types containing mappings cannot be parameter or return types of public functions
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     function n4() public returns(Nested storage) {}
+   |                                  ^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 8 previous errors
+

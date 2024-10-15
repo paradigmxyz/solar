@@ -945,16 +945,12 @@ impl SymbolResolverScopes {
         resolver: &'a SymbolResolver<'_>,
     ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
         debug_assert!(self.source.is_some() || self.contract.is_some());
-        let mut scopes = arrayvec::ArrayVec::<_, 3>::new();
-        if let Some(contract) = self.contract {
-            // NOTE: Inheritance is flattened into each contract.
-            scopes.push(&resolver.contract_scopes[contract]);
-        }
-        if let Some(source) = self.source {
-            scopes.push(&resolver.source_scopes[source]);
-        }
-        scopes.push(&resolver.global_builtin_scope);
-        self.scopes.iter().rev().chain(scopes)
+        self.scopes
+            .iter()
+            .rev()
+            .chain(self.contract.map(|id| &resolver.contract_scopes[id]))
+            .chain(self.source.map(|id| &resolver.source_scopes[id]))
+            .chain(std::iter::once(&resolver.global_builtin_scope))
     }
 
     fn enter(&mut self) {

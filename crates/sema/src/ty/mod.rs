@@ -8,7 +8,7 @@ use crate::{
 use alloy_primitives::{keccak256, Selector, B256};
 use solar_ast::ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
-    map::{FxBuildHasher, FxHashMap},
+    map::{FxBuildHasher, FxHashMap, FxHashSet},
     BumpExt,
 };
 use solar_interface::{
@@ -336,7 +336,8 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
 pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
     let mut inheritance_start = None;
-    let mut duplicates = FxHashMap::default();
+    let mut signatures_seen = FxHashSet::default();
+    let mut hash_collisions = FxHashMap::default();
     let functions = c.linearized_bases.iter().flat_map(|&base| {
         let b = gcx.hir.contract(base);
         let functions =
@@ -346,9 +347,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
             inheritance_start = Some(functions.clone().count());
         }
         functions
-    }).map(|f_id| {
+    }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-
         let ty = gcx.type_of_item(f_id.into());
         let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
@@ -365,16 +365,20 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(gcx.dcx().err(msg).span(span).emit());
             }
         }
-        if let Err(guar) = result {
-            return InterfaceFunction {
-                selector: Selector::ZERO,
-                id: f_id,
-                ty: gcx.mk_ty_err(guar),
-            };
+        if result.is_err() {
+            return None;
         }
 
-        let selector = gcx.function_selector(f_id);
-        if let Some(prev) = duplicates.insert(selector, f_id) {
+        // Virtual functions or ones with the same function parameter types are checked separately,
+        // skip them here to avoid reporting them as selector hash collision errors below.
+        let hash = gcx.item_selector(f_id.into());
+        let selector: Selector = hash[..4].try_into().unwrap();
+        if !signatures_seen.insert(hash) {
+            return None;
+        }
+
+        // Check for selector hash collisions.
+        if let Some(prev) = hash_collisions.insert(selector, f_id) {
             let f2 = gcx.hir.function(prev);
             let msg = "function signature hash collision";
             let full_note = format!(
@@ -384,11 +388,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
             );
             gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
         }
-        InterfaceFunction {
-            selector,
-            id: f_id,
-            ty,
-        }
+
+        Some(InterfaceFunction{ selector, id: f_id, ty })
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
