@@ -51,7 +51,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    // TODO: Use `sym::*`.
                     ("abicoder", Some("v1" | "v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}

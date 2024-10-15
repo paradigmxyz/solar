@@ -17,8 +17,6 @@ mod linearize;
 pub(crate) mod resolve;
 use resolve::{Res, SymbolResolver};
 
-// TODO: Use another arena for temporary allocations, like resolver scopes.
-
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
     sess: &Session,

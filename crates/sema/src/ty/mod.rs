@@ -234,7 +234,7 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Array(array) => {
                 let ty = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    // TODO
+                    // TODO: array sizes
                     Some(_size) => TyKind::Array(ty, 1),
                     None => TyKind::DynArray(ty),
                 }

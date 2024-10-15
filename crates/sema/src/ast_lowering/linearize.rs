@@ -7,9 +7,6 @@
 //! [C3 linearization algorithm]: https://en.wikipedia.org/wiki/C3_linearization
 //! [`solc`]: https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
 
-// TODO: Don't store our own ID in `linearized_bases`.
-// TODO: Parallelize this.
-
 use super::Res;
 use crate::hir;
 
