@@ -1,4 +1,4 @@
-use crate::{hir, ParsedSources};
+use crate::{builtins::Builtin, hir, ParsedSources};
 use solar_ast::ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
@@ -8,9 +8,11 @@ use solar_data_structures::{
 };
 use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    Ident, Session, Span, Symbol,
+    sym, Ident, Session, Span, Symbol,
 };
-use std::{fmt, sync::atomic::AtomicUsize};
+use std::sync::atomic::AtomicUsize;
+
+pub(crate) use crate::hir::Res;
 
 impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]
@@ -24,8 +26,7 @@ impl super::LoweringContext<'_, '_, '_> {
                 for &item_id in source.items {
                     let item = self.hir.item(item_id);
                     if let Some(name) = item.name() {
-                        let decl =
-                            Declaration { kind: DeclarationKind::Item(item_id), span: name.span };
+                        let decl = Declaration { kind: Res::Item(item_id), span: name.span };
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
@@ -57,7 +58,7 @@ impl super::LoweringContext<'_, '_, '_> {
                                 self.sess,
                                 &self.hir,
                                 alias,
-                                DeclarationKind::Namespace(import_id),
+                                Res::Namespace(import_id),
                             );
                         } else if let Some(import_scope) = import_scope {
                             // Import all declarations.
@@ -69,6 +70,8 @@ impl super::LoweringContext<'_, '_, '_> {
                                     let _ = source_scope.declare(self.sess, &self.hir, name, decl);
                                 }
                             }
+                        } else {
+                            // `source_id == import_id` -> `import self::*;`: nothing to do.
                         }
                     }
                     ast::ImportItems::Aliases(ref aliases) => {
@@ -127,7 +130,7 @@ impl super::LoweringContext<'_, '_, '_> {
                 sess.source_map().filename_for_diagnostics(&source.file.name)
             );
             let guar = sess.dcx.err(msg).span(import.span).emit();
-            let _ = source_scope.declare_kind(sess, hir, name, DeclarationKind::Err(guar));
+            let _ = source_scope.declare_kind(sess, hir, name, Res::Err(guar));
         }
     }
 
@@ -141,13 +144,21 @@ impl super::LoweringContext<'_, '_, '_> {
             .hir
             .contracts()
             .map(|contract| {
-                let mut scope = Declarations::with_capacity(contract.items.len());
+                let mut scope = Declarations::with_capacity(contract.items.len() + 2);
+
+                // Declare `this` and `super`.
+                let span = Span::DUMMY;
+                let this = Declaration { kind: Res::Builtin(Builtin::This), span };
+                let _ = self.declare_in(&mut scope, sym::this, this);
+                let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span };
+                let _ = self.declare_in(&mut scope, sym::super_, super_);
+
                 for &item_id in contract.items {
                     if let Some(name) = self.hir.item(item_id).name() {
-                        let _ =
-                            self.declare_kind_in(&mut scope, name, DeclarationKind::Item(item_id));
+                        let _ = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                     }
                 }
+
                 scope
             })
             .collect();
@@ -208,13 +219,21 @@ impl super::LoweringContext<'_, '_, '_> {
             };
         }
 
+        for id in self.hir.udvt_ids() {
+            let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
+            let ast::ItemKind::Udvt(ast_udvt) = &ast_item.kind else { unreachable!() };
+            let udvt = self.hir.udvt(id);
+            let mut cx = mk_resolver!(udvt);
+            self.hir.udvts[id].ty = cx.lower_type(&ast_udvt.ty);
+        }
+
         for id in self.hir.strukt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Struct(id)];
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             let mut cx = mk_resolver!(strukt);
             self.hir.structs[id].fields =
-                self.arena.alloc_from_iter(ast_struct.fields.iter().map(|field| {
+                self.arena.alloc_slice_fill_iter(ast_struct.fields.iter().map(|field| {
                     let name = field.name.unwrap_or_default();
                     let ty = cx.lower_type(&field.ty);
                     hir::StructField { ty, name }
@@ -227,7 +246,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let error = self.hir.error(id);
             let mut cx = mk_resolver!(error);
             self.hir.errors[id].parameters =
-                self.arena.alloc_from_iter(ast_error.parameters.iter().map(|param| {
+                self.arena.alloc_slice_fill_iter(ast_error.parameters.iter().map(|param| {
                     let name = param.name;
                     let ty = cx.lower_type(&param.ty);
                     hir::ErrorParameter { ty, name }
@@ -240,22 +259,11 @@ impl super::LoweringContext<'_, '_, '_> {
             let event = self.hir.event(id);
             let mut cx = mk_resolver!(event);
             self.hir.events[id].parameters =
-                self.arena.alloc_from_iter(ast_event.parameters.iter().map(|param| {
+                self.arena.alloc_slice_fill_iter(ast_event.parameters.iter().map(|param| {
                     let name = param.name;
                     let ty = cx.lower_type(&param.ty);
                     hir::EventParameter { ty, indexed: param.indexed, name }
                 }));
-        }
-
-        for id in self.hir.variable_ids() {
-            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else { continue };
-            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
-            let var = self.hir.variable(id);
-            let mut cx = mk_resolver!(var);
-            let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
-            let ty = cx.lower_type(&ast_var.ty);
-            self.hir.variables[id].initializer = init;
-            self.hir.variables[id].ty = ty;
         }
 
         for id in self.hir.function_ids() {
@@ -323,21 +331,31 @@ impl super::LoweringContext<'_, '_, '_> {
             };
 
             scopes.enter();
-            let scope = scopes.current_scope();
-            let func = self.hir.function(id);
-            for &param in func.params.iter().chain(func.returns) {
-                let Some(name) = self.hir.variable(param).name else { continue };
-                let _ = self.declare_kind_in(
-                    scope,
-                    name,
-                    DeclarationKind::Item(hir::ItemId::Variable(param)),
-                );
-            }
-
+            let mut cx = ResolveContext::new(self, scopes, next_id);
+            cx.hir.functions[id].parameters = cx.arena.alloc_slice_fill_iter(
+                ast_func.header.parameters.iter().map(|param| cx.lower_variable(param).0),
+            );
+            cx.hir.functions[id].returns = cx.arena.alloc_slice_fill_iter(
+                ast_func.header.returns.iter().map(|ret| cx.lower_variable(ret).0),
+            );
             if let Some(body) = &ast_func.body {
-                let body = ResolveContext::new(self, scopes, next_id).lower_stmts(body);
-                self.hir.functions[id].body = Some(body);
+                cx.hir.functions[id].body = Some(cx.lower_stmts(body));
             }
+        }
+
+        for id in self.hir.variable_ids() {
+            let Some(ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
+                let v = self.hir.variable(id);
+                assert!(!v.ty.is_dummy(), "{v:#?}");
+                continue;
+            };
+            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+            let var = self.hir.variable(id);
+            let mut cx = mk_resolver!(var);
+            let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
+            let ty = cx.lower_type(&ast_var.ty);
+            self.hir.variables[id].initializer = init;
+            self.hir.variables[id].ty = ty;
         }
     }
 
@@ -345,7 +363,7 @@ impl super::LoweringContext<'_, '_, '_> {
         &self,
         scope: &mut Declarations,
         name: Ident,
-        decl: DeclarationKind,
+        decl: Res,
     ) -> Result<(), ErrorGuaranteed> {
         scope.declare_kind(self.sess, &self.hir, name, decl)
     }
@@ -386,10 +404,6 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         }
     }
 
-    fn dcx(&self) -> &'sess DiagCtxt {
-        &self.sess.dcx
-    }
-
     fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
         self.scopes.enter();
         let t = f(self);
@@ -405,7 +419,19 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         }
     }
 
-    fn resolve_path_as<T: TryFrom<DeclarationKind>>(
+    fn resolve_paths(
+        &'a self,
+        path: &ast::PathSlice,
+    ) -> Result<&'a [Declaration], ErrorGuaranteed> {
+        self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
+    }
+
+    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
+        self.resolve_paths(path)
+            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)))
+    }
+
+    fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
         description: &str,
@@ -419,7 +445,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_stmts(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
-        self.arena.alloc_from_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
+        self.arena.alloc_slice_fill_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
     }
 
     fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'hir hir::Stmt<'hir> {
@@ -430,18 +456,18 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => match self.lower_variable(var) {
-                Ok(id) => hir::StmtKind::DeclSingle(id),
-                Err(guar) => hir::StmtKind::Err(guar),
+                (id, Ok(())) => hir::StmtKind::DeclSingle(id),
+                (_, Err(guar)) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::DeclMulti(vars, expr) => {
-                let ids = vars
-                    .iter()
-                    .map(|var| var.as_ref().and_then(|var| self.lower_variable(var).ok()))
-                    .collect::<SmallVec<[_; 8]>>();
-                hir::StmtKind::DeclMulti(self.arena.alloc_smallvec(ids), self.lower_expr(expr))
-            }
+            ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
+                self.arena.alloc_slice_fill_iter(
+                    vars.iter().map(|var| var.as_ref().map(|var| self.lower_variable(var).0)),
+                ),
+                self.lower_expr(expr),
+            ),
             ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
+                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
+                ErrorGuaranteed::new_unchecked(),
             ),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
@@ -455,12 +481,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::While(_, _)
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
-            ast::StmtKind::Emit(path, args) => match self.resolve_path_as(path, "event") {
-                Ok(id) => hir::StmtKind::Emit(id, self.lower_call_args(args)),
+            ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
+                Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
-            ast::StmtKind::Revert(path, args) => match self.resolve_path_as(path, "error") {
-                Ok(id) => hir::StmtKind::Revert(id, self.lower_call_args(args)),
+            ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
+                Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
@@ -474,10 +500,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     expr: self.lower_expr_full(expr),
                     returns: self.lower_variables(returns),
                     block: self.lower_block(block),
-                    catch: self.arena.alloc_from_iter(catch.iter().map(|catch| hir::CatchClause {
-                        name: catch.name,
-                        args: self.lower_variables(catch.args),
-                        block: self.lower_block(catch.block),
+                    catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
+                        hir::CatchClause {
+                            name: catch.name,
+                            args: self.lower_variables(catch.args),
+                            block: self.lower_block(catch.block),
+                        }
                     })),
                 }))
             }
@@ -487,32 +515,28 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_variables(&mut self, vars: &[ast::VariableDefinition<'_>]) -> &'hir [hir::VariableId] {
-        let vars = vars
-            .iter()
-            .filter_map(|var| self.lower_variable(var).ok())
-            .collect::<SmallVec<[_; 8]>>();
-        self.arena.alloc_smallvec(vars)
+        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var).0))
     }
 
     /// Lowers `var` to HIR and declares it in the current scope.
     fn lower_variable(
         &mut self,
         var: &ast::VariableDefinition<'_>,
-    ) -> Result<hir::VariableId, ErrorGuaranteed> {
-        let Some(name) = var.name else {
-            // Should've been reported already.
-            return Err(ErrorGuaranteed::new_unchecked());
-        };
-
-        let id = super::lower::lower_variable(
+    ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
+        let id = super::lower::lower_variable_partial(
             self.hir,
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
         );
-        let decl = DeclarationKind::Item(hir::ItemId::Variable(id));
-        let _ = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
-        Ok(id)
+        self.hir.variables[id].ty = self.lower_type(&var.ty);
+        self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
+        let mut guar = Ok(());
+        if let Some(name) = var.name {
+            let decl = Res::Item(hir::ItemId::Variable(id));
+            guar = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
+        }
+        (id, guar)
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.
@@ -615,7 +639,8 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         I::IntoIter: ExactSizeIterator,
         T: AsRef<ast::Expr<'b>>,
     {
-        self.arena.alloc_from_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
+        self.arena
+            .alloc_slice_fill_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
     #[instrument(name = "lower_expr", level = "debug", skip_all)]
@@ -636,8 +661,10 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
-                match self.resolve_path_as(ast::PathSlice::from_ref(name), "item") {
-                    Ok(id) => hir::ExprKind::Ident(id),
+                match self.resolve_paths(ast::PathSlice::from_ref(name)) {
+                    Ok(decls) => hir::ExprKind::Ident(
+                        self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)),
+                    ),
                     Err(guar) => hir::ExprKind::Err(guar),
                 }
             }
@@ -674,10 +701,9 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.lower_expr(then),
                 self.lower_expr(r#else),
             ),
-            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(
-                self.arena
-                    .alloc_from_iter(exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref()))),
-            ),
+            ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
+                exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref())),
+            )),
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
@@ -686,7 +712,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'hir [hir::NamedArg<'hir>] {
-        self.arena.alloc_from_iter(
+        self.arena.alloc_slice_fill_iter(
             options.iter().map(|arg| hir::NamedArg {
                 name: arg.name,
                 value: self.lower_expr_full(arg.value),
@@ -713,12 +739,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.arena.alloc(hir::TypeFunction {
                     parameters: self
                         .arena
-                        .alloc_from_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
-                    visibility: f.visibility,
+                        .alloc_slice_fill_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
+                    visibility: f.visibility.unwrap_or(ast::Visibility::Public),
                     state_mutability: f.state_mutability,
                     returns: self
                         .arena
-                        .alloc_from_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
+                        .alloc_slice_fill_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
                 }),
             ),
             ast::TypeKind::Mapping(mapping) => {
@@ -742,23 +768,43 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 }
 
-enum ResolverError {
-    Unresolved(u32),
-    NotAScope(u32),
+struct ResolverError {
+    name: Ident,
+    kind: ResolverErrorKind,
 }
 
-impl fmt::Display for ResolverError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NotAScope(_) | Self::Unresolved(_) => f.write_str("unresolved symbol"),
-        }
-    }
+enum ResolverErrorKind {
+    Unresolved,
+    NotAScope(Res),
+    MultipleDeclarations,
 }
 
 impl ResolverError {
-    fn span(&self, path: &ast::PathSlice) -> Span {
-        match *self {
-            Self::NotAScope(i) | Self::Unresolved(i) => path.segments()[i as usize].span,
+    fn new(name: Ident, kind: ResolverErrorKind) -> Self {
+        Self { name, kind }
+    }
+
+    fn from_path(path: &ast::PathSlice, index: usize, kind: ResolverErrorKind) -> Self {
+        Self { name: path.segments()[index], kind }
+    }
+
+    fn span(&self) -> Span {
+        self.name.span
+    }
+
+    fn format(&self) -> String {
+        let name = self.name;
+        match self.kind {
+            ResolverErrorKind::Unresolved => format!("unresolved symbol `{name}`"),
+            ResolverErrorKind::NotAScope(kind) => {
+                format!(
+                    "`{name}` is a {}, which cannot be indexed in type paths",
+                    kind.description()
+                )
+            }
+            ResolverErrorKind::MultipleDeclarations => {
+                format!("symbol `{name}` resolved to multiple declarations")
+            }
         }
     }
 }
@@ -767,67 +813,97 @@ pub(super) struct SymbolResolver<'sess> {
     dcx: &'sess DiagCtxt,
     pub(super) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(super) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    global_builtin_scope: Declarations,
+    inner_builtin_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
 impl<'sess> SymbolResolver<'sess> {
     pub(super) fn new(dcx: &'sess DiagCtxt) -> Self {
-        Self { dcx, source_scopes: IndexVec::new(), contract_scopes: IndexVec::new() }
+        let (global_builtin_scope, inner_builtin_scopes) = crate::builtins::scopes();
+        Self {
+            dcx,
+            source_scopes: IndexVec::new(),
+            contract_scopes: IndexVec::new(),
+            global_builtin_scope,
+            inner_builtin_scopes,
+        }
     }
 
-    fn resolve_path_as<T: TryFrom<DeclarationKind>>(
+    fn resolve_path_as<T: TryFrom<Res>>(
         &self,
         path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
-        let decl = self.resolve_path(path, scopes)?;
-        if let DeclarationKind::Err(guar) = decl.kind {
+        let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error())?;
+        if let Res::Err(guar) = decl.kind {
             return Err(guar);
         }
         T::try_from(decl.kind)
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
+    fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
+        move |e| self.dcx.err(e.format()).span(e.span()).emit()
+    }
+
     fn resolve_path(
         &self,
         path: &ast::PathSlice,
         scopes: &SymbolResolverScopes,
-    ) -> Result<Declaration, ErrorGuaranteed> {
-        self.resolve_path_raw(path, scopes)
-            .map_err(|e| self.dcx.err(e.to_string()).span(e.span(path)).emit())
-    }
-
-    fn resolve_path_raw(
-        &self,
-        path: &ast::PathSlice,
-        scopes: &SymbolResolverScopes,
     ) -> Result<Declaration, ResolverError> {
+        let decls = self.resolve_paths(path, scopes)?;
+        if let [decl] = decls {
+            Ok(*decl)
+        } else {
+            Err(ResolverError::new(*path.last(), ResolverErrorKind::MultipleDeclarations))
+        }
+    }
+
+    fn resolve_paths<'a>(
+        &'a self,
+        path: &ast::PathSlice,
+        scopes: &'a SymbolResolverScopes,
+    ) -> Result<&'a [Declaration], ResolverError> {
         let mut segments = path.segments().iter();
-        let mut decl = self
-            .resolve_name_raw(*segments.next().unwrap(), scopes)
-            .ok_or(ResolverError::Unresolved(0))?;
-        if decl.is_err() {
-            return Ok(decl);
-        }
-        for (i, &segment) in segments.enumerate() {
-            let i = i as u32 + 1;
-            let scope = self.scope_of(decl.kind).ok_or(ResolverError::NotAScope(i))?;
-            decl = scope.resolve_single(segment).ok_or(ResolverError::Unresolved(i))?;
-            if decl.is_err() {
-                return Ok(decl);
+        let name = *segments.next().unwrap();
+        let mut decls = self
+            .resolve_name_raw(name, scopes)
+            .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))?;
+        for (prev_i, &segment) in segments.enumerate() {
+            let [decl] = decls else {
+                return Err(ResolverError::from_path(
+                    path,
+                    prev_i,
+                    ResolverErrorKind::MultipleDeclarations,
+                ));
+            };
+            if decl.kind.is_err() {
+                return Ok(decls);
             }
+            let scope = self.scope_of(decl.kind).ok_or_else(|| {
+                ResolverError::from_path(path, prev_i, ResolverErrorKind::NotAScope(decl.kind))
+            })?;
+            decls = scope.resolve(segment).ok_or_else(|| {
+                ResolverError::from_path(path, prev_i + 1, ResolverErrorKind::Unresolved)
+            })?;
         }
-        Ok(decl)
+        Ok(decls)
     }
 
-    fn resolve_name_raw(&self, name: Ident, scopes: &SymbolResolverScopes) -> Option<Declaration> {
-        scopes.get(self).find_map(move |scope| scope.resolve_single(name))
+    fn resolve_name_raw<'a>(
+        &'a self,
+        name: Ident,
+        scopes: &'a SymbolResolverScopes,
+    ) -> Option<&'a [Declaration]> {
+        scopes.get(self).find_map(move |scope| scope.resolve(name))
     }
 
-    fn scope_of(&self, declaration: DeclarationKind) -> Option<&Declarations> {
+    fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
         match declaration {
-            DeclarationKind::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
-            DeclarationKind::Namespace(id) => Some(&self.source_scopes[id]),
+            Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
+            Res::Namespace(id) => Some(&self.source_scopes[id]),
+            Res::Builtin(builtin) => self.inner_builtin_scopes[builtin as usize].as_ref(),
             _ => None,
         }
     }
@@ -864,22 +940,17 @@ impl SymbolResolverScopes {
     }
 
     #[inline]
-    #[allow(clippy::filter_map_identity)] // More efficient than flatten.
     fn get<'a>(
         &'a self,
         resolver: &'a SymbolResolver<'_>,
     ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
         debug_assert!(self.source.is_some() || self.contract.is_some());
-        let scopes = self.scopes.iter().rev();
-        let outer = [
-            // NOTE: Inheritance is flattened into each contract.
-            self.contract.map(|id| &resolver.contract_scopes[id]),
-            self.source.map(|id| &resolver.source_scopes[id]),
-        ]
-        .into_iter()
-        .filter_map(std::convert::identity);
-        // let builtins = None::<&Declarations>;
-        scopes.chain(outer) //.chain(builtins)
+        self.scopes
+            .iter()
+            .rev()
+            .chain(self.contract.map(|id| &resolver.contract_scopes[id]))
+            .chain(self.source.map(|id| &resolver.source_scopes[id]))
+            .chain(std::iter::once(&resolver.global_builtin_scope))
     }
 
     fn enter(&mut self) {
@@ -899,51 +970,43 @@ impl SymbolResolverScopes {
 }
 
 #[derive(Debug)]
-pub(super) struct Declarations {
-    pub(super) declarations: FxIndexMap<Symbol, DeclarationsInner>,
+pub(crate) struct Declarations {
+    pub(crate) declarations: FxIndexMap<Symbol, DeclarationsInner>,
 }
 
 type DeclarationsInner = SmallVec<[Declaration; 1]>;
 
 impl Declarations {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::with_capacity(0)
     }
 
-    pub(super) fn with_capacity(capacity: usize) -> Self {
+    pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
-    pub(super) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
+    pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
         self.declarations.get(&name.name).map(std::ops::Deref::deref)
     }
 
-    pub(super) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
+    pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
         self.declarations.get(&name.name).cloned()
-    }
-
-    pub(super) fn resolve_single(&self, name: Ident) -> Option<Declaration> {
-        let decls = self.resolve(name)?;
-        if decls.len() != 1 {
-            return None;
-        }
-        decls.first().copied()
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to
     /// `name => Declaration { kind, span }`.
     #[inline]
-    pub(super) fn declare_kind(
+    pub(crate) fn declare_kind(
         &mut self,
         sess: &Session,
         hir: &hir::Hir<'_>,
         name: Ident,
-        kind: DeclarationKind,
+        kind: Res,
     ) -> Result<(), ErrorGuaranteed> {
         self.declare(sess, hir, name.name, Declaration { kind, span: name.span })
     }
 
-    pub(super) fn declare(
+    pub(crate) fn declare(
         &mut self,
         sess: &Session,
         hir: &hir::Hir<'_>,
@@ -954,7 +1017,7 @@ impl Declarations {
             .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
     }
 
-    pub(super) fn try_declare(
+    pub(crate) fn try_declare(
         &mut self,
         hir: &hir::Hir<'_>,
         name: Symbol,
@@ -983,7 +1046,7 @@ impl Declarations {
         declarations: &[Declaration],
     ) -> Option<Declaration> {
         use hir::ItemId::*;
-        use DeclarationKind::*;
+        use Res::*;
 
         if declarations.is_empty() {
             return None;
@@ -1011,13 +1074,13 @@ impl Declarations {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub(super) struct Declaration {
-    pub(super) kind: DeclarationKind,
-    pub(super) span: Span,
+pub(crate) struct Declaration {
+    pub(crate) kind: Res,
+    pub(crate) span: Span,
 }
 
 impl std::ops::Deref for Declaration {
-    type Target = DeclarationKind;
+    type Target = Res;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -1034,87 +1097,6 @@ impl PartialEq for Declaration {
 
 impl Eq for Declaration {}
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum DeclarationKind {
-    /// A resolved item.
-    Item(hir::ItemId),
-    /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
-    Namespace(hir::SourceId),
-    /// An error occurred while resolving the item. Silences further errors regarding this name.
-    Err(ErrorGuaranteed),
-}
-
-impl fmt::Debug for DeclarationKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declaration::")?;
-        match self {
-            Self::Item(id) => id.fmt(f),
-            Self::Namespace(id) => id.fmt(f),
-            Self::Err(_) => f.write_str("Err"),
-        }
-    }
-}
-
-impl From<hir::ItemId> for DeclarationKind {
-    fn from(id: hir::ItemId) -> Self {
-        Self::Item(id)
-    }
-}
-
-macro_rules! impl_try_from {
-    ($($t:ty => $pat:pat => $e:expr),* $(,)?) => {
-        $(
-            impl TryFrom<DeclarationKind> for $t {
-                type Error = ();
-
-                fn try_from(decl: DeclarationKind) -> Result<Self, ()> {
-                    match decl {
-                        $pat => $e,
-                        _ => Err(()),
-                    }
-                }
-            }
-        )*
-    };
-}
-
-impl_try_from!(
-    hir::ItemId => DeclarationKind::Item(id) => Ok(id),
-    hir::ContractId => DeclarationKind::Item(hir::ItemId::Contract(id)) => Ok(id),
-    // hir::FunctionId => Declaration::Item(hir::ItemId::Function(id)) => Ok(id),
-    hir::EventId => DeclarationKind::Item(hir::ItemId::Event(id)) => Ok(id),
-    hir::ErrorId => DeclarationKind::Item(hir::ItemId::Error(id)) => Ok(id),
-);
-
-#[allow(dead_code)]
-impl DeclarationKind {
-    pub(super) fn description(&self) -> &'static str {
-        match self {
-            Self::Item(item) => item.description(),
-            Self::Namespace(_) => "namespace",
-            Self::Err(_) => "<error>",
-        }
-    }
-
-    pub(super) fn item_id(&self) -> Option<hir::ItemId> {
-        match self {
-            Self::Item(id) => Some(*id),
-            _ => None,
-        }
-    }
-
-    pub(super) fn matches(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Item(a), Self::Item(b)) => a.matches(b),
-            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
-        }
-    }
-
-    pub(super) fn is_err(&self) -> bool {
-        matches!(self, Self::Err(_))
-    }
-}
-
 pub(super) fn report_conflict(
     hir: &hir::Hir<'_>,
     sess: &Session,
@@ -1127,7 +1109,7 @@ pub(super) fn report_conflict(
     let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
-    if let DeclarationKind::Item(item_id) = previous.kind {
+    if let Res::Item(item_id) = previous.kind {
         if let Ok(snippet) = sess.source_map().span_to_snippet(previous.span) {
             if snippet.starts_with("import") {
                 err = err.span_note(previous.span, "previous declaration imported here");
@@ -1137,6 +1119,9 @@ pub(super) fn report_conflict(
         }
     }
 
-    err = err.span_note(previous.span, "previous declaration declared here");
+    if !previous.span.is_dummy() {
+        err = err.span_note(previous.span, "previous declaration declared here");
+    }
+
     err.emit()
 }

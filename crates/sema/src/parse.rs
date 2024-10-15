@@ -11,11 +11,7 @@ use solar_interface::{
     Result, Session,
 };
 use solar_parse::{unescape, Lexer, Parser};
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{borrow::Cow, fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {
@@ -70,7 +66,7 @@ impl<'sess> ParsingContext<'sess> {
             Ok(path) => {
                 // Base paths from arguments to the current directory for shorter diagnostics
                 // output.
-                match path.strip_prefix(std::env::current_dir().unwrap_or(PathBuf::from(""))) {
+                match path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
                     Ok(path) => path.to_path_buf(),
                     Err(_) => path,
                 }
@@ -375,7 +371,6 @@ impl std::ops::DerefMut for ParsedSources<'_> {
 }
 
 /// A single parsed source.
-#[derive(Debug)]
 pub struct ParsedSource<'ast> {
     /// The source file.
     pub file: Arc<SourceFile>,
@@ -383,6 +378,16 @@ pub struct ParsedSource<'ast> {
     pub ast: Option<ast::SourceUnit<'ast>>,
     /// The AST IDs and source IDs of all the imports.
     pub imports: Vec<(ast::ItemId, SourceId)>,
+}
+
+impl fmt::Debug for ParsedSource<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ParsedSource")
+            .field("file", &self.file.name)
+            .field("ast", &self.ast)
+            .field("imports", &self.imports)
+            .finish()
+    }
 }
 
 impl ParsedSource<'_> {

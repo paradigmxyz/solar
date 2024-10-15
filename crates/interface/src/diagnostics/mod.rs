@@ -30,7 +30,6 @@ impl ErrorGuaranteed {
     ///
     /// Use of this method is discouraged.
     #[inline]
-    #[allow(deprecated)]
     pub const fn new_unchecked() -> Self {
         Self(())
     }

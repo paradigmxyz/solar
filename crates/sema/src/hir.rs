@@ -1,5 +1,7 @@
 //! High-level intermediate representation (HIR).
 
+use crate::builtins::Builtin;
+use derive_more::derive::From;
 use rayon::prelude::*;
 use solar_ast::ast;
 use solar_data_structures::{
@@ -7,7 +9,7 @@ use solar_data_structures::{
     newtype_index, BumpExt,
 };
 use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
-use std::{fmt, sync::Arc};
+use std::{fmt, ops::ControlFlow, sync::Arc};
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
@@ -110,7 +112,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " IDs."]
                 #[inline]
-                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator {
+                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator + Clone {
                     (0..self.$plural.len()).map($id::from_usize)
                 }
 
@@ -122,7 +124,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " values."]
                 #[inline]
-                pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator {
+                pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator + Clone {
                     self.$plural.raw.iter()
                 }
 
@@ -134,7 +136,7 @@ macro_rules! indexvec_methods {
 
                 #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
                 #[inline]
-                pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator {
+                pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator + Clone {
                     self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
                 }
 
@@ -168,8 +170,8 @@ indexvec_methods! {
 
 impl<'hir> Hir<'hir> {
     /// Returns the item associated with the given ID.
-    pub fn item(&self, id: ItemId) -> Item<'_, 'hir> {
-        match id {
+    pub fn item(&self, id: impl Into<ItemId>) -> Item<'_, 'hir> {
+        match id.into() {
             ItemId::Contract(id) => Item::Contract(self.contract(id)),
             ItemId::Function(id) => Item::Function(self.function(id)),
             ItemId::Variable(id) => Item::Variable(self.variable(id)),
@@ -179,6 +181,32 @@ impl<'hir> Hir<'hir> {
             ItemId::Error(id) => Item::Error(self.error(id)),
             ItemId::Event(id) => Item::Event(self.event(id)),
         }
+    }
+
+    /// Returns an iterator over all item IDs.
+    pub fn item_ids(&self) -> impl DoubleEndedIterator<Item = ItemId> + Clone {
+        std::iter::empty::<ItemId>()
+            .chain(self.contract_ids().map(ItemId::Contract))
+            .chain(self.function_ids().map(ItemId::Function))
+            .chain(self.variable_ids().map(ItemId::Variable))
+            .chain(self.strukt_ids().map(ItemId::Struct))
+            .chain(self.enumm_ids().map(ItemId::Enum))
+            .chain(self.udvt_ids().map(ItemId::Udvt))
+            .chain(self.error_ids().map(ItemId::Error))
+            .chain(self.event_ids().map(ItemId::Event))
+    }
+
+    /// Returns a parallel iterator over all item IDs.
+    pub fn par_item_ids(&self) -> impl ParallelIterator<Item = ItemId> {
+        rayon::iter::empty::<ItemId>()
+            .chain(self.par_contract_ids().map(ItemId::Contract))
+            .chain(self.par_function_ids().map(ItemId::Function))
+            .chain(self.par_variable_ids().map(ItemId::Variable))
+            .chain(self.par_strukt_ids().map(ItemId::Struct))
+            .chain(self.par_enumm_ids().map(ItemId::Enum))
+            .chain(self.par_udvt_ids().map(ItemId::Udvt))
+            .chain(self.par_error_ids().map(ItemId::Error))
+            .chain(self.par_event_ids().map(ItemId::Event))
     }
 }
 
@@ -328,28 +356,8 @@ impl Item<'_, '_> {
     /// Returns the visibility of the item.
     #[inline]
     pub fn visibility(self) -> Visibility {
-        self.visibility_opt().unwrap_or_else(|| self.default_visibility())
-    }
-
-    #[inline]
-    fn visibility_opt(self) -> Option<Visibility> {
         match self {
-            Item::Function(f) => f.visibility,
-            Item::Variable(v) => v.visibility,
-            Item::Contract(_)
-            | Item::Struct(_)
-            | Item::Enum(_)
-            | Item::Udvt(_)
-            | Item::Error(_)
-            | Item::Event(_) => None,
-        }
-    }
-
-    #[inline]
-    fn default_visibility(self) -> Visibility {
-        match self {
-            Item::Function(f) if f.is_free() || f.kind.is_modifier() => Visibility::Internal,
-            Item::Variable(_) => Visibility::Internal,
+            Item::Variable(v) => v.visibility.unwrap_or(Visibility::Internal),
             Item::Contract(_)
             | Item::Function(_)
             | Item::Struct(_)
@@ -361,7 +369,7 @@ impl Item<'_, '_> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From)]
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
@@ -418,6 +426,24 @@ impl ItemId {
             None
         }
     }
+
+    /// Returns the function ID if this is a function.
+    pub fn as_function(&self) -> Option<FunctionId> {
+        if let Self::Function(v) = *self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the variable ID if this is a variable.
+    pub fn as_variable(&self) -> Option<VariableId> {
+        if let Self::Variable(v) = *self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 /// A contract, interface, or library.
@@ -445,6 +471,31 @@ pub struct Contract<'hir> {
     pub items: &'hir [ItemId],
 }
 
+impl Contract<'_> {
+    /// Returns an iterator over functions in the contract.
+    ///
+    /// Note that this does not include the constructor and fallback functions, as they are stored
+    /// separately. Use [`Contract::all_functions`] to include them.
+    pub fn functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+        self.items.iter().filter_map(ItemId::as_function)
+    }
+
+    /// Returns an iterator over all functions in the contract.
+    pub fn all_functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+        self.functions().chain(self.ctor).chain(self.fallback).chain(self.receive)
+    }
+
+    /// Returns an iterator over all variables in the contract.
+    pub fn variables(&self) -> impl Iterator<Item = VariableId> + Clone + '_ {
+        self.items.iter().filter_map(ItemId::as_variable)
+    }
+
+    /// Returns `true` if the contract can be deployed.
+    pub fn can_be_deployed(&self) -> bool {
+        matches!(self.kind, ContractKind::Contract | ContractKind::Library)
+    }
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
@@ -460,14 +511,20 @@ pub struct Function<'hir> {
     /// The function kind.
     pub kind: FunctionKind,
     /// The visibility of the function.
-    pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub visibility: Visibility,
+    /// The state mutability of the function.
+    pub state_mutability: StateMutability,
     /// Modifiers, or base classes if this is a constructor.
     pub modifiers: &'hir [ItemId],
+    /// Whether this function is marked with the `virtual` keyword.
+    pub marked_virtual: bool,
+    /// Whether this function is marked with the `virtual` keyword or is defined in an interface.
     pub virtual_: bool,
+    /// Whether this function is marked with the `override` keyword.
+    pub override_: bool,
     pub overrides: &'hir [ContractId],
     /// The function parameters.
-    pub params: &'hir [VariableId],
+    pub parameters: &'hir [VariableId],
     /// The function returns.
     pub returns: &'hir [VariableId],
     /// The function body.
@@ -478,6 +535,19 @@ impl Function<'_> {
     /// Returns `true` if this is a free function, meaning it is not part of a contract.
     pub fn is_free(&self) -> bool {
         self.contract.is_none()
+    }
+
+    pub fn is_ordinary(&self) -> bool {
+        self.kind.is_ordinary()
+    }
+
+    pub fn is_part_of_external_interface(&self) -> bool {
+        self.is_ordinary() && self.visibility >= Visibility::Public
+    }
+
+    /// Returns an iterator over all variables in the function.
+    pub fn vars(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + '_ {
+        self.parameters.iter().copied().chain(self.returns.iter().copied())
     }
 }
 
@@ -641,10 +711,10 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(EventId, CallArgs<'hir>),
+    Emit(&'hir [Res], CallArgs<'hir>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(ErrorId, CallArgs<'hir>),
+    Revert(&'hir [Res], CallArgs<'hir>),
 
     /// A return statement: `return 42;`.
     Return(Option<&'hir Expr<'hir>>),
@@ -718,6 +788,78 @@ impl LoopSource {
     }
 }
 
+/// Resolved name.
+#[derive(Clone, Copy, PartialEq, Eq, From)]
+pub enum Res {
+    /// A resolved item.
+    Item(ItemId),
+    /// Synthetic import namespace, X in `import * as X from "path"` or `import "path" as X`.
+    Namespace(SourceId),
+    /// A builtin symbol.
+    Builtin(Builtin),
+    /// An error occurred while resolving the item. Silences further errors regarding this name.
+    Err(ErrorGuaranteed),
+}
+
+impl fmt::Debug for Res {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Res::")?;
+        match self {
+            Self::Item(id) => write!(f, "Item({id:?})"),
+            Self::Namespace(id) => write!(f, "Namespace({id:?})"),
+            Self::Builtin(b) => write!(f, "Builtin({b:?})"),
+            Self::Err(_) => f.write_str("Err"),
+        }
+    }
+}
+
+macro_rules! impl_try_from {
+    ($($t:ty => $pat:pat => $e:expr),* $(,)?) => {
+        $(
+            impl TryFrom<Res> for $t {
+                type Error = ();
+
+                fn try_from(decl: Res) -> Result<Self, ()> {
+                    match decl {
+                        $pat => $e,
+                        _ => Err(()),
+                    }
+                }
+            }
+        )*
+    };
+}
+
+impl_try_from!(
+    ItemId => Res::Item(id) => Ok(id),
+    ContractId => Res::Item(ItemId::Contract(id)) => Ok(id),
+    // FunctionId => Res::Item(ItemId::Function(id)) => Ok(id),
+    EventId => Res::Item(ItemId::Event(id)) => Ok(id),
+    ErrorId => Res::Item(ItemId::Error(id)) => Ok(id),
+);
+
+impl Res {
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Item(item) => item.description(),
+            Self::Namespace(_) => "namespace",
+            Self::Builtin(_) => "builtin",
+            Self::Err(_) => "<error>",
+        }
+    }
+
+    pub fn matches(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Item(a), Self::Item(b)) => a.matches(b),
+            _ => std::mem::discriminant(self) == std::mem::discriminant(other),
+        }
+    }
+
+    pub fn is_err(&self) -> bool {
+        matches!(self, Self::Err(_))
+    }
+}
+
 /// An expression.
 #[derive(Debug)]
 pub struct Expr<'hir> {
@@ -748,10 +890,12 @@ pub enum ExprKind<'hir> {
     /// A unary `delete` expression: `delete vector`.
     Delete(&'hir Expr<'hir>),
 
-    /// An identifier: `foo`. A reference to an item or variable.
-    Ident(ItemId),
+    /// A resolved symbol: `foo`.
+    ///
+    /// Potentially multiple references if it refers to something like an overloaded function.
+    Ident(&'hir [Res]),
 
-    /// A square bracketed indexing expression: `vector[index]`, `slice[l:r]`.
+    /// A square bracketed indexing expression: `vector[index]`.
     Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
 
     /// A square bracketed slice expression: `slice[l:r]`.
@@ -828,6 +972,33 @@ impl Type<'_> {
     /// Dummy placeholder type.
     pub const DUMMY: Self =
         Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
+
+    pub fn is_dummy(&self) -> bool {
+        self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
+    }
+
+    pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
+        f(self)?;
+        match self.kind {
+            TypeKind::Elementary(_) => ControlFlow::Continue(()),
+            TypeKind::Array(ty) => ty.element.visit(f),
+            TypeKind::Function(ty) => {
+                for ty in ty.parameters {
+                    ty.visit(f)?;
+                }
+                for ty in ty.returns {
+                    ty.visit(f)?;
+                }
+                ControlFlow::Continue(())
+            }
+            TypeKind::Mapping(ty) => {
+                ty.key.visit(f)?;
+                ty.value.visit(f)
+            }
+            TypeKind::Custom(_) => ControlFlow::Continue(()),
+            TypeKind::Err(_) => ControlFlow::Continue(()),
+        }
+    }
 }
 
 /// The kind of a type.
@@ -849,6 +1020,13 @@ pub enum TypeKind<'hir> {
     Err(ErrorGuaranteed),
 }
 
+impl TypeKind<'_> {
+    /// Returns `true` if the type is an elementary type.
+    pub fn is_elementary(&self) -> bool {
+        matches!(self, Self::Elementary(_))
+    }
+}
+
 /// An array type.
 #[derive(Debug)]
 pub struct TypeArray<'hir> {
@@ -860,8 +1038,8 @@ pub struct TypeArray<'hir> {
 #[derive(Debug)]
 pub struct TypeFunction<'hir> {
     pub parameters: &'hir [Type<'hir>],
-    pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub visibility: Visibility,
+    pub state_mutability: StateMutability,
     pub returns: &'hir [Type<'hir>],
 }
 

@@ -1,4 +1,3 @@
-use crate::outline;
 use bumpalo::Bump;
 use smallvec::SmallVec;
 
@@ -54,7 +53,7 @@ impl BumpExt for Bump {
             (min, Some(max)) if min == max => self.alloc_slice_fill_with(min, |_| {
                 iter.next().expect("Iterator supplied too few elements")
             }),
-            _ => outline(|| self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter))),
+            _ => self.alloc_smallvec(SmallVec::<[T; 8]>::from_iter(iter)),
         }
     }
 

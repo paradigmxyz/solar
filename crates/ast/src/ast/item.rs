@@ -1,7 +1,11 @@
-use super::{AstPath, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type};
+use super::{
+    AstPath, BinOpKind, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type, UnOpKind,
+};
 use crate::token::Token;
+use either::Either;
 use solar_interface::{Ident, Span};
 use std::fmt;
+use strum::EnumIs;
 
 /// A list of variable declarations.
 pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
@@ -288,6 +292,29 @@ pub enum UserDefinableOperator {
     Ne,
 }
 
+impl UserDefinableOperator {
+    /// Returns this operator as a binary or unary operator.
+    pub const fn to_op(self) -> Either<UnOpKind, BinOpKind> {
+        match self {
+            Self::BitAnd => Either::Right(BinOpKind::BitAnd),
+            Self::BitNot => Either::Left(UnOpKind::BitNot),
+            Self::BitOr => Either::Right(BinOpKind::BitOr),
+            Self::BitXor => Either::Right(BinOpKind::BitXor),
+            Self::Add => Either::Right(BinOpKind::Add),
+            Self::Div => Either::Right(BinOpKind::Div),
+            Self::Rem => Either::Right(BinOpKind::Rem),
+            Self::Mul => Either::Right(BinOpKind::Mul),
+            Self::Sub => Either::Right(BinOpKind::Sub),
+            Self::Eq => Either::Right(BinOpKind::Eq),
+            Self::Ge => Either::Right(BinOpKind::Ge),
+            Self::Gt => Either::Right(BinOpKind::Gt),
+            Self::Le => Either::Right(BinOpKind::Le),
+            Self::Lt => Either::Right(BinOpKind::Lt),
+            Self::Ne => Either::Right(BinOpKind::Ne),
+        }
+    }
+}
+
 /// A contract, abstract contract, interface, or library definition:
 /// `contract Foo is Bar("foo"), Baz { ... }`.
 ///
@@ -301,7 +328,7 @@ pub struct ItemContract<'ast> {
 }
 
 /// The kind of contract.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
 pub enum ContractKind {
     /// `contract`
     Contract,
@@ -355,7 +382,7 @@ pub struct FunctionHeader<'ast> {
     pub parameters: ParameterList<'ast>,
 
     pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub state_mutability: StateMutability,
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
     pub virtual_: bool,
     pub override_: Option<Override<'ast>>,
@@ -428,7 +455,7 @@ pub struct Modifier<'ast> {
     pub arguments: CallArgs<'ast>,
 }
 
-/// An override specifier: `override(a, b.c)`.
+/// An override specifier: `override`, `override(a, b.c)`.
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
@@ -467,7 +494,7 @@ impl DataLocation {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs)]
 pub enum StateMutability {
     /// `pure`
     Pure,
@@ -475,6 +502,9 @@ pub enum StateMutability {
     View,
     /// `payable`
     Payable,
+    /// Not specified.
+    #[default]
+    NonPayable,
 }
 
 impl fmt::Display for StateMutability {
@@ -490,6 +520,7 @@ impl StateMutability {
             Self::Pure => "pure",
             Self::View => "view",
             Self::Payable => "payable",
+            Self::NonPayable => "nonpayable",
         }
     }
 }
@@ -497,19 +528,19 @@ impl StateMutability {
 /// Visibility ordered from restricted to unrestricted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Visibility {
-    /// `private`
+    /// `private`: visible only in the current contract.
     Private,
-    /// `internal`
+    /// `internal`: visible only in the current contract and contracts deriving from it.
     Internal,
-    /// `public`
+    /// `public`: visible internally and externally.
     Public,
-    /// `external`
+    /// `external`: visible only externally.
     External,
 }
 
 impl fmt::Display for Visibility {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.to_str())
+        self.to_str().fmt(f)
     }
 }
 

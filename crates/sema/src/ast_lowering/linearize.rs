@@ -7,10 +7,7 @@
 //! [C3 linearization algorithm]: https://en.wikipedia.org/wiki/C3_linearization
 //! [`solc`]: https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
 
-// TODO: Don't store our own ID in `linearized_bases`.
-// TODO: Parallelize this.
-
-use super::DeclarationKind;
+use super::Res;
 use crate::hir;
 
 impl super::LoweringContext<'_, '_, '_> {
@@ -41,7 +38,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         for &decl in decls {
                             // Import if it was declared in the base, is not the constructor and is
                             // visible in derived classes.
-                            let DeclarationKind::Item(decl_item_id) = decl.kind else { continue };
+                            let Res::Item(decl_item_id) = decl.kind else { continue };
                             let decl_item = self.hir.item(decl_item_id);
                             if decl_item.contract() != Some(base_id) {
                                 continue;
@@ -53,7 +50,7 @@ impl super::LoweringContext<'_, '_, '_> {
                             if let Err(conflict) = contract_scope.try_declare(&self.hir, name, decl)
                             {
                                 use hir::ItemId::*;
-                                use DeclarationKind::*;
+                                use Res::*;
 
                                 let Item(conflict_id) = conflict.kind else { continue };
                                 match (decl_item_id, conflict_id) {

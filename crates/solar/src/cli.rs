@@ -1,5 +1,5 @@
 use clap::{ColorChoice, Parser, ValueHint};
-use solar_config::{CompilerOutput, CompilerStage, EvmVersion, Language};
+use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::path::PathBuf;
 
 const VERSION_MESSAGE: &str = concat!(
@@ -52,8 +52,7 @@ pub struct Args {
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,
     /// Number of threads to use. Zero specifies the number of logical cores.
-    // TODO: Default to `0` once we're actually using rayon.
-    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "1")]
+    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
     pub threads: usize,
     /// Comma separated list of types of output for the compiler to emit.
     #[arg(long)]
@@ -126,6 +125,9 @@ pub struct UnstableFeatures {
     /// Enables parsing Yul files for testing.
     #[arg(long)]
     pub parse_yul: bool,
+    /// Print additional information about the compiler's internal state.
+    #[arg(long, value_name = "KIND[=PATHS...]")]
+    pub dump: Option<Dump>,
 
     #[cfg(test)]
     #[arg(long)]

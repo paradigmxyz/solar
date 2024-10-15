@@ -24,7 +24,6 @@ solar-config.workspace = true
 solar-data-structures.workspace = true
 solar-macros.workspace = true
 
-dashmap.workspace = true
 hex.workspace = true
 itertools.workspace = true
 itoa.workspace = true
@@ -33,6 +32,7 @@ match_cfg.workspace = true
 # md-5.workspace = true
 normalize-path = "0.2.1"
 rayon.workspace = true
+scc.workspace = true
 scoped-tls.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

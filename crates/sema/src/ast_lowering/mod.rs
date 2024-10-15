@@ -14,10 +14,8 @@ mod lower;
 
 mod linearize;
 
-mod resolve;
-use resolve::{DeclarationKind, SymbolResolver};
-
-// TODO: Use another arena for temporary allocations, like resolver scopes.
+pub(crate) mod resolve;
+use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'hir>(
@@ -53,6 +51,7 @@ struct LoweringContext<'sess, 'ast, 'hir> {
     sess: &'sess Session,
     arena: &'hir hir::Arena,
     hir: Hir<'hir>,
+    /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
     hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
     /// Current source being lowered.

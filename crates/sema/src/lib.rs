@@ -4,6 +4,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.jpg",
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
+#![cfg_attr(feature = "nightly", feature(rustc_attrs), allow(internal_features))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 #[macro_use]
@@ -13,6 +14,7 @@ use rayon::prelude::*;
 use solar_data_structures::OnDrop;
 use solar_interface::{config::CompilerStage, Result, Session};
 use thread_local::ThreadLocal;
+use ty::Gcx;
 
 // Convenience re-exports.
 pub use ::thread_local;
@@ -30,6 +32,8 @@ pub mod builtins;
 pub mod hir;
 pub mod ty;
 
+mod typeck;
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let sess = pcx.sess;
@@ -46,17 +50,23 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     });
     let mut sources = pcx.parse(&ast_arenas);
 
+    if let Some(dump) = &sess.dump {
+        if dump.kind.is_ast() {
+            dump_ast(sess, &sources, dump.paths.as_deref())?;
+        }
+    }
+
     if sess.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
         return Ok(());
     }
 
     sources.topo_sort();
 
-    let hir_arena = OnDrop::new(hir::Arena::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.allocated_bytes());
+    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
         debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
     });
-    let hir = resolve(sess, &sources, &hir_arena)?;
+    let hir = resolve(sess, &sources, hir_arena.get_or_default())?;
 
     // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
     // even though both are moved in the closure.
@@ -67,7 +77,29 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         drop(ast_arenas);
     });
 
-    debug_span!("drop_hir").in_scope(|| drop(hir));
+    let global_context = ty::GlobalCtxt::new(sess, &hir_arena, hir);
+    // TODO: Leaks `hir`
+    let gcx = ty::Gcx::new(hir_arena.get_or_default().alloc(global_context));
+
+    if let Some(dump) = &gcx.sess.dump {
+        if dump.kind.is_hir() {
+            dump_hir(gcx, dump.paths.as_deref())?;
+        }
+    }
+
+    // Collect the types first to check and fail on recursive types.
+    gcx.hir.par_item_ids().for_each(|id| {
+        let _ = gcx.type_of_item(id);
+        if let hir::ItemId::Struct(id) = id {
+            let _ = gcx.struct_field_types(id);
+        }
+    });
+    gcx.sess.dcx.has_errors()?;
+
+    gcx.hir.par_contract_ids().for_each(|id| {
+        let _ = gcx.interface_functions(id);
+    });
+    gcx.sess.dcx.has_errors()?;
 
     Ok(())
 }
@@ -89,4 +121,42 @@ pub fn resolve<'hir>(
     let hir = ast_lowering::lower(sess, sources, arena);
 
     Ok(hir)
+}
+
+fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
+    if let Some(paths) = paths {
+        for path in paths {
+            if let Some(source) = sources.iter().find(|s| match_file_name(&s.file.name, path)) {
+                println!("{source:#?}");
+            } else {
+                return Err(sess
+                    .dcx
+                    .err("`-Zdump=ast` paths must match exactly a single input file")
+                    .emit());
+            }
+        }
+    } else {
+        println!("{sources:#?}");
+    }
+
+    Ok(())
+}
+
+fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
+    if let Some(paths) = paths {
+        todo!("{paths:#?}")
+    } else {
+        println!("{:#?}", gcx.hir);
+    }
+    Ok(())
+}
+
+fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> bool {
+    match name {
+        solar_interface::source_map::FileName::Real(path_buf) => {
+            path_buf.as_os_str() == path || path_buf.file_stem() == Some(path.as_ref())
+        }
+        solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
+        solar_interface::source_map::FileName::Custom(name) => path == name,
+    }
 }

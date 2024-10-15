@@ -109,6 +109,7 @@ serde = "1.0"
 serde_json = "1.0"
 
 # macros
+derive_more = { version = "1.0", features = ["full"] }
 match_cfg = "0.1"
 proc-macro2 = "1.0"
 quote = "1.0"
@@ -140,11 +141,12 @@ regex = "1.10"
 walkdir = "2.4"
 
 # misc
-ahash = "0.8"
+arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
 cfg-if = "1.0"
 dashmap = "6.0"
+either = "1"
 hex = { package = "const-hex", version = "1.10" }
 index_vec = "0.1.3"
 indexmap = "2.2"
@@ -154,9 +156,11 @@ lasso = "0.7.3"
 libc = "0.2"
 md-5 = "0.10"
 memchr = "2.7"
+once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
 petgraph = "0.6"
 rustc-hash = "2.0"
+scc = "2"
 scoped-tls = "1.0"
 semver = "1.0"
 smallvec = "1"
@@ -168,4 +172,5 @@ yansi = "1.0"
 
 [patch.crates-io]
 # https://github.com/oli-obk/ui_test/pull/286
-ui_test = { git = "https://github.com/danipopes/ui_test", branch = "export-parser" }
+# https://github.com/oli-obk/ui_test/pull/289
+ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "fb3c75bf0b0cc3b7b44e4431bacdafa210c00489" }

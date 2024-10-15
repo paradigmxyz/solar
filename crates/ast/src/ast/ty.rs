@@ -26,7 +26,6 @@ impl Type<'_> {
 }
 
 /// The kind of a type.
-#[derive(Debug)]
 pub enum TypeKind<'ast> {
     /// An elementary/primitive type.
     Elementary(ElementaryType),
@@ -40,6 +39,18 @@ pub enum TypeKind<'ast> {
 
     /// A custom type.
     Custom(AstPath<'ast>),
+}
+
+impl fmt::Debug for TypeKind<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Elementary(ty) => ty.fmt(f),
+            Self::Array(ty) => ty.fmt(f),
+            Self::Function(ty) => ty.fmt(f),
+            Self::Mapping(ty) => ty.fmt(f),
+            Self::Custom(path) => write!(f, "Custom({path:?})"),
+        }
+    }
 }
 
 impl TypeKind<'_> {
@@ -59,7 +70,7 @@ impl TypeKind<'_> {
 /// Elementary/primitive type.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.elementaryTypeName>
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ElementaryType {
     /// Ethereum address, 20-byte fixed-size byte array.
     /// `address $(payable)?`
@@ -97,9 +108,26 @@ pub enum ElementaryType {
     FixedBytes(TypeSize),
 }
 
+impl fmt::Debug for ElementaryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Address(false) => f.write_str("Address"),
+            Self::Address(true) => f.write_str("AddressPayable"),
+            Self::Bool => f.write_str("Bool"),
+            Self::String => f.write_str("String"),
+            Self::Bytes => f.write_str("Bytes"),
+            Self::Fixed(size, fixed) => write!(f, "Fixed({}, {})", size.bytes_raw(), fixed.get()),
+            Self::UFixed(size, fixed) => write!(f, "UFixed({}, {})", size.bytes_raw(), fixed.get()),
+            Self::Int(size) => write!(f, "Int({})", size.bits_raw()),
+            Self::UInt(size) => write!(f, "UInt({})", size.bits_raw()),
+            Self::FixedBytes(size) => write!(f, "FixedBytes({})", size.bytes_raw()),
+        }
+    }
+}
+
 impl ElementaryType {
     /// Returns the Solidity ABI representation of the type as a string.
-    pub fn to_abi_str(&self) -> Cow<'static, str> {
+    pub fn to_abi_str(self) -> Cow<'static, str> {
         match self {
             Self::Address(_) => "address".into(),
             Self::Bool => "bool".into(),
@@ -107,10 +135,42 @@ impl ElementaryType {
             Self::Bytes => "bytes".into(),
             Self::Fixed(_size, _fixed) => "fixed".into(),
             Self::UFixed(_size, _fixed) => "ufixed".into(),
-            Self::Int(size) => size.int_keyword().as_str().to_string().into(),
-            Self::UInt(size) => size.uint_keyword().as_str().to_string().into(),
-            Self::FixedBytes(size) => size.bytes_keyword().as_str().to_string().into(),
+            Self::Int(size) => format!("int{}", size.bits()).into(),
+            Self::UInt(size) => format!("uint{}", size.bits()).into(),
+            Self::FixedBytes(size) => format!("bytes{}", size.bytes()).into(),
         }
+    }
+
+    /// Writes the Solidity ABI representation of the type to a formatter.
+    pub fn write_abi_str(self, f: &mut impl fmt::Write) -> fmt::Result {
+        f.write_str(match self {
+            Self::Address(_) => "address",
+            Self::Bool => "bool",
+            Self::String => "string",
+            Self::Bytes => "bytes",
+            Self::Fixed(_size, _fixed) => "fixed",
+            Self::UFixed(_size, _fixed) => "ufixed",
+            Self::Int(size) => return write!(f, "int{}", size.bits()),
+            Self::UInt(size) => return write!(f, "uint{}", size.bits()),
+            Self::FixedBytes(size) => return write!(f, "bytes{}", size.bytes()),
+        })
+    }
+
+    /// Returns `true` if the type is a value type.
+    ///
+    /// Reference: <https://docs.soliditylang.org/en/latest/types.html#value-types>
+    #[inline]
+    pub const fn is_value_type(self) -> bool {
+        matches!(
+            self,
+            Self::Address(_)
+                | Self::Bool
+                | Self::Fixed(..)
+                | Self::UFixed(..)
+                | Self::Int(..)
+                | Self::UInt(..)
+                | Self::FixedBytes(..)
+        )
     }
 }
 
@@ -139,6 +199,47 @@ impl TypeSize {
         } else {
             Some(Self(bytes))
         }
+    }
+
+    /// Creates a new `TypeSize` from a `u8` number of **bits**.
+    ///
+    /// Panics if `bits` is not a multiple of 8 or greater than 256.
+    #[inline]
+    #[track_caller]
+    pub fn new_int_bits(bits: u16) -> Self {
+        Self::try_new_int_bits(bits).unwrap_or_else(|| panic!("invalid integer size: {bits}"))
+    }
+
+    /// Creates a new `TypeSize` for an integer type.
+    ///
+    /// Returns None if `bits` is not a multiple of 8 or greater than 256.
+    #[inline]
+    pub fn try_new_int_bits(bits: u16) -> Option<Self> {
+        if bits % 8 == 0 {
+            Self::new((bits / 8).try_into().ok()?)
+        } else {
+            None
+        }
+    }
+
+    /// Creates a new `TypeSize` for a fixed-bytes type.
+    ///
+    /// Panics if `bytes` is not in the range 1..=32.
+    #[inline]
+    #[track_caller]
+    pub fn new_fb_bytes(bytes: u8) -> Self {
+        Self::try_new_fb_bytes(bytes).unwrap_or_else(|| panic!("invalid fixed-bytes size: {bytes}"))
+    }
+
+    /// Creates a new `TypeSize` for a fixed-bytes type.
+    ///
+    /// Returns None if `bytes` is not in the range 1..=32.
+    #[inline]
+    pub fn try_new_fb_bytes(bytes: u8) -> Option<Self> {
+        if bytes == 0 {
+            return None;
+        }
+        Self::new(bytes)
     }
 
     /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
@@ -241,7 +342,7 @@ pub struct TypeArray<'ast> {
 pub struct TypeFunction<'ast> {
     pub parameters: ParameterList<'ast>,
     pub visibility: Option<Visibility>,
-    pub state_mutability: Option<StateMutability>,
+    pub state_mutability: StateMutability,
     pub returns: ParameterList<'ast>,
 }
 

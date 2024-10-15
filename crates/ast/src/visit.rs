@@ -1,6 +1,7 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
+use solar_data_structures::trustme;
 use solar_interface::{Ident, Span};
 use solar_macros::declare_visitors;
 
@@ -9,7 +10,7 @@ declare_visitors! {
     pub trait Visit VisitMut <'ast> {
         fn visit_source_unit(&mut self, source_unit: &#mut SourceUnit<'ast>) {
             // TODO: SAFETY: Idk
-            let source_unit = unsafe { std::mem::transmute::<&#mut SourceUnit<'ast>, &'ast #mut SourceUnit<'ast>>(source_unit) };
+            let source_unit = unsafe { trustme::decouple_lt #_mut(source_unit) };
             let SourceUnit { items } = source_unit;
             for item in items.iter #_mut() {
                 self.visit_item #_mut(item);

@@ -25,6 +25,9 @@ pub mod sigsegv_handler {
     pub fn install() {}
 }
 
+// `asm` feature.
+use alloy_primitives as _;
+
 // Used in integration tests. See `../tests.rs`.
 #[cfg(test)]
 use solar_tester as _;
@@ -153,6 +156,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         sess.evm_version = args.evm_version;
         sess.language = args.language;
         sess.stop_after = args.stop_after;
+        sess.dump = args.unstable.dump.clone();
         sess.jobs = NonZeroUsize::new(jobs).unwrap();
         if args.input.iter().all(|arg| arg.extension() == Some("yul".as_ref())) {
             sess.language = solar_config::Language::Yul;
