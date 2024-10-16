@@ -869,6 +869,17 @@ pub struct Expr<'hir> {
     pub span: Span,
 }
 
+impl Expr<'_> {
+    /// Peels off unnecessary parentheses from the expression.
+    pub fn peel_parens(&self) -> &Self {
+        let mut expr = self;
+        while let ExprKind::Tuple([Some(inner)]) = &expr.kind {
+            expr = inner;
+        }
+        expr
+    }
+}
+
 /// A kind of expression.
 #[derive(Debug)]
 pub enum ExprKind<'hir> {

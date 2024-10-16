@@ -40,6 +40,20 @@ pub enum LitKind {
     Err(ErrorGuaranteed),
 }
 
+impl LitKind {
+    /// Returns the description of this literal kind.
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::Str(kind, _) => kind.description(),
+            Self::Number(_) => "number",
+            Self::Rational(_) => "rational",
+            Self::Address(_) => "address",
+            Self::Bool(_) => "boolean",
+            Self::Err(_) => "<error>",
+        }
+    }
+}
+
 /// A single UTF-8 string literal. Only used in import paths and statements, not expressions.
 #[derive(Clone, Debug)]
 pub struct StrLit {
@@ -58,6 +72,17 @@ pub enum StrKind {
     Unicode,
     /// A hex string literal.
     Hex,
+}
+
+impl StrKind {
+    /// Returns the description of this string kind.
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::Str => "string",
+            Self::Unicode => "unicode string",
+            Self::Hex => "hex string",
+        }
+    }
 }
 
 /// A number sub-denomination.
