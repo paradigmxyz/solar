@@ -47,16 +47,14 @@ mod tests {
     fn never() {
         let r = Ok::<i32, Never>(42);
 
-        #[allow(unreachable_patterns)]
         let x = match r {
             Ok(x) => x,
             // This would be an error if `Never` was not exactly the primitive `!` type.
-            Err(unreachable) => unreachable,
+            // Err(unreachable) => unreachable,
         };
         assert_eq!(x, 42);
 
-        // https://github.com/rust-lang/rust/issues/51085
-        // let Ok(x) = r;
-        // assert_eq!(x, 42);
+        let Ok(x) = r;
+        assert_eq!(x, 42);
     }
 }

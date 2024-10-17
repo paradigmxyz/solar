@@ -290,7 +290,7 @@ fn file_to_snippet(
     debug_assert!(first_line > 0, "line index is 1-based");
     let last_line = lines.last().unwrap().line_index;
     debug_assert!(last_line >= first_line);
-    debug_assert!(lines.windows(2).all(|w| w[0].line_index <= w[1].line_index), "unsorted lines");
+    debug_assert!(lines.is_sorted());
     let snippet_base = file.line_position(first_line - 1).unwrap();
 
     let mut snippet = OwnedSnippet {
