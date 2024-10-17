@@ -1,5 +1,6 @@
 use super::Gcx;
 use crate::{builtins::Builtin, hir};
+use alloy_primitives::U256;
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{map::FxHashSet, smallvec::SmallVec, Interned};
 use solar_interface::diagnostics::ErrorGuaranteed;
@@ -182,7 +183,7 @@ pub enum TyKind<'gcx> {
     DynArray(Ty<'gcx>),
 
     /// Fixed-size array: `T[N]`.
-    Array(Ty<'gcx>, u64),
+    Array(Ty<'gcx>, U256),
 
     /// Tuple: `(T1, T2, ...)`.
     Tuple(&'gcx [Ty<'gcx>]),

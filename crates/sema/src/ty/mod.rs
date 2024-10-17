@@ -228,14 +228,23 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
+    /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
     pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
                 let ty = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    // TODO: array sizes
-                    Some(_size) => TyKind::Array(ty, 1),
+                    Some(size) => match crate::eval::ConstantEvaluator::new(self).eval(size) {
+                        Ok(int) => {
+                            if int.data.is_zero() {
+                                let msg = "array length must be greater than zero";
+                                self.dcx().err(msg).span(size.span).emit();
+                            }
+                            TyKind::Array(ty, int.data)
+                        }
+                        Err(guar) => TyKind::Err(guar),
+                    },
                     None => TyKind::DynArray(ty),
                 }
             }
@@ -300,7 +309,7 @@ macro_rules! cached {
                 $vis fn $name(self, $key: $key_type) -> $value {
                     let _guard = log_cache_query(stringify!($name), &$key);
                     let mut hit = true;
-                    let r = once_map_insert(&self.cache.$name, $key, |&$key| {
+                    let r = cache_insert(&self.cache.$name, $key, |&$key| {
                         hit = false;
                         let $gcx = self;
                         $imp
@@ -476,7 +485,7 @@ pub fn members_of(gcx: _, ty: Ty<'gcx>) -> MemberMap<'gcx> {
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
-fn once_map_insert<K, V, S>(
+fn cache_insert<K, V, S>(
     map: &once_map::OnceMap<K, V, S>,
     key: K,
     make_val: impl FnOnce(&K) -> V,
