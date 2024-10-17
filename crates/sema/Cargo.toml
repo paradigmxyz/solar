@@ -29,7 +29,7 @@ once_map.workspace = true
 paste.workspace = true
 rayon.workspace = true
 scc.workspace = true
-thread_local = "1.1"
+thread_local.workspace = true
 tracing.workspace = true
 typed-arena.workspace = true
 

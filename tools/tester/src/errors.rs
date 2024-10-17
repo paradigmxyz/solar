@@ -1,9 +1,8 @@
 //! <https://github.com/rust-lang/rust/blob/af44e719fa16832425c0764ac9c54ad82a617d3a/src/tools/compiletest/src/errors.rs>
 
 use crate::solc::SolcErrorKind;
-use once_cell::sync::Lazy;
 use regex::Regex;
-use std::{fmt, str::FromStr};
+use std::{fmt, str::FromStr, sync::LazyLock};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ErrorKind {
@@ -55,7 +54,7 @@ impl Error {
     pub fn load_solc(file: &str) -> Vec<Self> {
         const DELIM: &str = "// ----";
         // Warning 2519: (80-89): This declaration shadows an existing declaration.
-        static ERROR_RE: Lazy<Regex> = Lazy::new(|| {
+        static ERROR_RE: LazyLock<Regex> = LazyLock::new(|| {
             Regex::new(r"//\s*(\w+)\s*(?:\d+)?:\s*(?:\((\d+)-(\d+)\):)?(.*)").unwrap()
         });
 
