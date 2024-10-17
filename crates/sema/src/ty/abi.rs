@@ -11,17 +11,17 @@ impl<'gcx> Gcx<'gcx> {
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
-        AbiPrinter::new(self, &mut s).print_tuple(tys).unwrap();
+        TyAbiPrinter::new(self, &mut s).print_tuple(tys).unwrap();
         s
     }
 }
 
-struct AbiPrinter<'gcx, W> {
+struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
 }
 
-impl<'gcx, W: fmt::Write> AbiPrinter<'gcx, W> {
+impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
         Self { gcx, buf }
     }

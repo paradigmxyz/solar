@@ -344,11 +344,7 @@ impl FileWithAnnotatedLines {
     }
 
     pub(crate) fn add_lines(&mut self, lines: impl IntoIterator<Item = Line>) {
-        fn is_sorted(lines: &[Line]) -> bool {
-            lines.windows(2).all(|ls| ls[0] < ls[1])
-        }
-
-        debug_assert!(is_sorted(&self.lines), "file lines should be sorted");
+        debug_assert!(self.lines.is_sorted(), "file lines should be sorted");
         for line in lines {
             match self.lines.binary_search_by_key(&line.line_index, |l| l.line_index) {
                 Ok(i) => {
@@ -360,7 +356,7 @@ impl FileWithAnnotatedLines {
                 }
             }
         }
-        debug_assert!(is_sorted(&self.lines), "file lines should still be sorted");
+        debug_assert!(self.lines.is_sorted(), "file lines should still be sorted");
     }
 }
 
