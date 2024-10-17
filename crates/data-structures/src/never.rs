@@ -47,10 +47,10 @@ mod tests {
     fn never() {
         let r = Ok::<i32, Never>(42);
 
+        // This would be an error if `Never` was not exactly the primitive `!` type.
+        #[allow(clippy::infallible_destructuring_match)]
         let x = match r {
             Ok(x) => x,
-            // This would be an error if `Never` was not exactly the primitive `!` type.
-            // Err(unreachable) => unreachable,
         };
         assert_eq!(x, 42);
 
