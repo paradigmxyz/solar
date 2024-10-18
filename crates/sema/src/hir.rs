@@ -79,7 +79,66 @@ pub struct Hir<'hir> {
     pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
 }
 
-impl Hir<'_> {
+macro_rules! indexvec_methods {
+    ($($singular:ident => $plural:ident, $id:ty => $type:ty;)*) => { paste::paste! {
+        $(
+            #[doc = "Returns the " $singular " associated with the given ID."]
+            #[inline]
+            #[cfg_attr(debug_assertions, track_caller)]
+            pub fn $singular(&self, id: $id) -> &$type {
+                if cfg!(debug_assertions) {
+                    &self.$plural[id]
+                } else {
+                    unsafe { self.$plural.raw.get_unchecked(id.index()) }
+                }
+            }
+
+            #[doc = "Returns an iterator over all of the " $singular " IDs."]
+            #[inline]
+            pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator + Clone {
+                (0..self.$plural.len()).map($id::from_usize)
+            }
+
+            #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
+            #[inline]
+            pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> {
+                (0..self.$plural.len()).into_par_iter().map($id::from_usize)
+            }
+
+            #[doc = "Returns an iterator over all of the " $singular " values."]
+            #[inline]
+            pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator + Clone {
+                self.$plural.raw.iter()
+            }
+
+            #[doc = "Returns a parallel iterator over all of the " $singular " values."]
+            #[inline]
+            pub fn [<par_ $plural>](&self) -> impl IndexedParallelIterator<Item = &$type> {
+                self.$plural.raw.par_iter()
+            }
+
+            #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
+            #[inline]
+            pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator + Clone {
+                self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
+            }
+
+            #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
+            #[inline]
+            pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
+                self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize(i), v))
+            }
+        )*
+
+        pub(crate) fn shrink_to_fit(&mut self) {
+            $(
+                self.$plural.shrink_to_fit();
+            )*
+        }
+    }};
+}
+
+impl<'hir> Hir<'hir> {
     pub(crate) fn new() -> Self {
         Self {
             sources: IndexVec::new(),
@@ -93,82 +152,19 @@ impl Hir<'_> {
             variables: IndexVec::new(),
         }
     }
-}
 
-macro_rules! indexvec_methods {
-    ($($singular:ident => $plural:ident, $id:ty => $type:ty;)*) => { paste::paste! {
-        impl<'hir> Hir<'hir> {
-            $(
-                #[doc = "Returns the " $singular " associated with the given ID."]
-                #[inline]
-                #[cfg_attr(debug_assertions, track_caller)]
-                pub fn $singular(&self, id: $id) -> &$type {
-                    if cfg!(debug_assertions) {
-                        &self.$plural[id]
-                    } else {
-                        unsafe { self.$plural.raw.get_unchecked(id.index()) }
-                    }
-                }
+    indexvec_methods! {
+        source => sources, SourceId => Source<'hir>;
+        contract => contracts, ContractId => Contract<'hir>;
+        function => functions, FunctionId => Function<'hir>;
+        strukt => structs, StructId => Struct<'hir>;
+        enumm => enums, EnumId => Enum<'hir>;
+        udvt => udvts, UdvtId => Udvt<'hir>;
+        event => events, EventId => Event<'hir>;
+        error => errors, ErrorId => Error<'hir>;
+        variable => variables, VariableId => Variable<'hir>;
+    }
 
-                #[doc = "Returns an iterator over all of the " $singular " IDs."]
-                #[inline]
-                pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator + Clone {
-                    (0..self.$plural.len()).map($id::from_usize)
-                }
-
-                #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
-                #[inline]
-                pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> {
-                    (0..self.$plural.len()).into_par_iter().map($id::from_usize)
-                }
-
-                #[doc = "Returns an iterator over all of the " $singular " values."]
-                #[inline]
-                pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator + Clone {
-                    self.$plural.raw.iter()
-                }
-
-                #[doc = "Returns a parallel iterator over all of the " $singular " values."]
-                #[inline]
-                pub fn [<par_ $plural>](&self) -> impl IndexedParallelIterator<Item = &$type> {
-                    self.$plural.raw.par_iter()
-                }
-
-                #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
-                #[inline]
-                pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator + Clone {
-                    self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
-                }
-
-                #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
-                #[inline]
-                pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
-                    self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize(i), v))
-                }
-            )*
-
-            pub(crate) fn shrink_to_fit(&mut self) {
-                $(
-                    self.$plural.shrink_to_fit();
-                )*
-            }
-        }
-    }};
-}
-
-indexvec_methods! {
-    source => sources, SourceId => Source<'hir>;
-    contract => contracts, ContractId => Contract<'hir>;
-    function => functions, FunctionId => Function<'hir>;
-    strukt => structs, StructId => Struct<'hir>;
-    enumm => enums, EnumId => Enum<'hir>;
-    udvt => udvts, UdvtId => Udvt<'hir>;
-    event => events, EventId => Event<'hir>;
-    error => errors, ErrorId => Error<'hir>;
-    variable => variables, VariableId => Variable<'hir>;
-}
-
-impl<'hir> Hir<'hir> {
     /// Returns the item associated with the given ID.
     pub fn item(&self, id: impl Into<ItemId>) -> Item<'_, 'hir> {
         match id.into() {
@@ -207,6 +203,23 @@ impl<'hir> Hir<'hir> {
             .chain(self.par_udvt_ids().map(ItemId::Udvt))
             .chain(self.par_error_ids().map(ItemId::Error))
             .chain(self.par_event_ids().map(ItemId::Event))
+    }
+
+    /// Returns an iterator over all item IDs in a contract, including inheritance.
+    pub fn contract_item_ids(
+        &self,
+        id: ContractId,
+    ) -> impl Iterator<Item = ItemId> + Clone + use<'_> {
+        self.contract(id)
+            .linearized_bases
+            .iter()
+            .copied()
+            .flat_map(|base| self.contract(base).items.iter().copied())
+    }
+
+    /// Returns an iterator over all items in a contract, including inheritance.
+    pub fn contract_items(&self, id: ContractId) -> impl Iterator<Item = Item<'_, 'hir>> + Clone {
+        self.contract_item_ids(id).map(move |id| self.item(id))
     }
 }
 
@@ -468,25 +481,28 @@ pub struct Contract<'hir> {
     /// The `receive` function.
     pub receive: Option<FunctionId>,
     /// The contract items.
+    ///
+    /// Note that this only includes items defined in the contract itself, not inherited items.
+    /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
 }
 
 impl Contract<'_> {
-    /// Returns an iterator over functions in the contract.
+    /// Returns an iterator over functions declared in the contract.
     ///
     /// Note that this does not include the constructor and fallback functions, as they are stored
     /// separately. Use [`Contract::all_functions`] to include them.
-    pub fn functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+    pub fn functions(&self) -> impl Iterator<Item = FunctionId> + Clone + use<'_> {
         self.items.iter().filter_map(ItemId::as_function)
     }
 
-    /// Returns an iterator over all functions in the contract.
-    pub fn all_functions(&self) -> impl Iterator<Item = FunctionId> + Clone + '_ {
+    /// Returns an iterator over all functions declared in the contract.
+    pub fn all_functions(&self) -> impl Iterator<Item = FunctionId> + Clone + use<'_> {
         self.functions().chain(self.ctor).chain(self.fallback).chain(self.receive)
     }
 
-    /// Returns an iterator over all variables in the contract.
-    pub fn variables(&self) -> impl Iterator<Item = VariableId> + Clone + '_ {
+    /// Returns an iterator over all variables declared in the contract.
+    pub fn variables(&self) -> impl Iterator<Item = VariableId> + Clone + use<'_> {
         self.items.iter().filter_map(ItemId::as_variable)
     }
 
@@ -553,7 +569,7 @@ impl Function<'_> {
     }
 
     /// Returns an iterator over all variables in the function.
-    pub fn vars(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + '_ {
+    pub fn variables(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + use<'_> {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
     }
 }
@@ -569,13 +585,7 @@ pub struct Struct<'hir> {
     pub span: Span,
     /// The struct name.
     pub name: Ident,
-    pub fields: &'hir [StructField<'hir>],
-}
-
-#[derive(Debug)]
-pub struct StructField<'hir> {
-    pub name: Ident,
-    pub ty: Type<'hir>,
+    pub fields: &'hir [VariableId],
 }
 
 /// An enum.
@@ -621,7 +631,7 @@ pub struct Event<'hir> {
     pub name: Ident,
     /// Whether this event is anonymous.
     pub anonymous: bool,
-    pub parameters: &'hir [EventParameter<'hir>],
+    pub parameters: &'hir [VariableId],
 }
 
 /// An event parameter.
@@ -643,14 +653,7 @@ pub struct Error<'hir> {
     pub span: Span,
     /// The error name.
     pub name: Ident,
-    pub parameters: &'hir [ErrorParameter<'hir>],
-}
-
-/// A custom error parameter.
-#[derive(Debug)]
-pub struct ErrorParameter<'hir> {
-    pub name: Option<Ident>,
-    pub ty: Type<'hir>,
+    pub parameters: &'hir [VariableId],
 }
 
 /// A constant or variable declaration.

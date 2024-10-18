@@ -102,8 +102,14 @@ str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
     pub enum CompilerOutput {
-        /// Raw Yul JSON.
-        RawYul,
+        /// JSON ABI.
+        Abi,
+        // /// Creation bytecode.
+        // Bin,
+        // /// Runtime bytecode.
+        // BinRuntime,
+        /// Function signature hashes.
+        Hashes,
     }
 }
 

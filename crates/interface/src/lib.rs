@@ -74,3 +74,6 @@ macro_rules! pluralize {
         if $x == 1 { "this" } else { "these" }
     };
 }
+
+/// The current version of the Solar compiler.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");

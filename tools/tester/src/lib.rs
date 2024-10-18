@@ -6,7 +6,10 @@
 
 use eyre::{eyre, Result};
 use std::path::Path;
-use ui_test::{color_eyre::eyre, spanned::Spanned};
+use ui_test::{
+    color_eyre::eyre,
+    spanned::{Span, Spanned},
+};
 
 mod errors;
 mod solc;
@@ -109,20 +112,31 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             )*
         };
     }
-    register_custom_flags![];
+    register_custom_flags![CompileFlagsFlag];
 
     config.comment_defaults.base().exit_status = None.into();
     config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
-    let filters = [
+    let filters: &[(&str, &str)] = &[
         (root.to_str().unwrap(), "ROOT"),
         // Erase line and column info.
         (r"\.(\w+):[0-9]+:[0-9]+(: [0-9]+:[0-9]+)?", ".$1:LL:CC"),
     ];
-    for (pattern, replacement) in filters {
+    for &(pattern, replacement) in filters {
         config.filter(pattern, replacement);
+    }
+    let stdout_filters: &[(&str, &str)] = &[
+        //
+        (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
+    ];
+    for &(pattern, replacement) in stdout_filters {
+        config.stdout_filter(pattern, replacement);
+    }
+    let stderr_filters: &[(&str, &str)] = &[];
+    for &(pattern, replacement) in stderr_filters {
+        config.stderr_filter(pattern, replacement);
     }
 
     config.with_args(args);
@@ -238,4 +252,41 @@ impl std::fmt::Display for Mode {
 struct MyConfig<'a> {
     mode: Mode,
     tmp_dir: &'a Path,
+}
+
+#[derive(Clone, Debug)]
+struct CompileFlagsFlag {
+    args: Vec<String>,
+}
+impl CompileFlagsFlag {
+    const NAME: &'static str = "compile-flags";
+    const DEFAULT: Option<Self> = None;
+
+    fn parse(
+        parser: &mut ui_test::CommentParser<&mut ui_test::Revisioned>,
+        s: Spanned<&str>,
+        span: Span,
+    ) {
+        let args = s.split_whitespace().map(Into::into).collect();
+        parser.add_custom_spanned(Self::NAME, Self { args }, span);
+    }
+}
+impl ui_test::custom_flags::Flag for CompileFlagsFlag {
+    fn clone_inner(&self) -> Box<dyn ui_test::custom_flags::Flag> {
+        Box::new(self.clone())
+    }
+
+    fn must_be_unique(&self) -> bool {
+        false
+    }
+
+    fn apply(
+        &self,
+        cmd: &mut std::process::Command,
+        _config: &ui_test::per_test_config::TestConfig,
+        _build_manager: &ui_test::build_manager::BuildManager,
+    ) -> std::result::Result<(), ui_test::Errored> {
+        cmd.args(&self.args);
+        Ok(())
+    }
 }

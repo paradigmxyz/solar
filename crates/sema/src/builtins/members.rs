@@ -152,7 +152,7 @@ fn reference<'gcx>(
             fields
                 .iter()
                 .zip(tys)
-                .map(|(f, &ty)| Member::new(f.name.name, ty.with_loc(gcx, loc)))
+                .map(|(&f, &ty)| Member::new(gcx.item_name(f).name, ty.with_loc(gcx, loc)))
                 .collect()
         }
         (

@@ -21,17 +21,22 @@ solar-data-structures.workspace = true
 solar-interface.workspace = true
 solar-parse.workspace = true
 
-alloy-primitives.workspace = true
 bitflags.workspace = true
-bumpalo.workspace = true
 derive_more.workspace = true
-once_map.workspace = true
 paste.workspace = true
+
+alloy-primitives.workspace = true
+bumpalo.workspace = true
+once_map.workspace = true
 rayon.workspace = true
 scc.workspace = true
 thread_local.workspace = true
 tracing.workspace = true
 typed-arena.workspace = true
+
+alloy-json-abi.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [features]
 nightly = [

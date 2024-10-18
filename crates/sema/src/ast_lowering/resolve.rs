@@ -232,12 +232,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             let mut cx = mk_resolver!(strukt);
-            self.hir.structs[id].fields =
-                self.arena.alloc_slice_fill_iter(ast_struct.fields.iter().map(|field| {
-                    let name = field.name.unwrap_or_default();
-                    let ty = cx.lower_type(&field.ty);
-                    hir::StructField { ty, name }
-                }));
+            self.hir.structs[id].fields = cx.lower_variables(ast_struct.fields);
         }
 
         for id in self.hir.error_ids() {
@@ -245,12 +240,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
             let error = self.hir.error(id);
             let mut cx = mk_resolver!(error);
-            self.hir.errors[id].parameters =
-                self.arena.alloc_slice_fill_iter(ast_error.parameters.iter().map(|param| {
-                    let name = param.name;
-                    let ty = cx.lower_type(&param.ty);
-                    hir::ErrorParameter { ty, name }
-                }));
+            self.hir.errors[id].parameters = cx.lower_variables(ast_error.parameters);
         }
 
         for id in self.hir.event_ids() {
@@ -258,12 +248,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Event(ast_event) = &ast_item.kind else { unreachable!() };
             let event = self.hir.event(id);
             let mut cx = mk_resolver!(event);
-            self.hir.events[id].parameters =
-                self.arena.alloc_slice_fill_iter(ast_event.parameters.iter().map(|param| {
-                    let name = param.name;
-                    let ty = cx.lower_type(&param.ty);
-                    hir::EventParameter { ty, indexed: param.indexed, name }
-                }));
+            self.hir.events[id].parameters = cx.lower_variables(ast_event.parameters);
         }
 
         // Resolve constants and state variables.
@@ -285,7 +270,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
 
-            let mut scopes = SymbolResolverScopes::new_in(func.source, func.contract);
+            let scopes = SymbolResolverScopes::new_in(func.source, func.contract);
 
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
@@ -344,7 +329,6 @@ impl super::LoweringContext<'_, '_, '_> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            scopes.enter();
             let mut cx = ResolveContext::new(self, scopes, next_id);
             cx.hir.functions[id].parameters = cx.arena.alloc_slice_fill_iter(
                 ast_func.header.parameters.iter().map(|param| cx.lower_variable(param).0),
@@ -1057,7 +1041,10 @@ impl SymbolResolverScopes {
     #[track_caller]
     #[inline]
     fn current_scope(&mut self) -> &mut Declarations {
-        self.scopes.last_mut().expect("missing initial scope")
+        if self.scopes.is_empty() {
+            self.enter();
+        }
+        self.scopes.last_mut().unwrap()
     }
 
     #[track_caller]
