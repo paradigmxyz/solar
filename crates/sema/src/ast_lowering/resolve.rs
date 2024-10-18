@@ -266,11 +266,25 @@ impl super::LoweringContext<'_, '_, '_> {
                 }));
         }
 
+        // Resolve constants and state variables.
+        let normal_vars = self.hir.variables.len();
+        for id in self.hir.variable_ids() {
+            self.resolve_var(id, next_id);
+        }
+
         for id in self.hir.function_ids() {
+            let func = self.hir.function(id);
+
+            // Getters don't have an AST function, so they must be special cased to be resolved from
+            // the AST variable instead.
+            if func.is_getter() {
+                self.resolve_getter(id, next_id);
+                continue;
+            }
+
             let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
 
-            let func = self.hir.function(id);
             let mut scopes = SymbolResolverScopes::new_in(func.source, func.contract);
 
             self.hir.functions[id].modifiers = {
@@ -343,20 +357,102 @@ impl super::LoweringContext<'_, '_, '_> {
             }
         }
 
-        for id in self.hir.variable_ids() {
-            let Some(ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
-                let v = self.hir.variable(id);
-                assert!(!v.ty.is_dummy(), "{v:#?}");
-                continue;
-            };
-            let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
-            let var = self.hir.variable(id);
-            let mut cx = mk_resolver!(var);
-            let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
-            let ty = cx.lower_type(&ast_var.ty);
-            self.hir.variables[id].initializer = init;
-            self.hir.variables[id].ty = ty;
+        // Resolve function parameters and local variables, created while resolving functions.
+        for id in self.hir.variable_ids().skip(normal_vars) {
+            self.resolve_var(id, next_id);
         }
+    }
+
+    fn resolve_var(&mut self, id: hir::VariableId, next_id: &AtomicUsize) {
+        let var = self.hir.variable(id);
+
+        let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
+            assert!(!var.ty.is_dummy(), "{var:#?}");
+            return;
+        };
+        let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+
+        let scopes = SymbolResolverScopes::new_in(var.source, var.contract);
+        let mut cx = ResolveContext::new(self, scopes, next_id);
+        let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
+        let ty = cx.lower_type(&ast_var.ty);
+        self.hir.variables[id].initializer = init;
+        self.hir.variables[id].ty = ty;
+    }
+
+    /// Resolves a getter function.
+    ///
+    /// ```solidity
+    /// mapping(T k => U[] v) public map;
+    ///
+    /// // Generates:
+    /// function map(T calldata k, uint256 index1) public view returns(U memory) {
+    ///     return map[k][index1];
+    /// }
+    /// ```
+    fn resolve_getter(&mut self, id: hir::FunctionId, next_id: &AtomicUsize) {
+        let func = self.hir.function(id);
+        let Some(gettee) = func.gettee else { unreachable!() };
+        let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
+        let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+
+        let mut ret_ty = &self.hir.variable(gettee).ty;
+        let mut parameters = SmallVec::<[_; 8]>::new();
+        let mut i = 0;
+        loop {
+            let index_name = || Ident::new(Symbol::intern(&format!("index{i}")), ast_var.span);
+            match ret_ty.kind {
+                // mapping(k => v) -> arguments += k, ret_ty = v
+                hir::TypeKind::Mapping(map) => {
+                    let name = map.key_name.unwrap_or_else(index_name);
+                    let mut param = hir::Variable::new(map.key.clone(), Some(name));
+                    param.data_location = Some(hir::DataLocation::Calldata);
+                    parameters.push(self.hir.variables.push(param));
+                    ret_ty = &map.value;
+                }
+                // element[] -> arguments += uint256, ret_ty = element
+                hir::TypeKind::Array(array) => {
+                    let u256 = hir::Type {
+                        kind: hir::TypeKind::Elementary(ast::ElementaryType::UInt(
+                            ast::TypeSize::new_int_bits(256),
+                        )),
+                        span: ret_ty.span,
+                    };
+                    let name = index_name();
+                    parameters.push(self.hir.variables.push(hir::Variable::new(u256, Some(name))));
+                    ret_ty = &array.element;
+                }
+                _ => break,
+            }
+            i += 1;
+        }
+        let ret = self.hir.variables.push(hir::Variable::new(ret_ty.clone(), None));
+
+        self.hir.functions[id].parameters = self.arena.alloc_slice_copy(&parameters);
+        self.hir.functions[id].returns = self.arena.alloc_slice_copy(&[ret]);
+        self.hir.functions[id].body = {
+            let mk_expr = |kind| {
+                self.arena.alloc(hir::Expr {
+                    id: hir::ExprId::from_usize(
+                        next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                    ),
+                    kind,
+                    span: ast_var.span,
+                })
+            };
+
+            // `f"return {gettee}" + "".join(f"[{param}]" for param in params) + ";"`
+            let res = Res::Item(hir::ItemId::Variable(gettee));
+            let mut expr = mk_expr(hir::ExprKind::Ident(self.arena.alloc_slice_copy(&[res])));
+            for &param in &parameters {
+                let res = Res::Item(hir::ItemId::Variable(param));
+                let ident = hir::ExprKind::Ident(self.arena.alloc_slice_copy(&[res]));
+                expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
+            }
+
+            let stmt = hir::Stmt { span: ast_var.span, kind: hir::StmtKind::Return(Some(expr)) };
+            Some(self.arena.alloc_array([stmt]))
+        };
     }
 
     fn declare_kind_in(
@@ -528,6 +624,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
+            false,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());

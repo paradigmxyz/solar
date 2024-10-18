@@ -165,6 +165,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             span: item.span,
             name,
             kind,
+            gettee: None,
             modifiers: &[],
             marked_virtual: virtual_,
             virtual_: virtual_
@@ -182,7 +183,13 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     }
 
     fn lower_variable(&mut self, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
-        lower_variable_partial(&mut self.hir, i, self.current_source_id, self.current_contract_id)
+        lower_variable_partial(
+            &mut self.hir,
+            i,
+            self.current_source_id,
+            self.current_contract_id,
+            self.current_contract_id.is_some(),
+        )
     }
 
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
@@ -246,11 +253,13 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     }
 }
 
+/// Lowers an AST `VariableDefinition` to a HIR `Variable`.
 pub(super) fn lower_variable_partial(
     hir: &mut hir::Hir<'_>,
     i: &ast::VariableDefinition<'_>,
     source: SourceId,
     contract: Option<ContractId>,
+    is_state_variable: bool,
 ) -> hir::VariableId {
     // handled later: ty, override_, initializer
     let ast::VariableDefinition {
@@ -259,12 +268,12 @@ pub(super) fn lower_variable_partial(
         visibility,
         mutability,
         data_location,
-        override_: _,
+        ref override_,
         indexed,
         name,
         initializer: _,
     } = *i;
-    hir.variables.push(hir::Variable {
+    let id = hir.variables.push(hir::Variable {
         source,
         contract,
         span,
@@ -273,7 +282,58 @@ pub(super) fn lower_variable_partial(
         visibility,
         mutability,
         data_location,
+        override_: override_.is_some(),
+        overrides: &[],
         indexed,
         initializer: None,
+        is_state_variable,
+        getter: None,
+    });
+    let v = hir.variable(id);
+    if v.is_state_variable() && v.is_public() {
+        hir.variables[id].getter = Some(generate_partial_getter(hir, id));
+    }
+    id
+}
+
+fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::FunctionId {
+    let hir::Variable {
+        source,
+        contract,
+        span,
+        ty: _,
+        name,
+        visibility,
+        mutability: _,
+        data_location,
+        override_,
+        overrides,
+        indexed,
+        initializer: _,
+        is_state_variable,
+        getter,
+    } = *hir.variable(id);
+    debug_assert!(!indexed);
+    debug_assert!(data_location.is_none());
+    debug_assert_eq!(visibility, Some(ast::Visibility::Public));
+    debug_assert!(is_state_variable);
+    debug_assert!(getter.is_none());
+    hir.functions.push(hir::Function {
+        source,
+        contract,
+        span,
+        name,
+        kind: ast::FunctionKind::Function,
+        visibility: ast::Visibility::Public,
+        state_mutability: ast::StateMutability::View,
+        modifiers: &[],
+        marked_virtual: false,
+        virtual_: false,
+        override_,
+        overrides,
+        parameters: &[],
+        returns: &[],
+        body: None,
+        gettee: Some(id),
     })
 }

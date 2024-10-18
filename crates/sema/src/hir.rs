@@ -529,6 +529,8 @@ pub struct Function<'hir> {
     pub returns: &'hir [VariableId],
     /// The function body.
     pub body: Option<Block<'hir>>,
+    /// The variable this function is a getter of, if any.
+    pub gettee: Option<VariableId>,
 }
 
 impl Function<'_> {
@@ -539,6 +541,11 @@ impl Function<'_> {
 
     pub fn is_ordinary(&self) -> bool {
         self.kind.is_ordinary()
+    }
+
+    /// Returns `true` if this is a getter function of a variable.
+    pub fn is_getter(&self) -> bool {
+        self.gettee.is_some()
     }
 
     pub fn is_part_of_external_interface(&self) -> bool {
@@ -663,14 +670,39 @@ pub struct Variable<'hir> {
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
     pub data_location: Option<DataLocation>,
+    pub override_: bool,
+    pub overrides: &'hir [ContractId],
     pub indexed: bool,
     pub initializer: Option<&'hir Expr<'hir>>,
+    pub is_state_variable: bool,
+    /// The compiler-generated getter function, if any.
+    pub getter: Option<FunctionId>,
 }
 
-impl Variable<'_> {
+impl<'hir> Variable<'hir> {
+    /// Creates a new variable.
+    pub fn new(ty: Type<'hir>, name: Option<Ident>) -> Self {
+        Self {
+            source: SourceId::MAX,
+            contract: None,
+            span: Span::DUMMY,
+            ty,
+            name,
+            visibility: None,
+            mutability: None,
+            data_location: None,
+            override_: false,
+            overrides: &[],
+            indexed: false,
+            initializer: None,
+            is_state_variable: false,
+            getter: None,
+        }
+    }
+
     /// Returns `true` if the variable is a state variable.
     pub fn is_state_variable(&self) -> bool {
-        self.contract.is_some()
+        self.is_state_variable
     }
 
     /// Returns `true` if the variable is public.
@@ -973,7 +1005,7 @@ impl CallArgs<'_> {
 }
 
 /// A type name.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Type<'hir> {
     pub span: Span,
     pub kind: TypeKind<'hir>,
@@ -984,6 +1016,7 @@ impl Type<'_> {
     pub const DUMMY: Self =
         Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
 
+    /// Returns `true` if the type is a dummy type.
     pub fn is_dummy(&self) -> bool {
         self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
     }
@@ -1013,7 +1046,7 @@ impl Type<'_> {
 }
 
 /// The kind of a type.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TypeKind<'hir> {
     /// An elementary/primitive type.
     Elementary(ElementaryType),
