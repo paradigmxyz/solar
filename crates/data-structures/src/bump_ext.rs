@@ -9,35 +9,34 @@ pub trait BumpExt {
 
     /// Allocates an iterator by first collecting it into a (possibly stack-allocated) vector.
     ///
-    /// Prefer using [`Bump::alloc_slice_fill_iter`] if `iter` is [`ExactSizeIterator`] to avoid
-    /// the intermediate allocation.
+    /// Does not collect if the iterator is exact size, meaning `size_hint` returns equal values.
     fn alloc_from_iter<T>(&self, iter: impl Iterator<Item = T>) -> &mut [T];
 
     /// Allocates a vector of items on the arena.
     ///
     /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
+    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T];
 
     /// Allocates a `SmallVector` of items on the arena.
     ///
     /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
+    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> &mut [A::Item];
 
     /// Allocates an array of items on the arena.
     ///
     /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: !Copy`.
+    /// [`bumpalo::boxed::Box`] if `T: Drop`.
     fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T];
 
     /// Allocates a slice of items on the arena and copies them in.
     ///
     /// # Safety
     ///
-    /// If `T: !Copy`, the resulting slice must not be wrapped in `Box`, unless ownership is
-    /// moved as well, such as through [`alloc_vec`](Self::alloc_vec) and the other methods in this
-    /// trait.
+    /// If `T: Drop`, the resulting slice must not be wrapped in [`bumpalo::boxed::Box`], unless
+    /// ownership is moved as well, such as through [`alloc_vec`](Self::alloc_vec) and the other
+    /// methods in this trait.
     unsafe fn alloc_slice_unchecked<'a, T>(&'a self, slice: &[T]) -> &'a mut [T];
 }
 
