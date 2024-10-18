@@ -25,9 +25,6 @@ pub use bump_ext::BumpExt;
 mod collect;
 pub use collect::CollectAndApply;
 
-mod captures;
-pub use captures::Captures;
-
 mod never;
 pub use never::Never;
 
