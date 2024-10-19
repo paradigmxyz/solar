@@ -16,6 +16,7 @@
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256"
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(feature = "nightly", feature(panic_update_hook))]
 
 #[macro_use]
 extern crate tracing;
@@ -41,19 +42,17 @@ pub use span::Span;
 mod symbol;
 pub use symbol::{kw, sym, Ident, Symbol};
 
+pub mod panic_hook;
+
 pub use anstream::ColorChoice;
+pub use dunce::canonicalize;
 pub use solar_config as config;
 
-pub use dunce::canonicalize;
+/// The current version of the Solar compiler.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
-
-/// Creates a new compiler session on the current thread if it doesn't exist already and then
-/// executes the given closure.
-pub fn enter<R>(f: impl FnOnce() -> R) -> R {
-    SessionGlobals::with_or_default(|_| f())
-}
 
 /// Pluralize a word based on a count.
 #[macro_export]
@@ -77,5 +76,8 @@ macro_rules! pluralize {
     };
 }
 
-/// The current version of the Solar compiler.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Creates a new compiler session on the current thread if it doesn't exist already and then
+/// executes the given closure.
+pub fn enter<R>(f: impl FnOnce() -> R) -> R {
+    SessionGlobals::with_or_default(|_| f())
+}

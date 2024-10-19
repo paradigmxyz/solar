@@ -1,0 +1,58 @@
+[package]
+name = "solar-cli"
+description = "Solidity compiler CLI implementation"
+homepage = "https://github.com/ithacaxyz/solar/"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[build-dependencies]
+vergen = { workspace = true, features = ["build", "git", "gitcl"] }
+
+[dependencies]
+solar-config = { workspace = true, features = ["clap"] }
+solar-interface = { workspace = true, features = ["json"] }
+solar-sema.workspace = true
+
+alloy-primitives.workspace = true
+cfg-if.workspace = true
+clap = { workspace = true, features = ["derive"] }
+rayon.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+
+tracing-chrome = { version = "0.7", optional = true }
+tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+tikv-jemallocator = { workspace = true, optional = true }
+
+[features]
+default = ["jemalloc", "tracing-off"]
+# Nightly-only features for faster/smaller builds.
+nightly = [
+    "solar-config/nightly",
+    "solar-interface/nightly",
+    "solar-sema/nightly",
+]
+# Faster but less portable algorithm implementations, such as Keccak-256.
+asm = ["alloy-primitives/asm-keccak"]
+# Faster but less portable allocator.
+jemalloc = ["dep:tikv-jemallocator"]
+
+# Debugging and profiling.
+tracing-off = ["tracing/release_max_level_off"]
+tracing-chrome = ["dep:tracing-chrome"]
+tracy = ["dep:tracing-tracy"]
+tracy-allocator = ["tracy"]

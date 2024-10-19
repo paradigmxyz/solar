@@ -2429,19 +2429,15 @@ name = "solar"
 version = "0.0.0"
 dependencies = [
  "alloy-primitives",
- "cfg-if",
- "clap",
- "libc",
- "rayon",
+ "solar-ast",
+ "solar-cli",
  "solar-config",
+ "solar-data-structures",
  "solar-interface",
+ "solar-macros",
+ "solar-parse",
  "solar-sema",
  "solar-tester",
- "tikv-jemallocator",
- "tracing",
- "tracing-chrome",
- "tracing-subscriber",
- "tracing-tracy",
  "vergen",
 ]
 
@@ -2473,6 +2469,26 @@ dependencies = [
  "slang_solidity",
  "solang-parser",
  "solar-parse",
+]
+
+[[package]]
+name = "solar-cli"
+version = "0.0.0"
+dependencies = [
+ "alloy-primitives",
+ "cfg-if",
+ "clap",
+ "libc",
+ "rayon",
+ "solar-config",
+ "solar-interface",
+ "solar-sema",
+ "tikv-jemallocator",
+ "tracing",
+ "tracing-chrome",
+ "tracing-subscriber",
+ "tracing-tracy",
+ "vergen",
 ]
 
 [[package]]
