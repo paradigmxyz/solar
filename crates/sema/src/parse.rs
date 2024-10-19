@@ -62,7 +62,7 @@ impl<'sess> ParsingContext<'sess> {
     #[instrument(level = "debug", skip_all)]
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
         // Paths must be canonicalized before passing to the resolver.
-        let path = match path.canonicalize() {
+        let path = match solar_interface::canonicalize(path) {
             Ok(path) => {
                 // Base paths from arguments to the current directory for shorter diagnostics
                 // output.

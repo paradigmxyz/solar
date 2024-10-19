@@ -169,7 +169,7 @@ impl<'a> FileResolver<'a> {
             return Ok(Some(file));
         }
 
-        if let Ok(path) = path.canonicalize() {
+        if let Ok(path) = crate::canonicalize(path) {
             // TODO: avoids loading the same file twice by canonicalizing,
             // and then not displaying the full path in the error message
             let mut path = path.as_path();
