@@ -16,6 +16,7 @@ use std::{collections::BTreeSet, num::NonZeroUsize, path::Path, sync::Arc};
 
 pub mod cli;
 pub mod utils;
+pub mod version;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod sigsegv_handler;

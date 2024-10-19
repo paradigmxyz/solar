@@ -16,7 +16,7 @@ categories.workspace = true
 workspace = true
 
 [build-dependencies]
-vergen = { workspace = true, features = ["build", "git", "gitcl"] }
+vergen = { workspace = true, features = ["build", "git", "gitcl", "cargo"] }
 
 [dependencies]
 solar-config = { workspace = true, features = ["clap"] }
@@ -26,6 +26,7 @@ solar-sema.workspace = true
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
+const_format = { workspace = true, features = ["rust_1_64"] }
 rayon.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }

@@ -4,20 +4,12 @@ use clap::{ColorChoice, Parser, ValueHint};
 use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::path::PathBuf;
 
-const VERSION_MESSAGE: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    " (",
-    env!("VERGEN_GIT_SHA"),
-    " ",
-    env!("VERGEN_BUILD_DATE"),
-    ")"
-);
-
 /// Blazingly fast Solidity compiler.
 #[derive(Parser)]
 #[command(
     name = "solar",
-    version = VERSION_MESSAGE,
+    version = crate::version::SHORT_VERSION,
+    long_version = crate::version::LONG_VERSION,
     // after_help = "Find more information in the book: http://book.getfoundry.sh/reference/forge/forge.html",
     next_display_order = None,
 )]

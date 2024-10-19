@@ -141,6 +141,7 @@ arrayvec = "0.7"
 bitflags = "2.4"
 bumpalo = "3.14"
 cfg-if = "1.0"
+const_format = "0.2"
 dashmap = "6.0"
 either = "1"
 hex = { package = "const-hex", version = "1.10" }
