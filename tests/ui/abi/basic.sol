@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=abi --emit=hashes --pretty-json
+//@compile-flags: --emit=abi,hashes --pretty-json
 
 struct S1 {
     uint x;
