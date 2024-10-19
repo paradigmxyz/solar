@@ -19,47 +19,50 @@ workspace = true
 vergen = { workspace = true, features = ["build", "git", "gitcl"] }
 
 [dependencies]
-solar-config = { workspace = true, features = ["clap"] }
-solar-interface = { workspace = true, features = ["json"] }
+solar-ast.workspace = true
+solar-config.workspace = true
+solar-data-structures.workspace = true
+solar-interface.workspace = true
+solar-macros.workspace = true
+solar-parse.workspace = true
 solar-sema.workspace = true
 
+solar-cli = { workspace = true, optional = true }
+
 alloy-primitives.workspace = true
-cfg-if.workspace = true
-clap = { workspace = true, features = ["derive"] }
-rayon.workspace = true
-tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
-
-tracing-chrome = { version = "0.7", optional = true }
-tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
-
-[target.'cfg(unix)'.dependencies]
-libc.workspace = true
-
-tikv-jemallocator = { workspace = true, optional = true }
 
 [dev-dependencies]
 solar-tester.workspace = true
 
 [features]
-default = ["jemalloc", "tracing-off"]
+default = ["cli", "solar-cli?/default"]
+# Enable the CLI and binary.
+cli = ["dep:solar-cli"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
+    "solar-cli?/nightly",
+    "solar-ast/nightly",
     "solar-config/nightly",
     "solar-interface/nightly",
+    "solar-parse/nightly",
     "solar-sema/nightly",
     "solar-tester/nightly",
 ]
 # Faster but less portable algorithm implementations, such as Keccak-256.
-asm = ["alloy-primitives/asm-keccak"]
+asm = ["solar-cli?/asm", "alloy-primitives/asm-keccak"]
 # Faster but less portable allocator.
-jemalloc = ["dep:tikv-jemallocator"]
+jemalloc = ["solar-cli?/jemalloc"]
 
 # Debugging and profiling.
-tracing-off = ["tracing/release_max_level_off"]
-tracing-chrome = ["dep:tracing-chrome"]
-tracy = ["dep:tracing-tracy"]
-tracy-allocator = ["tracy"]
+tracing-off = ["solar-cli?/tracing-off"]
+tracing-chrome = ["solar-cli?/tracing-chrome"]
+tracy = ["solar-cli?/tracy"]
+tracy-allocator = ["solar-cli?/tracy-allocator"]
+
+[[bin]]
+name = "solar"
+path = "./src/main.rs"
+required-features = ["cli"]
 
 [[test]]
 name = "tests"

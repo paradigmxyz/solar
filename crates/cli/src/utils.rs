@@ -1,13 +1,6 @@
-#![allow(deprecated)] // PanicInfo -> PanicInfoHook since 1.82
+//! Utility functions used by the Solar CLI.
 
-use solar_interface::{
-    diagnostics::{DiagCtxt, ExplicitBug, FatalAbort},
-    SessionGlobals,
-};
-use std::panic::PanicInfo;
-
-const BUG_REPORT_URL: &str =
-    "https://github.com/ithacaxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
+use solar_interface::{diagnostics::DiagCtxt, SessionGlobals};
 
 // We use jemalloc for performance reasons.
 // Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.
@@ -23,26 +16,31 @@ cfg_if::cfg_if! {
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "tracy-allocator")] {
-        pub(super) type Allocator = tracing_tracy::client::ProfiledAllocator<AllocatorInner>;
-        pub(super) const fn new_allocator() -> Allocator {
+        pub(super) type WrappedAllocator = tracing_tracy::client::ProfiledAllocator<AllocatorInner>;
+        pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             Allocator::new(AllocatorInner {}, 100)
         }
     } else {
-        pub(super) type Allocator = AllocatorInner;
-        pub(super) const fn new_allocator() -> Allocator {
+        pub(super) type WrappedAllocator = AllocatorInner;
+        pub(super) const fn new_wrapped_allocator() -> WrappedAllocator {
             AllocatorInner {}
         }
     }
 }
 
-fn early_dcx() -> DiagCtxt {
-    DiagCtxt::with_tty_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
+/// The global allocator used by the compiler.
+pub type Allocator = WrappedAllocator;
+
+/// Create a new instance of the global allocator.
+pub const fn new_allocator() -> Allocator {
+    new_wrapped_allocator()
 }
 
-pub(crate) fn init_logger() -> impl Sized {
+/// Initialize the tracing logger.
+pub fn init_logger() -> impl Sized {
     match try_init_logger() {
         Ok(guard) => guard,
-        Err(e) => early_dcx().fatal(e).emit(),
+        Err(e) => DiagCtxt::new_early().fatal(e).emit(),
     }
 }
 
@@ -119,40 +117,8 @@ pub(crate) fn env_to_bool(value: Option<&std::ffi::OsStr>) -> bool {
     value.is_some_and(|value| value == "1" || value == "true")
 }
 
-pub(crate) fn install_panic_hook() {
-    update_hook(|default_hook, info| {
-        if info.payload().is::<FatalAbort>() {
-            std::process::exit(1);
-        }
-
-        // Lock stderr to prevent interleaving of concurrent panics.
-        let _guard = std::io::stderr().lock();
-
-        if std::env::var_os("RUST_BACKTRACE").is_none() {
-            std::env::set_var("RUST_BACKTRACE", "1");
-        }
-
-        default_hook(info);
-
-        // Separate the output with an empty line.
-        eprintln!();
-
-        panic_hook(info);
-    });
-}
-
-fn panic_hook(info: &PanicInfo<'_>) {
-    let dcx = early_dcx().set_flags(|f| f.track_diagnostics = false);
-
-    // An explicit `bug()` call has already printed what it wants to print.
-    if !info.payload().is::<ExplicitBug>() {
-        dcx.err("the compiler unexpectedly panicked; this is a bug.").emit();
-    }
-
-    dcx.note(format!("we would appreciate a bug report: {BUG_REPORT_URL}")).emit();
-}
-
-pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
+/// Runs the given closure in a thread pool with the given number of threads.
+pub fn run_in_thread_pool_with_globals<R: Send>(
     threads: usize,
     f: impl FnOnce(usize) -> R + Send,
 ) -> R {
@@ -179,19 +145,4 @@ pub(crate) fn run_in_thread_pool_with_globals<R: Send>(
                 .unwrap()
         })
     })
-}
-
-#[cfg(feature = "nightly")]
-use std::panic::update_hook;
-
-#[cfg(not(feature = "nightly"))]
-fn update_hook<F>(hook_fn: F)
-where
-    F: Fn(&(dyn Fn(&PanicInfo<'_>) + Send + Sync + 'static), &PanicInfo<'_>)
-        + Sync
-        + Send
-        + 'static,
-{
-    let default_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| hook_fn(&default_hook, info)));
 }

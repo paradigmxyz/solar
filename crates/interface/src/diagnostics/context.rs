@@ -75,6 +75,12 @@ impl DiagCtxt {
         }
     }
 
+    /// Creates a new `DiagCtxt` with a TTY emitter for emitting one-off/early fatal errors that
+    /// contain no source information.
+    pub fn new_early() -> Self {
+        Self::with_tty_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
+    }
+
     /// Creates a new `DiagCtxt` with a test emitter.
     pub fn with_test_emitter() -> Self {
         Self::new(Box::new(HumanEmitter::test()))

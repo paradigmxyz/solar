@@ -35,8 +35,8 @@ impl fmt::Write for RawStderr {
 /// We don't really care how many bytes we actually get out. SIGSEGV comes for our head.
 /// Splash stderr with letters of our own blood to warn our friends about the monster.
 macro_rules! raw_errln {
-    ($tokens:tt) => {
-        let _ = ::core::fmt::Write::write_fmt(&mut RawStderr(()), format_args!($tokens));
+    ($($tokens:tt)*) => {
+        let _ = ::core::fmt::Write::write_fmt(&mut RawStderr(()), format_args!($($tokens)*));
         let _ = ::core::fmt::Write::write_char(&mut RawStderr(()), '\n');
     };
 }

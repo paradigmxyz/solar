@@ -1,3 +1,5 @@
+//! Solar CLI arguments.
+
 use clap::{ColorChoice, Parser, ValueHint};
 use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::path::PathBuf;
@@ -79,7 +81,8 @@ pub struct Args {
 }
 
 impl Args {
-    pub(crate) fn populate_unstable(&mut self) -> Result<(), clap::Error> {
+    /// Parses the `-Z` arguments into the `unstable` field.
+    pub fn populate_unstable(&mut self) -> Result<(), clap::Error> {
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
             self.unstable =
@@ -99,6 +102,7 @@ pub enum ErrorFormat {
     RichJson,
 }
 
+/// A single import map, AKA remapping: `map=path`.
 #[derive(Clone, Debug)]
 pub struct ImportMap {
     pub map: PathBuf,
