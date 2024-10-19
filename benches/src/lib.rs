@@ -167,9 +167,9 @@ impl Parser for Slang {
 
     fn parse(&self, src: &str) {
         let version = semver::Version::new(0, 8, 22);
-        let lang = slang_solidity::language::Language::new(version).unwrap();
-        let rule = slang_solidity::kinds::NonterminalKind::SourceUnit;
-        let output = lang.parse(rule, src);
+        let parser = slang_solidity::parser::Parser::create(version).unwrap();
+        let rule = slang_solidity::cst::NonterminalKind::SourceUnit;
+        let output = parser.parse(rule, src);
 
         let errors = output.errors();
         if !errors.is_empty() {
