@@ -35,6 +35,8 @@ pub mod ty;
 
 mod typeck;
 
+mod emit;
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let sess = pcx.sess;
@@ -101,6 +103,11 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         let _ = gcx.interface_functions(id);
     });
     gcx.sess.dcx.has_errors()?;
+
+    if !gcx.sess.emit.is_empty() {
+        emit::emit(gcx);
+        gcx.sess.dcx.has_errors()?;
+    }
 
     Ok(())
 }

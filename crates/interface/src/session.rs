@@ -1,6 +1,6 @@
 use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
 use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 /// Information about the current compiler session.
 pub struct Session {
@@ -16,9 +16,13 @@ pub struct Session {
     /// Stop execution after the given compiler stage.
     pub stop_after: Option<CompilerStage>,
     /// Types of output to emit.
-    pub emit: Vec<CompilerOutput>,
+    pub emit: BTreeSet<CompilerOutput>,
+    /// Output directory.
+    pub out_dir: Option<PathBuf>,
     /// Internal state to dump to stdout.
     pub dump: Option<Dump>,
+    /// Pretty-print any JSON output.
+    pub pretty_json: bool,
     /// Number of threads to use. Already resolved to a non-zero value.
     pub jobs: NonZeroUsize,
 }
@@ -32,8 +36,10 @@ impl Session {
             evm_version: EvmVersion::default(),
             language: Language::default(),
             stop_after: None,
-            emit: Vec::new(),
+            emit: Default::default(),
+            out_dir: None,
             dump: None,
+            pretty_json: false,
             jobs: NonZeroUsize::MIN,
         }
     }

@@ -24,11 +24,14 @@ pub struct Args {
     #[arg(value_hint = ValueHint::FilePath)]
     pub input: Vec<PathBuf>,
     /// Directory to search for files.
-    #[arg(long, short = 'I', visible_alias = "base-path")]
+    #[arg(long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath)]
     pub import_path: Vec<PathBuf>,
     /// Map to search for files [format: map=path]
     #[arg(long, short = 'm')]
     pub import_map: Vec<ImportMap>,
+    /// Directory to write output files.
+    #[arg(long, short, value_hint = ValueHint::DirPath)]
+    pub out_dir: Option<PathBuf>,
     /// Source code language.
     #[arg(long, value_enum, default_value_t)]
     pub language: Language,
@@ -46,8 +49,11 @@ pub struct Args {
     #[arg(long, short)]
     pub verbose: bool,
     /// Pretty-print any JSON output.
-    #[arg(long, short)]
+    #[arg(long)]
     pub pretty_json: bool,
+    /// Pretty-print any JSON stderr output.
+    #[arg(long)]
+    pub pretty_json_err: bool,
     /// How errors and other messages are produced.
     #[arg(long, value_enum, default_value_t)]
     pub error_format: ErrorFormat,

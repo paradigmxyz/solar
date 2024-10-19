@@ -8,7 +8,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SessionGlobals, SourceMap,
 };
-use std::{num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
+use std::{collections::BTreeSet, num::NonZeroUsize, path::Path, process::ExitCode, sync::Arc};
 
 pub mod cli;
 mod utils;
@@ -140,7 +140,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
             cli::ErrorFormat::Json | cli::ErrorFormat::RichJson => {
                 let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
                 let json = JsonEmitter::new(writer, source_map.clone())
-                    .pretty(args.pretty_json)
+                    .pretty(args.pretty_json_err)
                     .rustc_like(matches!(args.error_format, cli::ErrorFormat::RichJson))
                     .ui_testing(ui_testing);
                 Box::new(json)
@@ -163,6 +163,18 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         {
             sess.language = solar_config::Language::Yul;
         }
+        sess.emit = {
+            let mut set = BTreeSet::default();
+            for &emit in &args.emit {
+                if !set.insert(emit) {
+                    let msg = format!("cannot specify `--emit {emit}` twice");
+                    return Err(sess.dcx.err(msg).emit());
+                }
+            }
+            set
+        };
+        sess.out_dir = args.out_dir.clone();
+        sess.pretty_json = args.pretty_json;
 
         let compiler = Compiler { sess, args };
 

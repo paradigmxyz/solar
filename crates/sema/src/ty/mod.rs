@@ -203,6 +203,61 @@ impl<'gcx> Gcx<'gcx> {
         self.opt_item_name(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
     }
 
+    /// Returns the canonical name of the given item.
+    ///
+    /// This is the name of the item prefixed by the name of the contract it belongs to.
+    pub fn item_canonical_name(self, id: impl Into<hir::ItemId>) -> impl fmt::Display {
+        self.item_canonical_name_(id.into())
+    }
+    fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
+        let name = self.item_name(id);
+        let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
+        solar_data_structures::fmt_from_fn(move |f| {
+            if let Some(contract) = contract {
+                write!(f, "{contract}.")?;
+            }
+            write!(f, "{name}")
+        })
+    }
+
+    /// Returns the fully qualified name of the contract.
+    pub fn contract_fully_qualified_name(self, id: hir::ContractId) -> String {
+        let c = self.hir.contract(id);
+        let source = self.hir.source(c.source);
+        format!("{}:{}", source.file.name.display(), c.name)
+    }
+
+    /// Returns an iterator over the fields of the given item.
+    ///
+    /// Accepts structs, errors, and events.
+    pub fn item_fields(
+        self,
+        id: impl Into<hir::ItemId>,
+    ) -> impl Iterator<Item = (Ty<'gcx>, hir::VariableId)> {
+        self.item_fields_(id.into())
+    }
+
+    fn item_fields_(self, id: hir::ItemId) -> impl Iterator<Item = (Ty<'gcx>, hir::VariableId)> {
+        let tys = match self.type_of_item(id).kind {
+            TyKind::Struct(id) => self.struct_field_types(id),
+            TyKind::Error(tys, _) | TyKind::Event(tys, _) => tys,
+            _ => panic!("item_fields: invalid item {id:?}"),
+        };
+        let params = self.item_parameters(id).unwrap();
+        tys.iter().copied().zip(params.iter().copied())
+    }
+
+    /// Returns the parameter variable declarations of the given item.
+    pub fn item_parameters(self, id: hir::ItemId) -> Option<&'gcx [hir::VariableId]> {
+        Some(match id {
+            hir::ItemId::Struct(id) => self.hir.strukt(id).fields,
+            hir::ItemId::Error(id) => self.hir.error(id).parameters,
+            hir::ItemId::Event(id) => self.hir.event(id).parameters,
+            hir::ItemId::Function(id) => self.hir.function(id).parameters,
+            _ => return None,
+        })
+    }
+
     /// Returns the name of the given item.
     pub fn opt_item_name(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
@@ -361,7 +416,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         let ty = gcx.type_of_item(f_id.into());
         let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
-        for (var_id, ty) in f.vars().zip(ty_f.tys()) {
+        for (var_id, ty) in f.variables().zip(ty_f.tys()) {
             if !ty.can_be_exported() {
                 let msg = if ty.has_mapping() {
                     "types containing mappings cannot be parameter or return types of public functions"
@@ -461,11 +516,11 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
             }
         }
         hir::ItemId::Error(id) => {
-            let tys = gcx.hir.error(id).parameters.iter().map(|p| gcx.type_of_hir_ty(&p.ty));
+            let tys = gcx.hir.error(id).parameters.iter().map(|&p| gcx.type_of_item(p.into()));
             TyKind::Error(gcx.mk_ty_iter(tys), id)
         }
         hir::ItemId::Event(id) => {
-            let tys = gcx.hir.event(id).parameters.iter().map(|p| gcx.type_of_hir_ty(&p.ty));
+            let tys = gcx.hir.event(id).parameters.iter().map(|&p| gcx.type_of_item(p.into()));
             TyKind::Event(gcx.mk_ty_iter(tys), id)
         }
     };
@@ -474,8 +529,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
 
 /// Returns the types of the fields of the given struct.
 pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
-    let fields = gcx.hir.strukt(id).fields;
-    gcx.mk_ty_iter(fields.iter().map(|f| gcx.type_of_hir_ty(&f.ty)))
+    gcx.mk_ty_iter(gcx.hir.strukt(id).fields.iter().map(|&f| gcx.type_of_item(f.into())))
 }
 
 /// Returns the members of the given type.

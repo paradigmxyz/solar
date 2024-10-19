@@ -41,6 +41,15 @@ impl<'gcx> Ty<'gcx> {
         Self::new(gcx, TyKind::Ref(ty, loc))
     }
 
+    /// Peels `Ref` layers from the type, returning the inner type.
+    pub fn peel_refs(self) -> Self {
+        let mut ty = self;
+        while let TyKind::Ref(inner, _) = ty.kind {
+            ty = inner;
+        }
+        ty
+    }
+
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
         let TyKind::FnPtr(f) = self.kind else { return self };
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
@@ -141,6 +150,42 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn can_be_exported(self) -> bool {
         !(self.is_recursive() || self.has_mapping() || self.has_error())
+    }
+
+    /// Visits the type and its subtypes.
+    pub fn visit<T>(self, f: &mut impl FnMut(Self) -> ControlFlow<T>) -> ControlFlow<T> {
+        f(self)?;
+        match self.kind {
+            TyKind::Elementary(_)
+            | TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(_)
+            | TyKind::Contract(_)
+            | TyKind::FnPtr(_)
+            | TyKind::Enum(_)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_)
+            | TyKind::Struct(_)
+            | TyKind::Err(_) => ControlFlow::Continue(()),
+
+            TyKind::Ref(ty, _)
+            | TyKind::DynArray(ty)
+            | TyKind::Array(ty, _)
+            | TyKind::Udvt(ty, _)
+            | TyKind::Type(ty)
+            | TyKind::Meta(ty) => ty.visit(f),
+
+            TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
+                for ty in list {
+                    ty.visit(f)?;
+                }
+                ControlFlow::Continue(())
+            }
+
+            TyKind::Mapping(k, v) => {
+                k.visit(f)?;
+                v.visit(f)
+            }
+        }
     }
 }
 
@@ -330,7 +375,8 @@ fn struct_is_recursive(gcx: Gcx<'_>, id: hir::StructId) -> bool {
     seen.insert(id);
     ids.push(id);
     while let Some(id) = ids.pop() {
-        for field in gcx.hir.strukt(id).fields {
+        for &field in gcx.hir.strukt(id).fields {
+            let field = gcx.hir.variable(field);
             let r = field.ty.visit(&mut |ty| {
                 if let hir::TypeKind::Custom(hir::ItemId::Struct(other_id)) = ty.kind {
                     if !seen.insert(other_id) {
