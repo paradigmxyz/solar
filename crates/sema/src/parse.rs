@@ -255,10 +255,17 @@ fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
 }
 
 /// Parsed sources, returned by [`ParsingContext::parse`].
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct ParsedSources<'ast> {
     /// The list of parsed sources.
     pub sources: IndexVec<SourceId, ParsedSource<'ast>>,
+}
+
+impl fmt::Debug for ParsedSources<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ParsedSources ")?;
+        self.sources.fmt(f)
+    }
 }
 
 impl ParsedSources<'_> {
@@ -374,19 +381,20 @@ impl std::ops::DerefMut for ParsedSources<'_> {
 pub struct ParsedSource<'ast> {
     /// The source file.
     pub file: Arc<SourceFile>,
-    /// The AST. `None` if an error occurred during parsing, or if the source is a Yul file.
-    pub ast: Option<ast::SourceUnit<'ast>>,
     /// The AST IDs and source IDs of all the imports.
     pub imports: Vec<(ast::ItemId, SourceId)>,
+    /// The AST. `None` if an error occurred during parsing, or if the source is a Yul file.
+    pub ast: Option<ast::SourceUnit<'ast>>,
 }
 
 impl fmt::Debug for ParsedSource<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ParsedSource")
-            .field("file", &self.file.name)
-            .field("ast", &self.ast)
-            .field("imports", &self.imports)
-            .finish()
+        let mut dbg = f.debug_struct("ParsedSource");
+        dbg.field("file", &self.file.name).field("imports", &self.imports);
+        if let Some(ast) = &self.ast {
+            dbg.field("ast", &ast);
+        }
+        dbg.finish()
     }
 }
 

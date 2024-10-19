@@ -39,7 +39,6 @@ impl Item<'_> {
 /// An AST item. A more expanded version of a [Solidity source unit][ref].
 ///
 /// [ref]: https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit
-#[derive(Debug)]
 pub enum ItemKind<'ast> {
     /// A pragma directive: `pragma solidity ^0.8.0;`
     Pragma(PragmaDirective<'ast>),
@@ -76,6 +75,25 @@ pub enum ItemKind<'ast> {
     /// An event definition:
     /// `event Transfer(address indexed from, address indexed to, uint256 value);`
     Event(ItemEvent<'ast>),
+}
+
+impl fmt::Debug for ItemKind<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ItemKind::")?;
+        match self {
+            ItemKind::Pragma(item) => item.fmt(f),
+            ItemKind::Import(item) => item.fmt(f),
+            ItemKind::Using(item) => item.fmt(f),
+            ItemKind::Contract(item) => item.fmt(f),
+            ItemKind::Function(item) => item.fmt(f),
+            ItemKind::Variable(item) => item.fmt(f),
+            ItemKind::Struct(item) => item.fmt(f),
+            ItemKind::Enum(item) => item.fmt(f),
+            ItemKind::Udvt(item) => item.fmt(f),
+            ItemKind::Error(item) => item.fmt(f),
+            ItemKind::Event(item) => item.fmt(f),
+        }
+    }
 }
 
 impl ItemKind<'_> {

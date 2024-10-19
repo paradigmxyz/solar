@@ -133,13 +133,11 @@ pub fn resolve<'hir>(
 fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
         for path in paths {
-            if let Some(source) = sources.iter().find(|s| match_file_name(&s.file.name, path)) {
+            if let Some(source) = sources.iter().find(|&s| match_file_name(&s.file.name, path)) {
                 println!("{source:#?}");
             } else {
-                return Err(sess
-                    .dcx
-                    .err("`-Zdump=ast` paths must match exactly a single input file")
-                    .emit());
+                let msg = format!("`-Zdump=ast={path:?}` did not match exactly one source file");
+                return Err(sess.dcx.err(msg).emit());
             }
         }
     } else {
