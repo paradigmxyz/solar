@@ -57,10 +57,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 }
 
 fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
-    let mut root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
-    if let Ok(cwd) = std::env::current_dir() {
-        root = root.strip_prefix(cwd).unwrap_or(root);
-    }
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
         Mode::Ui => "tests/ui/",
@@ -120,7 +117,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
     let filters: &[(&str, &str)] = &[
-        (root.to_str().unwrap(), "ROOT"),
+        (&root.to_str().unwrap().replace('\\', "/"), "ROOT"),
         // Erase line and column info.
         (r"\.(\w+):[0-9]+:[0-9]+(: [0-9]+:[0-9]+)?", ".$1:LL:CC"),
     ];
@@ -138,6 +135,16 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     for &(pattern, replacement) in stderr_filters {
         config.stderr_filter(pattern, replacement);
     }
+
+    let filters = [
+        (ui_test::Match::PathBackslash, b"/".to_vec()),
+        #[cfg(windows)]
+        (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()),
+        #[cfg(windows)]
+        (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()),
+    ];
+    config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
+    config.comment_defaults.base().normalize_stdout.extend(filters);
 
     config.with_args(args);
 

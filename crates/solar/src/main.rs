@@ -35,9 +35,6 @@ use solar_tester as _;
 #[global_allocator]
 static ALLOC: utils::Allocator = utils::new_allocator();
 
-#[cfg(debug_assertions)]
-use tikv_jemallocator as _;
-
 use tracing as _;
 
 fn main() -> ExitCode {

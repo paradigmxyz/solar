@@ -14,18 +14,19 @@ env:
 
 jobs:
   test:
-    name: test ${{ matrix.rust }} ${{ matrix.flags }}
-    runs-on: ubuntu-latest
+    name: test ${{ matrix.os }} ${{ matrix.rust }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        os: ["ubuntu-latest", "macos-latest"]
+        rust: ["stable"]
         include:
-          - rust: "1.82" # MSRV
-          - rust: stable
-          - rust: nightly
-          - rust: nightly
-            flags: --features nightly
+          - os: "ubuntu-latest"
+            rust: "1.82" # MSRV
+          - os: "ubuntu-latest"
+            rust: "nightly"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,13 +38,29 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      # Only run tests on latest stable and above
       - name: build
-        if: ${{ matrix.rust == '1.82' }} # MSRV
-        run: cargo build ${{ matrix.flags }}
+        run: cargo build
       - name: test
-        if: ${{ matrix.rust != '1.82' }} # MSRV
-        run: cargo nextest run --workspace ${{ matrix.flags }}
+        run: cargo nextest run --workspace
+      - name: test --features nightly
+        if: matrix.rust == 'nightly'
+        run: cargo nextest run --workspace --features nightly
+
+  feature-checks:
+    name: features
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: cargo hack
+        run: cargo hack check --feature-powerset --depth 2
 
   clippy:
     runs-on: ubuntu-latest
@@ -102,6 +119,7 @@ jobs:
     if: always()
     needs:
       - test
+      - feature-checks
       - clippy
       - docs
       - fmt
