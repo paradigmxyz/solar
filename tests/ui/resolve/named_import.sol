@@ -1,4 +1,4 @@
-import { MyUdvt } from "./aux/udvt.sol";
+import { MyUdvt } from "./auxiliary/udvt.sol";
 
 struct S {
     MyUdvt value;

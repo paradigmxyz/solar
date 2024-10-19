@@ -1,12 +1,12 @@
 error: identifier `MyUdvt` already declared
   --> ROOT/tests/ui/resolve/import_glob_conflicts.sol:LL:CC
    |
-LL | import "./aux/udvt.sol";
-   | ------------------------ note: previous declaration imported here
-LL | import * from "./aux/udvt2.sol";
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | import "./auxiliary/udvt.sol";
+   | ------------------------------ note: previous declaration imported here
+LL | import * from "./auxiliary/udvt2.sol";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-  ::: ROOT/tests/ui/resolve/aux/udvt.sol:LL:CC
+  ::: ROOT/tests/ui/resolve/auxiliary/udvt.sol:LL:CC
    |
 LL | type MyUdvt is uint256;
    | ----------------------- note: previous declaration declared here

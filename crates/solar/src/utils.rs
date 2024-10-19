@@ -16,6 +16,8 @@ cfg_if::cfg_if! {
         type AllocatorInner = tikv_jemallocator::Jemalloc;
     } else {
         type AllocatorInner = std::alloc::System;
+        #[cfg(all(feature = "jemalloc", unix))]
+        use tikv_jemallocator as _;
     }
 }
 
