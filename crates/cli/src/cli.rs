@@ -131,6 +131,8 @@ pub struct UnstableFeatures {
     #[arg(long)]
     pub parse_yul: bool,
     /// Print additional information about the compiler's internal state.
+    ///
+    /// Valid kinds are `ast` and `hir`.
     #[arg(long, value_name = "KIND[=PATHS...]")]
     pub dump: Option<Dump>,
 
