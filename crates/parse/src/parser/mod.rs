@@ -22,7 +22,7 @@ mod stmt;
 mod ty;
 mod yul;
 
-/// Solidity parser.
+/// Solidity and Yul parser.
 pub struct Parser<'sess, 'ast> {
     /// The parser session.
     pub sess: &'sess Session,

@@ -26,8 +26,6 @@ use-self = "warn"
 redundant-clone = "warn"
 
 [workspace.lints.rust]
-# missing-debug-implementations = "warn"
-# missing-docs = "warn"
 rust-2018-idioms = "warn"
 unreachable-pub = "warn"
 unused-must-use = "warn"

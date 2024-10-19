@@ -1,4 +1,4 @@
-//! Solidity lexer.
+//! Solidity and Yul lexer.
 
 use solar_ast::{
     ast::Base,
@@ -18,7 +18,7 @@ mod unicode_chars;
 
 mod utf8;
 
-/// Solidity lexer.
+/// Solidity and Yul lexer.
 ///
 /// Converts a [`Cursor`]'s output from simple [`RawTokenKind`]s into rich [`TokenKind`]s, by
 /// converting strings into interned symbols, concatenating tokens together, and running additional

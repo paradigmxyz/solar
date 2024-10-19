@@ -1,6 +1,6 @@
 [package]
 name = "solar-parse"
-description = "Solidity lexer and parser"
+description = "Solidity and Yul lexer and parser"
 homepage = "https://github.com/ithacaxyz/solar/tree/main/crates/parse"
 
 version.workspace = true

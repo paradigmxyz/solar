@@ -1,6 +1,6 @@
 [package]
 name = "solar-data-structures"
-description = "Common data structures"
+description = "Common data structures and utilities for the Solar compiler"
 homepage = "https://github.com/ithacaxyz/solar/tree/main/crates/data-structures"
 
 version.workspace = true
