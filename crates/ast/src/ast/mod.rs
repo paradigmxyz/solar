@@ -1,6 +1,7 @@
 //! Solidity AST.
 
 use solar_data_structures::{index::IndexSlice, newtype_index, BumpExt};
+use std::fmt;
 
 pub use crate::token::CommentKind;
 pub use solar_interface::{Ident, Span, Symbol};
@@ -84,10 +85,16 @@ pub struct DocComment {
 }
 
 /// A Solidity source file.
-#[derive(Debug)]
 pub struct SourceUnit<'ast> {
     /// The source unit's items.
     pub items: Box<'ast, IndexSlice<ItemId, [Item<'ast>]>>,
+}
+
+impl fmt::Debug for SourceUnit<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SourceUnit ")?;
+        self.items.fmt(f)
+    }
 }
 
 impl<'ast> SourceUnit<'ast> {
