@@ -106,7 +106,7 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
         raw_errln!("note: maximum backtrace depth reached, frames may have been lost");
         written += 1;
     }
-    raw_errln!("note: we would appreciate a report at https://github.com/paradigmxyz/solar");
+    raw_errln!("note: we would appreciate a report at https://github.com/ithacaxyz/solar");
     written += 1;
     if written > 24 {
         // We probably just scrolled the earlier "we got SIGSEGV" message off the terminal

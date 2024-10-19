@@ -7,7 +7,7 @@ use solar_interface::{
 use std::panic::PanicInfo;
 
 const BUG_REPORT_URL: &str =
-    "https://github.com/paradigmxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
+    "https://github.com/ithacaxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
 // We use jemalloc for performance reasons.
 // Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.

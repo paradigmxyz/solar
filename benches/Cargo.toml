@@ -1,7 +1,7 @@
 [package]
 name = "solar-bench"
 description = "Simple benchmarks across different Solidity parser implementations"
-homepage = "https://github.com/paradigmxyz/solar/tree/main/benches"
+homepage = "https://github.com/ithacaxyz/solar/tree/main/benches"
 publish = false
 
 version.workspace = true
