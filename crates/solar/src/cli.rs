@@ -61,7 +61,7 @@ pub struct Args {
     #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
     pub threads: usize,
     /// Comma separated list of types of output for the compiler to emit.
-    #[arg(long)]
+    #[arg(long, value_delimiter = ',')]
     pub emit: Vec<CompilerOutput>,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
