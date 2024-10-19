@@ -6,10 +6,7 @@
 
 use eyre::{eyre, Result};
 use std::path::Path;
-use ui_test::{
-    color_eyre::eyre,
-    spanned::{Span, Spanned},
-};
+use ui_test::{color_eyre::eyre, spanned::Spanned};
 
 mod errors;
 mod solc;
@@ -71,10 +68,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     );
 
     let mut config = ui_test::Config {
-        // `host` and `target` are unused, but we still have to specify `host` so that `ui_test`
-        // doesn't invoke the command with `-vV` and try to parse the output which will fail.
-        host: Some(String::from("unused")),
-        target: Some(String::from("unused")),
+        // `host` and `target` are used for `//@ignore-...` comments.
+        host: Some(get_host().to_string()),
+        target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
             program: cmd.into(),
@@ -109,15 +105,25 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             )*
         };
     }
-    register_custom_flags![CompileFlagsFlag];
+    register_custom_flags![];
 
     config.comment_defaults.base().exit_status = None.into();
     config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
+    let filters = [
+        (ui_test::Match::PathBackslash, b"/".to_vec()),
+        #[cfg(windows)]
+        (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()),
+        #[cfg(windows)]
+        (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()),
+        (root.into(), b"ROOT".to_vec()),
+    ];
+    config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
+    config.comment_defaults.base().normalize_stdout.extend(filters);
+
     let filters: &[(&str, &str)] = &[
-        (&root.to_str().unwrap().replace('\\', "/"), "ROOT"),
         // Erase line and column info.
         (r"\.(\w+):[0-9]+:[0-9]+(: [0-9]+:[0-9]+)?", ".$1:LL:CC"),
     ];
@@ -136,16 +142,6 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         config.stderr_filter(pattern, replacement);
     }
 
-    let filters = [
-        (ui_test::Match::PathBackslash, b"/".to_vec()),
-        #[cfg(windows)]
-        (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()),
-        #[cfg(windows)]
-        (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()),
-    ];
-    config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
-    config.comment_defaults.base().normalize_stdout.extend(filters);
-
     config.with_args(args);
 
     if mode.is_solc() {
@@ -157,6 +153,16 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     }
 
     config
+}
+
+fn get_host() -> &'static str {
+    static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut config = ui_test::Config::dummy();
+        config.program = ui_test::CommandBuilder::rustc();
+        config.fill_host_and_target().unwrap();
+        config.host.unwrap()
+    })
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
@@ -259,41 +265,4 @@ impl std::fmt::Display for Mode {
 struct MyConfig<'a> {
     mode: Mode,
     tmp_dir: &'a Path,
-}
-
-#[derive(Clone, Debug)]
-struct CompileFlagsFlag {
-    args: Vec<String>,
-}
-impl CompileFlagsFlag {
-    const NAME: &'static str = "compile-flags";
-    const DEFAULT: Option<Self> = None;
-
-    fn parse(
-        parser: &mut ui_test::CommentParser<&mut ui_test::Revisioned>,
-        s: Spanned<&str>,
-        span: Span,
-    ) {
-        let args = s.split_whitespace().map(Into::into).collect();
-        parser.add_custom_spanned(Self::NAME, Self { args }, span);
-    }
-}
-impl ui_test::custom_flags::Flag for CompileFlagsFlag {
-    fn clone_inner(&self) -> Box<dyn ui_test::custom_flags::Flag> {
-        Box::new(self.clone())
-    }
-
-    fn must_be_unique(&self) -> bool {
-        false
-    }
-
-    fn apply(
-        &self,
-        cmd: &mut std::process::Command,
-        _config: &ui_test::per_test_config::TestConfig,
-        _build_manager: &ui_test::build_manager::BuildManager,
-    ) -> std::result::Result<(), ui_test::Errored> {
-        cmd.args(&self.args);
-        Ok(())
-    }
 }

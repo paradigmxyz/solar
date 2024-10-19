@@ -24,6 +24,7 @@ solar-config.workspace = true
 solar-data-structures.workspace = true
 solar-macros.workspace = true
 
+dunce = "1"
 hex.workspace = true
 itertools.workspace = true
 itoa.workspace = true

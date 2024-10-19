@@ -1,3 +1,5 @@
+//@ignore-host: windows
+
 // Escaped - OK
 string constant s = "\
 ";

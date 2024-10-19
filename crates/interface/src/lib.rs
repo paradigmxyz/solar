@@ -44,6 +44,8 @@ pub use symbol::{kw, sym, Ident, Symbol};
 pub use anstream::ColorChoice;
 pub use solar_config as config;
 
+pub use dunce::canonicalize;
+
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 
