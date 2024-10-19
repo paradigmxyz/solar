@@ -1,6 +1,6 @@
 //! Solar test runner.
 //!
-//! This crate is invoked in `crates/solar/tests.rs`.
+//! This crate is invoked in `crates/solar/tests.rs` with the path to the `solar` binary.
 
 #![allow(unreachable_pub)]
 
@@ -12,6 +12,7 @@ mod errors;
 mod solc;
 mod utils;
 
+/// Runs all the tests with the given `solar` command path.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 

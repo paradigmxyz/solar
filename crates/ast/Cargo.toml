@@ -1,6 +1,6 @@
 [package]
 name = "solar-ast"
-description = "Solidity Abstract Syntax Tree"
+description = "Solidity and Yul AST type and visitor trait definitions"
 homepage = "https://github.com/ithacaxyz/solar/tree/main/crates/ast"
 
 version.workspace = true
