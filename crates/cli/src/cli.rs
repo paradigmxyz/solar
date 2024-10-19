@@ -96,10 +96,13 @@ impl Args {
 #[derive(Clone, Debug, Default, clap::ValueEnum)]
 #[value(rename_all = "kebab-case")]
 pub enum ErrorFormat {
+    /// Human-readable output.
     #[default]
     Human,
+    /// Solc-like JSON output.
     Json,
-    RichJson,
+    /// Rustc-like JSON output.
+    RustcJson,
 }
 
 /// A single import map, AKA remapping: `map=path`.
