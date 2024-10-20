@@ -1,78 +1,122 @@
-use crate::{diagnostics::DiagCtxt, ColorChoice, SourceMap};
+use crate::{diagnostics::DiagCtxt, ColorChoice, SessionGlobals, SourceMap};
 use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 /// Information about the current compiler session.
+#[derive(derive_builder::Builder)]
+#[builder(
+    pattern = "owned",
+    build_fn(name = "try_build", private, error = "SessionBuilderError"),
+    setter(strip_option)
+)]
 pub struct Session {
     /// The diagnostics context.
     pub dcx: DiagCtxt,
     /// The source map.
+    #[builder(default)]
     source_map: Arc<SourceMap>,
 
     /// EVM version.
+    #[builder(default)]
     pub evm_version: EvmVersion,
     /// Source code language.
+    #[builder(default)]
     pub language: Language,
     /// Stop execution after the given compiler stage.
+    #[builder(default)]
     pub stop_after: Option<CompilerStage>,
     /// Types of output to emit.
+    #[builder(default)]
     pub emit: BTreeSet<CompilerOutput>,
     /// Output directory.
+    #[builder(default)]
     pub out_dir: Option<PathBuf>,
     /// Internal state to dump to stdout.
+    #[builder(default)]
     pub dump: Option<Dump>,
     /// Pretty-print any JSON output.
+    #[builder(default)]
     pub pretty_json: bool,
     /// Number of threads to use. Already resolved to a non-zero value.
+    #[builder(default = "NonZeroUsize::MIN")]
     pub jobs: NonZeroUsize,
 }
 
-impl Session {
-    /// Creates a new parser session with the given diagnostics context and source map.
-    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
-        Self {
-            dcx,
-            source_map,
-            evm_version: EvmVersion::default(),
-            language: Language::default(),
-            stop_after: None,
-            emit: Default::default(),
-            out_dir: None,
-            dump: None,
-            pretty_json: false,
-            jobs: NonZeroUsize::MIN,
+#[derive(Debug)]
+struct SessionBuilderError;
+impl From<derive_builder::UninitializedFieldError> for SessionBuilderError {
+    fn from(_value: derive_builder::UninitializedFieldError) -> Self {
+        Self
+    }
+}
+
+impl SessionBuilder {
+    /// Creates a new session builder with a test emitter.
+    #[inline]
+    pub fn with_test_emitter(self) -> Self {
+        self.dcx(DiagCtxt::with_test_emitter())
+    }
+
+    /// Creates a new session builder with a TTY emitter.
+    #[inline]
+    pub fn with_tty_emitter(self) -> Self {
+        self.with_tty_emitter_and_color(ColorChoice::Auto)
+    }
+
+    /// Creates a new session builder with a TTY emitter and a color choice.
+    #[inline]
+    pub fn with_tty_emitter_and_color(mut self, color_choice: ColorChoice) -> Self {
+        let sm = self.source_map.get_or_insert_with(Default::default).clone();
+        self.dcx(DiagCtxt::with_tty_emitter_and_color(Some(sm), color_choice))
+    }
+
+    /// Creates a new session builder with a silent emitter.
+    #[inline]
+    pub fn with_silent_emitter(self, fatal_note: Option<String>) -> Self {
+        self.dcx(DiagCtxt::with_silent_emitter(fatal_note))
+    }
+
+    /// Consumes the builder to create a new session.
+    ///
+    /// # Panics
+    ///
+    /// Panics if:
+    /// - the diagnostics context is not set
+    /// - the source map in the diagnostics context does not match the one set in the builder
+    #[track_caller]
+    pub fn build(mut self) -> Session {
+        // Set the source map from the diagnostics context if it's not set.
+        let dcx = self.dcx.as_mut().unwrap_or_else(|| panic!("diagnostics context not set"));
+        if self.source_map.is_none() {
+            self.source_map = dcx.source_map_mut().cloned();
         }
+
+        let mut sess = self.try_build().unwrap();
+        if let Some(sm) = sess.dcx.source_map_mut() {
+            assert!(
+                Arc::ptr_eq(&sess.source_map, sm),
+                "session source map does not match the one in the diagnostics context"
+            );
+        }
+        sess
+    }
+}
+
+impl Session {
+    /// Creates a new session with the given diagnostics context and source map.
+    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
+        Self::builder().dcx(dcx).source_map(source_map).build()
     }
 
-    /// Creates a new parser session with an empty source map.
+    /// Creates a new session with the given diagnostics context and an empty source map.
     pub fn empty(dcx: DiagCtxt) -> Self {
-        Self::new(dcx, Arc::new(SourceMap::empty()))
+        Self::builder().dcx(dcx).build()
     }
 
-    /// Creates a new parser session with a test emitter.
-    pub fn with_test_emitter() -> Self {
-        Self::empty(DiagCtxt::with_test_emitter())
-    }
-
-    /// Creates a new parser session with a TTY emitter.
-    pub fn with_tty_emitter(source_map: Arc<SourceMap>) -> Self {
-        Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
-    }
-
-    /// Creates a new parser session with a TTY emitter and a color choice.
-    pub fn with_tty_emitter_and_color(
-        source_map: Arc<SourceMap>,
-        color_choice: ColorChoice,
-    ) -> Self {
-        let dcx = DiagCtxt::with_tty_emitter_and_color(Some(source_map.clone()), color_choice);
-        Self::new(dcx, source_map)
-    }
-
-    /// Creates a new parser session with a silent emitter.
-    pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
-        let dcx = DiagCtxt::with_silent_emitter(fatal_note);
-        let source_map = Arc::new(SourceMap::empty());
-        Self::new(dcx, source_map)
+    /// Creates a new session builder.
+    #[inline]
+    pub fn builder() -> SessionBuilder {
+        SessionBuilder::default()
     }
 
     /// Returns a reference to the source map.
@@ -100,6 +144,7 @@ impl Session {
     }
 
     /// Returns `true` if the given output should be emitted.
+    #[inline]
     pub fn do_emit(&self, output: CompilerOutput) -> bool {
         self.emit.contains(&output)
     }
@@ -115,5 +160,56 @@ impl Session {
         } else {
             rayon::spawn(f);
         }
+    }
+
+    /// Sets up session globals on the current thread if they doesn't exist already and then
+    /// executes the given closure.
+    ///
+    /// This also calls [`SessionGlobals::with_source_map`].
+    #[inline]
+    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
+        SessionGlobals::with_or_default(|_| {
+            SessionGlobals::with_source_map(self.clone_source_map(), f)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic = "diagnostics context not set"]
+    fn no_dcx() {
+        Session::builder().build();
+    }
+
+    #[test]
+    #[should_panic = "session source map does not match the one in the diagnostics context"]
+    fn sm_mismatch() {
+        let sm1 = Arc::<SourceMap>::default();
+        let sm2 = Arc::<SourceMap>::default();
+        assert!(!Arc::ptr_eq(&sm1, &sm2));
+        Session::builder().source_map(sm1).dcx(DiagCtxt::with_tty_emitter(Some(sm2))).build();
+    }
+
+    #[test]
+    #[should_panic = "session source map does not match the one in the diagnostics context"]
+    fn sm_mismatch_non_builder() {
+        let sm1 = Arc::<SourceMap>::default();
+        let sm2 = Arc::<SourceMap>::default();
+        assert!(!Arc::ptr_eq(&sm1, &sm2));
+        Session::new(DiagCtxt::with_tty_emitter(Some(sm2)), sm1);
+    }
+
+    #[test]
+    fn builder() {
+        let _ = Session::builder().with_tty_emitter().build();
+    }
+
+    #[test]
+    fn empty() {
+        let _ = Session::empty(DiagCtxt::with_tty_emitter(None));
+        let _ = Session::empty(DiagCtxt::with_tty_emitter(Some(Default::default())));
     }
 }

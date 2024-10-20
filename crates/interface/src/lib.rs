@@ -19,7 +19,7 @@ mod pos;
 pub use pos::{BytePos, CharPos, Pos, RelativeBytePos};
 
 mod session;
-pub use session::Session;
+pub use session::{Session, SessionBuilder};
 
 pub mod source_map;
 pub use source_map::SourceMap;
@@ -64,8 +64,11 @@ macro_rules! pluralize {
     };
 }
 
-/// Creates a new compiler session on the current thread if it doesn't exist already and then
+/// Creates new session globals on the current thread if they doesn't exist already and then
 /// executes the given closure.
+///
+/// Prefer [`Session::enter`] to this function if possible to also set the source map.
+#[inline]
 pub fn enter<R>(f: impl FnOnce() -> R) -> R {
     SessionGlobals::with_or_default(|_| f())
 }

@@ -85,8 +85,7 @@ impl Parser for Solar {
     }
 
     fn lex(&self, src: &str) {
-        let source_map = solar_parse::interface::SourceMap::empty();
-        let sess = Session::with_tty_emitter(source_map.into());
+        let sess = Session::builder().with_tty_emitter().build();
         for token in solar_parse::Lexer::new(&sess, src) {
             black_box(token);
         }
@@ -95,8 +94,7 @@ impl Parser for Solar {
 
     fn parse(&self, src: &str) {
         (|| -> solar_parse::interface::Result {
-            let source_map = solar_parse::interface::SourceMap::empty();
-            let sess = Session::with_tty_emitter(source_map.into());
+            let sess = Session::builder().with_tty_emitter().build();
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =

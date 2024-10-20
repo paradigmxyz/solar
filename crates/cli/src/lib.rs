@@ -9,7 +9,7 @@ use clap::Parser as _;
 use cli::Args;
 use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
-    Result, Session, SessionGlobals, SourceMap,
+    Result, Session, SourceMap,
 };
 use std::{collections::BTreeSet, num::NonZeroUsize, path::Path, sync::Arc};
 
@@ -157,8 +157,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         sess.pretty_json = args.pretty_json;
 
         let compiler = Compiler { sess, args };
-
-        SessionGlobals::with_source_map(compiler.sess.clone_source_map(), move || {
+        compiler.sess.enter(|| {
             let mut r = f(&compiler);
             r = compiler.finish_diagnostics().and(r);
             r
