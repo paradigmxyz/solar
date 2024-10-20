@@ -32,6 +32,8 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         // TODO: Probably implement outside of parsing.
         | "number_literals_3"
         | "number_literals_4"
+        | "number_literal_3"
+        | "number_literal_4"
         // TODO: Implemented with Yul object syntax.
         | "datacopy_shadowing"
         | "dataoffset_shadowing"

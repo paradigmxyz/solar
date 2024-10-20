@@ -82,7 +82,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        if self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
+        if with.is_none() && self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
             self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
         }
 
