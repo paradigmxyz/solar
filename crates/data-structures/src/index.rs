@@ -74,6 +74,7 @@ macro_rules! base_index {
         }
 
         impl fmt::Debug for $name {
+            #[inline]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.value.fmt(f)
             }

@@ -166,6 +166,7 @@ impl<'hir> Hir<'hir> {
     }
 
     /// Returns the item associated with the given ID.
+    #[inline]
     pub fn item(&self, id: impl Into<ItemId>) -> Item<'_, 'hir> {
         match id.into() {
             ItemId::Contract(id) => Item::Contract(self.contract(id)),
@@ -289,6 +290,7 @@ pub enum Item<'a, 'hir> {
 
 impl Item<'_, '_> {
     /// Returns the name of the item.
+    #[inline]
     pub fn name(self) -> Option<Ident> {
         match self {
             Item::Contract(c) => Some(c.name),
@@ -303,6 +305,7 @@ impl Item<'_, '_> {
     }
 
     /// Returns the description of the item.
+    #[inline]
     pub fn description(self) -> &'static str {
         match self {
             Item::Contract(c) => c.kind.to_str(),
@@ -317,6 +320,7 @@ impl Item<'_, '_> {
     }
 
     /// Returns the span of the item.
+    #[inline]
     pub fn span(self) -> Span {
         match self {
             Item::Contract(c) => c.span,
@@ -331,6 +335,7 @@ impl Item<'_, '_> {
     }
 
     /// Returns the contract ID if this item is part of a contract.
+    #[inline]
     pub fn contract(self) -> Option<ContractId> {
         match self {
             Item::Contract(_) => None,
