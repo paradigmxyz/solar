@@ -7,6 +7,9 @@ pub trait BumpExt {
     /// Returns the number of bytes currently in use.
     fn used_bytes(&self) -> usize;
 
+    /// Allocates a value as a slice of length 1.
+    fn alloc_as_slice<T>(&self, value: T) -> &mut [T];
+
     /// Allocates an iterator by first collecting it into a (possibly stack-allocated) vector.
     ///
     /// Does not collect if the iterator is exact size, meaning `size_hint` returns equal values.
@@ -44,6 +47,11 @@ impl BumpExt for Bump {
     fn used_bytes(&self) -> usize {
         // SAFETY: The data is not read, and the arena is not used during the iteration.
         unsafe { self.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() }
+    }
+
+    #[inline]
+    fn alloc_as_slice<T>(&self, value: T) -> &mut [T] {
+        std::slice::from_mut(self.alloc(value))
     }
 
     #[inline]

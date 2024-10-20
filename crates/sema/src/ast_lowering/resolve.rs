@@ -427,15 +427,15 @@ impl super::LoweringContext<'_, '_, '_> {
 
             // `f"return {gettee}" + "".join(f"[{param}]" for param in params) + ";"`
             let res = Res::Item(hir::ItemId::Variable(gettee));
-            let mut expr = mk_expr(hir::ExprKind::Ident(self.arena.alloc_slice_copy(&[res])));
+            let mut expr = mk_expr(hir::ExprKind::Ident(self.arena.alloc_as_slice(res)));
             for &param in &parameters {
                 let res = Res::Item(hir::ItemId::Variable(param));
-                let ident = hir::ExprKind::Ident(self.arena.alloc_slice_copy(&[res]));
+                let ident = hir::ExprKind::Ident(self.arena.alloc_as_slice(res));
                 expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
             }
 
             let stmt = hir::Stmt { span: ast_var.span, kind: hir::StmtKind::Return(Some(expr)) };
-            Some(self.arena.alloc_array([stmt]))
+            Some(self.arena.alloc_as_slice(stmt))
         };
     }
 
@@ -631,11 +631,11 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 let cond = this.lower_expr(cond);
                 let stmt = this.lower_stmt(stmt);
                 let break_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
-                let body = this.arena.alloc(hir::Stmt {
+                let body = this.arena.alloc_as_slice(hir::Stmt {
                     span,
                     kind: hir::StmtKind::If(cond, stmt, Some(break_stmt)),
                 });
-                hir::StmtKind::Loop(std::slice::from_ref(body), hir::LoopSource::While)
+                hir::StmtKind::Loop(body, hir::LoopSource::While)
             }),
 
             // loop {
@@ -691,7 +691,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     }
 
                     let mut kind =
-                        hir::StmtKind::Loop(self.arena.alloc_array([body]), hir::LoopSource::For);
+                        hir::StmtKind::Loop(self.arena.alloc_as_slice(body), hir::LoopSource::For);
 
                     if let Some(init) = init {
                         let s = hir::Stmt { span, kind };
