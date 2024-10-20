@@ -1,4 +1,4 @@
-use crate::utils::path_contains;
+use crate::utils::path_contains_curry;
 use std::{
     ffi::OsString,
     fs,
@@ -7,50 +7,51 @@ use std::{
 };
 
 pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
-    if path_contains(path, "/libyul/") {
+    let path_contains = path_contains_curry(path);
+
+    if path_contains("/libyul/") {
         return Some("actually a Yul test");
     }
 
-    if path_contains(path, "/cmdlineTests/") {
+    if path_contains("/cmdlineTests/") {
         return Some("CLI tests do not have the same format as everything else");
     }
 
-    if path_contains(path, "/lsp/") {
+    if path_contains("/lsp/") {
         return Some("LSP tests do not have the same format as everything else");
     }
 
-    if path_contains(path, "/ASTJSON/") {
+    if path_contains("/ASTJSON/") {
         return Some("no JSON AST");
     }
 
-    if path_contains(path, "/functionDependencyGraphTests/") || path_contains(path, "/experimental")
-    {
+    if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental") {
         return Some("solidity experimental is not implemented");
     }
 
     // We don't parse licenses.
-    if path_contains(path, "/license/") {
+    if path_contains("/license/") {
         return Some("licenses are not checked");
     }
 
-    if path_contains(path, "natspec") {
+    if path_contains("natspec") {
         return Some("natspec is not checked");
     }
 
-    if path_contains(path, "_direction_override") {
+    if path_contains("_direction_override") {
         return Some("Unicode direction override checks not implemented");
     }
 
-    if path_contains(path, "max_depth_reached_") {
+    if path_contains("max_depth_reached_") {
         return Some("recursion guard will not be implemented");
     }
 
-    if path_contains(path, "wrong_compiler_") {
+    if path_contains("wrong_compiler_") {
         return Some("Solidity pragma version is not checked");
     }
 
     // Directories starting with `_` are not tests.
-    if path_contains(path, "/_")
+    if path_contains("/_")
         && !path.components().last().unwrap().as_os_str().to_str().unwrap().starts_with('_')
     {
         return Some("supporting file");

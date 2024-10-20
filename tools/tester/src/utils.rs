@@ -1,8 +1,8 @@
 use std::path::Path;
 
-pub(crate) fn path_contains(haystack: &Path, needle: &str) -> bool {
+pub(crate) fn path_contains_curry(haystack: &Path) -> impl Fn(&str) -> bool + '_ {
     let s = haystack.to_str().unwrap();
     #[cfg(windows)]
     let s = s.replace('\\', "/");
-    s.contains(needle)
+    move |needle| s.contains(needle)
 }
