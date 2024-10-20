@@ -3,9 +3,9 @@ use super::{
     FatalAbort, Level, MultiSpan, Style,
 };
 use crate::Span;
-use core::fmt;
 use solar_data_structures::Never;
 use std::{
+    fmt,
     marker::PhantomData,
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},

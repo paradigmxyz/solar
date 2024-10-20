@@ -148,7 +148,7 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
         self.mk_ty(TyKind::StringLiteral(
-            core::str::from_utf8(s).is_ok(),
+            std::str::from_utf8(s).is_ok(),
             TypeSize::new(s.len().min(32) as u8).unwrap(),
         ))
     }
