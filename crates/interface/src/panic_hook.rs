@@ -8,6 +8,10 @@ const BUG_REPORT_URL: &str =
 
 /// Install the compiler's default panic hook.
 pub fn install() {
+    if std::env::var_os("RUST_BACKTRACE").is_none() {
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+
     update_hook(|default_hook, info| {
         if info.payload().is::<FatalAbort>() {
             std::process::exit(1);
@@ -15,10 +19,6 @@ pub fn install() {
 
         // Lock stderr to prevent interleaving of concurrent panics.
         let _guard = std::io::stderr().lock();
-
-        if std::env::var_os("RUST_BACKTRACE").is_none() {
-            std::env::set_var("RUST_BACKTRACE", "1");
-        }
 
         default_hook(info);
 
