@@ -3,7 +3,7 @@ use solar_ast::ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::{FxIndexMap, IndexEntry},
-    smallvec::{smallvec, SmallVec},
+    smallvec::SmallVec,
     BumpExt,
 };
 use solar_interface::{
@@ -1109,16 +1109,16 @@ impl Declarations {
     ) -> Result<(), Declaration> {
         match self.declarations.entry(name) {
             IndexEntry::Occupied(entry) => {
-                if let Some(conflict) = Self::conflicting_declaration(hir, decl, entry.get()) {
+                let declarations = entry.into_mut();
+                if let Some(conflict) = Self::conflicting_declaration(hir, decl, declarations) {
                     return Err(conflict);
                 }
-                let declarations = entry.into_mut();
                 if !declarations.contains(&decl) {
                     declarations.push(decl);
                 }
             }
             IndexEntry::Vacant(entry) => {
-                entry.insert(smallvec![decl]);
+                entry.insert(SmallVec::from_buf([decl]));
             }
         }
         Ok(())

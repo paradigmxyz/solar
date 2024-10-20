@@ -453,7 +453,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
             gcx.dcx().err(msg).span(c.name.span).span_note(f.span, "first function").span_note(f2.span, "second function").note(full_note).emit();
         }
 
-        Some(InterfaceFunction{ selector, id: f_id, ty })
+        Some(InterfaceFunction { selector, id: f_id, ty })
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");

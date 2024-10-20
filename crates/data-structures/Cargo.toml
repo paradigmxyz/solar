@@ -25,7 +25,7 @@ index_vec.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 rustc-hash.workspace = true
-smallvec = { workspace = true, features = ["union"] }
+smallvec.workspace = true
 
 [features]
 nightly = [
