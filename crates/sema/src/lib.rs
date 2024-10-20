@@ -10,7 +10,7 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use solar_data_structures::OnDrop;
+use solar_data_structures::{trustme, OnDrop};
 use solar_interface::{config::CompilerStage, Result, Session};
 use thread_local::ThreadLocal;
 use ty::Gcx;
@@ -68,21 +68,50 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
         debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
     });
-    let hir = resolve(sess, &sources, hir_arena.get_or_default())?;
+    let hir = lower(sess, &sources, hir_arena.get_or_default())?;
 
-    // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
-    // even though both are moved in the closure.
-    let sources =
-        unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
-    sess.spawn(move || {
-        debug_span!("drop_asts").in_scope(|| drop(sources));
-        drop(ast_arenas);
+    // Drop the ASTs and AST arenas in a separate thread.
+    sess.spawn({
+        // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
+        // even though both are moved in the closure.
+        let sources =
+            unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
+        move || {
+            debug_span!("drop_asts").in_scope(|| drop(sources));
+            drop(ast_arenas);
+        }
     });
 
-    let global_context = ty::GlobalCtxt::new(sess, &hir_arena, hir);
-    // TODO: Leaks `hir`
-    let gcx = ty::Gcx::new(hir_arena.get_or_default().alloc(global_context));
+    let global_context = OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir), |gcx| {
+        debug_span!("drop_gcx").in_scope(|| drop(gcx));
+    });
+    let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
+    analysis(gcx)?;
 
+    Ok(())
+}
+
+/// Lowers the parsed ASTs into the HIR.
+pub fn lower<'hir>(
+    sess: &Session,
+    sources: &ParsedSources<'_>,
+    arena: &'hir hir::Arena,
+) -> Result<hir::Hir<'hir>> {
+    debug_span!("all_ast_passes").in_scope(|| {
+        sources.par_asts().for_each(|ast| {
+            ast_passes::run(sess, ast);
+        });
+    });
+
+    sess.dcx.has_errors()?;
+
+    let hir = ast_lowering::lower(sess, sources, arena);
+
+    Ok(hir)
+}
+
+#[instrument(level = "debug", skip_all)]
+fn analysis(gcx: Gcx<'_>) -> Result<()> {
     if let Some(dump) = &gcx.sess.dump {
         if dump.kind.is_hir() {
             dump_hir(gcx, dump.paths.as_deref())?;
@@ -111,33 +140,22 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     Ok(())
 }
 
-/// Semantically analyzes the given sources and returns the resulting HIR.
-pub fn resolve<'hir>(
-    sess: &Session,
-    sources: &ParsedSources<'_>,
-    arena: &'hir hir::Arena,
-) -> Result<hir::Hir<'hir>> {
-    debug_span!("all_ast_passes").in_scope(|| {
-        sources.par_asts().for_each(|ast| {
-            ast_passes::run(sess, ast);
-        });
-    });
-
-    sess.dcx.has_errors()?;
-
-    let hir = ast_lowering::lower(sess, sources, arena);
-
-    Ok(hir)
-}
-
 fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
         for path in paths {
             if let Some(source) = sources.iter().find(|&s| match_file_name(&s.file.name, path)) {
                 println!("{source:#?}");
             } else {
-                let msg = format!("`-Zdump=ast={path:?}` did not match exactly one source file");
-                return Err(sess.dcx.err(msg).emit());
+                let msg = format!("`-Zdump=ast={path:?}` did not match any source file");
+                let note = format!(
+                    "available source files: {}",
+                    sources
+                        .iter()
+                        .map(|s| s.file.name.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return Err(sess.dcx.err(msg).note(note).emit());
             }
         }
     } else {
@@ -148,10 +166,9 @@ fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]
 }
 
 fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
+    println!("{:#?}", gcx.hir);
     if let Some(paths) = paths {
-        todo!("{paths:#?}")
-    } else {
-        println!("{:#?}", gcx.hir);
+        println!("\nPaths not yet implemented: {paths:#?}");
     }
     Ok(())
 }

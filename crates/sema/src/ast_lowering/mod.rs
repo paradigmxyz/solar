@@ -5,7 +5,7 @@ use crate::{
 use solar_ast::ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
-    map::FxIndexMap,
+    map::FxHashMap,
     trustme,
 };
 use solar_interface::{diagnostics::DiagCtxt, Session};
@@ -39,7 +39,8 @@ pub(crate) fn lower<'hir>(
     lcx.resolve_base_contracts();
     lcx.linearize_contracts();
 
-    lcx.resolve();
+    // Resolve declarations and top-level symbols, and finish lowering to HIR.
+    lcx.resolve_symbols();
 
     // Clean up.
     lcx.shrink_to_fit();
@@ -52,7 +53,7 @@ struct LoweringContext<'sess, 'ast, 'hir> {
     arena: &'hir hir::Arena,
     hir: Hir<'hir>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
-    hir_to_ast: FxIndexMap<hir::ItemId, &'ast ast::Item<'ast>>,
+    hir_to_ast: FxHashMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
@@ -70,7 +71,7 @@ impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
             hir: Hir::new(),
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
-            hir_to_ast: FxIndexMap::default(),
+            hir_to_ast: FxHashMap::default(),
             resolver: SymbolResolver::new(&sess.dcx),
         }
     }

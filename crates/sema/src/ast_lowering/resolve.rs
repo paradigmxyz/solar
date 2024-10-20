@@ -199,7 +199,7 @@ impl super::LoweringContext<'_, '_, '_> {
 
 impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve(&mut self) {
+    pub(super) fn resolve_symbols(&mut self) {
         let next_id = &AtomicUsize::new(0);
 
         macro_rules! mk_resolver {
