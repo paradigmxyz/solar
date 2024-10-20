@@ -20,8 +20,8 @@ pub struct Args {
     /// Directory to search for files.
     #[arg(long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath)]
     pub import_path: Vec<PathBuf>,
-    /// Map to search for files [format: map=path]
-    #[arg(long, short = 'm')]
+    /// Map to search for files. Can also be provided as a positional argument.
+    #[arg(long, short = 'm', value_name = "MAP=PATH")]
     pub import_map: Vec<ImportMap>,
     /// Directory to write output files.
     #[arg(long, short, value_hint = ValueHint::DirPath)]

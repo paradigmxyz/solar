@@ -40,7 +40,7 @@ libc.workspace = true
 tikv-jemallocator = { workspace = true, optional = true }
 
 [features]
-default = ["jemalloc", "tracing-off"]
+default = ["jemalloc"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-config/nightly",
