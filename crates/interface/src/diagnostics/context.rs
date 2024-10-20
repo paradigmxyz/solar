@@ -105,6 +105,16 @@ impl DiagCtxt {
         Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
     }
 
+    /// Gets the source map associated with this context.
+    pub fn source_map(&self) -> Option<Arc<SourceMap>> {
+        self.inner.lock().emitter.source_map().cloned()
+    }
+
+    /// Gets the source map associated with this context.
+    pub fn source_map_mut(&mut self) -> Option<&Arc<SourceMap>> {
+        self.inner.get_mut().emitter.source_map()
+    }
+
     /// Sets whether to include created and emitted locations in diagnostics.
     pub fn set_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
         f(&mut self.inner.get_mut().flags);

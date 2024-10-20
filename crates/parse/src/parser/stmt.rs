@@ -465,7 +465,7 @@ mod tests {
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
             solar_interface::enter(|| -> Result {
-                let sess = Session::with_test_emitter();
+                let sess = Session::builder().with_test_emitter().build();
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let arena = Arena::new();

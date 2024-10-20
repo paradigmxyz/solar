@@ -20,7 +20,7 @@ pub enum ResolveError {
     ReadStdin(#[source] io::Error),
     #[error("couldn't read {0}: {1}")]
     ReadFile(PathBuf, #[source] io::Error),
-    #[error("file not found: {0}")]
+    #[error("file {0} not found")]
     NotFound(PathBuf),
     #[error("multiple files match {0}: {}", _1.iter().map(|f| f.name.display()).format(", "))]
     MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),

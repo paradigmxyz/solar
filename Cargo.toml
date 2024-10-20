@@ -109,12 +109,14 @@ serde = "1.0"
 serde_json = "1.0"
 
 # macros
-derive_more = { version = "1.0", features = ["full"] }
-match_cfg = "0.1"
 proc-macro2 = "1.0"
 quote = "1.0"
-strum = "0.26"
 syn = "2.0"
+
+derive_builder = "0.20.2"
+derive_more = { version = "1.0", features = ["full"] }
+match_cfg = "0.1"
+strum = "0.26"
 thiserror = "1.0"
 
 # parallel

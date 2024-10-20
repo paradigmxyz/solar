@@ -1244,8 +1244,8 @@ mod tests {
     use solar_interface::{source_map::FileName, Result, Session};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        solar_interface::enter(|| -> Result {
-            let sess = Session::with_test_emitter();
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
                 let src = format!("{v} {req_s}");

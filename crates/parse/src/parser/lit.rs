@@ -370,7 +370,7 @@ mod tests {
     // Run through the lexer to get the same input that the parser gets.
     #[track_caller]
     fn lex_literal(src: &str) -> Symbol {
-        let sess = Session::with_test_emitter();
+        let sess = Session::builder().with_test_emitter().build();
         let tokens = Lexer::new(&sess, src).into_tokens();
         sess.dcx.has_errors().unwrap();
         assert_eq!(tokens.len(), 1, "{tokens:?}");
