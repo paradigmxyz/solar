@@ -104,8 +104,15 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     }
                     hir::ItemId::Function(id)
                 }
-                ast::ItemKind::Variable(_)
-                | ast::ItemKind::Struct(_)
+                ast::ItemKind::Variable(_) => {
+                    let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
+                    items.push(hir::ItemId::Variable(id));
+                    if let Some(getter) = self.hir.variable(id).getter {
+                        items.push(getter.into());
+                    }
+                    continue;
+                }
+                ast::ItemKind::Struct(_)
                 | ast::ItemKind::Enum(_)
                 | ast::ItemKind::Udvt(_)
                 | ast::ItemKind::Error(_)

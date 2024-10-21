@@ -1,0 +1,477 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/getters.sol:C": {
+      "abi": [
+        {
+          "type": "function",
+          "name": "simple",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "array",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "map",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "v",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapOfArrays",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "index1",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "v",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayOfMaps",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "v",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "simpleOne",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayOne",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapOne",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "string",
+              "internalType": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapOfArraysOne",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "index1",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayOfMapsOne",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "simpleTwo",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "y",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayTwo",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "y",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapTwo",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "string",
+              "internalType": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "y",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapOfArraysTwo",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "index1",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "y",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayOfMapsTwo",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "y",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "simpleRecMap",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "z",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayRecMap",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "z",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapRecMap",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "string",
+              "internalType": "string"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "z",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "mapOfArraysRecMap",
+          "inputs": [
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "index1",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "z",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "arrayOfMapsRecMap",
+          "inputs": [
+            {
+              "name": "index0",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "k",
+              "type": "int256",
+              "internalType": "int256"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "x",
+              "type": "int256",
+              "internalType": "int256"
+            },
+            {
+              "name": "z",
+              "type": "bool",
+              "internalType": "bool"
+            }
+          ],
+          "stateMutability": "view"
+        }
+      ],
+      "hashes": {
+        "array(uint256)": "38d94193",
+        "arrayOfMaps(uint256,int256)": "25a0fe0c",
+        "arrayOfMapsOne(uint256,int256)": "f1c794f0",
+        "arrayOfMapsRecMap(uint256,int256)": "62adfa5e",
+        "arrayOfMapsTwo(uint256,int256)": "d0a7fde9",
+        "arrayOne(uint256)": "4d472626",
+        "arrayRecMap(uint256)": "4ec7956c",
+        "arrayTwo(uint256)": "c04d1634",
+        "map(int256)": "51bd3a41",
+        "mapOfArrays(int256,uint256)": "4f5b6558",
+        "mapOfArraysOne(int256,uint256)": "cb6caba9",
+        "mapOfArraysRecMap(int256,uint256)": "dcc98b71",
+        "mapOfArraysTwo(int256,uint256)": "d918e586",
+        "mapOne(string)": "22fd05a9",
+        "mapRecMap(string)": "84729686",
+        "mapTwo(string)": "60437563",
+        "simple()": "df201a46",
+        "simpleOne()": "3fab5226",
+        "simpleRecMap()": "5e8874bb",
+        "simpleTwo()": "8980a582"
+      }
+    }
+  },
+  "version": "VERSION"
+}

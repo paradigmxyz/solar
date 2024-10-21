@@ -87,6 +87,14 @@ LL |     function l(uint[stateVar] memory) public {}
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
+LL |     function l(uint[stateVarPublic] memory) public {}
+   |                     ^^^^^^^^^^^^^^
+   |                     -------------- note: unsupported expression
+   |
+
+error: evaluation of constant value failed
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
 LL |     uint[bigLiteral + 1] public tooBig1;
    |          ^^^^^^^^^^^^^^
    |          -------------- note: arithmetic overflow
@@ -104,5 +112,5 @@ LL |     uint[tooBigLiteral] public tooBig2;
    |          ^^^^^^^^^^^^^
    |
 
-error: aborting due to 12 previous errors
+error: aborting due to 13 previous errors
 

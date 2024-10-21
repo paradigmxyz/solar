@@ -13,7 +13,8 @@ contract C {
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: evaluation of constant value failed
     uint[tooBigLiteral] public tooBig2; //~ ERROR: evaluation of constant value failed
 
-    uint public stateVar = 69;
+    uint private stateVar = 69;
+    uint public stateVarPublic = 420;
 
     function a(uint[x / 0] memory) public {} //~ ERROR: evaluation of constant value failed
     function b(uint[x] memory) public {}
@@ -29,4 +30,5 @@ contract C {
     function j(uint["lol"] memory) public {} //~ ERROR: evaluation of constant value failed
     function k(uint[--x] memory) public {} //~ ERROR: evaluation of constant value failed
     function l(uint[stateVar] memory) public {} //~ ERROR: evaluation of constant value failed
+    function l(uint[stateVarPublic] memory) public {} //~ ERROR: evaluation of constant value failed
 }

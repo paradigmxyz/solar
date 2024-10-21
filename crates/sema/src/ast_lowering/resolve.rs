@@ -366,12 +366,36 @@ impl super::LoweringContext<'_, '_, '_> {
 
     /// Resolves a getter function.
     ///
+    /// # Examples
+    ///
+    /// Simple case:
+    ///
     /// ```solidity
-    /// mapping(T k => U[] v) public map;
+    /// mapping(string k => bool[] v) public map;
     ///
     /// // Generates:
-    /// function map(T calldata k, uint256 index1) public view returns(U memory) {
+    /// function map(string calldata k, uint256 index1) public view returns(bool) {
     ///     return map[k][index1];
+    /// }
+    /// ```
+    ///
+    /// Special case for when the return type is a struct. Note that `mapping` fields are skipped:
+    ///
+    /// ```solidity
+    /// struct Struct {
+    ///   uint256 field1;
+    ///   mapping(uint256 => bool) field2;
+    ///   bool field3;
+    /// }
+    ///
+    /// mapping(string k => Struct[] v) public mapWithStruct;
+    ///
+    /// // Generates:
+    /// function mapWithStruct(string calldata k, uint256 index1) public view
+    ///     returns(uint256 field1, bool field3)
+    /// {
+    ///     Struct storage tmp = map[k][index1];
+    ///     return (tmp.field1, tmp.field3);
     /// }
     /// ```
     fn resolve_getter(&mut self, id: hir::FunctionId, next_id: &AtomicUsize) {
@@ -379,12 +403,14 @@ impl super::LoweringContext<'_, '_, '_> {
         let Some(gettee) = func.gettee else { unreachable!() };
         let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
+        let span = ast_var.span;
 
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2852
         let mut ret_ty = &self.hir.variable(gettee).ty;
+        let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
-        let mut i = 0;
-        loop {
-            let index_name = || Ident::new(Symbol::intern(&format!("index{i}")), ast_var.span);
+        for i in 0usize.. {
+            let index_name = || Ident::new(Symbol::intern(&format!("index{i}")), span);
             match ret_ty.kind {
                 // mapping(k => v) -> arguments += k, ret_ty = v
                 hir::TypeKind::Mapping(map) => {
@@ -393,6 +419,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     param.data_location = Some(hir::DataLocation::Calldata);
                     parameters.push(self.hir.variables.push(param));
                     ret_ty = &map.value;
+                    ret_name = map.value_name;
                 }
                 // element[] -> arguments += uint256, ret_ty = element
                 hir::TypeKind::Array(array) => {
@@ -402,30 +429,50 @@ impl super::LoweringContext<'_, '_, '_> {
                         )),
                         span: ret_ty.span,
                     };
-                    let name = index_name();
-                    parameters.push(self.hir.variables.push(hir::Variable::new(u256, Some(name))));
+                    let var = hir::Variable::new(u256, Some(index_name()));
+                    parameters.push(self.hir.variables.push(var));
                     ret_ty = &array.element;
                 }
                 _ => break,
             }
-            i += 1;
         }
-        let ret = self.hir.variables.push(hir::Variable::new(ret_ty.clone(), None));
+        let ret_ty = ret_ty.clone();
+
+        let mut returns = SmallVec::<[_; 8]>::new();
+        let mut push_return = |this: &mut Self, ty, name| {
+            let mut ret = hir::Variable::new(ty, name);
+            ret.data_location = Some(hir::DataLocation::Memory);
+            returns.push(this.hir.variables.push(ret))
+        };
+        let mut ret_struct = None;
+        if let hir::TypeKind::Custom(hir::ItemId::Struct(s_id)) = ret_ty.kind {
+            ret_struct = Some(s_id);
+            let s = self.hir.strukt(s_id);
+            for &field_id in s.fields.iter() {
+                let field = self.hir.variable(field_id);
+                if !matches!(field.ty.kind, hir::TypeKind::Mapping(_)) {
+                    push_return(self, field.ty.clone(), field.name);
+                }
+            }
+        } else {
+            push_return(self, ret_ty.clone(), ret_name);
+        }
 
         self.hir.functions[id].parameters = self.arena.alloc_slice_copy(&parameters);
-        self.hir.functions[id].returns = self.arena.alloc_slice_copy(&[ret]);
+        self.hir.functions[id].returns = self.arena.alloc_slice_copy(&returns);
         self.hir.functions[id].body = {
             let mk_expr = |kind| {
-                self.arena.alloc(hir::Expr {
+                &*self.arena.alloc(hir::Expr {
                     id: hir::ExprId::from_usize(
                         next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
                     ),
                     kind,
-                    span: ast_var.span,
+                    span,
                 })
             };
+            let mk_stmt = |kind| hir::Stmt { span, kind };
 
-            // `f"return {gettee}" + "".join(f"[{param}]" for param in params) + ";"`
+            // `<gettee><"[" param "]" for param in params>`
             let res = Res::Item(hir::ItemId::Variable(gettee));
             let mut expr = mk_expr(hir::ExprKind::Ident(self.arena.alloc_as_slice(res)));
             for &param in &parameters {
@@ -434,9 +481,48 @@ impl super::LoweringContext<'_, '_, '_> {
                 expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
             }
 
-            let stmt = hir::Stmt { span: ast_var.span, kind: hir::StmtKind::Return(Some(expr)) };
-            Some(self.arena.alloc_as_slice(stmt))
-        };
+            match returns[..] {
+                // Will fail typechecking later.
+                [] => Some(&[]),
+                // `return <expr>;`
+                [_] if ret_struct.is_none() => {
+                    Some(self.arena.alloc_as_slice(mk_stmt(hir::StmtKind::Return(Some(expr)))))
+                }
+                [..] => {
+                    if let [ret] = returns[..] {
+                        // `return <expr>.<ret.name>;`
+                        let ret = self.hir.variable(ret);
+                        let expr = mk_expr(hir::ExprKind::Member(expr, ret.name.unwrap()));
+                        let stmt = mk_stmt(hir::StmtKind::Return(Some(expr)));
+                        Some(self.arena.alloc_as_slice(stmt))
+                    } else {
+                        // `Struct storage <name> = <expr>;`
+                        let decl_name = Ident::new(sym::__tmp_struct, ast_var.span);
+                        let mut decl_var = hir::Variable::new(ret_ty.clone(), Some(decl_name));
+                        decl_var.data_location = Some(hir::DataLocation::Storage);
+                        let decl_id = self.hir.variables.push(decl_var);
+                        let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
+
+                        // `return (<name "." ret.name "," for ret in returns>);`
+                        let res =
+                            self.arena.alloc_as_slice(Res::Item(hir::ItemId::Variable(decl_id)));
+                        let tuple = mk_expr(hir::ExprKind::Tuple(
+                            self.arena.alloc_slice_fill_iter(returns.iter().map(|&ret| {
+                                let decl_name_expr = mk_expr(hir::ExprKind::Ident(res));
+                                let ret = self.hir.variable(ret);
+                                Some(mk_expr(hir::ExprKind::Member(
+                                    decl_name_expr,
+                                    ret.name.unwrap(),
+                                )))
+                            })),
+                        ));
+                        let ret_stmt = mk_stmt(hir::StmtKind::Return(Some(tuple)));
+
+                        Some(self.arena.alloc_array([decl_stmt, ret_stmt]))
+                    }
+                }
+            }
+        }
     }
 
     fn declare_kind_in(
@@ -1138,15 +1224,18 @@ impl Declarations {
 
         // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.kind, Item(Function(_) | Event(_))) {
-            if let Item(Function(f)) = decl.kind {
-                let f = hir.function(f);
+            let mut getter = None;
+            if let Item(Function(id)) = decl.kind {
+                getter = Some(id);
+                let f = hir.function(id);
                 if !f.kind.is_ordinary() {
                     return Some(declarations[0]);
                 }
             }
-            let same_kind = |decl2: &Declaration| match &decl2.kind {
-                Item(Function(f)) => hir.function(*f).kind.is_ordinary(),
-                k => k.matches(&decl.kind),
+            let same_kind = |decl2: &Declaration| match decl2.kind {
+                Item(Variable(v)) => hir.variable(v).getter == getter,
+                Item(Function(f)) => hir.function(f).kind.is_ordinary(),
+                ref k => k.matches(&decl.kind),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
         } else if declarations == [decl] {
