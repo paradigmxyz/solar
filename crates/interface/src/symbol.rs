@@ -819,6 +819,7 @@ symbols! {
     // nice to have.
     Symbols {
         X,
+        __tmp_struct,
         abi,
         abicoder,
         assert,

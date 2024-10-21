@@ -410,7 +410,7 @@ pub struct FunctionHeader<'ast> {
 }
 
 /// A kind of function.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
 pub enum FunctionKind {
     /// `constructor`
     Constructor,
@@ -450,16 +450,6 @@ impl FunctionKind {
     /// Returns `true` if the function is an ordinary function.
     pub fn is_ordinary(&self) -> bool {
         matches!(self, Self::Function)
-    }
-
-    /// Returns `true` if the function is a constructor.
-    pub fn is_constructor(&self) -> bool {
-        matches!(self, Self::Constructor)
-    }
-
-    /// Returns `true` if the function is a modifier.
-    pub fn is_modifier(&self) -> bool {
-        matches!(self, Self::Modifier)
     }
 }
 
