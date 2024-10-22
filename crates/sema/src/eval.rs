@@ -9,6 +9,11 @@ const RECURSION_LIMIT: usize = 64;
 // TODO: `convertType` for truncating and extending correctly: https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
 /// Evaluates simple constants.
+///
+/// This only supports basic arithmetic and logical operations, and does not support more complex
+/// operations like function calls or memory allocation.
+///
+/// This is only supposed to be used for array sizes and other simple constants.
 pub struct ConstantEvaluator<'gcx> {
     pub gcx: Gcx<'gcx>,
     depth: usize,
@@ -17,43 +22,51 @@ pub struct ConstantEvaluator<'gcx> {
 type EvalResult<'gcx> = Result<IntScalar, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
+    /// Creates a new constant evaluator.
     pub fn new(gcx: Gcx<'gcx>) -> Self {
         Self { gcx, depth: 0 }
     }
 
+    /// Evaluates the given expression, emitting an error diagnostic if it fails.
     pub fn eval(&mut self, expr: &hir::Expr<'_>) -> Result<IntScalar, ErrorGuaranteed> {
-        self.eval_expr(expr).map_err(|err| match err.kind {
-            EE::AlreadyEmitted(guar) => guar,
-            _ => {
-                let msg = "evaluation of constant value failed";
-                self.gcx.dcx().err(msg).span(expr.span).span_note(err.span, err.kind.msg()).emit()
-            }
-        })
+        self.try_eval(expr).map_err(|err| self.emit_eval_error(expr, err))
     }
 
-    fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+    /// Evaluates the given expression, returning an error if it fails.
+    pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
         self.depth += 1;
         if self.depth > RECURSION_LIMIT {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
         }
-        let mut res = self.eval_expr_inner(expr);
+        let mut res = self.eval_expr(expr);
         if let Err(e) = &mut res {
             if e.span.is_dummy() {
                 e.span = expr.span;
             }
         }
-        self.depth -= 1;
+        self.depth = self.depth.checked_sub(1).unwrap();
         res
     }
 
-    fn eval_expr_inner(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+    /// Emits a diagnostic for the given evaluation error.
+    pub fn emit_eval_error(&self, expr: &hir::Expr<'_>, err: EvalError) -> ErrorGuaranteed {
+        match err.kind {
+            EE::AlreadyEmitted(guar) => guar,
+            _ => {
+                let msg = "evaluation of constant value failed";
+                self.gcx.dcx().err(msg).span(expr.span).span_note(err.span, err.kind.msg()).emit()
+            }
+        }
+    }
+
+    fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
         let expr = expr.peel_parens();
         match expr.kind {
             // hir::ExprKind::Array(_) => todo!(),
             // hir::ExprKind::Assign(_, _, _) => todo!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.eval_expr(l)?;
-                let r = self.eval_expr(r)?;
+                let l = self.try_eval(l)?;
+                let r = self.try_eval(r)?;
                 l.binop(&r, bin_op.kind).map_err(Into::into)
             }
             // hir::ExprKind::Call(_, _) => todo!(),
@@ -64,7 +77,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                self.eval_expr(v.initializer.expect("constant variable has no initializer"))
+                self.try_eval(v.initializer.expect("constant variable has no initializer"))
             }
             // hir::ExprKind::Index(_, _) => todo!(),
             // hir::ExprKind::Slice(_, _, _) => todo!(),
@@ -73,14 +86,14 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::New(_) => todo!(),
             // hir::ExprKind::Payable(_) => todo!(),
             hir::ExprKind::Ternary(cond, t, f) => {
-                let cond = self.eval_expr(cond)?;
-                Ok(if cond.to_bool() { self.eval_expr(t)? } else { self.eval_expr(f)? })
+                let cond = self.try_eval(cond)?;
+                Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
             }
             // hir::ExprKind::Tuple(_) => todo!(),
             // hir::ExprKind::TypeCall(_) => todo!(),
             // hir::ExprKind::Type(_) => todo!(),
             hir::ExprKind::Unary(un_op, v) => {
-                let v = self.eval_expr(v)?;
+                let v = self.try_eval(v)?;
                 v.unop(un_op.kind).map_err(Into::into)
             }
             hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),

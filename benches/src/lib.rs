@@ -93,8 +93,8 @@ impl Parser for Solar {
     }
 
     fn parse(&self, src: &str) {
-        (|| -> solar_parse::interface::Result {
-            let sess = Session::builder().with_tty_emitter().build();
+        let sess = Session::builder().with_tty_emitter().build();
+        sess.enter(|| -> solar_parse::interface::Result {
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
@@ -103,7 +103,7 @@ impl Parser for Solar {
             sess.dcx.has_errors()?;
             black_box(result);
             Ok(())
-        })()
+        })
         .unwrap();
     }
 }
