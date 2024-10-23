@@ -9,10 +9,10 @@ pub use parking_lot::{
 macro_rules! parallel {
     ($sess:expr, $first:expr $(, $blocks:expr)+ $(,)?) => {
         $sess.scope(|scope| {
-            scope.spawn(|_| $first);
             $(
                 scope.spawn(|_| $blocks);
             )+
+            $first;
         })
     };
 }

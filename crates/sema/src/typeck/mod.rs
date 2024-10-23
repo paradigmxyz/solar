@@ -10,15 +10,16 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
         gcx.sess,
         gcx.hir.par_source_ids().for_each(|id| {
-            check_duplicates(gcx, &gcx.symbol_resolver.source_scopes[id]);
+            check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
         gcx.hir.par_contract_ids().for_each(|id| {
-            check_duplicates(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+            check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
         }),
     );
 }
 
-fn check_duplicates(gcx: Gcx<'_>, scope: &Declarations) {
+/// Checks for definitions that have the same name and parameter types in the given scope.
+fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
     let mut reported = FxHashSet::default();
 
     let is_duplicate = |a: Declaration, b: Declaration| -> bool {
