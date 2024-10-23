@@ -155,7 +155,7 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns the parameter types of the type.
     #[inline]
-    pub fn parameters(self) -> Option<&'gcx [Ty<'gcx>]> {
+    pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.parameters,
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
@@ -165,7 +165,7 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns the return types of the type.
     #[inline]
-    pub fn returns(self) -> Option<&'gcx [Ty<'gcx>]> {
+    pub fn returns(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.returns,
             _ => return None,
@@ -173,6 +173,7 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns the state mutability of the type.
+    #[inline]
     pub fn state_mutability(self) -> Option<StateMutability> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.state_mutability),
@@ -181,6 +182,7 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns the visibility of the type.
+    #[inline]
     pub fn visibility(self) -> Option<Visibility> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.visibility),
