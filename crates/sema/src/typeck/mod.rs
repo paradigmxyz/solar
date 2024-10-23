@@ -20,8 +20,6 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 
 /// Checks for definitions that have the same name and parameter types in the given scope.
 fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
-    let mut reported = FxHashSet::default();
-
     let is_duplicate = |a: Declaration, b: Declaration| -> bool {
         let (Res::Item(a), Res::Item(b)) = (a.kind, b.kind) else { return false };
         if !a.matches(&b) {
@@ -44,12 +42,13 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
         true
     };
 
-    reported.clear();
+    let mut reported = FxHashSet::default();
     for (_name, decls) in &scope.declarations {
         let decls = &decls[..];
         if decls.len() <= 1 {
             continue;
         }
+        reported.clear();
         for (i, &decl) in decls.iter().enumerate() {
             if reported.contains(&i) {
                 continue;
