@@ -27,7 +27,7 @@ Run with:
 ```sh
 cargo criterion -p solar-bench --bench bench -- --quiet --format terse
 # Copy paste the output into benches/tables.in and into the block below.
-./benches/tables.py < benches/tables.in
+./benches/tables.py ./benches/README.md < benches/tables.in
 ```
 
 Criterion results on `x86_64-unknown-linux-gnu` on AMD Ryzen 9 7950X;

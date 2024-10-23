@@ -143,6 +143,12 @@ impl Session {
         self.jobs.get() == 1
     }
 
+    /// Returns `true` if parallelism is enabled.
+    #[inline]
+    pub fn is_parallel(&self) -> bool {
+        !self.is_sequential()
+    }
+
     /// Returns `true` if the given output should be emitted.
     #[inline]
     pub fn do_emit(&self, output: CompilerOutput) -> bool {
@@ -160,6 +166,35 @@ impl Session {
         } else {
             rayon::spawn(f);
         }
+    }
+
+    /// Takes two closures and potentially runs them in parallel. It returns a pair of the results
+    /// from those closures.
+    #[inline]
+    pub fn join<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
+    where
+        A: FnOnce() -> RA + Send,
+        B: FnOnce() -> RB + Send,
+        RA: Send,
+        RB: Send,
+    {
+        if self.is_sequential() {
+            (oper_a(), oper_b())
+        } else {
+            rayon::join(oper_a, oper_b)
+        }
+    }
+
+    /// Executes the given closure in a fork-join scope.
+    ///
+    /// See [`rayon::scope`] for more details.
+    #[inline]
+    pub fn scope<'scope, OP, R>(&self, op: OP) -> R
+    where
+        OP: FnOnce(solar_data_structures::sync::Scope<'_, 'scope>) -> R + Send,
+        R: Send,
+    {
+        solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
     /// Sets up session globals on the current thread if they doesn't exist already and then

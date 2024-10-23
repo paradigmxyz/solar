@@ -2,6 +2,9 @@
 
 use solar_interface::{diagnostics::DiagCtxt, SessionGlobals};
 
+#[cfg(all(feature = "jemalloc", unix))]
+use tikv_jemallocator as _;
+
 // We use jemalloc for performance reasons.
 // Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.
 cfg_if::cfg_if! {
@@ -9,8 +12,6 @@ cfg_if::cfg_if! {
         type AllocatorInner = tikv_jemallocator::Jemalloc;
     } else {
         type AllocatorInner = std::alloc::System;
-        #[cfg(all(feature = "jemalloc", unix))]
-        use tikv_jemallocator as _;
     }
 }
 

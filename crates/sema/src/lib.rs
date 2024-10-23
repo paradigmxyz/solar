@@ -68,7 +68,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
         debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
     });
-    let hir = lower(sess, &sources, hir_arena.get_or_default())?;
+    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
 
     // Drop the ASTs and AST arenas in a separate thread.
     sess.spawn({
@@ -82,9 +82,10 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         }
     });
 
-    let global_context = OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir), |gcx| {
-        debug_span!("drop_gcx").in_scope(|| drop(gcx));
-    });
+    let global_context =
+        OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
+            debug_span!("drop_gcx").in_scope(|| drop(gcx));
+        });
     let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
     analysis(gcx)?;
 
@@ -92,11 +93,11 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
 }
 
 /// Lowers the parsed ASTs into the HIR.
-pub fn lower<'hir>(
-    sess: &Session,
+fn lower<'sess, 'hir>(
+    sess: &'sess Session,
     sources: &ParsedSources<'_>,
     arena: &'hir hir::Arena,
-) -> Result<hir::Hir<'hir>> {
+) -> Result<(hir::Hir<'hir>, ast_lowering::SymbolResolver<'sess>)> {
     debug_span!("all_ast_passes").in_scope(|| {
         sources.par_asts().for_each(|ast| {
             ast_passes::run(sess, ast);
@@ -105,9 +106,7 @@ pub fn lower<'hir>(
 
     sess.dcx.has_errors()?;
 
-    let hir = ast_lowering::lower(sess, sources, arena);
-
-    Ok(hir)
+    Ok(ast_lowering::lower(sess, sources, arena))
 }
 
 #[instrument(level = "debug", skip_all)]
@@ -130,6 +129,9 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
     gcx.hir.par_contract_ids().for_each(|id| {
         let _ = gcx.interface_functions(id);
     });
+    gcx.sess.dcx.has_errors()?;
+
+    typeck::check(gcx);
     gcx.sess.dcx.has_errors()?;
 
     if !gcx.sess.emit.is_empty() {

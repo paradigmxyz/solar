@@ -2618,6 +2618,7 @@ dependencies = [
  "index_vec",
  "indexmap",
  "parking_lot",
+ "rayon",
  "rustc-hash",
  "smallvec",
 ]
@@ -2698,6 +2699,7 @@ dependencies = [
  "solar-data-structures",
  "solar-interface",
  "solar-parse",
+ "strum",
  "thread_local",
  "tracing",
  "typed-arena",

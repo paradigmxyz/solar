@@ -24,6 +24,7 @@ bumpalo.workspace = true
 index_vec.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
+rayon.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 

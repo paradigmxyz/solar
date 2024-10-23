@@ -109,7 +109,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     register_custom_flags![];
 
     config.comment_defaults.base().exit_status = None.into();
-    config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+    config.comment_defaults.base().require_annotations = Spanned::dummy(true).into();
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
@@ -189,8 +189,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         return solc_per_file_config(config, src, path, cfg);
     }
 
-    debug_assert_eq!(config.comment_start, "//");
-    config.comment_defaults.base().require_annotations = Spanned::dummy(src.contains("//~")).into();
+    assert_eq!(config.comment_start, "//");
+    let has_annotations = src.contains("//~");
+    config.comment_defaults.base().require_annotations = Spanned::dummy(has_annotations).into();
+    let code = if has_annotations && src.contains("ERROR:") { 1 } else { 0 };
+    config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.

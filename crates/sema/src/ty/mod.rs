@@ -1,4 +1,5 @@
 use crate::{
+    ast_lowering::SymbolResolver,
     builtins::{
         members::{self, MemberMap},
         Builtin,
@@ -96,6 +97,7 @@ pub struct GlobalCtxt<'gcx> {
     pub sess: &'gcx Session,
     pub types: CommonTypes<'gcx>,
     pub hir: Hir<'gcx>,
+    pub(crate) symbol_resolver: SymbolResolver<'gcx>,
 
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
@@ -106,9 +108,17 @@ impl<'gcx> GlobalCtxt<'gcx> {
         sess: &'gcx Session,
         arena: &'gcx ThreadLocal<hir::Arena>,
         hir: Hir<'gcx>,
+        symbol_resolver: SymbolResolver<'gcx>,
     ) -> Self {
         let interner = Interner::new(arena);
-        Self { sess, types: CommonTypes::new(&interner), hir, interner, cache: Cache::default() }
+        Self {
+            sess,
+            types: CommonTypes::new(&interner),
+            hir,
+            symbol_resolver,
+            interner,
+            cache: Cache::default(),
+        }
     }
 }
 
@@ -200,7 +210,7 @@ impl<'gcx> Gcx<'gcx> {
     /// Panics if the item has no name, such as unnamed function parameters.
     pub fn item_name(self, id: impl Into<hir::ItemId>) -> Ident {
         let id = id.into();
-        self.opt_item_name(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
+        self.item_name_opt(id).unwrap_or_else(|| panic!("item_name: missing name for item {id:?}"))
     }
 
     /// Returns the canonical name of the given item.
@@ -229,7 +239,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns an iterator over the fields of the given item.
     ///
-    /// Accepts structs, errors, and events.
+    /// Accepts structs, functions, errors, and events.
     pub fn item_fields(
         self,
         id: impl Into<hir::ItemId>,
@@ -238,28 +248,44 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     fn item_fields_(self, id: hir::ItemId) -> impl Iterator<Item = (Ty<'gcx>, hir::VariableId)> {
-        let tys = match self.type_of_item(id).kind {
-            TyKind::Struct(id) => self.struct_field_types(id),
-            TyKind::Error(tys, _) | TyKind::Event(tys, _) => tys,
-            _ => panic!("item_fields: invalid item {id:?}"),
+        let tys = if let hir::ItemId::Struct(id) = id {
+            self.struct_field_types(id)
+        } else {
+            self.item_parameter_types(id)
         };
-        let params = self.item_parameters(id).unwrap();
-        tys.iter().copied().zip(params.iter().copied())
+        let params = self.item_parameters(id);
+        debug_assert_eq!(tys.len(), params.len());
+        std::iter::zip(tys.iter().copied(), params.iter().copied())
     }
 
-    /// Returns the parameter variable declarations of the given item.
-    pub fn item_parameters(self, id: hir::ItemId) -> Option<&'gcx [hir::VariableId]> {
-        Some(match id {
-            hir::ItemId::Struct(id) => self.hir.strukt(id).fields,
-            hir::ItemId::Error(id) => self.hir.error(id).parameters,
-            hir::ItemId::Event(id) => self.hir.event(id).parameters,
-            hir::ItemId::Function(id) => self.hir.function(id).parameters,
-            _ => return None,
-        })
+    /// Returns the parameter variable declarations of the given function-like item.
+    ///
+    /// Also accepts structs.
+    pub fn item_parameters(self, id: hir::ItemId) -> &'gcx [hir::VariableId] {
+        self.item_parameters_opt(id)
+            .unwrap_or_else(|| panic!("item_parameters: invalid item {id:?}"))
+    }
+
+    /// Returns the parameter variable declarations of the given function-like item.
+    ///
+    /// Also accepts structs.
+    pub fn item_parameters_opt(self, id: hir::ItemId) -> Option<&'gcx [hir::VariableId]> {
+        self.hir.item(id).parameters()
+    }
+
+    /// Returns the return variable declarations of the given function-like item.
+    pub fn item_parameter_types(self, id: hir::ItemId) -> &'gcx [Ty<'gcx>] {
+        self.item_parameter_types_opt(id)
+            .unwrap_or_else(|| panic!("item_parameter_types: invalid item {id:?}"))
+    }
+
+    /// Returns the return variable declarations of the given function-like item.
+    pub fn item_parameter_types_opt(self, id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
+        self.type_of_item(id).parameters()
     }
 
     /// Returns the name of the given item.
-    pub fn opt_item_name(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
+    pub fn item_name_opt(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
     }
 
@@ -463,12 +489,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
-    let ty = gcx.type_of_item(id);
-    let tys = match ty.kind {
-        TyKind::FnPtr(f) => f.parameters,
-        TyKind::Event(parameters, _) | TyKind::Error(parameters, _) => parameters,
-        _ => panic!("item_signature: invalid item type {ty:?}"),
-    };
+    let tys = gcx.item_parameter_types(id);
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
 }
 

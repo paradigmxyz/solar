@@ -10,6 +10,7 @@ use solar_data_structures::{
 };
 use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
 use std::{fmt, ops::ControlFlow, sync::Arc};
+use strum::EnumIs;
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
@@ -276,7 +277,7 @@ impl fmt::Debug for Source<'_> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, EnumIs)]
 pub enum Item<'a, 'hir> {
     Contract(&'a Contract<'hir>),
     Function(&'a Function<'hir>),
@@ -288,7 +289,7 @@ pub enum Item<'a, 'hir> {
     Variable(&'a Variable<'hir>),
 }
 
-impl Item<'_, '_> {
+impl<'hir> Item<'_, 'hir> {
     /// Returns the name of the item.
     #[inline]
     pub fn name(self) -> Option<Ident> {
@@ -349,6 +350,18 @@ impl Item<'_, '_> {
         }
     }
 
+    /// Returns the parameters of the item.
+    #[inline]
+    pub fn parameters(self) -> Option<&'hir [VariableId]> {
+        Some(match self {
+            Item::Struct(s) => s.fields,
+            Item::Function(f) => f.parameters,
+            Item::Event(e) => e.parameters,
+            Item::Error(e) => e.parameters,
+            _ => return None,
+        })
+    }
+
     /// Returns `true` if the item is visible in derived contracts.
     #[inline]
     pub fn is_visible_in_derived_contracts(self) -> bool {
@@ -387,7 +400,7 @@ impl Item<'_, '_> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, From)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum ItemId {
     Contract(ContractId),
     Function(FunctionId),
@@ -829,7 +842,7 @@ impl LoopSource {
 }
 
 /// Resolved name.
-#[derive(Clone, Copy, PartialEq, Eq, From)]
+#[derive(Clone, Copy, PartialEq, Eq, From, Hash)]
 pub enum Res {
     /// A resolved item.
     Item(ItemId),

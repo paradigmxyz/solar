@@ -15,14 +15,14 @@ mod lower;
 mod linearize;
 
 pub(crate) mod resolve;
-use resolve::{Res, SymbolResolver};
+pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower<'hir>(
-    sess: &Session,
+pub(crate) fn lower<'sess, 'hir>(
+    sess: &'sess Session,
     sources: &ParsedSources<'_>,
     hir_arena: &'hir hir::Arena,
-) -> Hir<'hir> {
+) -> (Hir<'hir>, SymbolResolver<'sess>) {
     let mut lcx = LoweringContext::new(sess, hir_arena);
 
     // Lower AST to HIR.
@@ -88,11 +88,11 @@ impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
     }
 
     #[instrument(name = "drop_lcx", level = "debug", skip_all)]
-    fn finish(self) -> Hir<'hir> {
+    fn finish(self) -> (Hir<'hir>, SymbolResolver<'sess>) {
         // NOTE: Explicit scope to drop `self` before the span.
         {
             let this = self;
-            this.hir
+            (this.hir, this.resolver)
         }
     }
 }

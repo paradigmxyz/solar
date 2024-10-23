@@ -7,7 +7,7 @@ use solar_interface::panic_hook;
 use std::process::ExitCode;
 
 #[global_allocator]
-static ALLOC: utils::Allocator = solar_cli::utils::new_allocator();
+static ALLOC: utils::Allocator = utils::new_allocator();
 
 fn main() -> ExitCode {
     sigsegv_handler::install();

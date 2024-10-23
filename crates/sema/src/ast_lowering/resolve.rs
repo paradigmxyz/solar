@@ -10,7 +10,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     sym, Ident, Session, Span, Symbol,
 };
-use std::sync::atomic::AtomicUsize;
+use std::{fmt, sync::atomic::AtomicUsize};
 
 pub(crate) use crate::hir::Res;
 
@@ -976,16 +976,16 @@ impl ResolverError {
     }
 }
 
-pub(super) struct SymbolResolver<'sess> {
+pub(crate) struct SymbolResolver<'sess> {
     dcx: &'sess DiagCtxt,
-    pub(super) source_scopes: IndexVec<hir::SourceId, Declarations>,
-    pub(super) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
+    pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
     global_builtin_scope: Declarations,
     inner_builtin_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
 impl<'sess> SymbolResolver<'sess> {
-    pub(super) fn new(dcx: &'sess DiagCtxt) -> Self {
+    pub(crate) fn new(dcx: &'sess DiagCtxt) -> Self {
         let (global_builtin_scope, inner_builtin_scopes) = crate::builtins::scopes();
         Self {
             dcx,
@@ -1139,9 +1139,15 @@ impl SymbolResolverScopes {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct Declarations {
     pub(crate) declarations: FxIndexMap<Symbol, DeclarationsInner>,
+}
+
+impl fmt::Debug for Declarations {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Declarations ")?;
+        self.declarations.fmt(f)
+    }
 }
 
 type DeclarationsInner = SmallVec<[Declaration; 1]>;
