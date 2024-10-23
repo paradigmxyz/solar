@@ -51,16 +51,17 @@ impl<'gcx> Ty<'gcx> {
     }
 
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
-        let TyKind::FnPtr(f) = self.kind else { return self };
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
-        let any_parameter = f.parameters.iter().any(is_calldata);
-        let any_return = f.returns.iter().any(is_calldata);
+        let parameters = self.parameters().unwrap_or_default();
+        let returns = self.returns().unwrap_or_default();
+        let any_parameter = parameters.iter().any(is_calldata);
+        let any_return = returns.iter().any(is_calldata);
         if !any_parameter && !any_return {
             return self;
         }
         gcx.mk_ty_fn_ptr(TyFnPtr {
             parameters: if any_parameter {
-                gcx.mk_ty_iter(f.parameters.iter().map(|param| {
+                gcx.mk_ty_iter(parameters.iter().map(|param| {
                     if is_calldata(param) {
                         param.with_loc(gcx, DataLocation::Memory)
                     } else {
@@ -68,10 +69,10 @@ impl<'gcx> Ty<'gcx> {
                     }
                 }))
             } else {
-                f.parameters
+                parameters
             },
             returns: if any_return {
-                gcx.mk_ty_iter(f.returns.iter().map(|ret| {
+                gcx.mk_ty_iter(returns.iter().map(|ret| {
                     if is_calldata(ret) {
                         ret.with_loc(gcx, DataLocation::Memory)
                     } else {
@@ -79,10 +80,10 @@ impl<'gcx> Ty<'gcx> {
                     }
                 }))
             } else {
-                f.returns
+                returns
             },
-            state_mutability: f.state_mutability,
-            visibility: f.visibility,
+            state_mutability: self.state_mutability().unwrap_or_default(),
+            visibility: self.visibility().unwrap_or(Visibility::Public),
         })
     }
 
@@ -150,6 +151,43 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn can_be_exported(self) -> bool {
         !(self.is_recursive() || self.has_mapping() || self.has_error())
+    }
+
+    /// Returns the parameter types of the type.
+    #[inline]
+    pub fn parameters(self) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.parameters,
+            TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
+            _ => return None,
+        })
+    }
+
+    /// Returns the return types of the type.
+    #[inline]
+    pub fn returns(self) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.returns,
+            _ => return None,
+        })
+    }
+
+    /// Returns the state mutability of the type.
+    #[inline]
+    pub fn state_mutability(self) -> Option<StateMutability> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.state_mutability),
+            _ => None,
+        }
+    }
+
+    /// Returns the visibility of the type.
+    #[inline]
+    pub fn visibility(self) -> Option<Visibility> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.visibility),
+            _ => None,
+        }
     }
 
     /// Visits the type and its subtypes.
