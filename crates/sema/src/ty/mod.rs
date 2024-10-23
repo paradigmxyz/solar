@@ -261,6 +261,10 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the parameter variable declarations of the given function-like item.
     ///
     /// Also accepts structs.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the item is not a function-like item or a struct.
     pub fn item_parameters(self, id: hir::ItemId) -> &'gcx [hir::VariableId] {
         self.item_parameters_opt(id)
             .unwrap_or_else(|| panic!("item_parameters: invalid item {id:?}"))
@@ -274,12 +278,20 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the return variable declarations of the given function-like item.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the item is not a function-like item.
     pub fn item_parameter_types(self, id: hir::ItemId) -> &'gcx [Ty<'gcx>] {
         self.item_parameter_types_opt(id)
             .unwrap_or_else(|| panic!("item_parameter_types: invalid item {id:?}"))
     }
 
     /// Returns the return variable declarations of the given function-like item.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the item is not a function-like item.
     pub fn item_parameter_types_opt(self, id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
         self.type_of_item(id).parameters()
     }
@@ -295,6 +307,10 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the 4-byte selector of the given item. Only accepts functions and errors.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the item is not a function or error.
     pub fn function_selector(self, id: impl Into<hir::ItemId>) -> Selector {
         let id = id.into();
         assert!(
