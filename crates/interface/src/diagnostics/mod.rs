@@ -4,7 +4,7 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
-use std::{borrow::Cow, panic::Location};
+use std::{borrow::Cow, fmt, panic::Location};
 
 mod builder;
 pub use builder::{DiagnosticBuilder, EmissionGuarantee};
@@ -15,10 +15,31 @@ pub use context::{DiagCtxt, DiagCtxtFlags};
 mod emitter;
 #[cfg(feature = "json")]
 pub use emitter::JsonEmitter;
-pub use emitter::{DynEmitter, Emitter, HumanEmitter, LocalEmitter, SilentEmitter};
+pub use emitter::{
+    DynEmitter, Emitter, HumanBufferEmitter, HumanEmitter, LocalEmitter, SilentEmitter,
+};
 
 mod message;
 pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
+
+/// Represents all the diagnostics emitted up to a certain point.
+///
+/// Returned by [`DiagCtxt::emitted_diagnostics`].
+pub struct EmittedDiagnostics(pub(crate) String);
+
+impl fmt::Debug for EmittedDiagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl fmt::Display for EmittedDiagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for EmittedDiagnostics {}
 
 /// Useful type to use with [`Result`] indicate that an error has already been reported to the user,
 /// so no need to continue checking.
@@ -90,11 +111,9 @@ impl DiagnosticId {
 /// ```
 #[macro_export]
 macro_rules! error_code {
-    ($id:literal) => {{
-        const E: $crate::diagnostics::DiagnosticId =
-            $crate::diagnostics::DiagnosticId::new_from_macro($id);
-        E
-    }};
+    ($id:literal) => {
+        const { $crate::diagnostics::DiagnosticId::new_from_macro($id) }
+    };
 }
 
 /// Diagnostic level.

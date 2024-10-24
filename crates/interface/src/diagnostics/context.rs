@@ -1,6 +1,7 @@
 use super::{
     emitter::HumanEmitter, BugAbort, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
-    EmissionGuarantee, ErrorGuaranteed, FatalAbort, Level, SilentEmitter,
+    EmissionGuarantee, EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level,
+    SilentEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -75,10 +76,10 @@ impl DiagCtxt {
         }
     }
 
-    /// Creates a new `DiagCtxt` with a TTY emitter for emitting one-off/early fatal errors that
+    /// Creates a new `DiagCtxt` with a stderr emitter for emitting one-off/early fatal errors that
     /// contain no source information.
     pub fn new_early() -> Self {
-        Self::with_tty_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
+        Self::with_stderr_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
     }
 
     /// Creates a new `DiagCtxt` with a test emitter.
@@ -86,13 +87,13 @@ impl DiagCtxt {
         Self::new(Box::new(HumanEmitter::test()))
     }
 
-    /// Creates a new `DiagCtxt` with a TTY emitter.
-    pub fn with_tty_emitter(source_map: Option<Arc<SourceMap>>) -> Self {
-        Self::with_tty_emitter_and_color(source_map, ColorChoice::Auto)
+    /// Creates a new `DiagCtxt` with a stderr emitter.
+    pub fn with_stderr_emitter(source_map: Option<Arc<SourceMap>>) -> Self {
+        Self::with_stderr_emitter_and_color(source_map, ColorChoice::Auto)
     }
 
-    /// Creates a new `DiagCtxt` with a TTY emitter and a color choice.
-    pub fn with_tty_emitter_and_color(
+    /// Creates a new `DiagCtxt` with a stderr emitter and a color choice.
+    pub fn with_stderr_emitter_and_color(
         source_map: Option<Arc<SourceMap>>,
         color_choice: ColorChoice,
     ) -> Self {
@@ -101,8 +102,16 @@ impl DiagCtxt {
 
     /// Creates a new `DiagCtxt` with a silent emitter.
     pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
-        let fatal_dcx = Self::with_tty_emitter(None).disable_warnings();
+        let fatal_dcx = Self::with_stderr_emitter(None).disable_warnings();
         Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
+    }
+
+    /// Creates a new `DiagCtxt` with a human emitter that emits diagnostics to a local buffer.
+    pub fn with_buffer_emitter(
+        source_map: Option<Arc<SourceMap>>,
+        color_choice: ColorChoice,
+    ) -> Self {
+        Self::new(Box::new(HumanBufferEmitter::new(color_choice).source_map(source_map)))
     }
 
     /// Gets the source map associated with this context.
@@ -149,7 +158,6 @@ impl DiagCtxt {
     }
 
     /// Returns the number of errors that have been emitted, including duplicates.
-    #[inline]
     pub fn err_count(&self) -> usize {
         self.inner.lock().err_count
     }
@@ -161,6 +169,19 @@ impl DiagCtxt {
         } else {
             Ok(())
         }
+    }
+
+    /// Returns `Err` with the printed diagnostics if any errors have been emitted.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](Self::with_buffer_emitter).
+    pub fn emitted_diagnostics(&self) -> Option<Result<(), EmittedDiagnostics>> {
+        let inner = self.inner.lock();
+        Some(if inner.has_errors() {
+            Err(EmittedDiagnostics(inner.emitter.local_buffer()?.to_string()))
+        } else {
+            Ok(())
+        })
     }
 
     /// Emits a diagnostic if any warnings or errors have been emitted.

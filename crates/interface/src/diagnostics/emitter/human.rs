@@ -7,10 +7,13 @@ use crate::{
 use annotate_snippets::{Annotation, Level as ASLevel, Message, Renderer, Snippet};
 use anstream::{AutoStream, ColorChoice};
 use std::{
+    any::Any,
     io::{self, Write},
     ops::Range,
     sync::Arc,
 };
+
+type Writer = dyn Write + Send + 'static;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .error(Level::Error.style())
@@ -24,6 +27,8 @@ const DEFAULT_RENDERER: Renderer = Renderer::plain()
 
 /// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
+    writer_type_id: std::any::TypeId,
+    real_writer: *mut Writer,
     // NOTE: `AutoStream` only allows bare `Box<dyn Write>`, without any auto-traits.
     // We must implement them manually and enforce them through the public API.
     writer: AutoStream<Box<dyn Write>>,
@@ -61,10 +66,15 @@ impl HumanEmitter {
     /// Note that a color choice of `Auto` will be treated as `Never` because the writer opaque
     /// at this point. Prefer calling [`AutoStream::choice`] on the writer if it is known
     /// before-hand.
-    pub fn new(writer: Box<dyn Write + Send>, color: ColorChoice) -> Self {
+    pub fn new<W: Write + Send + 'static>(writer: W, color: ColorChoice) -> Self {
+        // TODO: Clean this up on next anstream release
+        let writer_type_id = writer.type_id();
+        let mut real_writer = Box::new(writer) as Box<Writer>;
         Self {
+            writer_type_id,
+            real_writer: &mut *real_writer,
             // NOTE: Intentionally erases the `+ Send` bound, see `writer` above.
-            writer: AutoStream::new(writer, color),
+            writer: AutoStream::new(real_writer, color),
             source_map: None,
             renderer: DEFAULT_RENDERER,
         }
@@ -91,7 +101,7 @@ impl HumanEmitter {
             }
         }
 
-        Self::new(Box::new(TestWriter(io::stderr())), ColorChoice::Always)
+        Self::new(TestWriter(io::stderr()), ColorChoice::Always)
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
@@ -101,19 +111,48 @@ impl HumanEmitter {
         if color_choice == ColorChoice::Auto {
             color_choice = AutoStream::choice(&stderr);
         }
-        Self::new(Box::new(io::BufWriter::new(stderr)), color_choice)
+        Self::new(io::BufWriter::new(stderr), color_choice)
     }
 
     /// Sets the source map.
     pub fn source_map(mut self, source_map: Option<Arc<SourceMap>>) -> Self {
-        self.source_map = source_map;
+        self.set_source_map(source_map);
         self
+    }
+
+    /// Sets the source map.
+    pub fn set_source_map(&mut self, source_map: Option<Arc<SourceMap>>) {
+        self.source_map = source_map;
     }
 
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
         self.renderer = self.renderer.anonymized_line_numbers(yes);
         self
+    }
+
+    /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
+    pub fn set_ui_testing(&mut self, yes: bool) {
+        self.renderer =
+            std::mem::replace(&mut self.renderer, DEFAULT_RENDERER).anonymized_line_numbers(yes);
+    }
+
+    /// Downcasts the underlying writer to the specified type.
+    fn downcast_writer<T: Any>(&self) -> Option<&T> {
+        if self.writer_type_id == std::any::TypeId::of::<T>() {
+            Some(unsafe { &*(self.real_writer as *const T) })
+        } else {
+            None
+        }
+    }
+
+    /// Downcasts the underlying writer to the specified type.
+    fn downcast_writer_mut<T: Any>(&mut self) -> Option<&mut T> {
+        if self.writer_type_id == std::any::TypeId::of::<T>() {
+            Some(unsafe { &mut *(self.real_writer as *mut T) })
+        } else {
+            None
+        }
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
@@ -162,6 +201,76 @@ impl HumanEmitter {
             .snippets(owned_snippets.iter().map(OwnedSnippet::as_ref))
             .footers(owned_footers.iter().map(OwnedMessage::as_ref));
         f(self, snippet)
+    }
+}
+
+/// Diagnostic emitter that emits diagnostics in human-readable format to a local buffer.
+pub struct HumanBufferEmitter {
+    inner: HumanEmitter,
+}
+
+impl Emitter for HumanBufferEmitter {
+    #[inline]
+    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+        self.inner.emit_diagnostic(diagnostic);
+    }
+
+    #[inline]
+    fn source_map(&self) -> Option<&Arc<SourceMap>> {
+        Emitter::source_map(&self.inner)
+    }
+
+    #[inline]
+    fn supports_color(&self) -> bool {
+        self.inner.supports_color()
+    }
+}
+
+impl HumanBufferEmitter {
+    /// Creates a new `BufferEmitter` that writes to a local buffer.
+    pub fn new(mut color: ColorChoice) -> Self {
+        if color == ColorChoice::Auto {
+            color = anstream::AutoStream::choice(&std::io::stderr());
+        }
+        Self { inner: HumanEmitter::new(Vec::<u8>::new(), color) }
+    }
+
+    /// Sets the source map.
+    pub fn source_map(mut self, source_map: Option<Arc<SourceMap>>) -> Self {
+        self.inner = self.inner.source_map(source_map);
+        self
+    }
+
+    /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
+    pub fn ui_testing(mut self, yes: bool) -> Self {
+        self.inner = self.inner.ui_testing(yes);
+        self
+    }
+
+    /// Returns a reference to the underlying human emitter.
+    pub fn inner(&self) -> &HumanEmitter {
+        &self.inner
+    }
+
+    /// Returns a mutable reference to the underlying human emitter.
+    pub fn inner_mut(&mut self) -> &mut HumanEmitter {
+        &mut self.inner
+    }
+
+    /// Returns a reference to the buffer.
+    pub fn buffer(&self) -> &str {
+        let buffer = self.inner.downcast_writer::<Vec<u8>>().unwrap();
+        debug_assert!(std::str::from_utf8(buffer).is_ok(), "HumanEmitter wrote invalid UTF-8");
+        // SAFETY: The buffer is guaranteed to be valid UTF-8.
+        unsafe { std::str::from_utf8_unchecked(buffer) }
+    }
+
+    /// Returns a mutable reference to the buffer.
+    pub fn buffer_mut(&mut self) -> &mut String {
+        let buffer = self.inner.downcast_writer_mut::<Vec<u8>>().unwrap();
+        debug_assert!(std::str::from_utf8(buffer).is_ok(), "HumanEmitter wrote invalid UTF-8");
+        // SAFETY: The buffer is guaranteed to be valid UTF-8.
+        unsafe { &mut *(buffer as *mut Vec<u8> as *mut String) }
     }
 }
 

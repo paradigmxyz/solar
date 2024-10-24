@@ -1,4 +1,4 @@
-use super::{io_panic, Emitter, HumanEmitter};
+use super::{human::HumanBufferEmitter, io_panic, Emitter};
 use crate::{
     diagnostics::{Level, MultiSpan, SpanLabel},
     source_map::{LineInfo, SourceFile},
@@ -6,10 +6,7 @@ use crate::{
 };
 use anstream::ColorChoice;
 use serde::Serialize;
-use std::{
-    io,
-    sync::{Arc, Mutex, PoisonError},
-};
+use std::{io, sync::Arc};
 
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
@@ -17,8 +14,7 @@ pub struct JsonEmitter {
     pretty: bool,
     rustc_like: bool,
 
-    human_emitter: HumanEmitter,
-    buffer: LocalBuffer,
+    human_emitter: HumanBufferEmitter,
 }
 
 impl Emitter for JsonEmitter {
@@ -41,14 +37,11 @@ impl Emitter for JsonEmitter {
 impl JsonEmitter {
     /// Creates a new `JsonEmitter` that writes to given writer.
     pub fn new(writer: Box<dyn io::Write + Send>, source_map: Arc<SourceMap>) -> Self {
-        let buffer = LocalBuffer::new();
         Self {
             writer,
             pretty: false,
             rustc_like: false,
-            human_emitter: HumanEmitter::new(Box::new(buffer.clone()), ColorChoice::Never)
-                .source_map(Some(source_map)),
-            buffer,
+            human_emitter: HumanBufferEmitter::new(ColorChoice::Never).source_map(Some(source_map)),
         }
     }
 
@@ -203,8 +196,7 @@ impl JsonEmitter {
 
     fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
         self.human_emitter.emit_diagnostic(diagnostic);
-        let bytes = std::mem::take(&mut *self.buffer.0.lock().unwrap());
-        String::from_utf8(bytes).expect("HumanEmitter wrote invalid UTF-8")
+        std::mem::take(self.human_emitter.buffer_mut())
     }
 
     fn emit<T: ?Sized + Serialize>(&mut self, value: &T) -> io::Result<()> {
@@ -215,33 +207,6 @@ impl JsonEmitter {
         }?;
         self.writer.write_all(b"\n")?;
         self.writer.flush()
-    }
-}
-
-#[derive(Clone)]
-struct LocalBuffer(Arc<Mutex<Vec<u8>>>);
-
-impl io::Write for LocalBuffer {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).write(buf)
-    }
-
-    fn write_vectored(&mut self, bufs: &[io::IoSlice<'_>]) -> io::Result<usize> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).write_vectored(bufs)
-    }
-
-    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).write_all(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-impl LocalBuffer {
-    fn new() -> Self {
-        Self(Arc::new(Mutex::new(Vec::new())))
     }
 }
 
