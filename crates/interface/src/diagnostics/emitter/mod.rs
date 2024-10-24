@@ -1,9 +1,9 @@
 use super::{DiagCtxt, Diagnostic, Level};
 use crate::SourceMap;
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
 
 mod human;
-pub use human::HumanEmitter;
+pub use human::{HumanBufferEmitter, HumanEmitter};
 
 #[cfg(feature = "json")]
 mod json;
@@ -16,7 +16,7 @@ mod rustc;
 pub type DynEmitter = dyn Emitter + Send;
 
 /// Diagnostic emitter.
-pub trait Emitter {
+pub trait Emitter: Any {
     /// Emits a diagnostic.
     fn emit_diagnostic(&mut self, diagnostic: &Diagnostic);
 
@@ -30,6 +30,21 @@ pub trait Emitter {
     #[inline]
     fn supports_color(&self) -> bool {
         false
+    }
+}
+
+impl DynEmitter {
+    pub(crate) fn local_buffer(&self) -> Option<&str> {
+        self.downcast_ref::<HumanBufferEmitter>().map(HumanBufferEmitter::buffer)
+    }
+
+    // TODO: Remove when dyn trait upcasting is stable.
+    fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        if self.type_id() == std::any::TypeId::of::<T>() {
+            unsafe { Some(&*(self as *const dyn Emitter as *const T)) }
+        } else {
+            None
+        }
     }
 }
 

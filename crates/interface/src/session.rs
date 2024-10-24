@@ -1,4 +1,7 @@
-use crate::{diagnostics::DiagCtxt, ColorChoice, SessionGlobals, SourceMap};
+use crate::{
+    diagnostics::{DiagCtxt, EmittedDiagnostics},
+    ColorChoice, SessionGlobals, SourceMap,
+};
 use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
@@ -51,29 +54,41 @@ impl From<derive_builder::UninitializedFieldError> for SessionBuilderError {
 }
 
 impl SessionBuilder {
-    /// Creates a new session builder with a test emitter.
+    /// Sets the diagnostic context to a test emitter.
     #[inline]
     pub fn with_test_emitter(self) -> Self {
         self.dcx(DiagCtxt::with_test_emitter())
     }
 
-    /// Creates a new session builder with a TTY emitter.
+    /// Sets the diagnostic context to a stderr emitter.
     #[inline]
-    pub fn with_tty_emitter(self) -> Self {
-        self.with_tty_emitter_and_color(ColorChoice::Auto)
+    pub fn with_stderr_emitter(self) -> Self {
+        self.with_stderr_emitter_and_color(ColorChoice::Auto)
     }
 
-    /// Creates a new session builder with a TTY emitter and a color choice.
+    /// Sets the diagnostic context to a stderr emitter and a color choice.
     #[inline]
-    pub fn with_tty_emitter_and_color(mut self, color_choice: ColorChoice) -> Self {
-        let sm = self.source_map.get_or_insert_with(Default::default).clone();
-        self.dcx(DiagCtxt::with_tty_emitter_and_color(Some(sm), color_choice))
+    pub fn with_stderr_emitter_and_color(mut self, color_choice: ColorChoice) -> Self {
+        let sm = self.get_source_map();
+        self.dcx(DiagCtxt::with_stderr_emitter_and_color(Some(sm), color_choice))
     }
 
-    /// Creates a new session builder with a silent emitter.
+    /// Sets the diagnostic context to a human emitter that emits diagnostics to a local buffer.
+    #[inline]
+    pub fn with_buffer_emitter(mut self, color_choice: ColorChoice) -> Self {
+        let sm = self.get_source_map();
+        self.dcx(DiagCtxt::with_buffer_emitter(Some(sm), color_choice))
+    }
+
+    /// Sets the diagnostic context to a silent emitter.
     #[inline]
     pub fn with_silent_emitter(self, fatal_note: Option<String>) -> Self {
         self.dcx(DiagCtxt::with_silent_emitter(fatal_note))
+    }
+
+    /// Gets the source map from the diagnostics context.
+    fn get_source_map(&mut self) -> Arc<SourceMap> {
+        self.source_map.get_or_insert_with(Default::default).clone()
     }
 
     /// Consumes the builder to create a new session.
@@ -117,6 +132,15 @@ impl Session {
     #[inline]
     pub fn builder() -> SessionBuilder {
         SessionBuilder::default()
+    }
+
+    /// Returns `Err` with the printed diagnostics if any errors have been emitted.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](SessionBuilder::with_buffer_emitter).
+    #[inline]
+    pub fn emitted_diagnostics(&self) -> Option<Result<(), EmittedDiagnostics>> {
+        self.dcx.emitted_diagnostics()
     }
 
     /// Returns a reference to the source map.
@@ -225,7 +249,7 @@ mod tests {
         let sm1 = Arc::<SourceMap>::default();
         let sm2 = Arc::<SourceMap>::default();
         assert!(!Arc::ptr_eq(&sm1, &sm2));
-        Session::builder().source_map(sm1).dcx(DiagCtxt::with_tty_emitter(Some(sm2))).build();
+        Session::builder().source_map(sm1).dcx(DiagCtxt::with_stderr_emitter(Some(sm2))).build();
     }
 
     #[test]
@@ -234,17 +258,26 @@ mod tests {
         let sm1 = Arc::<SourceMap>::default();
         let sm2 = Arc::<SourceMap>::default();
         assert!(!Arc::ptr_eq(&sm1, &sm2));
-        Session::new(DiagCtxt::with_tty_emitter(Some(sm2)), sm1);
+        Session::new(DiagCtxt::with_stderr_emitter(Some(sm2)), sm1);
     }
 
     #[test]
     fn builder() {
-        let _ = Session::builder().with_tty_emitter().build();
+        let _ = Session::builder().with_stderr_emitter().build();
     }
 
     #[test]
     fn empty() {
-        let _ = Session::empty(DiagCtxt::with_tty_emitter(None));
-        let _ = Session::empty(DiagCtxt::with_tty_emitter(Some(Default::default())));
+        let _ = Session::empty(DiagCtxt::with_stderr_emitter(None));
+        let _ = Session::empty(DiagCtxt::with_stderr_emitter(Some(Default::default())));
+    }
+
+    #[test]
+    fn local() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.dcx.err("test").emit();
+        let err = sess.dcx.emitted_diagnostics().unwrap().unwrap_err();
+        let err = Box::new(err) as Box<dyn std::error::Error>;
+        assert!(err.to_string().contains("error: test"), "{err:?}");
     }
 }
