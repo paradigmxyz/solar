@@ -29,14 +29,12 @@ const DEFAULT_RENDERER: Renderer = Renderer::plain()
 pub struct HumanEmitter {
     writer_type_id: std::any::TypeId,
     real_writer: *mut Writer,
-    // NOTE: `AutoStream` only allows bare `Box<dyn Write>`, without any auto-traits.
-    // We must implement them manually and enforce them through the public API.
-    writer: AutoStream<Box<dyn Write>>,
+    writer: AutoStream<Box<Writer>>,
     source_map: Option<Arc<SourceMap>>,
     renderer: Renderer,
 }
 
-// SAFETY: See `writer` above.
+// SAFETY: `real_writer` always points to the `dyn Writer` in `writer`.
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {

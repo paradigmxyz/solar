@@ -1,6 +1,6 @@
 [package]
-name = "solar"
-description = "Solidity compiler"
+name = "solar-compiler"
+description = "Solar Solidity compiler"
 homepage = "https://github.com/ithacaxyz/solar/"
 
 version.workspace = true
@@ -14,6 +14,20 @@ categories.workspace = true
 
 [lints]
 workspace = true
+
+[lib]
+name = "solar"
+path = "./src/lib.rs"
+
+[[bin]]
+name = "solar"
+path = "./src/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "tests"
+path = "./tests.rs"
+harness = false
 
 [build-dependencies]
 vergen = { workspace = true, features = ["build", "git", "gitcl"] }
@@ -58,13 +72,3 @@ tracing-off = ["solar-cli?/tracing-off"]
 tracing-chrome = ["solar-cli?/tracing-chrome"]
 tracy = ["solar-cli?/tracy"]
 tracy-allocator = ["solar-cli?/tracy-allocator"]
-
-[[bin]]
-name = "solar"
-path = "./src/main.rs"
-required-features = ["cli"]
-
-[[test]]
-name = "tests"
-path = "./tests.rs"
-harness = false
