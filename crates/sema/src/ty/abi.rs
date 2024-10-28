@@ -54,7 +54,7 @@ impl<'gcx> Gcx<'gcx> {
     fn function_abi(self, id: hir::FunctionId) -> json::Function {
         let f = self.hir.function(id);
         json::Function {
-            name: f.name.map(|id| id.to_string()).unwrap_or_default(),
+            name: f.name.unwrap_or_default().to_string(),
             inputs: f.parameters.iter().map(|&p| self.var_param_abi(p)).collect(),
             outputs: f.returns.iter().map(|&p| self.var_param_abi(p)).collect(),
             state_mutability: json_state_mutability(f.state_mutability),
@@ -81,7 +81,7 @@ impl<'gcx> Gcx<'gcx> {
     fn var_param_abi(self, id: hir::VariableId) -> json::Param {
         let v = self.hir.variable(id);
         let ty = self.type_of_item(id.into());
-        self.param_abi(ty, v.name.map(|id| id.to_string()).unwrap_or_default())
+        self.param_abi(ty, v.name.unwrap_or_default().to_string())
     }
 
     fn param_abi(self, ty: Ty<'gcx>, name: String) -> json::Param {

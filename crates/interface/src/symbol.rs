@@ -186,7 +186,7 @@ impl Default for Symbol {
 
 impl Symbol {
     /// A dummy symbol.
-    pub const DUMMY: Self = Self(BaseIndex32::MAX);
+    pub const DUMMY: Self = kw::Empty;
 
     const fn new(n: u32) -> Self {
         Self(BaseIndex32::new(n))
@@ -492,6 +492,9 @@ symbols! {
     // When modifying this, also update all the `is_keyword` functions in this file.
     // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
     Keywords {
+        // Special symbols used internally.
+        Empty:       "",
+
         Abstract:    "abstract",
         Anonymous:   "anonymous",
         As:          "as",
@@ -886,5 +889,20 @@ mod tests {
         assert_eq!(i.intern("cat"), Symbol::new(1));
         // dog is still at zero
         assert_eq!(i.intern("dog"), Symbol::new(0));
+    }
+
+    #[test]
+    fn defaults() {
+        assert_eq!(Symbol::DUMMY, Symbol::new(0));
+        assert_eq!(Symbol::DUMMY, Symbol::default());
+        assert_eq!(Ident::DUMMY, Ident::new(Symbol::DUMMY, Span::DUMMY));
+        assert_eq!(Ident::DUMMY, Ident::default());
+
+        crate::enter(|| {
+            assert_eq!(Symbol::DUMMY.as_str(), "");
+            assert_eq!(Symbol::DUMMY.to_string(), "");
+            assert_eq!(Ident::DUMMY.as_str(), "");
+            assert_eq!(Ident::DUMMY.to_string(), "");
+        });
     }
 }
