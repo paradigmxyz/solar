@@ -1,6 +1,5 @@
 [workspace]
-members = ["benches/", "crates/*", "tools/*"]
-# Exclude bench and test crates from default commands.
+members = ["benches/", "crates/*", "examples/", "tools/*"]
 default-members = ["crates/*"]
 resolver = "2"
 
@@ -74,6 +73,7 @@ inherits = "profiling"
 
 [workspace.dependencies]
 # compiler crates
+solar = { version = "0.0.0", path = "crates/solar", package = "solar-compiler" }
 solar-ast = { version = "0.0.0", path = "crates/ast" }
 solar-cli = { version = "0.0.0", path = "crates/cli" }
 solar-config = { version = "0.0.0", path = "crates/config" }

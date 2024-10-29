@@ -1,0 +1,24 @@
+[package]
+name = "solar-examples"
+description = "Solar library examples"
+homepage = "https://github.com/ithacaxyz/solar/tree/main/examples/"
+publish = false
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+solar.workspace = true
