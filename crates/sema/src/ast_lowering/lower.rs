@@ -65,9 +65,6 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         let prev_contract_id = std::mem::replace(&mut self.current_contract_id, Some(id));
         debug_assert_eq!(prev_contract_id, None);
 
-        let mut ctor = None;
-        let mut fallback = None;
-        let mut receive = None;
         let mut items = SmallVec::<[_; 16]>::new();
         for item in contract.body.iter() {
             let id = match &item.kind {
@@ -75,35 +72,6 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                 | ast::ItemKind::Import(_)
                 | ast::ItemKind::Contract(_) => unreachable!("illegal item in contract body"),
                 ast::ItemKind::Using(_) => continue,
-                ast::ItemKind::Function(func) => {
-                    let hir::ItemId::Function(id) = self.lower_item(item) else { unreachable!() };
-                    match func.kind {
-                        ast::FunctionKind::Constructor
-                        | ast::FunctionKind::Fallback
-                        | ast::FunctionKind::Receive => {
-                            let slot = match func.kind {
-                                ast::FunctionKind::Constructor => &mut ctor,
-                                ast::FunctionKind::Fallback => &mut fallback,
-                                ast::FunctionKind::Receive => &mut receive,
-                                _ => unreachable!(),
-                            };
-                            if let Some(prev) = *slot {
-                                let msg = format!("{} function already declared", func.kind);
-                                let note = "previous declaration here";
-                                let prev_span = self.hir.function(prev).span;
-                                self.dcx()
-                                    .err(msg)
-                                    .span(item.span)
-                                    .span_note(prev_span, note)
-                                    .emit();
-                            } else {
-                                *slot = Some(id);
-                            }
-                        }
-                        ast::FunctionKind::Function | ast::FunctionKind::Modifier => {}
-                    }
-                    hir::ItemId::Function(id)
-                }
                 ast::ItemKind::Variable(_) => {
                     let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
                     items.push(hir::ItemId::Variable(id));
@@ -112,7 +80,8 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     }
                     continue;
                 }
-                ast::ItemKind::Struct(_)
+                ast::ItemKind::Function(_)
+                | ast::ItemKind::Struct(_)
                 | ast::ItemKind::Enum(_)
                 | ast::ItemKind::Udvt(_)
                 | ast::ItemKind::Error(_)
@@ -120,11 +89,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             };
             items.push(id);
         }
-        let contract = &mut self.hir.contracts[id];
-        contract.ctor = ctor;
-        contract.fallback = fallback;
-        contract.receive = receive;
-        contract.items = self.arena.alloc_slice_copy(&items);
+        self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
 
         self.current_contract_id = prev_contract_id;
 

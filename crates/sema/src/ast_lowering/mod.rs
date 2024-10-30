@@ -38,6 +38,7 @@ pub(crate) fn lower<'sess, 'hir>(
     lcx.collect_contract_declarations();
     lcx.resolve_base_contracts();
     lcx.linearize_contracts();
+    lcx.assign_constructors();
 
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     lcx.resolve_symbols();

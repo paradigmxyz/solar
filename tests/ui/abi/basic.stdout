@@ -554,6 +554,10 @@
           "anonymous": false
         },
         {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
+        },
+        {
           "type": "function",
           "name": "f1",
           "inputs": [],
@@ -868,6 +872,10 @@
             }
           ],
           "stateMutability": "nonpayable"
+        },
+        {
+          "type": "receive",
+          "stateMutability": "payable"
         }
       ],
       "hashes": {
