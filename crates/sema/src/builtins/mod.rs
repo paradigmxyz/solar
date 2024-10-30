@@ -7,7 +7,7 @@ use solar_ast::ast::StateMutability as SM;
 use solar_interface::{kw, sym, Span, Symbol};
 
 pub(crate) mod members;
-pub use members::{Member, MemberMap};
+pub use members::{Member, MemberList};
 
 pub(crate) fn scopes() -> (Declarations, Box<[Option<Declarations>; Builtin::COUNT]>) {
     let global = declarations(Builtin::global().iter().copied());
@@ -70,10 +70,15 @@ declare_builtins! {
     Blobhash               => kw::Blobhash
                            => gcx.mk_builtin_fn(&[gcx.types.uint(256)], SM::View, &[gcx.types.fixed_bytes(32)]);
 
+    Gasleft                => sym::gasleft
+                           => gcx.mk_builtin_fn(&[], SM::View, &[gcx.types.uint(256)]);
+
     Assert                 => sym::assert
                            => gcx.mk_builtin_fn(&[gcx.types.bool], SM::Pure, &[]);
     Require                => sym::require
                            => gcx.mk_builtin_fn(&[gcx.types.bool], SM::Pure, &[]);
+    RequireMsg             => sym::require
+                           => gcx.mk_builtin_fn(&[gcx.types.bool, gcx.types.string_ref.memory], SM::Pure, &[]);
     Revert                 => kw::Revert
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[]);
     RevertMsg              => kw::Revert
@@ -102,6 +107,7 @@ declare_builtins! {
     Abi                    => sym::abi
                            => gcx.mk_builtin_mod(Self::Abi);
 
+    // Contract
     This                   => sym::this   => unreachable!();
     Super                  => sym::super_ => unreachable!();
 
@@ -220,7 +226,37 @@ declare_builtins! {
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
 }
 
+/// `$first..$last` as a slice of builtins.
+macro_rules! builtin_range_slice {
+    ($first:expr, $last:expr) => {
+        &const {
+            let mut i = $first;
+            let mut out = [Builtin::Blockhash; $last - $first];
+            while i < $last {
+                out[i - $first] = Builtin::from_index_unwrap(i);
+                i += 1;
+            }
+            out
+        }
+    };
+}
+
 impl Builtin {
+    const FIRST_GLOBAL: usize = 0;
+    const LAST_GLOBAL: usize = Self::Abi as usize + 1;
+
+    const FIRST_BLOCK: usize = Self::BlockCoinbase as usize;
+    const LAST_BLOCK: usize = Self::BlockBlobbasefee as usize + 1;
+
+    const FIRST_MSG: usize = Self::MsgSender as usize;
+    const LAST_MSG: usize = Self::MsgSig as usize + 1;
+
+    const FIRST_TX: usize = Self::TxOrigin as usize;
+    const LAST_TX: usize = Self::TxGasPrice as usize + 1;
+
+    const FIRST_ABI: usize = Self::AbiEncode as usize;
+    const LAST_ABI: usize = Self::AbiDecode as usize + 1;
+
     /// Returns an iterator over all builtins.
     #[inline]
     pub fn iter() -> std::iter::Map<std::ops::Range<usize>, impl FnMut(usize) -> Self> {
@@ -228,7 +264,11 @@ impl Builtin {
     }
 
     #[inline]
-    fn from_index(i: usize) -> Option<Self> {
+    const fn from_index(i: usize) -> Option<Self> {
+        const {
+            assert!(Self::COUNT <= u8::MAX as usize);
+            assert!(std::mem::size_of::<Self>() == 1);
+        };
         if i < Self::COUNT {
             Some(unsafe { std::mem::transmute::<u8, Self>(i as u8) })
         } else {
@@ -236,41 +276,43 @@ impl Builtin {
         }
     }
 
+    // TODO(MSRV-1.83): Replace with .unwrap()
+    #[inline]
+    const fn from_index_unwrap(i: usize) -> Self {
+        match Self::from_index(i) {
+            Some(b) => b,
+            None => panic!(),
+        }
+    }
+
     /// Returns the global builtins.
     pub fn global() -> &'static [Self] {
-        use Builtin::*;
-        &[
-            Blockhash, Blobhash, Assert, Require, Revert, RevertMsg, AddMod, MulMod, Keccak256,
-            Sha256, Ripemd160, EcRecover, Block, Msg, Tx, Abi,
-        ]
+        builtin_range_slice!(Self::FIRST_GLOBAL, Self::LAST_GLOBAL)
     }
 
     /// Returns the inner builtins.
     pub fn inner(self) -> Option<&'static [Self]> {
         use Builtin::*;
         Some(match self {
-            Block => &[
-                BlockCoinbase,
-                BlockTimestamp,
-                BlockDifficulty,
-                BlockPrevrandao,
-                BlockNumber,
-                BlockGaslimit,
-                BlockChainid,
-                BlockBasefee,
-                BlockBlobbasefee,
-            ],
-            Msg => &[MsgSender, MsgGas, MsgValue, MsgData, MsgSig],
-            Tx => &[TxOrigin, TxGasPrice],
-            Abi => &[
-                AbiEncode,
-                AbiEncodePacked,
-                AbiEncodeWithSelector,
-                AbiEncodeCall,
-                AbiEncodeWithSignature,
-                AbiDecode,
-            ],
+            Block => builtin_range_slice!(Self::FIRST_BLOCK, Self::LAST_BLOCK),
+            Msg => builtin_range_slice!(Self::FIRST_MSG, Self::LAST_MSG),
+            Tx => builtin_range_slice!(Self::FIRST_TX, Self::LAST_TX),
+            Abi => builtin_range_slice!(Self::FIRST_ABI, Self::LAST_ABI),
             _ => return None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn slice() {
+        let slice = builtin_range_slice!(0, 3);
+        assert_eq!(slice.len(), 3);
+        assert_eq!(slice[0] as usize, 0);
+        assert_eq!(slice[1] as usize, 1);
+        assert_eq!(slice[2] as usize, 2);
     }
 }

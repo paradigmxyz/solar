@@ -1,9 +1,6 @@
 use crate::{
     ast_lowering::SymbolResolver,
-    builtins::{
-        members::{self, MemberMap},
-        Builtin,
-    },
+    builtins::{members, Builtin},
     hir::{self, Hir},
 };
 use alloy_primitives::{keccak256, Selector, B256};
@@ -154,6 +151,10 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_iter(self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
         self.interner.intern_ty_iter(tys)
+    }
+
+    fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
+        self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
 
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
@@ -520,9 +521,8 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
             TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(TyFnPtr {
-                parameters:
-                    gcx.mk_ty_iter(f.parameters.iter().map(|&var| gcx.type_of_item(var.into()))),
-                returns: gcx.mk_ty_iter(f.returns.iter().map(|&var| gcx.type_of_item(var.into()))),
+                parameters: gcx.mk_item_tys(f.parameters),
+                returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
             }))
@@ -553,12 +553,10 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
             }
         }
         hir::ItemId::Error(id) => {
-            let tys = gcx.hir.error(id).parameters.iter().map(|&p| gcx.type_of_item(p.into()));
-            TyKind::Error(gcx.mk_ty_iter(tys), id)
+            TyKind::Error(gcx.mk_item_tys(gcx.hir.error(id).parameters), id)
         }
         hir::ItemId::Event(id) => {
-            let tys = gcx.hir.event(id).parameters.iter().map(|&p| gcx.type_of_item(p.into()));
-            TyKind::Event(gcx.mk_ty_iter(tys), id)
+            TyKind::Event(gcx.mk_item_tys(gcx.hir.event(id).parameters), id)
         }
     };
     gcx.mk_ty(kind)
@@ -570,7 +568,7 @@ pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
 }
 
 /// Returns the members of the given type.
-pub fn members_of(gcx: _, ty: Ty<'gcx>) -> MemberMap<'gcx> {
+pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::members_of(gcx, ty)
 }
 }

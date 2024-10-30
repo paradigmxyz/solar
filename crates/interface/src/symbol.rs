@@ -842,6 +842,7 @@ symbols! {
         error,
         experimental,
         from,
+        gasleft,
         global,
         interfaceId,
         length,

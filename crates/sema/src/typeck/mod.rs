@@ -9,11 +9,11 @@ use solar_data_structures::{map::FxHashSet, parallel};
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
         gcx.sess,
-        gcx.hir.par_source_ids().for_each(|id| {
-            check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
-        }),
         gcx.hir.par_contract_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+        }),
+        gcx.hir.par_source_ids().for_each(|id| {
+            check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
     );
 }
