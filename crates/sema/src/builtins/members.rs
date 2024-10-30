@@ -7,10 +7,10 @@ use solar_ast::ast::{DataLocation, ElementaryType, StateMutability as SM};
 use solar_data_structures::BumpExt;
 use solar_interface::{kw, sym, Symbol};
 
-pub type MemberMap<'gcx> = &'gcx [Member<'gcx>];
-pub(crate) type MemberMapOwned<'gcx> = Vec<Member<'gcx>>;
+pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
+pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
-pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMap<'gcx> {
+pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
     let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
@@ -81,7 +81,7 @@ impl<'gcx> Member<'gcx> {
     pub fn of_builtins(
         gcx: Gcx<'gcx>,
         builtins: impl IntoIterator<Item = Builtin>,
-    ) -> MemberMapOwned<'gcx> {
+    ) -> MemberListOwned<'gcx> {
         Self::of_builtins_iter(gcx, builtins).collect()
     }
 
@@ -114,14 +114,14 @@ fn address_payable(gcx: Gcx<'_>) -> impl Iterator<Item = Member<'_>> {
     ))
 }
 
-fn fixed_bytes(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn fixed_bytes(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::FixedBytesLength])
 }
 
-pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberMapOwned<'_> {
+pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     let c = gcx.hir.contract(id);
     if c.kind.is_library() {
-        return MemberMapOwned::default();
+        return MemberListOwned::default();
     }
     gcx.interface_functions(id)
         .all_functions()
@@ -133,7 +133,7 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberMapOwned<'_> 
         .collect()
 }
 
-fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberMapOwned<'gcx> {
+fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
     let _ = (gcx, f);
     todo!()
 }
@@ -143,7 +143,7 @@ fn reference<'gcx>(
     this: Ty<'gcx>,
     inner: Ty<'gcx>,
     loc: DataLocation,
-) -> MemberMapOwned<'gcx> {
+) -> MemberListOwned<'gcx> {
     match (&inner.kind, loc) {
         (&TyKind::Struct(id), _) => {
             let fields = gcx.hir.strukt(id).fields;
@@ -180,7 +180,7 @@ fn reference<'gcx>(
 }
 
 // `Enum.Variant`, `Udvt.wrap`
-fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
+fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
         TyKind::Contract(_) => Default::default(),
@@ -206,7 +206,7 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
 }
 
 // `type(T)`
-fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
+fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         TyKind::Contract(id) => {
             if gcx.hir.contract(id).can_be_deployed() {
@@ -225,25 +225,25 @@ fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberMapOwned<'gcx> {
     }
 }
 
-fn array(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn array(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::ArrayLength])
 }
 
-fn string_ty(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn string_ty(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::StringConcat])
 }
 
-fn bytes_ty(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn bytes_ty(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::BytesConcat])
 }
 
-fn type_contract(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn type_contract(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(
         gcx,
         [Builtin::ContractCreationCode, Builtin::ContractRuntimeCode, Builtin::ContractName],
     )
 }
 
-fn type_interface(gcx: Gcx<'_>) -> MemberMapOwned<'_> {
+fn type_interface(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::InterfaceId, Builtin::ContractName])
 }
