@@ -147,7 +147,7 @@ either = "1"
 hex = { package = "const-hex", version = "1.10" }
 index_vec = "0.1.3"
 indexmap = "2.2"
-itertools = "0.13"
+itertools = ">=0.10, <=0.13"
 itoa = "1.0"
 lasso = "0.7.3"
 libc = "0.2"

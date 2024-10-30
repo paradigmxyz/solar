@@ -1,14 +1,12 @@
 name: deps
 
 on:
-  # TODO
-  # push:
-  #   branches: [main]
-  #   paths: [Cargo.lock]
-  # pull_request:
-  #   branches: [main]
-  #   paths: [Cargo.lock]
-  # schedule: [cron: "00 00 * * *"]
+  push:
+    branches: [main]
+    paths: [deny.toml, Cargo.lock]
+  pull_request:
+    branches: [main]
+    paths: [deny.toml, Cargo.lock]
   workflow_dispatch:
     # Needed so we can run it manually
 
