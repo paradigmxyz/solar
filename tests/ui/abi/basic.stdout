@@ -8,12 +8,77 @@
           "stateMutability": "nonpayable"
         },
         {
-          "type": "fallback",
-          "stateMutability": "nonpayable"
+          "type": "error",
+          "name": "Er",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            }
+          ]
         },
         {
-          "type": "receive",
-          "stateMutability": "payable"
+          "type": "event",
+          "name": "Ev",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "b",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "indexed": false,
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "indexed": false,
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "u2",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "C.UDVT"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
         },
         {
           "type": "function",
@@ -332,73 +397,8 @@
           "stateMutability": "nonpayable"
         },
         {
-          "type": "event",
-          "name": "Ev",
-          "inputs": [
-            {
-              "name": "a",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            },
-            {
-              "name": "b",
-              "type": "uint256",
-              "indexed": true,
-              "internalType": "uint256"
-            },
-            {
-              "name": "c",
-              "type": "bool[]",
-              "indexed": false,
-              "internalType": "bool[]"
-            },
-            {
-              "name": "x",
-              "type": "string",
-              "indexed": false,
-              "internalType": "string"
-            },
-            {
-              "name": "u",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "C.UDVT"
-            },
-            {
-              "name": "u2",
-              "type": "uint256",
-              "indexed": true,
-              "internalType": "C.UDVT"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "error",
-          "name": "Er",
-          "inputs": [
-            {
-              "name": "a",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "c",
-              "type": "bool[]",
-              "internalType": "bool[]"
-            },
-            {
-              "name": "x",
-              "type": "string",
-              "internalType": "string"
-            },
-            {
-              "name": "u",
-              "type": "uint256",
-              "internalType": "C.UDVT"
-            }
-          ]
+          "type": "receive",
+          "stateMutability": "payable"
         }
       ],
       "hashes": {
@@ -485,6 +485,75 @@
           "stateMutability": "payable"
         },
         {
+          "type": "error",
+          "name": "Er",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            }
+          ]
+        },
+        {
+          "type": "event",
+          "name": "Ev",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "b",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "indexed": false,
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "indexed": false,
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "u2",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "C.UDVT"
+            }
+          ],
+          "anonymous": false
+        },
+        {
           "type": "function",
           "name": "f1",
           "inputs": [],
@@ -799,75 +868,6 @@
             }
           ],
           "stateMutability": "nonpayable"
-        },
-        {
-          "type": "event",
-          "name": "Ev",
-          "inputs": [
-            {
-              "name": "a",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "uint256"
-            },
-            {
-              "name": "b",
-              "type": "uint256",
-              "indexed": true,
-              "internalType": "uint256"
-            },
-            {
-              "name": "c",
-              "type": "bool[]",
-              "indexed": false,
-              "internalType": "bool[]"
-            },
-            {
-              "name": "x",
-              "type": "string",
-              "indexed": false,
-              "internalType": "string"
-            },
-            {
-              "name": "u",
-              "type": "uint256",
-              "indexed": false,
-              "internalType": "C.UDVT"
-            },
-            {
-              "name": "u2",
-              "type": "uint256",
-              "indexed": true,
-              "internalType": "C.UDVT"
-            }
-          ],
-          "anonymous": false
-        },
-        {
-          "type": "error",
-          "name": "Er",
-          "inputs": [
-            {
-              "name": "a",
-              "type": "uint256",
-              "internalType": "uint256"
-            },
-            {
-              "name": "c",
-              "type": "bool[]",
-              "internalType": "bool[]"
-            },
-            {
-              "name": "x",
-              "type": "string",
-              "internalType": "string"
-            },
-            {
-              "name": "u",
-              "type": "uint256",
-              "internalType": "C.UDVT"
-            }
-          ]
         }
       ],
       "hashes": {

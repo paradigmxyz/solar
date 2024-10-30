@@ -22,6 +22,7 @@ impl<'gcx> Gcx<'gcx> {
     /// Reference: <https://docs.soliditylang.org/en/develop/abi-spec.html>
     pub fn contract_abi(self, id: hir::ContractId) -> Vec<json::AbiItem<'static>> {
         let mut items = Vec::<json::AbiItem<'static>>::new();
+
         let c = self.hir.contract(id);
         if let Some(ctor) = c.ctor {
             let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
@@ -47,7 +48,14 @@ impl<'gcx> Gcx<'gcx> {
                 _ => {}
             }
         }
-        // items.sort_by(|a, b| a.name().cmp(&b.name()));
+
+        // https://github.com/ethereum/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
+        fn cmp_key<'a>(item: &'a json::AbiItem<'_>) -> impl Ord + use<'a> {
+            // TODO: Use `json_type` instead of `debug_name`.
+            (item.debug_name(), item.name())
+        }
+        items.sort_by(|a, b| cmp_key(a).cmp(&cmp_key(b)));
+
         items
     }
 
