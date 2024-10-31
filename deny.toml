@@ -1,9 +1,7 @@
 [advisories]
-vulnerability = "deny"
-unmaintained = "warn"
-unsound = "warn"
+version = 2
 yanked = "warn"
-notice = "warn"
+ignore = []
 
 [bans]
 multiple-versions = "warn"
@@ -11,25 +9,21 @@ wildcards = "deny"
 highlight = "all"
 
 [licenses]
-unlicensed = "deny"
-confidence-threshold = 0.9
-# copyleft = "deny"
+version = 2
+confidence-threshold = 0.8
 
 allow = [
     "MIT",
-    "MIT-0",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    "ISC",
     "Unicode-DFS-2016",
     "Unlicense",
+    "BSL-1.0",
+    "0BSD",
     "MPL-2.0",
-    # https://github.com/briansmith/ring/issues/902
-    "LicenseRef-ring",
-    # https://github.com/briansmith/webpki/issues/148
-    "LicenseRef-webpki",
+    "Zlib",
 ]
 
 exceptions = [
@@ -39,16 +33,10 @@ exceptions = [
     { allow = ["CC0-1.0"], name = "tiny-keccak" },
 ]
 
-[[licenses.clarify]]
-name = "ring"
-expression = "LicenseRef-ring"
-license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
-
-[[licenses.clarify]]
-name = "webpki"
-expression = "LicenseRef-webpki"
-license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
-
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-git = [
+    # Used only for testing.
+    "https://github.com/oli-obk/ui_test",
+]
