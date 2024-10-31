@@ -25,8 +25,10 @@ impl<'gcx> Gcx<'gcx> {
 
         let c = self.hir.contract(id);
         if let Some(ctor) = c.ctor {
-            let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
-            items.push(json::Constructor { inputs, state_mutability }.into());
+            if !c.is_abstract() {
+                let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
+                items.push(json::Constructor { inputs, state_mutability }.into());
+            }
         }
         if let Some(fallback) = c.fallback {
             let json::Function { state_mutability, .. } = self.function_abi(fallback);
@@ -36,7 +38,7 @@ impl<'gcx> Gcx<'gcx> {
             let json::Function { state_mutability, .. } = self.function_abi(receive);
             items.push(json::Receive { state_mutability }.into());
         }
-        for f in self.interface_functions(id).all_functions() {
+        for f in self.interface_functions(id) {
             items.push(self.function_abi(f.id).into());
         }
         // TODO: Does not include referenced items.

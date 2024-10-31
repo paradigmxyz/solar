@@ -29,14 +29,14 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
     let mut output =
         CombinedJson { contracts: Default::default(), version: solar_interface::VERSION };
     for id in gcx.hir.contract_ids() {
-        let name = gcx.contract_fully_qualified_name(id);
+        let name = gcx.contract_fully_qualified_name(id).to_string();
         let contract_output = output.contracts.entry(name).or_default();
         for &emit in &gcx.sess.emit {
             match emit {
                 CompilerOutput::Abi => contract_output.abi = Some(gcx.contract_abi(id)),
                 CompilerOutput::Hashes => {
                     let mut hashes = Hashes::default();
-                    for f in gcx.interface_functions(id).all_functions() {
+                    for f in gcx.interface_functions(id) {
                         hashes.insert(
                             gcx.item_signature(f.id.into()).to_string(),
                             alloy_primitives::hex::encode(f.selector),

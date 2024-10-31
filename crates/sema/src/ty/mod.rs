@@ -6,6 +6,7 @@ use crate::{
 use alloy_primitives::{keccak256, Selector, B256};
 use solar_ast::ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
+    fmt_from_fn,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     BumpExt,
 };
@@ -36,10 +37,10 @@ type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
 pub struct InterfaceFunction<'gcx> {
-    /// The function 4-byte selector.
-    pub selector: Selector,
     /// The function ID.
     pub id: hir::FunctionId,
+    /// The function 4-byte selector.
+    pub selector: Selector,
     /// The function type. This is always a function pointer.
     pub ty: Ty<'gcx>,
 }
@@ -56,16 +57,38 @@ pub struct InterfaceFunctions<'gcx> {
 }
 
 impl<'gcx> InterfaceFunctions<'gcx> {
-    pub fn all_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+    /// Returns all the functions.
+    pub fn all(&self) -> &'gcx [InterfaceFunction<'gcx>] {
         self.functions
     }
 
-    pub fn own_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+    /// Returns the defined functions.
+    pub fn own(&self) -> &'gcx [InterfaceFunction<'gcx>] {
         &self.functions[..self.inheritance_start]
     }
 
-    pub fn inherited_functions(&self) -> &'gcx [InterfaceFunction<'gcx>] {
+    /// Returns the inherited functions.
+    pub fn inherited(&self) -> &'gcx [InterfaceFunction<'gcx>] {
         &self.functions[self.inheritance_start..]
+    }
+}
+
+impl<'gcx> std::ops::Deref for InterfaceFunctions<'gcx> {
+    type Target = &'gcx [InterfaceFunction<'gcx>];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.functions
+    }
+}
+
+impl<'gcx> IntoIterator for InterfaceFunctions<'gcx> {
+    type Item = &'gcx InterfaceFunction<'gcx>;
+    type IntoIter = std::slice::Iter<'gcx, InterfaceFunction<'gcx>>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.functions.iter()
     }
 }
 
@@ -223,7 +246,7 @@ impl<'gcx> Gcx<'gcx> {
     fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
         let name = self.item_name(id);
         let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
-        solar_data_structures::fmt_from_fn(move |f| {
+        fmt_from_fn(move |f| {
             if let Some(contract) = contract {
                 write!(f, "{contract}.")?;
             }
@@ -232,10 +255,15 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the fully qualified name of the contract.
-    pub fn contract_fully_qualified_name(self, id: hir::ContractId) -> String {
-        let c = self.hir.contract(id);
-        let source = self.hir.source(c.source);
-        format!("{}:{}", source.file.name.display(), c.name)
+    pub fn contract_fully_qualified_name(
+        self,
+        id: hir::ContractId,
+    ) -> impl fmt::Display + use<'gcx> {
+        fmt_from_fn(move |f| {
+            let c = self.hir.contract(id);
+            let source = self.hir.source(c.source);
+            write!(f, "{}:{}", source.file.name.display(), c.name)
+        })
     }
 
     /// Returns an iterator over the fields of the given item.
@@ -433,8 +461,10 @@ cached! {
 pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
     let kind = gcx.hir.contract(id).kind;
     assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
-    let selectors = gcx.interface_functions(id).own_functions().iter().map(|f| f.selector);
-    selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
+    let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
+    let iid = selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor);
+    debug!("{}.interfaceId = {iid}", gcx.contract_fully_qualified_name(id));
+    iid
 }
 
 /// Returns all the exported functions of the given contract.
@@ -499,6 +529,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         Some(InterfaceFunction { selector, id: f_id, ty })
     });
     let functions = gcx.bump().alloc_from_iter(functions);
+    debug!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
 }

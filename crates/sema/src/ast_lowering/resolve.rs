@@ -449,12 +449,14 @@ impl super::LoweringContext<'_, '_, '_> {
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
         for i in 0usize.. {
-            let index_name = || Ident::new(Symbol::intern(&format!("index{i}")), span);
+            // let index_name = || Some(Ident::new(Symbol::intern(&format!("index{i}")), span));
+            let _ = i;
+            let index_name = || None;
             match ret_ty.kind {
                 // mapping(k => v) -> arguments += k, ret_ty = v
                 hir::TypeKind::Mapping(map) => {
-                    let name = map.key_name.unwrap_or_else(index_name);
-                    let mut param = hir::Variable::new(map.key.clone(), Some(name));
+                    let name = map.key_name.or_else(index_name);
+                    let mut param = hir::Variable::new(map.key.clone(), name);
                     param.data_location = Some(hir::DataLocation::Calldata);
                     parameters.push(self.hir.variables.push(param));
                     ret_ty = &map.value;
@@ -468,7 +470,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         )),
                         span: ret_ty.span,
                     };
-                    let var = hir::Variable::new(u256, Some(index_name()));
+                    let var = hir::Variable::new(u256, index_name());
                     parameters.push(self.hir.variables.push(var));
                     ret_ty = &array.element;
                 }

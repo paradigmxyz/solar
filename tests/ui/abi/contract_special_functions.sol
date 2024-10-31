@@ -1,6 +1,16 @@
 //@ignore-host: windows
 //@compile-flags: --emit=abi,hashes --pretty-json
 
+// Abstract contracts don't emit constructors.
+abstract contract A {
+    constructor() payable {}
+    fallback() external {}
+}
+
+abstract contract B is A {
+    receive() external payable {}
+}
+
 contract C {
     constructor() {}
     fallback() external {}

@@ -7,7 +7,7 @@
           "name": "array",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -26,7 +26,7 @@
           "name": "arrayOfMaps",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             },
@@ -50,7 +50,7 @@
           "name": "arrayOfMapsOne",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             },
@@ -74,7 +74,7 @@
           "name": "arrayOfMapsRecMap",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             },
@@ -103,7 +103,7 @@
           "name": "arrayOfMapsTwo",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             },
@@ -132,7 +132,7 @@
           "name": "arrayOne",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -151,7 +151,7 @@
           "name": "arrayRecMap",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -175,7 +175,7 @@
           "name": "arrayTwo",
           "inputs": [
             {
-              "name": "index0",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -223,7 +223,7 @@
               "internalType": "int256"
             },
             {
-              "name": "index1",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -247,7 +247,7 @@
               "internalType": "int256"
             },
             {
-              "name": "index1",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -271,7 +271,7 @@
               "internalType": "int256"
             },
             {
-              "name": "index1",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }
@@ -300,7 +300,7 @@
               "internalType": "int256"
             },
             {
-              "name": "index1",
+              "name": "",
               "type": "uint256",
               "internalType": "uint256"
             }

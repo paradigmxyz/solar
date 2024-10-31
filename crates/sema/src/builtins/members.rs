@@ -124,7 +124,6 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
         return MemberListOwned::default();
     }
     gcx.interface_functions(id)
-        .all_functions()
         .iter()
         .map(|f| {
             let id = hir::ItemId::from(f.id);

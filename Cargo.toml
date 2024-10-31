@@ -170,4 +170,5 @@ vergen = "8.3"
 [patch.crates-io]
 # https://github.com/oli-obk/ui_test/pull/286
 # https://github.com/oli-obk/ui_test/pull/289
-ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "fb3c75bf0b0cc3b7b44e4431bacdafa210c00489" }
+# https://github.com/oli-obk/ui_test/pull/291
+ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "a2a7d13b0394767f5770eb563fc7fc30a3b780e5" }
