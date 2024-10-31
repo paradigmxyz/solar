@@ -34,7 +34,7 @@ pub struct HumanEmitter {
     renderer: Renderer,
 }
 
-// SAFETY: `real_writer` always points to the `dyn Writer` in `writer`.
+// SAFETY: `real_writer` always points to the `Writer` in `writer`.
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
@@ -71,7 +71,6 @@ impl HumanEmitter {
         Self {
             writer_type_id,
             real_writer: &mut *real_writer,
-            // NOTE: Intentionally erases the `+ Send` bound, see `writer` above.
             writer: AutoStream::new(real_writer, color),
             source_map: None,
             renderer: DEFAULT_RENDERER,

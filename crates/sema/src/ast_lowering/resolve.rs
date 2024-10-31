@@ -195,6 +195,45 @@ impl super::LoweringContext<'_, '_, '_> {
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
         }
     }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn assign_constructors(&mut self) {
+        for contract_id in self.hir.contract_ids() {
+            let mut ctor = None;
+            let mut fallback = None;
+            let mut receive = None;
+
+            for &base_id in self.hir.contract(contract_id).linearized_bases {
+                for function_id in self.hir.contract(base_id).functions() {
+                    let func = self.hir.function(function_id);
+                    let slot = match func.kind {
+                        // Ignore inherited constructors.
+                        ast::FunctionKind::Constructor if base_id == contract_id => &mut ctor,
+                        ast::FunctionKind::Fallback => &mut fallback,
+                        ast::FunctionKind::Receive => &mut receive,
+                        _ => continue,
+                    };
+                    if let Some(prev) = *slot {
+                        // Don't report an error if the function is overridden.
+                        if base_id != contract_id {
+                            continue;
+                        }
+                        let msg = format!("{} function already declared", func.kind);
+                        let note = "previous declaration here";
+                        let prev_span = self.hir.function(prev).span;
+                        self.dcx().err(msg).span(func.span).span_note(prev_span, note).emit();
+                    } else {
+                        *slot = Some(function_id);
+                    }
+                }
+            }
+
+            let c = &mut self.hir.contracts[contract_id];
+            c.ctor = ctor;
+            c.fallback = fallback;
+            c.receive = receive;
+        }
+    }
 }
 
 impl super::LoweringContext<'_, '_, '_> {
