@@ -474,6 +474,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// If the given word is not a keyword, signals an error.
     /// If the next token is not the given word, signals an error.
     /// Otherwise, eats it.
+    #[track_caller]
     fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
         if !self.eat_keyword(kw) {
             self.unexpected()

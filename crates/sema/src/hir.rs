@@ -528,6 +528,11 @@ impl Contract<'_> {
     pub fn can_be_deployed(&self) -> bool {
         matches!(self.kind, ContractKind::Contract | ContractKind::Library)
     }
+
+    /// Returns `true` if this is an abstract contract.
+    pub fn is_abstract(&self) -> bool {
+        self.kind.is_abstract_contract()
+    }
 }
 
 /// A function.

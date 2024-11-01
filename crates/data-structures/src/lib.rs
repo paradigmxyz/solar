@@ -45,13 +45,17 @@ pub fn outline<R>(f: impl FnOnce() -> R) -> R {
 
 /// Wrapper for [`fmt::from_fn`].
 #[cfg(feature = "nightly")]
-pub fn fmt_from_fn<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result>(f: F) -> impl fmt::Display {
+pub fn fmt_from_fn<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result>(
+    f: F,
+) -> impl fmt::Debug + fmt::Display {
     fmt::from_fn(f)
 }
 
 /// Polyfill for [`fmt::from_fn`];
 #[cfg(not(feature = "nightly"))]
-pub fn fmt_from_fn<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result>(f: F) -> impl fmt::Display {
+pub fn fmt_from_fn<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result>(
+    f: F,
+) -> impl fmt::Debug + fmt::Display {
     struct FromFn<F>(F);
 
     impl<F> fmt::Debug for FromFn<F>

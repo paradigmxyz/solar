@@ -1,5 +1,27 @@
 {
   "contracts": {
+    "ROOT/tests/ui/abi/contract_special_functions.sol:A": {
+      "abi": [
+        {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
+        }
+      ],
+      "hashes": {}
+    },
+    "ROOT/tests/ui/abi/contract_special_functions.sol:B": {
+      "abi": [
+        {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "receive",
+          "stateMutability": "payable"
+        }
+      ],
+      "hashes": {}
+    },
     "ROOT/tests/ui/abi/contract_special_functions.sol:C": {
       "abi": [
         {
