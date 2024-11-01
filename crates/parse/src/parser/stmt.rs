@@ -1,7 +1,7 @@
 use super::item::VarFlags;
 use crate::{parser::SeqSep, PResult, Parser};
 use smallvec::SmallVec;
-use solar_ast::{ast::*, token::*};
+use solar_ast::{token::*, *};
 use solar_data_structures::BumpExt;
 use solar_interface::{kw, sym, Ident, Span};
 

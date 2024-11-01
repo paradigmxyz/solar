@@ -1,7 +1,7 @@
 use super::{Gcx, Recursiveness};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
-use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use solar_data_structures::Interned;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};

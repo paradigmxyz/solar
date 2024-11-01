@@ -1,7 +1,7 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
-use solar_ast::{ast::*, token::*};
+use solar_ast::{token::*, *};
 use solar_interface::{error_code, kw, sym, Ident, Span};
 use std::num::IntErrorKind;
 

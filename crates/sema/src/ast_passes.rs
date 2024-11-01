@@ -1,10 +1,6 @@
 //! AST-related passes.
 
-use solar_ast::{
-    ast,
-    ast::{Stmt, StmtKind},
-    visit::Visit,
-};
+use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
@@ -120,25 +116,26 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
     }
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-        let Stmt { kind, .. } = stmt;
+        let ast::Stmt { kind, .. } = stmt;
 
         match kind {
-            StmtKind::While(_, body, ..)
-            | StmtKind::DoWhile(body, ..)
-            | StmtKind::For { body, .. } => {
+            ast::StmtKind::While(_, body, ..)
+            | ast::StmtKind::DoWhile(body, ..)
+            | ast::StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
                 let r = self.walk_stmt(body);
                 self.in_loop_depth -= 1;
                 return r;
             }
-            StmtKind::Break | StmtKind::Continue => {
+            ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
-                    let kind = if matches!(kind, StmtKind::Break) { "break" } else { "continue" };
+                    let kind =
+                        if matches!(kind, ast::StmtKind::Break) { "break" } else { "continue" };
                     let msg = format!("`{kind}` outside of a loop");
                     self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
-            StmtKind::UncheckedBlock(block) => {
+            ast::StmtKind::UncheckedBlock(block) => {
                 if self.in_unchecked_block {
                     self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
@@ -149,7 +146,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.in_unchecked_block = prev;
                 return r;
             }
-            StmtKind::Placeholder => {
+            ast::StmtKind::Placeholder => {
                 if !self.in_modifier {
                     self.dcx()
                         .err("placeholder statements can only be used in modifiers")

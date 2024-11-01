@@ -18,7 +18,7 @@ pub use parser::Parser;
 
 // Convenience re-exports.
 pub use bumpalo;
-pub use solar_ast::{ast, token};
+pub use solar_ast::{self as ast, token};
 pub use solar_interface as interface;
 
 /// Parser error type.

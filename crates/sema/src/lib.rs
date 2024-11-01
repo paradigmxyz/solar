@@ -18,7 +18,7 @@ use ty::Gcx;
 // Convenience re-exports.
 pub use ::thread_local;
 pub use bumpalo;
-pub use solar_ast::ast;
+pub use solar_ast as ast;
 pub use solar_interface as interface;
 
 mod ast_lowering;

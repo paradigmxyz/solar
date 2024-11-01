@@ -1,8 +1,9 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
+    self as ast,
     token::{Delimiter, Token, TokenKind},
+    AstPath, Box, DocComment, DocComments, PathSlice,
 };
 use solar_data_structures::BumpExt;
 use solar_interface::{

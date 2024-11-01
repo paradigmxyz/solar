@@ -1,5 +1,5 @@
 use super::{Interner, Ty, TyFlags, TyKind};
-use solar_ast::ast::{DataLocation, ElementaryType, TypeSize};
+use solar_ast::{DataLocation, ElementaryType, TypeSize};
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
