@@ -9,6 +9,7 @@ changed or not.
 ## Requirements
 
 - [cargo-release](https://github.com/crate-ci/cargo-release): `cargo install cargo-release`
+- [dist](https://github.com/axodotdev/cargo-dist): `cargo install cargo-dist`
 
 ## Steps
 
