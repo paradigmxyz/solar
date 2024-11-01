@@ -10,25 +10,26 @@ use std::path::PathBuf;
     name = "solar",
     version = crate::version::SHORT_VERSION,
     long_version = crate::version::LONG_VERSION,
-    // after_help = "Find more information in the book: http://book.getfoundry.sh/reference/forge/forge.html",
-    next_display_order = None,
+    arg_required_else_help = true,
 )]
+#[non_exhaustive]
 pub struct Args {
     /// Files to compile or import remappings.
     #[arg(value_hint = ValueHint::FilePath)]
     pub input: Vec<PathBuf>,
     /// Directory to search for files.
-    #[arg(long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath)]
+    #[arg(help_heading = "Input options", long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath)]
     pub import_path: Vec<PathBuf>,
     /// Map to search for files. Can also be provided as a positional argument.
-    #[arg(long, short = 'm', value_name = "MAP=PATH")]
+    #[arg(help_heading = "Input options", long, short = 'm', value_name = "MAP=PATH")]
     pub import_map: Vec<ImportMap>,
-    /// Directory to write output files.
-    #[arg(long, short, value_hint = ValueHint::DirPath)]
-    pub out_dir: Option<PathBuf>,
-    /// Source code language.
-    #[arg(long, value_enum, default_value_t)]
+    /// Source code language. Only Solidity is currently implemented.
+    #[arg(help_heading = "Input options", long, value_enum, default_value_t, hide = true)]
     pub language: Language,
+
+    /// Number of threads to use. Zero specifies the number of logical cores.
+    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
+    pub threads: usize,
     /// EVM version.
     #[arg(long, value_enum, default_value_t)]
     pub evm_version: EvmVersion,
@@ -36,27 +37,30 @@ pub struct Args {
     #[arg(long, value_enum)]
     pub stop_after: Option<CompilerStage>,
 
-    /// Coloring.
-    #[arg(long, value_enum, default_value_t)]
-    pub color: ColorChoice,
-    /// Use verbose output.
-    #[arg(long, short)]
-    pub verbose: bool,
-    /// Pretty-print any JSON output.
-    #[arg(long)]
-    pub pretty_json: bool,
-    /// Pretty-print any JSON stderr output.
-    #[arg(long)]
-    pub pretty_json_err: bool,
-    /// How errors and other messages are produced.
-    #[arg(long, value_enum, default_value_t)]
-    pub error_format: ErrorFormat,
-    /// Number of threads to use. Zero specifies the number of logical cores.
-    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
-    pub threads: usize,
+    /// Directory to write output files.
+    #[arg(long, value_hint = ValueHint::DirPath)]
+    pub out_dir: Option<PathBuf>,
     /// Comma separated list of types of output for the compiler to emit.
     #[arg(long, value_delimiter = ',')]
     pub emit: Vec<CompilerOutput>,
+
+    /// Coloring.
+    #[arg(help_heading = "Display options", long, value_enum, default_value = "auto")]
+    pub color: ColorChoice,
+    /// Use verbose output.
+    #[arg(help_heading = "Display options", long, short)]
+    pub verbose: bool,
+    /// Pretty-print JSON output.
+    ///
+    /// Does not include errors. See `--pretty-json-err`.
+    #[arg(help_heading = "Display options", long)]
+    pub pretty_json: bool,
+    /// Pretty-print error JSON output.
+    #[arg(help_heading = "Display options", long)]
+    pub pretty_json_err: bool,
+    /// How errors and other messages are produced.
+    #[arg(help_heading = "Display options", long, value_enum, default_value_t)]
+    pub error_format: ErrorFormat,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
@@ -73,8 +77,11 @@ pub struct Args {
 }
 
 impl Args {
-    /// Parses the `-Z` arguments into the `unstable` field.
-    pub fn populate_unstable(&mut self) -> Result<(), clap::Error> {
+    /// Finishes argument parsing.
+    ///
+    /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
+    /// in the future.
+    pub fn finish(&mut self) -> Result<(), clap::Error> {
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
             self.unstable =
@@ -82,6 +89,36 @@ impl Args {
         }
         Ok(())
     }
+}
+
+/// Internal options.
+#[derive(Clone, Debug, Default, Parser)]
+#[clap(help_template = "{all-args}")]
+#[non_exhaustive]
+pub struct UnstableFeatures {
+    /// Enables UI testing mode.
+    #[arg(long)]
+    pub ui_testing: bool,
+    /// Prints a note for every diagnostic that is emitted with the creation and emission location.
+    ///
+    /// This is enabled by default on debug builds.
+    #[arg(long)]
+    pub track_diagnostics: bool,
+    /// Enables parsing Yul files for testing.
+    #[arg(long)]
+    pub parse_yul: bool,
+    /// Print additional information about the compiler's internal state.
+    ///
+    /// Valid kinds are `ast` and `hir`.
+    #[arg(long, value_name = "KIND[=PATHS...]")]
+    pub dump: Option<Dump>,
+
+    #[cfg(test)]
+    #[arg(long)]
+    test_bool: bool,
+    #[cfg(test)]
+    #[arg(long)]
+    test_value: Option<usize>,
 }
 
 /// How errors and other messages are produced.
@@ -116,34 +153,6 @@ impl std::str::FromStr for ImportMap {
     }
 }
 
-/// Internal options.
-#[derive(Clone, Debug, Default, Parser)]
-pub struct UnstableFeatures {
-    /// Enables UI testing mode.
-    #[arg(long)]
-    pub ui_testing: bool,
-    /// Prints a note for every diagnostic that is emitted with the creation and emission location.
-    ///
-    /// This is enabled by default on debug builds.
-    #[arg(long)]
-    pub track_diagnostics: bool,
-    /// Enables parsing Yul files for testing.
-    #[arg(long)]
-    pub parse_yul: bool,
-    /// Print additional information about the compiler's internal state.
-    ///
-    /// Valid kinds are `ast` and `hir`.
-    #[arg(long, value_name = "KIND[=PATHS...]")]
-    pub dump: Option<Dump>,
-
-    #[cfg(test)]
-    #[arg(long)]
-    test_bool: bool,
-    #[cfg(test)]
-    #[arg(long)]
-    test_value: Option<usize>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,7 +175,7 @@ mod tests {
             }
             (|| {
                 let mut args = Args::try_parse_from(args)?;
-                args.populate_unstable()?;
+                args.finish()?;
                 Ok::<_, clap::Error>(args.unstable)
             })()
             .map_err(|e| UnwrapDisplay(e.render().ansi().to_string()))

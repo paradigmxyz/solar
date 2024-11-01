@@ -1395,15 +1395,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2534,7 +2525,7 @@ dependencies = [
 
 [[package]]
 name = "solar-ast"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "bumpalo",
@@ -2551,7 +2542,7 @@ dependencies = [
 
 [[package]]
 name = "solar-bench"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "criterion",
  "iai-callgrind",
@@ -2564,7 +2555,7 @@ dependencies = [
 
 [[package]]
 name = "solar-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "cfg-if",
@@ -2585,7 +2576,7 @@ dependencies = [
 
 [[package]]
 name = "solar-compiler"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "solar-ast",
@@ -2602,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "solar-config"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "clap_builder",
  "serde",
@@ -2612,7 +2603,7 @@ dependencies = [
 
 [[package]]
 name = "solar-data-structures"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "bumpalo",
  "index_vec",
@@ -2625,14 +2616,14 @@ dependencies = [
 
 [[package]]
 name = "solar-examples"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "solar-compiler",
 ]
 
 [[package]]
 name = "solar-interface"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "annotate-snippets",
  "anstream",
@@ -2640,7 +2631,7 @@ dependencies = [
  "const-hex",
  "derive_builder",
  "dunce",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "itoa",
  "lasso",
  "match_cfg",
@@ -2660,7 +2651,7 @@ dependencies = [
 
 [[package]]
 name = "solar-macros"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2669,13 +2660,13 @@ dependencies = [
 
 [[package]]
 name = "solar-parse"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "bitflags",
  "bumpalo",
  "expect-test",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "memchr",
  "num-bigint",
  "num-rational",
@@ -2689,7 +2680,7 @@ dependencies = [
 
 [[package]]
 name = "solar-sema"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -2714,7 +2705,7 @@ dependencies = [
 
 [[package]]
 name = "solar-tester"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "regex",
  "tempfile",
@@ -3591,7 +3582,7 @@ checksum = "9d422e8e38ec76e2f06ee439ccc765e9c6a9638b9e7c9f2e8255e4d41e8bd852"
 
 [[package]]
 name = "xtask"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "xflags",
