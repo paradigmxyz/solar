@@ -16,20 +16,6 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 - 💻 Simple and hackable code base
 - 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
 
-## Roadmap
-
-You can find a more detailed list in the [pinned GitHub issue](https://github.com/ithacaxyz/solar/issues/1).
-
-- [ ] Front-end
-  - [x] Lexing
-  - [x] Parsing
-  - [ ] Semantic analysis
-    - [x] Symbol resolution 
-    - [ ] Type checker
-    - [ ] Static analysis
-- [ ] Middle-end
-- [ ] Back-end
-
 ## Getting started
 
 Solar is available through a command-line interface, or as a Rust library.
@@ -108,6 +94,20 @@ EOF
 # Compile a file with a Foundry project's remappings.
 $ solar $(forge re) src/Contract.sol
 ```
+
+## Roadmap
+
+You can find a more detailed list in the [pinned GitHub issue](https://github.com/ithacaxyz/solar/issues/1).
+
+- [ ] Front-end
+  - [x] Lexing
+  - [x] Parsing
+  - [ ] Semantic analysis
+    - [x] Symbol resolution 
+    - [ ] Type checker
+    - [ ] Static analysis
+- [ ] Middle-end
+- [ ] Back-end
 
 ## Semver Compatibility
 
