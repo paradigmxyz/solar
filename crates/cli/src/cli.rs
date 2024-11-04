@@ -64,9 +64,7 @@ pub struct Args {
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
-    /// See `-Z help` for more details.
-    // TODO: `-Zhelp` needs positional arg, and also it's displayed like a normal command.
-    // TODO: Figure out if we can flatten this directly in clap derives.
+    /// See `-Zhelp` for more details.
     #[doc(hidden)]
     #[arg(id = "unstable-features", value_name = "FLAG", short = 'Z')]
     pub _unstable: Vec<String>,
@@ -93,7 +91,16 @@ impl Args {
 
 /// Internal options.
 #[derive(Clone, Debug, Default, Parser)]
-#[clap(help_template = "{all-args}")]
+#[clap(
+    disable_help_flag = true,
+    before_help = concat!(
+        "List of all unstable flags.\n",
+        "WARNING: these are completely unstable, and may change at any time!\n",
+        // TODO: This is pretty hard to fix, as we don't have access to the `Command` in the derive macros.
+        "   NOTE: the following flags should be passed on the command-line using `-Z`, not `--`",
+    ),
+    help_template = "{before-help}{all-args}"
+)]
 #[non_exhaustive]
 pub struct UnstableFeatures {
     /// Enables UI testing mode.
@@ -112,6 +119,10 @@ pub struct UnstableFeatures {
     /// Valid kinds are `ast` and `hir`.
     #[arg(long, value_name = "KIND[=PATHS...]")]
     pub dump: Option<Dump>,
+
+    /// Print help.
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: (),
 
     #[cfg(test)]
     #[arg(long)]
