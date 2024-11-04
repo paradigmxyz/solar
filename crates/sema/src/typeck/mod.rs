@@ -21,7 +21,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 /// Checks for definitions that have the same name and parameter types in the given scope.
 fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
     let is_duplicate = |a: Declaration, b: Declaration| -> bool {
-        let (Res::Item(a), Res::Item(b)) = (a.kind, b.kind) else { return false };
+        let (Res::Item(a), Res::Item(b)) = (a.res, b.res) else { return false };
         if !a.matches(&b) {
             return false;
         }

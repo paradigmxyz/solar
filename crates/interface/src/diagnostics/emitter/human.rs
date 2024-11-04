@@ -13,6 +13,8 @@ use std::{
     sync::Arc,
 };
 
+// TODO: Tabs are not formatted correctly: https://github.com/rust-lang/annotate-snippets-rs/issues/25
+
 type Writer = dyn Write + Send + 'static;
 
 const DEFAULT_RENDERER: Renderer = Renderer::plain()
@@ -331,7 +333,6 @@ impl OwnedSnippet {
                 for line in &mut sub_file.lines {
                     for ann in &mut line.annotations {
                         ann.level = Some(sub.level);
-                        // TODO: Is this right?
                         if ann.is_primary && ann.label.is_none() {
                             ann.label = Some(label.to_string());
                         }
@@ -377,8 +378,6 @@ impl OwnedSnippet {
             .annotations(self.annotations.iter().map(OwnedAnnotation::as_ref))
     }
 }
-
-// TODO: Tabs are not handled correctly.
 
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.

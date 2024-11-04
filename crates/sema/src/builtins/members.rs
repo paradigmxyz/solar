@@ -38,12 +38,15 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
         TyKind::Udvt(_ty, _id) => Default::default(),
         TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::ErrorSelector]),
         TyKind::Event(_tys, _id) => Member::of_builtins(gcx, [Builtin::EventSelector]),
-        TyKind::Module(_id) => {
-            // TODO: needs symbol resolver
-            Default::default()
-        }
+        TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
+            .declarations
+            .iter()
+            .flat_map(|(&name, decls)| {
+                decls.iter().map(move |decl| Member::new(name, gcx.type_of_res(decl.res)))
+            })
+            .collect(),
         TyKind::BuiltinModule(builtin) => builtin
-            .inner()
+            .members()
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
             .iter()
             .map(|&b| Member::of_builtin(gcx, b))

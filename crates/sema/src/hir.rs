@@ -751,7 +751,7 @@ pub struct Stmt<'hir> {
 /// A kind of statement.
 #[derive(Debug)]
 pub enum StmtKind<'hir> {
-    // TODO
+    // TODO: Yul to HIR.
     // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
     // Assembly(StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.

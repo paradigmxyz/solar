@@ -186,7 +186,7 @@ impl std::error::Error for OffsetOverflowError {}
 
 impl From<OffsetOverflowError> for io::Error {
     fn from(e: OffsetOverflowError) -> Self {
-        // TODO: Use `FileTooLarge` when `io_error_more` is stable.
+        // TODO(MSRV-1.83): Use `FileTooLarge`.
         Self::new(io::ErrorKind::Other, e)
     }
 }
