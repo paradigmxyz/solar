@@ -2,6 +2,8 @@
 
 Simple benchmarks across different Solidity parser implementations.
 
+Requires cloning submodules: `git submodule update --init --recursive`.
+
 Run with:
 
 ```bash
