@@ -11,16 +11,16 @@ pub use members::{Member, MemberList};
 
 pub(crate) fn scopes() -> (Declarations, Box<[Option<Declarations>; Builtin::COUNT]>) {
     let global = declarations(Builtin::global().iter().copied());
-    let inner = Box::new(std::array::from_fn(|i| {
-        Some(declarations(Builtin::from_index(i).unwrap().inner()?.iter().copied()))
+    let members_map = Box::new(std::array::from_fn(|i| {
+        Some(declarations(Builtin::from_index(i).unwrap().members()?.iter().copied()))
     }));
-    (global, inner)
+    (global, members_map)
 }
 
 fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
     let mut declarations = Declarations::new();
     for builtin in builtins {
-        let decl = Declaration { kind: hir::Res::Builtin(builtin), span: Span::DUMMY };
+        let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY };
         declarations.declarations.entry(builtin.name()).or_default().push(decl);
     }
     declarations
@@ -290,8 +290,8 @@ impl Builtin {
         builtin_range_slice!(Self::FIRST_GLOBAL, Self::LAST_GLOBAL)
     }
 
-    /// Returns the inner builtins.
-    pub fn inner(self) -> Option<&'static [Self]> {
+    /// Returns the builtin's members.
+    pub fn members(self) -> Option<&'static [Self]> {
         use Builtin::*;
         Some(match self {
             Block => builtin_range_slice!(Self::FIRST_BLOCK, Self::LAST_BLOCK),

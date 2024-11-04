@@ -409,13 +409,13 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    #[allow(dead_code)]
-    fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
+    /// Returns the type of the given [`hir::Res`].
+    pub fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
         match res {
             hir::Res::Item(id) => self.type_of_item(id),
             hir::Res::Namespace(id) => self.mk_ty(TyKind::Module(id)),
             hir::Res::Builtin(builtin) => builtin.ty(self),
-            hir::Res::Err(error_guaranteed) => self.mk_ty(TyKind::Err(error_guaranteed)),
+            hir::Res::Err(guar) => self.mk_ty_err(guar),
         }
     }
 }

@@ -38,7 +38,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         for &decl in decls {
                             // Import if it was declared in the base, is not the constructor and is
                             // visible in derived classes.
-                            let Res::Item(decl_item_id) = decl.kind else { continue };
+                            let Res::Item(decl_item_id) = decl.res else { continue };
                             let decl_item = self.hir.item(decl_item_id);
                             if decl_item.contract() != Some(base_id) {
                                 continue;
@@ -52,7 +52,7 @@ impl super::LoweringContext<'_, '_, '_> {
                                 use hir::ItemId::*;
                                 use Res::*;
 
-                                let Item(conflict_id) = conflict.kind else { continue };
+                                let Item(conflict_id) = conflict.res else { continue };
                                 match (decl_item_id, conflict_id) {
                                     // Usual shadowing is not an error.
                                     (Function(a), Function(b)) => {

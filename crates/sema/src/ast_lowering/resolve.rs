@@ -26,7 +26,7 @@ impl super::LoweringContext<'_, '_, '_> {
                 for &item_id in source.items {
                     let item = self.hir.item(item_id);
                     if let Some(name) = item.name() {
-                        let decl = Declaration { kind: Res::Item(item_id), span: name.span };
+                        let decl = Declaration { res: Res::Item(item_id), span: name.span };
                         let _ = self.declare_in(&mut scope, name.name, decl);
                     }
                 }
@@ -54,7 +54,7 @@ impl super::LoweringContext<'_, '_, '_> {
                 match import.items {
                     ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
                         if let Some(alias) = alias {
-                            let _ = source_scope.declare_kind(
+                            let _ = source_scope.declare_res(
                                 self.sess,
                                 &self.hir,
                                 alias,
@@ -130,7 +130,7 @@ impl super::LoweringContext<'_, '_, '_> {
                 sess.source_map().filename_for_diagnostics(&source.file.name)
             );
             let guar = sess.dcx.err(msg).span(import.span).emit();
-            let _ = source_scope.declare_kind(sess, hir, name, Res::Err(guar));
+            let _ = source_scope.declare_res(sess, hir, name, Res::Err(guar));
         }
     }
 
@@ -148,9 +148,9 @@ impl super::LoweringContext<'_, '_, '_> {
 
                 // Declare `this` and `super`.
                 let span = Span::DUMMY;
-                let this = Declaration { kind: Res::Builtin(Builtin::This), span };
+                let this = Declaration { res: Res::Builtin(Builtin::This), span };
                 let _ = self.declare_in(&mut scope, sym::this, this);
-                let super_ = Declaration { kind: Res::Builtin(Builtin::Super), span };
+                let super_ = Declaration { res: Res::Builtin(Builtin::Super), span };
                 let _ = self.declare_in(&mut scope, sym::super_, super_);
 
                 for &item_id in contract.items {
@@ -572,7 +572,7 @@ impl super::LoweringContext<'_, '_, '_> {
         name: Ident,
         decl: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        scope.declare_kind(self.sess, &self.hir, name, decl)
+        scope.declare_res(self.sess, &self.hir, name, decl)
     }
 
     fn declare_in(
@@ -635,7 +635,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
 
     fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
         self.resolve_paths(path)
-            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)))
+            .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)))
     }
 
     fn resolve_path_as<T: TryFrom<Res>>(
@@ -741,8 +741,8 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
         let mut guar = Ok(());
         if let Some(name) = var.name {
-            let decl = Res::Item(hir::ItemId::Variable(id));
-            guar = self.scopes.current_scope().declare_kind(self.sess, self.hir, name, decl);
+            let res = Res::Item(hir::ItemId::Variable(id));
+            guar = self.scopes.current_scope().declare_res(self.sess, self.hir, name, res);
         }
         (id, guar)
     }
@@ -871,7 +871,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::ExprKind::Ident(name) => {
                 match self.resolve_paths(ast::PathSlice::from_ref(name)) {
                     Ok(decls) => hir::ExprKind::Ident(
-                        self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.kind)),
+                        self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
                     ),
                     Err(guar) => hir::ExprKind::Err(guar),
                 }
@@ -1022,18 +1022,18 @@ pub(crate) struct SymbolResolver<'sess> {
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
     global_builtin_scope: Declarations,
-    inner_builtin_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
+    builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
 impl<'sess> SymbolResolver<'sess> {
     pub(crate) fn new(dcx: &'sess DiagCtxt) -> Self {
-        let (global_builtin_scope, inner_builtin_scopes) = crate::builtins::scopes();
+        let (global_builtin_scope, builtin_members_scopes) = crate::builtins::scopes();
         Self {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
             global_builtin_scope,
-            inner_builtin_scopes,
+            builtin_members_scopes,
         }
     }
 
@@ -1044,10 +1044,10 @@ impl<'sess> SymbolResolver<'sess> {
         description: &str,
     ) -> Result<T, ErrorGuaranteed> {
         let decl = self.resolve_path(path, scopes).map_err(self.emit_resolver_error())?;
-        if let Res::Err(guar) = decl.kind {
+        if let Res::Err(guar) = decl.res {
             return Err(guar);
         }
-        T::try_from(decl.kind)
+        T::try_from(decl.res)
             .map_err(|_| self.report_expected(description, decl.description(), path.span()))
     }
 
@@ -1086,11 +1086,11 @@ impl<'sess> SymbolResolver<'sess> {
                     ResolverErrorKind::MultipleDeclarations,
                 ));
             };
-            if decl.kind.is_err() {
+            if decl.res.is_err() {
                 return Ok(decls);
             }
-            let scope = self.scope_of(decl.kind).ok_or_else(|| {
-                ResolverError::from_path(path, prev_i, ResolverErrorKind::NotAScope(decl.kind))
+            let scope = self.scope_of(decl.res).ok_or_else(|| {
+                ResolverError::from_path(path, prev_i, ResolverErrorKind::NotAScope(decl.res))
             })?;
             decls = scope.resolve(segment).ok_or_else(|| {
                 ResolverError::from_path(path, prev_i + 1, ResolverErrorKind::Unresolved)
@@ -1111,7 +1111,7 @@ impl<'sess> SymbolResolver<'sess> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
-            Res::Builtin(builtin) => self.inner_builtin_scopes[builtin as usize].as_ref(),
+            Res::Builtin(builtin) => self.builtin_members_scopes[builtin as usize].as_ref(),
             _ => None,
         }
     }
@@ -1213,14 +1213,14 @@ impl Declarations {
     /// Declares `Ident { name, span } => kind` by converting it to
     /// `name => Declaration { kind, span }`.
     #[inline]
-    pub(crate) fn declare_kind(
+    pub(crate) fn declare_res(
         &mut self,
         sess: &Session,
         hir: &hir::Hir<'_>,
         name: Ident,
-        kind: Res,
+        res: Res,
     ) -> Result<(), ErrorGuaranteed> {
-        self.declare(sess, hir, name.name, Declaration { kind, span: name.span })
+        self.declare(sess, hir, name.name, Declaration { res, span: name.span })
     }
 
     pub(crate) fn declare(
@@ -1270,19 +1270,19 @@ impl Declarations {
         }
 
         // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
-        if matches!(decl.kind, Item(Function(_) | Event(_))) {
+        if matches!(decl.res, Item(Function(_) | Event(_))) {
             let mut getter = None;
-            if let Item(Function(id)) = decl.kind {
+            if let Item(Function(id)) = decl.res {
                 getter = Some(id);
                 let f = hir.function(id);
                 if !f.kind.is_ordinary() {
                     return Some(declarations[0]);
                 }
             }
-            let same_kind = |decl2: &Declaration| match decl2.kind {
+            let same_kind = |decl2: &Declaration| match decl2.res {
                 Item(Variable(v)) => hir.variable(v).getter == getter,
                 Item(Function(f)) => hir.function(f).kind.is_ordinary(),
-                ref k => k.matches(&decl.kind),
+                ref k => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
         } else if declarations == [decl] {
@@ -1295,7 +1295,7 @@ impl Declarations {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Declaration {
-    pub(crate) kind: Res,
+    pub(crate) res: Res,
     pub(crate) span: Span,
 }
 
@@ -1304,14 +1304,14 @@ impl std::ops::Deref for Declaration {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.kind
+        &self.res
     }
 }
 
 impl PartialEq for Declaration {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.kind == other.kind
+        self.res == other.res
     }
 }
 
@@ -1329,7 +1329,7 @@ pub(super) fn report_conflict(
     let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
-    if let Res::Item(item_id) = previous.kind {
+    if let Res::Item(item_id) = previous.res {
         if let Ok(snippet) = sess.source_map().span_to_snippet(previous.span) {
             if snippet.starts_with("import") {
                 err = err.span_note(previous.span, "previous declaration imported here");
