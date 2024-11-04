@@ -1,0 +1,3 @@
+# Required to override Cargo package name.
+[package]
+name = "solar"

@@ -1,4 +1,4 @@
-name: deps
+name: Deny
 
 on:
   push:

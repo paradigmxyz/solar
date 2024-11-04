@@ -1,6 +1,6 @@
 [package]
 name = "solar-compiler"
-description = "Solar Solidity compiler"
+description = "Blazingly fast Solidity compiler"
 homepage = "https://github.com/ithacaxyz/solar/"
 
 version.workspace = true

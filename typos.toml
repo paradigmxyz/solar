@@ -1,0 +1,8 @@
+[files]
+extend-exclude = ["testdata", "crates/parse/src/lexer/unicode_chars.rs"]
+
+[default.extend-words]
+ket = "ket"
+
+[default]
+extend-ignore-identifiers-re = ["[0-9A-fa-f]{20,}"]

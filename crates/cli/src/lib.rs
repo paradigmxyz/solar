@@ -40,7 +40,7 @@ where
     T: Into<std::ffi::OsString> + Clone,
 {
     let mut args = Args::try_parse_from(itr)?;
-    args.populate_unstable()?;
+    args.finish()?;
     Ok(args)
 }
 
