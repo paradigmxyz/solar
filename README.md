@@ -8,6 +8,10 @@
 
 Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
+<p align="center">
+    <img alt="Terminal screenshot showing Solar is 40x faster than solc at generating ABI using hyperfine." src="/assets/benchmark.png">
+</p>
+
 ## Features and Goals
 
 - ⚡ Instant compiles and low memory usage
