@@ -102,6 +102,7 @@ impl Args {
     help_template = "{before-help}{all-args}"
 )]
 #[non_exhaustive]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct UnstableFeatures {
     /// Enables UI testing mode.
     #[arg(long)]
