@@ -17,7 +17,7 @@ It should be considered a map to help you navigate the process.
 The Solar project adheres to the [Rust Code of Conduct][coc]. This describes
 the _minimum_ behavior expected from all contributors. Instances of violations of the
 Code of Conduct can be reported by contacting the project team at
-[moderation@Solar.rs](mailto:moderation@Solar.rs).
+[gerogios@ithaca.xyz](mailto:gerogios@ithaca.xyz).
 
 [coc]: https://github.com/rust-lang/rust/blob/master/CODE_OF_CONDUCT.md
 
