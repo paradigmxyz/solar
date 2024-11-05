@@ -317,7 +317,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if self.token.is_elementary_type() && next.is_ident_where(|id| id.name == kw::Payable) {
                 return LookAheadInfo::VariableDeclaration;
             }
-            if next.is_non_reserved_ident(self.in_yul) || next.is_location_specifier() {
+            if next.is_non_reserved_ident(self.in_yul)
+                || next.is_location_specifier()
+                // These aren't valid but we include them for a better error message.
+                || next.is_mutability_specifier()
+                || next.is_visibility_specifier()
+            {
                 return LookAheadInfo::VariableDeclaration;
             }
             if matches!(next.kind, TokenKind::OpenDelim(Delimiter::Bracket) | TokenKind::Dot) {

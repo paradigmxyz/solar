@@ -100,8 +100,7 @@ impl DiagnosticId {
     }
 }
 
-/// Used for creating an error code. The input must be exactly one 'E' character followed by four
-/// decimal digits.
+/// Used for creating an error code. The input must be exactly 4 decimal digits.
 ///
 /// # Examples
 ///

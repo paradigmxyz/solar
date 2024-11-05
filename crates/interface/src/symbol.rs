@@ -168,6 +168,18 @@ impl Ident {
     pub fn is_location_specifier(self) -> bool {
         self.name.is_location_specifier()
     }
+
+    /// Returns `true` if the identfier is a mutability specifier.
+    #[inline]
+    pub fn is_mutability_specifier(self) -> bool {
+        self.name.is_mutability_specifier()
+    }
+
+    /// Returns `true` if the identfier is a visibility specifier.
+    #[inline]
+    pub fn is_visibility_specifier(self) -> bool {
+        self.name.is_visibility_specifier()
+    }
 }
 
 /// An interned string.
@@ -306,6 +318,18 @@ impl Symbol {
     #[inline]
     pub fn is_location_specifier(self) -> bool {
         matches!(self, kw::Calldata | kw::Memory | kw::Storage)
+    }
+
+    /// Returns `true` if the symbol is a mutability specifier.
+    #[inline]
+    pub fn is_mutability_specifier(self) -> bool {
+        matches!(self, kw::Immutable | kw::Constant)
+    }
+
+    /// Returns `true` if the symbol is a visibility specifier.
+    #[inline]
+    pub fn is_visibility_specifier(self) -> bool {
+        matches!(self, kw::Public | kw::Private | kw::Internal | kw::External)
     }
 
     /// Returns `true` if the symbol was interned in the compiler's `symbols!` macro.

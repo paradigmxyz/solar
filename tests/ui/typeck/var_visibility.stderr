@@ -1,0 +1,233 @@
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL | uint constant private b = 0;
+   |               ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL | uint constant internal c = 0;
+   |               ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL | uint constant public d = 0;
+   |               ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL | uint constant external e = 0;
+   |               ^^^^^^^^
+   |
+
+error: `external` not allowed here; allowed values: private, internal, public
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |     uint external e2 = 0;
+   |          ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b3;
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c3;
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d3;
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e3;
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b4,
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c4,
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d4,
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e4
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b5,
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c5,
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d5,
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e5
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b6,
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c6,
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d6,
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e6
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b7,
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c7,
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d7,
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e7
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint private b8;
+   |              ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint internal c8;
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint public d8;
+   |              ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |         uint external e8;
+   |              ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |             uint private b9,
+   |                  ^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |             uint internal c9,
+   |                  ^^^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |             uint public d9,
+   |                  ^^^^^^
+   |
+
+error: visibility is not allowed here
+  --> ROOT/tests/ui/typeck/var_visibility.sol:LL:CC
+   |
+LL |             uint external e9
+   |                  ^^^^^^^^
+   |
+
+error: aborting due to 33 previous errors
+
