@@ -557,21 +557,25 @@ impl Token {
     }
 
     /// Returns `true` if the token is a keyword used in the language.
+    #[inline]
     pub fn is_used_keyword(&self) -> bool {
         self.is_ident_where(Ident::is_used_keyword)
     }
 
     /// Returns `true` if the token is a keyword reserved for possible future use.
+    #[inline]
     pub fn is_unused_keyword(&self) -> bool {
         self.is_ident_where(Ident::is_unused_keyword)
     }
 
     /// Returns `true` if the token is a keyword.
+    #[inline]
     pub fn is_reserved_ident(&self, yul: bool) -> bool {
         self.is_ident_where(|i| i.is_reserved(yul))
     }
 
     /// Returns `true` if the token is an identifier, but not a keyword.
+    #[inline]
     pub fn is_non_reserved_ident(&self, yul: bool) -> bool {
         self.is_ident_where(|i| i.is_non_reserved(yul))
     }
@@ -579,36 +583,43 @@ impl Token {
     /// Returns `true` if the token is an elementary type name.
     ///
     /// Note that this does not include `[u]fixedMxN` types.
+    #[inline]
     pub fn is_elementary_type(&self) -> bool {
         self.is_ident_where(Ident::is_elementary_type)
     }
 
     /// Returns `true` if the token is the identifier `true` or `false`.
+    #[inline]
     pub fn is_bool_lit(&self) -> bool {
         self.is_ident_where(|id| id.name.is_bool_lit())
     }
 
     /// Returns `true` if the token is a numeric literal.
+    #[inline]
     pub fn is_numeric_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(TokenLitKind::Integer | TokenLitKind::Rational, _))
     }
 
     /// Returns `true` if the token is the integer literal.
+    #[inline]
     pub fn is_integer_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(TokenLitKind::Integer, _))
     }
 
     /// Returns `true` if the token is the rational literal.
+    #[inline]
     pub fn is_rational_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(TokenLitKind::Rational, _))
     }
 
     /// Returns `true` if the token is a string literal.
+    #[inline]
     pub fn is_str_lit(&self) -> bool {
         matches!(self.kind, TokenKind::Literal(TokenLitKind::Str, _))
     }
 
     /// Returns `true` if the token is an identifier for which `pred` holds.
+    #[inline]
     pub fn is_ident_where(&self, pred: impl FnOnce(Ident) -> bool) -> bool {
         self.ident().map(pred).unwrap_or(false)
     }
@@ -641,6 +652,18 @@ impl Token {
     #[inline]
     pub fn is_location_specifier(&self) -> bool {
         self.is_ident_where(Ident::is_location_specifier)
+    }
+
+    /// Returns `true` if the token is a mutability specifier.
+    #[inline]
+    pub fn is_mutability_specifier(&self) -> bool {
+        self.is_ident_where(Ident::is_mutability_specifier)
+    }
+
+    /// Returns `true` if the token is a visibility specifier.
+    #[inline]
+    pub fn is_visibility_specifier(&self) -> bool {
+        self.is_ident_where(Ident::is_visibility_specifier)
     }
 
     /// Returns this token's full description: `{self.description()} '{self.kind}'`.

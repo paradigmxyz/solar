@@ -1,0 +1,114 @@
+error: only constant variables are allowed at file level
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL | uint a = 0;
+   | ^^^^^^^^^^^
+   |
+
+error: only constant variables are allowed at file level
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL | uint immutable c = 0;
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b3;
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c3;
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b4,
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c4
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b5,
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c5
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b6,
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c6
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b7,
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c7
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint constant b8;
+   |              ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |         uint immutable c8;
+   |              ^^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |             uint constant b9,
+   |                  ^^^^^^^^
+   |
+
+error: mutability is not allowed here
+  --> ROOT/tests/ui/typeck/var_mutability.sol:LL:CC
+   |
+LL |             uint immutable c9
+   |                  ^^^^^^^^^
+   |
+
+error: aborting due to 16 previous errors
+

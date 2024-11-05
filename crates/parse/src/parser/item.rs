@@ -742,7 +742,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     visibility = Some(v);
                 }
             } else if let Some(m) = self.parse_variable_mutability() {
-                if !flags.contains(VarFlags::from_varmut(m)) {
+                // `CONSTANT_VAR` is special cased later.
+                if flags != VarFlags::CONSTANT_VAR && !flags.contains(VarFlags::from_varmut(m)) {
                     let msg = varmut_error(m, flags.varmuts());
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if mutability.is_some() {
@@ -807,6 +808,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";
+            self.dcx().err(msg).span(span).emit();
+        }
+        if flags == VarFlags::CONSTANT_VAR && mutability != Some(VarMut::Constant) {
+            let msg = "only constant variables are allowed at file level";
             self.dcx().err(msg).span(span).emit();
         }
 
