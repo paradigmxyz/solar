@@ -6,3 +6,13 @@ ryul = "run --package solar-compiler --bin solar -- --language yul -Zparse-yul"
 bless = "xtask test --bless"
 uitest = "xtask test ui"
 uibless = "xtask test ui --bless"
+
+# Required for `dist` to work with linux arm targets: https://github.com/axodotdev/cargo-dist/issues/74#issuecomment-2053680080
+[env]
+CC_aarch64_unknown_linux_musl = "aarch64-linux-gnu-gcc"
+
+[target.aarch64-unknown-linux-gnu]
+linker = "aarch64-linux-gnu-gcc"
+
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-linux-gnu-gcc"
