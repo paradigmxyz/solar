@@ -39,3 +39,9 @@ github-release = "announce"
 install-updater = false
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"
+
+[dist.dependencies.apt]
+gcc-aarch64-linux-gnu = { version = '*', targets = [
+    "aarch64-unknown-linux-gnu",
+    "aarch64-unknown-linux-musl",
+] }
