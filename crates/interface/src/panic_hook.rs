@@ -4,7 +4,7 @@ use crate::diagnostics::{DiagCtxt, ExplicitBug, FatalAbort};
 use std::panic::PanicHookInfo;
 
 const BUG_REPORT_URL: &str =
-    "https://github.com/ithacaxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
+    "https://github.com/paradigmxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml";
 
 /// Install the compiler's default panic hook.
 pub fn install() {

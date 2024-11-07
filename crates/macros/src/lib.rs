@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![doc(
-    html_logo_url = "https://raw.githubusercontent.com/ithacaxyz/solar/main/assets/logo.jpg",
-    html_favicon_url = "https://raw.githubusercontent.com/ithacaxyz/solar/main/assets/favicon.ico"
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.jpg",
+    html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
 #![allow(unreachable_pub)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
