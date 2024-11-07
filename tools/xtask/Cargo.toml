@@ -1,7 +1,7 @@
 [package]
 name = "xtask"
 description = "Auxiliary build tool"
-homepage = "https://github.com/ithacaxyz/solar/tree/main/tools/xtask"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/xtask"
 publish = false
 
 version.workspace = true

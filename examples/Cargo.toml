@@ -1,7 +1,7 @@
 [package]
 name = "solar-examples"
 description = "Solar library examples"
-homepage = "https://github.com/ithacaxyz/solar/tree/main/examples/"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/examples/"
 publish = false
 
 version.workspace = true

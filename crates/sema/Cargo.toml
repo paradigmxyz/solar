@@ -1,7 +1,7 @@
 [package]
 name = "solar-sema"
 description = "Solidity and Yul semantic analysis"
-homepage = "https://github.com/ithacaxyz/solar/tree/main/crates/sema"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/sema"
 
 version.workspace = true
 authors.workspace = true

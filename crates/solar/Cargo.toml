@@ -1,7 +1,7 @@
 [package]
 name = "solar-compiler"
 description = "Blazingly fast Solidity compiler"
-homepage = "https://github.com/ithacaxyz/solar/"
+homepage = "https://github.com/paradigmxyz/solar/"
 
 version.workspace = true
 authors.workspace = true

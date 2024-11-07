@@ -17,7 +17,7 @@ It should be considered a map to help you navigate the process.
 The Solar project adheres to the [Rust Code of Conduct][coc]. This describes
 the _minimum_ behavior expected from all contributors. Instances of violations of the
 Code of Conduct can be reported by contacting the project team at
-[gerogios@ithaca.xyz](mailto:gerogios@ithaca.xyz).
+[georgios@paradigm.xyz](mailto:georgios@paradigm.xyz).
 
 [coc]: https://github.com/rust-lang/rust/blob/master/CODE_OF_CONDUCT.md
 
@@ -26,7 +26,7 @@ Code of Conduct can be reported by contacting the project team at
 For any issue, there are fundamentally three ways an individual can contribute:
 
 1. By opening the issue for discussion: For instance, if you believe that you
-   have discovered a bug in Solar, creating a new issue in [the ithacaxyz/solar
+   have discovered a bug in Solar, creating a new issue in [the paradigmxyz/solar
    issue tracker][issue] is the way to report it.
 
 2. By helping to triage the issue: This can be done by providing
@@ -39,7 +39,7 @@ For any issue, there are fundamentally three ways an individual can contribute:
    often, by opening a Pull Request that changes some bit of something in
    Solar in a concrete and reviewable manner.
 
-[issue]: https://github.com/ithacaxyz/solar/issues
+[issue]: https://github.com/paradigmxyz/solar/issues
 
 **Anybody can participate in any stage of contribution**. We urge you to
 participate in the discussion around bugs and participate in reviewing PRs.
@@ -52,7 +52,7 @@ having problems, you can [open a discussion] asking for help.
 In exchange for receiving help, we ask that you contribute back a documentation
 PR that helps others avoid the problems that you encountered.
 
-[open a discussion]: https://github.com/ithacaxyz/solar/discussions/new
+[open a discussion]: https://github.com/paradigmxyz/solar/discussions/new
 
 ### Submitting a Bug Report
 

@@ -1,7 +1,7 @@
 [package]
 name = "solar-tester"
 description = "Solar test runner"
-homepage = "https://github.com/ithacaxyz/solar/tree/main/tools/tester"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/tools/tester"
 publish = false
 
 version.workspace = true

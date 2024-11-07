@@ -4,7 +4,7 @@
 [![Downloads](https://img.shields.io/crates/d/solar-compiler)](https://crates.io/crates/solar-compiler)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE-MIT)
 [![Apache-2.0 License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](/LICENSE-APACHE)
-[![Actions status](https://github.com/ithacaxyz/solar/workflows/CI/badge.svg)](https://github.com/ithacaxyz/solar/actions)
+[![Actions status](https://github.com/paradigmxyz/solar/workflows/CI/badge.svg)](https://github.com/paradigmxyz/solar/actions)
 
 Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
@@ -45,19 +45,19 @@ You can see examples of how to use Solar as a library in the [examples](/example
 
 ### Binary usage
 
-Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/ithacaxyz/solar/releases)
+Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
 and can be installed with the following commands:
 
 ```console
 # On macOS and Linux.
-curl -LsSf https://ithaca.xyz/solar/install.sh | sh
+curl -LsSf https://paradigm.xyz/solar/install.sh | sh
 
 # On Windows.
-powershell -c "irm https://ithaca.xyz/solar/install.ps1 | iex"
+powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
 
 # For a specific version.
-curl -LsSf https://ithaca.xyz/solar/0.1.0/install.sh | sh
-powershell -c "irm https://ithaca.xyz/solar/0.1.0/install.ps1 | iex"
+curl -LsSf https://paradigm.xyz/solar/0.1.0/install.sh | sh
+powershell -c "irm https://paradigm.xyz/solar/0.1.0/install.ps1 | iex"
 ```
 
 You can also build Solar from source:
@@ -67,10 +67,10 @@ You can also build Solar from source:
 $ cargo install solar-compiler --locked
 
 # From GitHub.
-$ cargo install --git https://github.com/ithacaxyz/solar --locked
+$ cargo install --git https://github.com/paradigmxyz/solar --locked
 
 # From a Git checkout.
-$ git clone https://github.com/ithacaxyz/solar
+$ git clone https://github.com/paradigmxyz/solar
 $ cd solar
 $ cargo install --locked --path crates/solar
 ```
@@ -103,7 +103,7 @@ $ solar $(forge re) src/Contract.sol
 
 ## Roadmap
 
-You can find a more detailed list in the [pinned GitHub issue](https://github.com/ithacaxyz/solar/issues/1).
+You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).
 
 - [ ] Front-end
   - [x] Lexing
@@ -133,8 +133,8 @@ Contributions are welcome and highly appreciated. To get started, check out the
 
 ## Support
 
-Having trouble? Check out the existing issues on [**GitHub**](https://github.com/ithacaxyz/solar/issues),
-or feel free to [**open a new one**](https://github.com/ithacaxyz/solar/issues/new).
+Having trouble? Check out the existing issues on [**GitHub**](https://github.com/paradigmxyz/solar/issues),
+or feel free to [**open a new one**](https://github.com/paradigmxyz/solar/issues/new).
 
 #### License
 
