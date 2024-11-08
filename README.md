@@ -56,8 +56,8 @@ curl -LsSf https://paradigm.xyz/solar/install.sh | sh
 powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
 
 # For a specific version.
-curl -LsSf https://paradigm.xyz/solar/0.1.0/install.sh | sh
-powershell -c "irm https://paradigm.xyz/solar/0.1.0/install.ps1 | iex"
+curl -LsSf https://paradigm.xyz/solar/v0.1.0/install.sh | sh
+powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
 ```
 
 You can also build Solar from source:
