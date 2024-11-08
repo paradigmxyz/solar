@@ -12,6 +12,8 @@ use your help.
 This guide will help you get started. **Do not let this guide intimidate you**.
 It should be considered a map to help you navigate the process.
 
+The [dev channel][dev] is available for any concerns not covered in this guide, please join us!
+
 ## Conduct
 
 The Solar project adheres to the [Rust Code of Conduct][coc]. This describes
@@ -385,6 +387,6 @@ the commit log, or by using an `Author: ` meta-data tag in the commit.
 
 _Adapted from the [Tokio contributing guide][tokio]_.
 
-[tokio]: https://github.com/tokio-rs/tokio/blob/master/CONTRIBUTING.md
+[dev]: https://t.me/paradigm_solar
 [hiding-a-comment]: https://help.github.com/articles/managing-disruptive-comments/#hiding-a-comment
-[documentation test]: https://doc.rust-lang.org/rustdoc/documentation-tests.html
+[tokio]: https://github.com/tokio-rs/tokio/blob/master/CONTRIBUTING.md

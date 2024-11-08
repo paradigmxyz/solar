@@ -4,7 +4,8 @@
 [![Downloads](https://img.shields.io/crates/d/solar-compiler)](https://crates.io/crates/solar-compiler)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE-MIT)
 [![Apache-2.0 License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](/LICENSE-APACHE)
-[![Actions status](https://github.com/paradigmxyz/solar/workflows/CI/badge.svg)](https://github.com/paradigmxyz/solar/actions)
+[![Actions Status](https://github.com/paradigmxyz/solar/workflows/CI/badge.svg)](https://github.com/paradigmxyz/solar/actions)
+[![Telegram Chat](https://img.shields.io/endpoint?color=neon&logo=telegram&label=chat&url=https%3A%2F%2Ftg.sumanjay.workers.dev%2Fparadigm%5Fsolar)][tg-url]
 
 Blazingly fast, modular and contributor friendly Solidity compiler, written in Rust.
 
@@ -148,6 +149,10 @@ Contributions are welcome and highly appreciated. To get started, check out the
 
 Having trouble? Check out the existing issues on [**GitHub**](https://github.com/paradigmxyz/solar/issues),
 or feel free to [**open a new one**](https://github.com/paradigmxyz/solar/issues/new).
+
+You can also ask for help on [Telegram][tg-url].
+
+[tg-url]: https://t.me/paradigm_solar
 
 #### License
 
