@@ -16,6 +16,10 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 
 ## Features and Goals
 
+> [!CAUTION]
+> Solar is under active development and is not yet feature complete.
+> Please do not use it in production environments.
+
 - ⚡ Instant compiles and low memory usage
 - 🔍 Expressive and useful diagnostics
 - 🧩 Modular, library-based architecture
@@ -37,8 +41,8 @@ solar = { version = "0.1.0", package = "solar-compiler" }
 
 Or through the CLI:
 
-```console
-$ cargo add solar-compiler --rename solar
+```bash
+cargo add solar-compiler --rename solar
 ```
 
 You can see examples of how to use Solar as a library in the [examples](/examples) directory.
@@ -47,49 +51,51 @@ You can see examples of how to use Solar as a library in the [examples](/example
 
 Pre-built binaries are available for macOS, Linux and Windows on the [releases page](https://github.com/paradigmxyz/solar/releases)
 and can be installed with the following commands:
-
-```console
-# On macOS and Linux.
-curl -LsSf https://paradigm.xyz/solar/install.sh | sh
-
-# On Windows.
-powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
-
-# For a specific version.
-curl -LsSf https://paradigm.xyz/solar/v0.1.0/install.sh | sh
-powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
-```
+- On macOS and Linux:
+    ```bash
+    curl -LsSf https://paradigm.xyz/solar/install.sh | sh
+    ```
+- On Windows:
+    ```powershell
+    powershell -c "irm https://paradigm.xyz/solar/install.ps1 | iex"
+    ```
+- For a specific version:
+    ```bash
+    curl -LsSf https://paradigm.xyz/solar/v0.1.0/install.sh | sh
+    powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
+    ```
 
 You can also build Solar from source:
-
-```console
-# From crates.io.
-$ cargo install solar-compiler --locked
-
-# From GitHub.
-$ cargo install --git https://github.com/paradigmxyz/solar --locked
-
-# From a Git checkout.
-$ git clone https://github.com/paradigmxyz/solar
-$ cd solar
-$ cargo install --locked --path crates/solar
-```
+- From crates.io:
+    ```bash
+    cargo install solar-compiler --locked
+    ```
+- From GitHub:
+    ```bash
+    cargo install --git https://github.com/paradigmxyz/solar --locked
+    ```
+- From a Git checkout:
+    ```bash
+    git clone https://github.com/paradigmxyz/solar
+    cd solar
+    cargo install --locked --path crates/solar
+    ```
 
 Once installed, check out the available options:
 
-```console
-$ solar -h
+```bash
+solar -h
 ```
 
 Here's a few examples:
 
-```console
+```bash
 # Compile a single file and emit ABI to stdout.
-$ solar Counter.sol --emit abi
+solar Counter.sol --emit abi
 
 # Compile a contract through standard input (`-` file).
-$ echo "contract C {}" | solar -
-$ solar - <<EOF
+echo "contract C {}" | solar -
+solar - <<EOF
 contract HelloWorld {
     function helloWorld() external pure returns (string memory) {
         return "Hello, World!";
@@ -98,7 +104,7 @@ contract HelloWorld {
 EOF
 
 # Compile a file with a Foundry project's remappings.
-$ solar $(forge re) src/Contract.sol
+solar $(forge re) src/Contract.sol
 ```
 
 ## Roadmap

@@ -14,8 +14,8 @@ changed or not.
 ## Steps
 
 - [ ] Create a new branch: `git checkout -b release-<version>`
-- [ ] Update CHANGELOG.md with the new version and the changes since the last release.
-- [ ] Run `cargo-release` to handle the version bump and commit: `cargo release --execute --no-publish --no-tag --allow-branch=<branch> <version>`
+- [ ] Run `cargo-release` to handle the version bump, changelog, and commit: `cargo release --execute --no-publish --no-tag --allow-branch=<branch> <version>`
+- [ ] Update changelog message if necessary.
 - [ ] Push, open and merge the PR. The name of the PR should be the same as the `cargo-release` commit message.
 - [ ] `git checkout main` and `git pull`.
 - [ ] Verify `dist plan` is correct.

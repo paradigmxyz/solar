@@ -6,6 +6,7 @@
 #![cfg_attr(feature = "nightly", feature(rustc_attrs), allow(internal_features))]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![allow(unused_crate_dependencies)]
+#![allow(rustdoc::broken_intra_doc_links)] // Ignore GitHub Alerts in included README.md.
 
 #[doc(inline)]
 pub use solar_ast as ast;
