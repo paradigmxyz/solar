@@ -56,5 +56,8 @@ mod tests {
 
         let Ok(x) = r;
         assert_eq!(x, 42);
+
+        let x = if true { 43 } else { never_returns() };
+        assert_eq!(x, 43);
     }
 }
