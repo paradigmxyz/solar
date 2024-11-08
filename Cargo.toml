@@ -90,7 +90,7 @@ solar-parse = { version = "0.1.0", path = "crates/parse" }
 solar-sema = { version = "0.1.0", path = "crates/sema" }
 
 # internal crates
-solar-tester = { version = "0.1.0", path = "tools/tester" }
+solar-tester = { path = "tools/tester" }
 
 # Ethereum
 alloy-primitives = "0.8"

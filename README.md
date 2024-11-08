@@ -10,7 +10,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 
 <p align="center">
     <picture align="center">
-        <img alt="Terminal screenshot showing Solar is 40x faster than solc at generating ABI using hyperfine." src="/assets/benchmark.png">
+        <img alt="Solar cover" src="/assets/cover.png">
     </picture>
 </p>
 
@@ -18,6 +18,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 
 > [!CAUTION]
 > Solar is under active development and is not yet feature complete.
+> Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
 
 - ⚡ Instant compiles and low memory usage
@@ -25,6 +26,12 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 - 🧩 Modular, library-based architecture
 - 💻 Simple and hackable code base
 - 🔄 Compatibility with the latest Solidity language breaking version (0.8.*)
+
+<p align="center">
+    <picture align="center">
+        <img alt="Terminal screenshot showing Solar is 40x faster than solc at generating ABI using hyperfine" src="/assets/benchmark.png">
+    </picture>
+</p>
 
 ## Getting started
 
