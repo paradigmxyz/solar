@@ -62,7 +62,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
         let expr = expr.peel_parens();
         match expr.kind {
-            // hir::ExprKind::Array(_) => todo!(),
+            hir::ExprKind::Array(elements) => {
+                for elem in elements {
+                    self.try_eval(elem)?;
+                }
+                Err(EE::UnsupportedExpr.into())
+            }
             // hir::ExprKind::Assign(_, _, _) => todo!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval(l)?;
