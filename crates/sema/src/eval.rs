@@ -62,21 +62,18 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
         let expr = expr.peel_parens();
         match expr.kind {
-            hir::ExprKind::Array(elements) => {
-                for elem in elements {
-                    self.try_eval(elem)?;
-                }
-                Err(EE::UnsupportedExpr.into())
+            hir::ExprKind::Array(_) => {
+                unimplemented!()
             }
-            // hir::ExprKind::Assign(_, _, _) => todo!(),
+            hir::ExprKind::Assign(_, _, _) => unimplemented!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval(l)?;
                 let r = self.try_eval(r)?;
                 l.binop(&r, bin_op.kind).map_err(Into::into)
             }
-            // hir::ExprKind::Call(_, _) => todo!(),
-            // hir::ExprKind::CallOptions(_, _) => todo!(),
-            // hir::ExprKind::Delete(_) => todo!(),
+            hir::ExprKind::Call(_, _) => unimplemented!(),
+            hir::ExprKind::CallOptions(_, _) => unimplemented!(),
+            hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(&[hir::Res::Item(hir::ItemId::Variable(v))]) => {
                 let v = self.gcx.hir.variable(v);
                 if v.mutability != Some(hir::VarMut::Constant) {
@@ -84,19 +81,19 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 }
                 self.try_eval(v.initializer.expect("constant variable has no initializer"))
             }
-            // hir::ExprKind::Index(_, _) => todo!(),
-            // hir::ExprKind::Slice(_, _, _) => todo!(),
+            hir::ExprKind::Index(_, _) => unimplemented!(),
+            hir::ExprKind::Slice(_, _, _) => unimplemented!(),
             hir::ExprKind::Lit(lit) => self.eval_lit(lit),
-            // hir::ExprKind::Member(_, ident) => todo!(),
-            // hir::ExprKind::New(_) => todo!(),
-            // hir::ExprKind::Payable(_) => todo!(),
+            hir::ExprKind::Member(_, _) => unimplemented!(),
+            hir::ExprKind::New(_) => unimplemented!(),
+            hir::ExprKind::Payable(_) => unimplemented!(),
             hir::ExprKind::Ternary(cond, t, f) => {
                 let cond = self.try_eval(cond)?;
                 Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
             }
-            // hir::ExprKind::Tuple(_) => todo!(),
-            // hir::ExprKind::TypeCall(_) => todo!(),
-            // hir::ExprKind::Type(_) => todo!(),
+            hir::ExprKind::Tuple(_) => unimplemented!(),
+            hir::ExprKind::TypeCall(_) => unimplemented!(),
+            hir::ExprKind::Type(_) => unimplemented!(),
             hir::ExprKind::Unary(un_op, v) => {
                 let v = self.try_eval(v)?;
                 v.unop(un_op.kind).map_err(Into::into)
