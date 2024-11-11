@@ -82,19 +82,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         let Stmt { kind, .. } = stmt;
 
         match kind {
-            StmtKind::DoWhile(stmt, ..) => {
+            StmtKind::While(_, body, ..)
+            | StmtKind::DoWhile(body, ..)
+            | StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                self.visit_stmt(stmt);
+                self.walk_stmt(body);
                 self.in_loop_depth -= 1;
             }
-            StmtKind::For { body, .. } => {
-                self.in_loop_depth += 1;
-                self.visit_stmt(body);
-                self.in_loop_depth -= 1;
-            }
-            StmtKind::Break => {
+            StmtKind::Break | StmtKind::Continue => {
                 if !self.in_loop() {
-                    self.dcx().err("`break` outside of a loop").span(self.span).emit();
+                    self.dcx().err("`break` outside of a loop").span(stmt.span).emit();
                 }
             }
             _ => {}
