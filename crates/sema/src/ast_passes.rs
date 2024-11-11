@@ -1,6 +1,10 @@
 //! AST-related passes.
 
-use solar_ast::{ast, visit::Visit};
+use solar_ast::{
+    ast,
+    ast::{Stmt, StmtKind},
+    visit::Visit,
+};
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -19,17 +23,22 @@ pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
 struct AstValidator<'sess> {
     span: Span,
     dcx: &'sess DiagCtxt,
+    in_loop_depth: u64,
 }
 
 impl<'sess> AstValidator<'sess> {
     fn new(sess: &'sess Session) -> Self {
-        Self { span: Span::DUMMY, dcx: &sess.dcx }
+        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0 }
     }
 
     /// Returns the diagnostics context.
     #[inline]
     fn dcx(&self) -> &'sess DiagCtxt {
         self.dcx
+    }
+
+    fn in_loop(&self) -> bool {
+        self.in_loop_depth != 0
     }
 }
 
@@ -69,11 +78,37 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         }
     }
 
+    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) {
+        let Stmt { kind, .. } = stmt;
+
+        match kind {
+            StmtKind::DoWhile(stmt, ..) => {
+                self.in_loop_depth += 1;
+                self.visit_stmt(stmt);
+                self.in_loop_depth -= 1;
+            }
+            StmtKind::For { body, .. } => {
+                self.in_loop_depth += 1;
+                self.visit_stmt(body);
+                self.in_loop_depth -= 1;
+            }
+            StmtKind::Break => {
+                if !self.in_loop() {
+                    self.dcx()
+                        .err("\"break\" has to be in a \"for\" or \"while\" loop.")
+                        .span(self.span)
+                        .emit();
+                }
+            }
+            _ => {
+                self.visit_stmt(stmt);
+            }
+        }
+    }
+
     // Intentionally override unused default implementations to reduce bloat.
 
     fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
-
-    fn visit_stmt(&mut self, _stmt: &'ast ast::Stmt<'ast>) {}
 
     fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
 }
