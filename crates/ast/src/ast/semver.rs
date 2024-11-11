@@ -1,5 +1,6 @@
 use super::Box;
 use semver::Op;
+use solar_data_structures::smallvec::{smallvec, SmallVec};
 use solar_interface::Span;
 use std::{cmp::Ordering, fmt};
 
@@ -205,6 +206,26 @@ impl SemverReq<'_> {
     pub fn matches(&self, version: &SemverVersion) -> bool {
         self.dis.iter().any(|c| c.matches(version))
     }
+
+    /// Converts this requirement to a [::semver] version requirement.
+    pub fn to_semver(&self) -> SemverVersionReqCompat {
+        SemverVersionReqCompat { reqs: self.dis.iter().map(SemverReqCon::to_semver).collect() }
+    }
+}
+
+/// A list of or-ed [`semver::VersionReq`].
+///
+/// Obtained with [`SemverReq::to_semver`].
+pub struct SemverVersionReqCompat {
+    /// The list of requirements.
+    pub reqs: Vec<semver::VersionReq>,
+}
+
+impl SemverVersionReqCompat {
+    /// Returns `true` if the given version satisfies this requirement.
+    pub fn matches(&self, version: &semver::Version) -> bool {
+        self.reqs.iter().any(|r| r.matches(version))
+    }
 }
 
 /// A list of conjoint SemVer version requirement components.
@@ -228,6 +249,13 @@ impl fmt::Display for SemverReqCon<'_> {
 }
 
 impl SemverReqCon<'_> {
+    /// Converts this requirement to a [::semver] version requirement.
+    pub fn to_semver(&self) -> semver::VersionReq {
+        semver::VersionReq {
+            comparators: self.components.iter().flat_map(SemverReqComponent::to_semver).collect(),
+        }
+    }
+
     /// Returns `true` if the given version satisfies this requirement.
     pub fn matches(&self, version: &SemverVersion) -> bool {
         self.components.iter().all(|c| c.matches(version))
@@ -248,6 +276,11 @@ impl fmt::Display for SemverReqComponent {
 }
 
 impl SemverReqComponent {
+    /// Converts this requirement component to a [::semver] comparator.
+    pub fn to_semver(&self) -> SmallVec<[semver::Comparator; 2]> {
+        self.kind.to_semver()
+    }
+
     /// Returns `true` if the given version satisfies this requirement component.
     pub fn matches(&self, version: &SemverVersion) -> bool {
         self.kind.matches(version)
@@ -289,6 +322,24 @@ impl fmt::Display for SemverReqComponentKind {
 }
 
 impl SemverReqComponentKind {
+    /// Converts this requirement component to a [::semver] comparator.
+    pub fn to_semver(&self) -> SmallVec<[semver::Comparator; 2]> {
+        let cvt_op = |op: Option<Op>, version: &SemverVersion| semver::Comparator {
+            op: op.unwrap_or(Op::Exact),
+            major: version.major.into(),
+            minor: version.minor.map(Into::into),
+            patch: version.patch.map(Into::into),
+            pre: Default::default(),
+        };
+        match self {
+            Self::Op(op, version) => smallvec![cvt_op(*op, version)],
+            Self::Range(start, end) => smallvec![
+                cvt_op(Some(semver::Op::GreaterEq), start),
+                cvt_op(Some(semver::Op::LessEq), end)
+            ],
+        }
+    }
+
     /// Returns `true` if the given version satisfies this requirement component.
     pub fn matches(&self, version: &SemverVersion) -> bool {
         match self {
