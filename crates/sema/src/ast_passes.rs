@@ -94,15 +94,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             }
             StmtKind::Break => {
                 if !self.in_loop() {
-                    self.dcx()
-                        .err("\"break\" has to be in a \"for\" or \"while\" loop.")
-                        .span(self.span)
-                        .emit();
+                    self.dcx().err("`break` outside of a loop").span(self.span).emit();
                 }
             }
-            _ => {
-                self.visit_stmt(stmt);
-            }
+            _ => {}
         }
     }
 
