@@ -401,8 +401,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a SemVer version requirement.
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
-    fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq<'ast>> {
-        if self.check_noexpect(&TokenKind::Semi) {
+    pub fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq<'ast>> {
+        if self.check_noexpect(&TokenKind::Semi) || self.check_noexpect(&TokenKind::Eof) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
             return Err(self.dcx().err(msg).span(span));
