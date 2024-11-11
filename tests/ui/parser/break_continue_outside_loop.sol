@@ -1,7 +1,7 @@
 contract C {
     function f() {
-        break; //~ ERROR: `break` outside of a loop
-        continue; //~ ERROR: `break` outside of a loop
+        break; //~ ERROR: "break" has to be in a "for" or "while" loop.
+        continue; //~ ERROR: "continue" has to be in a "for" or "while" loop.
 
         for (uint256 i = 0; i < 10; i++) {
             break;

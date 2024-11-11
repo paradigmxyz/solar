@@ -89,9 +89,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.walk_stmt(body);
                 self.in_loop_depth -= 1;
             }
-            StmtKind::Break | StmtKind::Continue => {
+            StmtKind::Break => {
                 if !self.in_loop() {
-                    self.dcx().err("`break` outside of a loop").span(stmt.span).emit();
+                    self.dcx()
+                        .err("\"break\" has to be in a \"for\" or \"while\" loop.")
+                        .span(stmt.span)
+                        .emit();
+                }
+            }
+            StmtKind::Continue => {
+                if !self.in_loop() {
+                    self.dcx()
+                        .err("\"continue\" has to be in a \"for\" or \"while\" loop.")
+                        .span(stmt.span)
+                        .emit();
                 }
             }
             _ => {}
