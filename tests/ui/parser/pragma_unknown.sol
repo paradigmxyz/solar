@@ -10,4 +10,4 @@ pragma amogus 69;
 pragma amogus 69 diwqbn9ru3b2q945 390ru31290r 0qjr09wadm;
 //~^ ERROR: unknown pragma
 pragma amogus 0.8.15;
-//~^ ERROR: unknown pragma
+//~^ ERROR: only `solidity` is supported as a version pragma
