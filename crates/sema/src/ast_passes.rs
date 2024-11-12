@@ -1,5 +1,5 @@
 //! AST-related passes.
-
+use std::ops::ControlFlow;
 use solar_ast::{
     ast,
     ast::{Stmt, StmtKind},
