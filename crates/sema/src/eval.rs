@@ -83,7 +83,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
-            // hir::ExprKind::Lit(lit) => self.eval_lit(lit),
+            hir::ExprKind::Lit(lit) => self.eval_lit(lit),
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
