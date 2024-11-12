@@ -43,12 +43,13 @@ impl<'sess> AstValidator<'sess> {
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_> {
-    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<()> {
         self.span = item.span;
         self.walk_item(item);
+        ControlFlow::Continue(())
     }
 
-    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) {
+    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) -> ControlFlow<()> {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
@@ -76,9 +77,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.dcx().err("unknown pragma").span(self.span).emit();
             }
         }
+        ControlFlow::Continue(())
     }
 
-    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) {
+    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<()> {
         let Stmt { kind, .. } = stmt;
 
         match kind {
@@ -107,11 +109,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             }
             _ => {}
         }
+        ControlFlow::Continue(())
     }
 
-    // Intentionally override unused default implementations to reduce bloat.
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
 
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<()> {
+        ControlFlow::Continue(())
+    }
 }
