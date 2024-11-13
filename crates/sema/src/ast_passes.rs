@@ -24,11 +24,12 @@ struct AstValidator<'sess> {
     span: Span,
     dcx: &'sess DiagCtxt,
     in_loop_depth: u64,
+    in_unchecked_block: bool,
 }
 
 impl<'sess> AstValidator<'sess> {
     fn new(sess: &'sess Session) -> Self {
-        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0 }
+        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0, in_unchecked_block: false }
     }
 
     /// Returns the diagnostics context.
@@ -104,6 +105,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                         .span(stmt.span)
                         .emit();
                 }
+            }
+            StmtKind::UncheckedBlock(block) => {
+                if self.in_unchecked_block {
+                    self.dcx().err("\"unchecked\" blocks cannot be nested.").span(stmt.span).emit();
+                }
+
+                self.in_unchecked_block = true;
+                self.walk_block(block);
+                self.in_unchecked_block = false;
             }
             _ => {}
         }
