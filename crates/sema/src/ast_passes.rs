@@ -24,11 +24,12 @@ struct AstValidator<'sess> {
     span: Span,
     dcx: &'sess DiagCtxt,
     in_loop_depth: u64,
+    contract_kind: Option<ast::ContractKind>,
 }
 
 impl<'sess> AstValidator<'sess> {
     fn new(sess: &'sess Session) -> Self {
-        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0 }
+        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0, contract_kind: None }
     }
 
     /// Returns the diagnostics context.
@@ -106,6 +107,40 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract<'ast>) {
+        self.contract_kind = Some(contract.kind);
+        self.walk_item_contract(contract);
+        self.contract_kind = None;
+    }
+
+    fn visit_using_directive(&mut self, using: &'ast ast::UsingDirective<'ast>) {
+        let ast::UsingDirective { list: _, ty, global } = using;
+        let with_typ = ty.is_some();
+        if self.contract_kind.is_none() && !with_typ {
+            self.dcx()
+                .err("The type has to be specified explicitly at file level (cannot use '*')")
+                .span(self.span)
+                .emit();
+        }
+        if *global && !with_typ {
+            self.dcx()
+                .err("Can only globally attach functions to specific types")
+                .span(self.span)
+                .emit();
+        }
+        if *global && self.contract_kind.is_some() {
+            self.dcx().err("'global' can only be used at file level").span(self.span).emit();
+        }
+        if let Some(contract_kind) = self.contract_kind {
+            if contract_kind == ast::ContractKind::Interface {
+                self.dcx()
+                    .err("The 'using for' directive is not allowed inside interfaces")
+                    .span(self.span)
+                    .emit();
+            }
         }
     }
 
