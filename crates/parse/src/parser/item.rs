@@ -276,7 +276,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let fields = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
-            false,
+            true,
             |this| this.parse_variable_definition(VarFlags::STRUCT),
         )?;
         Ok(ItemStruct { name, fields })
