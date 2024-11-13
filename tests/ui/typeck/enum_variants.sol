@@ -1,5 +1,5 @@
 contract EmptyEnum {
-    enum NeedsAtLeastOneVariant { }
+    enum NeedsAtLeastOneVariant { } //~ ERROR: enum must have at least one variant
 }
 
 contract ValidEnum {
@@ -40,7 +40,7 @@ contract MaxEnum {
 }
 
 contract InvalidEnum {
-    enum ExceedsMaxVariants {
+    enum ExceedsMaxVariants { //~ ERROR: enum cannot have more than 256 variants
         V0,  V1,  V2,  V3,  V4,  V5,  V6,  V7,  V8,  V9,
         V10, V11, V12, V13, V14, V15, V16, V17, V18, V19,
         V20, V21, V22, V23, V24, V25, V26, V27, V28, V29,
