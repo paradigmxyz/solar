@@ -93,7 +93,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             StmtKind::Break => {
                 if !self.in_loop() {
                     self.dcx()
-                        .err("\"break\" has to be in a \"for\" or \"while\" loop.")
+                        .err("'break' has to be in a 'for' or 'while' loop")
                         .span(stmt.span)
                         .emit();
                 }
@@ -101,14 +101,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             StmtKind::Continue => {
                 if !self.in_loop() {
                     self.dcx()
-                        .err("\"continue\" has to be in a \"for\" or \"while\" loop.")
+                        .err("'continue' has to be in a 'for' or 'while' loop")
                         .span(stmt.span)
                         .emit();
                 }
             }
             StmtKind::UncheckedBlock(block) => {
                 if self.in_unchecked_block {
-                    self.dcx().err("\"unchecked\" blocks cannot be nested.").span(stmt.span).emit();
+                    self.dcx().err("'unchecked' blocks cannot be nested").span(stmt.span).emit();
                 }
 
                 let prev = self.in_unchecked_block;
