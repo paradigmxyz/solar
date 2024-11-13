@@ -3,8 +3,8 @@ contract C {
         unchecked {}
 
         unchecked {
-            unchecked {} //~ ERROR: "unchecked" blocks cannot be nested.
-            unchecked {} //~ ERROR: "unchecked" blocks cannot be nested.
+            unchecked {} //~ ERROR: 'unchecked' blocks cannot be nested
+            unchecked {} //~ ERROR: 'unchecked' blocks cannot be nested
         }
     }
 }

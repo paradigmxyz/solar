@@ -1,11 +1,11 @@
-error: "unchecked" blocks cannot be nested.
+error: 'unchecked' blocks cannot be nested
   --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
    |
 LL |             unchecked {}
    |             ^^^^^^^^^^^^
    |
 
-error: "unchecked" blocks cannot be nested.
+error: 'unchecked' blocks cannot be nested
   --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
    |
 LL |             unchecked {}
