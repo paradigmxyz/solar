@@ -109,6 +109,31 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         }
     }
 
+    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract<'ast>) {
+        let ast::ItemContract { kind: _, name, bases: _, body } = contract;
+        let contract_name = name.as_str();
+
+        for item in body.iter() {
+            if let ast::ItemKind::Function(ast::ItemFunction { kind: _, header, body: _ }) =
+                &item.kind
+            {
+                if let Some(func_name) = header.name {
+                    if func_name.as_str() == contract_name {
+                        self.dcx()
+                            .err(
+                                "Functions are not allowed to have the same name as the contract.
+        If you intend this to be a constructor, use \"constructor(...) { ... }\" to define it.",
+                            )
+                            .span(func_name.span)
+                            .emit();
+                    }
+                }
+            }
+        }
+
+        self.walk_item_contract(contract);
+    }
+
     // Intentionally override unused default implementations to reduce bloat.
 
     fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
