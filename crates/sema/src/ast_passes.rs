@@ -111,9 +111,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                     self.dcx().err("\"unchecked\" blocks cannot be nested.").span(stmt.span).emit();
                 }
 
+                let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
                 self.walk_block(block);
-                self.in_unchecked_block = false;
+                self.in_unchecked_block = prev;
             }
             _ => {}
         }
