@@ -64,6 +64,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         ControlFlow::Continue(())
     }
 
+    fn visit_item_enum(
+        &mut self,
+        enum_: &'ast ast::ItemEnum<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemEnum { name, variants } = enum_;
+        if variants.is_empty() {
+            self.dcx().err("enum must have at least one variant").span(name.span).emit();
+        }
+        if variants.len() > 256 {
+            self.dcx().err("enum cannot have more than 256 variants").span(name.span).emit();
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_pragma_directive(
         &mut self,
         pragma: &'ast ast::PragmaDirective<'ast>,
