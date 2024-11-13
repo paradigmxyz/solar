@@ -111,7 +111,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         }
         ControlFlow::Continue(())
     }
-
+    // Intentionally override unused default implementations to reduce bloat.
     fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<()> {
         ControlFlow::Continue(())
     }

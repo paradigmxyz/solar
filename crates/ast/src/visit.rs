@@ -9,19 +9,22 @@ use std::ops::ControlFlow;
 declare_visitors! {
     /// AST traversal.
     pub trait Visit VisitMut <'ast> {
-        fn visit_source_unit(&mut self, source_unit: &#mut SourceUnit<'ast>) -> ControlFlow<()> {
+        /// The value returned when breaking from the traversal
+        type BreakValue;
+
+        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
             // TODO: SAFETY: Idk
             let source_unit = unsafe { trustme::decouple_lt #_mut(source_unit) };
             let SourceUnit { items } = source_unit;
             for item in items.iter #_mut() {
-                if let ControlFlow::Break(_) = self.visit_item #_mut(item) {
-                    return ControlFlow::Break(());
+                if let ControlFlow::Break(val) = self.visit_item #_mut(item) {
+                    return ControlFlow::Break(val);
                 }
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_item(&mut self, item: &'ast #mut Item<'ast>) -> ControlFlow<()> {
+        fn visit_item(&mut self, item: &'ast #mut Item<'ast>) -> ControlFlow<Self::BreakValue> {
             let Item { docs, span, kind } = item;
             self.visit_span #_mut(span);
             self.visit_doc_comments #_mut(docs);
@@ -41,13 +44,13 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_pragma_directive(&mut self, pragma: &'ast #mut PragmaDirective<'ast>) -> ControlFlow<()> {
+        fn visit_pragma_directive(&mut self, pragma: &'ast #mut PragmaDirective<'ast>) -> ControlFlow<Self::BreakValue> {
             // noop by default.
             let PragmaDirective { tokens: _ } = pragma;
             ControlFlow::Continue(())
         }
 
-        fn visit_import_directive(&mut self, import: &'ast #mut ImportDirective<'ast>) -> ControlFlow<()> {
+        fn visit_import_directive(&mut self, import: &'ast #mut ImportDirective<'ast>) -> ControlFlow<Self::BreakValue> {
             let ImportDirective { path, items } = import;
             let _ = path; // TODO: ?
             match items {
@@ -73,7 +76,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_using_directive(&mut self, using: &'ast #mut UsingDirective<'ast>) -> ControlFlow<()> {
+        fn visit_using_directive(&mut self, using: &'ast #mut UsingDirective<'ast>) -> ControlFlow<Self::BreakValue> {
             let UsingDirective { list, ty, global: _ } = using;
             match list {
                 UsingList::Single(path) => {
@@ -91,7 +94,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) -> ControlFlow<()> {
+        fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemContract { kind: _, name, bases, body } = contract;
             self.visit_ident #_mut(name)?;
             for base in bases.iter #_mut() {
@@ -103,7 +106,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_item_function(&mut self, function: &'ast #mut ItemFunction<'ast>) -> ControlFlow<()> {
+        fn visit_item_function(&mut self, function: &'ast #mut ItemFunction<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemFunction { kind: _, header, body } = function;
             self.visit_function_header #_mut(header)?;
             if let Some(body) = body {
@@ -112,7 +115,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_item_struct(&mut self, strukt: &'ast #mut ItemStruct<'ast>) -> ControlFlow<()> {
+        fn visit_item_struct(&mut self, strukt: &'ast #mut ItemStruct<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemStruct { name, fields } = strukt;
             self.visit_ident #_mut(name)?;
             for field in fields.iter #_mut() {
@@ -121,7 +124,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_item_enum(&mut self, enum_: &'ast #mut ItemEnum<'ast>) -> ControlFlow<()> {
+        fn visit_item_enum(&mut self, enum_: &'ast #mut ItemEnum<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemEnum { name, variants } = enum_;
             self.visit_ident #_mut(name)?;
             for variant in variants.iter #_mut() {
@@ -130,28 +133,28 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_item_udvt(&mut self, udvt: &'ast #mut ItemUdvt<'ast>) -> ControlFlow<()> {
+        fn visit_item_udvt(&mut self, udvt: &'ast #mut ItemUdvt<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemUdvt { name, ty } = udvt;
             self.visit_ident #_mut(name)?;
             self.visit_ty #_mut(ty)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_item_error(&mut self, error: &'ast #mut ItemError<'ast>) -> ControlFlow<()> {
+        fn visit_item_error(&mut self, error: &'ast #mut ItemError<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemError { name, parameters } = error;
             self.visit_ident #_mut(name)?;
             self.visit_parameter_list #_mut(parameters)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_item_event(&mut self, event: &'ast #mut ItemEvent<'ast>) -> ControlFlow<()> {
+        fn visit_item_event(&mut self, event: &'ast #mut ItemEvent<'ast>) -> ControlFlow<Self::BreakValue> {
             let ItemEvent { name, parameters, anonymous: _ } = event;
             self.visit_ident #_mut(name)?;
             self.visit_parameter_list #_mut(parameters)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition<'ast>) -> ControlFlow<()> {
+        fn visit_variable_definition(&mut self, var: &'ast #mut VariableDefinition<'ast>) -> ControlFlow<Self::BreakValue> {
             let VariableDefinition {
                 span,
                 ty,
@@ -174,7 +177,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_ty(&mut self, ty: &'ast #mut Type<'ast>) -> ControlFlow<()> {
+        fn visit_ty(&mut self, ty: &'ast #mut Type<'ast>) -> ControlFlow<Self::BreakValue> {
             let Type { span, kind } = ty;
             self.visit_span #_mut(span)?;
             match kind {
@@ -206,7 +209,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) -> ControlFlow<()> {
+        fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) -> ControlFlow<Self::BreakValue> {
             let FunctionHeader {
                 name,
                 parameters,
@@ -228,14 +231,14 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_modifier(&mut self, modifier: &'ast #mut Modifier<'ast>) -> ControlFlow<()> {
+        fn visit_modifier(&mut self, modifier: &'ast #mut Modifier<'ast>) -> ControlFlow<Self::BreakValue> {
             let Modifier { name, arguments } = modifier;
             self.visit_path #_mut(name)?;
             self.visit_call_args #_mut(arguments)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) -> ControlFlow<()> {
+        fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) -> ControlFlow<Self::BreakValue> {
             match args {
                 CallArgs::Named(named) => {
                     self.visit_named_args #_mut(named)?;
@@ -249,7 +252,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_named_args(&mut self, args: &'ast #mut NamedArgList<'ast>) -> ControlFlow<()> {
+        fn visit_named_args(&mut self, args: &'ast #mut NamedArgList<'ast>) -> ControlFlow<Self::BreakValue> {
             for NamedArg { name, value } in args.iter #_mut() {
                 self.visit_ident #_mut(name)?;
                 self.visit_expr #_mut(value)?;
@@ -257,7 +260,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_stmt(&mut self, stmt: &'ast #mut Stmt<'ast>) -> ControlFlow<()> {
+        fn visit_stmt(&mut self, stmt: &'ast #mut Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
             let Stmt { docs, span, kind } = stmt;
             self.visit_doc_comments #_mut(docs)?;
             self.visit_span #_mut(span)?;
@@ -335,13 +338,13 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_stmt_assembly(&mut self, assembly: &'ast #mut StmtAssembly<'ast>) -> ControlFlow<()> {
+        fn visit_stmt_assembly(&mut self, assembly: &'ast #mut StmtAssembly<'ast>) -> ControlFlow<Self::BreakValue> {
             let StmtAssembly { dialect: _, flags: _, block } = assembly;
             self.visit_yul_block #_mut(block)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) -> ControlFlow<()> {
+        fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) -> ControlFlow<Self::BreakValue> {
             let StmtTry { expr, returns, block, catch } = try_;
             self.visit_expr #_mut(expr)?;
             self.visit_parameter_list #_mut(returns)?;
@@ -352,7 +355,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) -> ControlFlow<()> {
+        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
             let CatchClause { name, args, block } = catch;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
@@ -362,14 +365,14 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_block(&mut self, block: &'ast #mut Block<'ast>) -> ControlFlow<()> {
+        fn visit_block(&mut self, block: &'ast #mut Block<'ast>) -> ControlFlow<Self::BreakValue> {
             for stmt in block.iter #_mut() {
                 self.visit_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_expr(&mut self, expr: &'ast #mut Expr<'ast>) -> ControlFlow<()> {
+        fn visit_expr(&mut self, expr: &'ast #mut Expr<'ast>) -> ControlFlow<Self::BreakValue> {
             let Expr { span, kind } = expr;
             self.visit_span #_mut(span)?;
             match kind {
@@ -456,20 +459,20 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<()> {
+        fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<Self::BreakValue> {
             for param in list.iter #_mut() {
                 self.visit_variable_definition #_mut(param)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_lit(&mut self, lit: &'ast #mut Lit) -> ControlFlow<()> {
+        fn visit_lit(&mut self, lit: &'ast #mut Lit) -> ControlFlow<Self::BreakValue> {
             let Lit { span, symbol: _, kind: _ } = lit;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_stmt(&mut self, stmt: &'ast #mut yul::Stmt<'ast>) -> ControlFlow<()> {
+        fn visit_yul_stmt(&mut self, stmt: &'ast #mut yul::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::Stmt { docs, span, kind } = stmt;
             self.visit_doc_comments #_mut(docs)?;
             self.visit_span #_mut(span)?;
@@ -521,14 +524,14 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) -> ControlFlow<()> {
+        fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) -> ControlFlow<Self::BreakValue> {
             for stmt in block.iter #_mut() {
                 self.visit_yul_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) -> ControlFlow<()> {
+        fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::StmtSwitch { selector, branches, default_case } = switch;
             self.visit_yul_expr #_mut(selector)?;
             for case in branches.iter #_mut() {
@@ -540,14 +543,14 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) -> ControlFlow<()> {
+        fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::StmtSwitchCase { constant, body } = case;
             self.visit_lit #_mut(constant)?;
             self.visit_yul_block #_mut(body)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_function(&mut self, function: &'ast #mut yul::Function<'ast>) -> ControlFlow<()> {
+        fn visit_yul_function(&mut self, function: &'ast #mut yul::Function<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::Function { name, parameters, returns, body } = function;
             self.visit_ident #_mut(name)?;
             for ident in parameters.iter #_mut() {
@@ -560,7 +563,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_expr(&mut self, expr: &'ast #mut yul::Expr<'ast>) -> ControlFlow<()> {
+        fn visit_yul_expr(&mut self, expr: &'ast #mut yul::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::Expr { span, kind } = expr;
             self.visit_span #_mut(span)?;
             match kind {
@@ -577,7 +580,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall<'ast>) -> ControlFlow<()> {
+        fn visit_yul_expr_call(&mut self, call: &'ast #mut yul::ExprCall<'ast>) -> ControlFlow<Self::BreakValue> {
             let yul::ExprCall { name, arguments } = call;
             self.visit_ident #_mut(name)?;
             for arg in arguments.iter #_mut() {
@@ -586,33 +589,33 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_doc_comments(&mut self, doc_comments: &'ast #mut DocComments<'ast>) -> ControlFlow<()> {
+        fn visit_doc_comments(&mut self, doc_comments: &'ast #mut DocComments<'ast>) -> ControlFlow<Self::BreakValue> {
             for doc_comment in doc_comments.iter #_mut() {
                 self.visit_doc_comment #_mut(doc_comment)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment) -> ControlFlow<()> {
+        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment) -> ControlFlow<Self::BreakValue> {
             let DocComment { kind: _, span, symbol: _ } = doc_comment;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_path(&mut self, path: &'ast #mut PathSlice) -> ControlFlow<()> {
+        fn visit_path(&mut self, path: &'ast #mut PathSlice) -> ControlFlow<Self::BreakValue> {
             for ident in path.segments #_mut() {
                 self.visit_ident #_mut(ident)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_ident(&mut self, ident: &'ast #mut Ident) -> ControlFlow<()> {
+        fn visit_ident(&mut self, ident: &'ast #mut Ident) -> ControlFlow<Self::BreakValue> {
             let Ident { name: _, span } = ident;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_span(&mut self, span: &'ast #mut Span) -> ControlFlow<()> {
+        fn visit_span(&mut self, span: &'ast #mut Span) -> ControlFlow<Self::BreakValue> {
             // Nothing to do.
             let _ = span;
             ControlFlow::Continue(())
