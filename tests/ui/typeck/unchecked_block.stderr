@@ -5,5 +5,12 @@ LL |             unchecked {}
    |             ^^^^^^^^^^^^
    |
 
-error: aborting due to 1 previous error
+error: "unchecked" blocks cannot be nested.
+  --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
+   |
+LL |             unchecked {}
+   |             ^^^^^^^^^^^^
+   |
+
+error: aborting due to 2 previous errors
 
