@@ -9,25 +9,26 @@ use std::ops::ControlFlow;
 declare_visitors! {
     /// AST traversal.
     pub trait Visit VisitMut <'ast> {
-        /// The value returned when breaking from the traversal
+        /// The value returned when breaking from the traversal.
+        ///
+        /// This can be [`Never`](solar_data_structures::Never) to indicate that the traversal
+        /// should never break.
         type BreakValue;
 
-        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
+        fn visit_source_unit(&mut self, source_unit: &#mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
             // TODO: SAFETY: Idk
             let source_unit = unsafe { trustme::decouple_lt #_mut(source_unit) };
             let SourceUnit { items } = source_unit;
             for item in items.iter #_mut() {
-                if let ControlFlow::Break(val) = self.visit_item #_mut(item) {
-                    return ControlFlow::Break(val);
-                }
+                self.visit_item #_mut(item)?;
             }
             ControlFlow::Continue(())
         }
 
         fn visit_item(&mut self, item: &'ast #mut Item<'ast>) -> ControlFlow<Self::BreakValue> {
             let Item { docs, span, kind } = item;
-            self.visit_span #_mut(span);
-            self.visit_doc_comments #_mut(docs);
+            self.visit_span #_mut(span)?;
+            self.visit_doc_comments #_mut(docs)?;
             match kind {
                 ItemKind::Pragma(item) => self.visit_pragma_directive #_mut(item)?,
                 ItemKind::Import(item) => self.visit_import_directive #_mut(item)?,
