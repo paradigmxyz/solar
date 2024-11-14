@@ -44,10 +44,9 @@ impl SessionGlobals {
 
     /// Insert `source_map` into the session globals for the duration of the closure's execution.
     pub fn with_source_map<R>(source_map: Arc<SourceMap>, f: impl FnOnce() -> R) -> R {
-        Self::with(|g| *g.source_map.lock() = Some(source_map));
-
+        let prev = Self::with(|g| g.source_map.lock().replace(source_map));
         let _clear = defer(|| {
-            Self::with(|g| g.source_map.lock().take());
+            Self::with(|g| *g.source_map.lock() = prev);
         });
         f()
     }

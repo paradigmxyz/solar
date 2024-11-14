@@ -41,6 +41,13 @@ impl fmt::Display for EmittedDiagnostics {
 
 impl std::error::Error for EmittedDiagnostics {}
 
+impl EmittedDiagnostics {
+    /// Returns `true` if no diagnostics have been emitted.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 /// Useful type to use with [`Result`] indicate that an error has already been reported to the user,
 /// so no need to continue checking.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

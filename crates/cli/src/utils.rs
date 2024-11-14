@@ -1,6 +1,6 @@
 //! Utility functions used by the Solar CLI.
 
-use solar_interface::{diagnostics::DiagCtxt, SessionGlobals};
+use solar_interface::diagnostics::DiagCtxt;
 
 #[cfg(all(feature = "jemalloc", unix))]
 use tikv_jemallocator as _;
@@ -116,34 +116,4 @@ fn chrome_layer() -> (tracing_subscriber::layer::Identity, ()) {
 #[allow(dead_code)]
 pub(crate) fn env_to_bool(value: Option<&std::ffi::OsStr>) -> bool {
     value.is_some_and(|value| value == "1" || value == "true")
-}
-
-/// Runs the given closure in a thread pool with the given number of threads.
-pub fn run_in_thread_pool_with_globals<R: Send>(
-    threads: usize,
-    f: impl FnOnce(usize) -> R + Send,
-) -> R {
-    let mut builder =
-        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
-    // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator` don't
-    // install their own thread pool.
-    if threads == 1 {
-        builder = builder.use_current_thread();
-    }
-
-    // We create the session globals on the main thread, then create the thread pool. Upon creation,
-    // each worker thread created gets a copy of the session globals in TLS. This is possible
-    // because `SessionGlobals` impls `Send`.
-    SessionGlobals::new().set(|| {
-        SessionGlobals::with(|session_globals| {
-            builder
-                .build_scoped(
-                    // Initialize each new worker thread when created.
-                    move |thread| session_globals.set(|| thread.run()),
-                    // Run `f` on the first thread in the thread pool.
-                    move |pool| pool.install(|| f(pool.current_num_threads())),
-                )
-                .unwrap()
-        })
-    })
 }
