@@ -5,7 +5,9 @@ use solar_ast::{
     ast::{Stmt, StmtKind},
     visit::Visit,
 };
+use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
+use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
@@ -25,11 +27,18 @@ struct AstValidator<'sess> {
     dcx: &'sess DiagCtxt,
     in_loop_depth: u64,
     contract_kind: Option<ast::ContractKind>,
+    in_unchecked_block: bool,
 }
 
 impl<'sess> AstValidator<'sess> {
     fn new(sess: &'sess Session) -> Self {
-        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0, contract_kind: None }
+        Self {
+            span: Span::DUMMY,
+            dcx: &sess.dcx,
+            in_loop_depth: 0,
+            in_unchecked_block: false,
+            contract_kind: None,
+        }
     }
 
     /// Returns the diagnostics context.
@@ -44,12 +53,17 @@ impl<'sess> AstValidator<'sess> {
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_> {
-    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
+    type BreakValue = Never;
+
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.span = item.span;
-        self.walk_item(item);
+        self.walk_item(item)
     }
 
-    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) {
+    fn visit_pragma_directive(
+        &mut self,
+        pragma: &'ast ast::PragmaDirective<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
@@ -77,9 +91,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.dcx().err("unknown pragma").span(self.span).emit();
             }
         }
+        ControlFlow::Continue(())
     }
 
-    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) {
+    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         let Stmt { kind, .. } = stmt;
 
         match kind {
@@ -87,66 +102,82 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             | StmtKind::DoWhile(body, ..)
             | StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                self.walk_stmt(body);
+                let r = self.walk_stmt(body);
                 self.in_loop_depth -= 1;
+                return r;
             }
-            StmtKind::Break => {
+            StmtKind::Break | StmtKind::Continue => {
                 if !self.in_loop() {
-                    self.dcx()
-                        .err("\"break\" has to be in a \"for\" or \"while\" loop.")
-                        .span(stmt.span)
-                        .emit();
+                    let kind = if matches!(kind, StmtKind::Break) { "break" } else { "continue" };
+                    let msg = format!("`{kind}` outside of a loop");
+                    self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
-            StmtKind::Continue => {
-                if !self.in_loop() {
-                    self.dcx()
-                        .err("\"continue\" has to be in a \"for\" or \"while\" loop.")
-                        .span(stmt.span)
-                        .emit();
+            StmtKind::UncheckedBlock(block) => {
+                if self.in_unchecked_block {
+                    self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
+
+                let prev = self.in_unchecked_block;
+                self.in_unchecked_block = true;
+                let r = self.walk_block(block);
+                self.in_unchecked_block = prev;
+                return r;
             }
             _ => {}
         }
+
+        self.walk_stmt(stmt)
     }
 
-    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract<'ast>) {
+    fn visit_item_contract(
+        &mut self,
+        contract: &'ast ast::ItemContract<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         self.contract_kind = Some(contract.kind);
-        self.walk_item_contract(contract);
+        let r = self.walk_item_contract(contract);
         self.contract_kind = None;
+        r
     }
 
-    fn visit_using_directive(&mut self, using: &'ast ast::UsingDirective<'ast>) {
+    fn visit_using_directive(
+        &mut self,
+        using: &'ast ast::UsingDirective<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         let ast::UsingDirective { list: _, ty, global } = using;
         let with_typ = ty.is_some();
         if self.contract_kind.is_none() && !with_typ {
             self.dcx()
-                .err("The type has to be specified explicitly at file level (cannot use '*')")
+                .err("the type has to be specified explicitly at file level (cannot use `*`)")
                 .span(self.span)
                 .emit();
         }
         if *global && !with_typ {
             self.dcx()
-                .err("Can only globally attach functions to specific types")
+                .err("can only globally attach functions to specific types")
                 .span(self.span)
                 .emit();
         }
         if *global && self.contract_kind.is_some() {
-            self.dcx().err("'global' can only be used at file level").span(self.span).emit();
+            self.dcx().err("`global` can only be used at file level").span(self.span).emit();
         }
         if let Some(contract_kind) = self.contract_kind {
             if contract_kind == ast::ContractKind::Interface {
                 self.dcx()
-                    .err("The 'using for' directive is not allowed inside interfaces")
+                    .err("the `using for` directive is not allowed inside interfaces")
                     .span(self.span)
                     .emit();
             }
         }
+        self.walk_using_directive(using)
     }
 
     // Intentionally override unused default implementations to reduce bloat.
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 }
