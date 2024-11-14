@@ -1,11 +1,11 @@
-error: "break" has to be in a "for" or "while" loop.
+error: 'break' has to be in a 'for' or 'while' loop
   --> ROOT/tests/ui/parser/break_continue_outside_loop.sol:LL:CC
    |
 LL |         break;
    |         ^^^^^^
    |
 
-error: "continue" has to be in a "for" or "while" loop.
+error: 'continue' has to be in a 'for' or 'while' loop
   --> ROOT/tests/ui/parser/break_continue_outside_loop.sol:LL:CC
    |
 LL |         continue;
