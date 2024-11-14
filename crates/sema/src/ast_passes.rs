@@ -95,38 +95,32 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             | StmtKind::DoWhile(body, ..)
             | StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                self.walk_stmt(body)?;
+                let r = self.walk_stmt(body);
                 self.in_loop_depth -= 1;
+                return r;
             }
-            StmtKind::Break => {
+            StmtKind::Break | StmtKind::Continue => {
                 if !self.in_loop() {
-                    self.dcx()
-                        .err("'break' has to be in a 'for' or 'while' loop")
-                        .span(stmt.span)
-                        .emit();
-                }
-            }
-            StmtKind::Continue => {
-                if !self.in_loop() {
-                    self.dcx()
-                        .err("'continue' has to be in a 'for' or 'while' loop")
-                        .span(stmt.span)
-                        .emit();
+                    let kind = if matches!(kind, StmtKind::Break) { "break" } else { "continue" };
+                    let msg = format!("`{kind}` outside of a loop");
+                    self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
             StmtKind::UncheckedBlock(block) => {
                 if self.in_unchecked_block {
-                    self.dcx().err("'unchecked' blocks cannot be nested").span(stmt.span).emit();
+                    self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
 
                 let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
-                self.walk_block(block);
+                let r = self.walk_block(block);
                 self.in_unchecked_block = prev;
+                return r;
             }
             _ => {}
         }
-        ControlFlow::Continue(())
+
+        self.walk_stmt(stmt)
     }
 
     // Intentionally override unused default implementations to reduce bloat.
