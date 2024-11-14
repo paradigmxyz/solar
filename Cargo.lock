@@ -2562,7 +2562,6 @@ dependencies = [
  "clap",
  "const_format",
  "libc",
- "rayon",
  "solar-config",
  "solar-interface",
  "solar-sema",

@@ -36,10 +36,12 @@ impl fmt::Debug for Span {
         }
 
         if SessionGlobals::is_set() {
-            SessionGlobals::with(|g| {
-                if let Some(source_map) = &*g.source_map.lock() {
+            SessionGlobals::with(|g: &SessionGlobals| {
+                let sm = g.source_map.lock();
+                if let Some(source_map) = &*sm {
                     f.write_str(&source_map.span_to_diagnostic_string(*self))
                 } else {
+                    drop(sm);
                     fallback(*self, f)
                 }
             })
