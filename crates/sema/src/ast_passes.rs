@@ -5,7 +5,9 @@ use solar_ast::{
     ast::{Stmt, StmtKind},
     visit::Visit,
 };
+use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
+use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
@@ -44,12 +46,17 @@ impl<'sess> AstValidator<'sess> {
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_> {
-    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) {
+    type BreakValue = Never;
+
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.span = item.span;
-        self.walk_item(item);
+        self.walk_item(item)
     }
 
-    fn visit_pragma_directive(&mut self, pragma: &'ast ast::PragmaDirective<'ast>) {
+    fn visit_pragma_directive(
+        &mut self,
+        pragma: &'ast ast::PragmaDirective<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         match &pragma.tokens {
             ast::PragmaTokens::Version(name, _version) => {
                 if name.name != sym::solidity {
@@ -77,9 +84,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.dcx().err("unknown pragma").span(self.span).emit();
             }
         }
+        ControlFlow::Continue(())
     }
 
-    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) {
+    fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         let Stmt { kind, .. } = stmt;
 
         match kind {
@@ -87,7 +95,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             | StmtKind::DoWhile(body, ..)
             | StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                self.walk_stmt(body);
+                self.walk_stmt(body)?;
                 self.in_loop_depth -= 1;
             }
             StmtKind::Break => {
@@ -118,11 +126,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             }
             _ => {}
         }
+        ControlFlow::Continue(())
     }
 
     // Intentionally override unused default implementations to reduce bloat.
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) {}
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) {}
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 }
