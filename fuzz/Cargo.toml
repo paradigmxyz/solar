@@ -1,0 +1,27 @@
+[package]
+name = "solar-bench-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+solar-parse = { path = "../crates/parse" }
+solar-interface = { path = "../crates/interface" }
+
+[[bin]]
+name = "parser_from_source_code"
+path = "fuzz_targets/parser_from_source_code.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lexer_from_source_file"
+path = "fuzz_targets/lexer_from_source_file.rs"
+test = false
+doc = false
+bench = false
