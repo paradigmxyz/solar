@@ -1,16 +1,30 @@
-error: 'unchecked' blocks cannot be nested
+error: `unchecked` blocks cannot be nested
+  --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
+   |
+LL |         unchecked {}
+   |         ^^^^^^^^^^^^
+   |
+
+error: `unchecked` blocks cannot be nested
+  --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
+   |
+LL |         unchecked {}
+   |         ^^^^^^^^^^^^
+   |
+
+error: `unchecked` blocks cannot be nested
   --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
    |
 LL |             unchecked {}
    |             ^^^^^^^^^^^^
    |
 
-error: 'unchecked' blocks cannot be nested
+error: `unchecked` blocks cannot be nested
   --> ROOT/tests/ui/typeck/unchecked_block.sol:LL:CC
    |
 LL |             unchecked {}
    |             ^^^^^^^^^^^^
    |
 
-error: aborting due to 2 previous errors
+error: aborting due to 4 previous errors
 
