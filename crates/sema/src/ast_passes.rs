@@ -53,6 +53,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         self.walk_item(item)
     }
 
+    fn visit_item_struct(
+        &mut self,
+        item: &'ast ast::ItemStruct<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemStruct { name, fields, .. } = item;
+        if fields.is_empty() {
+            self.dcx().err("structs must have at least one field").span(name.span).emit();
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_pragma_directive(
         &mut self,
         pragma: &'ast ast::PragmaDirective<'ast>,

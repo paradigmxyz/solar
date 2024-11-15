@@ -1,0 +1,9 @@
+error: structs must have at least one field
+  --> ROOT/tests/ui/typeck/empty_struct.sol:LL:CC
+   |
+LL | struct A {}
+   |        ^
+   |
+
+error: aborting due to 1 previous error
+
