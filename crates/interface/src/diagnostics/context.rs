@@ -171,17 +171,23 @@ impl DiagCtxt {
         }
     }
 
+    /// Returns the emitted diagnostics. Can be empty.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](Self::with_buffer_emitter).
+    pub fn emitted_diagnostics(&self) -> Option<EmittedDiagnostics> {
+        let inner = self.inner.lock();
+        Some(EmittedDiagnostics(inner.emitter.local_buffer()?.to_string()))
+    }
+
     /// Returns `Err` with the printed diagnostics if any errors have been emitted.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
     /// [`with_buffer_emitter`](Self::with_buffer_emitter).
-    pub fn emitted_diagnostics(&self) -> Option<Result<(), EmittedDiagnostics>> {
+    pub fn emitted_errors(&self) -> Option<Result<(), EmittedDiagnostics>> {
         let inner = self.inner.lock();
-        Some(if inner.has_errors() {
-            Err(EmittedDiagnostics(inner.emitter.local_buffer()?.to_string()))
-        } else {
-            Ok(())
-        })
+        let buffer = inner.emitter.local_buffer()?;
+        Some(if inner.has_errors() { Err(EmittedDiagnostics(buffer.to_string())) } else { Ok(()) })
     }
 
     /// Emits a diagnostic if any warnings or errors have been emitted.
