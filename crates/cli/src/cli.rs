@@ -107,19 +107,26 @@ pub struct UnstableFeatures {
     /// Enables UI testing mode.
     #[arg(long)]
     pub ui_testing: bool,
+
     /// Prints a note for every diagnostic that is emitted with the creation and emission location.
     ///
     /// This is enabled by default on debug builds.
     #[arg(long)]
     pub track_diagnostics: bool,
+
     /// Enables parsing Yul files for testing.
     #[arg(long)]
     pub parse_yul: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
     #[arg(long, value_name = "KIND[=PATHS...]")]
     pub dump: Option<Dump>,
+
+    /// Print AST stats.
+    #[arg(long)]
+    pub ast_stats: bool,
 
     /// Print help.
     #[arg(long, action = clap::ArgAction::Help)]
@@ -208,5 +215,8 @@ mod tests {
         assert_eq!(unstable.test_value, Some(2));
         let unstable = parse(&["solar", "-Z", "test-value=2", "a.sol"]).unwrap();
         assert_eq!(unstable.test_value, Some(2));
+
+        let unstable = parse(&["solar", "-Zast-stats", "a.sol"]).unwrap();
+        assert!(unstable.ast_stats);
     }
 }

@@ -43,6 +43,9 @@ pub struct Session {
     /// Number of threads to use. Already resolved to a non-zero value.
     #[builder(default = "NonZeroUsize::MIN")]
     pub jobs: NonZeroUsize,
+    /// Whether to emit AST stats.
+    #[builder(default)]
+    pub ast_stats: bool,
 }
 
 #[derive(Debug)]
