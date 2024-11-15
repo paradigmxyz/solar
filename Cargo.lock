@@ -2581,18 +2581,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solar-bench-fuzz"
-version = "0.0.0"
-dependencies = [
- "libfuzzer-sys",
- "solar-cli",
- "solar-interface",
- "solar-parse",
- "solar-sema",
- "tempfile",
-]
-
-[[package]]
 name = "solar-cli"
 version = "0.1.0"
 dependencies = [
@@ -2657,6 +2645,18 @@ name = "solar-examples"
 version = "0.1.0"
 dependencies = [
  "solar-compiler",
+]
+
+[[package]]
+name = "solar-fuzz"
+version = "0.0.0"
+dependencies = [
+ "libfuzzer-sys",
+ "solar-cli",
+ "solar-interface",
+ "solar-parse",
+ "solar-sema",
+ "tempfile",
 ]
 
 [[package]]

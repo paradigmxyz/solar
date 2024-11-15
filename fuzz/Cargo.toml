@@ -1,5 +1,5 @@
 [package]
-name = "solar-bench-fuzz"
+name = "solar-fuzz"
 version = "0.0.0"
 publish = false
 edition = "2021"
