@@ -15,8 +15,8 @@ struct NodeStats {
 }
 
 impl NodeStats {
-    fn new() -> NodeStats {
-        NodeStats { count: 0, size: 0 }
+    fn new() -> Self {
+        Self { count: 0, size: 0 }
     }
 }
 
@@ -26,8 +26,8 @@ struct Node {
 }
 
 impl Node {
-    fn new() -> Node {
-        Node { stats: NodeStats::new(), subnodes: FxHashMap::default() }
+    fn new() -> Self {
+        Self { stats: NodeStats::new(), subnodes: FxHashMap::default() }
     }
 }
 
