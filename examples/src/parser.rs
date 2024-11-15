@@ -26,5 +26,6 @@ fn main() -> Result<(), EmittedDiagnostics> {
     });
 
     // Return the emitted diagnostics as a `Result<(), _>`.
-    sess.emitted_diagnostics().unwrap()
+    // If any errors were emitted, this returns `Err(_)`, otherwise `Ok(())`.
+    sess.emitted_errors().unwrap()
 }

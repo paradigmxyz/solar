@@ -67,7 +67,10 @@ macro_rules! pluralize {
 /// Creates new session globals on the current thread if they doesn't exist already and then
 /// executes the given closure.
 ///
-/// Prefer [`Session::enter`] to this function if possible to also set the source map.
+/// Prefer [`Session::enter`] to this function if possible to also set the source map and thread
+/// pool.
+///
+/// Using this instead of [`Session::enter`] may cause unexpected panics.
 #[inline]
 pub fn enter<R>(f: impl FnOnce() -> R) -> R {
     SessionGlobals::with_or_default(|_| f())
