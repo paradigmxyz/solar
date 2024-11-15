@@ -14,8 +14,9 @@ To list each fuzzing case,
 
 ```
 $ cargo +nightly fuzz list
-lexer_from_source_file
-parser_from_source_code
+canonicalize
+parsing_context_parse_and_resolve
+run_compiler_args
 ```
 
 In order to run a fuzzing case,
