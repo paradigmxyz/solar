@@ -123,7 +123,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         self.walk_stmt(stmt)
     }
 
-    fn visit_item_contract(&mut self, contract: &'ast ast::ItemContract<'ast>) {
+    fn visit_item_contract(
+        &mut self,
+        contract: &'ast ast::ItemContract<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         let ast::ItemContract { kind: _, name, bases: _, body } = contract;
         let contract_name = name.as_str();
 
@@ -143,7 +146,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             }
         }
 
-        self.walk_item_contract(contract);
+        self.walk_item_contract(contract)
     }
 
     // Intentionally override unused default implementations to reduce bloat.

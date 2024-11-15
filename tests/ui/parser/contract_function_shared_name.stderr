@@ -1,10 +1,10 @@
-error: Functions are not allowed to have the same name as the contract.
-        If you intend this to be a constructor, use "constructor(...) { ... }" to define it.
+error: functions are not allowed to have the same name as the contract
   --> ROOT/tests/ui/parser/contract_function_shared_name.sol:LL:CC
    |
 LL |     function C() public {}
    |              ^
    |
+   = note: if you intend this to be a constructor, use "constructor(...) { ... }" to define it
 
 error: aborting due to 1 previous error
 
