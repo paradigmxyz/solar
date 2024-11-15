@@ -120,10 +120,8 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 if let Some(func_name) = header.name {
                     if func_name.as_str() == contract_name {
                         self.dcx()
-                            .err(
-                                "Functions are not allowed to have the same name as the contract.
-        If you intend this to be a constructor, use \"constructor(...) { ... }\" to define it.",
-                            )
+                            .err("functions are not allowed to have the same name as the contract")
+                            .note("if you intend this to be a constructor, use \"constructor(...) { ... }\" to define it")
                             .span(func_name.span)
                             .emit();
                     }
