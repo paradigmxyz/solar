@@ -1,0 +1,20 @@
+ast-stats AST STATS
+ast-stats Name                Accumulated Size         Count     Item Size
+ast-stats ----------------------------------------------------------------
+ast-stats Block                     32 ( 2.7%)             2            16
+ast-stats Type                      64 ( 5.4%)             2            32
+ast-stats - Elementary                64 ( 5.4%)             2
+ast-stats Stmt                     160 (13.6%)             2            80
+ast-stats - Expr                     160 (13.6%)             2
+ast-stats Expr                     240 (20.4%)             5            48
+ast-stats - Assign                    48 ( 4.1%)             1
+ast-stats - Unary                     48 ( 4.1%)             1
+ast-stats - Ident                    144 (12.2%)             3
+ast-stats Item                     680 (57.8%)             5           136
+ast-stats - Variable                 136 (11.6%)             1
+ast-stats - Contract                 136 (11.6%)             1
+ast-stats - Pragma                   136 (11.6%)             1
+ast-stats - Function                 272 (23.1%)             2
+ast-stats ----------------------------------------------------------------
+ast-stats Total                  1_176
+ast-stats
