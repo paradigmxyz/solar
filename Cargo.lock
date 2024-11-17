@@ -2649,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "solar-fuzz"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "libfuzzer-sys",
  "solar-cli",
