@@ -1,0 +1,14 @@
+error: identifier `Imported` already declared
+  --> ROOT/tests/ui/resolve/unify_file_import/toplevel.sol:LL:CC
+   |
+LL | import "./auxiliary/file1.sol";
+   | ------------------------------- note: previous declaration declared here
+LL | import "./auxiliary/file2.sol";
+...
+LL |
+LL | import "./auxiliary/different_imported.sol" as Imported;
+   |                                                ^^^^^^^^
+   |
+
+error: aborting due to 1 previous error
+
