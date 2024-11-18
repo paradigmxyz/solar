@@ -148,6 +148,32 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         self.walk_stmt(stmt)
     }
 
+    fn visit_item_contract(
+        &mut self,
+        contract: &'ast ast::ItemContract<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemContract { kind: _, name: _, bases: _, body } = contract;
+
+        for item in body.iter() {
+            if let ast::ItemKind::Function(ast::ItemFunction { kind, header, body: _ }) = &item.kind
+            {
+                if *kind == ast::FunctionKind::Function {
+                    if let Some(func_name) = header.name {
+                        if func_name == contract.name {
+                            self.dcx()
+                            .err("functions are not allowed to have the same name as the contract")
+                            .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
+                            .span(func_name.span)
+                            .emit();
+                        }
+                    }
+                }
+            }
+        }
+
+        self.walk_item_contract(contract)
+    }
+
     // Intentionally override unused default implementations to reduce bloat.
     fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
