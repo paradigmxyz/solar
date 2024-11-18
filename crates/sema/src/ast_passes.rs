@@ -127,20 +127,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         &mut self,
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        let ast::ItemContract { kind: _, name, bases: _, body } = contract;
-        let contract_name = name.as_str();
+        let ast::ItemContract { kind: _, name: _, bases: _, body } = contract;
 
         for item in body.iter() {
-            if let ast::ItemKind::Function(ast::ItemFunction { kind: _, header, body: _ }) =
-                &item.kind
+            if let ast::ItemKind::Function(ast::ItemFunction { kind, header, body: _ }) = &item.kind
             {
-                if let Some(func_name) = header.name {
-                    if func_name == contract.name {
-                        self.dcx()
+                if *kind == ast::FunctionKind::Function {
+                    if let Some(func_name) = header.name {
+                        if func_name == contract.name {
+                            self.dcx()
                             .err("functions are not allowed to have the same name as the contract")
                             .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
                             .span(func_name.span)
                             .emit();
+                        }
                     }
                 }
             }
