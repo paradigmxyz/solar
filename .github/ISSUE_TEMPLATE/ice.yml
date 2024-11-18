@@ -1,5 +1,5 @@
 name: Internal Compiler Error
-description: Create a report for an internal compiler error
+description: Create a report for an internal compiler error (ICE)
 labels: ["C-bug", "I-ICE"]
 title: "[ICE]: "
 body:
@@ -16,18 +16,17 @@ body:
       label: Code
       description: Please provide code or a link to a repository that can reproduce the problem
       placeholder: code
-      render: Rust
+      render: Solidity
     validations:
       required: false
 
   - type: textarea
     id: version
     attributes:
-      label: Rust Version
+      label: Solar Version
       description: Please provide the `solar` version, `solar --version`. Make sure that you're using the latest version of the compiler!
       placeholder: |
         $ solar --version
-        solar X.Y.Z (SHORTHASH DATE)
       render: Shell
     validations:
       required: true
