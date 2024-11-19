@@ -330,7 +330,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let variants = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+        let variants = self.parse_delim_comma_seq(Delimiter::Brace, true, |this| {
             this.ignore_doc_comments();
             this.parse_ident()
         })?;

@@ -91,6 +91,8 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "boost_filesystem_bug"
         // Invalid UTF-8 is not supported.
         | "invalid_utf8_sequence"
+        // Validation is in solar's AST stage (https://github.com/paradigmxyz/solar/pull/120).
+        | "empty_enum"
     ) {
         return Some("manually skipped");
     };

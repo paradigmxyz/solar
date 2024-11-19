@@ -64,6 +64,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         ControlFlow::Continue(())
     }
 
+    fn visit_item_enum(
+        &mut self,
+        enum_: &'ast ast::ItemEnum<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemEnum { name, variants } = enum_;
+        if variants.is_empty() {
+            self.dcx().err("enum must have at least one variant").span(name.span).emit();
+        }
+        if variants.len() > 256 {
+            self.dcx().err("enum cannot have more than 256 variants").span(name.span).emit();
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_pragma_directive(
         &mut self,
         pragma: &'ast ast::PragmaDirective<'ast>,
@@ -132,6 +146,32 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         }
 
         self.walk_stmt(stmt)
+    }
+
+    fn visit_item_contract(
+        &mut self,
+        contract: &'ast ast::ItemContract<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemContract { kind: _, name: _, bases: _, body } = contract;
+
+        for item in body.iter() {
+            if let ast::ItemKind::Function(ast::ItemFunction { kind, header, body: _ }) = &item.kind
+            {
+                if *kind == ast::FunctionKind::Function {
+                    if let Some(func_name) = header.name {
+                        if func_name == contract.name {
+                            self.dcx()
+                            .err("functions are not allowed to have the same name as the contract")
+                            .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
+                            .span(func_name.span)
+                            .emit();
+                        }
+                    }
+                }
+            }
+        }
+
+        self.walk_item_contract(contract)
     }
 
     // Intentionally override unused default implementations to reduce bloat.
