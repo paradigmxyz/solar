@@ -206,6 +206,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         self.in_modifier = *kind == ast::FunctionKind::Modifier;
         let r = self.walk_item_function(func);
         self.in_modifier = false;
-        return r;
+        r
     }
 }
