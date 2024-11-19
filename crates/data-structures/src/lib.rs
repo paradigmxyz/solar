@@ -12,6 +12,7 @@
 
 use std::fmt;
 
+pub mod cycle;
 pub mod hint;
 pub mod index;
 pub mod map;

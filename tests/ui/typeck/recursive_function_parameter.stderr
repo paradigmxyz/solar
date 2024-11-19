@@ -1,15 +1,21 @@
-error: recursive types cannot be parameter or return types of public functions
+error: recursive struct definition
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |     function a1(A) public {}
-   |                 ^
+LL |       struct A {
+   |  _____^
+LL | |         B b;
+LL | |     }
+   | |_____^
    |
 
-error: recursive types cannot be parameter or return types of public functions
+error: recursive struct definition
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |     function b1(B) public {}
-   |                 ^
+LL |       struct B {
+   |  _____^
+LL | |         A a;
+LL | |     }
+   | |_____^
    |
 
 error: recursive types cannot be parameter or return types of public functions
@@ -22,23 +28,9 @@ LL |     function c1(C) public {}
 error: recursive types cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |     function a2() public returns(A) {}
-   |                                  ^
-   |
-
-error: recursive types cannot be parameter or return types of public functions
-  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
-   |
-LL |     function b2() public returns(B) {}
-   |                                  ^
-   |
-
-error: recursive types cannot be parameter or return types of public functions
-  --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
-   |
 LL |     function c2() public returns(C) {}
    |                                  ^
    |
 
-error: aborting due to 6 previous errors
+error: aborting due to 4 previous errors
 

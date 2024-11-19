@@ -50,8 +50,14 @@ impl EmittedDiagnostics {
 
 /// Useful type to use with [`Result`] indicate that an error has already been reported to the user,
 /// so no need to continue checking.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ErrorGuaranteed(());
+
+impl fmt::Debug for ErrorGuaranteed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ErrorGuaranteed")
+    }
+}
 
 impl ErrorGuaranteed {
     /// Creates a new `ErrorGuaranteed`.

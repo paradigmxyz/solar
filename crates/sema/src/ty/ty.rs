@@ -1,8 +1,8 @@
-use super::Gcx;
+use super::{Gcx, Recursiveness};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use solar_data_structures::{map::FxHashSet, smallvec::SmallVec, Interned};
+use solar_data_structures::Interned;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
 
@@ -143,14 +143,18 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if this type contains an error.
-    pub fn has_error(self) -> bool {
-        self.flags.contains(TyFlags::HAS_ERROR)
+    pub fn has_error(self) -> Result<(), ErrorGuaranteed> {
+        if self.flags.contains(TyFlags::HAS_ERROR) {
+            Err(ErrorGuaranteed::new_unchecked())
+        } else {
+            Ok(())
+        }
     }
 
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.has_error())
+        !(self.is_recursive() || self.has_mapping() || self.has_error().is_err())
     }
 
     /// Returns the parameter types of the type.
@@ -377,13 +381,15 @@ impl TyFlags {
                 self.add(Self::HAS_MAPPING);
             }
 
-            TyKind::Struct(id) => {
-                if struct_is_recursive(gcx, id) {
+            TyKind::Struct(id) => match gcx.struct_recursiveness(id) {
+                Recursiveness::None => self.add_tys(gcx.struct_field_types(id)),
+                Recursiveness::Recursive => {
                     self.add(Self::IS_RECURSIVE);
-                } else {
-                    self.add_tys(gcx.struct_field_types(id));
                 }
-            }
+                Recursiveness::Infinite(_guar) => {
+                    self.add(Self::HAS_ERROR);
+                }
+            },
 
             TyKind::Err(_) => self.add(Self::HAS_ERROR),
         }
@@ -401,33 +407,8 @@ impl TyFlags {
 
     #[inline]
     fn add_tys(&mut self, tys: &[Ty<'_>]) {
-        for ty in tys {
-            self.add_ty(*ty);
+        for &ty in tys {
+            self.add_ty(ty);
         }
     }
-}
-
-fn struct_is_recursive(gcx: Gcx<'_>, id: hir::StructId) -> bool {
-    let mut seen = FxHashSet::default();
-    let mut ids = SmallVec::<[_; 16]>::new();
-    seen.insert(id);
-    ids.push(id);
-    while let Some(id) = ids.pop() {
-        for &field in gcx.hir.strukt(id).fields {
-            let field = gcx.hir.variable(field);
-            let r = field.ty.visit(&mut |ty| {
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(other_id)) = ty.kind {
-                    if !seen.insert(other_id) {
-                        return ControlFlow::Break(());
-                    }
-                    ids.push(other_id);
-                }
-                ControlFlow::Continue(())
-            });
-            if r.is_break() {
-                return true;
-            }
-        }
-    }
-    false
 }

@@ -125,17 +125,14 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
         }
     }
 
-    // Collect the types first to check and fail on recursive types.
+    // Lower HIR types.
     gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
-        if let hir::ItemId::Struct(id) = id {
-            let _ = gcx.struct_field_types(id);
+        match id {
+            hir::ItemId::Struct(id) => _ = gcx.struct_field_types(id),
+            hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
+            _ => {}
         }
-    });
-    gcx.sess.dcx.has_errors()?;
-
-    gcx.hir.par_contract_ids().for_each(|id| {
-        let _ = gcx.interface_functions(id);
     });
     gcx.sess.dcx.has_errors()?;
 
