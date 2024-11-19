@@ -45,12 +45,12 @@ pub fn print_ast_stats(ast: &ast::SourceUnit<'_>, title: &str, prefix: &str) {
 
 impl StatCollector {
     // Record a top-level node.
-    fn record<T>(&mut self, label: &'static str, id: Option<ItemId>, val: &T) {
+    fn record<T: ?Sized>(&mut self, label: &'static str, id: Option<ItemId>, val: &T) {
         self.record_inner(label, None, id, val);
     }
 
     // Record a two-level entry, with a top-level enum type and a variant.
-    fn record_variant<T>(
+    fn record_variant<T: ?Sized>(
         &mut self,
         label1: &'static str,
         label2: &'static str,
@@ -60,7 +60,7 @@ impl StatCollector {
         self.record_inner(label1, Some(label2), id, val);
     }
 
-    fn record_inner<T>(
+    fn record_inner<T: ?Sized>(
         &mut self,
         label1: &'static str,
         label2: Option<&'static str>,
@@ -537,7 +537,7 @@ impl<'ast> Visit<'ast> for StatCollector {
     }
 
     fn visit_path(&mut self, path: &'ast ast::PathSlice) -> ControlFlow<Self::BreakValue> {
-        // self.record("PathSlice", None, path); // TODO: can't pass a slice since its size is unknown at compile time
+        self.record("PathSlice", None, path);
         self.walk_path(path)
     }
 
