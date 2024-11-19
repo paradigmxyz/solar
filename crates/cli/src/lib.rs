@@ -136,6 +136,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
     sess.language = args.language;
     sess.stop_after = args.stop_after;
     sess.dump = args.unstable.dump.clone();
+    sess.ast_stats = args.unstable.ast_stats;
     sess.jobs = NonZeroUsize::new(args.threads)
         .unwrap_or_else(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN));
     if !args.input.is_empty()

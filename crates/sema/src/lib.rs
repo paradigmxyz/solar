@@ -36,6 +36,8 @@ mod typeck;
 
 mod emit;
 
+pub mod stats;
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let sess = pcx.sess;
@@ -55,6 +57,12 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     if let Some(dump) = &sess.dump {
         if dump.kind.is_ast() {
             dump_ast(sess, &sources, dump.paths.as_deref())?;
+        }
+    }
+
+    if sess.ast_stats {
+        for source in sources.asts() {
+            stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
 
