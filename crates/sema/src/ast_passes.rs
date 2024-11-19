@@ -27,11 +27,18 @@ struct AstValidator<'sess> {
     dcx: &'sess DiagCtxt,
     in_loop_depth: u64,
     in_unchecked_block: bool,
+    in_modifier: bool,
 }
 
 impl<'sess> AstValidator<'sess> {
     fn new(sess: &'sess Session) -> Self {
-        Self { span: Span::DUMMY, dcx: &sess.dcx, in_loop_depth: 0, in_unchecked_block: false }
+        Self {
+            span: Span::DUMMY,
+            dcx: &sess.dcx,
+            in_loop_depth: 0,
+            in_unchecked_block: false,
+            in_modifier: false,
+        }
     }
 
     /// Returns the diagnostics context.
@@ -142,6 +149,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 self.in_unchecked_block = prev;
                 return r;
             }
+            StmtKind::Placeholder => {
+                if !self.in_modifier {
+                    self.dcx()
+                        .err("placeholder statements can only be used in modifiers")
+                        .span(stmt.span)
+                        .emit();
+                }
+            }
             _ => {}
         }
 
@@ -181,5 +196,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
 
     fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+
+    fn visit_item_function(
+        &mut self,
+        func: &'ast ast::ItemFunction<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemFunction { kind, .. } = func;
+        self.in_modifier = *kind == ast::FunctionKind::Modifier;
+        let r = self.walk_item_function(func);
+        self.in_modifier = false;
+        r
     }
 }
