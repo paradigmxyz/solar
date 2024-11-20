@@ -710,6 +710,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         };
 
+        if ty.is_function()
+            && flags == VarFlags::STATE_VAR
+            && self.check_noexpect(&TokenKind::OpenDelim(Delimiter::Brace))
+        {
+            let msg = "expected a state variable declaration";
+            let note = "this style of fallback function has been removed; use the `fallback` or `receive` keywords instead";
+            self.dcx().err(msg).span(self.token.span).note(note).emit();
+            let _ = self.parse_block()?;
+            return Ok(VariableDefinition {
+                span: lo.to(self.prev_token.span),
+                ty,
+                visibility: None,
+                mutability: None,
+                data_location: None,
+                override_: None,
+                indexed: false,
+                name: None,
+                initializer: None,
+            });
+        }
+
         let mut data_location = None;
         let mut visibility = None;
         let mut mutability = None;
