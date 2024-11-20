@@ -279,20 +279,6 @@ fn run_in_thread_pool_with_globals<R: Send>(
 mod tests {
     use super::*;
 
-    fn use_globals() {
-        SessionGlobals::with(|_globals| {});
-
-        let s = "hello";
-        let sym = crate::Symbol::intern(s);
-        assert_eq!(sym.as_str(), s);
-
-        let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
-        let s = format!("{span:?}");
-        assert!(!s.contains("Span("), "{s}");
-        let s = format!("{span:#?}");
-        assert!(!s.contains("Span("), "{s}");
-    }
-
     #[test]
     #[should_panic = "diagnostics context not set"]
     fn no_dcx() {
@@ -343,6 +329,20 @@ mod tests {
 
     #[test]
     fn enter() {
+        fn use_globals() {
+            SessionGlobals::with(|_globals| {});
+
+            let s = "hello";
+            let sym = crate::Symbol::intern(s);
+            assert_eq!(sym.as_str(), s);
+
+            let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
+            let s = format!("{span:?}");
+            assert!(!s.contains("Span("), "{s}");
+            let s = format!("{span:#?}");
+            assert!(!s.contains("Span("), "{s}");
+        }
+
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(use_globals);
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
@@ -354,5 +354,22 @@ mod tests {
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+    }
+
+    #[test]
+    fn enter_diags() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+        sess.enter(|| {
+            sess.dcx.err("test1").emit();
+            assert!(sess.dcx.emitted_errors().unwrap().is_err());
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
+        sess.enter(|| {
+            sess.dcx.err("test2").emit();
+            assert!(sess.dcx.emitted_errors().unwrap().is_err());
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
     }
 }
