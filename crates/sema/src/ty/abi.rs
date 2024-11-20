@@ -187,7 +187,15 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
             TyKind::FnPtr(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => {
                 if self.recurse {
-                    self.print_tuple(self.gcx.struct_field_types(id).iter().copied())
+                    if self.gcx.struct_recursiveness(id).is_recursive() {
+                        assert!(
+                            self.gcx.dcx().has_errors().is_err(),
+                            "trying to print recursive struct and no error has been emitted"
+                        );
+                        write!(self.buf, "<recursive struct {}>", self.gcx.item_name(id))
+                    } else {
+                        self.print_tuple(self.gcx.struct_field_types(id).iter().copied())
+                    }
                 } else {
                     self.buf.write_str("tuple")
                 }

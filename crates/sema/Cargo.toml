@@ -28,6 +28,7 @@ strum.workspace = true
 
 alloy-primitives.workspace = true
 bumpalo.workspace = true
+either.workspace = true
 once_map.workspace = true
 rayon.workspace = true
 scc.workspace = true

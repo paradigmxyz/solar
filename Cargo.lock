@@ -2686,6 +2686,7 @@ dependencies = [
  "bitflags",
  "bumpalo",
  "derive_more",
+ "either",
  "once_map",
  "paste",
  "rayon",
