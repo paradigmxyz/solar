@@ -1,6 +1,6 @@
 //! SourceMap related types and operations.
 
-use crate::{BytePos, CharPos, Pos, Span};
+use crate::{BytePos, CharPos, Span};
 use solar_data_structures::{
     map::FxBuildHasher,
     sync::{ReadGuard, RwLock},

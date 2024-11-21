@@ -5,7 +5,7 @@ use solar_ast::{
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{
-    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Session, Span, Symbol,
+    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Session, Span, Symbol,
 };
 
 mod cursor;

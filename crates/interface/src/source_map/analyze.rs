@@ -1,5 +1,5 @@
 use super::{MultiByteChar, NonNarrowChar};
-use crate::{pos::RelativeBytePos, Pos};
+use crate::pos::RelativeBytePos;
 use match_cfg::match_cfg;
 use unicode_width::UnicodeWidthChar;
 

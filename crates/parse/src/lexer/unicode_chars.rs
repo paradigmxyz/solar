@@ -5,7 +5,7 @@
 
 use super::Lexer;
 use solar_ast::token::{BinOpToken, Delimiter, TokenKind};
-use solar_interface::{sym, BytePos, Pos, Span};
+use solar_interface::{sym, BytePos, Span};
 
 #[rustfmt::skip] // for line breaks
 pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[
