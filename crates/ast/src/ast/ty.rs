@@ -23,6 +23,12 @@ impl Type<'_> {
     pub fn is_custom(&self) -> bool {
         self.kind.is_custom()
     }
+
+    /// Returns `true` if the type is a function.
+    #[inline]
+    pub fn is_function(&self) -> bool {
+        matches!(self.kind, TypeKind::Function(_))
+    }
 }
 
 /// The kind of a type.
