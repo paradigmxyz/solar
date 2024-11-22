@@ -1,4 +1,5 @@
 use super::{Box, Lit, SubDenomination, Type};
+use either::Either;
 use solar_interface::{Ident, Span};
 use std::fmt;
 
@@ -280,10 +281,38 @@ impl Default for CallArgs<'_> {
     }
 }
 
-impl CallArgs<'_> {
+impl<'ast> CallArgs<'ast> {
     /// Creates a new empty list of unnamed arguments.
     pub fn empty() -> Self {
         Self::Unnamed(Box::default())
+    }
+
+    /// Returns the length of the arguments.
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Unnamed(exprs) => exprs.len(),
+            Self::Named(args) => args.len(),
+        }
+    }
+
+    /// Returns an iterator over the expressions.
+    pub fn exprs(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &Expr<'ast>> + DoubleEndedIterator + Clone {
+        match self {
+            Self::Unnamed(exprs) => Either::Left(exprs.iter().map(|expr| &**expr)),
+            Self::Named(args) => Either::Right(args.iter().map(|arg| &*arg.value)),
+        }
+    }
+
+    /// Returns an iterator over the expressions.
+    pub fn exprs_mut(
+        &mut self,
+    ) -> impl ExactSizeIterator<Item = &mut Box<'ast, Expr<'ast>>> + DoubleEndedIterator {
+        match self {
+            Self::Unnamed(exprs) => Either::Left(exprs.iter_mut().map(|expr| expr)),
+            Self::Named(args) => Either::Right(args.iter_mut().map(|arg| &mut arg.value)),
+        }
     }
 }
 

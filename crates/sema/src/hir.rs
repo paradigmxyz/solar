@@ -2,6 +2,7 @@
 
 use crate::builtins::Builtin;
 use derive_more::derive::From;
+use either::Either;
 use rayon::prelude::*;
 use solar_ast::ast;
 use solar_data_structures::{
@@ -1023,10 +1024,28 @@ impl Default for CallArgs<'_> {
     }
 }
 
-impl CallArgs<'_> {
+impl<'hir> CallArgs<'hir> {
     /// Creates a new empty list of unnamed arguments.
     pub fn empty() -> Self {
         Self::Unnamed(Default::default())
+    }
+
+    /// Returns the length of the arguments.
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Unnamed(exprs) => exprs.len(),
+            Self::Named(args) => args.len(),
+        }
+    }
+
+    /// Returns an iterator over the expressions.
+    pub fn exprs(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &Expr<'hir>> + DoubleEndedIterator + Clone {
+        match self {
+            Self::Unnamed(exprs) => Either::Left(exprs.iter()),
+            Self::Named(args) => Either::Right(args.iter().map(|arg| &arg.value)),
+        }
     }
 }
 
