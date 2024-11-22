@@ -1038,6 +1038,11 @@ impl<'hir> CallArgs<'hir> {
         }
     }
 
+    /// Returns `true` if the list of arguments is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns an iterator over the expressions.
     pub fn exprs(
         &self,

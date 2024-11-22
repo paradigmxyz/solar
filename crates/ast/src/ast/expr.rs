@@ -295,6 +295,11 @@ impl<'ast> CallArgs<'ast> {
         }
     }
 
+    /// Returns `true` if the list of arguments is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns an iterator over the expressions.
     pub fn exprs(
         &self,
@@ -310,7 +315,7 @@ impl<'ast> CallArgs<'ast> {
         &mut self,
     ) -> impl ExactSizeIterator<Item = &mut Box<'ast, Expr<'ast>>> + DoubleEndedIterator {
         match self {
-            Self::Unnamed(exprs) => Either::Left(exprs.iter_mut().map(|expr| expr)),
+            Self::Unnamed(exprs) => Either::Left(exprs.iter_mut()),
             Self::Named(args) => Either::Right(args.iter_mut().map(|arg| &mut arg.value)),
         }
     }
