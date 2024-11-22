@@ -89,7 +89,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         let lo = with.as_ref().map(|e| e.span).unwrap_or(self.token.span);
         let parse_lhs = |this: &mut Self, with| {
-            this.parse_lhs_expr(with).map(|expr| {
+            this.parse_lhs_expr(with, lo).map(|expr| {
                 if let Some(unop) = this.token.as_unop(true) {
                     this.bump(); // unop
                     let span = lo.to(this.prev_token.span);
@@ -121,8 +121,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_lhs_expr(
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
+        lo: Span,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        let lo = self.token.span;
         let mut expr = if let Some(with) = with {
             Ok(with)
         } else if self.eat_keyword(kw::New) {
