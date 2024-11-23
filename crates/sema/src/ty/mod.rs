@@ -322,7 +322,8 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item or a struct.
-    pub fn item_parameters(self, id: hir::ItemId) -> &'gcx [hir::VariableId] {
+    pub fn item_parameters(self, id: impl Into<hir::ItemId>) -> &'gcx [hir::VariableId] {
+        let id = id.into();
         self.item_parameters_opt(id)
             .unwrap_or_else(|| panic!("item_parameters: invalid item {id:?}"))
     }
@@ -330,7 +331,10 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the parameter variable declarations of the given function-like item.
     ///
     /// Also accepts structs.
-    pub fn item_parameters_opt(self, id: hir::ItemId) -> Option<&'gcx [hir::VariableId]> {
+    pub fn item_parameters_opt(
+        self,
+        id: impl Into<hir::ItemId>,
+    ) -> Option<&'gcx [hir::VariableId]> {
         self.hir.item(id).parameters()
     }
 
@@ -339,7 +343,8 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item.
-    pub fn item_parameter_types(self, id: hir::ItemId) -> &'gcx [Ty<'gcx>] {
+    pub fn item_parameter_types(self, id: impl Into<hir::ItemId>) -> &'gcx [Ty<'gcx>] {
+        let id = id.into();
         self.item_parameter_types_opt(id)
             .unwrap_or_else(|| panic!("item_parameter_types: invalid item {id:?}"))
     }
@@ -349,16 +354,18 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item.
-    pub fn item_parameter_types_opt(self, id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
-        self.type_of_item(id).parameters()
+    pub fn item_parameter_types_opt(self, id: impl Into<hir::ItemId>) -> Option<&'gcx [Ty<'gcx>]> {
+        self.type_of_item(id.into()).parameters()
     }
 
     /// Returns the name of the given item.
+    #[inline]
     pub fn item_name_opt(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
     }
 
     /// Returns the span of the given item.
+    #[inline]
     pub fn item_span(self, id: impl Into<hir::ItemId>) -> Span {
         self.hir.item(id).span()
     }
