@@ -162,31 +162,39 @@ impl SourceMap {
         match self.stable_id_to_source_file.entry(stable_id) {
             scc::hash_index::Entry::Occupied(entry) => Ok(entry.get().clone()),
             scc::hash_index::Entry::Vacant(entry) => {
-                let mut file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-
-                // Let's make sure the file_id we generated above actually matches
-                // the ID we generate for the SourceFile we just created.
-                debug_assert_eq!(file.stable_id, stable_id);
-
-                trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
-
-                let mut source_files = self.source_files.write();
-
-                file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
-                    // Add one so there is some space between files. This lets us distinguish
-                    // positions in the `SourceMap`, even in the presence of zero-length files.
-                    last_file.end_position().0.checked_add(1).ok_or(OffsetOverflowError(()))?
-                } else {
-                    0
-                });
-
-                let file = Arc::new(file);
-                source_files.push(file.clone());
+                let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
+                let file = self.new_source_file_inner(file, stable_id)?;
                 entry.insert_entry(file.clone());
-
                 Ok(file)
             }
         }
+    }
+
+    fn new_source_file_inner(
+        &self,
+        mut file: SourceFile,
+        stable_id: StableSourceFileId,
+    ) -> io::Result<Arc<SourceFile>> {
+        // Let's make sure the file_id we generated above actually matches
+        // the ID we generate for the SourceFile we just created.
+        debug_assert_eq!(file.stable_id, stable_id);
+
+        trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
+
+        let mut source_files = self.source_files.write();
+
+        file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
+            // Add one so there is some space between files. This lets us distinguish
+            // positions in the `SourceMap`, even in the presence of zero-length files.
+            last_file.end_position().0.checked_add(1).ok_or(OffsetOverflowError(()))?
+        } else {
+            0
+        });
+
+        let file = Arc::new(file);
+        source_files.push(file.clone());
+
+        Ok(file)
     }
 
     pub fn files(&self) -> ReadGuard<'_, Vec<Arc<SourceFile>>> {
