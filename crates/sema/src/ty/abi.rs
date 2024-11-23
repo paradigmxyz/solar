@@ -13,7 +13,7 @@ impl<'gcx> Gcx<'gcx> {
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
-        TyAbiPrinter::new(self, &mut s).recurse(true).print_tuple(tys).unwrap();
+        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature).print_tuple(tys).unwrap();
         s
     }
 
@@ -122,7 +122,7 @@ impl<'gcx> Gcx<'gcx> {
 
     fn print_abi_param_ty(self, ty: Ty<'gcx>) -> String {
         let mut s = String::new();
-        TyAbiPrinter::new(self, &mut s).recurse(false).print(ty).unwrap();
+        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Abi).print(ty).unwrap();
         s
     }
 
@@ -148,13 +148,28 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
 pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
-    recurse: bool,
+    mode: TyAbiPrinterMode,
+}
+
+/// [`TyAbiPrinter`] configuration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TyAbiPrinterMode {
+    /// Printing types for a function signature.
+    ///
+    /// Prints the fields of the struct in a tuple, recursively.
+    ///
+    /// Note that this will make the printer panic if it encounters a recursive struct.
+    Signature,
+    /// Printing types for a JSON ABI `type` field.
+    ///
+    /// Print the word `tuple` when encountering structs.
+    Abi,
 }
 
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Creates a new ABI printer.
-    pub fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
-        Self { gcx, buf, recurse: true }
+    pub fn new(gcx: Gcx<'gcx>, buf: W, mode: TyAbiPrinterMode) -> Self {
+        Self { gcx, buf, mode }
     }
 
     /// Returns a mutable reference to the underlying buffer.
@@ -167,25 +182,14 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
         self.buf
     }
 
-    /// Whether to recurse into structs to print their fields.
-    /// If `false`, prints `tuple` instead.
-    ///
-    /// Note that this will make the printer panic if it encounters a recursive struct.
-    ///
-    /// Default: `true`.
-    pub fn recurse(mut self, yes: bool) -> Self {
-        self.recurse = yes;
-        self
-    }
-
     /// Prints the ABI representation of `ty`.
     pub fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
             TyKind::Contract(_) => self.buf.write_str("address"),
             TyKind::FnPtr(_) => self.buf.write_str("function"),
-            TyKind::Struct(id) => {
-                if self.recurse {
+            TyKind::Struct(id) => match self.mode {
+                TyAbiPrinterMode::Signature => {
                     if self.gcx.struct_recursiveness(id).is_recursive() {
                         assert!(
                             self.gcx.dcx().has_errors().is_err(),
@@ -195,10 +199,9 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                     } else {
                         self.print_tuple(self.gcx.struct_field_types(id).iter().copied())
                     }
-                } else {
-                    self.buf.write_str("tuple")
                 }
-            }
+                TyAbiPrinterMode::Abi => self.buf.write_str("tuple"),
+            },
             TyKind::Enum(_) => self.buf.write_str("uint8"),
             TyKind::Udvt(ty, _) => self.print(ty),
             TyKind::Ref(ty, _loc) => self.print(ty),
