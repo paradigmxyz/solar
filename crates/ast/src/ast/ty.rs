@@ -131,6 +131,16 @@ impl fmt::Debug for ElementaryType {
     }
 }
 
+impl fmt::Display for ElementaryType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write_abi_str(f)?;
+        if let Self::Address(true) = self {
+            f.write_str(" payable")?;
+        }
+        Ok(())
+    }
+}
+
 impl ElementaryType {
     /// Returns the Solidity ABI representation of the type as a string.
     pub fn to_abi_str(self) -> Cow<'static, str> {
@@ -148,14 +158,14 @@ impl ElementaryType {
     }
 
     /// Writes the Solidity ABI representation of the type to a formatter.
-    pub fn write_abi_str(self, f: &mut impl fmt::Write) -> fmt::Result {
+    pub fn write_abi_str<W: fmt::Write + ?Sized>(self, f: &mut W) -> fmt::Result {
         f.write_str(match self {
             Self::Address(_) => "address",
             Self::Bool => "bool",
             Self::String => "string",
             Self::Bytes => "bytes",
-            Self::Fixed(_size, _fixed) => "fixed",
-            Self::UFixed(_size, _fixed) => "ufixed",
+            Self::Fixed(m, n) => return write!(f, "fixed{}x{}", m.bits(), n.get()),
+            Self::UFixed(m, n) => return write!(f, "ufixed{}x{}", m.bits(), n.get()),
             Self::Int(size) => return write!(f, "int{}", size.bits()),
             Self::UInt(size) => return write!(f, "uint{}", size.bits()),
             Self::FixedBytes(size) => return write!(f, "bytes{}", size.bytes()),

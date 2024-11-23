@@ -13,15 +13,15 @@ impl<'gcx> Gcx<'gcx> {
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
-        TyPrinter::new(self, &mut s).print_tuple(tys).unwrap();
+        TyAbiPrinter::new(self, &mut s).recurse(true).print_tuple(tys).unwrap();
         s
     }
 
     /// Returns the ABI of the given contract.
     ///
     /// Reference: <https://docs.soliditylang.org/en/develop/abi-spec.html>
-    pub fn contract_abi(self, id: hir::ContractId) -> Vec<json::AbiItem<'static>> {
-        let mut items = Vec::<json::AbiItem<'static>>::new();
+    pub fn contract_abi<'a>(self, id: hir::ContractId) -> Vec<json::AbiItem<'a>> {
+        let mut items = Vec::<json::AbiItem<'a>>::new();
 
         let c = self.hir.contract(id);
         if let Some(ctor) = c.ctor {
@@ -101,7 +101,7 @@ impl<'gcx> Gcx<'gcx> {
             _ => ControlFlow::Continue(()),
         });
         json::Param {
-            ty: self.print_param_ty(ty, false),
+            ty: self.print_abi_param_ty(ty),
             name,
             components: match struct_id {
                 ControlFlow::Break(id) => self
@@ -110,7 +110,7 @@ impl<'gcx> Gcx<'gcx> {
                     .collect(),
                 ControlFlow::Continue(()) => vec![],
             },
-            internal_type: Some(json::InternalType::parse(&self.print_param_ty(ty, true)).unwrap()),
+            internal_type: Some(json::InternalType::parse(&self.print_solc_param_ty(ty)).unwrap()),
         }
     }
 
@@ -120,9 +120,15 @@ impl<'gcx> Gcx<'gcx> {
         json::EventParam { ty, name, components, internal_type, indexed }
     }
 
-    fn print_param_ty(self, ty: Ty<'gcx>, solc: bool) -> String {
+    fn print_abi_param_ty(self, ty: Ty<'gcx>) -> String {
         let mut s = String::new();
-        TyPrinter::new(self, &mut s).solc(solc).recurse(false).print(ty).unwrap();
+        TyAbiPrinter::new(self, &mut s).recurse(false).print(ty).unwrap();
+        s
+    }
+
+    fn print_solc_param_ty(self, ty: Ty<'gcx>) -> String {
+        let mut s = String::new();
+        TySolcPrinter::new(self, &mut s).data_locations(false).print(ty).unwrap();
         s
     }
 }
@@ -136,51 +142,32 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
     }
 }
 
-struct TyPrinter<'gcx, W: fmt::Write> {
+/// Prints types as specified by the Solidity ABI.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/abi-spec.html>
+struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
-    /// If `true`, prints the type as it would appear in solc, otherwise as ABI.
-    solc: bool,
-    /// Recurse into structs to print their fields. If `false`, just print `tuple` instead.
-    ///
-    /// Has effect only when printing as ABI.
     recurse: bool,
-    /// If `true`, prints the data location of references.
-    ///
-    /// Only has effect when printing as solc.
-    data_locations: bool,
 }
 
-impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
+impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
-        Self { gcx, buf, recurse: true, solc: false, data_locations: false }
+        Self { gcx, buf, recurse: true }
     }
 
-    fn solc(mut self, yes: bool) -> Self {
-        self.solc = yes;
-        self
-    }
-
+    /// Whether to recurse into structs to print their fields.
+    /// If `false`, prints `tuple` instead.
+    ///
+    /// Note that this will make the printer panic if it encounters a recursive struct.
+    ///
+    /// Default: `true`.
     fn recurse(mut self, yes: bool) -> Self {
         self.recurse = yes;
         self
     }
 
-    #[allow(dead_code)]
-    fn data_locations(mut self, yes: bool) -> Self {
-        self.data_locations = yes;
-        self
-    }
-
     fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
-        if self.solc {
-            self.print_solc(ty)
-        } else {
-            self.print_abi(ty)
-        }
-    }
-
-    fn print_abi(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
             TyKind::Contract(_) => self.buf.write_str("address"),
@@ -192,7 +179,7 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
                             self.gcx.dcx().has_errors().is_err(),
                             "trying to print recursive struct and no error has been emitted"
                         );
-                        write!(self.buf, "<recursive struct {}>", self.gcx.item_name(id))
+                        write!(self.buf, "<recursive struct {}>", self.gcx.item_canonical_name(id))
                     } else {
                         self.print_tuple(self.gcx.struct_field_types(id).iter().copied())
                     }
@@ -201,54 +188,28 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
                 }
             }
             TyKind::Enum(_) => self.buf.write_str("uint8"),
-            TyKind::Udvt(ty, _) => self.print_abi(ty),
-            TyKind::Ref(ty, _loc) => self.print_abi(ty),
+            TyKind::Udvt(ty, _) => self.print(ty),
+            TyKind::Ref(ty, _loc) => self.print(ty),
             TyKind::DynArray(ty) => {
-                self.print_abi(ty)?;
+                self.print(ty)?;
                 self.buf.write_str("[]")
             }
             TyKind::Array(ty, len) => {
-                self.print_abi(ty)?;
+                self.print(ty)?;
                 write!(self.buf, "[{len}]")
             }
-            _ => panic!("printing invalid ABI type: {ty:?}"),
-        }
-    }
 
-    fn print_solc(&mut self, ty: Ty<'gcx>) -> fmt::Result {
-        match ty.kind {
-            TyKind::Elementary(ty) => {
-                ty.write_abi_str(&mut self.buf)?;
-                if matches!(ty, ElementaryType::Address(true)) {
-                    self.buf.write_str(" payable")?;
-                }
-                Ok(())
-            }
-            TyKind::Contract(id) => {
-                write!(self.buf, "contract {}", self.gcx.item_canonical_name(id))
-            }
-            TyKind::FnPtr(_) => self.buf.write_str("function"),
-            TyKind::Struct(id) => {
-                write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
-            }
-            TyKind::Enum(id) => write!(self.buf, "enum {}", self.gcx.item_canonical_name(id)),
-            TyKind::Udvt(_, id) => write!(self.buf, "{}", self.gcx.item_canonical_name(id)),
-            TyKind::Ref(ty, loc) => {
-                self.print_solc(ty)?;
-                if self.data_locations {
-                    write!(self.buf, " {loc}")?;
-                }
-                Ok(())
-            }
-            TyKind::DynArray(ty) => {
-                self.print_solc(ty)?;
-                self.buf.write_str("[]")
-            }
-            TyKind::Array(ty, len) => {
-                self.print_solc(ty)?;
-                write!(self.buf, "[{len}]")
-            }
-            _ => panic!("printing invalid solc type: {ty:?}"),
+            TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(_)
+            | TyKind::Tuple(_)
+            | TyKind::Mapping(..)
+            | TyKind::Error(..)
+            | TyKind::Event(..)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_)
+            | TyKind::Type(_)
+            | TyKind::Meta(_)
+            | TyKind::Err(_) => panic!("printing unsupported type as ABI: {ty:?}"),
         }
     }
 
@@ -261,5 +222,80 @@ impl<'gcx, W: fmt::Write> TyPrinter<'gcx, W> {
             self.print(ty)?;
         }
         self.buf.write_str(")")
+    }
+}
+
+/// Prints types as implemented in `Type::toString(bool)` in solc.
+///
+/// This is mainly used in the `internalType` field of the ABI.
+///
+/// Example: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358
+struct TySolcPrinter<'gcx, W> {
+    gcx: Gcx<'gcx>,
+    buf: W,
+    data_locations: bool,
+}
+
+impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
+    fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+        Self { gcx, buf, data_locations: false }
+    }
+
+    /// Whether to print data locations for reference types.
+    ///
+    /// Default: `false`.
+    fn data_locations(mut self, yes: bool) -> Self {
+        self.data_locations = yes;
+        self
+    }
+
+    fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
+        match ty.kind {
+            TyKind::Elementary(ty) => {
+                ty.write_abi_str(&mut self.buf)?;
+                if matches!(ty, ElementaryType::Address(true)) {
+                    self.buf.write_str(" payable")?;
+                }
+                Ok(())
+            }
+            TyKind::Contract(id) => {
+                let c = self.gcx.hir.contract(id);
+                self.buf.write_str(if c.kind.is_library() { "library" } else { "contract" })?;
+                write!(self.buf, " {}", c.name)
+            }
+            TyKind::FnPtr(_) => self.buf.write_str("function"),
+            TyKind::Struct(id) => {
+                write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
+            }
+            TyKind::Enum(id) => write!(self.buf, "enum {}", self.gcx.item_canonical_name(id)),
+            TyKind::Udvt(_, id) => write!(self.buf, "{}", self.gcx.item_canonical_name(id)),
+            TyKind::Ref(ty, loc) => {
+                self.print(ty)?;
+                if self.data_locations {
+                    write!(self.buf, " {loc}")?;
+                }
+                Ok(())
+            }
+            TyKind::DynArray(ty) => {
+                self.print(ty)?;
+                self.buf.write_str("[]")
+            }
+            TyKind::Array(ty, len) => {
+                self.print(ty)?;
+                write!(self.buf, "[{len}]")
+            }
+
+            TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(_)
+            | TyKind::Tuple(_)
+            | TyKind::Mapping(..)
+            | TyKind::Error(..)
+            | TyKind::Event(..)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_)
+            | TyKind::Type(_)
+            | TyKind::Meta(_)
+            | TyKind::Err(_) => panic!("printing unsupported type as solc: {ty:?}"),
+        }
     }
 }
