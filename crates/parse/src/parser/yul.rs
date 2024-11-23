@@ -1,10 +1,7 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
-use solar_ast::{
-    ast::{yul::*, AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit},
-    token::*,
-};
+use solar_ast::{token::*, yul::*, AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit};
 use solar_interface::{error_code, kw, sym, Ident};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {

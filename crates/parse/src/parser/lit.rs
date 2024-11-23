@@ -3,7 +3,7 @@ use alloy_primitives::Address;
 use num_bigint::BigInt;
 use num_rational::BigRational;
 use num_traits::Num;
-use solar_ast::{ast::*, token::*};
+use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
 use std::{borrow::Cow, fmt};
 

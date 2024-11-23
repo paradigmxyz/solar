@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::{keccak256, Selector, B256};
 use either::Either;
-use solar_ast::ast::{DataLocation, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
     fmt_from_fn,
     map::{FxBuildHasher, FxHashMap, FxHashSet},

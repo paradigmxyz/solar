@@ -2,7 +2,7 @@
 //!
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
-use solar_ast::ast::Base;
+use solar_ast::Base;
 use std::str::Chars;
 
 pub mod token;

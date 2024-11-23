@@ -1,6 +1,6 @@
 use crate::hir::SourceId;
 use rayon::prelude::*;
-use solar_ast::ast;
+use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,

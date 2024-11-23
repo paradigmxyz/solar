@@ -2,7 +2,7 @@ use crate::{
     hir::{self, ContractId, SourceId},
     ParsedSource,
 };
-use solar_ast::ast;
+use solar_ast as ast;
 use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
 
 impl<'ast> super::LoweringContext<'_, 'ast, '_> {

@@ -3,7 +3,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyFnPtr, TyKind},
 };
-use solar_ast::ast::{DataLocation, ElementaryType, StateMutability as SM};
+use solar_ast::{DataLocation, ElementaryType, StateMutability as SM};
 use solar_data_structures::BumpExt;
 use solar_interface::{kw, sym, Symbol};
 

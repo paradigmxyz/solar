@@ -1,7 +1,7 @@
 use super::{Gcx, Ty, TyKind};
 use crate::hir;
 use alloy_json_abi as json;
-use solar_ast::ast::ElementaryType;
+use solar_ast::ElementaryType;
 use std::{fmt, ops::ControlFlow};
 
 impl<'gcx> Gcx<'gcx> {

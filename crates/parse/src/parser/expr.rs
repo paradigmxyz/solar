@@ -1,5 +1,5 @@
 use crate::{PResult, Parser};
-use solar_ast::{ast::*, token::*};
+use solar_ast::{token::*, *};
 use solar_interface::kw;
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {

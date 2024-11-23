@@ -1,6 +1,6 @@
 use crate::{hir, ty::Gcx};
 use alloy_primitives::U256;
-use solar_ast::ast::LitKind;
+use solar_ast::LitKind;
 use solar_interface::{diagnostics::ErrorGuaranteed, Span};
 use std::fmt;
 

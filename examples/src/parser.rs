@@ -1,5 +1,5 @@
 use solar::{
-    ast::ast,
+    ast,
     interface::{diagnostics::EmittedDiagnostics, Session},
     parse::Parser,
 };

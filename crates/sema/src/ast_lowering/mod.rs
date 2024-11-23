@@ -2,7 +2,7 @@ use crate::{
     hir::{self, Hir},
     ParsedSources,
 };
-use solar_ast::ast;
+use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashMap,

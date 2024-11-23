@@ -1,13 +1,9 @@
-use std::ops::ControlFlow;
-
-use solar_ast::{
-    ast::{self, yul, ItemId},
-    visit::Visit,
-};
+use solar_ast::{self as ast, visit::Visit, yul, ItemId};
 use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     Never,
 };
+use std::ops::ControlFlow;
 
 struct NodeStats {
     count: usize,

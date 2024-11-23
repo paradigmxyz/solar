@@ -4,7 +4,7 @@ use crate::builtins::Builtin;
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
-use solar_ast::ast;
+use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index, BumpExt,
