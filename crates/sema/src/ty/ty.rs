@@ -217,10 +217,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Meta(ty) => ty.visit(f),
 
             TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
-                for ty in list {
-                    ty.visit(f)?;
-                }
-                ControlFlow::Continue(())
+                list.iter().copied().try_for_each(f)
             }
 
             TyKind::Mapping(k, v) => {
