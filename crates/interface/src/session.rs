@@ -268,6 +268,7 @@ fn run_in_thread_pool_with_globals<R: Send>(
     builder
         .build_scoped(
             // Initialize each new worker thread when created.
+            // Note that this is not called on the current thread, so `set` can't panic.
             move |thread| session_globals.set(|| thread.run()),
             // Run `f` on the first thread in the thread pool.
             move |pool| pool.install(f),
