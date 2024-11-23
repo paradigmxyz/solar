@@ -23,6 +23,7 @@ use std::{
 use thread_local::ThreadLocal;
 
 mod abi;
+pub use abi::TyAbiPrinter;
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
