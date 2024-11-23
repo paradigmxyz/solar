@@ -16,7 +16,7 @@ mod globals;
 pub use globals::SessionGlobals;
 
 mod pos;
-pub use pos::{BytePos, CharPos, Pos, RelativeBytePos};
+pub use pos::{BytePos, CharPos, RelativeBytePos};
 
 mod session;
 pub use session::{Session, SessionBuilder};
