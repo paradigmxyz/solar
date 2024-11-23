@@ -330,12 +330,18 @@ mod tests {
 
     #[test]
     fn enter() {
-        fn use_globals() {
+        #[track_caller]
+        fn use_globals_no_sm() {
             SessionGlobals::with(|_globals| {});
 
             let s = "hello";
             let sym = crate::Symbol::intern(s);
             assert_eq!(sym.as_str(), s);
+        }
+
+        #[track_caller]
+        fn use_globals() {
+            use_globals_no_sm();
 
             let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
             let s = format!("{span:?}");
@@ -352,6 +358,18 @@ mod tests {
             use_globals();
             sess.enter(use_globals);
             use_globals();
+        });
+        assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+
+        SessionGlobals::new().set(|| {
+            use_globals_no_sm();
+            sess.enter(|| {
+                use_globals();
+                sess.enter(use_globals);
+                use_globals();
+            });
+            use_globals_no_sm();
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
