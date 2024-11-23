@@ -145,15 +145,26 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
 /// Prints types as specified by the Solidity ABI.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/abi-spec.html>
-struct TyAbiPrinter<'gcx, W> {
+pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     recurse: bool,
 }
 
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
-    fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+    /// Creates a new ABI printer.
+    pub fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
         Self { gcx, buf, recurse: true }
+    }
+
+    /// Returns a mutable reference to the underlying buffer.
+    pub fn buf(&mut self) -> &mut W {
+        &mut self.buf
+    }
+
+    /// Consumes the printer and returns the underlying buffer.
+    pub fn into_buf(self) -> W {
+        self.buf
     }
 
     /// Whether to recurse into structs to print their fields.
@@ -162,12 +173,13 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Note that this will make the printer panic if it encounters a recursive struct.
     ///
     /// Default: `true`.
-    fn recurse(mut self, yes: bool) -> Self {
+    pub fn recurse(mut self, yes: bool) -> Self {
         self.recurse = yes;
         self
     }
 
-    fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
+    /// Prints the ABI representation of `ty`.
+    pub fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
             TyKind::Contract(_) => self.buf.write_str("address"),
@@ -213,7 +225,8 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
         }
     }
 
-    fn print_tuple(&mut self, tys: impl IntoIterator<Item = Ty<'gcx>>) -> fmt::Result {
+    /// Prints `tys` in a comma-delimited parenthesized tuple.
+    pub fn print_tuple(&mut self, tys: impl IntoIterator<Item = Ty<'gcx>>) -> fmt::Result {
         self.buf.write_str("(")?;
         for (i, ty) in tys.into_iter().enumerate() {
             if i > 0 {
