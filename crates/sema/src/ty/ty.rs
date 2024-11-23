@@ -6,6 +6,7 @@ use solar_data_structures::Interned;
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
 
+/// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ty<'gcx>(pub(super) Interned<'gcx, TyData<'gcx>>);
 
@@ -228,6 +229,7 @@ impl<'gcx> Ty<'gcx> {
     }
 }
 
+/// The interned data of a type.
 #[derive(PartialEq, Eq, Hash)]
 pub struct TyData<'gcx> {
     pub kind: TyKind<'gcx>,
@@ -246,7 +248,9 @@ impl fmt::Debug for TyData<'_> {
     }
 }
 
+/// The kind of a type.
 #[derive(Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TyKind<'gcx> {
     /// An elementary/primitive type.
     Elementary(ElementaryType),
