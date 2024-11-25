@@ -1,5 +1,5 @@
 use crate::{BytePos, SessionGlobals};
-use std::{cmp, fmt};
+use std::{cmp, fmt, ops::Range};
 
 /// A source code location.
 ///
@@ -36,10 +36,12 @@ impl fmt::Debug for Span {
         }
 
         if SessionGlobals::is_set() {
-            SessionGlobals::with(|g| {
-                if let Some(source_map) = &*g.source_map.lock() {
+            SessionGlobals::with(|g: &SessionGlobals| {
+                let sm = g.source_map.lock();
+                if let Some(source_map) = &*sm {
                     f.write_str(&source_map.span_to_diagnostic_string(*self))
                 } else {
+                    drop(sm);
                     fallback(*self, f)
                 }
             })
@@ -60,6 +62,18 @@ impl Span {
             std::mem::swap(&mut lo, &mut hi);
         }
         Self { lo, hi }
+    }
+
+    /// Returns the span as a `Range<usize>`.
+    #[inline]
+    pub fn to_range(self) -> Range<usize> {
+        self.lo().to_usize()..self.hi().to_usize()
+    }
+
+    /// Returns the span as a `Range<u32>`.
+    #[inline]
+    pub fn to_u32_range(self) -> Range<u32> {
+        self.lo().to_u32()..self.hi().to_u32()
     }
 
     /// Returns the span's start position.

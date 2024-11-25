@@ -4,7 +4,8 @@ use crate::{
     hir::{self, Hir},
 };
 use alloy_primitives::{keccak256, Selector, B256};
-use solar_ast::ast::{DataLocation, StateMutability, TypeSize, Visibility};
+use either::Either;
+use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
     fmt_from_fn,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
@@ -17,10 +18,12 @@ use solar_interface::{
 use std::{
     fmt,
     hash::{BuildHasher, Hash},
+    ops::ControlFlow,
 };
 use thread_local::ThreadLocal;
 
 mod abi;
+pub use abi::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
@@ -89,6 +92,31 @@ impl<'gcx> IntoIterator for InterfaceFunctions<'gcx> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.functions.iter()
+    }
+}
+
+/// Recursiveness of a type.
+#[derive(Clone, Copy, Debug)]
+pub enum Recursiveness {
+    /// Not recursive.
+    None,
+    /// Recursive through indirection.
+    Recursive,
+    /// Recursive through direct reference. An error has already been emitted.
+    Infinite(ErrorGuaranteed),
+}
+
+impl Recursiveness {
+    /// Returns `true` if the type is not recursive.
+    #[inline]
+    pub fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Returns `true` if the type is recursive.
+    #[inline]
+    pub fn is_recursive(self) -> bool {
+        !self.is_none()
     }
 }
 
@@ -294,7 +322,8 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item or a struct.
-    pub fn item_parameters(self, id: hir::ItemId) -> &'gcx [hir::VariableId] {
+    pub fn item_parameters(self, id: impl Into<hir::ItemId>) -> &'gcx [hir::VariableId] {
+        let id = id.into();
         self.item_parameters_opt(id)
             .unwrap_or_else(|| panic!("item_parameters: invalid item {id:?}"))
     }
@@ -302,7 +331,10 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the parameter variable declarations of the given function-like item.
     ///
     /// Also accepts structs.
-    pub fn item_parameters_opt(self, id: hir::ItemId) -> Option<&'gcx [hir::VariableId]> {
+    pub fn item_parameters_opt(
+        self,
+        id: impl Into<hir::ItemId>,
+    ) -> Option<&'gcx [hir::VariableId]> {
         self.hir.item(id).parameters()
     }
 
@@ -311,7 +343,8 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item.
-    pub fn item_parameter_types(self, id: hir::ItemId) -> &'gcx [Ty<'gcx>] {
+    pub fn item_parameter_types(self, id: impl Into<hir::ItemId>) -> &'gcx [Ty<'gcx>] {
+        let id = id.into();
         self.item_parameter_types_opt(id)
             .unwrap_or_else(|| panic!("item_parameter_types: invalid item {id:?}"))
     }
@@ -321,16 +354,18 @@ impl<'gcx> Gcx<'gcx> {
     /// # Panics
     ///
     /// Panics if the item is not a function-like item.
-    pub fn item_parameter_types_opt(self, id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
-        self.type_of_item(id).parameters()
+    pub fn item_parameter_types_opt(self, id: impl Into<hir::ItemId>) -> Option<&'gcx [Ty<'gcx>]> {
+        self.type_of_item(id.into()).parameters()
     }
 
     /// Returns the name of the given item.
+    #[inline]
     pub fn item_name_opt(self, id: impl Into<hir::ItemId>) -> Option<Ident> {
         self.hir.item(id).name()
     }
 
     /// Returns the span of the given item.
+    #[inline]
     pub fn item_span(self, id: impl Into<hir::ItemId>) -> Span {
         self.hir.item(id).span()
     }
@@ -490,6 +525,10 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
+            if let Err(guar) = ty.has_error() {
+                result = Err(guar);
+                continue;
+            }
             if !ty.can_be_exported() {
                 let msg = if ty.has_mapping() {
                     "types containing mappings cannot be parameter or return types of public functions"
@@ -596,6 +635,58 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
 /// Returns the types of the fields of the given struct.
 pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
     gcx.mk_ty_iter(gcx.hir.strukt(id).fields.iter().map(|&f| gcx.type_of_item(f.into())))
+}
+
+/// Returns the recursiveness of the given struct.
+pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
+    use solar_data_structures::cycle::*;
+
+    let r = CycleDetector::detect(gcx, id, |gcx, cd, id| {
+        let s = gcx.hir.strukt(id);
+
+        if cd.depth() >= 256 {
+            let guar = gcx.dcx().err("struct is too deeply nested").span(s.span).emit();
+            return CycleDetectorResult::Break(Either::Left(guar));
+        }
+
+        for &field_id in s.fields {
+            let field = gcx.hir.variable(field_id);
+            let mut check = |ty: &hir::Type<'_>, dynamic: bool| {
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(other)) = ty.kind {
+                    match cd.run(other) {
+                        CycleDetectorResult::Continue => {}
+                        CycleDetectorResult::Cycle(_) if dynamic => {
+                            return CycleDetectorResult::Break(Either::Right(()));
+                        }
+                        r => return r,
+                    }
+                }
+                CycleDetectorResult::Continue
+            };
+            let mut dynamic = false;
+            let mut ty = &field.ty;
+            while let hir::TypeKind::Array(array) = ty.kind {
+                if array.size.is_none() {
+                    dynamic = true;
+                }
+                ty = &array.element;
+            }
+            cdr_try!(check(ty, dynamic));
+            if let ControlFlow::Break(r) = field.ty.visit(&mut |ty| check(ty, true).to_controlflow()) {
+                return r;
+            }
+        }
+
+        CycleDetectorResult::Continue
+    });
+    match r {
+        CycleDetectorResult::Continue => Recursiveness::None,
+        CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
+        CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
+        CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
+            gcx.dcx().err("recursive struct definition").span(gcx.item_span(id)).emit()
+        ),
+    }
 }
 
 /// Returns the members of the given type.

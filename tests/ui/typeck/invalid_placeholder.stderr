@@ -1,0 +1,9 @@
+error: placeholder statements can only be used in modifiers
+  --> ROOT/tests/ui/typeck/invalid_placeholder.sol:LL:CC
+   |
+LL |       _;
+   |       ^^
+   |
+
+error: aborting due to 1 previous error
+

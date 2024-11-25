@@ -43,6 +43,9 @@ pub struct Session {
     /// Number of threads to use. Already resolved to a non-zero value.
     #[builder(default = "NonZeroUsize::MIN")]
     pub jobs: NonZeroUsize,
+    /// Whether to emit AST stats.
+    #[builder(default)]
+    pub ast_stats: bool,
 }
 
 #[derive(Debug)]
@@ -134,13 +137,22 @@ impl Session {
         SessionBuilder::default()
     }
 
+    /// Returns the emitted diagnostics. Can be empty.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](SessionBuilder::with_buffer_emitter).
+    #[inline]
+    pub fn emitted_diagnostics(&self) -> Option<EmittedDiagnostics> {
+        self.dcx.emitted_diagnostics()
+    }
+
     /// Returns `Err` with the printed diagnostics if any errors have been emitted.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
     /// [`with_buffer_emitter`](SessionBuilder::with_buffer_emitter).
     #[inline]
-    pub fn emitted_diagnostics(&self) -> Option<Result<(), EmittedDiagnostics>> {
-        self.dcx.emitted_diagnostics()
+    pub fn emitted_errors(&self) -> Option<Result<(), EmittedDiagnostics>> {
+        self.dcx.emitted_errors()
     }
 
     /// Returns a reference to the source map.
@@ -164,7 +176,7 @@ impl Session {
     /// Returns `true` if parallelism is not enabled.
     #[inline]
     pub fn is_sequential(&self) -> bool {
-        self.jobs.get() == 1
+        self.jobs == NonZeroUsize::MIN
     }
 
     /// Returns `true` if parallelism is enabled.
@@ -221,16 +233,47 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up session globals on the current thread if they doesn't exist already and then
+    /// Sets up the thread pool and session globals if they doesn't exist already and then
     /// executes the given closure.
     ///
     /// This also calls [`SessionGlobals::with_source_map`].
     #[inline]
-    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
-        SessionGlobals::with_or_default(|_| {
-            SessionGlobals::with_source_map(self.clone_source_map(), f)
+    pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+        SessionGlobals::with_or_default(|session_globals| {
+            SessionGlobals::with_source_map(self.clone_source_map(), || {
+                run_in_thread_pool_with_globals(self.jobs.get(), session_globals, f)
+            })
         })
     }
+}
+
+/// Runs the given closure in a thread pool with the given number of threads.
+fn run_in_thread_pool_with_globals<R: Send>(
+    threads: usize,
+    session_globals: &SessionGlobals,
+    f: impl FnOnce() -> R + Send,
+) -> R {
+    // Avoid panicking below if this is a recursive call.
+    if rayon::current_thread_index().is_some() {
+        return f();
+    }
+
+    let mut builder =
+        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
+    // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
+    // install and run in the default global thread pool.
+    if threads == 1 {
+        builder = builder.use_current_thread();
+    }
+    builder
+        .build_scoped(
+            // Initialize each new worker thread when created.
+            // Note that this is not called on the current thread, so `set` can't panic.
+            move |thread| session_globals.set(|| thread.run()),
+            // Run `f` on the first thread in the thread pool.
+            move |pool| pool.install(f),
+        )
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -274,10 +317,78 @@ mod tests {
 
     #[test]
     fn local() {
+        let sess = Session::builder().with_stderr_emitter().build();
+        assert!(sess.emitted_diagnostics().is_none());
+        assert!(sess.emitted_errors().is_none());
+
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.dcx.err("test").emit();
-        let err = sess.dcx.emitted_diagnostics().unwrap().unwrap_err();
+        let err = sess.dcx.emitted_errors().unwrap().unwrap_err();
         let err = Box::new(err) as Box<dyn std::error::Error>;
         assert!(err.to_string().contains("error: test"), "{err:?}");
+    }
+
+    #[test]
+    fn enter() {
+        #[track_caller]
+        fn use_globals_no_sm() {
+            SessionGlobals::with(|_globals| {});
+
+            let s = "hello";
+            let sym = crate::Symbol::intern(s);
+            assert_eq!(sym.as_str(), s);
+        }
+
+        #[track_caller]
+        fn use_globals() {
+            use_globals_no_sm();
+
+            let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
+            let s = format!("{span:?}");
+            assert!(!s.contains("Span("), "{s}");
+            let s = format!("{span:#?}");
+            assert!(!s.contains("Span("), "{s}");
+        }
+
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(use_globals);
+        assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+        sess.enter(|| {
+            use_globals();
+            sess.enter(use_globals);
+            use_globals();
+        });
+        assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+
+        SessionGlobals::new().set(|| {
+            use_globals_no_sm();
+            sess.enter(|| {
+                use_globals();
+                sess.enter(use_globals);
+                use_globals();
+            });
+            use_globals_no_sm();
+        });
+        assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+    }
+
+    #[test]
+    fn enter_diags() {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        assert!(sess.dcx.emitted_errors().unwrap().is_ok());
+        sess.enter(|| {
+            sess.dcx.err("test1").emit();
+            assert!(sess.dcx.emitted_errors().unwrap().is_err());
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
+        sess.enter(|| {
+            sess.dcx.err("test2").emit();
+            assert!(sess.dcx.emitted_errors().unwrap().is_err());
+        });
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
+        assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
     }
 }

@@ -1,6 +1,6 @@
 use crate::hir::SourceId;
 use rayon::prelude::*;
-use solar_ast::ast;
+use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
@@ -95,7 +95,7 @@ impl<'sess> ParsingContext<'sess> {
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
     pub fn parse<'ast>(mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> ParsedSources<'ast> {
-        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the values are
+        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the asts are
         // populated, so this is safe.
         let sources: ParsedSources<'static> = std::mem::take(&mut self.sources);
         let mut sources: ParsedSources<'ast> =

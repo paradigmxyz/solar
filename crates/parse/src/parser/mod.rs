@@ -1,8 +1,9 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    ast::{self, AstPath, Box, DocComment, DocComments, PathSlice},
+    self as ast,
     token::{Delimiter, Token, TokenKind},
+    AstPath, Box, DocComment, DocComments, PathSlice,
 };
 use solar_data_structures::BumpExt;
 use solar_interface::{
@@ -697,7 +698,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         if let Some(sep_kind) = &sep.sep {
-            if sep.trailing_sep_required && !trailing {
+            let open_close_delim = first && allow_empty;
+            if !open_close_delim && sep.trailing_sep_required && !trailing {
                 if let Err(e) = self.expect(sep_kind) {
                     e.emit();
                 }

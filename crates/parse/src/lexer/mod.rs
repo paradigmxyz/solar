@@ -1,11 +1,11 @@
 //! Solidity and Yul lexer.
 
 use solar_ast::{
-    ast::Base,
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
+    Base,
 };
 use solar_interface::{
-    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Pos, Session, Span, Symbol,
+    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Session, Span, Symbol,
 };
 
 mod cursor;

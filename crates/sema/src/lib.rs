@@ -18,7 +18,7 @@ use ty::Gcx;
 // Convenience re-exports.
 pub use ::thread_local;
 pub use bumpalo;
-pub use solar_ast::ast;
+pub use solar_ast as ast;
 pub use solar_interface as interface;
 
 mod ast_lowering;
@@ -35,6 +35,8 @@ pub mod ty;
 mod typeck;
 
 mod emit;
+
+pub mod stats;
 
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
@@ -55,6 +57,12 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     if let Some(dump) = &sess.dump {
         if dump.kind.is_ast() {
             dump_ast(sess, &sources, dump.paths.as_deref())?;
+        }
+    }
+
+    if sess.ast_stats {
+        for source in sources.asts() {
+            stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
 
@@ -117,17 +125,14 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
         }
     }
 
-    // Collect the types first to check and fail on recursive types.
+    // Lower HIR types.
     gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
-        if let hir::ItemId::Struct(id) = id {
-            let _ = gcx.struct_field_types(id);
+        match id {
+            hir::ItemId::Struct(id) => _ = gcx.struct_field_types(id),
+            hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
+            _ => {}
         }
-    });
-    gcx.sess.dcx.has_errors()?;
-
-    gcx.hir.par_contract_ids().for_each(|id| {
-        let _ = gcx.interface_functions(id);
     });
     gcx.sess.dcx.has_errors()?;
 

@@ -1,7 +1,7 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
-use solar_ast::{ast::*, token::*};
+use solar_ast::{token::*, *};
 use solar_interface::{error_code, kw, sym, Ident, Span};
 use std::num::IntErrorKind;
 
@@ -276,7 +276,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let fields = self.parse_delim_seq(
             Delimiter::Brace,
             SeqSep::trailing_enforced(TokenKind::Semi),
-            false,
+            true,
             |this| this.parse_variable_definition(VarFlags::STRUCT),
         )?;
         Ok(ItemStruct { name, fields })
@@ -330,7 +330,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let variants = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
+        let variants = self.parse_delim_comma_seq(Delimiter::Brace, true, |this| {
             this.ignore_doc_comments();
             this.parse_ident()
         })?;
@@ -709,6 +709,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 self.parse_type()?
             }
         };
+
+        if ty.is_function()
+            && flags == VarFlags::STATE_VAR
+            && self.check_noexpect(&TokenKind::OpenDelim(Delimiter::Brace))
+        {
+            let msg = "expected a state variable declaration";
+            let note = "this style of fallback function has been removed; use the `fallback` or `receive` keywords instead";
+            self.dcx().err(msg).span(self.token.span).note(note).emit();
+            let _ = self.parse_block()?;
+            return Ok(VariableDefinition {
+                span: lo.to(self.prev_token.span),
+                ty,
+                visibility: None,
+                mutability: None,
+                data_location: None,
+                override_: None,
+                indexed: false,
+                name: None,
+                initializer: None,
+            });
+        }
 
         let mut data_location = None;
         let mut visibility = None;

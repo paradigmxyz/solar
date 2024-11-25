@@ -5,7 +5,7 @@
 //!
 //! This binary is integrated into the `cargo` command line by using an alias in `.cargo/config`.
 
-#![allow(unreachable_pub)]
+#![allow(unreachable_pub, unexpected_cfgs)]
 
 use xshell::{cmd, Shell};
 

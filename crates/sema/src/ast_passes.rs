@@ -1,10 +1,6 @@
 //! AST-related passes.
 
-use solar_ast::{
-    ast,
-    ast::{Stmt, StmtKind},
-    visit::Visit,
-};
+use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
@@ -22,22 +18,24 @@ pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
 }
 
 /// AST validator.
-struct AstValidator<'sess> {
+struct AstValidator<'sess, 'ast> {
     span: Span,
     dcx: &'sess DiagCtxt,
-    in_loop_depth: u64,
-    contract_kind: Option<ast::ContractKind>,
+    contract: Option<&'ast ast::ItemContract<'ast>>,
+    function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
+    in_loop_depth: u64,
 }
 
-impl<'sess> AstValidator<'sess> {
+impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             span: Span::DUMMY,
             dcx: &sess.dcx,
-            in_loop_depth: 0,
+            contract: None,
+            function_kind: None,
             in_unchecked_block: false,
-            contract_kind: None,
+            in_loop_depth: 0,
         }
     }
 
@@ -52,12 +50,37 @@ impl<'sess> AstValidator<'sess> {
     }
 }
 
-impl<'ast> Visit<'ast> for AstValidator<'_> {
+impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     type BreakValue = Never;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         self.span = item.span;
         self.walk_item(item)
+    }
+
+    fn visit_item_struct(
+        &mut self,
+        item: &'ast ast::ItemStruct<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemStruct { name, fields, .. } = item;
+        if fields.is_empty() {
+            self.dcx().err("structs must have at least one field").span(name.span).emit();
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_item_enum(
+        &mut self,
+        enum_: &'ast ast::ItemEnum<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::ItemEnum { name, variants } = enum_;
+        if variants.is_empty() {
+            self.dcx().err("enum must have at least one variant").span(name.span).emit();
+        }
+        if variants.len() > 256 {
+            self.dcx().err("enum cannot have more than 256 variants").span(name.span).emit();
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_pragma_directive(
@@ -95,25 +118,27 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
     }
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-        let Stmt { kind, .. } = stmt;
-
-        match kind {
-            StmtKind::While(_, body, ..)
-            | StmtKind::DoWhile(body, ..)
-            | StmtKind::For { body, .. } => {
+        match &stmt.kind {
+            ast::StmtKind::While(_, body, ..)
+            | ast::StmtKind::DoWhile(body, ..)
+            | ast::StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
                 let r = self.walk_stmt(body);
                 self.in_loop_depth -= 1;
                 return r;
             }
-            StmtKind::Break | StmtKind::Continue => {
+            ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
-                    let kind = if matches!(kind, StmtKind::Break) { "break" } else { "continue" };
+                    let kind = if matches!(stmt.kind, ast::StmtKind::Break) {
+                        "break"
+                    } else {
+                        "continue"
+                    };
                     let msg = format!("`{kind}` outside of a loop");
                     self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
-            StmtKind::UncheckedBlock(block) => {
+            ast::StmtKind::UncheckedBlock(block) => {
                 if self.in_unchecked_block {
                     self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
@@ -123,6 +148,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 let r = self.walk_block(block);
                 self.in_unchecked_block = prev;
                 return r;
+            }
+            ast::StmtKind::Placeholder => {
+                if !self.function_kind.is_some_and(|k| k.is_modifier()) {
+                    self.dcx()
+                        .err("placeholder statements can only be used in modifiers")
+                        .span(stmt.span)
+                        .emit();
+                }
             }
             _ => {}
         }
@@ -134,9 +167,34 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         &mut self,
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.contract_kind = Some(contract.kind);
+        self.contract = Some(contract);
         let r = self.walk_item_contract(contract);
-        self.contract_kind = None;
+        self.contract = None;
+        r
+    }
+
+    fn visit_item_function(
+        &mut self,
+        func: &'ast ast::ItemFunction<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        self.function_kind = Some(func.kind);
+
+        if let Some(contract) = self.contract {
+            if func.kind.is_function() {
+                if let Some(func_name) = func.header.name {
+                    if func_name == contract.name {
+                        self.dcx()
+                            .err("functions are not allowed to have the same name as the contract")
+                            .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
+                            .span(func_name.span)
+                            .emit();
+                    }
+                }
+            }
+        }
+
+        let r = self.walk_item_function(func);
+        self.function_kind = None;
         r
     }
 
@@ -146,7 +204,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
     ) -> ControlFlow<Self::BreakValue> {
         let ast::UsingDirective { list: _, ty, global } = using;
         let with_typ = ty.is_some();
-        if self.contract_kind.is_none() && !with_typ {
+        if self.contract.is_none() && !with_typ {
             self.dcx()
                 .err("the type has to be specified explicitly at file level (cannot use `*`)")
                 .span(self.span)
@@ -158,11 +216,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 .span(self.span)
                 .emit();
         }
-        if *global && self.contract_kind.is_some() {
+        if *global && self.contract.is_some() {
             self.dcx().err("`global` can only be used at file level").span(self.span).emit();
         }
-        if let Some(contract_kind) = self.contract_kind {
-            if contract_kind == ast::ContractKind::Interface {
+        if let Some(contract) = self.contract {
+            if contract.kind.is_interface() {
                 self.dcx()
                     .err("the `using for` directive is not allowed inside interfaces")
                     .span(self.span)

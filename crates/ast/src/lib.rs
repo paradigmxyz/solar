@@ -9,6 +9,8 @@
 pub use bumpalo;
 pub use solar_interface as interface;
 
-pub mod ast;
+mod ast;
+pub use ast::*;
+
 pub mod token;
 pub mod visit;

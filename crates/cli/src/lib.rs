@@ -102,65 +102,65 @@ impl Compiler {
 }
 
 fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
-    utils::run_in_thread_pool_with_globals(args.threads, |jobs| {
-        let ui_testing = args.unstable.ui_testing;
-        let source_map = Arc::new(SourceMap::empty());
-        let emitter: Box<DynEmitter> = match args.error_format {
-            cli::ErrorFormat::Human => {
-                let color = match args.color {
-                    clap::ColorChoice::Always => solar_interface::ColorChoice::Always,
-                    clap::ColorChoice::Auto => solar_interface::ColorChoice::Auto,
-                    clap::ColorChoice::Never => solar_interface::ColorChoice::Never,
-                };
-                let human = HumanEmitter::stderr(color)
-                    .source_map(Some(source_map.clone()))
-                    .ui_testing(ui_testing);
-                Box::new(human)
-            }
-            cli::ErrorFormat::Json | cli::ErrorFormat::RustcJson => {
-                let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
-                let json = JsonEmitter::new(writer, source_map.clone())
-                    .pretty(args.pretty_json_err)
-                    .rustc_like(matches!(args.error_format, cli::ErrorFormat::RustcJson))
-                    .ui_testing(ui_testing);
-                Box::new(json)
-            }
-        };
-        let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
-            flags.deduplicate_diagnostics &= !ui_testing;
-            flags.track_diagnostics &= !ui_testing;
-            flags.track_diagnostics |= args.unstable.track_diagnostics;
-        });
-
-        let mut sess = Session::new(dcx, source_map);
-        sess.evm_version = args.evm_version;
-        sess.language = args.language;
-        sess.stop_after = args.stop_after;
-        sess.dump = args.unstable.dump.clone();
-        sess.jobs = NonZeroUsize::new(jobs).unwrap();
-        if !args.input.is_empty()
-            && args.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
-        {
-            sess.language = solar_config::Language::Yul;
+    let ui_testing = args.unstable.ui_testing;
+    let source_map = Arc::new(SourceMap::empty());
+    let emitter: Box<DynEmitter> = match args.error_format {
+        cli::ErrorFormat::Human => {
+            let color = match args.color {
+                clap::ColorChoice::Always => solar_interface::ColorChoice::Always,
+                clap::ColorChoice::Auto => solar_interface::ColorChoice::Auto,
+                clap::ColorChoice::Never => solar_interface::ColorChoice::Never,
+            };
+            let human = HumanEmitter::stderr(color)
+                .source_map(Some(source_map.clone()))
+                .ui_testing(ui_testing);
+            Box::new(human)
         }
-        sess.emit = {
-            let mut set = BTreeSet::default();
-            for &emit in &args.emit {
-                if !set.insert(emit) {
-                    let msg = format!("cannot specify `--emit {emit}` twice");
-                    return Err(sess.dcx.err(msg).emit());
-                }
-            }
-            set
-        };
-        sess.out_dir = args.out_dir.clone();
-        sess.pretty_json = args.pretty_json;
+        cli::ErrorFormat::Json | cli::ErrorFormat::RustcJson => {
+            let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
+            let json = JsonEmitter::new(writer, source_map.clone())
+                .pretty(args.pretty_json_err)
+                .rustc_like(matches!(args.error_format, cli::ErrorFormat::RustcJson))
+                .ui_testing(ui_testing);
+            Box::new(json)
+        }
+    };
+    let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
+        flags.deduplicate_diagnostics &= !ui_testing;
+        flags.track_diagnostics &= !ui_testing;
+        flags.track_diagnostics |= args.unstable.track_diagnostics;
+    });
 
-        let compiler = Compiler { sess, args };
-        compiler.sess.enter(|| {
-            let mut r = f(&compiler);
-            r = compiler.finish_diagnostics().and(r);
-            r
-        })
+    let mut sess = Session::new(dcx, source_map);
+    sess.evm_version = args.evm_version;
+    sess.language = args.language;
+    sess.stop_after = args.stop_after;
+    sess.dump = args.unstable.dump.clone();
+    sess.ast_stats = args.unstable.ast_stats;
+    sess.jobs = NonZeroUsize::new(args.threads)
+        .unwrap_or_else(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN));
+    if !args.input.is_empty()
+        && args.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
+    {
+        sess.language = solar_config::Language::Yul;
+    }
+    sess.emit = {
+        let mut set = BTreeSet::default();
+        for &emit in &args.emit {
+            if !set.insert(emit) {
+                let msg = format!("cannot specify `--emit {emit}` twice");
+                return Err(sess.dcx.err(msg).emit());
+            }
+        }
+        set
+    };
+    sess.out_dir = args.out_dir.clone();
+    sess.pretty_json = args.pretty_json;
+
+    let compiler = Compiler { sess, args };
+    compiler.sess.enter(|| {
+        let mut r = f(&compiler);
+        r = compiler.finish_diagnostics().and(r);
+        r
     })
 }

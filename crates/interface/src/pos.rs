@@ -3,13 +3,6 @@ use std::{
     ops::{Add, AddAssign, Sub, SubAssign},
 };
 
-pub trait Pos {
-    fn from_usize(n: usize) -> Self;
-    fn to_usize(&self) -> usize;
-    fn from_u32(n: u32) -> Self;
-    fn to_u32(&self) -> u32;
-}
-
 macro_rules! impl_pos {
     (
         $(
@@ -27,25 +20,25 @@ macro_rules! impl_pos {
                 }
             }
 
-            impl Pos for $ident {
+            impl $ident {
                 #[inline(always)]
-                fn from_usize(n: usize) -> Self {
+                pub fn from_u32(n: u32) -> Self {
                     Self(n as $inner_ty)
                 }
 
                 #[inline(always)]
-                fn to_usize(&self) -> usize {
-                    self.0 as usize
-                }
-
-                #[inline(always)]
-                fn from_u32(n: u32) -> Self {
+                pub fn from_usize(n: usize) -> Self {
                     Self(n as $inner_ty)
                 }
 
                 #[inline(always)]
-                fn to_u32(&self) -> u32 {
+                pub fn to_u32(self) -> u32 {
                     self.0 as u32
+                }
+
+                #[inline(always)]
+                pub fn to_usize(self) -> usize {
+                    self.0 as usize
                 }
             }
 

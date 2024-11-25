@@ -1,4 +1,4 @@
-use crate::{pos::RelativeBytePos, BytePos, CharPos, Pos};
+use crate::{pos::RelativeBytePos, BytePos, CharPos};
 use std::{
     fmt, io,
     ops::RangeInclusive,
@@ -121,6 +121,16 @@ impl From<PathBuf> for FileName {
 }
 
 impl FileName {
+    /// Creates a new `FileName` from a path.
+    pub fn real(path: impl Into<PathBuf>) -> Self {
+        Self::Real(path.into())
+    }
+
+    /// Creates a new `FileName` from a string.
+    pub fn custom(s: impl Into<String>) -> Self {
+        Self::Custom(s.into())
+    }
+
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
