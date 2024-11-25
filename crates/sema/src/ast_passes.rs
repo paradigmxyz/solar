@@ -18,22 +18,24 @@ pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
 }
 
 /// AST validator.
-struct AstValidator<'sess> {
+struct AstValidator<'sess, 'ast> {
     span: Span,
     dcx: &'sess DiagCtxt,
-    in_loop_depth: u64,
+    contract: Option<&'ast ast::ItemContract<'ast>>,
+    function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
-    in_modifier: bool,
+    in_loop_depth: u64,
 }
 
-impl<'sess> AstValidator<'sess> {
+impl<'sess> AstValidator<'sess, '_> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             span: Span::DUMMY,
             dcx: &sess.dcx,
-            in_loop_depth: 0,
+            contract: None,
+            function_kind: None,
             in_unchecked_block: false,
-            in_modifier: false,
+            in_loop_depth: 0,
         }
     }
 
@@ -48,7 +50,7 @@ impl<'sess> AstValidator<'sess> {
     }
 }
 
-impl<'ast> Visit<'ast> for AstValidator<'_> {
+impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     type BreakValue = Never;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
@@ -116,9 +118,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
     }
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-        let ast::Stmt { kind, .. } = stmt;
-
-        match kind {
+        match &stmt.kind {
             ast::StmtKind::While(_, body, ..)
             | ast::StmtKind::DoWhile(body, ..)
             | ast::StmtKind::For { body, .. } => {
@@ -129,8 +129,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
             }
             ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
-                    let kind =
-                        if matches!(kind, ast::StmtKind::Break) { "break" } else { "continue" };
+                    let kind = if matches!(stmt.kind, ast::StmtKind::Break) {
+                        "break"
+                    } else {
+                        "continue"
+                    };
                     let msg = format!("`{kind}` outside of a loop");
                     self.dcx().err(msg).span(stmt.span).emit();
                 }
@@ -147,7 +150,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
                 return r;
             }
             ast::StmtKind::Placeholder => {
-                if !self.in_modifier {
+                if !self.function_kind.is_some_and(|k| k.is_modifier()) {
                     self.dcx()
                         .err("placeholder statements can only be used in modifiers")
                         .span(stmt.span)
@@ -164,26 +167,67 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
         &mut self,
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        let ast::ItemContract { kind: _, name: _, bases: _, body } = contract;
+        self.contract = Some(contract);
+        let r = self.walk_item_contract(contract);
+        self.contract = None;
+        r
+    }
 
-        for item in body.iter() {
-            if let ast::ItemKind::Function(ast::ItemFunction { kind, header, body: _ }) = &item.kind
-            {
-                if *kind == ast::FunctionKind::Function {
-                    if let Some(func_name) = header.name {
-                        if func_name == contract.name {
-                            self.dcx()
+    fn visit_item_function(
+        &mut self,
+        func: &'ast ast::ItemFunction<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        self.function_kind = Some(func.kind);
+
+        if let Some(contract) = self.contract {
+            if func.kind.is_function() {
+                if let Some(func_name) = func.header.name {
+                    if func_name == contract.name {
+                        self.dcx()
                             .err("functions are not allowed to have the same name as the contract")
                             .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
                             .span(func_name.span)
                             .emit();
-                        }
                     }
                 }
             }
         }
 
-        self.walk_item_contract(contract)
+        let r = self.walk_item_function(func);
+        self.function_kind = None;
+        r
+    }
+
+    fn visit_using_directive(
+        &mut self,
+        using: &'ast ast::UsingDirective<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let ast::UsingDirective { list: _, ty, global } = using;
+        let with_typ = ty.is_some();
+        if self.contract.is_none() && !with_typ {
+            self.dcx()
+                .err("the type has to be specified explicitly at file level (cannot use `*`)")
+                .span(self.span)
+                .emit();
+        }
+        if *global && !with_typ {
+            self.dcx()
+                .err("can only globally attach functions to specific types")
+                .span(self.span)
+                .emit();
+        }
+        if *global && self.contract.is_some() {
+            self.dcx().err("`global` can only be used at file level").span(self.span).emit();
+        }
+        if let Some(contract) = self.contract {
+            if contract.kind.is_interface() {
+                self.dcx()
+                    .err("the `using for` directive is not allowed inside interfaces")
+                    .span(self.span)
+                    .emit();
+            }
+        }
+        self.walk_using_directive(using)
     }
 
     // Intentionally override unused default implementations to reduce bloat.
@@ -193,16 +237,5 @@ impl<'ast> Visit<'ast> for AstValidator<'_> {
 
     fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
-    }
-
-    fn visit_item_function(
-        &mut self,
-        func: &'ast ast::ItemFunction<'ast>,
-    ) -> ControlFlow<Self::BreakValue> {
-        let ast::ItemFunction { kind, .. } = func;
-        self.in_modifier = *kind == ast::FunctionKind::Modifier;
-        let r = self.walk_item_function(func);
-        self.in_modifier = false;
-        r
     }
 }
