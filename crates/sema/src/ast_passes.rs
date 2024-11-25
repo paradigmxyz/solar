@@ -27,7 +27,7 @@ struct AstValidator<'sess, 'ast> {
     in_loop_depth: u64,
 }
 
-impl<'sess, 'ast> AstValidator<'sess, 'ast> {
+impl<'sess> AstValidator<'sess, '_> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             span: Span::DUMMY,
