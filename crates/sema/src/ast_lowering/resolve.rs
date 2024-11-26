@@ -271,7 +271,8 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             let mut cx = mk_resolver!(strukt);
-            self.hir.structs[id].fields = cx.lower_variables(ast_struct.fields);
+            self.hir.structs[id].fields =
+                cx.lower_variables(ast_struct.fields, hir::VarKind::Struct);
         }
 
         for id in self.hir.error_ids() {
@@ -279,7 +280,8 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
             let error = self.hir.error(id);
             let mut cx = mk_resolver!(error);
-            self.hir.errors[id].parameters = cx.lower_variables(ast_error.parameters);
+            self.hir.errors[id].parameters =
+                cx.lower_variables(ast_error.parameters, hir::VarKind::Error);
         }
 
         for id in self.hir.event_ids() {
@@ -287,7 +289,8 @@ impl super::LoweringContext<'_, '_, '_> {
             let ast::ItemKind::Event(ast_event) = &ast_item.kind else { unreachable!() };
             let event = self.hir.event(id);
             let mut cx = mk_resolver!(event);
-            self.hir.events[id].parameters = cx.lower_variables(ast_event.parameters);
+            self.hir.events[id].parameters =
+                cx.lower_variables(ast_event.parameters, hir::VarKind::Event);
         }
 
         // Resolve constants and state variables.
@@ -370,10 +373,18 @@ impl super::LoweringContext<'_, '_, '_> {
 
             let mut cx = ResolveContext::new(self, scopes, next_id);
             cx.hir.functions[id].parameters = cx.arena.alloc_slice_fill_iter(
-                ast_func.header.parameters.iter().map(|param| cx.lower_variable(param).0),
+                ast_func
+                    .header
+                    .parameters
+                    .iter()
+                    .map(|param| cx.lower_variable(param, hir::VarKind::FunctionParam).0),
             );
             cx.hir.functions[id].returns = cx.arena.alloc_slice_fill_iter(
-                ast_func.header.returns.iter().map(|ret| cx.lower_variable(ret).0),
+                ast_func
+                    .header
+                    .returns
+                    .iter()
+                    .map(|ret| cx.lower_variable(ret, hir::VarKind::FunctionReturn).0),
             );
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_stmts(body));
@@ -456,7 +467,8 @@ impl super::LoweringContext<'_, '_, '_> {
                 // mapping(k => v) -> arguments += k, ret_ty = v
                 hir::TypeKind::Mapping(map) => {
                     let name = map.key_name.or_else(index_name);
-                    let mut param = hir::Variable::new(map.key.clone(), name);
+                    let mut param =
+                        hir::Variable::new(map.key.clone(), name, hir::VarKind::FunctionParam);
                     param.data_location = Some(hir::DataLocation::Calldata);
                     parameters.push(self.hir.variables.push(param));
                     ret_ty = &map.value;
@@ -470,7 +482,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         )),
                         span: ret_ty.span,
                     };
-                    let var = hir::Variable::new(u256, index_name());
+                    let var = hir::Variable::new(u256, index_name(), hir::VarKind::FunctionParam);
                     parameters.push(self.hir.variables.push(var));
                     ret_ty = &array.element;
                 }
@@ -481,7 +493,7 @@ impl super::LoweringContext<'_, '_, '_> {
 
         let mut returns = SmallVec::<[_; 8]>::new();
         let mut push_return = |this: &mut Self, ty, name| {
-            let mut ret = hir::Variable::new(ty, name);
+            let mut ret = hir::Variable::new(ty, name, hir::VarKind::FunctionReturn);
             ret.data_location = Some(hir::DataLocation::Memory);
             returns.push(this.hir.variables.push(ret))
         };
@@ -539,7 +551,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     } else {
                         // `Struct storage <name> = <expr>;`
                         let decl_name = Ident::new(sym::__tmp_struct, ast_var.span);
-                        let mut decl_var = hir::Variable::new(ret_ty.clone(), Some(decl_name));
+                        let mut decl_var = hir::Variable::new_stmt(ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
                         let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
@@ -662,14 +674,16 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     #[instrument(name = "lower_stmt", level = "debug", skip_all)]
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
         let kind = match &stmt.kind {
-            ast::StmtKind::DeclSingle(var) => match self.lower_variable(var) {
-                (id, Ok(())) => hir::StmtKind::DeclSingle(id),
-                (_, Err(guar)) => hir::StmtKind::Err(guar),
-            },
+            ast::StmtKind::DeclSingle(var) => {
+                match self.lower_variable(var, hir::VarKind::Statement) {
+                    (id, Ok(())) => hir::StmtKind::DeclSingle(id),
+                    (_, Err(guar)) => hir::StmtKind::Err(guar),
+                }
+            }
             ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
-                self.arena.alloc_slice_fill_iter(
-                    vars.iter().map(|var| var.as_ref().map(|var| self.lower_variable(var).0)),
-                ),
+                self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
+                    var.as_ref().map(|var| self.lower_variable(var, hir::VarKind::Statement).0)
+                })),
                 self.lower_expr(expr),
             ),
             ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
@@ -705,12 +719,12 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
                 hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
                     expr: self.lower_expr_full(expr),
-                    returns: self.lower_variables(returns),
+                    returns: self.lower_variables(returns, hir::VarKind::TryCatch),
                     block: self.lower_block(block),
                     catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
                         hir::CatchClause {
                             name: catch.name,
-                            args: self.lower_variables(catch.args),
+                            args: self.lower_variables(catch.args, hir::VarKind::TryCatch),
                             block: self.lower_block(catch.block),
                         }
                     })),
@@ -721,21 +735,26 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         hir::Stmt { span: stmt.span, kind }
     }
 
-    fn lower_variables(&mut self, vars: &[ast::VariableDefinition<'_>]) -> &'hir [hir::VariableId] {
-        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var).0))
+    fn lower_variables(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        kind: hir::VarKind,
+    ) -> &'hir [hir::VariableId] {
+        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, kind).0))
     }
 
     /// Lowers `var` to HIR and declares it in the current scope.
     fn lower_variable(
         &mut self,
         var: &ast::VariableDefinition<'_>,
+        kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
         let id = super::lower::lower_variable_partial(
             self.hir,
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
-            false,
+            kind,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());

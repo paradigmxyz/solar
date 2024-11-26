@@ -687,11 +687,13 @@ pub struct Variable<'hir> {
     pub source: SourceId,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
-    /// The variable span.
+    /// The variable's span.
     pub span: Span,
-    /// The variable type.
+    /// The kind of variable.
+    pub kind: VarKind,
+    /// The variable's type.
     pub ty: Type<'hir>,
-    /// The variable name.
+    /// The variable's name.
     pub name: Option<Ident>,
     /// The visibility of the variable.
     pub visibility: Option<Visibility>,
@@ -701,18 +703,41 @@ pub struct Variable<'hir> {
     pub overrides: &'hir [ContractId],
     pub indexed: bool,
     pub initializer: Option<&'hir Expr<'hir>>,
-    pub is_state_variable: bool,
     /// The compiler-generated getter function, if any.
     pub getter: Option<FunctionId>,
 }
 
+/// The kind of variable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
+pub enum VarKind {
+    /// Defined at the top level.
+    Global,
+    /// Defined in a contract.
+    State,
+    /// Defined in a struct.
+    Struct,
+    /// Defined in an event.
+    Event,
+    /// Defined in an error.
+    Error,
+    /// Defined as a function parameter.
+    FunctionParam,
+    /// Defined as a function return.
+    FunctionReturn,
+    /// Defined as a statement, inside of a function, block or `for` statement.
+    Statement,
+    /// Defined in a catch clause.
+    TryCatch,
+}
+
 impl<'hir> Variable<'hir> {
     /// Creates a new variable.
-    pub fn new(ty: Type<'hir>, name: Option<Ident>) -> Self {
+    pub fn new(ty: Type<'hir>, name: Option<Ident>, kind: VarKind) -> Self {
         Self {
             source: SourceId::MAX,
             contract: None,
             span: Span::DUMMY,
+            kind,
             ty,
             name,
             visibility: None,
@@ -722,14 +747,18 @@ impl<'hir> Variable<'hir> {
             overrides: &[],
             indexed: false,
             initializer: None,
-            is_state_variable: false,
             getter: None,
         }
     }
 
+    /// Creates a new variable statement.
+    pub fn new_stmt(ty: Type<'hir>, name: Ident) -> Self {
+        Self::new(ty, Some(name), VarKind::Statement)
+    }
+
     /// Returns `true` if the variable is a state variable.
     pub fn is_state_variable(&self) -> bool {
-        self.is_state_variable
+        self.kind.is_state()
     }
 
     /// Returns `true` if the variable is public.
