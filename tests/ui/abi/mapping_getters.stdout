@@ -34,16 +34,6 @@
               "internalType": "bytes3"
             },
             {
-              "name": "c",
-              "type": "uint256[3]",
-              "internalType": "uint256[3]"
-            },
-            {
-              "name": "d",
-              "type": "uint256[]",
-              "internalType": "uint256[]"
-            },
-            {
               "name": "e",
               "type": "bytes",
               "internalType": "bytes"
@@ -76,16 +66,6 @@
               "name": "b",
               "type": "bytes3",
               "internalType": "bytes3"
-            },
-            {
-              "name": "c",
-              "type": "uint256[3]",
-              "internalType": "uint256[3]"
-            },
-            {
-              "name": "d",
-              "type": "uint256[]",
-              "internalType": "uint256[]"
             },
             {
               "name": "e",
