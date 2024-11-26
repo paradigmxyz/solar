@@ -491,7 +491,7 @@ impl super::LoweringContext<'_, '_, '_> {
             let s = self.hir.strukt(s_id);
             for &field_id in s.fields.iter() {
                 let field = self.hir.variable(field_id);
-                if !matches!(field.ty.kind, hir::TypeKind::Mapping(_)) {
+                if !matches!(field.ty.kind, hir::TypeKind::Mapping(_) | hir::TypeKind::Array(_)) {
                     push_return(self, field.ty.clone(), field.name);
                 }
             }
