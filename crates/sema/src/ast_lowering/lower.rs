@@ -171,6 +171,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             i,
             self.current_source_id,
             self.current_contract_id,
+            None,
             kind,
         )
     }
@@ -242,6 +243,7 @@ pub(super) fn lower_variable_partial(
     i: &ast::VariableDefinition<'_>,
     source: SourceId,
     contract: Option<ContractId>,
+    function: Option<hir::FunctionId>,
     kind: hir::VarKind,
 ) -> hir::VariableId {
     // handled later: ty, override_, initializer
@@ -259,6 +261,7 @@ pub(super) fn lower_variable_partial(
     let id = hir.variables.push(hir::Variable {
         source,
         contract,
+        function,
         span,
         kind,
         ty: hir::Type::DUMMY,
@@ -283,6 +286,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
     let hir::Variable {
         source,
         contract,
+        function: _,
         span,
         kind,
         ty: _,

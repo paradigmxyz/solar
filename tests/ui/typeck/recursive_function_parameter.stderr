@@ -21,14 +21,14 @@ LL | |     }
 error: recursive types cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |     function c1(C) public {}
+LL |     function c1(C memory) public {}
    |                 ^
    |
 
 error: recursive types cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |     function c2() public returns(C) {}
+LL |     function c2() public returns(C memory) {}
    |                                  ^
    |
 

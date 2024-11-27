@@ -3,12 +3,13 @@ use crate::{
     builtins::{members, Builtin},
     hir::{self, Hir},
 };
-use alloy_primitives::{keccak256, Selector, B256};
+use alloy_primitives::{keccak256, Selector, B256, U256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
-    fmt_from_fn,
+    fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
+    smallvec::SmallVec,
     BumpExt,
 };
 use solar_interface::{
@@ -274,7 +275,7 @@ impl<'gcx> Gcx<'gcx> {
     fn item_canonical_name_(self, id: hir::ItemId) -> impl fmt::Display {
         let name = self.item_name(id);
         let contract = self.hir.item(id).contract().map(|id| self.item_name(id));
-        fmt_from_fn(move |f| {
+        from_fn(move |f| {
             if let Some(contract) = contract {
                 write!(f, "{contract}.")?;
             }
@@ -287,7 +288,7 @@ impl<'gcx> Gcx<'gcx> {
         self,
         id: hir::ContractId,
     ) -> impl fmt::Display + use<'gcx> {
-        fmt_from_fn(move |f| {
+        from_fn(move |f| {
             let c = self.hir.contract(id);
             let source = self.hir.source(c.source);
             write!(f, "{}:{}", source.file.name.display(), c.name)
@@ -400,26 +401,23 @@ impl<'gcx> Gcx<'gcx> {
                         Ok(int) => {
                             if int.data.is_zero() {
                                 let msg = "array length must be greater than zero";
-                                self.dcx().err(msg).span(size.span).emit();
+                                let guar = self.dcx().err(msg).span(size.span).emit();
+                                TyKind::Array(self.mk_ty_err(guar), int.data)
+                            } else {
+                                TyKind::Array(ty, int.data)
                             }
-                            TyKind::Array(ty, int.data)
                         }
-                        Err(guar) => TyKind::Err(guar),
+                        Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
                     None => TyKind::DynArray(ty),
                 }
             }
-            hir::TypeKind::Function(f) => {
-                let parameters =
-                    self.mk_ty_iter(f.parameters.iter().map(|ty| self.type_of_hir_ty(ty)));
-                let returns = self.mk_ty_iter(f.returns.iter().map(|ty| self.type_of_hir_ty(ty)));
-                TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
-                    parameters,
-                    returns,
-                    state_mutability: f.state_mutability,
-                    visibility: f.visibility,
-                }))
-            }
+            hir::TypeKind::Function(f) => TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
+                parameters: self.mk_item_tys(f.parameters),
+                returns: self.mk_item_tys(f.returns),
+                state_mutability: f.state_mutability,
+                visibility: f.visibility,
+            })),
             hir::TypeKind::Mapping(mapping) => {
                 let key = self.type_of_hir_ty(&mapping.key);
                 let value = self.type_of_hir_ty(&mapping.value);
@@ -537,7 +535,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 } else {
                     "this type cannot be parameter or return type of a public function"
                 };
-                let span = gcx.item_span(var_id);
+                let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().err(msg).span(span).emit());
             }
         }
@@ -600,11 +598,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Variable(id) => {
             let var = gcx.hir.variable(id);
             let ty = gcx.type_of_hir_ty(&var.ty);
-            match (var.contract, var.data_location) {
-                (_, Some(loc)) => TyKind::Ref(ty, loc),
-                (Some(_), None) => TyKind::Ref(ty, DataLocation::Storage),
-                (None, None) => return ty,
-            }
+            return var_type(gcx, var, ty);
         }
         hir::ItemId::Struct(id) => TyKind::Struct(id),
         hir::ItemId::Enum(id) => TyKind::Enum(id),
@@ -672,7 +666,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
                 ty = &array.element;
             }
             cdr_try!(check(ty, dynamic));
-            if let ControlFlow::Break(r) = field.ty.visit(&mut |ty| check(ty, true).to_controlflow()) {
+            if let ControlFlow::Break(r) = field.ty.visit(&gcx.hir, &mut |ty| check(ty, true).to_controlflow()) {
                 return r;
             }
         }
@@ -693,6 +687,111 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::members_of(gcx, ty)
 }
+}
+
+fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
+    use hir::DataLocation::*;
+
+    // https://github.com/ethereum/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
+    let has_reference_or_mapping_type = ty.is_reference_type() || ty.has_mapping();
+    let mut func_vis = None;
+    let mut locs;
+    let allowed: &[_] = if var.is_state_variable() {
+        &[None, Some(Transient)]
+    } else if !has_reference_or_mapping_type || var.is_event_or_error_parameter() {
+        &[None]
+    } else if var.is_callable_or_catch_parameter() {
+        locs = SmallVec::<[_; 3]>::new();
+        locs.push(Some(Memory));
+        let mut is_constructor_parameter = false;
+        if let Some(f) = var.function {
+            let f = gcx.hir.function(f);
+            is_constructor_parameter = f.kind.is_constructor();
+            if !var.is_try_catch_parameter() && !is_constructor_parameter {
+                func_vis = Some(f.visibility);
+            }
+            if is_constructor_parameter
+                || f.visibility <= hir::Visibility::Internal
+                || f.contract.is_some_and(|c| gcx.hir.contract(c).kind.is_library())
+            {
+                locs.push(Some(Storage));
+            }
+        }
+        if !var.is_try_catch_parameter() && !is_constructor_parameter {
+            locs.push(Some(Calldata));
+        }
+        &locs
+    } else if var.is_local_variable() {
+        &[Some(Memory), Some(Storage), Some(Calldata)]
+    } else {
+        &[None]
+    };
+
+    let mut var_loc = var.data_location;
+    if !allowed.contains(&var_loc) {
+        if ty.has_error().is_ok() {
+            let msg = if !has_reference_or_mapping_type {
+                "data location can only be specified for array, struct or mapping types".to_string()
+            } else if let Some(var_loc) = var_loc {
+                format!("invalid data location `{var_loc}`")
+            } else {
+                "expected data location".to_string()
+            };
+            let note = format!(
+                "data location must be {} for {}{}",
+                or_list(allowed.iter().copied().map(DataLocation::opt_to_str)),
+                if let Some(vis) = func_vis { format!("{vis} ") } else { String::new() },
+                var.description(),
+            );
+            gcx.dcx().err(msg).span(var.span).note(note).emit();
+        }
+        var_loc = allowed[0];
+    }
+
+    let ty_loc = if var.is_event_or_error_parameter() || var.is_file_level_variable() {
+        Memory
+    } else if var.is_state_variable() {
+        let mut_specified = var.mutability.is_some();
+        match var_loc {
+            None => {
+                if mut_specified {
+                    Memory
+                } else {
+                    Storage
+                }
+            }
+            Some(Transient) => {
+                if mut_specified {
+                    let msg = "transient cannot be used as data location for constant or immutable variables";
+                    gcx.dcx().err(msg).span(var.span).emit();
+                }
+                if var.initializer.is_some() {
+                    let msg =
+                        "initialization of transient storage state variables is not supported";
+                    gcx.dcx().err(msg).span(var.span).emit();
+                }
+                Transient
+            }
+            Some(_) => unreachable!(),
+        }
+    } else if var.is_struct_member() {
+        Storage
+    } else {
+        match var_loc {
+            Some(loc @ (Memory | Storage | Calldata)) => loc,
+            Some(Transient) => unimplemented!(),
+            None => {
+                assert!(!has_reference_or_mapping_type, "data location not properly set");
+                Memory
+            }
+        }
+    };
+
+    if ty.is_reference_type() {
+        ty.with_loc(gcx, ty_loc)
+    } else {
+        ty
+    }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.

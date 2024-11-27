@@ -236,19 +236,20 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 }
 
-impl super::LoweringContext<'_, '_, '_> {
+impl<'hir> super::LoweringContext<'_, '_, 'hir> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_symbols(&mut self) {
         let next_id = &AtomicUsize::new(0);
 
         macro_rules! mk_resolver {
             ($e:expr) => {
-                mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract))
+                mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)
             };
 
-            (@scopes $scopes:expr) => {
+            (@scopes $scopes:expr, $f:expr) => {
                 ResolveContext {
                     scopes: $scopes,
+                    function_id: $f,
                     sess: self.sess,
                     arena: self.arena,
                     hir: &mut self.hir,
@@ -371,21 +372,11 @@ impl super::LoweringContext<'_, '_, '_> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            let mut cx = ResolveContext::new(self, scopes, next_id);
-            cx.hir.functions[id].parameters = cx.arena.alloc_slice_fill_iter(
-                ast_func
-                    .header
-                    .parameters
-                    .iter()
-                    .map(|param| cx.lower_variable(param, hir::VarKind::FunctionParam).0),
-            );
-            cx.hir.functions[id].returns = cx.arena.alloc_slice_fill_iter(
-                ast_func
-                    .header
-                    .returns
-                    .iter()
-                    .map(|ret| cx.lower_variable(ret, hir::VarKind::FunctionReturn).0),
-            );
+            let mut cx = ResolveContext::new(self, scopes, next_id, Some(id));
+            cx.hir.functions[id].parameters =
+                cx.lower_variables(ast_func.header.parameters, hir::VarKind::FunctionParam);
+            cx.hir.functions[id].returns =
+                cx.lower_variables(ast_func.header.returns, hir::VarKind::FunctionReturn);
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_stmts(body));
             }
@@ -407,7 +398,7 @@ impl super::LoweringContext<'_, '_, '_> {
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
 
         let scopes = SymbolResolverScopes::new_in(var.source, var.contract);
-        let mut cx = ResolveContext::new(self, scopes, next_id);
+        let mut cx = ResolveContext::new(self, scopes, next_id, None);
         let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
         let ty = cx.lower_type(&ast_var.ty);
         self.hir.variables[id].initializer = init;
@@ -459,6 +450,9 @@ impl super::LoweringContext<'_, '_, '_> {
         let mut ret_ty = &self.hir.variable(gettee).ty;
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
+        let new_param = |this: &mut Self, ty, name| {
+            this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionParam)
+        };
         for i in 0usize.. {
             // let index_name = || Some(Ident::new(Symbol::intern(&format!("index{i}")), span));
             let _ = i;
@@ -467,9 +461,10 @@ impl super::LoweringContext<'_, '_, '_> {
                 // mapping(k => v) -> arguments += k, ret_ty = v
                 hir::TypeKind::Mapping(map) => {
                     let name = map.key_name.or_else(index_name);
-                    let mut param =
-                        hir::Variable::new(map.key.clone(), name, hir::VarKind::FunctionParam);
-                    param.data_location = Some(hir::DataLocation::Calldata);
+                    let mut param = new_param(self, map.key.clone(), name);
+                    if param.ty.kind.is_reference_type() {
+                        param.data_location = Some(hir::DataLocation::Calldata);
+                    }
                     parameters.push(self.hir.variables.push(param));
                     ret_ty = &map.value;
                     ret_name = map.value_name;
@@ -482,8 +477,8 @@ impl super::LoweringContext<'_, '_, '_> {
                         )),
                         span: ret_ty.span,
                     };
-                    let var = hir::Variable::new(u256, index_name(), hir::VarKind::FunctionParam);
-                    parameters.push(self.hir.variables.push(var));
+                    let param = new_param(self, u256, index_name());
+                    parameters.push(self.hir.variables.push(param));
                     ret_ty = &array.element;
                 }
                 _ => break,
@@ -493,8 +488,10 @@ impl super::LoweringContext<'_, '_, '_> {
 
         let mut returns = SmallVec::<[_; 8]>::new();
         let mut push_return = |this: &mut Self, ty, name| {
-            let mut ret = hir::Variable::new(ty, name, hir::VarKind::FunctionReturn);
-            ret.data_location = Some(hir::DataLocation::Memory);
+            let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
+            if ret.ty.kind.is_reference_type() {
+                ret.data_location = Some(hir::DataLocation::Memory);
+            }
             returns.push(this.hir.variables.push(ret))
         };
         let mut ret_struct = None;
@@ -551,7 +548,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     } else {
                         // `Struct storage <name> = <expr>;`
                         let decl_name = Ident::new(sym::__tmp_struct, ast_var.span);
-                        let mut decl_var = hir::Variable::new_stmt(ret_ty.clone(), decl_name);
+                        let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
                         let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
@@ -576,6 +573,32 @@ impl super::LoweringContext<'_, '_, '_> {
                 }
             }
         }
+    }
+
+    fn mk_var(
+        &mut self,
+        function: Option<hir::FunctionId>,
+        span: Span,
+        ty: hir::Type<'hir>,
+        name: Option<Ident>,
+        kind: hir::VarKind,
+    ) -> hir::Variable<'hir> {
+        hir::Variable {
+            contract: self.current_contract_id,
+            function,
+            span,
+            ..hir::Variable::new(self.current_source_id, ty, name, kind)
+        }
+    }
+
+    fn mk_var_stmt(
+        &mut self,
+        function: hir::FunctionId,
+        span: Span,
+        ty: hir::Type<'hir>,
+        name: Ident,
+    ) -> hir::Variable<'hir> {
+        self.mk_var(Some(function), span, ty, Some(name), hir::VarKind::Statement)
     }
 
     fn declare_kind_in(
@@ -604,6 +627,7 @@ struct ResolveContext<'sess, 'hir, 'a> {
     hir: &'a mut hir::Hir<'hir>,
     resolver: &'a SymbolResolver<'sess>,
     scopes: SymbolResolverScopes,
+    function_id: Option<hir::FunctionId>,
     next_id: &'a AtomicUsize,
 }
 
@@ -612,6 +636,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         lcx: &'a mut super::LoweringContext<'sess, '_, 'hir>,
         scopes: SymbolResolverScopes,
         next_id: &'a AtomicUsize,
+        function_id: Option<hir::FunctionId>,
     ) -> Self {
         Self {
             sess: lcx.sess,
@@ -619,6 +644,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             hir: &mut lcx.hir,
             resolver: &lcx.resolver,
             scopes,
+            function_id,
             next_id,
         }
     }
@@ -754,6 +780,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
+            self.function_id,
             kind,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
@@ -962,18 +989,14 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => hir::TypeKind::Function(
-                self.arena.alloc(hir::TypeFunction {
-                    parameters: self
-                        .arena
-                        .alloc_slice_fill_iter(f.parameters.iter().map(|p| self.lower_type(&p.ty))),
+            ast::TypeKind::Function(f) => {
+                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+                    parameters: self.lower_variables(f.parameters, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.unwrap_or(ast::Visibility::Public),
                     state_mutability: f.state_mutability,
-                    returns: self
-                        .arena
-                        .alloc_slice_fill_iter(f.returns.iter().map(|p| self.lower_type(&p.ty))),
-                }),
-            ),
+                    returns: self.lower_variables(f.returns, hir::VarKind::FunctionTyReturn),
+                }))
+            }
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),

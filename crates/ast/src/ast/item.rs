@@ -499,6 +499,14 @@ impl DataLocation {
             Self::Calldata => "calldata",
         }
     }
+
+    /// Returns the string representation of the storage location, or `"none"` if `None`.
+    pub const fn opt_to_str(this: Option<Self>) -> &'static str {
+        match this {
+            Some(location) => location.to_str(),
+            None => "none",
+        }
+    }
 }
 
 // How a function can mutate the EVM state.

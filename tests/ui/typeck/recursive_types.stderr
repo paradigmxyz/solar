@@ -21,21 +21,21 @@ LL | |     }
 error: recursive types cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
-LL |     function c(C) public {}
+LL |     function c(C memory) public {}
    |                ^
    |
 
 error: name has to refer to a valid user-defined type
   --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
-LL |     function d(E1) public {}
+LL |     function d(E1 memory) public {}
    |                ^^
    |
 
 error: name has to refer to a valid user-defined type
   --> ROOT/tests/ui/typeck/recursive_types.sol:LL:CC
    |
-LL |     function e(E2) public {}
+LL |     function e(E2 memory) public {}
    |                ^^
    |
 
