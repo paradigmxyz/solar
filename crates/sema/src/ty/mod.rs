@@ -528,6 +528,12 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 continue;
             }
             if !ty.can_be_exported() {
+                // TODO: implement `interfaceType`
+                if c.kind.is_library() {
+                    result = Err(ErrorGuaranteed::new_unchecked());
+                    continue;
+                }
+
                 let msg = if ty.has_mapping() {
                     "types containing mappings cannot be parameter or return types of public functions"
                 } else if ty.is_recursive() {

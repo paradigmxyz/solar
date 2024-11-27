@@ -1,9 +1,18 @@
-error: `transient` data location is not allowed here
+error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/parser/transient.sol:LL:CC
    |
 LL |     function g(uint256 transient transient) {
-   |                        ^^^^^^^^^
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
+   = note: data location must be none for function parameter
 
-error: aborting due to 1 previous error
+error: invalid data location `transient`
+  --> ROOT/tests/ui/parser/transient.sol:LL:CC
+   |
+LL |     function g2(uint256[] transient transient) {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: data location must be memory or calldata for public function parameter
+
+error: aborting due to 2 previous errors
 
