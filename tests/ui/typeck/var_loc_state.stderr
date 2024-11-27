@@ -4,7 +4,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |     uint memory a1 = 0;
    |     ^^^^^^^^^^^^^^^^^^^
    |
-   = note: data location must be none or transient for state variable
 
 error: invalid data location `memory`
   --> ROOT/tests/ui/typeck/var_loc_state.sol:LL:CC
@@ -12,7 +11,7 @@ error: invalid data location `memory`
 LL |     uint[] memory b1 = [];
    |     ^^^^^^^^^^^^^^^^^^^^^^
    |
-   = note: data location must be none or transient for state variable
+   = note: data location must be `none` or `transient` for state variable, but got `memory`
 
 error: invalid data location `memory`
   --> ROOT/tests/ui/typeck/var_loc_state.sol:LL:CC
@@ -20,7 +19,7 @@ error: invalid data location `memory`
 LL |     S memory c1 = S(0);
    |     ^^^^^^^^^^^^^^^^^^^
    |
-   = note: data location must be none or transient for state variable
+   = note: data location must be `none` or `transient` for state variable, but got `memory`
 
 error: invalid data location `memory`
   --> ROOT/tests/ui/typeck/var_loc_state.sol:LL:CC
@@ -28,7 +27,7 @@ error: invalid data location `memory`
 LL |     S[] memory d1 = [];
    |     ^^^^^^^^^^^^^^^^^^^
    |
-   = note: data location must be none or transient for state variable
+   = note: data location must be `none` or `transient` for state variable, but got `memory`
 
 error: aborting due to 4 previous errors
 

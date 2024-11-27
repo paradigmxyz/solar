@@ -743,13 +743,24 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             } else {
                 "expected data location".to_string()
             };
-            let note = format!(
-                "data location must be {} for {}{}",
-                or_list(allowed.iter().copied().map(DataLocation::opt_to_str)),
-                if let Some(vis) = func_vis { format!("{vis} ") } else { String::new() },
-                var.description(),
-            );
-            gcx.dcx().err(msg).span(var.span).note(note).emit();
+            let mut err = gcx.dcx().err(msg).span(var.span);
+            if has_reference_or_mapping_type {
+                let note = format!(
+                    "data location must be {expected} for {vis}{descr}{got}",
+                    expected = or_list(
+                        allowed.iter().map(|d| format!("`{}`", DataLocation::opt_to_str(*d)))
+                    ),
+                    vis = if let Some(vis) = func_vis { format!("{vis} ") } else { String::new() },
+                    descr = var.description(),
+                    got = if let Some(var_loc) = var_loc {
+                        format!(", but got `{var_loc}`")
+                    } else {
+                        String::new()
+                    },
+                );
+                err = err.note(note);
+            }
+            err.emit();
         }
         var_loc = allowed[0];
     }

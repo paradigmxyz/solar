@@ -11,7 +11,7 @@ error: invalid data location `storage`
 LL |     function f2(S storage) public {}
    |                 ^^^^^^^^^
    |
-   = note: data location must be memory or calldata for public function parameter
+   = note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -33,7 +33,7 @@ error: invalid data location `storage`
 LL |     function f4() public returns(S storage) {}
    |                                  ^^^^^^^^^
    |
-   = note: data location must be memory or calldata for public function return parameter
+   = note: data location must be `memory` or `calldata` for public function return parameter, but got `storage`
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -55,7 +55,7 @@ error: invalid data location `storage`
 LL |     function n2(Nested storage) public {}
    |                 ^^^^^^^^^^^^^^
    |
-   = note: data location must be memory or calldata for public function parameter
+   = note: data location must be `memory` or `calldata` for public function parameter, but got `storage`
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -77,7 +77,7 @@ error: invalid data location `storage`
 LL |     function n4() public returns(Nested storage) {}
    |                                  ^^^^^^^^^^^^^^
    |
-   = note: data location must be memory or calldata for public function return parameter
+   = note: data location must be `memory` or `calldata` for public function return parameter, but got `storage`
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC

@@ -4,7 +4,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -12,7 +11,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -20,7 +18,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -28,7 +25,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -36,7 +32,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -44,7 +39,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -52,7 +46,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -60,7 +53,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -68,7 +60,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -76,7 +67,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -84,7 +74,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -92,7 +81,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -100,7 +88,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -108,7 +95,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -116,7 +102,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         uint memory a2,
    |         ^^^^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/typeck/var_loc_contract_fns.sol:LL:CC
@@ -124,7 +109,6 @@ error: data location can only be specified for array, struct or mapping types
 LL |         E memory e2,
    |         ^^^^^^^^^^^
    |
-   = note: data location must be none for function return parameter
 
 error: aborting due to 16 previous errors
 
