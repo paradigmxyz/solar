@@ -233,7 +233,7 @@ macro_rules! builtin_range_slice {
             let mut i = $first;
             let mut out = [Builtin::Blockhash; $last - $first];
             while i < $last {
-                out[i - $first] = Builtin::from_index_unwrap(i);
+                out[i - $first] = Builtin::from_index(i).unwrap();
                 i += 1;
             }
             out
@@ -273,15 +273,6 @@ impl Builtin {
             Some(unsafe { std::mem::transmute::<u8, Self>(i as u8) })
         } else {
             None
-        }
-    }
-
-    // TODO(MSRV-1.83): Replace with .unwrap()
-    #[inline]
-    const fn from_index_unwrap(i: usize) -> Self {
-        match Self::from_index(i) {
-            Some(b) => b,
-            None => panic!(),
         }
     }
 
