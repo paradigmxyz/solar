@@ -23,7 +23,11 @@ contract E {
         transient = 4;
     }
 
-    function g(uint256 transient transient) { //~ ERROR: not allowed here
+    function g(uint256 transient transient) { //~ ERROR: data location can only be specified for array, struct or mapping types
+        transient = 5;
+    }
+
+    function g2(uint256[] transient transient) { //~ ERROR: invalid data location
         transient = 5;
     }
 }

@@ -5,16 +5,13 @@ use solar_ast::{
     token::{Delimiter, Token, TokenKind},
     AstPath, Box, DocComment, DocComments, PathSlice,
 };
-use solar_data_structures::BumpExt;
+use solar_data_structures::{fmt::or_list, BumpExt};
 use solar_interface::{
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
     Ident, Result, Session, Span, Symbol,
 };
-use std::{
-    fmt::{self, Write},
-    path::Path,
-};
+use std::{fmt, path::Path};
 
 mod expr;
 mod item;
@@ -79,7 +76,7 @@ impl fmt::Display for ExpectedToken {
 
 impl ExpectedToken {
     fn to_string_many(tokens: &[Self]) -> String {
-        or_list(tokens)
+        or_list(tokens).to_string()
     }
 
     fn eq_kind(&self, other: &TokenKind) -> bool {
@@ -976,43 +973,5 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn expected_ident_found_err(&mut self) -> PErr<'sess> {
         self.expected_ident_found(false).unwrap_err()
-    }
-}
-
-fn or_list<T: fmt::Display>(list: &[T]) -> String {
-    let len = list.len();
-    let mut s = String::with_capacity(16 * len);
-    for (i, t) in list.iter().enumerate() {
-        if i > 0 {
-            let is_last = i == len - 1;
-            s.push_str(if len > 2 && is_last {
-                ", or "
-            } else if len == 2 && is_last {
-                " or "
-            } else {
-                ", "
-            });
-        }
-        let _ = write!(s, "{t}");
-    }
-    s
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_or_list() {
-        let tests: &[(&[&str], &str)] = &[
-            (&[], ""),
-            (&["`<eof>`"], "`<eof>`"),
-            (&["integer", "identifier"], "integer or identifier"),
-            (&["path", "string literal", "`&&`"], "path, string literal, or `&&`"),
-            (&["`&&`", "`||`", "`&&`", "`||`"], "`&&`, `||`, `&&`, or `||`"),
-        ];
-        for &(tokens, expected) in tests {
-            assert_eq!(or_list(tokens), expected, "{tokens:?}");
-        }
     }
 }

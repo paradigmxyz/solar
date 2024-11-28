@@ -188,6 +188,12 @@ impl ElementaryType {
                 | Self::FixedBytes(..)
         )
     }
+
+    /// Returns `true` if the type is a reference type.
+    #[inline]
+    pub const fn is_reference_type(self) -> bool {
+        matches!(self, Self::String | Self::Bytes)
+    }
 }
 
 /// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.

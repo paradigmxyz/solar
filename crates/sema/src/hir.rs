@@ -687,11 +687,15 @@ pub struct Variable<'hir> {
     pub source: SourceId,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
-    /// The variable span.
+    /// The function this variable is defined in, if any.
+    pub function: Option<FunctionId>,
+    /// The variable's span.
     pub span: Span,
-    /// The variable type.
+    /// The kind of variable.
+    pub kind: VarKind,
+    /// The variable's type.
     pub ty: Type<'hir>,
-    /// The variable name.
+    /// The variable's name.
     pub name: Option<Ident>,
     /// The visibility of the variable.
     pub visibility: Option<Visibility>,
@@ -701,18 +705,19 @@ pub struct Variable<'hir> {
     pub overrides: &'hir [ContractId],
     pub indexed: bool,
     pub initializer: Option<&'hir Expr<'hir>>,
-    pub is_state_variable: bool,
     /// The compiler-generated getter function, if any.
     pub getter: Option<FunctionId>,
 }
 
 impl<'hir> Variable<'hir> {
     /// Creates a new variable.
-    pub fn new(ty: Type<'hir>, name: Option<Ident>) -> Self {
+    pub fn new(source: SourceId, ty: Type<'hir>, name: Option<Ident>, kind: VarKind) -> Self {
         Self {
-            source: SourceId::MAX,
+            source,
             contract: None,
+            function: None,
             span: Span::DUMMY,
+            kind,
             ty,
             name,
             visibility: None,
@@ -722,19 +727,147 @@ impl<'hir> Variable<'hir> {
             overrides: &[],
             indexed: false,
             initializer: None,
-            is_state_variable: false,
             getter: None,
         }
     }
 
+    /// Creates a new variable statement.
+    pub fn new_stmt(
+        source: SourceId,
+        contract: ContractId,
+        function: FunctionId,
+        ty: Type<'hir>,
+        name: Ident,
+    ) -> Self {
+        Self {
+            contract: Some(contract),
+            function: Some(function),
+            ..Self::new(source, ty, Some(name), VarKind::Statement)
+        }
+    }
+
+    /// Returns the description of the variable.
+    pub fn description(&self) -> &'static str {
+        self.kind.to_str()
+    }
+
+    /// Returns `true` if the variable is [`constant`](VarMut::Constant).
+    pub fn is_constant(&self) -> bool {
+        self.mutability == Some(VarMut::Constant)
+    }
+
+    /// Returns `true` if the variable is [`immutable`](VarMut::Immutable).
+    pub fn is_immutable(&self) -> bool {
+        self.mutability == Some(VarMut::Immutable)
+    }
+
+    pub fn is_l_value(&self) -> bool {
+        !self.is_constant()
+    }
+
+    pub fn is_struct_member(&self) -> bool {
+        matches!(self.kind, VarKind::Struct)
+    }
+
+    pub fn is_event_or_error_parameter(&self) -> bool {
+        matches!(self.kind, VarKind::Event | VarKind::Error)
+    }
+
+    pub fn is_local_variable(&self) -> bool {
+        matches!(
+            self.kind,
+            VarKind::FunctionTyParam
+                | VarKind::FunctionTyReturn
+                | VarKind::Event
+                | VarKind::Error
+                | VarKind::FunctionParam
+                | VarKind::FunctionReturn
+                | VarKind::Statement
+                | VarKind::TryCatch
+        )
+    }
+
+    pub fn is_callable_or_catch_parameter(&self) -> bool {
+        matches!(
+            self.kind,
+            VarKind::Event
+                | VarKind::Error
+                | VarKind::FunctionParam
+                | VarKind::FunctionTyParam
+                | VarKind::FunctionReturn
+                | VarKind::FunctionTyReturn
+                | VarKind::TryCatch
+        )
+    }
+
+    pub fn is_local_or_return(&self) -> bool {
+        self.is_return_parameter()
+            || (self.is_local_variable() && !self.is_callable_or_catch_parameter())
+    }
+
+    pub fn is_return_parameter(&self) -> bool {
+        matches!(self.kind, VarKind::FunctionReturn | VarKind::FunctionTyReturn)
+    }
+
+    pub fn is_try_catch_parameter(&self) -> bool {
+        matches!(self.kind, VarKind::TryCatch)
+    }
+
     /// Returns `true` if the variable is a state variable.
     pub fn is_state_variable(&self) -> bool {
-        self.is_state_variable
+        self.kind.is_state()
+    }
+
+    pub fn is_file_level_variable(&self) -> bool {
+        matches!(self.kind, VarKind::Global)
     }
 
     /// Returns `true` if the variable is public.
     pub fn is_public(&self) -> bool {
         self.visibility >= Some(Visibility::Public)
+    }
+}
+
+/// The kind of variable.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
+pub enum VarKind {
+    /// Defined at the top level.
+    Global,
+    /// Defined in a contract.
+    State,
+    /// Defined in a struct.
+    Struct,
+    /// Defined in an event.
+    Event,
+    /// Defined in an error.
+    Error,
+    /// Defined as a function parameter.
+    FunctionParam,
+    /// Defined as a function return.
+    FunctionReturn,
+    /// Defined as a function type parameter.
+    FunctionTyParam,
+    /// Defined as a function type return.
+    FunctionTyReturn,
+    /// Defined as a statement, inside of a function, block or `for` statement.
+    Statement,
+    /// Defined in a catch clause.
+    TryCatch,
+}
+
+impl VarKind {
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Self::Global => "file-level variable",
+            Self::State => "state variable",
+            Self::Struct => "struct field",
+            Self::Event => "event parameter",
+            Self::Error => "error parameter",
+            Self::FunctionParam | Self::FunctionTyParam => "function parameter",
+            Self::FunctionReturn | Self::FunctionTyReturn => "function return parameter",
+            Self::Statement => "variable",
+            Self::TryCatch => "try/catch clause",
+        }
     }
 }
 
@@ -1061,7 +1194,7 @@ pub struct Type<'hir> {
     pub kind: TypeKind<'hir>,
 }
 
-impl Type<'_> {
+impl<'hir> Type<'hir> {
     /// Dummy placeholder type.
     pub const DUMMY: Self =
         Self { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
@@ -1071,23 +1204,27 @@ impl Type<'_> {
         self.span == Span::DUMMY && matches!(self.kind, TypeKind::Err(_))
     }
 
-    pub fn visit<T>(&self, f: &mut impl FnMut(&Self) -> ControlFlow<T>) -> ControlFlow<T> {
+    pub fn visit<T>(
+        &self,
+        hir: &Hir<'hir>,
+        f: &mut impl FnMut(&Self) -> ControlFlow<T>,
+    ) -> ControlFlow<T> {
         f(self)?;
         match self.kind {
             TypeKind::Elementary(_) => ControlFlow::Continue(()),
-            TypeKind::Array(ty) => ty.element.visit(f),
+            TypeKind::Array(ty) => ty.element.visit(hir, f),
             TypeKind::Function(ty) => {
-                for ty in ty.parameters {
-                    ty.visit(f)?;
+                for &param in ty.parameters {
+                    hir.variable(param).ty.visit(hir, f)?;
                 }
-                for ty in ty.returns {
-                    ty.visit(f)?;
+                for &ret in ty.returns {
+                    hir.variable(ret).ty.visit(hir, f)?;
                 }
                 ControlFlow::Continue(())
             }
             TypeKind::Mapping(ty) => {
-                ty.key.visit(f)?;
-                ty.value.visit(f)
+                ty.key.visit(hir, f)?;
+                ty.value.visit(hir, f)
             }
             TypeKind::Custom(_) => ControlFlow::Continue(()),
             TypeKind::Err(_) => ControlFlow::Continue(()),
@@ -1119,6 +1256,16 @@ impl TypeKind<'_> {
     pub fn is_elementary(&self) -> bool {
         matches!(self, Self::Elementary(_))
     }
+
+    /// Returns `true` if the type is a reference type.
+    #[inline]
+    pub fn is_reference_type(&self) -> bool {
+        match self {
+            TypeKind::Elementary(t) => t.is_reference_type(),
+            TypeKind::Custom(ItemId::Struct(_)) | TypeKind::Array(_) => true,
+            _ => false,
+        }
+    }
 }
 
 /// An array type.
@@ -1131,10 +1278,10 @@ pub struct TypeArray<'hir> {
 /// A function type name.
 #[derive(Debug)]
 pub struct TypeFunction<'hir> {
-    pub parameters: &'hir [Type<'hir>],
+    pub parameters: &'hir [VariableId],
     pub visibility: Visibility,
     pub state_mutability: StateMutability,
-    pub returns: &'hir [Type<'hir>],
+    pub returns: &'hir [VariableId],
 }
 
 /// A mapping type.

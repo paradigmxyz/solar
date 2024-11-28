@@ -133,6 +133,16 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Returns `true` if the type is a reference type.
+    #[inline]
+    pub fn is_reference_type(self) -> bool {
+        match self.kind {
+            TyKind::Elementary(t) => t.is_reference_type(),
+            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) => true,
+            _ => false,
+        }
+    }
+
     /// Returns `true` if the type is recursive.
     pub fn is_recursive(self) -> bool {
         self.flags.contains(TyFlags::IS_RECURSIVE)

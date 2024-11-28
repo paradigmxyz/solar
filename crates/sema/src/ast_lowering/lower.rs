@@ -103,7 +103,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             }
             ast::ItemKind::Contract(i) => hir::ItemId::Contract(self.lower_contract(item, i)),
             ast::ItemKind::Function(i) => hir::ItemId::Function(self.lower_function(item, i)),
-            ast::ItemKind::Variable(i) => hir::ItemId::Variable(self.lower_variable(i)),
+            ast::ItemKind::Variable(i) => {
+                let kind = if self.current_contract_id.is_some() {
+                    hir::VarKind::State
+                } else {
+                    hir::VarKind::Global
+                };
+                hir::ItemId::Variable(self.lower_variable(i, kind))
+            }
             ast::ItemKind::Struct(i) => hir::ItemId::Struct(self.lower_struct(item, i)),
             ast::ItemKind::Enum(i) => hir::ItemId::Enum(self.lower_enum(item, i)),
             ast::ItemKind::Udvt(i) => hir::ItemId::Udvt(self.lower_udvt(item, i)),
@@ -154,13 +161,18 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         })
     }
 
-    fn lower_variable(&mut self, i: &ast::VariableDefinition<'_>) -> hir::VariableId {
+    fn lower_variable(
+        &mut self,
+        i: &ast::VariableDefinition<'_>,
+        kind: hir::VarKind,
+    ) -> hir::VariableId {
         lower_variable_partial(
             &mut self.hir,
             i,
             self.current_source_id,
             self.current_contract_id,
-            self.current_contract_id.is_some(),
+            None,
+            kind,
         )
     }
 
@@ -231,7 +243,8 @@ pub(super) fn lower_variable_partial(
     i: &ast::VariableDefinition<'_>,
     source: SourceId,
     contract: Option<ContractId>,
-    is_state_variable: bool,
+    function: Option<hir::FunctionId>,
+    kind: hir::VarKind,
 ) -> hir::VariableId {
     // handled later: ty, override_, initializer
     let ast::VariableDefinition {
@@ -248,7 +261,9 @@ pub(super) fn lower_variable_partial(
     let id = hir.variables.push(hir::Variable {
         source,
         contract,
+        function,
         span,
+        kind,
         ty: hir::Type::DUMMY,
         name,
         visibility,
@@ -258,7 +273,6 @@ pub(super) fn lower_variable_partial(
         overrides: &[],
         indexed,
         initializer: None,
-        is_state_variable,
         getter: None,
     });
     let v = hir.variable(id);
@@ -272,7 +286,9 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
     let hir::Variable {
         source,
         contract,
+        function: _,
         span,
+        kind,
         ty: _,
         name,
         visibility,
@@ -282,13 +298,12 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         overrides,
         indexed,
         initializer: _,
-        is_state_variable,
         getter,
     } = *hir.variable(id);
     debug_assert!(!indexed);
     debug_assert!(data_location.is_none());
     debug_assert_eq!(visibility, Some(ast::Visibility::Public));
-    debug_assert!(is_state_variable);
+    debug_assert!(kind.is_state());
     debug_assert!(getter.is_none());
     hir.functions.push(hir::Function {
         source,

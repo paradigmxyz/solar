@@ -738,12 +738,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut indexed = false;
         loop {
             if let Some(s) = self.parse_data_location() {
-                let transient = matches!(s, DataLocation::Transient);
-                let transient_allowed = flags.contains(VarFlags::TRANSIENT);
-                if transient && !transient_allowed {
-                    let msg = "`transient` data location is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if !(transient || flags.contains(VarFlags::DATALOC)) {
+                if !flags.contains(VarFlags::DATALOC) {
                     let msg = "data locations are not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else if data_location.is_some() {
@@ -984,7 +979,6 @@ bitflags::bitflags! {
     pub(super) struct VarFlags: u16 {
         // `ty` is always required. `name` is always optional, unless `NAME` is specified.
 
-        const TRANSIENT   = 1 << 0;
         const DATALOC     = 1 << 1;
         const INDEXED     = 1 << 2;
 
@@ -1015,7 +1009,7 @@ bitflags::bitflags! {
         const FUNCTION_TY  = Self::DATALOC.bits() | Self::NAME_WARN.bits();
 
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.stateVariableDeclaration
-        const STATE_VAR    = Self::TRANSIENT.bits()
+        const STATE_VAR    = Self::DATALOC.bits()
                            | Self::PRIVATE.bits()
                            | Self::INTERNAL.bits()
                            | Self::PUBLIC.bits()
