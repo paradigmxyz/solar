@@ -93,6 +93,14 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "invalid_utf8_sequence"
         // Validation is in solar's AST stage (https://github.com/paradigmxyz/solar/pull/120).
         | "empty_enum"
+
+        // Data locations are checked after parsing.
+        | "stopAfterParsingError"
+        | "state_variable_storage_named_transient"
+        | "transient_local_variable"
+        | "transient_function_type_with_transient_param"
+        | "invalid_state_variable_location"
+        | "location_specifiers_for_state_variables"
     ) {
         return Some("manually skipped");
     };
