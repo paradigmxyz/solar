@@ -131,15 +131,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         match parse_rational(symbol) {
             Ok(l) => Ok(l),
             // User error.
-            Err(e @ (IntegerLeadingZeros | RationalTooLarge | ExponentTooLarge)) => {
-                Err(self.dcx().err(e.to_string()))
-            }
+            Err(
+                e @ (EmptyRational | RationalTooLarge | ExponentTooLarge | IntegerLeadingZeros),
+            ) => Err(self.dcx().err(e.to_string())),
             // User error, but already emitted.
-            Err(EmptyExponent | EmptyInteger | EmptyRational) => {
-                Ok(LitKind::Err(ErrorGuaranteed::new_unchecked()))
-            }
+            Err(EmptyExponent) => Ok(LitKind::Err(ErrorGuaranteed::new_unchecked())),
             // Lexer internal error.
-            Err(e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_))) => {
+            Err(e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_) | EmptyInteger)) => {
                 panic!("failed to parse rational literal {symbol:?}: {e}")
             }
         }
@@ -253,7 +251,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     let s = &strip_underscores(&symbol)[..];
     debug_assert!(!s.is_empty());
 
-    let (int, rat, exp) = match (s.find('.'), s.find(['e', 'E'])) {
+    let (mut int, rat, exp) = match (s.find('.'), s.find(['e', 'E'])) {
         // X
         (None, None) => (s, None, None),
         // X.Y
@@ -289,8 +287,9 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
         assert_eq!(reconstructed, s, "{int:?} + {rat:?} + {exp:?}");
     }
 
+    // `int` is allowed to be empty: `.1e1` is the same as `0.1e1`.
     if int.is_empty() {
-        return Err(LitError::EmptyInteger);
+        int = "0";
     }
     if rat.is_some_and(str::is_empty) {
         return Err(LitError::EmptyRational);
@@ -373,7 +372,7 @@ mod tests {
         let sess = Session::builder().with_test_emitter().build();
         let tokens = Lexer::new(&sess, src).into_tokens();
         sess.dcx.has_errors().unwrap();
-        assert_eq!(tokens.len(), 1, "{tokens:?}");
+        assert_eq!(tokens.len(), 1, "expected exactly 1 token {tokens:?}");
         tokens[0].lit().expect("not a literal").symbol
     }
 
@@ -524,6 +523,8 @@ mod tests {
             check_int("0001", Err(IntegerLeadingZeros));
             check_int("0e999999", Err(ExponentTooLarge));
 
+            check_int("0.", Err(EmptyRational));
+
             check_int("0", Ok("0"));
             check_int("0e0", Ok("0"));
             check_int("0.0", Ok("0"));
@@ -539,6 +540,20 @@ mod tests {
             check_int("0.0e1", Ok("0"));
             check_int("0.00e1", Ok("0"));
             check_int("0.00e01", Ok("0"));
+
+            check_int(".0", Ok("0"));
+            check_int(".00", Ok("0"));
+            check_int(".0e0", Ok("0"));
+            check_int(".00e0", Ok("0"));
+            check_int(".0e00", Ok("0"));
+            check_int(".00e00", Ok("0"));
+            check_int(".0e-0", Ok("0"));
+            check_int(".00e-0", Ok("0"));
+            check_int(".0e-00", Ok("0"));
+            check_int(".00e-00", Ok("0"));
+            check_int(".0e1", Ok("0"));
+            check_int(".00e1", Ok("0"));
+            check_int(".00e01", Ok("0"));
 
             check_int("1", Ok("1"));
             check_int("1e0", Ok("1"));

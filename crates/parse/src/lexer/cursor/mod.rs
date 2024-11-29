@@ -109,6 +109,10 @@ impl<'a> Cursor<'a> {
                 let kind = self.number(c);
                 RawTokenKind::Literal { kind }
             }
+            '.' if self.first().is_ascii_digit() => {
+                let kind = self.rational_number_after_dot(Base::Decimal);
+                RawTokenKind::Literal { kind }
+            }
 
             // One-symbol tokens.
             ';' => RawTokenKind::Semi,
@@ -265,15 +269,7 @@ impl<'a> Cursor<'a> {
             // by field/method access (`12.foo()`)
             '.' if !is_id_start(self.second()) => {
                 self.bump();
-                self.eat_decimal_digits();
-                let empty_exponent = match self.first() {
-                    'e' | 'E' => {
-                        self.bump();
-                        !self.eat_exponent()
-                    }
-                    _ => false,
-                };
-                RawLiteralKind::Rational { base, empty_exponent }
+                self.rational_number_after_dot(base)
             }
             'e' | 'E' => {
                 self.bump();
@@ -282,6 +278,18 @@ impl<'a> Cursor<'a> {
             }
             _ => RawLiteralKind::Int { base, empty_int: false },
         }
+    }
+
+    fn rational_number_after_dot(&mut self, base: Base) -> RawLiteralKind {
+        self.eat_decimal_digits();
+        let empty_exponent = match self.first() {
+            'e' | 'E' => {
+                self.bump();
+                !self.eat_exponent()
+            }
+            _ => false,
+        };
+        RawLiteralKind::Rational { base, empty_exponent }
     }
 
     fn maybe_string_prefix(&mut self, prefix: &str) -> Option<bool> {

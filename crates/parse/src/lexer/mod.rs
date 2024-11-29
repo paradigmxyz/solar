@@ -561,6 +561,8 @@ mod tests {
                     ],
                 ),
                 ("0.0", &[(0..3, lit(Rational, "0.0"))]),
+                ("0.", &[(0..2, lit(Rational, "0."))]),
+                (".0", &[(0..2, lit(Rational, ".0"))]),
                 ("0.0e1", &[(0..5, lit(Rational, "0.0e1"))]),
                 ("0.0e-1", &[(0..6, lit(Rational, "0.0e-1"))]),
                 ("0e1", &[(0..3, lit(Rational, "0e1"))]),

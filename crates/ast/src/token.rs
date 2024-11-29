@@ -264,7 +264,7 @@ pub enum TokenKind {
 
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.as_str())
+        f.write_str(&self.description())
     }
 }
 
@@ -275,7 +275,7 @@ impl TokenKind {
     }
 
     /// Returns the string representation of the token kind.
-    pub fn as_str(&self) -> Cow<'static, str> {
+    pub fn as_str(&self) -> &str {
         match self {
             Self::Eq => "=",
             Self::Lt => "<",
@@ -310,13 +310,24 @@ impl TokenKind {
             Self::OpenDelim(Delimiter::Bracket) => "[",
             Self::CloseDelim(Delimiter::Bracket) => "]",
 
+            Self::Literal(.., symbol) | Self::Ident(.., symbol) | Self::Comment(.., symbol) => {
+                symbol.as_str()
+            }
+
+            Self::Eof => "<eof>",
+        }
+    }
+
+    /// Returns the description of the token kind.
+    pub fn description(&self) -> Cow<'_, str> {
+        match self {
             Self::Literal(kind, _) => return format!("<{}>", kind.description()).into(),
             Self::Ident(symbol) => return symbol.to_string().into(),
-            Self::Comment(false, CommentKind::Block, _symbol) => "<block comment>",
-            Self::Comment(true, CommentKind::Block, _symbol) => "<block doc-comment>",
-            Self::Comment(false, CommentKind::Line, _symbol) => "<line comment>",
-            Self::Comment(true, CommentKind::Line, _symbol) => "<line doc-comment>",
-            Self::Eof => "<eof>",
+            Self::Comment(false, CommentKind::Block, _) => "<block comment>",
+            Self::Comment(true, CommentKind::Block, _) => "<block doc-comment>",
+            Self::Comment(false, CommentKind::Line, _) => "<line comment>",
+            Self::Comment(true, CommentKind::Line, _) => "<line doc-comment>",
+            _ => self.as_str(),
         }
         .into()
     }
@@ -674,6 +685,11 @@ impl Token {
         } else {
             format!("`{}`", self.kind)
         }
+    }
+
+    /// Returns the string representation of the token.
+    pub fn as_str(&self) -> &str {
+        self.kind.as_str()
     }
 
     /// Returns this token's description, if any.
