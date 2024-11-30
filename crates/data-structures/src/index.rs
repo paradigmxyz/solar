@@ -39,13 +39,31 @@ macro_rules! newtype_index {
             $vis const MAX: Self = Self($crate::index::BaseIndex32::MAX);
 
             /// Creates a new `$name` from the given `value`.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
+            #[must_use]
             $vis const fn new(value: u32) -> Self {
                 Self($crate::index::BaseIndex32::new(value))
             }
 
-            /// Gets the underlying index value.
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
+            #[must_use]
+            $vis const fn try_new(value: u32) -> Option<Self> {
+                match $crate::index::BaseIndex32::try_new(value) {
+                    Some(value) => Some(Self(value)),
+                    None => None,
+                }
+            }
+
+            /// Returns the underlying index value.
+            #[inline(always)]
+            #[must_use]
             $vis const fn get(self) -> u32 {
                 self.0.get()
             }
@@ -67,6 +85,7 @@ macro_rules! base_index {
         #[cfg_attr(feature = "nightly", rustc_pass_by_value)]
         #[repr(transparent)]
         pub struct $name {
+            // NOTE: Use `value()` instead of projecting the field directly.
             #[cfg(feature = "nightly")]
             value: $primitive,
             #[cfg(not(feature = "nightly"))]
@@ -76,7 +95,7 @@ macro_rules! base_index {
         impl fmt::Debug for $name {
             #[inline]
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.value.fmt(f)
+                self.get().fmt(f)
             }
         }
 
@@ -109,6 +128,7 @@ macro_rules! base_index {
             ///
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
+            #[must_use]
             pub const fn new(value: $primitive) -> Self {
                 if value > Self::MAX_AS {
                     index_overflow();
@@ -117,29 +137,47 @@ macro_rules! base_index {
                 unsafe { Self::new_unchecked(value) }
             }
 
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// Returns `None` if `value` exceeds `MAX`.
+            #[inline(always)]
+            #[must_use]
+            pub const fn try_new(value: $primitive) -> Option<Self> {
+                if value > Self::MAX_AS {
+                    None
+                } else {
+                    // SAFETY: `value` is less than or equal to `MAX`.
+                    Some(unsafe { Self::new_unchecked(value) })
+                }
+            }
+
             /// Creates a new `$name` from the given `value`, without checking for overflow.
             ///
             /// # Safety
             ///
             /// The caller must ensure that `value` is less than or equal to `MAX`.
             #[inline(always)]
+            #[must_use]
             pub const unsafe fn new_unchecked(value: $primitive) -> Self {
                 // SAFETY: guaranteed by the caller.
-                unsafe {
-                    Self {
-                        #[cfg(feature = "nightly")]
-                        value,
-                        #[cfg(not(feature = "nightly"))]
-                        value: std::num::NonZero::new_unchecked(value.unchecked_add(1)),
-                    }
-                }
+                #[cfg(feature = "nightly")]
+                return unsafe { std::intrinsics::transmute_unchecked(value) };
+
+                #[cfg(not(feature = "nightly"))]
+                return unsafe { Self { value: std::num::NonZero::new_unchecked(value.unchecked_add(1)) } };
             }
 
-            /// Gets the underlying index value.
+            /// Returns the underlying index value.
             #[inline(always)]
+            #[must_use]
             pub const fn get(self) -> $primitive {
+                // SAFETY: Transmute instead of projecting the field directly.
+                //
+                // See:
+                // - https://github.com/rust-lang/rust/pull/133651
+                // - https://github.com/rust-lang/compiler-team/issues/807
                 #[cfg(feature = "nightly")]
-                return self.value;
+                return unsafe { std::intrinsics::transmute_unchecked(self) };
 
                 // SAFETY: non-zero minus one doesn't overflow.
                 #[cfg(not(feature = "nightly"))]
