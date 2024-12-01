@@ -81,6 +81,7 @@ codegen-units = 1
 # compiler crates
 solar = { version = "0.1.0", path = "crates/solar", package = "solar-compiler" }
 solar-ast = { version = "0.1.0", path = "crates/ast" }
+solar-ast-pretty = { version = "0.1.0", path = "crates/ast-pretty" }
 solar-cli = { version = "0.1.0", path = "crates/cli" }
 solar-config = { version = "0.1.0", path = "crates/config" }
 solar-data-structures = { version = "0.1.0", path = "crates/data-structures" }

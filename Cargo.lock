@@ -2542,6 +2542,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-ast-pretty"
+version = "0.1.0"
+dependencies = [
+ "solar-ast",
+]
+
+[[package]]
 name = "solar-bench"
 version = "0.1.0"
 dependencies = [
