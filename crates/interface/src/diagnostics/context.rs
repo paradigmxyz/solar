@@ -83,8 +83,8 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a test emitter.
-    pub fn with_test_emitter() -> Self {
-        Self::new(Box::new(HumanEmitter::test()))
+    pub fn with_test_emitter(source_map: Option<Arc<SourceMap>>) -> Self {
+        Self::new(Box::new(HumanEmitter::test().source_map(source_map)))
     }
 
     /// Creates a new `DiagCtxt` with a stderr emitter.

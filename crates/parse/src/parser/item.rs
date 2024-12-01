@@ -2,8 +2,7 @@ use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
 use solar_ast::{token::*, *};
-use solar_interface::{error_code, kw, sym, Ident, Span};
-use std::num::IntErrorKind;
+use solar_interface::{diagnostics::DiagnosticMessage, error_code, kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -498,77 +497,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_semver_version(&mut self) -> PResult<'sess, SemverVersion> {
-        let lo = self.token.span;
-        let major;
-        let mut minor = None;
-        let mut patch = None;
-        // Special case: `number.number` gets lexed as a rational literal.
-        // In the comments `*` also represents `x` or `X`.
-        if self.token.is_rational_lit() {
-            // 0.1 .2
-            let lit = self.token.lit().unwrap();
-            let (mj, mn) = lit.symbol.as_str().split_once('.').unwrap();
-            major = SemverVersionNumber::Number(self.parse_u32(mj, self.token.span));
-            minor = Some(SemverVersionNumber::Number(self.parse_u32(mn, self.token.span)));
-            self.bump();
-
-            patch =
-                if self.eat(&TokenKind::Dot) { Some(self.parse_semver_number()?) } else { None };
-        } else {
-            // (0 )|\*\.1 ?\.2
-            major = self.parse_semver_number()?;
-            if self.eat(&TokenKind::Dot) {
-                if self.token.is_rational_lit() {
-                    // *. 1.2
-                    let lit = self.token.lit().unwrap();
-                    let (mn, p) = lit.symbol.as_str().split_once('.').unwrap();
-                    minor = Some(SemverVersionNumber::Number(self.parse_u32(mn, self.token.span)));
-                    patch = Some(SemverVersionNumber::Number(self.parse_u32(p, self.token.span)));
-                    self.bump();
-                } else {
-                    // *.1 .2
-                    minor = Some(self.parse_semver_number()?);
-                    patch = if self.eat(&TokenKind::Dot) {
-                        Some(self.parse_semver_number()?)
-                    } else {
-                        None
-                    };
-                }
-            }
-        }
-        let span = lo.to(self.prev_token.span);
-        Ok(SemverVersion { span, major, minor, patch })
-    }
-
-    fn parse_semver_number(&mut self) -> PResult<'sess, SemverVersionNumber> {
-        if self.check_noexpect(&TokenKind::BinOp(BinOpToken::Star))
-            || self.token.is_keyword_any(&[sym::x, sym::X])
-        {
-            self.bump();
-            return Ok(SemverVersionNumber::Wildcard);
-        }
-
-        let Token { kind: TokenKind::Literal(TokenLitKind::Integer, symbol), span } = self.token
-        else {
-            self.expected_tokens.push(ExpectedToken::VersionNumber);
-            return self.unexpected();
-        };
-        let value = self.parse_u32(symbol.as_str(), span);
-        self.bump();
-        Ok(SemverVersionNumber::Number(value))
-    }
-
-    fn parse_u32(&mut self, s: &str, span: Span) -> u32 {
-        match s.parse::<u32>() {
-            Ok(n) => n,
-            Err(e) => match e.kind() {
-                IntErrorKind::Empty => 0,
-                _ => {
-                    self.dcx().err(e.to_string()).span(span).emit();
-                    u32::MAX
-                }
-            },
-        }
+        Ok(SemverVersionParser::new(self).parse())
     }
 
     /// Parses an import directive.
@@ -973,6 +902,122 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 }
 
+struct SemverVersionParser<'p, 'sess, 'ast> {
+    p: &'p mut Parser<'sess, 'ast>,
+    bumps: u32,
+    pos_inside: u32,
+}
+
+impl<'p, 'sess, 'ast> SemverVersionParser<'p, 'sess, 'ast> {
+    fn new(p: &'p mut Parser<'sess, 'ast>) -> Self {
+        Self { p, bumps: 0, pos_inside: 0 }
+    }
+
+    fn emit_err(&self, msg: impl Into<DiagnosticMessage>) {
+        self.p.dcx().err(msg).span(self.current_span()).emit();
+    }
+
+    fn parse(mut self) -> SemverVersion {
+        let lo = self.current_span();
+        let major = self.parse_version_part();
+        let mut minor = None;
+        let mut patch = None;
+        if self.eat_dot() {
+            minor = Some(self.parse_version_part());
+            if self.eat_dot() {
+                patch = Some(self.parse_version_part());
+            }
+        }
+        if self.pos_inside > 0 || self.bumps == 0 {
+            self.emit_err("unexpected trailing characters");
+            self.bump_token();
+        }
+        SemverVersion { span: lo.to(self.current_span()), major, minor, patch }
+    }
+
+    fn eat_dot(&mut self) -> bool {
+        let r = self.current_char() == Some('.');
+        if r {
+            self.bump_char();
+        }
+        r
+    }
+
+    fn parse_version_part(&mut self) -> SemverVersionNumber {
+        match self.current_char() {
+            Some('*' | 'x' | 'X') => {
+                self.bump_char();
+                SemverVersionNumber::Wildcard
+            }
+            Some('0'..='9') => {
+                let s = self.current_str().unwrap();
+                let len = s.bytes().take_while(u8::is_ascii_digit).count();
+                let result = s[..len].parse();
+                self.bump_chars(len as u32);
+                let Ok(n) = result else {
+                    self.emit_err("version number too large");
+                    return SemverVersionNumber::Wildcard;
+                };
+                SemverVersionNumber::Number(n)
+            }
+            _ => {
+                self.emit_err("expected version number");
+                self.bump_char();
+                SemverVersionNumber::Wildcard
+            }
+        }
+    }
+
+    fn current_char(&self) -> Option<char> {
+        self.current_str()?.chars().next()
+    }
+
+    fn current_str(&self) -> Option<&str> {
+        self.current_token_str()?.get(self.pos_inside as usize..)
+    }
+
+    fn current_token_str(&self) -> Option<&str> {
+        Some(match &self.current_token().kind {
+            TokenKind::Dot => ".",
+            TokenKind::BinOp(BinOpToken::Star) => "*",
+            TokenKind::Ident(s) | TokenKind::Literal(_, s) => s.as_str(),
+            _ => return None,
+        })
+    }
+
+    fn current_token(&self) -> &Token {
+        &self.p.token
+    }
+
+    fn current_span(&self) -> Span {
+        let mut s = self.current_token().span;
+        if self.pos_inside > 0 {
+            s = s.with_lo(s.lo() + self.pos_inside);
+        }
+        s
+    }
+
+    fn bump_char(&mut self) {
+        self.bump_chars(1);
+    }
+
+    fn bump_chars(&mut self, n: u32) {
+        if let Some(s) = self.current_token_str() {
+            if self.pos_inside + n >= s.len() as u32 {
+                self.bump_token();
+            } else {
+                self.pos_inside += n;
+            }
+        }
+    }
+
+    fn bump_token(&mut self) {
+        self.p.bump();
+        self.bumps += 1;
+        self.pos_inside = 0;
+    }
+}
+
 bitflags::bitflags! {
     /// Flags for parsing variable declarations.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1275,7 +1320,7 @@ mod tests {
 
                 let version = parser.parse_semver_version().map_err(|e| e.emit()).unwrap();
                 assert_eq!(version.to_string(), v);
-                let req = parser.parse_semver_req().map_err(|e| e.emit()).unwrap();
+                let req: SemverReq<'_> = parser.parse_semver_req().map_err(|e| e.emit()).unwrap();
                 sess.dcx.has_errors().unwrap();
                 assert_eq!(req.matches(&version), res, "v={v:?}, req={req_s:?}");
             }

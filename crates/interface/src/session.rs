@@ -59,8 +59,9 @@ impl From<derive_builder::UninitializedFieldError> for SessionBuilderError {
 impl SessionBuilder {
     /// Sets the diagnostic context to a test emitter.
     #[inline]
-    pub fn with_test_emitter(self) -> Self {
-        self.dcx(DiagCtxt::with_test_emitter())
+    pub fn with_test_emitter(mut self) -> Self {
+        let sm = self.get_source_map();
+        self.dcx(DiagCtxt::with_test_emitter(Some(sm)))
     }
 
     /// Sets the diagnostic context to a stderr emitter.

@@ -122,7 +122,7 @@ pub enum RawTokenKind {
 pub enum RawLiteralKind {
     /// `123`, `0x123`; empty_int: `0x`
     Int { base: Base, empty_int: bool },
-    /// `123.321`, `1.2e3`; empty_exponent: `2e`, `2.3e`
+    /// `123.321`, `1.2e3`, `.2e3`; empty_exponent: `2e`, `2.3e`, `.3e`
     Rational { base: Base, empty_exponent: bool },
     /// `"abc"`, `"abc`; `unicode"abc"`, `unicode"abc`
     Str { terminated: bool, unicode: bool },

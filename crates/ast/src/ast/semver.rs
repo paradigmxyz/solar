@@ -16,7 +16,7 @@ pub use semver::Op as SemverOp;
 //   we however dedicate a separate node for this: [`SemverReqComponentKind::Range`]
 
 /// A SemVer version number.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub enum SemverVersionNumber {
     /// A number.
     Number(u32),
@@ -54,6 +54,13 @@ impl fmt::Display for SemverVersionNumber {
     }
 }
 
+impl fmt::Debug for SemverVersionNumber {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 impl PartialEq for SemverVersionNumber {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -84,7 +91,7 @@ impl Ord for SemverVersionNumber {
 }
 
 /// A SemVer version.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SemverVersion {
     pub span: Span,
     /// Major version.
@@ -144,6 +151,15 @@ impl fmt::Display for SemverVersion {
             write!(f, ".{patch}")?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for SemverVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SemverVersion")
+            .field("span", &self.span)
+            .field("version", &format_args!("{self}"))
+            .finish()
     }
 }
 

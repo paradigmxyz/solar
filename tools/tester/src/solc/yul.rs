@@ -37,11 +37,16 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         stem,
         // Why should this fail?
         | "unicode_comment_direction_override"
-        // TODO: Probably implement outside of parsing.
+        // TODO: Implement after parsing.
+        | "number_literals_2"
         | "number_literals_3"
         | "number_literals_4"
+        | "number_literal_2"
         | "number_literal_3"
         | "number_literal_4"
+        | "pc_disallowed"
+        | "for_statement_nested_continue"
+        | "linkersymbol_invalid_redefine_builtin"
         // TODO: Implemented with Yul object syntax.
         | "datacopy_shadowing"
         | "dataoffset_shadowing"
@@ -49,11 +54,6 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "linkersymbol_shadowing"
         | "loadimmutable_shadowing"
         | "setimmutable_shadowing"
-        // TODO: Special case this in the parser?
-        | "pc_disallowed"
-        // TODO: Not parser related, but should be implemented later.
-        | "for_statement_nested_continue"
-        | "linkersymbol_invalid_redefine_builtin"
         // TODO: Not in the grammar, but docs are used to denote locations in the original src.
         | "sourceLocations"
         // TODO: EVM version-aware parsing.
