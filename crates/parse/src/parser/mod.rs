@@ -741,11 +741,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         debug_assert!(next.is_comment_or_doc());
         self.prev_token = std::mem::replace(&mut self.token, next);
-        while let Some(doc) = self.token.doc() {
-            if !self.token.is_comment() {
+        while let Some((is_doc, doc)) = self.token.comment() {
+            if is_doc {
                 self.docs.push(doc);
             }
-            // Don't set `previon_token` on purpose.
+            // Don't set `prev_token` on purpose.
             self.token = self.next_token();
         }
 

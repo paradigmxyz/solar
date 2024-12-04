@@ -528,6 +528,17 @@ impl Token {
         }
     }
 
+    /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
+    #[inline]
+    pub const fn comment(&self) -> Option<(bool, DocComment)> {
+        match self.kind {
+            TokenKind::Comment(is_doc, kind, symbol) => {
+                Some((is_doc, DocComment { span: self.span, kind, symbol }))
+            }
+            _ => None,
+        }
+    }
+
     /// Returns the comment if the kind is [`TokenKind::Comment`].
     ///
     /// Does not check that `is_doc` is `true`.
