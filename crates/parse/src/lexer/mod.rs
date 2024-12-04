@@ -94,6 +94,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             if token.is_eof() {
                 break;
             }
+            if token.is_comment() {
+                continue;
+            }
             tokens.push(token);
         }
         trace!(
