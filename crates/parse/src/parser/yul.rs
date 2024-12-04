@@ -11,7 +11,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// See: <https://github.com/ethereum/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
-        let docs = self.parse_doc_comments()?;
+        let docs = self.parse_doc_comments();
         let object = if self.check_keyword(sym::object) {
             self.parse_yul_object(docs)
         } else {
@@ -40,7 +40,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut children = Vec::new();
         let mut data = Vec::new();
         loop {
-            let docs = self.parse_doc_comments()?;
+            let docs = self.parse_doc_comments();
             if self.check_keyword(sym::object) {
                 children.push(self.parse_yul_object(docs)?);
             } else if self.check_keyword(sym::data) {
@@ -87,7 +87,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul statement, without setting `in_yul`.
     pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments()?;
+        let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
     }
 
@@ -234,7 +234,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul expression.
     fn parse_yul_expr(&mut self) -> PResult<'sess, Expr<'ast>> {
-        self.ignore_doc_comments();
         self.parse_spanned(Self::parse_yul_expr_kind).map(|(span, kind)| Expr { span, kind })
     }
 

@@ -73,7 +73,7 @@ impl std::ops::Deref for Arena {
 pub type DocComments<'ast> = Box<'ast, [DocComment]>;
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct DocComment {
     /// The comment kind.
     pub kind: CommentKind,

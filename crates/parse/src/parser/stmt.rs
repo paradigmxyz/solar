@@ -9,7 +9,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments()?;
+        let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
     }
 
@@ -172,7 +172,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a simple statement. These are just variable declarations and expressions.
     fn parse_simple_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments()?;
+        let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_simple_stmt_kind).map(|(span, kind)| Stmt {
             docs,
             kind,

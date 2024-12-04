@@ -39,12 +39,10 @@ object "C_28" {
         /// @src 0:0:198  "contract C {..."
         function constructor_C_28() {
 
-            // TODO
-            // /// @src 0:0:198  "contract C {..."
+            /// @src 0:0:198  "contract C {..."
 
         }
-        // TODO
-        // /// @src 0:0:198  "contract C {..."
+        /// @src 0:0:198  "contract C {..."
 
     }
     /// @use-src 0:"c.sol"
@@ -252,8 +250,7 @@ object "C_28" {
                 leave
 
             }
-            // TODO:
-            // /// @src 0:0:198  "contract C {..."
+            /// @src 0:0:198  "contract C {..."
 
         }
 
