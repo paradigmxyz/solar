@@ -7,11 +7,7 @@ use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
 
 /// Information about the current compiler session.
 #[derive(derive_builder::Builder)]
-#[builder(
-    pattern = "owned",
-    build_fn(name = "try_build", private, error = "SessionBuilderError"),
-    setter(strip_option)
-)]
+#[builder(pattern = "owned", build_fn(name = "try_build", private), setter(strip_option))]
 pub struct Session {
     /// The diagnostics context.
     pub dcx: DiagCtxt,
@@ -41,19 +37,14 @@ pub struct Session {
     #[builder(default)]
     pub pretty_json: bool,
     /// Number of threads to use. Already resolved to a non-zero value.
+    ///
+    /// Note that this defaults to 1. If you wish to use parallelism, you must manually set this to
+    /// a value greater than 1.
     #[builder(default = "NonZeroUsize::MIN")]
     pub jobs: NonZeroUsize,
     /// Whether to emit AST stats.
     #[builder(default)]
     pub ast_stats: bool,
-}
-
-#[derive(Debug)]
-struct SessionBuilderError;
-impl From<derive_builder::UninitializedFieldError> for SessionBuilderError {
-    fn from(_value: derive_builder::UninitializedFieldError) -> Self {
-        Self
-    }
 }
 
 impl SessionBuilder {
@@ -96,6 +87,10 @@ impl SessionBuilder {
     }
 
     /// Consumes the builder to create a new session.
+    ///
+    /// The diagnostics context must be set before calling this method, either by calling
+    /// [`dcx`](Self::dcx) or by using one of the provided helper methods, like
+    /// [`with_stderr_emitter`](Self::with_stderr_emitter).
     ///
     /// # Panics
     ///
