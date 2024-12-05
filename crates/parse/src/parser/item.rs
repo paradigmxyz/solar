@@ -50,7 +50,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an item.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_item(&mut self) -> PResult<'sess, Option<Item<'ast>>> {
-        let docs = self.parse_doc_comments()?;
+        let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_item_kind)
             .map(|(span, kind)| kind.map(|kind| Item { docs, span, kind }))
     }
@@ -329,10 +329,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an enum definition.
     fn parse_enum(&mut self) -> PResult<'sess, ItemEnum<'ast>> {
         let name = self.parse_ident()?;
-        let variants = self.parse_delim_comma_seq(Delimiter::Brace, true, |this| {
-            this.ignore_doc_comments();
-            this.parse_ident()
-        })?;
+        let variants = self.parse_delim_comma_seq(Delimiter::Brace, true, Self::parse_ident)?;
         Ok(ItemEnum { name, variants })
     }
 
@@ -633,10 +630,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 lo = lo.with_lo(ty.span.lo());
                 ty
             }
-            None => {
-                self.ignore_doc_comments();
-                self.parse_type()?
-            }
+            None => self.parse_type()?,
         };
 
         if ty.is_function()

@@ -35,6 +35,11 @@ pub struct Parser<'sess, 'ast> {
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
+    /// The current doc-comments.
+    docs: Vec<DocComment>,
+
+    /// The token stream.
+    tokens: std::vec::IntoIter<Token>,
 
     /// Whether the parser is in Yul mode.
     ///
@@ -42,9 +47,6 @@ pub struct Parser<'sess, 'ast> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
-
-    /// The token stream.
-    tokens: std::vec::IntoIter<Token>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,15 +119,7 @@ impl SeqSep {
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
-    ///
-    /// # Panics
-    ///
-    /// Panics if any of the tokens are comments.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
-        debug_assert!(
-            tokens.iter().all(|t| !t.is_comment()),
-            "comments should be stripped before parsing"
-        );
         let mut parser = Self {
             sess,
             arena,
@@ -133,9 +127,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             prev_token: Token::DUMMY,
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
+            docs: Vec::with_capacity(4),
+            tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
-            tokens: tokens.into_iter(),
         };
         parser.bump();
         parser
@@ -710,28 +705,59 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Advance the parser by one token.
     pub fn bump(&mut self) {
-        let mut next = self.tokens.next().unwrap_or(Token::EOF);
-        if next.span.is_dummy() {
-            // Tweak the location for better diagnostics.
-            next.span = self.token.span;
+        let next = self.next_token();
+        if next.is_comment_or_doc() {
+            return self.bump_trivia(next);
         }
         self.inlined_bump_with(next);
     }
 
     /// Advance the parser by one token using provided token as the next one.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the provided token is a comment.
     pub fn bump_with(&mut self, next: Token) {
         self.inlined_bump_with(next);
     }
 
     /// This always-inlined version should only be used on hot code paths.
     #[inline(always)]
-    fn inlined_bump_with(&mut self, next_token: Token) {
+    fn inlined_bump_with(&mut self, next: Token) {
         #[cfg(debug_assertions)]
-        if next_token.is_comment() {
-            self.comment_in_stream(next_token.span);
+        if next.is_comment_or_doc() {
+            self.dcx().bug("`bump_with` should not be used with comments").span(next.span).emit();
         }
-        self.prev_token = std::mem::replace(&mut self.token, next_token);
+        self.prev_token = std::mem::replace(&mut self.token, next);
         self.expected_tokens.clear();
+    }
+
+    /// Bumps comments and docs.
+    ///
+    /// Pushes docs to `self.docs`. Retrieve them with `parse_doc_comments`.
+    #[cold]
+    fn bump_trivia(&mut self, next: Token) {
+        self.docs.clear();
+
+        debug_assert!(next.is_comment_or_doc());
+        self.prev_token = std::mem::replace(&mut self.token, next);
+        while let Some((is_doc, doc)) = self.token.comment() {
+            if is_doc {
+                self.docs.push(doc);
+            }
+            // Don't set `prev_token` on purpose.
+            self.token = self.next_token();
+        }
+
+        self.expected_tokens.clear();
+    }
+
+    /// Advances the internal `tokens` iterator, without updating the parser state.
+    ///
+    /// Use [`bump`](Self::bump) and [`token`](Self::token) instead.
+    #[inline(always)]
+    fn next_token(&mut self) -> Token {
+        self.tokens.next().unwrap_or(Token { kind: TokenKind::Eof, span: self.token.span })
     }
 
     /// Returns the token `dist` tokens ahead of the current one.
@@ -790,50 +816,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    /// Parses and ignores contiguous doc comments.
-    #[inline]
-    pub fn ignore_doc_comments(&mut self) {
-        if matches!(self.token.kind, TokenKind::Comment(..)) {
-            self.ignore_doc_comments_inner();
-        }
-    }
-
-    #[cold]
-    fn ignore_doc_comments_inner(&mut self) {
-        while let Token { span, kind: TokenKind::Comment(is_doc, _kind, _symbol) } = self.token {
-            if !is_doc {
-                self.comment_in_stream(span);
-            }
-            self.bump();
-        }
-    }
-
     /// Parses contiguous doc comments. Can be empty.
     #[inline]
-    pub fn parse_doc_comments(&mut self) -> PResult<'sess, DocComments<'ast>> {
-        if matches!(self.token.kind, TokenKind::Comment(..)) {
+    pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
+        if !self.docs.is_empty() {
             self.parse_doc_comments_inner()
         } else {
-            Ok(Default::default())
+            Default::default()
         }
     }
 
     #[cold]
-    fn parse_doc_comments_inner(&mut self) -> PResult<'sess, DocComments<'ast>> {
-        let mut doc_comments = SmallVec::<[_; 4]>::new();
-        while let Token { span, kind: TokenKind::Comment(is_doc, kind, symbol) } = self.token {
-            if !is_doc {
-                self.comment_in_stream(span);
-            }
-            doc_comments.push(DocComment { kind, span, symbol });
-            self.bump();
-        }
-        Ok(self.alloc_smallvec(doc_comments))
-    }
-
-    #[cold]
-    fn comment_in_stream(&self, span: Span) -> ! {
-        self.dcx().bug("comments should not be in the token stream").span(span).emit()
+    fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
+        let docs = self.arena.alloc_slice_copy(&self.docs);
+        self.docs.clear();
+        docs
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

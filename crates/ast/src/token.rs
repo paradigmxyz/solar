@@ -1,6 +1,9 @@
 //! Solidity source code token.
 
-use crate::ast::{BinOp, BinOpKind, UnOp, UnOpKind};
+use crate::{
+    ast::{BinOp, BinOpKind, UnOp, UnOpKind},
+    DocComment,
+};
 use solar_interface::{diagnostics::ErrorGuaranteed, Ident, Span, Symbol};
 use std::{borrow::Cow, fmt};
 
@@ -402,6 +405,12 @@ impl TokenKind {
         matches!(self, Self::Comment(false, ..))
     }
 
+    /// Returns `true` if the token kind is a comment or doc-comment.
+    #[inline]
+    pub const fn is_comment_or_doc(&self) -> bool {
+        matches!(self, Self::Comment(..))
+    }
+
     /// Glues two token kinds together.
     pub const fn glue(&self, other: &Self) -> Option<Self> {
         use BinOpToken::*;
@@ -515,6 +524,30 @@ impl Token {
     pub const fn lit_kind(&self) -> Option<TokenLitKind> {
         match self.kind {
             TokenKind::Literal(kind, _) => Some(kind),
+            _ => None,
+        }
+    }
+
+    /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
+    #[inline]
+    pub const fn comment(&self) -> Option<(bool, DocComment)> {
+        match self.kind {
+            TokenKind::Comment(is_doc, kind, symbol) => {
+                Some((is_doc, DocComment { span: self.span, kind, symbol }))
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the comment if the kind is [`TokenKind::Comment`].
+    ///
+    /// Does not check that `is_doc` is `true`.
+    #[inline]
+    pub const fn doc(&self) -> Option<DocComment> {
+        match self.kind {
+            TokenKind::Comment(_, kind, symbol) => {
+                Some(DocComment { span: self.span, kind, symbol })
+            }
             _ => None,
         }
     }
@@ -657,6 +690,12 @@ impl Token {
     #[inline]
     pub const fn is_comment(&self) -> bool {
         self.kind.is_comment()
+    }
+
+    /// Returns `true` if the token is a comment or doc-comment.
+    #[inline]
+    pub const fn is_comment_or_doc(&self) -> bool {
+        self.kind.is_comment_or_doc()
     }
 
     /// Returns `true` if the token is a location specifier.

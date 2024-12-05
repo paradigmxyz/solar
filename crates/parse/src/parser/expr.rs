@@ -14,7 +14,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        self.ignore_doc_comments();
         let expr = self.parse_binary_expr(4, with)?;
         if self.eat(&TokenKind::Question) {
             let then = self.parse_expr()?;
@@ -198,7 +197,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
             let is_array = close_delim == Delimiter::Bracket;
-            let list = self.parse_optional_items_seq(close_delim, |this| this.parse_expr())?;
+            let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
             if is_array {
                 if !list.iter().all(Option::is_some) {
                     let msg = "array expression components cannot be empty";

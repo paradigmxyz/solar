@@ -146,8 +146,7 @@ object "ERC20_39" {
             update_storage_value_offset_0t_uint256_to_t_uint256(_4, expr_14)
 
         }
-        // TODO
-        // /// @src 0:106:384  "contract ERC20 {..."
+        /// @src 0:106:384  "contract ERC20 {..."
 
     }
     /// @use-src 0:"src/ERC20.sol"
@@ -466,8 +465,7 @@ object "ERC20_39" {
                 update_storage_value_offset_0t_uint256_to_t_uint256(_8, expr_35)
 
             }
-            // TODO
-            // /// @src 0:106:384  "contract ERC20 {..."
+            /// @src 0:106:384  "contract ERC20 {..."
 
         }
 
