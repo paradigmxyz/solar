@@ -1,0 +1,39 @@
+[package]
+name = "solar-fuzz"
+publish = false
+
+license.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+solar-parse = { path = "../crates/parse" }
+solar-interface = { path = "../crates/interface" }
+solar-sema = { path = "../crates/sema" }
+solar-cli = { path = "../crates/cli" }
+tempfile = "3.14"
+
+[[bin]]
+name = "parsing_context_parse_and_resolve"
+path = "fuzz_targets/parsing_context_parse_and_resolve.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "canonicalize"
+path = "fuzz_targets/canonicalize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "run_compiler_args"
+path = "fuzz_targets/run_compiler_args.rs"
+test = false
+doc = false
+bench = false

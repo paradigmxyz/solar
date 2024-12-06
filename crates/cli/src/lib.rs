@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use cli::Args;
+pub use cli::Args;
 use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SourceMap,
