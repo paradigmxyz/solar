@@ -1,33 +1,43 @@
 use solar_parse::interface::Session;
-use std::{hint::black_box, io::Write, path::PathBuf, process::Stdio};
+use std::{
+    hint::black_box,
+    io::Write,
+    path::{Path, PathBuf},
+    process::Stdio,
+};
 
 pub const PARSERS: &[&dyn Parser] = &[&Solc, &Solar, &Solang, &Slang];
-
-macro_rules! include_source {
-    ($path:literal) => {
-        source_from_path($path, include_str!($path))
-    };
-}
 
 pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         vec![
             Source { name: "empty", path: "", src: "" },
-            include_source!("../../testdata/Counter.sol"),
-            include_source!("../../testdata/solidity/test/benchmarks/verifier.sol"),
-            include_source!("../../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
-            include_source!("../../testdata/UniswapV3.sol"),
-            include_source!("../../testdata/Solarray.sol"),
-            include_source!("../../testdata/console.sol"),
-            include_source!("../../testdata/Vm.sol"),
-            include_source!("../../testdata/safeconsole.sol"),
+            include_source("../testdata/Counter.sol"),
+            include_source("../testdata/solidity/test/benchmarks/verifier.sol"),
+            include_source("../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
+            include_source("../testdata/UniswapV3.sol"),
+            include_source("../testdata/Solarray.sol"),
+            include_source("../testdata/console.sol"),
+            include_source("../testdata/Vm.sol"),
+            include_source("../testdata/safeconsole.sol"),
         ]
     })
 }
 
+fn include_source(path: &'static str) -> Source {
+    source_from_path(
+        path,
+        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
+            .unwrap_or_else(|e| {
+                panic!("failed to read {path}: {e}; you may need to initialize submodules")
+            })
+            .leak(),
+    )
+}
+
 fn source_from_path(path: &'static str, src: &'static str) -> Source {
-    Source { name: std::path::Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src }
+    Source { name: Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src }
 }
 
 #[derive(Clone, Debug)]

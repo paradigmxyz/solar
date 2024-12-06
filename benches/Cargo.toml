@@ -18,7 +18,7 @@ solar-parse.workspace = true
 
 solang-parser = "=0.3.4"
 
-slang_solidity = "=0.18.2"
+slang_solidity = "=0.18.3"
 semver.workspace = true
 
 [dev-dependencies]

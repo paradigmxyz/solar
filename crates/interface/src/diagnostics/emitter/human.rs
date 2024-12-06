@@ -110,6 +110,7 @@ impl HumanEmitter {
         if color_choice == ColorChoice::Auto {
             color_choice = AutoStream::choice(&stderr);
         }
+        // `io::Stderr` is not buffered.
         Self::new(io::BufWriter::new(stderr), color_choice)
     }
 

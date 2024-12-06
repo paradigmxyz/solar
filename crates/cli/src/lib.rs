@@ -117,6 +117,7 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
             Box::new(human)
         }
         cli::ErrorFormat::Json | cli::ErrorFormat::RustcJson => {
+            // `io::Stderr` is not buffered.
             let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
             let json = JsonEmitter::new(writer, source_map.clone())
                 .pretty(args.pretty_json_err)
