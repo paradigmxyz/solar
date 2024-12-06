@@ -200,8 +200,9 @@ impl<'hir> Hir<'hir> {
     fn item_ids_vec(&self) -> Vec<ItemId> {
         // NOTE: This is essentially an unrolled `.chain().chain() ... .collect()` since it's not
         // very efficient.
-        let len = 0
-            + self.contracts.len()
+        #[rustfmt::skip]
+        let len =
+              self.contracts.len()
             + self.functions.len()
             + self.variables.len()
             + self.structs.len()
