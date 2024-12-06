@@ -25,12 +25,12 @@ macro_rules! newtype_index {
         impl $crate::index::Idx for $name {
             #[inline(always)]
             fn from_usize(value: usize) -> Self {
-                Self(<$crate::index::BaseIndex32 as $crate::index::Idx>::from_usize(value))
+                Self::from_usize(value)
             }
 
             #[inline(always)]
             fn index(self) -> usize {
-                <$crate::index::BaseIndex32 as $crate::index::Idx>::index(self.0)
+                self.index()
             }
         }
 
@@ -51,6 +51,17 @@ macro_rules! newtype_index {
 
             /// Creates a new `$name` from the given `value`.
             ///
+            /// # Safety
+            ///
+            /// The caller must ensure that `value` is less than or equal to `MAX`.
+            #[inline(always)]
+            #[must_use]
+            $vis const unsafe fn new_unchecked(value: u32) -> Self {
+                Self($crate::index::BaseIndex32::new_unchecked(value))
+            }
+
+            /// Creates a new `$name` from the given `value`.
+            ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
@@ -61,11 +72,52 @@ macro_rules! newtype_index {
                 }
             }
 
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `value` exceeds `MAX`.
+            #[inline(always)]
+            #[must_use]
+            $vis const fn from_usize(value: usize) -> Self {
+                Self($crate::index::BaseIndex32::from_usize(value))
+            }
+
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// # Safety
+            ///
+            /// The caller must ensure that `value` is less than or equal to `MAX`.
+            #[inline(always)]
+            #[must_use]
+            $vis const unsafe fn from_usize_unchecked(value: usize) -> Self {
+                Self($crate::index::BaseIndex32::from_usize_unchecked(value))
+            }
+
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// Returns `None` if `value` exceeds `MAX`.
+            #[inline(always)]
+            #[must_use]
+            $vis const fn try_from_usize(value: usize) -> Option<Self> {
+                match $crate::index::BaseIndex32::try_from_usize(value) {
+                    Some(value) => Some(Self(value)),
+                    None => None,
+                }
+            }
+
             /// Returns the underlying index value.
             #[inline(always)]
             #[must_use]
             $vis const fn get(self) -> u32 {
                 self.0.get()
+            }
+
+            /// Returns the underlying index value.
+            #[inline(always)]
+            #[must_use]
+            $vis const fn index(self) -> usize {
+                self.0.index()
             }
         }
 
@@ -102,16 +154,12 @@ macro_rules! base_index {
         impl Idx for $name {
             #[inline(always)]
             fn from_usize(value: usize) -> Self {
-                if value > Self::MAX_AS as usize {
-                    index_overflow();
-                }
-                // SAFETY: `value` is less than or equal to `MAX`.
-                unsafe { Self::new_unchecked(value as $primitive) }
+                Self::from_usize(value)
             }
 
             #[inline(always)]
             fn index(self) -> usize {
-                self.get() as usize
+                self.index()
             }
         }
 
@@ -129,12 +177,12 @@ macro_rules! base_index {
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
             pub const fn new(value: $primitive) -> Self {
-                if value > Self::MAX_AS {
-                    index_overflow();
+                match Self::try_new(value) {
+                    Some(value) => value,
+                    None => index_overflow(),
                 }
-                // SAFETY: `value` is less than or equal to `MAX`.
-                unsafe { Self::new_unchecked(value) }
             }
 
             /// Creates a new `$name` from the given `value`.
@@ -151,6 +199,35 @@ macro_rules! base_index {
                 }
             }
 
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `value` exceeds `MAX`.
+            #[inline(always)]
+            #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
+            pub const fn from_usize(value: usize) -> Self {
+                match Self::try_from_usize(value) {
+                    Some(value) => value,
+                    None => index_overflow(),
+                }
+            }
+
+            /// Creates a new `$name` from the given `value`.
+            ///
+            /// Returns `None` if `value` exceeds `MAX`.
+            #[inline(always)]
+            #[must_use]
+            pub const fn try_from_usize(value: usize) -> Option<Self> {
+                if value > Self::MAX_AS as usize {
+                    None
+                } else {
+                    // SAFETY: `value` is less than or equal to `MAX`.
+                    Some(unsafe { Self::new_unchecked(value as $primitive) })
+                }
+            }
+
             /// Creates a new `$name` from the given `value`, without checking for overflow.
             ///
             /// # Safety
@@ -159,12 +236,27 @@ macro_rules! base_index {
             #[inline(always)]
             #[must_use]
             pub const unsafe fn new_unchecked(value: $primitive) -> Self {
+                debug_assert!(value <= Self::MAX_AS);
+
                 // SAFETY: guaranteed by the caller.
                 #[cfg(feature = "nightly")]
                 return unsafe { std::intrinsics::transmute_unchecked(value) };
 
                 #[cfg(not(feature = "nightly"))]
                 return unsafe { Self { value: std::num::NonZero::new_unchecked(value.unchecked_add(1)) } };
+            }
+
+
+            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            ///
+            /// # Safety
+            ///
+            /// The caller must ensure that `value` is less than or equal to `MAX`.
+            #[inline(always)]
+            #[must_use]
+            pub const unsafe fn from_usize_unchecked(value: usize) -> Self {
+                debug_assert!(value <= Self::MAX_AS as usize);
+                Self::new_unchecked(value as $primitive)
             }
 
             /// Returns the underlying index value.
@@ -182,6 +274,13 @@ macro_rules! base_index {
                 // SAFETY: non-zero minus one doesn't overflow.
                 #[cfg(not(feature = "nightly"))]
                 return unsafe { self.value.get().unchecked_sub(1) };
+            }
+
+            /// Returns the underlying index value.
+            #[inline(always)]
+            #[must_use]
+            pub const fn index(self) -> usize {
+                self.get() as usize
             }
         }
     };

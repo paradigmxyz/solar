@@ -5,10 +5,7 @@ use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
-use solar_data_structures::{
-    index::{Idx, IndexVec},
-    newtype_index, BumpExt,
-};
+use solar_data_structures::{index::IndexVec, newtype_index, BumpExt};
 use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
 use std::{fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -97,19 +94,23 @@ macro_rules! indexvec_methods {
 
             #[doc = "Returns an iterator over all of the " $singular " IDs."]
             #[inline]
-            pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + DoubleEndedIterator + Clone {
-                (0..self.$plural.len()).map($id::from_usize)
+            pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone {
+                // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
+                // of the respective index type.
+                (0..self.$plural.len()).map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
             #[inline]
             pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> {
-                (0..self.$plural.len()).into_par_iter().map($id::from_usize)
+                // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
+                // of the respective index type.
+                (0..self.$plural.len()).into_par_iter().map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns an iterator over all of the " $singular " values."]
             #[inline]
-            pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + DoubleEndedIterator + Clone {
+            pub fn $plural(&self) -> impl ExactSizeIterator<Item = &$type> + Clone {
                 self.$plural.raw.iter()
             }
 
@@ -121,14 +122,18 @@ macro_rules! indexvec_methods {
 
             #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
             #[inline]
-            pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + DoubleEndedIterator + Clone {
-                self.$plural().enumerate().map(|(i, v)| ($id::from_usize(i), v))
+            pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + Clone {
+                // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
+                // of the respective index type.
+                self.$plural().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
 
             #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
             #[inline]
             pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
-                self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize(i), v))
+                // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
+                // of the respective index type.
+                self.[<par_ $plural>]().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
         )*
 
@@ -183,29 +188,51 @@ impl<'hir> Hir<'hir> {
     }
 
     /// Returns an iterator over all item IDs.
-    pub fn item_ids(&self) -> impl DoubleEndedIterator<Item = ItemId> + Clone {
-        std::iter::empty::<ItemId>()
-            .chain(self.contract_ids().map(ItemId::Contract))
-            .chain(self.function_ids().map(ItemId::Function))
-            .chain(self.variable_ids().map(ItemId::Variable))
-            .chain(self.strukt_ids().map(ItemId::Struct))
-            .chain(self.enumm_ids().map(ItemId::Enum))
-            .chain(self.udvt_ids().map(ItemId::Udvt))
-            .chain(self.error_ids().map(ItemId::Error))
-            .chain(self.event_ids().map(ItemId::Event))
+    pub fn item_ids(&self) -> impl Iterator<Item = ItemId> + Clone {
+        self.item_ids_vec().into_iter()
     }
 
     /// Returns a parallel iterator over all item IDs.
     pub fn par_item_ids(&self) -> impl ParallelIterator<Item = ItemId> {
-        rayon::iter::empty::<ItemId>()
-            .chain(self.par_contract_ids().map(ItemId::Contract))
-            .chain(self.par_function_ids().map(ItemId::Function))
-            .chain(self.par_variable_ids().map(ItemId::Variable))
-            .chain(self.par_strukt_ids().map(ItemId::Struct))
-            .chain(self.par_enumm_ids().map(ItemId::Enum))
-            .chain(self.par_udvt_ids().map(ItemId::Udvt))
-            .chain(self.par_error_ids().map(ItemId::Error))
-            .chain(self.par_event_ids().map(ItemId::Event))
+        self.item_ids_vec().into_par_iter()
+    }
+
+    fn item_ids_vec(&self) -> Vec<ItemId> {
+        // NOTE: This is essentially an unrolled `.chain().chain() ... .collect()` since it's not
+        // very efficient.
+        let len = 0
+            + self.contracts.len()
+            + self.functions.len()
+            + self.variables.len()
+            + self.structs.len()
+            + self.enums.len()
+            + self.udvts.len()
+            + self.errors.len()
+            + self.events.len();
+        let mut v = Vec::<ItemId>::with_capacity(len);
+        let mut items = v.spare_capacity_mut().iter_mut();
+        macro_rules! extend_unchecked {
+            ($iter:expr) => {
+                for item in $iter {
+                    unsafe { items.next().unwrap_unchecked().write(item) };
+                }
+            };
+        }
+        extend_unchecked!(self.contract_ids().map(ItemId::from));
+        extend_unchecked!(self.function_ids().map(ItemId::from));
+        extend_unchecked!(self.variable_ids().map(ItemId::from));
+        extend_unchecked!(self.strukt_ids().map(ItemId::from));
+        extend_unchecked!(self.enumm_ids().map(ItemId::from));
+        extend_unchecked!(self.udvt_ids().map(ItemId::from));
+        extend_unchecked!(self.error_ids().map(ItemId::from));
+        extend_unchecked!(self.event_ids().map(ItemId::from));
+
+        debug_assert!(items.next().is_none());
+        unsafe { v.set_len(len) };
+        debug_assert_eq!(v.len(), len);
+        debug_assert_eq!(v.capacity(), len);
+
+        v
     }
 
     /// Returns an iterator over all item IDs in a contract, including inheritance.
