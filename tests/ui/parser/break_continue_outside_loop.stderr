@@ -26,6 +26,13 @@ LL |         continue;
    |         ^^^^^^^^^
    |
 
+error: No visibility specified. Did you intend to add public?
+  --> ROOT/tests/ui/parser/break_continue_outside_loop.sol:LL:CC
+   |
+LL |     function f() {
+   |              ^
+   |
+
 error: `break` outside of a loop
   --> ROOT/tests/ui/parser/break_continue_outside_loop.sol:LL:CC
    |
@@ -54,5 +61,5 @@ LL |             continue;
    |             ^^^^^^^^^
    |
 
-error: aborting due to 8 previous errors
+error: aborting due to 9 previous errors
 

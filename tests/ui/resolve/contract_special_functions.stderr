@@ -1,86 +1,72 @@
-error: constructor function already declared
+error: No visibility specified for fallback. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     constructor() {}
-   |     ---------------- note: previous declaration here
-LL |     constructor() {}
-   |     ^^^^^^^^^^^^^^^^
+LL | contract C {
+   |          ^
    |
 
-error: fallback function already declared
+error: No visibility specified for fallback. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
-LL |     fallback() external {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^
+LL | contract C {
+   |          ^
    |
 
-error: receive function already declared
+error: No visibility specified for receive. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
-LL |     receive() external payable {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | contract C {
+   |          ^
    |
 
-error: constructor function already declared
+error: No visibility specified for receive. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     constructor() {}
-   |     ---------------- note: previous declaration here
-LL |     constructor() {}
-   |     ^^^^^^^^^^^^^^^^
+LL | contract C {
+   |          ^
    |
 
-error: constructor function already declared
+error: No visibility specified for fallback. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     constructor() {}
-   |     ---------------- note: previous declaration here
-LL |     constructor() {}
-LL |     constructor() {}
-   |     ^^^^^^^^^^^^^^^^
+LL | contract D {
+   |          ^
    |
 
-error: fallback function already declared
+error: No visibility specified for fallback. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
-LL |     fallback() external {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^
+LL | contract D {
+   |          ^
    |
 
-error: fallback function already declared
+error: No visibility specified for fallback. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
-LL |     fallback() external {}
-LL |     fallback() external {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^
+LL | contract D {
+   |          ^
    |
 
-error: receive function already declared
+error: No visibility specified for receive. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
-LL |     receive() external payable {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | contract D {
+   |          ^
    |
 
-error: receive function already declared
+error: No visibility specified for receive. Did you intend to add external?
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
-LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
-LL |     receive() external payable {}
-LL |     receive() external payable {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | contract D {
+   |          ^
    |
 
-error: aborting due to 9 previous errors
+error: No visibility specified for receive. Did you intend to add external?
+  --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
+   |
+LL | contract D {
+   |          ^
+   |
+
+error: aborting due to 10 previous errors
 

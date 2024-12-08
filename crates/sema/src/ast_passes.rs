@@ -179,9 +179,9 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     ) -> ControlFlow<Self::BreakValue> {
         self.function_kind = Some(func.kind);
 
-        if let Some(contract) = self.contract {
-            if func.kind.is_function() {
-                if let Some(func_name) = func.header.name {
+        if func.kind.is_function() {
+            if let Some(func_name) = func.header.name {
+                if let Some(contract) = self.contract {
                     if func_name == contract.name {
                         self.dcx()
                             .err("functions are not allowed to have the same name as the contract")
@@ -189,6 +189,31 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                             .span(func_name.span)
                             .emit();
                     }
+                    if func.header.visibility.is_none() {
+                        let suggested_visibility =
+                            if contract.kind.is_interface() { "external" } else { "public" };
+                        let error_stmt = format!(
+                            "No visibility specified. Did you intend to add {suggested_visibility}?",
+                        );
+                        self.dcx().err(error_stmt).span(func_name.span).emit();
+                    }
+                }
+            }
+        }
+
+        if func.kind.is_fallback() || func.kind.is_receive() {
+            if let Some(contract) = self.contract {
+                if let Some(func_type_name) = if func.kind.is_fallback() {
+                    Some("fallback")
+                } else if func.kind.is_receive() {
+                    Some("receive")
+                } else {
+                    None
+                } {
+                    let error_stmt = format!(
+                        "No visibility specified for {func_type_name}. Did you intend to add external?",
+                    );
+                    self.dcx().err(error_stmt).span(contract.name.span).emit();
                 }
             }
         }
