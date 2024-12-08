@@ -1,6 +1,6 @@
 //! AST pretty-printing.
 
-use crate::ast;
+use crate::ast::{self, yul};
 use core::fmt::{self, Write};
 
 /// AST pretty-printer.
@@ -11,55 +11,14 @@ pub struct Printer<W> {
 }
 
 impl<W> Printer<W> {
+    /// Creates a new printer with the given writer.
     pub fn new(writer: W) -> Self {
         Self { writer, indent: 0 }
     }
 }
 
 impl<W: Write> Printer<W> {
-    fn print_indent(&mut self) -> fmt::Result {
-        write!(self.writer, "{}", "    ".repeat(self.indent))
-    }
-
-    fn print_block_lines<I>(
-        &mut self,
-        items: &[I],
-        f: impl Fn(&mut Self, &I) -> fmt::Result,
-    ) -> fmt::Result {
-        if items.is_empty() {
-            return self.writer.write_str("{}");
-        }
-
-        self.writer.write_char('{')?;
-        self.indent += 1;
-        for item in items {
-            self.writer.write_char('\n')?;
-            self.print_indent()?;
-            f(self, item)?;
-        }
-        self.indent -= 1;
-        self.writer.write_char('\n')?;
-        self.print_indent()?;
-        self.writer.write_char('}')
-    }
-
-    fn print_comma_separated<I>(
-        &mut self,
-        items: &[I],
-        f: impl Fn(&mut Self, &I) -> fmt::Result,
-    ) -> fmt::Result {
-        let mut iter = items.iter();
-        if let Some(first) = iter.next() {
-            f(self, first)?;
-            for item in iter {
-                self.writer.write_str(", ")?;
-                f(self, item)?;
-            }
-        }
-
-        Ok(())
-    }
-
+    /// Prints a single [Solidity source file](`ast::SourceUnit`).
     pub fn print_soure_unit(&mut self, source_unit: &ast::SourceUnit<'_>) -> fmt::Result {
         let ast::SourceUnit { items } = source_unit;
 
@@ -71,10 +30,11 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
+    /// Prints a single [item](`ast::Item`).
     pub fn print_item(&mut self, item: &ast::Item<'_>) -> fmt::Result {
         let ast::Item { docs, span: _, kind } = item;
 
-        self.print_doc_comments(docs)?;
+        self.print_docs(docs)?;
         match kind {
             ast::ItemKind::Pragma(item) => self.print_pragma_directive(item)?,
             ast::ItemKind::Import(item) => self.print_import_directive(item)?,
@@ -95,10 +55,11 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
+    /// Prints a single [statement](`ast::Stmt`).
     pub fn print_stmt(&mut self, stmt: &ast::Stmt<'_>) -> fmt::Result {
         let ast::Stmt { docs, span: _, kind } = stmt;
 
-        self.print_doc_comments(docs)?;
+        self.print_docs(docs)?;
         match kind {
             ast::StmtKind::Assembly(ast::StmtAssembly { dialect, flags, block }) => {
                 self.writer.write_str("assembly")?;
@@ -114,7 +75,8 @@ impl<W: Write> Printer<W> {
                     self.writer.write_char(')')?;
                 }
 
-                self.writer.write_str("{}")?;
+                self.writer.write_char(' ')?;
+                self.print_block_lines(block, |this, stmt| this.print_yul_stmt(stmt))?
             }
             ast::StmtKind::DeclSingle(decl) => {
                 self.print_variable_definition(decl)?;
@@ -250,6 +212,84 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
+    /// Prints a single [Yul statement](`yul::Stmt`).
+    pub fn print_yul_stmt(&mut self, stmt: &yul::Stmt<'_>) -> fmt::Result {
+        let yul::Stmt { docs, span: _, kind } = stmt;
+
+        self.print_docs(docs)?;
+        match kind {
+            yul::StmtKind::Block(block) => {
+                self.print_block_lines(block, |this, stmt| this.print_yul_stmt(stmt))?
+            }
+            yul::StmtKind::AssignSingle(path, expr) => {
+                write!(self.writer, "{path} := ")?;
+                self.print_yul_expr(expr)?;
+            }
+            yul::StmtKind::AssignMulti(paths, call) => {
+                self.print_comma_separated(paths, |this, path| write!(this.writer, "{path}"))?;
+                self.writer.write_str(" := ")?;
+                self.print_yul_expr_call(call)?;
+            }
+            yul::StmtKind::Expr(call) => self.print_yul_expr_call(call)?,
+            yul::StmtKind::If(cond, body) => {
+                self.writer.write_str("if ")?;
+                self.print_yul_expr(cond)?;
+                self.writer.write_char(' ')?;
+                self.print_block_lines(body, |this, stmt| this.print_yul_stmt(stmt))?;
+            }
+            yul::StmtKind::For { init, cond, step, body } => {
+                self.writer.write_str("for ")?;
+                self.print_block_lines(init, |this, stmt| this.print_yul_stmt(stmt))?;
+                self.writer.write_char(' ')?;
+                self.print_yul_expr(cond)?;
+                self.writer.write_char(' ')?;
+                self.print_block_lines(step, |this, stmt| this.print_yul_stmt(stmt))?;
+                self.writer.write_char(' ')?;
+                self.print_block_lines(body, |this, stmt| this.print_yul_stmt(stmt))?;
+            }
+            yul::StmtKind::Switch(yul::StmtSwitch { selector, branches, default_case }) => {
+                self.writer.write_str("switch ")?;
+                self.print_yul_expr(selector)?;
+                for yul::StmtSwitchCase { constant, body } in branches.iter() {
+                    self.writer.write_char('\n')?;
+                    self.print_indent()?;
+                    write!(self.writer, "case {constant} ")?;
+                    self.print_block_lines(body, |this, stmt| this.print_yul_stmt(stmt))?;
+                }
+                if let Some(default_case) = default_case {
+                    self.writer.write_char('\n')?;
+                    self.print_indent()?;
+                    self.writer.write_str("default ")?;
+                    self.print_block_lines(default_case, |this, stmt| this.print_yul_stmt(stmt))?;
+                }
+            }
+            yul::StmtKind::Leave => self.writer.write_str("leave")?,
+            yul::StmtKind::Break => self.writer.write_str("break")?,
+            yul::StmtKind::Continue => self.writer.write_str("continue")?,
+            yul::StmtKind::FunctionDef(yul::Function { name, parameters, returns, body }) => {
+                write!(self.writer, "function {name}(")?;
+                self.print_comma_separated(parameters, |this, param| {
+                    write!(this.writer, "{param}")
+                })?;
+                self.writer.write_str(") -> (")?;
+                self.print_comma_separated(returns, |this, ret| write!(this.writer, "{ret}"))?;
+                self.writer.write_str(") ")?;
+                self.print_block_lines(body, |this, stmt| this.print_yul_stmt(stmt))?
+            }
+            yul::StmtKind::VarDecl(vars, init) => {
+                self.writer.write_str("let ")?;
+                self.print_comma_separated(vars, |this, var| write!(this.writer, "{var}"))?;
+                if let Some(init) = init {
+                    self.writer.write_str(" := ")?;
+                    self.print_yul_expr(init)?;
+                }
+            }
+        };
+
+        Ok(())
+    }
+
+    /// Prints a single [Solidity expression](`ast::Expr`).
     pub fn print_expr(&mut self, expr: &ast::Expr<'_>) -> fmt::Result {
         match &expr.kind {
             ast::ExprKind::Array(exprs) => {
@@ -353,6 +393,62 @@ impl<W: Write> Printer<W> {
                     self.print_expr(expr)?;
                     write!(self.writer, "{op}")?;
                 }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Prints a single [Yul expression](`yul::Expr`).
+    pub fn print_yul_expr(&mut self, expr: &yul::Expr<'_>) -> fmt::Result {
+        let yul::Expr { span: _, kind } = expr;
+
+        match kind {
+            yul::ExprKind::Path(path) => write!(self.writer, "{path}")?,
+            yul::ExprKind::Call(call) => self.print_yul_expr_call(call)?,
+            yul::ExprKind::Lit(lit) => write!(self.writer, "{lit}")?,
+        };
+
+        Ok(())
+    }
+
+    fn print_indent(&mut self) -> fmt::Result {
+        write!(self.writer, "{}", "    ".repeat(self.indent))
+    }
+
+    fn print_block_lines<I>(
+        &mut self,
+        items: &[I],
+        f: impl Fn(&mut Self, &I) -> fmt::Result,
+    ) -> fmt::Result {
+        if items.is_empty() {
+            return self.writer.write_str("{}");
+        }
+
+        self.writer.write_char('{')?;
+        self.indent += 1;
+        for item in items {
+            self.writer.write_char('\n')?;
+            self.print_indent()?;
+            f(self, item)?;
+        }
+        self.indent -= 1;
+        self.writer.write_char('\n')?;
+        self.print_indent()?;
+        self.writer.write_char('}')
+    }
+
+    fn print_comma_separated<I>(
+        &mut self,
+        items: &[I],
+        f: impl Fn(&mut Self, &I) -> fmt::Result,
+    ) -> fmt::Result {
+        let mut iter = items.iter();
+        if let Some(first) = iter.next() {
+            f(self, first)?;
+            for item in iter {
+                self.writer.write_str(", ")?;
+                f(self, item)?;
             }
         }
 
@@ -733,7 +829,7 @@ impl<W: Write> Printer<W> {
         self.writer.write_char('}')
     }
 
-    fn print_doc_comments(&mut self, items: &ast::DocComments<'_>) -> fmt::Result {
+    fn print_docs(&mut self, items: &ast::DocComments<'_>) -> fmt::Result {
         for item in items.iter() {
             let ast::DocComment { span: _, kind, symbol } = item;
             match kind {
@@ -752,5 +848,13 @@ impl<W: Write> Printer<W> {
             self.print_indent()?;
         }
         Ok(())
+    }
+
+    fn print_yul_expr_call(&mut self, call: &yul::ExprCall<'_>) -> fmt::Result {
+        let yul::ExprCall { name, arguments } = call;
+
+        write!(self.writer, "{name}(")?;
+        self.print_comma_separated(arguments, |this, expr| this.print_yul_expr(expr))?;
+        self.writer.write_char(')')
     }
 }
