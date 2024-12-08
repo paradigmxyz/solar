@@ -145,10 +145,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.visit_stmt(init)?;
                 }
                 if let Some(cond) = cond {
-                    self.walk_expr(cond)?;
+                    self.visit_expr(cond)?;
                 }
                 if let Some(next) = next {
-                    self.walk_expr(next)?;
+                    self.visit_expr(next)?;
                 }
                 self.in_loop_depth += 1;
                 self.x_depth = 1;
@@ -292,14 +292,5 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 .emit();
         }
         self.walk_variable_definition(var)
-    }
-
-    // Intentionally override unused default implementations to reduce bloat.
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
-    }
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
     }
 }
