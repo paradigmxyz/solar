@@ -655,7 +655,9 @@ impl<W: Write> Printer<W> {
                 if let Some(visibility) = visibility {
                     write!(self.writer, " {visibility}")?;
                 }
-                write!(self.writer, " {state_mutability}")?;
+                if !state_mutability.is_non_payable() {
+                    write!(self.writer, " {state_mutability}")?;
+                }
                 if !returns.is_empty() {
                     self.writer.write_str(" returns(")?;
                     self.print_comma_separated(returns, |this, ret| {
@@ -733,11 +735,10 @@ impl<W: Write> Printer<W> {
 
     fn print_doc_comments(&mut self, items: &ast::DocComments<'_>) -> fmt::Result {
         for item in items.iter() {
-            self.print_indent()?;
             let ast::DocComment { span: _, kind, symbol } = item;
             match kind {
                 ast::CommentKind::Line => {
-                    self.writer.write_str("// ")?;
+                    self.writer.write_str("/// ")?;
                     self.writer.write_str(symbol.as_str())?;
                 }
                 ast::CommentKind::Block => {
@@ -748,6 +749,7 @@ impl<W: Write> Printer<W> {
             }
 
             self.writer.write_char('\n')?;
+            self.print_indent()?;
         }
         Ok(())
     }
