@@ -55,7 +55,7 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
-    /// Prints a single [statement](`ast::Stmt`).
+    /// Prints a single [Solidity statement](`ast::Stmt`).
     pub fn print_stmt(&mut self, stmt: &ast::Stmt<'_>) -> fmt::Result {
         let ast::Stmt { docs, span: _, kind } = stmt;
 
