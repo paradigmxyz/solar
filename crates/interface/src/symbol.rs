@@ -417,12 +417,12 @@ impl LassoInterner {
 unsafe impl lasso::Key for Symbol {
     #[inline]
     fn into_usize(self) -> usize {
-        self.as_u32() as usize
+        self.0.index()
     }
 
     #[inline]
-    fn try_from_usize(int: usize) -> Option<Self> {
-        int.try_into().ok().map(Self::new)
+    fn try_from_usize(value: usize) -> Option<Self> {
+        BaseIndex32::try_from_usize(value).map(Self)
     }
 }
 

@@ -22,7 +22,7 @@ pub enum ResolveError {
     ReadFile(PathBuf, #[source] io::Error),
     #[error("file {0} not found")]
     NotFound(PathBuf),
-    #[error("multiple files match {0}: {}", _1.iter().map(|f| f.name.display()).format(", "))]
+    #[error("multiple files match {}: {}", .0.display(), .1.iter().map(|f| f.name.display()).format(", "))]
     MultipleMatches(PathBuf, Vec<Arc<SourceFile>>),
 }
 
