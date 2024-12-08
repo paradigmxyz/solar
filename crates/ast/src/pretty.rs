@@ -40,7 +40,7 @@ impl<W: Write> Printer<W> {
         self.indent -= 1;
         self.writer.write_char('\n')?;
         self.print_indent()?;
-        self.writer.write_str("}")
+        self.writer.write_char('}')
     }
 
     fn print_comma_separated<I>(
@@ -61,7 +61,9 @@ impl<W: Write> Printer<W> {
     }
 
     pub fn print_soure_unit(&mut self, source_unit: &ast::SourceUnit<'_>) -> fmt::Result {
-        for item in source_unit.items.iter() {
+        let ast::SourceUnit { items } = source_unit;
+
+        for item in items.iter() {
             self.print_item(item)?;
             self.writer.write_char('\n')?;
         }
@@ -69,25 +71,290 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
-    fn print_item(&mut self, item: &ast::Item<'_>) -> fmt::Result {
+    pub fn print_item(&mut self, item: &ast::Item<'_>) -> fmt::Result {
         let ast::Item { docs, span: _, kind } = item;
 
+        self.print_doc_comments(docs)?;
         match kind {
             ast::ItemKind::Pragma(item) => self.print_pragma_directive(item)?,
             ast::ItemKind::Import(item) => self.print_import_directive(item)?,
             ast::ItemKind::Using(item) => self.print_using_directive(item)?,
             ast::ItemKind::Contract(item) => self.print_item_contract(item)?,
-            ast::ItemKind::Struct(item) => self.print_item_struct(item)?,
+            ast::ItemKind::Function(item) => self.print_item_function(item)?,
             ast::ItemKind::Variable(item) => {
                 self.print_variable_definition(item)?;
                 self.writer.write_char(';')?;
             }
-            ast::ItemKind::Function(item) => self.print_item_function(item)?,
-            ast::ItemKind::Error(item) => self.print_item_error(item)?,
-            ast::ItemKind::Event(item) => self.print_item_event(item)?,
+            ast::ItemKind::Struct(item) => self.print_item_struct(item)?,
             ast::ItemKind::Enum(item) => self.print_item_enum(item)?,
             ast::ItemKind::Udvt(item) => self.print_item_udvt(item)?,
+            ast::ItemKind::Error(item) => self.print_item_error(item)?,
+            ast::ItemKind::Event(item) => self.print_item_event(item)?,
         };
+
+        Ok(())
+    }
+
+    pub fn print_stmt(&mut self, stmt: &ast::Stmt<'_>) -> fmt::Result {
+        let ast::Stmt { docs, span: _, kind } = stmt;
+
+        self.print_doc_comments(docs)?;
+        match kind {
+            ast::StmtKind::Assembly(ast::StmtAssembly { dialect, flags, block }) => {
+                self.writer.write_str("assembly")?;
+                if let Some(dialect) = dialect {
+                    write!(self.writer, " \"{}\"", dialect.value.as_str())?;
+                }
+
+                if !flags.is_empty() {
+                    self.writer.write_str(" (")?;
+                    self.print_comma_separated(flags, |this, flag| {
+                        write!(this.writer, "\"{}\"", flag.value.as_str())
+                    })?;
+                    self.writer.write_char(')')?;
+                }
+
+                self.writer.write_str("{}")?;
+            }
+            ast::StmtKind::DeclSingle(decl) => {
+                self.print_variable_definition(decl)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::DeclMulti(vars, def) => {
+                self.writer.write_char('(')?;
+                self.print_comma_separated(vars, |this, var| {
+                    if let Some(var) = var {
+                        this.print_variable_definition(var)?;
+                    }
+
+                    Ok(())
+                })?;
+                self.writer.write_str(") = ")?;
+                self.print_expr(def)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Block(block) => {
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?
+            }
+            ast::StmtKind::Break => {
+                self.writer.write_str("break;")?;
+            }
+            ast::StmtKind::Continue => {
+                self.writer.write_str("continue;")?;
+            }
+            ast::StmtKind::DoWhile(body, cond) => {
+                self.writer.write_str("do ")?;
+                self.print_stmt(body)?;
+                self.writer.write_str(" while (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(");")?;
+            }
+            ast::StmtKind::Emit(event, args) => {
+                write!(self.writer, "emit {event}")?;
+                self.print_call_args(args)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Expr(expr) => {
+                self.print_expr(expr)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::For { init, cond, next, body } => {
+                self.writer.write_str("for (")?;
+
+                if let Some(init) = init {
+                    self.print_stmt(init)?;
+                } else {
+                    self.writer.write_char(';')?;
+                }
+
+                if let Some(cond) = cond {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(cond)?;
+                }
+
+                self.writer.write_char(';')?;
+
+                if let Some(next) = next {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(next)?;
+                }
+
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+            }
+            ast::StmtKind::If(cond, body, else_) => {
+                self.writer.write_str("if (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+                if let Some(else_) = else_ {
+                    self.writer.write_str(" else ")?;
+                    self.print_stmt(else_)?;
+                }
+            }
+            ast::StmtKind::Return(expr) => {
+                self.writer.write_str("return")?;
+                if let Some(expr) = expr {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(expr)?;
+                }
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Revert(error, args) => {
+                write!(self.writer, "revert {error}")?;
+                self.print_call_args(args)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+                self.writer.write_str("try ")?;
+                self.print_expr(expr)?;
+                if !returns.is_empty() {
+                    self.writer.write_str(" returns (")?;
+                    self.print_comma_separated(returns, |this, ret| {
+                        this.print_variable_definition(ret)
+                    })?;
+                    self.writer.write_char(')')?;
+                }
+
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+
+                for catch in catch.iter() {
+                    let ast::CatchClause { name, args, block } = catch;
+
+                    self.writer.write_str(" catch ")?;
+                    if let Some(name) = name {
+                        write!(self.writer, "{name}")?;
+                    }
+                    self.writer.write_char('(')?;
+                    self.print_comma_separated(args, |this, arg| {
+                        this.print_variable_definition(arg)
+                    })?;
+                    self.writer.write_str(") ")?;
+                    self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+                }
+            }
+            ast::StmtKind::UncheckedBlock(block) => {
+                self.writer.write_str("unchecked ")?;
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+            }
+            ast::StmtKind::While(cond, body) => {
+                self.writer.write_str("while (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+            }
+            ast::StmtKind::Placeholder => {
+                self.writer.write_str("_;")?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn print_expr(&mut self, expr: &ast::Expr<'_>) -> fmt::Result {
+        match &expr.kind {
+            ast::ExprKind::Array(exprs) => {
+                self.print_comma_separated(exprs, |this, expr| this.print_expr(expr))?;
+            }
+            ast::ExprKind::Assign(lhs, op, rhs) => {
+                self.print_expr(lhs)?;
+                self.writer.write_char(' ')?;
+                if let Some(op) = op {
+                    write!(self.writer, "{op}")?;
+                }
+                self.writer.write_str("= ")?;
+                self.print_expr(rhs)?;
+            }
+            ast::ExprKind::Binary(lhs, op, rhs) => {
+                self.print_expr(lhs)?;
+                write!(self.writer, " {op} ")?;
+                self.print_expr(rhs)?;
+            }
+            ast::ExprKind::Call(expr, args) => {
+                self.print_expr(expr)?;
+                self.print_call_args(args)?;
+            }
+            ast::ExprKind::CallOptions(item, opts) => {
+                self.print_expr(item)?;
+                self.print_named_args(opts)?;
+            }
+            ast::ExprKind::Delete(expr) => {
+                self.writer.write_str("delete ")?;
+                self.print_expr(expr)?;
+            }
+            ast::ExprKind::Ident(ident) => write!(self.writer, "{ident}")?,
+            ast::ExprKind::Index(item, index) => {
+                self.print_expr(item)?;
+                self.writer.write_char('[')?;
+                match index {
+                    ast::IndexKind::Index(expr) => {
+                        if let Some(expr) = expr {
+                            self.print_expr(expr)?;
+                        }
+                    }
+                    ast::IndexKind::Range(start, end) => {
+                        if let Some(start) = start {
+                            self.print_expr(start)?;
+                        }
+                        self.writer.write_char(':')?;
+                        if let Some(end) = end {
+                            self.print_expr(end)?;
+                        }
+                    }
+                }
+                self.writer.write_char(']')?;
+            }
+            ast::ExprKind::Lit(lit, denom) => {
+                write!(self.writer, "{lit}")?;
+                if let Some(denom) = denom {
+                    write!(self.writer, " {denom}")?;
+                }
+            }
+            ast::ExprKind::Member(item, member) => {
+                self.print_expr(item)?;
+                write!(self.writer, ".{member}")?;
+            }
+            ast::ExprKind::New(ty) => {
+                self.writer.write_str("new ")?;
+                self.print_ty(ty)?;
+            }
+            ast::ExprKind::Payable(opts) => {
+                self.writer.write_str("payable")?;
+                self.print_call_args(opts)?;
+            }
+            ast::ExprKind::Ternary(cond, first, second) => {
+                self.print_expr(cond)?;
+                self.writer.write_str(" ? ")?;
+                self.print_expr(first)?;
+                self.writer.write_str(" : ")?;
+                self.print_expr(second)?;
+            }
+            ast::ExprKind::Tuple(exprs) => {
+                self.writer.write_char('(')?;
+                self.print_comma_separated(exprs, |this, expr| {
+                    if let Some(expr) = expr {
+                        this.print_expr(expr)?;
+                    }
+
+                    Ok(())
+                })?;
+                self.writer.write_char(')')?;
+            }
+            ast::ExprKind::TypeCall(ty) => {
+                self.writer.write_str("type(")?;
+                self.print_ty(ty)?;
+                self.writer.write_char(')')?;
+            }
+            ast::ExprKind::Type(ty) => self.print_ty(ty)?,
+            ast::ExprKind::Unary(op, expr) => {
+                if op.kind.is_prefix() {
+                    write!(self.writer, "{op}")?;
+                    self.print_expr(expr)?;
+                } else {
+                    self.print_expr(expr)?;
+                    write!(self.writer, "{op}")?;
+                }
+            }
+        }
 
         Ok(())
     }
@@ -113,7 +380,7 @@ impl<W: Write> Printer<W> {
                 write!(self.writer, " {req}")?;
             }
         }
-        self.writer.write_str(";")?;
+        self.writer.write_char(';')?;
         Ok(())
     }
 
@@ -127,10 +394,10 @@ impl<W: Write> Printer<W> {
                 if let Some(alias) = alias {
                     write!(self.writer, " as {alias}")?;
                 }
-                self.writer.write_str(";")?;
+                self.writer.write_char(';')?;
             }
             ast::ImportItems::Aliases(items) => {
-                self.writer.write_str("{")?;
+                self.writer.write_char('{')?;
                 self.print_comma_separated(items, |this, (item, alias)| {
                     write!(this.writer, "{item}")?;
                     if let Some(alias) = alias {
@@ -206,57 +473,6 @@ impl<W: Write> Printer<W> {
         self.print_block_lines(body, |this, item| this.print_item(item))
     }
 
-    fn print_item_error(&mut self, error: &ast::ItemError<'_>) -> fmt::Result {
-        let ast::ItemError { name, parameters } = error;
-
-        write!(self.writer, "error {name}(")?;
-        self.print_comma_separated(parameters, |this, param| {
-            this.print_variable_definition(param)
-        })?;
-
-        self.writer.write_str(");")
-    }
-
-    fn print_item_event(&mut self, error: &ast::ItemEvent<'_>) -> fmt::Result {
-        let ast::ItemEvent { name, parameters, anonymous } = error;
-
-        write!(self.writer, "event {name}(")?;
-        self.print_comma_separated(parameters, |this, param| {
-            this.print_variable_definition(param)
-        })?;
-
-        if *anonymous {
-            self.writer.write_str(" anonymous")?;
-        }
-
-        self.writer.write_str(");")
-    }
-
-    fn print_item_enum(&mut self, enum_: &ast::ItemEnum<'_>) -> fmt::Result {
-        let ast::ItemEnum { name, variants } = enum_;
-
-        write!(self.writer, "enum {name} ")?;
-        self.print_block_lines(variants, |this, variant| write!(this.writer, "{variant},"))
-    }
-
-    fn print_item_udvt(&mut self, udvt: &ast::ItemUdvt<'_>) -> fmt::Result {
-        let ast::ItemUdvt { name, ty } = udvt;
-
-        write!(self.writer, "type {name} is ")?;
-        self.print_ty(ty)?;
-        self.writer.write_char(';')
-    }
-
-    fn print_item_struct(&mut self, struct_: &ast::ItemStruct<'_>) -> fmt::Result {
-        let ast::ItemStruct { name, fields } = struct_;
-
-        write!(self.writer, "struct {name} ")?;
-        self.print_block_lines(fields, |this, field| {
-            this.print_variable_definition(field)?;
-            this.writer.write_char(';')
-        })
-    }
-
     fn print_item_function(&mut self, function: &ast::ItemFunction<'_>) -> fmt::Result {
         let ast::ItemFunction { kind, header, body } = function;
         let ast::FunctionHeader {
@@ -275,11 +491,11 @@ impl<W: Write> Printer<W> {
             write!(self.writer, " {name}")?;
         }
 
-        self.writer.write_str("(")?;
+        self.writer.write_char('(')?;
         self.print_comma_separated(parameters, |this, param| {
             this.print_variable_definition(param)
         })?;
-        self.writer.write_str(")")?;
+        self.writer.write_char(')')?;
 
         if let Some(visibility) = visibility {
             write!(self.writer, " {visibility}")?;
@@ -307,7 +523,7 @@ impl<W: Write> Printer<W> {
         if !returns.is_empty() {
             write!(self.writer, " returns (")?;
             self.print_comma_separated(returns, |this, val| this.print_variable_definition(val))?;
-            self.writer.write_str(")")?;
+            self.writer.write_char(')')?;
         }
 
         if let Some(body) = body {
@@ -364,6 +580,57 @@ impl<W: Write> Printer<W> {
         Ok(())
     }
 
+    fn print_item_struct(&mut self, struct_: &ast::ItemStruct<'_>) -> fmt::Result {
+        let ast::ItemStruct { name, fields } = struct_;
+
+        write!(self.writer, "struct {name} ")?;
+        self.print_block_lines(fields, |this, field| {
+            this.print_variable_definition(field)?;
+            this.writer.write_char(';')
+        })
+    }
+
+    fn print_item_enum(&mut self, enum_: &ast::ItemEnum<'_>) -> fmt::Result {
+        let ast::ItemEnum { name, variants } = enum_;
+
+        write!(self.writer, "enum {name} ")?;
+        self.print_block_lines(variants, |this, variant| write!(this.writer, "{variant},"))
+    }
+
+    fn print_item_udvt(&mut self, udvt: &ast::ItemUdvt<'_>) -> fmt::Result {
+        let ast::ItemUdvt { name, ty } = udvt;
+
+        write!(self.writer, "type {name} is ")?;
+        self.print_ty(ty)?;
+        self.writer.write_char(';')
+    }
+
+    fn print_item_error(&mut self, error: &ast::ItemError<'_>) -> fmt::Result {
+        let ast::ItemError { name, parameters } = error;
+
+        write!(self.writer, "error {name}(")?;
+        self.print_comma_separated(parameters, |this, param| {
+            this.print_variable_definition(param)
+        })?;
+
+        self.writer.write_str(");")
+    }
+
+    fn print_item_event(&mut self, error: &ast::ItemEvent<'_>) -> fmt::Result {
+        let ast::ItemEvent { name, parameters, anonymous } = error;
+
+        write!(self.writer, "event {name}(")?;
+        self.print_comma_separated(parameters, |this, param| {
+            this.print_variable_definition(param)
+        })?;
+
+        if *anonymous {
+            self.writer.write_str(" anonymous")?;
+        }
+
+        self.writer.write_str(");")
+    }
+
     fn print_ty(&mut self, ty: &ast::Type<'_>) -> fmt::Result {
         let ast::Type { span: _, kind } = ty;
 
@@ -372,11 +639,11 @@ impl<W: Write> Printer<W> {
             ast::TypeKind::Array(ty) => {
                 let ast::TypeArray { size, element } = ty;
                 self.print_ty(element)?;
-                self.writer.write_str("[")?;
+                self.writer.write_char('[')?;
                 if let Some(size) = size {
                     self.print_expr(size)?;
                 }
-                self.writer.write_str("]")?;
+                self.writer.write_char(']')?;
             }
             ast::TypeKind::Function(ty) => {
                 let ast::TypeFunction { parameters, returns, visibility, state_mutability } = ty;
@@ -384,7 +651,7 @@ impl<W: Write> Printer<W> {
                 self.print_comma_separated(parameters, |this, param| {
                     this.print_variable_definition(param)
                 })?;
-                self.writer.write_str(")")?;
+                self.writer.write_char(')')?;
                 if let Some(visibility) = visibility {
                     write!(self.writer, " {visibility}")?;
                 }
@@ -394,7 +661,7 @@ impl<W: Write> Printer<W> {
                     self.print_comma_separated(returns, |this, ret| {
                         this.print_variable_definition(ret)
                     })?;
-                    self.writer.write_str(")")?;
+                    self.writer.write_char(')')?;
                 }
             }
             ast::TypeKind::Mapping(ty) => {
@@ -409,7 +676,7 @@ impl<W: Write> Printer<W> {
                 if let Some(value_name) = value_name {
                     write!(self.writer, " {value_name}")?;
                 }
-                self.writer.write_str(")")?;
+                self.writer.write_char(')')?;
             }
             ast::TypeKind::Custom(ty) => {
                 write!(self.writer, "{ty}")?;
@@ -464,265 +731,23 @@ impl<W: Write> Printer<W> {
         self.writer.write_char('}')
     }
 
-    fn print_expr(&mut self, expr: &ast::Expr<'_>) -> fmt::Result {
-        match &expr.kind {
-            ast::ExprKind::Array(exprs) => {
-                self.print_comma_separated(exprs, |this, expr| this.print_expr(expr))?;
-            }
-            ast::ExprKind::Assign(lhs, op, rhs) => {
-                self.print_expr(lhs)?;
-                self.writer.write_char(' ')?;
-                if let Some(op) = op {
-                    write!(self.writer, "{op}")?;
+    fn print_doc_comments(&mut self, items: &ast::DocComments<'_>) -> fmt::Result {
+        for item in items.iter() {
+            self.print_indent()?;
+            let ast::DocComment { span: _, kind, symbol } = item;
+            match kind {
+                ast::CommentKind::Line => {
+                    self.writer.write_str("// ")?;
+                    self.writer.write_str(symbol.as_str())?;
                 }
-                self.writer.write_str("= ")?;
-                self.print_expr(rhs)?;
-            }
-            ast::ExprKind::Binary(lhs, op, rhs) => {
-                self.print_expr(lhs)?;
-                write!(self.writer, " {op} ")?;
-                self.print_expr(rhs)?;
-            }
-            ast::ExprKind::Call(expr, args) => {
-                self.print_expr(expr)?;
-                self.print_call_args(args)?;
-            }
-            ast::ExprKind::Lit(lit, denom) => {
-                write!(self.writer, "{lit}")?;
-                if let Some(denom) = denom {
-                    write!(self.writer, " {denom}")?;
+                ast::CommentKind::Block => {
+                    self.writer.write_str("/* ")?;
+                    self.writer.write_str(symbol.as_str())?;
+                    self.writer.write_str(" */")?;
                 }
             }
-            ast::ExprKind::Ident(ident) => write!(self.writer, "{ident}")?,
-            ast::ExprKind::Member(item, member) => {
-                self.print_expr(item)?;
-                write!(self.writer, ".{member}")?;
-            }
-            ast::ExprKind::Type(ty) => self.print_ty(ty)?,
-            ast::ExprKind::Tuple(exprs) => {
-                self.writer.write_str("(")?;
-                self.print_comma_separated(exprs, |this, expr| {
-                    if let Some(expr) = expr {
-                        this.print_expr(expr)?;
-                    }
 
-                    Ok(())
-                })?;
-                self.writer.write_str(")")?;
-            }
-            ast::ExprKind::New(ty) => {
-                self.writer.write_str("new ")?;
-                self.print_ty(ty)?;
-            }
-            ast::ExprKind::Unary(op, expr) => {
-                if op.kind.is_prefix() {
-                    write!(self.writer, "{op}")?;
-                    self.print_expr(expr)?;
-                } else {
-                    self.print_expr(expr)?;
-                    write!(self.writer, "{op}")?;
-                }
-            }
-            ast::ExprKind::TypeCall(ty) => {
-                self.writer.write_str("type(")?;
-                self.print_ty(ty)?;
-                self.writer.write_char(')')?;
-            }
-            ast::ExprKind::Ternary(cond, first, second) => {
-                self.print_expr(cond)?;
-                self.writer.write_str(" ? ")?;
-                self.print_expr(first)?;
-                self.writer.write_str(" : ")?;
-                self.print_expr(second)?;
-            }
-            ast::ExprKind::Index(item, index) => {
-                self.print_expr(item)?;
-                self.writer.write_char('[')?;
-                match index {
-                    ast::IndexKind::Index(expr) => {
-                        if let Some(expr) = expr {
-                            self.print_expr(expr)?;
-                        }
-                    }
-                    ast::IndexKind::Range(start, end) => {
-                        if let Some(start) = start {
-                            self.print_expr(start)?;
-                        }
-                        self.writer.write_char(':')?;
-                        if let Some(end) = end {
-                            self.print_expr(end)?;
-                        }
-                    }
-                }
-                self.writer.write_char(']')?;
-            }
-            ast::ExprKind::Delete(expr) => {
-                self.writer.write_str("delete ")?;
-                self.print_expr(expr)?;
-            }
-            ast::ExprKind::CallOptions(item, opts) => {
-                self.print_expr(item)?;
-                self.print_named_args(opts)?;
-            }
-            ast::ExprKind::Payable(opts) => {
-                self.writer.write_str("payable")?;
-                self.print_call_args(opts)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn print_stmt(&mut self, stmt: &ast::Stmt<'_>) -> fmt::Result {
-        let ast::Stmt { docs, span: _, kind } = stmt;
-
-        match kind {
-            ast::StmtKind::Block(block) => {
-                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?
-            }
-            ast::StmtKind::Break => {
-                self.writer.write_str("break;")?;
-            }
-            ast::StmtKind::Continue => {
-                self.writer.write_str("continue;")?;
-            }
-            ast::StmtKind::DeclSingle(decl) => {
-                self.print_variable_definition(decl)?;
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::DeclMulti(vars, def) => {
-                self.writer.write_char('(')?;
-                self.print_comma_separated(vars, |this, var| {
-                    if let Some(var) = var {
-                        this.print_variable_definition(var)?;
-                    }
-
-                    Ok(())
-                })?;
-                self.writer.write_str(") = ")?;
-                self.print_expr(def)?;
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::Expr(expr) => {
-                self.print_expr(expr)?;
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::Return(expr) => {
-                self.writer.write_str("return")?;
-                if let Some(expr) = expr {
-                    self.writer.write_char(' ')?;
-                    self.print_expr(expr)?;
-                }
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::If(cond, body, else_) => {
-                self.writer.write_str("if (")?;
-                self.print_expr(cond)?;
-                self.writer.write_str(") ")?;
-                self.print_stmt(body)?;
-                if let Some(else_) = else_ {
-                    self.writer.write_str(" else ")?;
-                    self.print_stmt(else_)?;
-                }
-            }
-            ast::StmtKind::Emit(event, args) => {
-                write!(self.writer, "emit {event}")?;
-                self.print_call_args(args)?;
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::Revert(error, args) => {
-                write!(self.writer, "revert {error}")?;
-                self.print_call_args(args)?;
-                self.writer.write_char(';')?;
-            }
-            ast::StmtKind::Placeholder => {
-                self.writer.write_str("_;")?;
-            }
-            ast::StmtKind::Assembly(ast::StmtAssembly { dialect, flags, block }) => {
-                self.writer.write_str("assembly")?;
-                if let Some(dialect) = dialect {
-                    write!(self.writer, " \"{}\"", dialect.value.as_str())?;
-                }
-
-                if !flags.is_empty() {
-                    self.writer.write_str(" (")?;
-                    self.print_comma_separated(flags, |this, flag| {
-                        write!(this.writer, "\"{}\"", flag.value.as_str())
-                    })?;
-                    self.writer.write_str(")")?;
-                }
-
-                self.writer.write_str("{}")?;
-            }
-            ast::StmtKind::For { init, cond, next, body } => {
-                self.writer.write_str("for (")?;
-
-                if let Some(init) = init {
-                    self.print_stmt(init)?;
-                } else {
-                    self.writer.write_char(';')?;
-                }
-
-                if let Some(cond) = cond {
-                    self.writer.write_char(' ')?;
-                    self.print_expr(cond)?;
-                }
-
-                self.writer.write_char(';')?;
-
-                if let Some(next) = next {
-                    self.writer.write_char(' ')?;
-                    self.print_expr(next)?;
-                }
-
-                self.writer.write_str(") ")?;
-                self.print_stmt(body)?;
-            }
-            ast::StmtKind::While(cond, body) => {
-                self.writer.write_str("while (")?;
-                self.print_expr(cond)?;
-                self.writer.write_str(") ")?;
-                self.print_stmt(body)?;
-            }
-            ast::StmtKind::UncheckedBlock(block) => {
-                self.writer.write_str("unchecked ")?;
-                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
-            }
-            ast::StmtKind::DoWhile(body, cond) => {
-                self.writer.write_str("do ")?;
-                self.print_stmt(body)?;
-                self.writer.write_str(" while (")?;
-                self.print_expr(cond)?;
-                self.writer.write_str(");")?;
-            }
-            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
-                self.writer.write_str("try ")?;
-                self.print_expr(expr)?;
-                if !returns.is_empty() {
-                    self.writer.write_str(" returns (")?;
-                    self.print_comma_separated(returns, |this, ret| {
-                        this.print_variable_definition(ret)
-                    })?;
-                    self.writer.write_str(")")?;
-                }
-
-                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
-
-                for catch in catch.iter() {
-                    let ast::CatchClause { name, args, block } = catch;
-
-                    self.writer.write_str(" catch ")?;
-                    if let Some(name) = name {
-                        write!(self.writer, "{name}")?;
-                    }
-                    self.writer.write_char('(')?;
-                    self.print_comma_separated(args, |this, arg| {
-                        this.print_variable_definition(arg)
-                    })?;
-                    self.writer.write_str(") ")?;
-                    self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
-                }
-            }
+            self.writer.write_char('\n')?;
         }
         Ok(())
     }
