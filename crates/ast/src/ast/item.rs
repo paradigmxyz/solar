@@ -333,6 +333,15 @@ impl UserDefinableOperator {
     }
 }
 
+impl fmt::Display for UserDefinableOperator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.to_op() {
+            Either::Left(op) => f.write_str(op.to_str()),
+            Either::Right(op) => f.write_str(op.to_str()),
+        }
+    }
+}
+
 /// A contract, abstract contract, interface, or library definition:
 /// `contract Foo is Bar("foo"), Baz { ... }`.
 ///

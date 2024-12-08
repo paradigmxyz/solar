@@ -21,20 +21,34 @@ impl<W: Write> Printer<W> {
         write!(self.writer, "{}", "    ".repeat(self.indent))
     }
 
-    fn print_block(&mut self, f: impl FnOnce(&mut Self) -> fmt::Result) -> fmt::Result {
-        self.writer.write_str("{\n")?;
+    fn print_block_lines<I>(
+        &mut self,
+        items: &[I],
+        f: impl Fn(&mut Self, &I) -> fmt::Result,
+    ) -> fmt::Result {
+        if items.is_empty() {
+            return self.writer.write_str("{}");
+        }
+
+        self.writer.write_char('{')?;
         self.indent += 1;
-        f(self)?;
+        for item in items {
+            self.writer.write_char('\n')?;
+            self.print_indent()?;
+            f(self, item)?;
+        }
         self.indent -= 1;
+        self.writer.write_char('\n')?;
+        self.print_indent()?;
         self.writer.write_str("}")
     }
 
     fn print_comma_separated<I>(
         &mut self,
-        iter: &[I],
+        items: &[I],
         f: impl Fn(&mut Self, &I) -> fmt::Result,
     ) -> fmt::Result {
-        let mut iter = iter.iter();
+        let mut iter = items.iter();
         if let Some(first) = iter.next() {
             f(self, first)?;
             for item in iter {
@@ -49,28 +63,38 @@ impl<W: Write> Printer<W> {
     pub fn print_soure_unit(&mut self, source_unit: &ast::SourceUnit<'_>) -> fmt::Result {
         for item in source_unit.items.iter() {
             self.print_item(item)?;
+            self.writer.write_char('\n')?;
         }
 
         Ok(())
     }
 
     fn print_item(&mut self, item: &ast::Item<'_>) -> fmt::Result {
-        match &item.kind {
+        let ast::Item { docs, span: _, kind } = item;
+
+        match kind {
             ast::ItemKind::Pragma(item) => self.print_pragma_directive(item)?,
+            ast::ItemKind::Import(item) => self.print_import_directive(item)?,
+            ast::ItemKind::Using(item) => self.print_using_directive(item)?,
             ast::ItemKind::Contract(item) => self.print_item_contract(item)?,
             ast::ItemKind::Struct(item) => self.print_item_struct(item)?,
             ast::ItemKind::Variable(item) => {
                 self.print_variable_definition(item)?;
-                self.writer.write_str(";\n")?;
+                self.writer.write_char(';')?;
             }
             ast::ItemKind::Function(item) => self.print_item_function(item)?,
-            _ => todo!(),
+            ast::ItemKind::Error(item) => self.print_item_error(item)?,
+            ast::ItemKind::Event(item) => self.print_item_event(item)?,
+            ast::ItemKind::Enum(item) => self.print_item_enum(item)?,
+            ast::ItemKind::Udvt(item) => self.print_item_udvt(item)?,
         };
+
         Ok(())
     }
 
     fn print_pragma_directive(&mut self, pragma: &ast::PragmaDirective<'_>) -> fmt::Result {
         let ast::PragmaDirective { tokens } = pragma;
+
         self.writer.write_str("pragma ")?;
         match tokens {
             ast::PragmaTokens::Custom(name, value) => {
@@ -89,7 +113,81 @@ impl<W: Write> Printer<W> {
                 write!(self.writer, " {req}")?;
             }
         }
-        self.writer.write_str(";\n")?;
+        self.writer.write_str(";")?;
+        Ok(())
+    }
+
+    fn print_import_directive(&mut self, import: &ast::ImportDirective<'_>) -> fmt::Result {
+        let ast::ImportDirective { path, items } = import;
+
+        self.writer.write_str("import ")?;
+        match items {
+            ast::ImportItems::Plain(alias) => {
+                write!(self.writer, "\"{}\"", path.value)?;
+                if let Some(alias) = alias {
+                    write!(self.writer, " as {alias}")?;
+                }
+                self.writer.write_str(";")?;
+            }
+            ast::ImportItems::Aliases(items) => {
+                self.writer.write_str("{")?;
+                self.print_comma_separated(items, |this, (item, alias)| {
+                    write!(this.writer, "{item}")?;
+                    if let Some(alias) = alias {
+                        write!(this.writer, " as {alias}")?;
+                    }
+
+                    Ok(())
+                })?;
+                write!(self.writer, "}} from \"{}\";", path.value)?;
+            }
+            ast::ImportItems::Glob(alias) => {
+                self.writer.write_char('*')?;
+                if let Some(alias) = alias {
+                    write!(self.writer, " as {alias}")?;
+                }
+                write!(self.writer, " from \"{}\";", path.value)?;
+            }
+        };
+
+        Ok(())
+    }
+
+    fn print_using_directive(&mut self, using: &ast::UsingDirective<'_>) -> fmt::Result {
+        let ast::UsingDirective { list, ty, global } = using;
+
+        self.writer.write_str("using ")?;
+
+        match list {
+            ast::UsingList::Single(path) => write!(self.writer, "{path}")?,
+            ast::UsingList::Multiple(paths) => {
+                self.writer.write_char('{')?;
+                self.print_comma_separated(paths, |this, (path, op)| {
+                    write!(this.writer, "{path}")?;
+                    if let Some(op) = op {
+                        write!(this.writer, " as {op}")?;
+                    }
+
+                    Ok(())
+                })?;
+                self.writer.write_char('}')?;
+            }
+        };
+
+        self.writer.write_str(" for ")?;
+
+        if let Some(ty) = ty {
+            self.print_ty(ty)?;
+        } else {
+            self.writer.write_char('*')?;
+        }
+
+        if *global {
+            self.writer.write_str(" global")?;
+        }
+
+        self.writer.write_char(';')?;
+
         Ok(())
     }
 
@@ -104,28 +202,58 @@ impl<W: Write> Printer<W> {
             self.print_comma_separated(bases, |this, base| this.print_modifier(base))?;
         }
 
-        self.print_block(|this| {
-            for item in body.iter() {
-                this.print_indent()?;
-                this.print_item(item)?;
-            }
-            Ok(())
+        self.writer.write_char(' ')?;
+        self.print_block_lines(body, |this, item| this.print_item(item))
+    }
+
+    fn print_item_error(&mut self, error: &ast::ItemError<'_>) -> fmt::Result {
+        let ast::ItemError { name, parameters } = error;
+
+        write!(self.writer, "error {name}(")?;
+        self.print_comma_separated(parameters, |this, param| {
+            this.print_variable_definition(param)
         })?;
 
-        Ok(())
+        self.writer.write_str(");")
+    }
+
+    fn print_item_event(&mut self, error: &ast::ItemEvent<'_>) -> fmt::Result {
+        let ast::ItemEvent { name, parameters, anonymous } = error;
+
+        write!(self.writer, "event {name}(")?;
+        self.print_comma_separated(parameters, |this, param| {
+            this.print_variable_definition(param)
+        })?;
+
+        if *anonymous {
+            self.writer.write_str(" anonymous")?;
+        }
+
+        self.writer.write_str(");")
+    }
+
+    fn print_item_enum(&mut self, enum_: &ast::ItemEnum<'_>) -> fmt::Result {
+        let ast::ItemEnum { name, variants } = enum_;
+
+        write!(self.writer, "enum {name} ")?;
+        self.print_block_lines(variants, |this, variant| write!(this.writer, "{variant},"))
+    }
+
+    fn print_item_udvt(&mut self, udvt: &ast::ItemUdvt<'_>) -> fmt::Result {
+        let ast::ItemUdvt { name, ty } = udvt;
+
+        write!(self.writer, "type {name} is ")?;
+        self.print_ty(ty)?;
+        self.writer.write_char(';')
     }
 
     fn print_item_struct(&mut self, struct_: &ast::ItemStruct<'_>) -> fmt::Result {
         let ast::ItemStruct { name, fields } = struct_;
-        write!(self.writer, "struct {name}")?;
 
-        self.print_block(|this| {
-            for field in fields.iter() {
-                this.print_indent()?;
-                this.print_variable_definition(field)?;
-                this.writer.write_str(";\n")?;
-            }
-            Ok(())
+        write!(self.writer, "struct {name} ")?;
+        self.print_block_lines(fields, |this, field| {
+            this.print_variable_definition(field)?;
+            this.writer.write_char(';')
         })
     }
 
@@ -157,7 +285,10 @@ impl<W: Write> Printer<W> {
             write!(self.writer, " {visibility}")?;
         }
 
-        write!(self.writer, " {state_mutability}")?;
+        // Skip writing default state mutability.
+        if !state_mutability.is_non_payable() {
+            write!(self.writer, " {state_mutability}")?;
+        }
 
         for modifier in modifiers.iter() {
             self.writer.write_char(' ')?;
@@ -169,6 +300,7 @@ impl<W: Write> Printer<W> {
         }
 
         if let Some(override_) = override_ {
+            self.writer.write_char(' ')?;
             self.print_override(override_)?;
         }
 
@@ -179,13 +311,8 @@ impl<W: Write> Printer<W> {
         }
 
         if let Some(body) = body {
-            self.print_block(|this| {
-                for stmt in body.iter() {
-                    this.print_stmt(stmt)?;
-                }
-
-                Ok(())
-            })?;
+            self.writer.write_char(' ')?;
+            self.print_block_lines(body, |this, stmt| this.print_stmt(stmt))?;
         } else {
             self.writer.write_char(';')?;
         }
@@ -218,6 +345,7 @@ impl<W: Write> Printer<W> {
             write!(self.writer, " {data_location}")?;
         }
         if let Some(override_) = override_ {
+            self.writer.write_char(' ')?;
             self.print_override(override_)?;
         }
         if *indexed {
@@ -238,6 +366,7 @@ impl<W: Write> Printer<W> {
 
     fn print_ty(&mut self, ty: &ast::Type<'_>) -> fmt::Result {
         let ast::Type { span: _, kind } = ty;
+
         match &kind {
             ast::TypeKind::Elementary(ty) => ty.write_abi_str(&mut self.writer)?,
             ast::TypeKind::Array(ty) => {
@@ -292,15 +421,26 @@ impl<W: Write> Printer<W> {
 
     fn print_override(&mut self, override_: &ast::Override<'_>) -> fmt::Result {
         let ast::Override { paths, span: _ } = override_;
-        self.writer.write_str("override(")?;
-        self.print_comma_separated(paths, |this, path| write!(this.writer, "{path}"))?;
-        self.writer.write_str(")")
+
+        self.writer.write_str("override")?;
+        if !paths.is_empty() {
+            self.writer.write_char('(')?;
+            self.print_comma_separated(paths, |this, path| write!(this.writer, "{path}"))?;
+            self.writer.write_char(')')?;
+        }
+
+        Ok(())
     }
 
     fn print_modifier(&mut self, modifier: &ast::Modifier<'_>) -> fmt::Result {
         let ast::Modifier { name, arguments } = modifier;
+
         write!(self.writer, "{name}")?;
-        self.print_call_args(arguments)
+        if !arguments.is_empty() {
+            self.print_call_args(arguments)?;
+        }
+
+        Ok(())
     }
 
     fn print_call_args(&mut self, args: &ast::CallArgs<'_>) -> fmt::Result {
@@ -309,17 +449,19 @@ impl<W: Write> Printer<W> {
             ast::CallArgs::Unnamed(args) => {
                 self.print_comma_separated(args, |this, expr| this.print_expr(expr))?;
             }
-            ast::CallArgs::Named(args) => {
-                self.writer.write_str("{{")?;
-                self.print_comma_separated(args, |this, arg| {
-                    let ast::NamedArg { name, value } = arg;
-                    write!(this.writer, "{name}: ")?;
-                    this.print_expr(value)
-                })?;
-                self.writer.write_str("}}")?;
-            }
+            ast::CallArgs::Named(args) => self.print_named_args(args)?,
         }
         self.writer.write_char(')')
+    }
+
+    fn print_named_args(&mut self, args: &ast::NamedArgList<'_>) -> fmt::Result {
+        self.writer.write_char('{')?;
+        self.print_comma_separated(args, |this, arg| {
+            let ast::NamedArg { name, value } = arg;
+            write!(this.writer, "{name}: ")?;
+            this.print_expr(value)
+        })?;
+        self.writer.write_char('}')
     }
 
     fn print_expr(&mut self, expr: &ast::Expr<'_>) -> fmt::Result {
@@ -345,31 +487,242 @@ impl<W: Write> Printer<W> {
                 self.print_expr(expr)?;
                 self.print_call_args(args)?;
             }
-            _ => todo!(),
+            ast::ExprKind::Lit(lit, denom) => {
+                write!(self.writer, "{lit}")?;
+                if let Some(denom) = denom {
+                    write!(self.writer, " {denom}")?;
+                }
+            }
+            ast::ExprKind::Ident(ident) => write!(self.writer, "{ident}")?,
+            ast::ExprKind::Member(item, member) => {
+                self.print_expr(item)?;
+                write!(self.writer, ".{member}")?;
+            }
+            ast::ExprKind::Type(ty) => self.print_ty(ty)?,
+            ast::ExprKind::Tuple(exprs) => {
+                self.writer.write_str("(")?;
+                self.print_comma_separated(exprs, |this, expr| {
+                    if let Some(expr) = expr {
+                        this.print_expr(expr)?;
+                    }
+
+                    Ok(())
+                })?;
+                self.writer.write_str(")")?;
+            }
+            ast::ExprKind::New(ty) => {
+                self.writer.write_str("new ")?;
+                self.print_ty(ty)?;
+            }
+            ast::ExprKind::Unary(op, expr) => {
+                if op.kind.is_prefix() {
+                    write!(self.writer, "{op}")?;
+                    self.print_expr(expr)?;
+                } else {
+                    self.print_expr(expr)?;
+                    write!(self.writer, "{op}")?;
+                }
+            }
+            ast::ExprKind::TypeCall(ty) => {
+                self.writer.write_str("type(")?;
+                self.print_ty(ty)?;
+                self.writer.write_char(')')?;
+            }
+            ast::ExprKind::Ternary(cond, first, second) => {
+                self.print_expr(cond)?;
+                self.writer.write_str(" ? ")?;
+                self.print_expr(first)?;
+                self.writer.write_str(" : ")?;
+                self.print_expr(second)?;
+            }
+            ast::ExprKind::Index(item, index) => {
+                self.print_expr(item)?;
+                self.writer.write_char('[')?;
+                match index {
+                    ast::IndexKind::Index(expr) => {
+                        if let Some(expr) = expr {
+                            self.print_expr(expr)?;
+                        }
+                    }
+                    ast::IndexKind::Range(start, end) => {
+                        if let Some(start) = start {
+                            self.print_expr(start)?;
+                        }
+                        self.writer.write_char(':')?;
+                        if let Some(end) = end {
+                            self.print_expr(end)?;
+                        }
+                    }
+                }
+                self.writer.write_char(']')?;
+            }
+            ast::ExprKind::Delete(expr) => {
+                self.writer.write_str("delete ")?;
+                self.print_expr(expr)?;
+            }
+            ast::ExprKind::CallOptions(item, opts) => {
+                self.print_expr(item)?;
+                self.print_named_args(opts)?;
+            }
+            ast::ExprKind::Payable(opts) => {
+                self.writer.write_str("payable")?;
+                self.print_call_args(opts)?;
+            }
         }
 
         Ok(())
     }
 
     fn print_stmt(&mut self, stmt: &ast::Stmt<'_>) -> fmt::Result {
-        let ast::Stmt { docs, span, kind } = stmt;
+        let ast::Stmt { docs, span: _, kind } = stmt;
+
         match kind {
             ast::StmtKind::Block(block) => {
-                self.writer.write_str("{\n")?;
-                for stmt in block.iter() {
-                    self.print_indent()?;
-                    self.print_stmt(stmt)?;
-                    self.writer.write_str(";\n")?;
-                }
-                self.writer.write_str("}\n")?;
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?
             }
             ast::StmtKind::Break => {
-                self.writer.write_str("break;\n")?;
+                self.writer.write_str("break;")?;
             }
             ast::StmtKind::Continue => {
-                self.writer.write_str("continue;\n")?;
+                self.writer.write_str("continue;")?;
             }
-            _ => todo!()
+            ast::StmtKind::DeclSingle(decl) => {
+                self.print_variable_definition(decl)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::DeclMulti(vars, def) => {
+                self.writer.write_char('(')?;
+                self.print_comma_separated(vars, |this, var| {
+                    if let Some(var) = var {
+                        this.print_variable_definition(var)?;
+                    }
+
+                    Ok(())
+                })?;
+                self.writer.write_str(") = ")?;
+                self.print_expr(def)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Expr(expr) => {
+                self.print_expr(expr)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Return(expr) => {
+                self.writer.write_str("return")?;
+                if let Some(expr) = expr {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(expr)?;
+                }
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::If(cond, body, else_) => {
+                self.writer.write_str("if (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+                if let Some(else_) = else_ {
+                    self.writer.write_str(" else ")?;
+                    self.print_stmt(else_)?;
+                }
+            }
+            ast::StmtKind::Emit(event, args) => {
+                write!(self.writer, "emit {event}")?;
+                self.print_call_args(args)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Revert(error, args) => {
+                write!(self.writer, "revert {error}")?;
+                self.print_call_args(args)?;
+                self.writer.write_char(';')?;
+            }
+            ast::StmtKind::Placeholder => {
+                self.writer.write_str("_;")?;
+            }
+            ast::StmtKind::Assembly(ast::StmtAssembly { dialect, flags, block }) => {
+                self.writer.write_str("assembly")?;
+                if let Some(dialect) = dialect {
+                    write!(self.writer, " \"{}\"", dialect.value.as_str())?;
+                }
+
+                if !flags.is_empty() {
+                    self.writer.write_str(" (")?;
+                    self.print_comma_separated(flags, |this, flag| {
+                        write!(this.writer, "\"{}\"", flag.value.as_str())
+                    })?;
+                    self.writer.write_str(")")?;
+                }
+
+                self.writer.write_str("{}")?;
+            }
+            ast::StmtKind::For { init, cond, next, body } => {
+                self.writer.write_str("for (")?;
+
+                if let Some(init) = init {
+                    self.print_stmt(init)?;
+                } else {
+                    self.writer.write_char(';')?;
+                }
+
+                if let Some(cond) = cond {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(cond)?;
+                }
+
+                self.writer.write_char(';')?;
+
+                if let Some(next) = next {
+                    self.writer.write_char(' ')?;
+                    self.print_expr(next)?;
+                }
+
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+            }
+            ast::StmtKind::While(cond, body) => {
+                self.writer.write_str("while (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(") ")?;
+                self.print_stmt(body)?;
+            }
+            ast::StmtKind::UncheckedBlock(block) => {
+                self.writer.write_str("unchecked ")?;
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+            }
+            ast::StmtKind::DoWhile(body, cond) => {
+                self.writer.write_str("do ")?;
+                self.print_stmt(body)?;
+                self.writer.write_str(" while (")?;
+                self.print_expr(cond)?;
+                self.writer.write_str(");")?;
+            }
+            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+                self.writer.write_str("try ")?;
+                self.print_expr(expr)?;
+                if !returns.is_empty() {
+                    self.writer.write_str(" returns (")?;
+                    self.print_comma_separated(returns, |this, ret| {
+                        this.print_variable_definition(ret)
+                    })?;
+                    self.writer.write_str(")")?;
+                }
+
+                self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+
+                for catch in catch.iter() {
+                    let ast::CatchClause { name, args, block } = catch;
+
+                    self.writer.write_str(" catch ")?;
+                    if let Some(name) = name {
+                        write!(self.writer, "{name}")?;
+                    }
+                    self.writer.write_char('(')?;
+                    self.print_comma_separated(args, |this, arg| {
+                        this.print_variable_definition(arg)
+                    })?;
+                    self.writer.write_str(") ")?;
+                    self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
+                }
+            }
         }
         Ok(())
     }
