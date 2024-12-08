@@ -172,7 +172,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
                 let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
-                let r = self.walk_block(block);
+                let r = self.visit_block(block);
                 self.in_unchecked_block = prev;
                 return r;
             }

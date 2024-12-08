@@ -26,5 +26,12 @@ LL | ...   do uint256 x = 4; while (true);
    |          ^^^^^^^^^^^^^
    |
 
-error: aborting due to 4 previous errors
+error: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
+  --> ROOT/tests/ui/typeck/var_decl_as_loop_body.sol:LL:CC
+   |
+LL | ...   for (uint256 i = 0; i < 10; ++i) uint256 y = 0;
+   |                                        ^^^^^^^^^^^^^
+   |
+
+error: aborting due to 5 previous errors
 

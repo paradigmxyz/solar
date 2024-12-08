@@ -17,5 +17,13 @@ contract C {
         while (true) uint256 x = 4; //~ ERROR: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
 
         do uint256 x = 4; while (true); //~ ERROR: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
+
+        unchecked {
+            {
+                {
+                    for (uint256 i = 0; i < 10; ++i) uint256 y = 0; //~ ERROR: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
+                }
+            }
+        }
     }
 }
