@@ -10,9 +10,6 @@ function funky() {
     for (; i < 40; i++) continue;
     for (; i++ < 50;) continue;
 
-    // ---
-    // TODO: `Error: Variable declarations can only be used inside blocks.`
-
     while (a == 0) uint a = 0; //~ ERROR: unresolved symbol
     a; //~ ERROR: unresolved symbol
     while (b == 0) { uint b = 0; } //~ ERROR: unresolved symbol

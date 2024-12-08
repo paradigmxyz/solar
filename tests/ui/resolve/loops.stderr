@@ -1,93 +1,23 @@
-error: unresolved symbol `a`
+error: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     while (a == 0) {
-   |            ^
+LL |     while (a == 0) uint a = 0;
+   |                    ^^^^^^^^^^
    |
 
-error: unresolved symbol `a`
+error: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     a;
-   |     ^
+LL |     do uint c; while (c == 0);
+   |        ^^^^^^
    |
 
-error: unresolved symbol `b`
+error: variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     while (b == 0) {
-   |            ^
+LL |     for (; false; e++) uint e;
+   |                        ^^^^^^
    |
 
-error: unresolved symbol `b`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     b;
-   |     ^
-   |
-
-error: unresolved symbol `c`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     do { uint c; } while (c == 0);
-   |                           ^
-   |
-
-error: unresolved symbol `c`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     c;
-   |     ^
-   |
-
-error: unresolved symbol `d`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     } while (d == 0);
-   |              ^
-   |
-
-error: unresolved symbol `d`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     d;
-   |     ^
-   |
-
-error: unresolved symbol `e`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     for (; false; e++) { uint e; }
-   |                   ^
-   |
-
-error: unresolved symbol `e`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     e;
-   |     ^
-   |
-
-error: unresolved symbol `f`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     for (; false; f++) {
-   |                   ^
-   |
-
-error: unresolved symbol `f`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     }     f;
-   |           ^
-   |
-
-error: unresolved symbol `g`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     g;
-   |     ^
-   |
-
-error: aborting due to 13 previous errors
+error: aborting due to 3 previous errors
 
