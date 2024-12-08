@@ -165,7 +165,7 @@ impl<W: Write> Printer<W> {
                 self.print_comma_separated(paths, |this, (path, op)| {
                     write!(this.writer, "{path}")?;
                     if let Some(op) = op {
-                        write!(this.writer, " as {op}")?;
+                        write!(this.writer, " as {}", op.to_str())?;
                     }
 
                     Ok(())

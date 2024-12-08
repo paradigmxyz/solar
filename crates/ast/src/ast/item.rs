@@ -331,14 +331,10 @@ impl UserDefinableOperator {
             Self::Ne => Either::Right(BinOpKind::Ne),
         }
     }
-}
 
-impl fmt::Display for UserDefinableOperator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.to_op() {
-            Either::Left(op) => f.write_str(op.to_str()),
-            Either::Right(op) => f.write_str(op.to_str()),
-        }
+    /// Returns the string representation of the operator.
+    pub const fn to_str(&self) -> &'static str {
+        either::for_both!(self.to_op(), op => op.to_str())
     }
 }
 
