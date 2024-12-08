@@ -178,6 +178,7 @@ impl<W: Write> Printer<W> {
                     self.writer.write_char(')')?;
                 }
 
+                self.writer.write_char(' ')?;
                 self.print_block_lines(block, |this, stmt| this.print_stmt(stmt))?;
 
                 for catch in catch.iter() {
@@ -421,10 +422,6 @@ impl<W: Write> Printer<W> {
         items: &[I],
         f: impl Fn(&mut Self, &I) -> fmt::Result,
     ) -> fmt::Result {
-        if items.is_empty() {
-            return self.writer.write_str("{}");
-        }
-
         self.writer.write_char('{')?;
         self.indent += 1;
         for item in items {
