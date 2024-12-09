@@ -287,8 +287,9 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     ) -> ControlFlow<Self::BreakValue> {
         if self.in_loop() && self.x_depth == 1 {
             self.dcx()
-                .err("variable declaration statements are not allowed as the body of a loop (for, while, do while), meaning they must be inside of a block")
+                .err("variable declarations are not allowed as the body of a loop")
                 .span(var.span)
+                .help("wrap the statement in a block (`{ ... }`)")
                 .emit();
         }
         self.walk_variable_definition(var)
