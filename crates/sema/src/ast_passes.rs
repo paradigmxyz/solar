@@ -5,6 +5,8 @@ use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
 
+mod utils;
+
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
     validate(sess, ast);
@@ -129,6 +131,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.x_depth = 1;
                 self.in_loop_depth += 1;
                 let r = self.visit_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
                 return r;
             }
@@ -136,6 +139,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.x_depth = 1;
                 self.in_loop_depth += 1;
                 let r = self.walk_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
                 return r;
             }
@@ -153,6 +157,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.in_loop_depth += 1;
                 self.x_depth = 1;
                 let r = self.visit_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
                 return r;
             }
@@ -286,11 +291,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         var: &'ast solar_ast::VariableDefinition<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         if self.in_loop() && self.x_depth == 1 {
-            self.dcx()
-                .err("variable declarations are not allowed as the body of a loop")
-                .span(var.span)
-                .help("wrap the statement in a block (`{ ... }`)")
-                .emit();
+            //self.dcx()
+            //    .err("variable declarations are not allowed as the body of a loop")
+            //    .span(var.span)
+            //    .help("wrap the statement in a block (`{ ... }`)")
+            //    .emit();
         }
         self.walk_variable_definition(var)
     }
