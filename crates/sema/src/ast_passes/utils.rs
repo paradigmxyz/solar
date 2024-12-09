@@ -22,7 +22,7 @@ impl<'ast, 'sess> VariableDeclarationAsLoopBodyChecker<'ast, 'sess> {
     }
 }
 
-impl<'ast, 'sess> Visit<'ast> for VariableDeclarationAsLoopBodyChecker<'ast, 'sess> {
+impl<'ast> Visit<'ast> for VariableDeclarationAsLoopBodyChecker<'ast, '_> {
     type BreakValue = Never;
 
     fn visit_block(
@@ -60,9 +60,9 @@ impl<'ast, 'sess> Visit<'ast> for VariableDeclarationAsLoopBodyChecker<'ast, 'se
     }
 }
 
-pub(crate) fn check_if_loop_body_is_a_variable_declaration<'ast, 'sess>(
+pub(crate) fn check_if_loop_body_is_a_variable_declaration<'ast>(
     body: &'ast &'ast mut Stmt<'ast>,
-    dcx: &'sess DiagCtxt,
+    dcx: &DiagCtxt,
 ) {
     // Check and emit
     let mut checker = VariableDeclarationAsLoopBodyChecker::new(body, dcx);
