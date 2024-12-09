@@ -5,6 +5,8 @@ use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
 
+mod utils;
+
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
     validate(sess, ast);
@@ -121,11 +123,34 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         match &stmt.kind {
-            ast::StmtKind::While(_, body, ..)
-            | ast::StmtKind::DoWhile(body, ..)
-            | ast::StmtKind::For { body, .. } => {
+            ast::StmtKind::While(cond, body) => {
+                self.visit_expr(cond)?;
+                self.in_loop_depth += 1;
+                let r = self.visit_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
+                self.in_loop_depth -= 1;
+                return r;
+            }
+            ast::StmtKind::DoWhile(body, ..) => {
                 self.in_loop_depth += 1;
                 let r = self.walk_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
+                self.in_loop_depth -= 1;
+                return r;
+            }
+            ast::StmtKind::For { init, cond, next, body } => {
+                if let Some(init) = init {
+                    self.visit_stmt(init)?;
+                }
+                if let Some(cond) = cond {
+                    self.visit_expr(cond)?;
+                }
+                if let Some(next) = next {
+                    self.visit_expr(next)?;
+                }
+                self.in_loop_depth += 1;
+                let r = self.visit_stmt(body);
+                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
                 return r;
             }
@@ -147,7 +172,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
                 let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
-                let r = self.walk_block(block);
+                let r = self.visit_block(block);
                 self.in_unchecked_block = prev;
                 return r;
             }
@@ -244,14 +269,5 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
         self.walk_using_directive(using)
-    }
-
-    // Intentionally override unused default implementations to reduce bloat.
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
-    }
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
     }
 }
