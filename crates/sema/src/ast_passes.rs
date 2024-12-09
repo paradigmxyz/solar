@@ -27,7 +27,6 @@ struct AstValidator<'sess, 'ast> {
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
     in_loop_depth: u64,
-    x_depth: u64, // How far away are you from the nearest loop
     placeholder_count: u64,
 }
 
@@ -40,7 +39,6 @@ impl<'sess> AstValidator<'sess, '_> {
             function_kind: None,
             in_unchecked_block: false,
             in_loop_depth: 0,
-            x_depth: 0,
             placeholder_count: 0,
         }
     }
@@ -126,9 +124,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         match &stmt.kind {
             ast::StmtKind::While(cond, body) => {
-                self.x_depth = 0;
                 self.visit_expr(cond)?;
-                self.x_depth = 1;
                 self.in_loop_depth += 1;
                 let r = self.visit_stmt(body);
                 utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
@@ -136,7 +132,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 return r;
             }
             ast::StmtKind::DoWhile(body, ..) => {
-                self.x_depth = 1;
                 self.in_loop_depth += 1;
                 let r = self.walk_stmt(body);
                 utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
@@ -145,7 +140,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             ast::StmtKind::For { init, cond, next, body } => {
                 if let Some(init) = init {
-                    self.x_depth = 0;
                     self.visit_stmt(init)?;
                 }
                 if let Some(cond) = cond {
@@ -155,7 +149,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.visit_expr(next)?;
                 }
                 self.in_loop_depth += 1;
-                self.x_depth = 1;
                 let r = self.visit_stmt(body);
                 utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
@@ -276,27 +269,5 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
         self.walk_using_directive(using)
-    }
-
-    fn visit_block(
-        &mut self,
-        block: &'ast solar_ast::Block<'ast>,
-    ) -> ControlFlow<Self::BreakValue> {
-        self.x_depth += 1;
-        self.walk_block(block)
-    }
-
-    fn visit_variable_definition(
-        &mut self,
-        var: &'ast solar_ast::VariableDefinition<'ast>,
-    ) -> ControlFlow<Self::BreakValue> {
-        if self.in_loop() && self.x_depth == 1 {
-            //self.dcx()
-            //    .err("variable declarations are not allowed as the body of a loop")
-            //    .span(var.span)
-            //    .help("wrap the statement in a block (`{ ... }`)")
-            //    .emit();
-        }
-        self.walk_variable_definition(var)
     }
 }
