@@ -14,21 +14,5 @@ LL |     function f2(uint256 transient, bool) {
    |
    = help: do you intend to add public?
 
-error: no visibility specified
-  --> ROOT/tests/ui/parser/transient.sol:LL:CC
-   |
-LL |     function g(uint256 transient transient) {
-   |              ^
-   |
-   = help: do you intend to add public?
-
-error: no visibility specified
-  --> ROOT/tests/ui/parser/transient.sol:LL:CC
-   |
-LL |     function g2(uint256[] transient transient) {
-   |              ^^
-   |
-   = help: do you intend to add public?
-
-error: aborting due to 4 previous errors
+error: aborting due to 2 previous errors
 

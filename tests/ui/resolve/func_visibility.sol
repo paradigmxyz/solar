@@ -1,5 +1,8 @@
 contract U1 {
     function c() {} //~ERROR: no visibility specified
+
+    function d() public {}
+    function e() external {}
 }
 
 interface U2 {
