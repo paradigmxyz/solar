@@ -208,7 +208,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx()
                         .err("no visibility specified")
                         .span(self.span)
-                        .help(format!("do you intend to add {suggested_visibility}?"))
+                        .help(format!("add `{suggested_visibility}` to the declaration"))
                         .emit();
                 }
             }
