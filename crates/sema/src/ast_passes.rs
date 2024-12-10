@@ -196,6 +196,29 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
 
+        if func.header.visibility.is_none() {
+            if let Some(contract) = self.contract {
+                if let Some(func_name) = func.header.name {
+                    if func.kind.is_function() {
+                        let suggested_visibility =
+                            if contract.kind.is_interface() { "external" } else { "public" };
+                        self.dcx()
+                            .err("no visibility specified")
+                            .span(func_name.span)
+                            .help(format!("do you intend to add {suggested_visibility}?"))
+                            .emit();
+                    }
+                } else if func.kind.is_fallback() || func.kind.is_receive() {
+                    let function_name = func.kind.to_str().to_lowercase();
+                    self.dcx()
+                        .err(format!("no visibility specified for {function_name}"))
+                        .span(contract.name.span)
+                        .help("do you intend to add external?")
+                        .emit();
+                }
+            }
+        }
+
         let current_placeholder_count = self.placeholder_count;
         let r = self.walk_item_function(func);
         self.function_kind = None;

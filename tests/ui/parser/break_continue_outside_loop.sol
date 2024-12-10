@@ -63,7 +63,7 @@ function f() {
 }
 
 contract C {
-    function f() {
+    function f() external {
         break; //~ ERROR: `break` outside of a loop
         continue; //~ ERROR: `continue` outside of a loop
 
