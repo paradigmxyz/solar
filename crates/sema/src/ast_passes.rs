@@ -1,6 +1,6 @@
 //! AST-related passes.
 
-use solar_ast::{self as ast, visit::Visit, Stmt, StmtKind};
+use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
@@ -51,8 +51,8 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         self.in_loop_depth != 0
     }
 
-    fn check_single_statement_variable_declaration(&self, stmt: &'ast &'ast mut Stmt<'ast>) {
-        if matches!(stmt.kind, StmtKind::DeclSingle(..) | StmtKind::DeclMulti(..)) {
+    fn check_single_statement_variable_declaration(&self, stmt: &'ast &'ast mut ast::Stmt<'ast>) {
+        if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
             self.dcx()
                 .err("variable declarations are not allowed as the body of a loop")
                 .span(stmt.span)
@@ -134,17 +134,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             ast::StmtKind::While(cond, body) => {
                 self.visit_expr(cond)?;
                 self.in_loop_depth += 1;
-                let r = self.visit_stmt(body);
+                self.visit_stmt(body);
                 self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
-                return r;
+                return ControlFlow::Continue(());
             }
             ast::StmtKind::DoWhile(body, ..) => {
                 self.in_loop_depth += 1;
-                let r = self.visit_stmt(body);
+                self.visit_stmt(body)?;
                 self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
-                return r;
+                return ControlFlow::Continue(());
             }
             ast::StmtKind::For { init, cond, next, body } => {
                 if let Some(init) = init {
@@ -157,10 +157,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.visit_expr(next)?;
                 }
                 self.in_loop_depth += 1;
-                let r = self.visit_stmt(body);
+                self.visit_stmt(body)?;
                 self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
-                return r;
+                return ControlFlow::Continue(());
+            }
+            ast::StmtKind::If(cond, then, else_) => {
+                self.visit_expr(cond)?;
+                self.visit_stmt(then)?;
+                self.check_single_statement_variable_declaration(then);
+                if let Some(else_) = else_ {
+                    self.visit_stmt(else_)?;
+                    self.check_single_statement_variable_declaration(then);
+                }
+                return ControlFlow::Continue(());
             }
             ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
