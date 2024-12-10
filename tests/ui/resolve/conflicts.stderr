@@ -1,16 +1,18 @@
-error: No visibility specified. Did you intend to add public?
+error: no visibility specified
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     function f2(uint) pure {}
    |              ^^
    |
+   = help: do you intend to add public?
 
-error: No visibility specified. Did you intend to add public?
+error: no visibility specified
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     function f2(int) pure {}
    |              ^^
    |
+   = help: do you intend to add public?
 
 error: aborting due to 2 previous errors
 

@@ -189,31 +189,29 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                             .span(func_name.span)
                             .emit();
                     }
-                    if func.header.visibility.is_none() {
-                        let suggested_visibility =
-                            if contract.kind.is_interface() { "external" } else { "public" };
-                        let error_stmt = format!(
-                            "No visibility specified. Did you intend to add {suggested_visibility}?",
-                        );
-                        self.dcx().err(error_stmt).span(func_name.span).emit();
-                    }
                 }
             }
         }
 
-        if func.kind.is_fallback() || func.kind.is_receive() {
+        if func.header.visibility.is_none() {
             if let Some(contract) = self.contract {
-                if let Some(func_type_name) = if func.kind.is_fallback() {
-                    Some("fallback")
-                } else if func.kind.is_receive() {
-                    Some("receive")
-                } else {
-                    None
-                } {
-                    let error_stmt = format!(
-                        "No visibility specified for {func_type_name}. Did you intend to add external?",
-                    );
-                    self.dcx().err(error_stmt).span(contract.name.span).emit();
+                if let Some(func_name) = func.header.name {
+                    if func.kind.is_function() {
+                        let suggested_visibility =
+                            if contract.kind.is_interface() { "external" } else { "public" };
+                        self.dcx()
+                            .err("no visibility specified")
+                            .span(func_name.span)
+                            .help(format!("do you intend to add {suggested_visibility}?"))
+                            .emit();
+                    }
+                } else if func.kind.is_fallback() || func.kind.is_receive() {
+                    let function_name = func.kind.to_str().to_lowercase();
+                    self.dcx()
+                        .err(format!("no visibility specified for {function_name}"))
+                        .span(contract.name.span)
+                        .help("do you intend to add external?")
+                        .emit();
                 }
             }
         }

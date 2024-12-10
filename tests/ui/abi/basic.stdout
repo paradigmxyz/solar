@@ -1,0 +1,894 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/abi/basic.sol:C": {
+      "abi": [
+        {
+          "type": "constructor",
+          "inputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "error",
+          "name": "Er",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            }
+          ]
+        },
+        {
+          "type": "event",
+          "name": "Ev",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "b",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "indexed": false,
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "indexed": false,
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "u2",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "C.UDVT"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f1",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f2",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f3",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "f4",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "f5",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "payable"
+        },
+        {
+          "type": "function",
+          "name": "f6",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f7",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f8",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "a1",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c1",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x1",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u1",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s_",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s1",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "receive",
+          "stateMutability": "payable"
+        }
+      ],
+      "hashes": {
+        "f1()": "c27fc305",
+        "f2()": "9942ec6f",
+        "f3()": "aaf05f3d",
+        "f4()": "c3f90202",
+        "f5()": "3c9d377d",
+        "f6()": "7c396b83",
+        "f7(uint256,bool[],string[3],uint256,(uint256,string[],bool[2]),(uint256,string[],bool[2])[][69][])": "b339d703",
+        "f8(uint256,bool[],string[3],uint256,(uint256,string[],bool[2]),(uint256,string[],bool[2])[][69][])": "28a869f7"
+      }
+    },
+    "ROOT/tests/ui/abi/basic.sol:D": {
+      "abi": [
+        {
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "payable"
+        },
+        {
+          "type": "error",
+          "name": "Er",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            }
+          ]
+        },
+        {
+          "type": "event",
+          "name": "Ev",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "uint256"
+            },
+            {
+              "name": "b",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "indexed": false,
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string",
+              "indexed": false,
+              "internalType": "string"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "indexed": false,
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "u2",
+              "type": "uint256",
+              "indexed": true,
+              "internalType": "C.UDVT"
+            }
+          ],
+          "anonymous": false
+        },
+        {
+          "type": "fallback",
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f1",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f2",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f3",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "view"
+        },
+        {
+          "type": "function",
+          "name": "f4",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "pure"
+        },
+        {
+          "type": "function",
+          "name": "f5",
+          "inputs": [],
+          "outputs": [],
+          "stateMutability": "payable"
+        },
+        {
+          "type": "function",
+          "name": "f6",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f7",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "outputs": [],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "f8",
+          "inputs": [
+            {
+              "name": "a",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            {
+              "name": "a1",
+              "type": "uint256",
+              "internalType": "uint256"
+            },
+            {
+              "name": "c1",
+              "type": "bool[]",
+              "internalType": "bool[]"
+            },
+            {
+              "name": "x1",
+              "type": "string[3]",
+              "internalType": "string[3]"
+            },
+            {
+              "name": "u1",
+              "type": "uint256",
+              "internalType": "C.UDVT"
+            },
+            {
+              "name": "$s_",
+              "type": "tuple",
+              "internalType": "struct S1",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            },
+            {
+              "name": "s1",
+              "type": "tuple[][69][]",
+              "internalType": "struct C.S2[][69][]",
+              "components": [
+                {
+                  "name": "x",
+                  "type": "uint256",
+                  "internalType": "uint256"
+                },
+                {
+                  "name": "y",
+                  "type": "string[]",
+                  "internalType": "string[]"
+                },
+                {
+                  "name": "z",
+                  "type": "bool[2]",
+                  "internalType": "bool[2]"
+                }
+              ]
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "receive",
+          "stateMutability": "payable"
+        }
+      ],
+      "hashes": {
+        "f1()": "c27fc305",
+        "f2()": "9942ec6f",
+        "f3()": "aaf05f3d",
+        "f4()": "c3f90202",
+        "f5()": "3c9d377d",
+        "f6()": "7c396b83",
+        "f7(uint256,bool[],string[3],uint256,(uint256,string[],bool[2]),(uint256,string[],bool[2])[][69][])": "b339d703",
+        "f8(uint256,bool[],string[3],uint256,(uint256,string[],bool[2]),(uint256,string[],bool[2])[][69][])": "28a869f7"
+      }
+    }
+  },
+  "version": "VERSION"
+}

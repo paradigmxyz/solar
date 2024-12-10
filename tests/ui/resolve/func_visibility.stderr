@@ -1,30 +1,34 @@
-error: No visibility specified. Did you intend to add public?
+error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL |     function c() {}
    |              ^
    |
+   = help: do you intend to add public?
 
-error: No visibility specified. Did you intend to add external?
+error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL |     function c() {}
    |              ^
    |
+   = help: do you intend to add external?
 
-error: No visibility specified for fallback. Did you intend to add external?
+error: no visibility specified for fallback
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL | contract U3 {
    |          ^^
    |
+   = help: do you intend to add external?
 
-error: No visibility specified for receive. Did you intend to add external?
+error: no visibility specified for receive
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL | contract U4 {
    |          ^^
    |
+   = help: do you intend to add external?
 
 error: aborting due to 4 previous errors
 
