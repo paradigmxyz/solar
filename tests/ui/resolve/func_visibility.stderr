@@ -2,7 +2,7 @@ error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL |     function c() {}
-   |              ^
+   |     ^^^^^^^^^^^^^^^
    |
    = help: do you intend to add public?
 
@@ -10,23 +10,23 @@ error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
 LL |     function c() {}
-   |              ^
+   |     ^^^^^^^^^^^^^^^
    |
    = help: do you intend to add external?
 
-error: no visibility specified for fallback
+error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
-LL | contract U3 {
-   |          ^^
+LL |     fallback() {}
+   |     ^^^^^^^^^^^^^
    |
    = help: do you intend to add external?
 
-error: no visibility specified for receive
+error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
-LL | contract U4 {
-   |          ^^
+LL |     receive() {}
+   |     ^^^^^^^^^^^^
    |
    = help: do you intend to add external?
 
