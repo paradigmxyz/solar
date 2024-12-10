@@ -18,7 +18,7 @@ contract E {
     function f(uint256 transient) external { 
         transient = 3;
     }
-    
+
     function f2(uint256 transient, bool) external { 
         transient = 4;
     }
