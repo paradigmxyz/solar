@@ -54,7 +54,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn check_single_statement_variable_declaration(&self, stmt: &'ast &'ast mut ast::Stmt<'ast>) {
         if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
             self.dcx()
-                .err("variable declarations are not allowed as the body of a loop")
+                .err("variable declarations can only be used inside blocks")
                 .span(stmt.span)
                 .help("wrap the statement in a block (`{ ... }`)")
                 .emit();
