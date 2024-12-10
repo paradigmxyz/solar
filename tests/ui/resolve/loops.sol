@@ -8,7 +8,7 @@ function funky() {
 
     for (;;) break;
     for (; i < 40; i++) continue;
-    for (; i++ < 50; ) continue;
+    for (; i++ < 50;) continue;
 
     while (a == 0) { uint a = 0; } //~ ERROR: unresolved symbol 
     a; //~ ERROR: unresolved symbol
@@ -22,7 +22,7 @@ function funky() {
 
     for (; false; e++) { uint e; } //~ ERROR: unresolved symbol
     e; //~ ERROR: unresolved symbol
-    for (; false; f++) { uint f; }//~ ERROR: unresolved symbol
+    for (; false; f++) { uint f; } //~ ERROR: unresolved symbol
     f; //~ ERROR: unresolved symbol
     for (uint g; false; g++) {
         g;
