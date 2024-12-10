@@ -50,6 +50,16 @@ impl<'sess> AstValidator<'sess, '_> {
     fn in_loop(&self) -> bool {
         self.in_loop_depth != 0
     }
+
+    fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
+        if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
+            self.dcx()
+                .err("variable declarations can only be used inside blocks")
+                .span(stmt.span)
+                .help("wrap the statement in a block (`{ ... }`)")
+                .emit();
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -121,13 +131,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         match &stmt.kind {
-            ast::StmtKind::While(_, body, ..)
-            | ast::StmtKind::DoWhile(body, ..)
+            ast::StmtKind::While(_, body)
+            | ast::StmtKind::DoWhile(body, _)
             | ast::StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                let r = self.walk_stmt(body);
+                self.check_single_statement_variable_declaration(body);
+                let r = self.walk_stmt(stmt);
                 self.in_loop_depth -= 1;
                 return r;
+            }
+            ast::StmtKind::If(_cond, then, else_) => {
+                self.check_single_statement_variable_declaration(then);
+                if let Some(else_) = else_ {
+                    self.check_single_statement_variable_declaration(else_);
+                }
             }
             ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
@@ -140,14 +157,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
-            ast::StmtKind::UncheckedBlock(block) => {
+            ast::StmtKind::UncheckedBlock(_block) => {
                 if self.in_unchecked_block {
                     self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
 
                 let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
-                let r = self.walk_block(block);
+                let r = self.walk_stmt(stmt);
                 self.in_unchecked_block = prev;
                 return r;
             }

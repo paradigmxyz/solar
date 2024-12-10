@@ -1,7 +1,7 @@
 error: unresolved symbol `a`
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     while (a == 0) uint a = 0;
+LL |     while (a == 0) { uint a = 0; }
    |            ^
    |
 
@@ -29,8 +29,8 @@ LL |     b;
 error: unresolved symbol `c`
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     do uint c; while (c == 0);
-   |                       ^
+LL |     do { uint c; } while (c == 0);
+   |                           ^
    |
 
 error: unresolved symbol `c`
@@ -57,7 +57,7 @@ LL |     d;
 error: unresolved symbol `e`
   --> ROOT/tests/ui/resolve/loops.sol:LL:CC
    |
-LL |     for (; false; e++) uint e;
+LL |     for (; false; e++) { uint e; }
    |                   ^
    |
 
