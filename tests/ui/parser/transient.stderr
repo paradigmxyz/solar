@@ -1,18 +1,17 @@
-error: no visibility specified
+error: data location can only be specified for array, struct or mapping types
   --> ROOT/tests/ui/parser/transient.sol:LL:CC
    |
-LL |     function f(uint256 transient) {
-   |              ^
+LL |     function g(uint256 transient transient) external {
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: do you intend to add public?
 
-error: no visibility specified
+error: invalid data location `transient`
   --> ROOT/tests/ui/parser/transient.sol:LL:CC
    |
-LL |     function f2(uint256 transient, bool) {
-   |              ^^
+LL |     function g2(uint256[] transient transient) external {
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
-   = help: do you intend to add public?
+   = note: data location must be `memory` or `calldata` for external function parameter, but got `transient`
 
 error: aborting due to 2 previous errors
 
