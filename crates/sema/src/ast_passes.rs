@@ -25,6 +25,7 @@ struct AstValidator<'sess, 'ast> {
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
     in_loop_depth: u64,
+    placeholder_count: u64,
 }
 
 impl<'sess> AstValidator<'sess, '_> {
@@ -36,6 +37,7 @@ impl<'sess> AstValidator<'sess, '_> {
             function_kind: None,
             in_unchecked_block: false,
             in_loop_depth: 0,
+            placeholder_count: 0,
         }
     }
 
@@ -150,6 +152,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 return r;
             }
             ast::StmtKind::Placeholder => {
+                self.placeholder_count += 1;
                 if !self.function_kind.is_some_and(|k| k.is_modifier()) {
                     self.dcx()
                         .err("placeholder statements can only be used in modifiers")
@@ -216,8 +219,21 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
 
+        let current_placeholder_count = self.placeholder_count;
         let r = self.walk_item_function(func);
         self.function_kind = None;
+
+        if func.kind.is_modifier() {
+            let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
+            if num_placeholders_increased == 0 {
+                if let Some(func_name) = func.header.name {
+                    self.dcx()
+                        .err("modifier must have a `_;` placeholder statement")
+                        .span(func_name.span)
+                        .emit();
+                }
+            }
+        }
         r
     }
 

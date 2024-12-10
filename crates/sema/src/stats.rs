@@ -111,7 +111,7 @@ impl StatCollector {
                 for (label, subnode) in subnodes {
                     let size = subnode.count * subnode.size;
                     eprintln!(
-                        "{} - {:<18}{:>10} ({:4.1}%){:>14}",
+                        "{} - {:<16}{:>10} ({:4.1}%){:>14}",
                         prefix,
                         label,
                         to_readable_str(size),
