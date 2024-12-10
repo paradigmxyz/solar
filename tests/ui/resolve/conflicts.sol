@@ -11,8 +11,8 @@ error Er1(int); //~ ERROR: already declared
 
 contract C {
     // OK
-    function f2(uint) pure {}
-    function f2(int) pure {}
+    function f2(uint) public  pure {}
+    function f2(int) public pure {}
 
     event Ev2(uint);
     event Ev2(int);
