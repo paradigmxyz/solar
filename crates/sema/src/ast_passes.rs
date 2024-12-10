@@ -182,9 +182,9 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     ) -> ControlFlow<Self::BreakValue> {
         self.function_kind = Some(func.kind);
 
-        if func.kind.is_function() {
-            if let Some(func_name) = func.header.name {
-                if let Some(contract) = self.contract {
+        if let Some(contract) = self.contract {
+            if func.kind.is_function() {
+                if let Some(func_name) = func.header.name {
                     if func_name == contract.name {
                         self.dcx()
                             .err("functions are not allowed to have the same name as the contract")
