@@ -133,7 +133,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             ast::StmtKind::DoWhile(body, ..) => {
                 self.in_loop_depth += 1;
-                let r = self.walk_stmt(body);
+                let r = self.visit_stmt(body);
                 utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
                 self.in_loop_depth -= 1;
                 return r;
