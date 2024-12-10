@@ -4,7 +4,7 @@ error: no visibility specified
 LL |     function c() {}
    |     ^^^^^^^^^^^^^^^
    |
-   = help: do you intend to add public?
+   = help: add `public` to the declaration
 
 error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
@@ -12,7 +12,7 @@ error: no visibility specified
 LL |     function c() {}
    |     ^^^^^^^^^^^^^^^
    |
-   = help: do you intend to add external?
+   = help: add `external` to the declaration
 
 error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
@@ -20,7 +20,7 @@ error: no visibility specified
 LL |     fallback() {}
    |     ^^^^^^^^^^^^^
    |
-   = help: do you intend to add external?
+   = help: add `external` to the declaration
 
 error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
@@ -28,7 +28,7 @@ error: no visibility specified
 LL |     receive() {}
    |     ^^^^^^^^^^^^
    |
-   = help: do you intend to add external?
+   = help: add `external` to the declaration
 
 error: aborting due to 4 previous errors
 
