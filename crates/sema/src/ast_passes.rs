@@ -51,7 +51,7 @@ impl<'sess, 'ast> AstValidator<'sess, 'ast> {
         self.in_loop_depth != 0
     }
 
-    fn check_single_statement_variable_declaration(&self, stmt: &'ast &'ast mut ast::Stmt<'ast>) {
+    fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
         if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
             self.dcx()
                 .err("variable declarations can only be used inside blocks")
@@ -131,46 +131,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
         match &stmt.kind {
-            ast::StmtKind::While(cond, body) => {
-                self.visit_expr(cond)?;
+            ast::StmtKind::While(_, body)
+            | ast::StmtKind::DoWhile(body, _)
+            | ast::StmtKind::For { body, .. } => {
                 self.in_loop_depth += 1;
-                self.visit_stmt(body);
                 self.check_single_statement_variable_declaration(body);
+                let r = self.walk_stmt(stmt);
                 self.in_loop_depth -= 1;
-                return ControlFlow::Continue(());
+                return r;
             }
-            ast::StmtKind::DoWhile(body, ..) => {
-                self.in_loop_depth += 1;
-                self.visit_stmt(body)?;
-                self.check_single_statement_variable_declaration(body);
-                self.in_loop_depth -= 1;
-                return ControlFlow::Continue(());
-            }
-            ast::StmtKind::For { init, cond, next, body } => {
-                if let Some(init) = init {
-                    self.visit_stmt(init)?;
-                }
-                if let Some(cond) = cond {
-                    self.visit_expr(cond)?;
-                }
-                if let Some(next) = next {
-                    self.visit_expr(next)?;
-                }
-                self.in_loop_depth += 1;
-                self.visit_stmt(body)?;
-                self.check_single_statement_variable_declaration(body);
-                self.in_loop_depth -= 1;
-                return ControlFlow::Continue(());
-            }
-            ast::StmtKind::If(cond, then, else_) => {
-                self.visit_expr(cond)?;
-                self.visit_stmt(then)?;
+            ast::StmtKind::If(_cond, then, else_) => {
                 self.check_single_statement_variable_declaration(then);
                 if let Some(else_) = else_ {
-                    self.visit_stmt(else_)?;
-                    self.check_single_statement_variable_declaration(then);
+                    self.check_single_statement_variable_declaration(else_);
                 }
-                return ControlFlow::Continue(());
             }
             ast::StmtKind::Break | ast::StmtKind::Continue => {
                 if !self.in_loop() {
@@ -183,14 +157,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx().err(msg).span(stmt.span).emit();
                 }
             }
-            ast::StmtKind::UncheckedBlock(block) => {
+            ast::StmtKind::UncheckedBlock(_block) => {
                 if self.in_unchecked_block {
                     self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
                 }
 
                 let prev = self.in_unchecked_block;
                 self.in_unchecked_block = true;
-                let r = self.visit_block(block);
+                let r = self.walk_stmt(stmt);
                 self.in_unchecked_block = prev;
                 return r;
             }
@@ -305,5 +279,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
         self.walk_using_directive(using)
+    }
+
+    // Intentionally override unused default implementations to reduce bloat.
+    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
+
+    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
     }
 }
