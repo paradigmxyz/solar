@@ -1,11 +1,9 @@
 //! AST-related passes.
 
-use solar_ast::{self as ast, visit::Visit};
+use solar_ast::{self as ast, visit::Visit, Stmt, StmtKind};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
-
-mod utils;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
 pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
@@ -30,7 +28,7 @@ struct AstValidator<'sess, 'ast> {
     placeholder_count: u64,
 }
 
-impl<'sess> AstValidator<'sess, '_> {
+impl<'sess, 'ast> AstValidator<'sess, 'ast> {
     fn new(sess: &'sess Session) -> Self {
         Self {
             span: Span::DUMMY,
@@ -51,6 +49,16 @@ impl<'sess> AstValidator<'sess, '_> {
 
     fn in_loop(&self) -> bool {
         self.in_loop_depth != 0
+    }
+
+    fn check_single_statement_variable_declaration(&self, stmt: &'ast &'ast mut Stmt<'ast>) {
+        if matches!(stmt.kind, StmtKind::DeclSingle(..) | StmtKind::DeclMulti(..)) {
+            self.dcx()
+                .err("variable declarations are not allowed as the body of a loop")
+                .span(stmt.span)
+                .help("wrap the statement in a block (`{ ... }`)")
+                .emit();
+        }
     }
 }
 
@@ -127,14 +135,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.visit_expr(cond)?;
                 self.in_loop_depth += 1;
                 let r = self.visit_stmt(body);
-                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
+                self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
                 return r;
             }
             ast::StmtKind::DoWhile(body, ..) => {
                 self.in_loop_depth += 1;
                 let r = self.visit_stmt(body);
-                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
+                self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
                 return r;
             }
@@ -150,7 +158,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 }
                 self.in_loop_depth += 1;
                 let r = self.visit_stmt(body);
-                utils::check_if_loop_body_is_a_variable_declaration(body, self.dcx());
+                self.check_single_statement_variable_declaration(body);
                 self.in_loop_depth -= 1;
                 return r;
             }
