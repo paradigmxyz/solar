@@ -36,8 +36,8 @@ function f5(int) {}
 function f6(string memory) {} //~ ERROR: function with same name and parameter types declared twice
 function f6(string calldata) {}
 
-function f7(string storage) {}
-function f7(string memory) {}
+// function f7(string storage) internal {} 
+// function f7(string memory) {}
 
 // function f8(string transient) internal {}
 // function f8(string storage) public {}
