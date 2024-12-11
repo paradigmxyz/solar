@@ -37,47 +37,47 @@ LL | event E4(uint indexed);
 error: function with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |
-LL | function f1() public {}
+LL | function f1() {}
    |          ^^
-LL | function f1() public {}
+LL | function f1() {}
    |          -- note: other declaration
    |
 
 error: function with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |
-LL | function f2() public {}
+LL | function f2() {}
    |          ^^
-LL | function f2() public {}
+LL | function f2() {}
    |          -- note: other declaration
-LL | function f2() public {}
+LL | function f2() {}
    |          -- note: other declaration
    |
 
 error: function with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |
-LL | function f2_2(uint) public {}
+LL | function f2_2(uint) {}
    |          ^^^^
-LL | function f2_2(uint) public {}
+LL | function f2_2(uint) {}
    |          ---- note: other declaration
    |
 
 error: function with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |
-LL | function f5(int) public {}
+LL | function f5(int) {}
    |          ^^
-LL | function f5(int) public {}
+LL | function f5(int) {}
    |          -- note: other declaration
    |
 
 error: function with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |
-LL | function f6(string memory) public {}
+LL | function f6(string memory) {}
    |          ^^
-LL | function f6(string calldata) public {}
+LL | function f6(string calldata) {}
    |          -- note: other declaration
    |
 
