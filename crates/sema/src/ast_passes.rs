@@ -211,6 +211,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     }
                 }
             }
+            if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions in interfaces cannot have modifiers")
+                    .span(self.span)
+                    .emit();
+            } else if !func.is_implemented() && !func.header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions without implementation cannot have modifiers")
+                    .span(self.span)
+                    .emit();
+            }
         }
 
         if func.header.visibility.is_none() {
