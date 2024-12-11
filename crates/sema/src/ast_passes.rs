@@ -229,6 +229,18 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+        } else if let Some(visibility) = func.header.visibility {
+            if self.contract.is_none() && func.kind.is_function() && func.is_implemented() {
+                self.dcx()
+                    .err("free functions cannot have visibility")
+                    .span(self.span)
+                    .help(format!("remove `{visibility}` from the declaration"))
+                    .emit();
+            }
+        }
+
+        if self.contract.is_none() && func.kind.is_function() && !func.is_implemented() {
+            self.dcx().err("free functions must be implemented").span(self.span).emit();
         }
 
         let current_placeholder_count = self.placeholder_count;

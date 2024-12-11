@@ -390,6 +390,13 @@ pub struct ItemFunction<'ast> {
     pub body: Option<Block<'ast>>,
 }
 
+impl ItemFunction<'_> {
+    /// Returns `true` if the function is implemented
+    pub fn is_implemented(&self) -> bool {
+        self.body.is_some()
+    }
+}
+
 /// A function header: `function helloWorld() external pure returns(string memory)`.
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {

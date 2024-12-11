@@ -30,5 +30,20 @@ LL |     receive() {}
    |
    = help: add `external` to the declaration
 
-error: aborting due to 4 previous errors
+error: free functions cannot have visibility
+  --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
+   |
+LL | function uvw() internal {}
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: remove `internal` from the declaration
+
+error: free functions must be implemented
+  --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
+   |
+LL | function xyz();
+   | ^^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 6 previous errors
 

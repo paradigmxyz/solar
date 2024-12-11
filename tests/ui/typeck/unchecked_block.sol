@@ -1,4 +1,4 @@
-function f() public {
+function f() {
     unchecked {}
 
     unchecked {
