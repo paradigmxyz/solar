@@ -84,8 +84,6 @@ impl<'sess> AstValidator<'sess, '_> {
             }
         };
 
-        println!("{:?}", literal_str);
-
         if let Some(error_help_msg) = error_help_msg {
             self.dcx()
                 .err("invalid use of underscores in number literal")
