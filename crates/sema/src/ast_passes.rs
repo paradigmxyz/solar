@@ -71,10 +71,20 @@ impl<'sess> AstValidator<'sess, '_> {
         let error_help_msg = {
             if literal_str.ends_with('_') {
                 Some("remove trailing underscores")
+            } else if literal_str.contains("__") {
+                Some("only 1 consecutive underscore `_` is allowed between digits")
+            } else if literal_str.contains("._") || literal_str.contains("_.") {
+                Some("remove underscores in front of the fraction part")
+            } else if literal_str.contains("_e") {
+                Some("remove underscores at the end of the mantissa")
+            } else if literal_str.contains("e_") {
+                Some("remove underscores in front of the exponent")
             } else {
                 None
             }
         };
+
+        println!("{:?}", literal_str);
 
         if let Some(error_help_msg) = error_help_msg {
             self.dcx()
