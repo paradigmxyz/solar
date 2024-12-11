@@ -60,6 +60,30 @@ impl<'sess> AstValidator<'sess, '_> {
                 .emit();
         }
     }
+
+    fn check_underscores_in_number_literals(&self, lit: &ast::Lit) {
+        let ast::LitKind::Number(_) = lit.kind else {
+            return;
+        };
+        let literal_span = lit.span;
+        let literal_str = lit.symbol.to_string();
+
+        let error_help_msg = {
+            if literal_str.ends_with('_') {
+                Some("remove trailing underscores")
+            } else {
+                None
+            }
+        };
+
+        if let Some(error_help_msg) = error_help_msg {
+            self.dcx()
+                .err("invalid use of underscores in number literal")
+                .span(literal_span)
+                .help(error_help_msg)
+                .emit();
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -283,6 +307,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     // Intentionally override unused default implementations to reduce bloat.
     fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        let ast::Expr { kind, .. } = _expr;
+        if let ast::ExprKind::Lit(lit, _) = kind {
+            self.check_underscores_in_number_literals(lit);
+        }
         ControlFlow::Continue(())
     }
 
