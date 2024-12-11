@@ -1,0 +1,16 @@
+error: functions without implementation cannot have modifiers
+  --> ROOT/tests/ui/resolve/func_modifiers.sol:LL:CC
+   |
+LL |     function updateState() external virtual x;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: functions in interfaces cannot have modifiers
+  --> ROOT/tests/ui/resolve/func_modifiers.sol:LL:CC
+   |
+LL |     function j() external x;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 2 previous errors
+
