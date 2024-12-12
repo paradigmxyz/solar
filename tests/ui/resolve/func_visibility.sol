@@ -25,3 +25,11 @@ contract U5 {
 contract U6 {
     receive() external {}
 }
+
+contract U7 {
+    constructor() {}
+}
+
+function uvw() internal {} //~ERROR: free functions cannot have visibility
+
+function xyz(); //~ERROR: free functions must be implemented

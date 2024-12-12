@@ -243,6 +243,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     }
                 }
             }
+            if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions in interfaces cannot have modifiers")
+                    .span(self.span)
+                    .emit();
+            } else if !func.is_implemented() && !func.header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions without implementation cannot have modifiers")
+                    .span(self.span)
+                    .emit();
+            }
         }
 
         if func.header.visibility.is_none() {
@@ -260,6 +271,19 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .help(format!("add `{suggested_visibility}` to the declaration"))
                         .emit();
                 }
+            }
+        }
+
+        if self.contract.is_none() && func.kind.is_function() {
+            if !func.is_implemented() {
+                self.dcx().err("free functions must be implemented").span(self.span).emit();
+            }
+            if let Some(visibility) = func.header.visibility {
+                self.dcx()
+                    .err("free functions cannot have visibility")
+                    .span(self.span)
+                    .help(format!("remove `{visibility}` from the declaration"))
+                    .emit();
             }
         }
 
