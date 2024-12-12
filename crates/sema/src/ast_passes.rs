@@ -224,6 +224,30 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
 
+        if func.kind.is_receive() {
+            if self.contract.is_some_and(|c| c.kind.is_library()) {
+                self.dcx()
+                    .err("libraries cannot have receive ether functions")
+                    .span(self.span)
+                    .emit();
+            }
+
+            if !func.header.state_mutability.is_payable() {
+                self.dcx()
+                    .err("receive ether function must be payable")
+                    .span(self.span)
+                    .help("add `payable` state mutability")
+                    .emit();
+            }
+
+            if !func.header.parameters.is_empty() {
+                self.dcx()
+                    .err("receive ether function cannot take parameters")
+                    .span(self.span)
+                    .emit();
+            }
+        }
+
         if func.header.visibility.is_none() {
             if let Some(contract) = self.contract {
                 if let Some(suggested_visibility) = if func.kind.is_function() {

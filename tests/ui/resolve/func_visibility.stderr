@@ -25,8 +25,8 @@ LL |     fallback() {}
 error: no visibility specified
   --> ROOT/tests/ui/resolve/func_visibility.sol:LL:CC
    |
-LL |     receive() {}
-   |     ^^^^^^^^^^^^
+LL |     receive() payable {}
+   |     ^^^^^^^^^^^^^^^^^^^^
    |
    = help: add `external` to the declaration
 

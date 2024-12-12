@@ -15,7 +15,7 @@ contract U3 {
 }
 
 contract U4 {
-    receive() {} //~ERROR: no visibility specified
+    receive() payable {} //~ERROR: no visibility specified
 }
 
 contract U5 {
@@ -23,7 +23,7 @@ contract U5 {
 }
 
 contract U6 {
-    receive() external {}
+    receive() external payable {}
 }
 
 contract U7 {
