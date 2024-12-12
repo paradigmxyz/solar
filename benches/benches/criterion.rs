@@ -18,12 +18,17 @@ fn parser_benches(c: &mut Criterion) {
         for &Source { name: sname, path: _, src } in get_srcs() {
             for &parser in PARSERS {
                 let pname = parser.name();
+                let mk_id = |id: &str| {
+                    if PARSERS.len() == 1 {
+                        format!("{sname}/{id}")
+                    } else {
+                        format!("{sname}/{pname}/{id}")
+                    }
+                };
                 if parser.can_lex() {
-                    let id = format!("{sname}/{pname}/lex");
-                    g.bench_function(id, |b| b.iter(|| parser.lex(src)));
+                    g.bench_function(mk_id("lex"), |b| b.iter(|| parser.lex(src)));
                 }
-                let id = format!("{sname}/{pname}/parse");
-                g.bench_function(id, |b| b.iter(|| parser.parse(src)));
+                g.bench_function(mk_id("parse"), |b| b.iter(|| parser.parse(src)));
             }
             eprintln!();
         }
