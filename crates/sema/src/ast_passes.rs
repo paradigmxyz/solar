@@ -19,24 +19,24 @@ pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
 
 /// AST validator.
 struct AstValidator<'sess, 'ast> {
-    span: Span,
+    item_span: Span,
     dcx: &'sess DiagCtxt,
     contract: Option<&'ast ast::ItemContract<'ast>>,
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
-    in_loop_depth: u64,
-    placeholder_count: u64,
+    loop_depth: u32,
+    placeholder_count: u32,
 }
 
 impl<'sess> AstValidator<'sess, '_> {
     fn new(sess: &'sess Session) -> Self {
         Self {
-            span: Span::DUMMY,
+            item_span: Span::DUMMY,
             dcx: &sess.dcx,
             contract: None,
             function_kind: None,
             in_unchecked_block: false,
-            in_loop_depth: 0,
+            loop_depth: 0,
             placeholder_count: 0,
         }
     }
@@ -48,7 +48,7 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn in_loop(&self) -> bool {
-        self.in_loop_depth != 0
+        self.loop_depth != 0
     }
 
     fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
@@ -98,7 +98,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     type BreakValue = Never;
 
     fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
-        self.span = item.span;
+        self.item_span = item.span;
         self.walk_item(item)
     }
 
@@ -147,15 +147,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
                         let msg = "experimental solidity features are not supported";
-                        self.dcx().err(msg).span(self.span).emit();
+                        self.dcx().err(msg).span(self.item_span).emit();
                     }
                     _ => {
-                        self.dcx().err("unknown pragma").span(self.span).emit();
+                        self.dcx().err("unknown pragma").span(self.item_span).emit();
                     }
                 }
             }
             ast::PragmaTokens::Verbatim(_) => {
-                self.dcx().err("unknown pragma").span(self.span).emit();
+                self.dcx().err("unknown pragma").span(self.item_span).emit();
             }
         }
         ControlFlow::Continue(())
@@ -166,10 +166,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             ast::StmtKind::While(_, body)
             | ast::StmtKind::DoWhile(body, _)
             | ast::StmtKind::For { body, .. } => {
-                self.in_loop_depth += 1;
+                self.loop_depth += 1;
                 self.check_single_statement_variable_declaration(body);
                 let r = self.walk_stmt(stmt);
-                self.in_loop_depth -= 1;
+                self.loop_depth -= 1;
                 return r;
             }
             ast::StmtKind::If(_cond, then, else_) => {
@@ -246,12 +246,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
                 self.dcx()
                     .err("functions in interfaces cannot have modifiers")
-                    .span(self.span)
+                    .span(self.item_span)
                     .emit();
             } else if !func.is_implemented() && !func.header.modifiers.is_empty() {
                 self.dcx()
                     .err("functions without implementation cannot have modifiers")
-                    .span(self.span)
+                    .span(self.item_span)
                     .emit();
             }
         }
@@ -260,14 +260,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             if self.contract.is_some_and(|c| c.kind.is_library()) {
                 self.dcx()
                     .err("libraries cannot have receive ether functions")
-                    .span(self.span)
+                    .span(self.item_span)
                     .emit();
             }
 
             if !func.header.state_mutability.is_payable() {
                 self.dcx()
                     .err("receive ether function must be payable")
-                    .span(self.span)
+                    .span(self.item_span)
                     .help("add `payable` state mutability")
                     .emit();
             }
@@ -275,7 +275,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             if !func.header.parameters.is_empty() {
                 self.dcx()
                     .err("receive ether function cannot take parameters")
-                    .span(self.span)
+                    .span(self.item_span)
                     .emit();
             }
         }
@@ -291,7 +291,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 } {
                     self.dcx()
                         .err("no visibility specified")
-                        .span(self.span)
+                        .span(self.item_span)
                         .help(format!("add `{suggested_visibility}` to the declaration"))
                         .emit();
                 }
@@ -300,12 +300,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
         if self.contract.is_none() && func.kind.is_function() {
             if !func.is_implemented() {
-                self.dcx().err("free functions must be implemented").span(self.span).emit();
+                self.dcx().err("free functions must be implemented").span(self.item_span).emit();
             }
             if let Some(visibility) = func.header.visibility {
                 self.dcx()
                     .err("free functions cannot have visibility")
-                    .span(self.span)
+                    .span(self.item_span)
                     .help(format!("remove `{visibility}` from the declaration"))
                     .emit();
             }
@@ -338,23 +338,23 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if self.contract.is_none() && !with_typ {
             self.dcx()
                 .err("the type has to be specified explicitly at file level (cannot use `*`)")
-                .span(self.span)
+                .span(self.item_span)
                 .emit();
         }
         if *global && !with_typ {
             self.dcx()
                 .err("can only globally attach functions to specific types")
-                .span(self.span)
+                .span(self.item_span)
                 .emit();
         }
         if *global && self.contract.is_some() {
-            self.dcx().err("`global` can only be used at file level").span(self.span).emit();
+            self.dcx().err("`global` can only be used at file level").span(self.item_span).emit();
         }
         if let Some(contract) = self.contract {
             if contract.kind.is_interface() {
                 self.dcx()
                     .err("the `using for` directive is not allowed inside interfaces")
-                    .span(self.span)
+                    .span(self.item_span)
                     .emit();
             }
         }
