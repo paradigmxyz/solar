@@ -1,0 +1,24 @@
+error: libraries cannot have receive ether functions
+  --> ROOT/tests/ui/resolve/receive_func.sol:LL:CC
+   |
+LL |     receive() external payable {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: receive ether function must be payable
+  --> ROOT/tests/ui/resolve/receive_func.sol:LL:CC
+   |
+LL |     receive() external {}
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: add `payable` state mutability
+
+error: receive ether function cannot take parameters
+  --> ROOT/tests/ui/resolve/receive_func.sol:LL:CC
+   |
+LL |     receive(bool _x) external payable {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 3 previous errors
+
