@@ -60,6 +60,38 @@ impl<'sess> AstValidator<'sess, '_> {
                 .emit();
         }
     }
+
+    fn check_underscores_in_number_literals(&self, lit: &ast::Lit) {
+        let ast::LitKind::Number(_) = lit.kind else {
+            return;
+        };
+        let literal_span = lit.span;
+        let literal_str = lit.symbol.as_str();
+
+        let error_help_msg = {
+            if literal_str.ends_with('_') {
+                Some("remove trailing underscores")
+            } else if literal_str.contains("__") {
+                Some("only 1 consecutive underscore `_` is allowed between digits")
+            } else if literal_str.contains("._") || literal_str.contains("_.") {
+                Some("remove underscores in front of the fraction part")
+            } else if literal_str.contains("_e") {
+                Some("remove underscores at the end of the mantissa")
+            } else if literal_str.contains("e_") {
+                Some("remove underscores in front of the exponent")
+            } else {
+                None
+            }
+        };
+
+        if let Some(error_help_msg) = error_help_msg {
+            self.dcx()
+                .err("invalid use of underscores in number literal")
+                .span(literal_span)
+                .help(error_help_msg)
+                .emit();
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -329,12 +361,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         self.walk_using_directive(using)
     }
 
-    // Intentionally override unused default implementations to reduce bloat.
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
-    }
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
+    fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        let ast::Expr { kind, .. } = expr;
+        if let ast::ExprKind::Lit(lit, _) = kind {
+            self.check_underscores_in_number_literals(lit);
+        }
+        self.walk_expr(expr)
     }
 }
