@@ -337,16 +337,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         self.walk_using_directive(using)
     }
 
-    // Intentionally override unused default implementations to reduce bloat.
-    fn visit_expr(&mut self, _expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
-        let ast::Expr { kind, .. } = _expr;
+    fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
+        let ast::Expr { kind, .. } = expr;
         if let ast::ExprKind::Lit(lit, _) = kind {
             self.check_underscores_in_number_literals(lit);
         }
-        ControlFlow::Continue(())
-    }
-
-    fn visit_ty(&mut self, _ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
+        self.walk_expr(expr)
     }
 }
