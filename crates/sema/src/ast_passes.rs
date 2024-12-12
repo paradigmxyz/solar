@@ -220,6 +220,23 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.contract = Some(contract);
+
+        if contract.kind.is_library() {
+            if !contract.bases.is_empty() {
+                self.dcx().err("library is not allowed to inherit").span(contract.name.span).emit();
+            }
+            for item in contract.body.iter() {
+                if let ast::ItemKind::Variable(var) = &item.kind {
+                    if !var.mutability.is_some_and(|m| m == ast::VarMut::Constant) {
+                        self.dcx()
+                            .err("library cannot have non-constant state variable")
+                            .span(var.span)
+                            .emit();
+                    }
+                }
+            }
+        }
+
         let r = self.walk_item_contract(contract);
         self.contract = None;
         r
