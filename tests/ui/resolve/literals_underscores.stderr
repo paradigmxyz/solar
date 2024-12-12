@@ -38,5 +38,21 @@ LL |     uint256 e = 3.4e_10;
    |
    = help: remove underscores in front of the exponent
 
-error: aborting due to 5 previous errors
+error: invalid use of underscores in number literal
+  --> ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   |
+LL |     uint256 g = 1_.4e10 + 3.4e_10;
+   |                 ^^^^^^^
+   |
+   = help: remove underscores in front of the fraction part
+
+error: invalid use of underscores in number literal
+  --> ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC
+   |
+LL |     uint256 g = 1_.4e10 + 3.4e_10;
+   |                           ^^^^^^^
+   |
+   = help: remove underscores in front of the exponent
+
+error: aborting due to 7 previous errors
 

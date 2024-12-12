@@ -7,4 +7,8 @@ contract LT {
 
     // exception
     uint256 f = 3._4e10; // Does not show up
+
+    uint256 g = 1_.4e10 + 3.4e_10; //~ERROR: invalid use of underscores in number literal
+    //~^ERROR: invalid use of underscores in number literal
+
 }
