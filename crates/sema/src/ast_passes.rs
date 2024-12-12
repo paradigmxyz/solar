@@ -66,7 +66,7 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
         let literal_span = lit.span;
-        let literal_str = lit.symbol.to_string();
+        let literal_str = lit.symbol.as_str();
 
         let error_help_msg = {
             if literal_str.ends_with('_') {
