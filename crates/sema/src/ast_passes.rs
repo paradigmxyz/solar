@@ -227,7 +227,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
             for item in contract.body.iter() {
                 if let ast::ItemKind::Variable(var) = &item.kind {
-                    if !var.mutability.is_some_and(|m| m == ast::VarMut::Constant) {
+                    if !var.mutability.is_some_and(|m| m.is_constant()) {
                         self.dcx()
                             .err("library cannot have non-constant state variable")
                             .span(var.span)
