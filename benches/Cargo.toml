@@ -22,7 +22,7 @@ slang_solidity = "=0.18.3"
 semver.workspace = true
 
 [dev-dependencies]
-criterion = "0.5"
+criterion = { package = "codspeed-criterion-compat", version = "2.7" }
 iai-callgrind = "0.14"
 paste.workspace = true
 
@@ -30,8 +30,8 @@ paste.workspace = true
 ci = []
 
 [[bench]]
-name = "bench"
-path = "benches/bench.rs"
+name = "criterion"
+path = "benches/criterion.rs"
 harness = false
 
 [[bench]]

@@ -8,7 +8,7 @@ Run with:
 
 ```bash
 # Criterion
-cargo criterion -p solar-bench --bench bench -- --quiet --format terse |& tee benches/tables.in
+cargo criterion -p solar-bench --bench criterion -- --quiet --format terse |& tee benches/tables.in
 ./benches/tables.py ./benches/README.md < benches/tables.in
 
 # iai - requires `valgrind` and `iai-callgrind-runner`
@@ -19,6 +19,8 @@ This crate is excluded from the main workspace to avoid compiling it (and its de
 invoking other commands such as `cargo test`.
 
 ## Results
+
+You view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
 
 The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu` 
