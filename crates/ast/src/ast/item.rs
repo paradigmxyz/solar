@@ -391,7 +391,7 @@ pub struct ItemFunction<'ast> {
 }
 
 impl ItemFunction<'_> {
-    /// Returns `true` if the function is implemented
+    /// Returns `true` if the function is implemented.
     pub fn is_implemented(&self) -> bool {
         self.body.is_some()
     }

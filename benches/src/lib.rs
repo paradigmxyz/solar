@@ -6,7 +6,9 @@ use std::{
     process::Stdio,
 };
 
-pub const PARSERS: &[&dyn Parser] = &[&Solc, &Solar, &Solang, &Slang];
+#[allow(unexpected_cfgs)]
+pub const PARSERS: &[&dyn Parser] =
+    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang] };
 
 pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
