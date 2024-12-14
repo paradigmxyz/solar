@@ -8,7 +8,7 @@ contract B {
     bool x;
 }
 
-// Total - 8
+// Total = 1 + 1 = 2
 
 contract A {
     uint256 a; // 1
@@ -36,4 +36,4 @@ contract M {
     B d; // 1
 }
 
-// Total = 8
+// Total = 4 + 1 + 1 + 1 + 1 = 8
