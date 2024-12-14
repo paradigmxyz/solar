@@ -24,42 +24,49 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
-fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) {
-    let contract_items = gcx.hir.contract_items(id);
+/// Reference: https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2
+fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract_items = gcx.hir.contract_items(contract_id);
     let mut total_size = U256::ZERO;
     for item in contract_items {
         if let hir::Item::Variable(variable) = item {
             // Skip constant and immutable variables
             if variable.mutability.is_none() {
-                let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx);
+                let Some(size_contribution) = variable_ty_upper_bound_size(&variable.ty.kind, gcx)
+                else {
+                    gcx.dcx().err("overflowed storage slots").emit();
+                    return;
+                };
                 let Some(sz) = total_size.checked_add(size_contribution) else {
                     gcx.dcx().err("overflowed storage slots").emit();
                     return;
                 };
-                total_size += sz;
+                total_size = sz;
             }
         }
     }
+    //let c = gcx.hir.contract(contract_id).name;
+    //println!("{total_size} - {c}");
 }
 
-fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> U256 {
+fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> Option<U256> {
     match item {
-        hir::Item::Function(_) | hir::Item::Contract(_) => U256::from(1),
+        hir::Item::Function(_) | hir::Item::Contract(_) => Some(U256::from(1)),
         hir::Item::Variable(variable) => variable_ty_upper_bound_size(&variable.ty.kind, gcx),
         hir::Item::Udvt(udvt) => variable_ty_upper_bound_size(&udvt.ty.kind, gcx),
         hir::Item::Struct(strukt) => {
+            // Reference https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
             let mut total_size = U256::from(1);
-
             for field_id in strukt.fields {
                 let variable = gcx.hir.variable(*field_id);
-                let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx);
+                let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx)?;
                 let Some(sz) = total_size.checked_add(size_contribution) else {
                     gcx.dcx().err("overflowed storage slots").emit();
-                    return U256::ZERO;
+                    return None;
                 };
                 total_size = sz;
             }
-            total_size
+            Some(total_size)
         }
         hir::Item::Enum(_) | hir::Item::Event(_) | hir::Item::Error(_) => {
             // Enum and events cannot be types of storage variables
@@ -68,30 +75,30 @@ fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> U256 {
     }
 }
 
-fn variable_ty_upper_bound_size(var_ty: &hir::TypeKind<'_>, gcx: Gcx<'_>) -> U256 {
+fn variable_ty_upper_bound_size(var_ty: &hir::TypeKind<'_>, gcx: Gcx<'_>) -> Option<U256> {
     match &var_ty {
         hir::TypeKind::Elementary(_) | hir::TypeKind::Function(_) | hir::TypeKind::Mapping(_) => {
-            U256::from(1)
+            Some(U256::from(1))
         }
         hir::TypeKind::Array(array) => {
-            // For fixed size arrays the formula is length * size of base item
+            // Reference: https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
             if let Some(len_expr) = array.size {
                 // Evaluate the length expression in array declaration
                 let mut e = ConstantEvaluator::new(gcx);
                 let arr_len = e.eval(len_expr).unwrap().data; // `.eval()` emits errors beforehand
 
                 // Estimate the upper bound size of each individual element
-                let elem_size = variable_ty_upper_bound_size(&array.element.kind, gcx);
+                let elem_size = variable_ty_upper_bound_size(&array.element.kind, gcx)?;
 
                 let Some(size_contribution) = arr_len.checked_mul(elem_size) else {
                     gcx.dcx().err("overflowed storage slots").emit();
-                    return U256::ZERO;
+                    return None;
                 };
 
-                size_contribution
+                Some(size_contribution)
             } else {
                 // For dynamic size arrays
-                U256::from(1)
+                Some(U256::from(1))
             }
         }
         hir::TypeKind::Custom(item_id) => {
