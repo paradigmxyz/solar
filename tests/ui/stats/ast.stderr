@@ -24,4 +24,3 @@ ast-stats - Function               272 (15.3%)             2
 ast-stats ----------------------------------------------------------------
 ast-stats Total                  1_772
 ast-stats
-ROOT/tests/ui/stats/ast.sol:Counter requires 1 storage

@@ -81,9 +81,6 @@ LL | function f6(string calldata) {}
    |          -- note: other declaration
    |
 
-ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:C requires 0 storage
-ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:C2 requires 0 storage
-ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:D requires 0 storage
 error: event with same name and parameter types declared twice
   --> ROOT/tests/ui/typeck/duplicate_overloaded_items.sol:LL:CC
    |

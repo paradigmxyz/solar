@@ -47,10 +47,13 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
     }
     if cfg!(debug_assertions) {
-        eprintln!(
-            "{} requires {total_size} storage",
-            gcx.contract_fully_qualified_name(contract_id)
-        );
+        let full_contract_name = format!("{}", gcx.contract_fully_qualified_name(contract_id));
+        if full_contract_name.starts_with("ROOT/tests/ui/typeck/contract_storage_size_check.sol") {
+            eprintln!(
+                "{} requires {total_size} maximum storage",
+                gcx.contract_fully_qualified_name(contract_id)
+            );
+        }
     }
 }
 
