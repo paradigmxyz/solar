@@ -43,7 +43,7 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) -> U256 {
     total_size
 }
 
-fn item_ty_upper_bound_size<'a, 'hir>(item: &hir::Item<'a, 'hir>, gcx: Gcx<'_>) -> U256 {
+fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> U256 {
     match item {
         hir::Item::Function(_) | hir::Item::Contract(_) => U256::from(1),
         hir::Item::Variable(variable) => variable_ty_upper_bound_size(&variable.ty.kind, gcx),
