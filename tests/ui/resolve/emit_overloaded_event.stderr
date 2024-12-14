@@ -1,0 +1,2 @@
+ROOT/tests/ui/resolve/emit_overloaded_event.sol:StdAssertions requires 0 storage
+ROOT/tests/ui/resolve/emit_overloaded_event.sol:Test requires 0 storage

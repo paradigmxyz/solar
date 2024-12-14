@@ -1,0 +1,1 @@
+ROOT/tests/ui/typeck/issue_129_nested_struct.sol:TestContract requires 0 storage

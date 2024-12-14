@@ -1,0 +1,2 @@
+ROOT/tests/ui/abi/basic.sol:C requires 0 storage
+ROOT/tests/ui/abi/basic.sol:D requires 0 storage

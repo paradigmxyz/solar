@@ -1,0 +1,3 @@
+ROOT/tests/ui/resolve/overrides.sol:MyAbstractTest requires 0 storage
+ROOT/tests/ui/resolve/overrides.sol:MyTestSuite requires 0 storage
+ROOT/tests/ui/resolve/overrides.sol:MyTest requires 0 storage

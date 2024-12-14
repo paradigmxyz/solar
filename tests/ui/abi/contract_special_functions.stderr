@@ -1,0 +1,6 @@
+ROOT/tests/ui/abi/contract_special_functions.sol:A requires 0 storage
+ROOT/tests/ui/abi/contract_special_functions.sol:B requires 0 storage
+ROOT/tests/ui/abi/contract_special_functions.sol:C requires 0 storage
+ROOT/tests/ui/abi/contract_special_functions.sol:D requires 0 storage
+ROOT/tests/ui/abi/contract_special_functions.sol:E requires 0 storage
+ROOT/tests/ui/abi/contract_special_functions.sol:F requires 0 storage

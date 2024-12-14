@@ -46,8 +46,12 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             }
         }
     }
-    //let c = gcx.hir.contract(contract_id).name;
-    //println!("{total_size} - {c}");
+    if cfg!(debug_assertions) {
+        eprintln!(
+            "{} requires {total_size} storage",
+            gcx.contract_fully_qualified_name(contract_id)
+        );
+    }
 }
 
 fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> Option<U256> {

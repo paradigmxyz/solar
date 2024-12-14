@@ -1,0 +1,2 @@
+ROOT/tests/ui/resolve/import_twice.sol:C requires 0 storage
+ROOT/tests/ui/resolve/import_twice.sol:D requires 0 storage
