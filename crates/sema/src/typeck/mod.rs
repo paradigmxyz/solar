@@ -60,11 +60,7 @@ fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> Option<U2
             for field_id in strukt.fields {
                 let variable = gcx.hir.variable(*field_id);
                 let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx)?;
-                let Some(sz) = total_size.checked_add(size_contribution) else {
-                    gcx.dcx().err("overflowed storage slots").emit();
-                    return None;
-                };
-                total_size = sz;
+                total_size = total_size.checked_add(size_contribution)?;
             }
             Some(total_size)
         }
@@ -89,13 +85,7 @@ fn variable_ty_upper_bound_size(var_ty: &hir::TypeKind<'_>, gcx: Gcx<'_>) -> Opt
 
                 // Estimate the upper bound size of each individual element
                 let elem_size = variable_ty_upper_bound_size(&array.element.kind, gcx)?;
-
-                let Some(size_contribution) = arr_len.checked_mul(elem_size) else {
-                    gcx.dcx().err("overflowed storage slots").emit();
-                    return None;
-                };
-
-                Some(size_contribution)
+                arr_len.checked_mul(elem_size)
             } else {
                 // For dynamic size arrays
                 Some(U256::from(1))
