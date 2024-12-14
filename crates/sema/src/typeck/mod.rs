@@ -26,6 +26,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
 /// Reference: https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract_span = gcx.hir.contract(contract_id).span;
     let contract_items = gcx.hir.contract_items(contract_id);
     let mut total_size = U256::ZERO;
     for item in contract_items {
@@ -34,11 +35,11 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             if variable.mutability.is_none() {
                 let Some(size_contribution) = variable_ty_upper_bound_size(&variable.ty.kind, gcx)
                 else {
-                    gcx.dcx().err("overflowed storage slots").emit();
+                    gcx.dcx().err("contract requires too much storage").span(contract_span).emit();
                     return;
                 };
                 let Some(sz) = total_size.checked_add(size_contribution) else {
-                    gcx.dcx().err("overflowed storage slots").emit();
+                    gcx.dcx().err("contract requires too much storage").span(contract_span).emit();
                     return;
                 };
                 total_size = sz;
