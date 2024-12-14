@@ -24,7 +24,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 }
 
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
-fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) -> U256 {
+fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) {
     let contract_items = gcx.hir.contract_items(id);
     let mut total_size = U256::ZERO;
     for item in contract_items {
@@ -34,13 +34,12 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) -> U256 {
                 let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx);
                 let Some(sz) = total_size.checked_add(size_contribution) else {
                     gcx.dcx().err("overflowed storage slots").emit();
-                    return U256::ZERO;
+                    return;
                 };
                 total_size += sz;
             }
         }
     }
-    total_size
 }
 
 fn item_ty_upper_bound_size(item: &hir::Item<'_, '_>, gcx: Gcx<'_>) -> U256 {
