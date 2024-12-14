@@ -1,8 +1,10 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
+    eval::ConstantEvaluator,
     hir::{self, Res},
     ty::{Gcx, Ty},
 };
+use alloy_primitives::U256;
 use rayon::prelude::*;
 use solar_data_structures::{map::FxHashSet, parallel};
 
@@ -15,7 +17,92 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
+        gcx.hir.par_contract_ids().for_each(|id| {
+            check_storage_size_upper_bound(gcx, id);
+        }),
     );
+}
+
+/// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
+fn check_storage_size_upper_bound(gcx: Gcx<'_>, id: hir::ContractId) -> U256 {
+    let contract_items = gcx.hir.contract_items(id);
+    let mut total_size = U256::ZERO;
+    for item in contract_items {
+        if let hir::Item::Variable(variable) = item {
+            // Skip constant and immutable variables
+            if variable.mutability.is_none() {
+                let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx);
+                let Some(sz) = total_size.checked_add(size_contribution) else {
+                    gcx.dcx().err("overflowed storage slots").emit();
+                    return U256::ZERO;
+                };
+                total_size += sz;
+            }
+        }
+    }
+    total_size
+}
+
+fn item_ty_upper_bound_size<'a, 'hir>(item: &hir::Item<'a, 'hir>, gcx: Gcx<'_>) -> U256 {
+    match item {
+        hir::Item::Function(_) | hir::Item::Contract(_) => U256::from(1),
+        hir::Item::Variable(variable) => variable_ty_upper_bound_size(&variable.ty.kind, gcx),
+        hir::Item::Udvt(udvt) => variable_ty_upper_bound_size(&udvt.ty.kind, gcx),
+        hir::Item::Struct(strukt) => {
+            let mut total_size = U256::from(1);
+
+            for field_id in strukt.fields {
+                let variable = gcx.hir.variable(*field_id);
+                let size_contribution = variable_ty_upper_bound_size(&variable.ty.kind, gcx);
+                let Some(sz) = total_size.checked_add(size_contribution) else {
+                    gcx.dcx().err("overflowed storage slots").emit();
+                    return U256::ZERO;
+                };
+                total_size = sz;
+            }
+            total_size
+        }
+        hir::Item::Enum(_) | hir::Item::Event(_) | hir::Item::Error(_) => {
+            // Enum and events cannot be types of storage variables
+            unreachable!("illegal values")
+        }
+    }
+}
+
+fn variable_ty_upper_bound_size(var_ty: &hir::TypeKind<'_>, gcx: Gcx<'_>) -> U256 {
+    match &var_ty {
+        hir::TypeKind::Elementary(_) | hir::TypeKind::Function(_) | hir::TypeKind::Mapping(_) => {
+            U256::from(1)
+        }
+        hir::TypeKind::Array(array) => {
+            // For fixed size arrays the formula is length * size of base item
+            if let Some(len_expr) = array.size {
+                // Evaluate the length expression in array declaration
+                let mut e = ConstantEvaluator::new(gcx);
+                let arr_len = e.eval(len_expr).unwrap().data; // `.eval()` emits errors beforehand
+
+                // Estimate the upper bound size of each individual element
+                let elem_size = variable_ty_upper_bound_size(&array.element.kind, gcx);
+
+                let Some(size_contribution) = arr_len.checked_mul(elem_size) else {
+                    gcx.dcx().err("overflowed storage slots").emit();
+                    return U256::ZERO;
+                };
+
+                size_contribution
+            } else {
+                // For dynamic size arrays
+                U256::from(1)
+            }
+        }
+        hir::TypeKind::Custom(item_id) => {
+            let item = gcx.hir.item(*item_id);
+            item_ty_upper_bound_size(&item, gcx)
+        }
+        hir::TypeKind::Err(_) => {
+            unreachable!()
+        }
+    }
 }
 
 /// Checks for definitions that have the same name and parameter types in the given scope.
