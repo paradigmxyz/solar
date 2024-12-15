@@ -208,6 +208,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .span(stmt.span)
                         .emit();
                 }
+                if self.in_unchecked_block {
+                    self.dcx()
+                        .err("placeholder statements cannot be used inside unchecked blocks")
+                        .span(stmt.span)
+                        .emit();
+                }
             }
             _ => {}
         }
