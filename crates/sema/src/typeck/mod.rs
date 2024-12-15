@@ -11,11 +11,35 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         gcx.sess,
         gcx.hir.par_contract_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+            check_payable_fallback_without_receive(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
     );
+}
+
+fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let mut payable_fallback_found = false;
+    let mut receive_found = false;
+    for item in gcx.hir.contract_items(contract_id) {
+        if let hir::Item::Function(f) = item {
+            if f.kind.is_fallback() && f.state_mutability.is_payable() {
+                payable_fallback_found = true;
+            } else if f.kind.is_receive() {
+                receive_found = true;
+            }
+        }
+    }
+
+    if payable_fallback_found && !receive_found {
+        let contract = gcx.hir.contract(contract_id);
+        gcx.dcx()
+            .warn("contract has a payable fallback function, but no receive ether function")
+            .span(contract.name.span)
+            .help("consider adding a `receive() external payable { ... }`")
+            .emit();
+    }
 }
 
 /// Checks for definitions that have the same name and parameter types in the given scope.
