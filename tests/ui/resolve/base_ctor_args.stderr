@@ -1,0 +1,30 @@
+error: in F, the base contract C's constructor arguments are called multiple times
+  --> ROOT/tests/ui/resolve/base_ctor_args.sol:LL:CC
+   |
+LL |     constructor() C(2) {}
+   |                   ^
+   |
+
+note: second call here
+  --> ROOT/tests/ui/resolve/base_ctor_args.sol:LL:CC
+   |
+LL |     constructor() C(5) {}
+   |                   -
+   |
+
+error: in G, the base contract C's constructor arguments are called multiple times
+  --> ROOT/tests/ui/resolve/base_ctor_args.sol:LL:CC
+   |
+LL |     constructor() C(2) {}
+   |                   ^
+   |
+
+note: second call here
+  --> ROOT/tests/ui/resolve/base_ctor_args.sol:LL:CC
+   |
+LL |     constructor() C(5) {}
+   |                   -
+   |
+
+error: aborting due to 2 previous errors
+

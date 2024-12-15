@@ -345,6 +345,21 @@ pub struct ItemContract<'ast> {
     pub body: Box<'ast, [Item<'ast>]>,
 }
 
+impl<'a> ItemContract<'a> {
+    /// Returns the constructor, if present
+    /// NOTE: It doesn't check the kind of contract
+    pub fn constructor(&'a self) -> Option<&'a crate::ItemFunction<'a>> {
+        for item in self.body.iter() {
+            if let crate::ItemKind::Function(func) = &item.kind {
+                if func.kind.is_constructor() {
+                    return Some(func);
+                }
+            }
+        }
+        None
+    }
+}
+
 /// The kind of contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
 pub enum ContractKind {
