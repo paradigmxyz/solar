@@ -48,11 +48,10 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             }
         }
     }
-    if cfg!(debug_assertions) {
+
+    if gcx.sess.storage_sz_ub {
         let full_contract_name = format!("{}", gcx.contract_fully_qualified_name(contract_id));
-        if full_contract_name.contains("contract_storage_size_check") {
-            eprintln!("{full_contract_name} requires {total_size} maximum storage");
-        }
+        eprintln!("{full_contract_name} requires {total_size} maximum storage");
     }
 }
 

@@ -1,3 +1,5 @@
+//@ compile-flags: -Zstorage-sz-ub
+
 struct Person {
     string name;
     uint age;
