@@ -10,9 +10,8 @@ contract E is C {
     constructor() C(5) {}
 }
 
-contract F is E {
-    constructor() C(2) {} //~ERROR: in F, the base contract C's constructor arguments are called multiple times
-    //~^ERROR: in G, the base contract C's constructor arguments are called multiple times
+contract F is E { //~ERROR: contract makes multiple calls to base constructor C
+    constructor() C(2) {} 
 }
 
-contract G is F {}
+contract G is F {} //~ERROR: contract makes multiple calls to base constructor C

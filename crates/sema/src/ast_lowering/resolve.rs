@@ -212,7 +212,6 @@ impl super::LoweringContext<'_, '_, '_> {
                 let scopes = SymbolResolverScopes::new_in(hir_lbc_contract.source, None);
 
                 struct BCError<'a> {
-                    main_con_name: &'a str,
                     base_con_name: &'a str,
                     first_call_span: Span,
                     second_call_span: Span,
@@ -220,12 +219,11 @@ impl super::LoweringContext<'_, '_, '_> {
 
                 impl<'a> BCError<'a> {
                     fn from(
-                        main_con_name: &'a str,
                         base_con_name: &'a str,
                         first_call_span: Span,
                         second_call_span: Span,
                     ) -> Self {
-                        Self { main_con_name, base_con_name, first_call_span, second_call_span }
+                        Self { base_con_name, first_call_span, second_call_span }
                     }
                 }
 
@@ -241,13 +239,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     };
                     if let Some(old_value) = ctor_args.insert(base_id, b.name.span()) {
                         let base_con_name = self.hir.contract(base_id).name.as_str();
-                        let main_con_name = main_contract.name.as_str();
-                        bc_errors.push(BCError::from(
-                            main_con_name,
-                            base_con_name,
-                            old_value,
-                            b.name.span(),
-                        ));
+                        bc_errors.push(BCError::from(base_con_name, old_value, b.name.span()));
                     }
                 }
 
@@ -262,24 +254,20 @@ impl super::LoweringContext<'_, '_, '_> {
                         };
                         if let Some(old_value) = ctor_args.insert(base_id, m.name.span()) {
                             let base_con_name = self.hir.contract(base_id).name.as_str();
-                            let main_con_name = main_contract.name.as_str();
-                            bc_errors.push(BCError::from(
-                                main_con_name,
-                                base_con_name,
-                                old_value,
-                                m.name.span(),
-                            ));
+                            bc_errors.push(BCError::from(base_con_name, old_value, m.name.span()));
                         }
                     }
                 }
 
                 for bc_error in bc_errors {
-                    let msg = format!(
-                        "in {}, the base contract {}'s constructor arguments are called multiple times",
-                        bc_error.main_con_name,
-                        bc_error.base_con_name
-                    );
-                    self.dcx().err(msg).span(bc_error.first_call_span).emit();
+                    self.dcx()
+                        .err(format!(
+                            "contract makes multiple calls to base constructor {}",
+                            bc_error.base_con_name
+                        ))
+                        .span(main_contract.name.span)
+                        .emit();
+                    self.dcx().note("first call here").span(bc_error.first_call_span).emit();
                     self.dcx().note("second call here").span(bc_error.second_call_span).emit();
                 }
             }
