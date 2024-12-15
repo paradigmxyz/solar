@@ -92,6 +92,20 @@ impl<'sess> AstValidator<'sess, '_> {
                 .emit();
         }
     }
+
+    fn check_var_for_named_return_params(&self, var: &ast::VariableDefinition<'_>) {
+        if let ast::TypeKind::Function(f) = &var.ty.kind {
+            for param in f.returns.iter() {
+                if let Some(param_name) = param.name {
+                    self.dcx()
+                        .err("return parameters in function types may not be named")
+                        .span(param.span)
+                        .help(format!("remove `{param_name}`"))
+                        .emit();
+                }
+            }
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
@@ -207,6 +221,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .err("placeholder statements can only be used in modifiers")
                         .span(stmt.span)
                         .emit();
+                }
+            }
+            ast::StmtKind::DeclSingle(var) => {
+                self.check_var_for_named_return_params(var);
+            }
+            ast::StmtKind::DeclMulti(vars, _) => {
+                for var in vars.iter().flatten() {
+                    self.check_var_for_named_return_params(var);
                 }
             }
             _ => {}
