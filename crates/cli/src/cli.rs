@@ -138,6 +138,9 @@ pub struct UnstableFeatures {
     #[cfg(test)]
     #[arg(long)]
     test_value: Option<usize>,
+
+    #[arg(long)]
+    pub storage_sz_ub: bool,
 }
 
 /// How errors and other messages are produced.

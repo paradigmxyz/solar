@@ -45,6 +45,9 @@ pub struct Session {
     /// Whether to emit AST stats.
     #[builder(default)]
     pub ast_stats: bool,
+    /// Whether to emit contract's storage size upper bound
+    #[builder(default)]
+    pub storage_sz_ub: bool,
 }
 
 impl SessionBuilder {
