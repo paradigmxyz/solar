@@ -16,6 +16,24 @@ pub struct Lit {
     pub kind: LitKind,
 }
 
+impl fmt::Display for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { kind, symbol, span: _ } = self;
+        match kind {
+            LitKind::Str(StrKind::Str, _) => write!(f, "\"{symbol}\""),
+            LitKind::Str(StrKind::Unicode, _) => write!(f, "unicode\"{symbol}\""),
+            LitKind::Str(StrKind::Hex, _) => write!(f, "hex\"{symbol}\""),
+            LitKind::Number(_)
+            | LitKind::Rational(_)
+            | LitKind::Err(_)
+            | LitKind::Address(_)
+            | LitKind::Bool(_) => {
+                write!(f, "{symbol}")
+            }
+        }
+    }
+}
+
 /// A kind of literal.
 #[derive(Clone, Debug)]
 pub enum LitKind {
