@@ -128,7 +128,11 @@ impl<'gcx> Gcx<'gcx> {
 
     fn print_solc_param_ty(self, ty: Ty<'gcx>) -> String {
         let mut s = String::new();
-        TySolcPrinter::new(self, &mut s).data_locations(false).print(ty).unwrap();
+        TySolcPrinter::new(self, &mut s)
+            .data_locations(false)
+            .human_readable(false)
+            .print(ty)
+            .unwrap();
         s
     }
 }
@@ -215,7 +219,8 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             }
 
             TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
+            | TyKind::IntLiteral(..)
+            | TyKind::Slice(_)
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Error(..)
@@ -241,31 +246,40 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     }
 }
 
-/// Prints types as implemented in `Type::toString(bool)` in solc.
-///
-/// This is mainly used in the `internalType` field of the ABI.
+/// Prints types similarly to `Type::toString(bool)` or `Type::humanReadableName()` in solc.
 ///
 /// Example: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358
-struct TySolcPrinter<'gcx, W> {
+pub(crate) struct TySolcPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     data_locations: bool,
+    human_readable: bool,
 }
 
 impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
-    fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
-        Self { gcx, buf, data_locations: false }
+    pub(crate) fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+        Self { gcx, buf, data_locations: false, human_readable: true }
     }
 
     /// Whether to print data locations for reference types.
     ///
     /// Default: `false`.
-    fn data_locations(mut self, yes: bool) -> Self {
+    pub(crate) fn data_locations(mut self, yes: bool) -> Self {
         self.data_locations = yes;
         self
     }
 
-    fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
+    /// Whether to print types in a human-readable format.
+    ///
+    /// False is equivalent to `toString`, otherwise it is equivalent to `humanReadableName`.
+    ///
+    /// Default: `true`.
+    pub(crate) fn human_readable(mut self, yes: bool) -> Self {
+        self.human_readable = yes;
+        self
+    }
+
+    pub(crate) fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => {
                 ty.write_abi_str(&mut self.buf)?;
@@ -300,18 +314,42 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.print(ty)?;
                 write!(self.buf, "[{len}]")
             }
+            TyKind::Slice(ty) => {
+                self.print(ty)?;
+                self.buf.write_str(" slice")
+            }
 
-            TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
-            | TyKind::Tuple(_)
-            | TyKind::Mapping(..)
-            | TyKind::Error(..)
-            | TyKind::Event(..)
-            | TyKind::Module(_)
-            | TyKind::BuiltinModule(_)
-            | TyKind::Type(_)
-            | TyKind::Meta(_)
-            | TyKind::Err(_) => panic!("printing unsupported type as solc: {ty:?}"),
+            TyKind::StringLiteral(..) => self.buf.write_str("{string}"),
+            TyKind::IntLiteral(..) => self.buf.write_str("{integer}"),
+            TyKind::Tuple(tys) => {
+                self.buf.write_str("tuple(")?;
+                for (i, &ty) in tys.iter().enumerate() {
+                    if i > 0 {
+                        self.buf.write_str(", ")?;
+                    }
+                    self.print(ty)?;
+                }
+                self.buf.write_str(")")
+            }
+            TyKind::Mapping(k, v) => {
+                self.buf.write_str("mapping(")?;
+                self.print(k)?;
+                self.buf.write_str(" => ")?;
+                self.print(v)?;
+                self.buf.write_str(")")
+            }
+            TyKind::Error(_, id) => write!(self.buf, "error {}", self.gcx.hir.error(id).name),
+            TyKind::Event(_, id) => write!(self.buf, "event {}", self.gcx.hir.event(id).name),
+            TyKind::Module(id) => {
+                write!(self.buf, "module \"{}\"", self.gcx.hir.source(id).file.name.display())
+            }
+            TyKind::BuiltinModule(builtin) => self.buf.write_str(builtin.name().as_str()),
+            TyKind::Type(ty) | TyKind::Meta(ty) => {
+                self.buf.write_str("type(")?;
+                self.print(ty)?;
+                self.buf.write_str(")")
+            }
+            TyKind::Err(_) => self.buf.write_str("{error}"),
         }
     }
 }

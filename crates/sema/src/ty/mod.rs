@@ -23,8 +23,8 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-mod abi;
-pub use abi::{TyAbiPrinter, TyAbiPrinterMode};
+mod print;
+pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
@@ -205,6 +205,10 @@ impl<'gcx> Gcx<'gcx> {
         self.interner.intern_ty_iter(tys)
     }
 
+    pub fn mk_ty_tuple(self, tys: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Tuple(tys))
+    }
+
     fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
         self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
@@ -216,8 +220,12 @@ impl<'gcx> Gcx<'gcx> {
         ))
     }
 
-    pub fn mk_ty_int_literal(self, size: TypeSize) -> Ty<'gcx> {
-        self.mk_ty(TyKind::IntLiteral(size))
+    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+        let bits = bits.next_multiple_of(8).max(8);
+        if bits > 256 {
+            return None;
+        }
+        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_int_bits(bits as u16))))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
@@ -450,6 +458,39 @@ impl<'gcx> Gcx<'gcx> {
             hir::Res::Builtin(builtin) => builtin.ty(self),
             hir::Res::Err(guar) => self.mk_ty_err(guar),
         }
+    }
+
+    /// Returns the type of the given literal.
+    pub fn type_of_lit(self, lit: &'gcx hir::Lit) -> Ty<'gcx> {
+        match &lit.kind {
+            solar_ast::LitKind::Str(_, s) => self.mk_ty_string_literal(s),
+            solar_ast::LitKind::Number(int) => {
+                self.mk_ty_int_literal(int.sign() as usize == 0, int.bits()).unwrap_or_else(|| {
+                    self.mk_ty_err(
+                        self.dcx()
+                            .err("integer literal is greater than 2**256")
+                            .span(lit.span)
+                            .emit(),
+                    )
+                })
+            }
+            solar_ast::LitKind::Rational(_) => self.mk_ty_err(
+                self.dcx().err("rational literals are not supported").span(lit.span).emit(),
+            ),
+            solar_ast::LitKind::Address(_) => self.types.address,
+            solar_ast::LitKind::Bool(_) => self.types.bool,
+            &solar_ast::LitKind::Err(guar) => self.mk_ty_err(guar),
+        }
+    }
+
+    pub fn members_of(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> members::MemberList<'gcx> {
+        let _ = (source, contract); // TODO
+        self.native_members(ty)
     }
 }
 
@@ -689,9 +730,8 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-/// Returns the members of the given type.
-pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
-    members::members_of(gcx, ty)
+fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
+    members::native_members(gcx, ty)
 }
 }
 

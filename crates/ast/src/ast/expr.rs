@@ -241,13 +241,11 @@ impl UnOpKind {
     /// Returns the string representation of the operator.
     pub const fn to_str(self) -> &'static str {
         match self {
-            Self::PreInc => "++",
-            Self::PreDec => "--",
+            Self::PreInc | Self::PostInc => "++",
+            Self::PreDec | Self::PostDec => "--",
             Self::Not => "!",
             Self::Neg => "-",
             Self::BitNot => "~",
-            Self::PostInc => "++",
-            Self::PostDec => "--",
         }
     }
 
@@ -262,6 +260,14 @@ impl UnOpKind {
     /// Returns `true` if the operator is a postfix operator.
     pub const fn is_postfix(self) -> bool {
         !self.is_prefix()
+    }
+
+    /// Returns `true` if the operator is modifying.
+    pub const fn is_modifying(self) -> bool {
+        match self {
+            Self::PreInc | Self::PreDec | Self::PostInc | Self::PostDec => true,
+            Self::Not | Self::Neg | Self::BitNot => false,
+        }
     }
 }
 

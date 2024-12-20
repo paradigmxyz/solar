@@ -15,6 +15,9 @@ pub use ast::{
     StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
+mod visit;
+pub use visit::Visit;
+
 /// HIR arena allocator.
 pub struct Arena {
     pub bump: bumpalo::Bump,
@@ -1127,7 +1130,7 @@ pub enum ExprKind<'hir> {
     Ident(&'hir [Res]),
 
     /// A square bracketed indexing expression: `vector[index]`.
-    Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
+    Index(&'hir Expr<'hir>, &'hir Expr<'hir>),
 
     /// A square bracketed slice expression: `slice[l:r]`.
     Slice(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>, Option<&'hir Expr<'hir>>),

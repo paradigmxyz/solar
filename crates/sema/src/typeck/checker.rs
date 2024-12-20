@@ -1,0 +1,300 @@
+use crate::{
+    hir::{self, Visit},
+    ty::{Gcx, Ty, TyKind},
+};
+use solar_ast::{DataLocation, ElementaryType};
+use solar_data_structures::{map::FxHashMap, Never};
+use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use std::ops::ControlFlow;
+
+#[allow(unused)]
+macro_rules! try_ty {
+    ($ty:expr) => {
+        match $ty {
+            ty => {
+                if ty.has_error().is_err() {
+                    return ty;
+                }
+                ty
+            }
+        }
+    };
+}
+
+pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
+    let mut checker = TypeChecker::new(gcx, source);
+    let _ = checker.visit_nested_source(source);
+}
+
+struct TypeChecker<'gcx> {
+    gcx: Gcx<'gcx>,
+    source: hir::SourceId,
+    contract: Option<hir::ContractId>,
+
+    types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+
+    lvalue_context: Option<bool>,
+}
+
+impl<'gcx> TypeChecker<'gcx> {
+    fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
+        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+    }
+
+    fn dcx(&self) -> &'gcx DiagCtxt {
+        self.gcx.dcx()
+    }
+
+    #[must_use]
+    fn get(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        if let Some(ty) = self.types.get(&expr.id) {
+            return *ty;
+        }
+        let ty = self.type_of(expr);
+        self.types.insert(expr.id, ty);
+        ty
+    }
+
+    #[must_use]
+    fn type_of(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        macro_rules! todo {
+            () => {
+                return self
+                    .gcx
+                    .mk_ty_err(self.dcx().err("typeck: not yet implemented").span(expr.span).emit())
+            };
+        }
+        match expr.kind {
+            hir::ExprKind::Array(_) => todo!(),
+            hir::ExprKind::Assign(lhs, bin_op, rhs) => {
+                let ty = self.require_lvalue(lhs);
+                self.check_assign(ty, lhs);
+                if let Some(bin_op) = bin_op {
+                    let _ = bin_op;
+                    todo!()
+                } else {
+                    let _ = self.expect_ty(rhs, ty);
+                    ty
+                }
+            }
+            hir::ExprKind::Binary(_, _bin_op, _) => todo!(),
+            hir::ExprKind::Call(_expr, ref _call_args) => todo!(),
+            hir::ExprKind::CallOptions(_expr, _opts) => todo!(),
+            hir::ExprKind::Delete(expr) => {
+                let _ = self.require_lvalue(expr);
+                self.gcx.types.unit
+            }
+            hir::ExprKind::Ident(&[res]) => self.gcx.type_of_res(res),
+            hir::ExprKind::Ident(res) => {
+                debug_assert!(!res.is_empty());
+                let _ = res;
+                todo!();
+            }
+            hir::ExprKind::Index(lhs, index) => {
+                let ty = self.get(lhs);
+                if let Some((index_ty, result_ty)) = self.index_types(ty) {
+                    let _ = self.expect_ty(index, index_ty);
+                    result_ty
+                } else {
+                    self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
+                }
+            }
+            hir::ExprKind::Slice(lhs, start, end) => {
+                let ty = self.get(lhs);
+                if !ty.is_sliceable() {
+                    self.dcx().err("can only slice arrays").span(expr.span).emit();
+                } else if !ty.is_ref_at(DataLocation::Calldata) {
+                    self.dcx().err("can only slice dynamic calldata arrays").span(expr.span).emit();
+                }
+                if let Some((_index_ty, _result_ty)) = self.index_types(ty) {
+                    if let Some(start) = start {
+                        let _ = self.expect_ty(start, self.gcx.types.uint(256));
+                    }
+                    if let Some(end) = end {
+                        let _ = self.expect_ty(end, self.gcx.types.uint(256));
+                    }
+                    if let TyKind::Slice(_) = ty.kind {
+                        ty
+                    } else {
+                        self.gcx.mk_ty(TyKind::Slice(ty))
+                    }
+                } else {
+                    self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
+                }
+            }
+            hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
+            hir::ExprKind::Member(expr, ident) => {
+                let ty = self.get(expr);
+                let possible_members = self
+                    .gcx
+                    .members_of(ty, self.source, self.contract)
+                    .iter()
+                    .copied()
+                    .filter(|m| m.name == ident.name)
+                    .collect::<Vec<_>>();
+
+                // TODO: overload resolution
+
+                match possible_members[..] {
+                    [] => {
+                        let msg = format!(
+                            "member `{ident}` not found on type `{}`",
+                            ty.display(self.gcx)
+                        );
+                        let err = self.dcx().err(msg).span(expr.span);
+                        self.gcx.mk_ty_err(err.emit())
+                    }
+                    [member] => member.ty,
+                    [..] => {
+                        let msg = format!(
+                            "member `{ident}` not unique on type `{}`",
+                            ty.display(self.gcx)
+                        );
+                        let err = self.dcx().err(msg).span(ident.span);
+                        self.gcx.mk_ty_err(err.emit())
+                    }
+                }
+            }
+            hir::ExprKind::New(_) => todo!(),
+            hir::ExprKind::Payable(expr) => {
+                if self.expect_ty(expr, self.gcx.types.address).is_ok() {
+                    self.gcx.types.address_payable
+                } else {
+                    self.get(expr)
+                }
+            }
+            hir::ExprKind::Ternary(cond, true_, false_) => {
+                let _ = self.expect_ty(cond, self.gcx.types.bool);
+                // TODO: Does mobile need to return None?
+                let true_ty = self.get(true_).mobile(self.gcx);
+                let false_ty = self.get(false_).mobile(self.gcx);
+                match (true_ty, false_ty) {
+                    (Some(true_ty), Some(false_ty)) => {
+                        true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {
+                            self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("incompatible conditional types")
+                                    //.span(vec![true_.span, false_.span])
+                                    .span(expr.span)
+                                    .emit(),
+                            )
+                        })
+                    }
+                    (true_ty, false_ty) => {
+                        let mut guar = None;
+                        if true_ty.is_none() {
+                            guar =
+                                Some(self.dcx().err("invalid true type").span(true_.span).emit());
+                        }
+                        if false_ty.is_none() {
+                            guar =
+                                Some(self.dcx().err("invalid false type").span(false_.span).emit());
+                        }
+                        true_ty.or(false_ty).unwrap_or_else(|| self.gcx.mk_ty_err(guar.unwrap()))
+                    }
+                }
+            }
+            hir::ExprKind::Tuple(_) => todo!(),
+            hir::ExprKind::TypeCall(ref ty) => {
+                self.gcx.mk_ty(TyKind::Meta(self.gcx.type_of_hir_ty(ty)))
+            }
+            hir::ExprKind::Type(ref ty) => {
+                self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
+            }
+            hir::ExprKind::Unary(un_op, expr) => {
+                // TODO: un_op
+                let ty = if un_op.kind.is_modifying() {
+                    self.require_lvalue(expr)
+                } else {
+                    self.get(expr)
+                };
+                // TODO: Allow only on int, int literal,t bool
+                ty
+            }
+            hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
+        }
+    }
+
+    fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
+        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        let _ = (ty, expr);
+    }
+
+    /// Returns `(index_ty, result_ty)` for the given type, if it is indexable.
+    #[must_use]
+    fn index_types(&self, ty: Ty<'gcx>) -> Option<(Ty<'gcx>, Ty<'gcx>)> {
+        Some(match ty.peel_refs().kind {
+            TyKind::Array(element, _) | TyKind::DynArray(element) => {
+                (self.gcx.types.uint(256), element)
+            }
+            TyKind::Elementary(ElementaryType::Bytes)
+            | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
+                (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
+            }
+            TyKind::Mapping(key, value) => (key, value),
+            _ => return None,
+        })
+    }
+
+    fn expect_ty(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Ty<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        let actual = self.get(expr);
+        if actual.convert_implicit(expected) {
+            return Ok(());
+        }
+        let mut err = self.dcx().err("mismatched types").span(expr.span);
+        err = err.span_label(
+            expr.span,
+            format!(
+                "expected `{}`, found `{}`",
+                expected.display(self.gcx),
+                actual.display(self.gcx)
+            ),
+        );
+        Err(err.emit())
+    }
+
+    #[must_use]
+    fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        let prev = self.lvalue_context.replace(true);
+        let ty = self.get(expr);
+        let ctx = self.lvalue_context;
+        debug_assert!(ctx.is_some());
+        self.lvalue_context = prev;
+        if ctx == Some(true) {
+            return ty;
+        }
+
+        // TODO: better error message https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L4143
+
+        self.dcx().err("expected lvalue").span(expr.span).emit();
+
+        ty
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
+        self.contract = Some(id);
+        self.walk_nested_contract(id)
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let _ = self.get(expr);
+        self.walk_expr(expr)
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // TODO
+        self.walk_stmt(stmt)
+    }
+}

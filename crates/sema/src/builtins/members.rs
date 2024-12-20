@@ -10,8 +10,8 @@ use solar_interface::{kw, sym, Symbol};
 pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
-pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
-    let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
+pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
+    let expected_ref = || unreachable!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
             ElementaryType::Address(false) => address(gcx).collect(),
@@ -25,10 +25,11 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
-        TyKind::IntLiteral(_size) => Default::default(),
+        TyKind::IntLiteral(_negative, _size) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
+        TyKind::Slice(_ty) => Default::default(), // TODO: do slices have members
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),

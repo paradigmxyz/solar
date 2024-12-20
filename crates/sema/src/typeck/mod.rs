@@ -6,6 +6,8 @@ use crate::{
 use rayon::prelude::*;
 use solar_data_structures::{map::FxHashSet, parallel};
 
+mod checker;
+
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
         gcx.sess,
@@ -14,6 +16,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+            checker::check(gcx, id);
         }),
     );
 }

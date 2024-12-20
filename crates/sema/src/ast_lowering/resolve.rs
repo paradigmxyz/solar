@@ -528,7 +528,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             for &param in &parameters {
                 let res = Res::Item(hir::ItemId::Variable(param));
                 let ident = hir::ExprKind::Ident(self.arena.alloc_as_slice(res));
-                expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
+                expr = mk_expr(hir::ExprKind::Index(expr, mk_expr(ident)));
             }
 
             match returns[..] {
@@ -925,7 +925,21 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::ExprKind::Index(expr, index) => match index {
                 ast::IndexKind::Index(index) => hir::ExprKind::Index(
                     self.lower_expr(expr),
-                    index.as_deref().map(|index| self.lower_expr(index)),
+                    if let Some(index) = index {
+                        self.lower_expr(index)
+                    } else {
+                        self.arena.alloc(hir::Expr {
+                            id: self.next_id(),
+                            kind: hir::ExprKind::Err(
+                                self.sess
+                                    .dcx
+                                    .err("missing index expression")
+                                    .span(expr.span)
+                                    .emit(),
+                            ),
+                            span: expr.span,
+                        })
+                    },
                 ),
                 ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
                     self.lower_expr(expr),
