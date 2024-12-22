@@ -15,18 +15,14 @@ categories.workspace = true
 [lints]
 workspace = true
 
-[build-dependencies]
-vergen = { workspace = true, features = ["build", "git", "gitcl", "cargo"] }
-
 [dependencies]
-solar-config = { workspace = true, features = ["clap"] }
+solar-config.workspace = true
 solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
-const_format = { workspace = true, features = ["rust_1_64"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
 

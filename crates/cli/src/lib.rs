@@ -6,16 +6,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use cli::Args;
+use solar_config::{ErrorFormat, ImportMap};
 use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SourceMap,
 };
 use std::{collections::BTreeSet, num::NonZeroUsize, path::Path, sync::Arc};
 
-pub mod cli;
+pub use solar_config::{self as config, version, Opts, UnstableOpts};
+
 pub mod utils;
-pub mod version;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod sigsegv_handler;
@@ -34,23 +34,23 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut args = Args::try_parse_from(itr)?;
+    let mut args = Opts::try_parse_from(itr)?;
     args.finish()?;
     Ok(args)
 }
 
-pub fn run_compiler_args(args: Args) -> Result<()> {
+pub fn run_compiler_args(args: Opts) -> Result<()> {
     run_compiler_with(args, Compiler::run_default)
 }
 
 pub struct Compiler {
     pub sess: Session,
-    pub args: Args,
+    pub args: Opts,
 }
 
 impl Compiler {
@@ -69,7 +69,7 @@ impl Compiler {
         let non_stdin_args = args.input.iter().filter(|arg| *arg != Path::new("-"));
         let arg_remappings = non_stdin_args
             .clone()
-            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<cli::ImportMap>().ok());
+            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<ImportMap>().ok());
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
@@ -101,11 +101,11 @@ impl Compiler {
     }
 }
 
-fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
+fn run_compiler_with(args: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
     let ui_testing = args.unstable.ui_testing;
     let source_map = Arc::new(SourceMap::empty());
     let emitter: Box<DynEmitter> = match args.error_format {
-        cli::ErrorFormat::Human => {
+        ErrorFormat::Human => {
             let color = match args.color {
                 clap::ColorChoice::Always => solar_interface::ColorChoice::Always,
                 clap::ColorChoice::Auto => solar_interface::ColorChoice::Auto,
@@ -116,12 +116,12 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
                 .ui_testing(ui_testing);
             Box::new(human)
         }
-        cli::ErrorFormat::Json | cli::ErrorFormat::RustcJson => {
+        ErrorFormat::Json | ErrorFormat::RustcJson => {
             // `io::Stderr` is not buffered.
             let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
             let json = JsonEmitter::new(writer, source_map.clone())
                 .pretty(args.pretty_json_err)
-                .rustc_like(matches!(args.error_format, cli::ErrorFormat::RustcJson))
+                .rustc_like(matches!(args.error_format, ErrorFormat::RustcJson))
                 .ui_testing(ui_testing);
             Box::new(json)
         }

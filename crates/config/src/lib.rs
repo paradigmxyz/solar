@@ -5,12 +5,18 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+use std::path::PathBuf;
 use strum::EnumIs;
 
 #[macro_use]
 mod macros;
 
+mod opts;
+pub use opts::{Opts, UnstableOpts};
+
 mod utils;
+
+pub mod version;
 
 str_enum! {
     /// Compiler stage.
@@ -119,7 +125,6 @@ pub struct Dump {
     pub paths: Option<Vec<String>>,
 }
 
-#[cfg(feature = "clap")]
 impl std::str::FromStr for Dump {
     type Err = String;
 
@@ -130,7 +135,7 @@ impl std::str::FromStr for Dump {
         } else {
             (s, None)
         };
-        let kind = <DumpKind as clap_builder::ValueEnum>::from_str(kind, false)?;
+        let kind = <DumpKind as clap::ValueEnum>::from_str(kind, false)?;
         Ok(Self { kind, paths })
     }
 }
@@ -147,13 +152,44 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// How errors and other messages are produced.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    pub enum ErrorFormat {
+        /// Human-readable output.
+        #[default]
+        Human,
+        /// Solc-like JSON output.
+        Json,
+        /// Rustc-like JSON output.
+        RustcJson,
+    }
+}
+
+/// A single import map, AKA remapping: `map=path`.
+#[derive(Clone, Debug)]
+pub struct ImportMap {
+    pub map: PathBuf,
+    pub path: PathBuf,
+}
+
+impl std::str::FromStr for ImportMap {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((a, b)) = s.split_once('=') {
+            Ok(Self { map: a.into(), path: b.into() })
+        } else {
+            Err("missing '='")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use strum::IntoEnumIterator;
-
-    #[cfg(not(feature = "serde"))]
-    use serde_json as _;
 
     #[test]
     fn string_enum() {
@@ -161,12 +197,10 @@ mod tests {
             let s = value.to_str();
             assert_eq!(value.to_string(), s);
             assert_eq!(value, s.parse().unwrap());
-            #[cfg(feature = "serde")]
-            {
-                let json_s = format!("\"{value}\"");
-                assert_eq!(serde_json::to_string(&value).unwrap(), json_s);
-                assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
-            }
+
+            let json_s = format!("\"{value}\"");
+            assert_eq!(serde_json::to_string(&value).unwrap(), json_s);
+            assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
         }
     }
 }

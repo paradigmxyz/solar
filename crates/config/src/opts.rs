@@ -1,11 +1,11 @@
 //! Solar CLI arguments.
 
+use crate::{CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportMap, Language};
 use clap::{ColorChoice, Parser, ValueHint};
-use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
 use std::path::PathBuf;
 
 /// Blazingly fast Solidity compiler.
-#[derive(Parser)]
+#[derive(Clone, Debug, Default, derive_builder::Builder, clap::Parser)]
 #[command(
     name = "solar",
     version = crate::version::SHORT_VERSION,
@@ -13,7 +13,7 @@ use std::path::PathBuf;
     arg_required_else_help = true,
 )]
 #[non_exhaustive]
-pub struct Args {
+pub struct Opts {
     /// Files to compile or import remappings.
     #[arg(value_hint = ValueHint::FilePath)]
     pub input: Vec<PathBuf>,
@@ -71,10 +71,10 @@ pub struct Args {
 
     /// Parsed unstable flags.
     #[arg(skip)]
-    pub unstable: UnstableFeatures,
+    pub unstable: UnstableOpts,
 }
 
-impl Args {
+impl Opts {
     /// Finishes argument parsing.
     ///
     /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
@@ -83,14 +83,14 @@ impl Args {
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
             self.unstable =
-                UnstableFeatures::try_parse_from(std::iter::once(String::new()).chain(hack))?;
+                UnstableOpts::try_parse_from(std::iter::once(String::new()).chain(hack))?;
         }
         Ok(())
     }
 }
 
 /// Internal options.
-#[derive(Clone, Debug, Default, Parser)]
+#[derive(Clone, Debug, Default, derive_builder::Builder, clap::Parser)]
 #[clap(
     disable_help_flag = true,
     before_help = concat!(
@@ -103,7 +103,7 @@ impl Args {
 )]
 #[non_exhaustive]
 #[allow(clippy::manual_non_exhaustive)]
-pub struct UnstableFeatures {
+pub struct UnstableOpts {
     /// Enables UI testing mode.
     #[arg(long)]
     pub ui_testing: bool,
@@ -140,38 +140,6 @@ pub struct UnstableFeatures {
     test_value: Option<usize>,
 }
 
-/// How errors and other messages are produced.
-#[derive(Clone, Debug, Default, clap::ValueEnum)]
-#[value(rename_all = "kebab-case")]
-pub enum ErrorFormat {
-    /// Human-readable output.
-    #[default]
-    Human,
-    /// Solc-like JSON output.
-    Json,
-    /// Rustc-like JSON output.
-    RustcJson,
-}
-
-/// A single import map, AKA remapping: `map=path`.
-#[derive(Clone, Debug)]
-pub struct ImportMap {
-    pub map: PathBuf,
-    pub path: PathBuf,
-}
-
-impl std::str::FromStr for ImportMap {
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((a, b)) = s.split_once('=') {
-            Ok(Self { map: a.into(), path: b.into() })
-        } else {
-            Err("missing '='")
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,13 +147,13 @@ mod tests {
 
     #[test]
     fn verify_cli() {
-        Args::command().debug_assert();
-        UnstableFeatures::command().debug_assert();
+        Opts::command().debug_assert();
+        UnstableOpts::command().debug_assert();
     }
 
     #[test]
     fn unstable_features() {
-        fn parse(args: &[&str]) -> Result<UnstableFeatures, impl std::fmt::Debug> {
+        fn parse(args: &[&str]) -> Result<UnstableOpts, impl std::fmt::Debug> {
             struct UnwrapDisplay<T>(T);
             impl<T: std::fmt::Display> std::fmt::Debug for UnwrapDisplay<T> {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -193,9 +161,9 @@ mod tests {
                 }
             }
             (|| {
-                let mut args = Args::try_parse_from(args)?;
-                args.finish()?;
-                Ok::<_, clap::Error>(args.unstable)
+                let mut opts = Opts::try_parse_from(args)?;
+                opts.finish()?;
+                Ok::<_, clap::Error>(opts.unstable)
             })()
             .map_err(|e| UnwrapDisplay(e.render().ansi().to_string()))
         }
