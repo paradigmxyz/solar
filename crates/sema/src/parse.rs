@@ -180,7 +180,7 @@ impl<'sess> ParsingContext<'sess> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        let r = if self.sess.language.is_yul() {
+        let r = if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {

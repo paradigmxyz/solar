@@ -1,11 +1,13 @@
 //! Solar CLI arguments.
 
-use crate::{CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportMap, Language};
+use crate::{
+    CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportMap, Language, Threads,
+};
 use clap::{ColorChoice, Parser, ValueHint};
-use std::path::PathBuf;
+use std::{num::NonZeroUsize, path::PathBuf};
 
 /// Blazingly fast Solidity compiler.
-#[derive(Clone, Debug, Default, derive_builder::Builder, clap::Parser)]
+#[derive(Clone, Debug, Default, clap::Parser)]
 #[command(
     name = "solar",
     version = crate::version::SHORT_VERSION,
@@ -28,8 +30,8 @@ pub struct Opts {
     pub language: Language,
 
     /// Number of threads to use. Zero specifies the number of logical cores.
-    #[arg(long, short = 'j', visible_alias = "jobs", default_value = "8")]
-    pub threads: usize,
+    #[arg(long, short = 'j', visible_alias = "jobs", default_value_t)]
+    pub threads: Threads,
     /// EVM version.
     #[arg(long, value_enum, default_value_t)]
     pub evm_version: EvmVersion,
@@ -75,6 +77,12 @@ pub struct Opts {
 }
 
 impl Opts {
+    /// Returns the number of threads to use.
+    #[inline]
+    pub fn threads(&self) -> NonZeroUsize {
+        self.threads.0
+    }
+
     /// Finishes argument parsing.
     ///
     /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
@@ -90,7 +98,7 @@ impl Opts {
 }
 
 /// Internal options.
-#[derive(Clone, Debug, Default, derive_builder::Builder, clap::Parser)]
+#[derive(Clone, Debug, Default, clap::Parser)]
 #[clap(
     disable_help_flag = true,
     before_help = concat!(
@@ -148,7 +156,9 @@ mod tests {
     #[test]
     fn verify_cli() {
         Opts::command().debug_assert();
+        let _ = Opts::default();
         UnstableOpts::command().debug_assert();
+        let _ = UnstableOpts::default();
     }
 
     #[test]

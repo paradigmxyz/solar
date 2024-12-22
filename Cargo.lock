@@ -2580,7 +2580,6 @@ name = "solar-config"
 version = "0.1.0"
 dependencies = [
  "clap",
- "derive_builder",
  "serde",
  "serde_json",
  "strum",

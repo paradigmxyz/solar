@@ -5,7 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-use std::path::PathBuf;
+use std::{num::NonZeroUsize, path::PathBuf};
 use strum::EnumIs;
 
 #[macro_use]
@@ -183,6 +183,54 @@ impl std::str::FromStr for ImportMap {
         } else {
             Err("missing '='")
         }
+    }
+}
+
+/// Wrapper to implement a custom `Default` value for the number of threads.
+#[derive(Clone, Copy)]
+pub struct Threads(pub NonZeroUsize);
+
+impl From<Threads> for NonZeroUsize {
+    fn from(threads: Threads) -> Self {
+        threads.0
+    }
+}
+
+impl From<NonZeroUsize> for Threads {
+    fn from(n: NonZeroUsize) -> Self {
+        Self(n)
+    }
+}
+
+impl Default for Threads {
+    fn default() -> Self {
+        Self(NonZeroUsize::new(8).unwrap())
+    }
+}
+
+impl std::str::FromStr for Threads {
+    type Err = <NonZeroUsize as std::str::FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<usize>().map(|n| {
+            Self(
+                NonZeroUsize::new(n)
+                    .or_else(|| std::thread::available_parallelism().ok())
+                    .unwrap_or(NonZeroUsize::MIN),
+            )
+        })
+    }
+}
+
+impl std::fmt::Display for Threads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Debug for Threads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
