@@ -65,7 +65,24 @@ impl<'gcx> TypeChecker<'gcx> {
             };
         }
         match expr.kind {
-            hir::ExprKind::Array(_) => todo!(),
+            hir::ExprKind::Array(exprs) => {
+                let mut common = None;
+                for (i, expr) in exprs.iter().enumerate() {
+                    let expr_ty = self.get(expr);
+                    if i == 0 {
+                        common = expr_ty.mobile(self.gcx);
+                    } else if let Some(common_ty) = &mut common {
+                        common = common_ty.common_type(expr_ty, self.gcx);
+                    }
+                }
+                if let Some(common) = common {
+                    self.gcx.mk_ty(TyKind::ArrayLiteral(common, exprs.len()))
+                } else {
+                    self.gcx.mk_ty_err(
+                        self.dcx().err("cannot infer array element type").span(expr.span).emit(),
+                    )
+                }
+            }
             hir::ExprKind::Assign(lhs, bin_op, rhs) => {
                 let ty = self.require_lvalue(lhs);
                 self.check_assign(ty, lhs);

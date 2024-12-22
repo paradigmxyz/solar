@@ -220,6 +220,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 
             TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
+            | TyKind::ArrayLiteral(..)
             | TyKind::Slice(_)
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
@@ -311,6 +312,10 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.buf.write_str("[]")
             }
             TyKind::Array(ty, len) => {
+                self.print(ty)?;
+                write!(self.buf, "[{len}]")
+            }
+            TyKind::ArrayLiteral(ty, len) => {
                 self.print(ty)?;
                 write!(self.buf, "[{len}]")
             }

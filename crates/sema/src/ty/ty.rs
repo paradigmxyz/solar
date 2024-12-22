@@ -246,7 +246,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::Ref(ty, _)
+            TyKind::ArrayLiteral(ty, _)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -415,6 +416,9 @@ pub enum TyKind<'gcx> {
     /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
     IntLiteral(bool, TypeSize),
 
+    /// Type of an array literal expression: `[a, 0, 1]`.
+    ArrayLiteral(Ty<'gcx>, usize),
+
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
 
@@ -521,7 +525,8 @@ impl TyFlags {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
 
-            TyKind::Ref(ty, _)
+            TyKind::ArrayLiteral(ty, _)
+            | TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
