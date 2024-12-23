@@ -1,7 +1,9 @@
 macro_rules! str_enum {
     ($(#[$attr:meta])* $vis:vis enum $name:ident { $( $(#[$var_attr:meta])* $var:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::EnumString, strum::VariantNames)]
+        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::VariantNames)]
+        // Use `clap` in `FromStr` for a better error message when available.
+        #[cfg_attr(not(feature = "clap"), derive(strum::EnumString))]
         $(#[$attr])*
         $vis enum $name {
             $(
@@ -16,6 +18,7 @@ macro_rules! str_enum {
             }
         }
 
+        #[cfg(feature = "clap")]
         impl clap::ValueEnum for $name {
             fn value_variants<'a>() -> &'a [Self] {
                 &[$(Self::$var),*]
@@ -26,12 +29,23 @@ macro_rules! str_enum {
             }
         }
 
+        #[cfg(feature = "clap")]
+        impl std::str::FromStr for $name {
+            type Err = String;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                <Self as clap::ValueEnum>::from_str(s, false).map_err(|e| e.to_string())
+            }
+        }
+
+        #[cfg(feature = "serde")]
         impl serde::Serialize for $name {
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 serializer.serialize_str(self.to_str())
             }
         }
 
+        #[cfg(feature = "serde")]
         impl<'de> serde::Deserialize<'de> for $name {
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 deserializer.deserialize_any(crate::utils::StrumVisitor::<Self>::new())

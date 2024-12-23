@@ -16,15 +16,25 @@ categories.workspace = true
 workspace = true
 
 [build-dependencies]
-vergen = { workspace = true, features = ["build", "git", "gitcl", "cargo"] }
+vergen = { workspace = true, optional = true, features = [
+    "build",
+    "git",
+    "gitcl",
+    "cargo",
+] }
 
 [dependencies]
-clap = { workspace = true, features = ["derive"] }
-serde.workspace = true
 strum = { workspace = true, features = ["derive"] }
+
+clap = { workspace = true, optional = true, features = ["derive"] }
+serde = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true
 
 [features]
 nightly = []
+
+clap = ["version", "dep:clap"]
+version = ["dep:vergen"]
+serde = ["dep:serde"]

@@ -1,12 +1,15 @@
 /// [`strum`] -> [`serde`] adapter.
+#[cfg(feature = "serde")]
 pub(crate) struct StrumVisitor<T>(std::marker::PhantomData<T>);
 
+#[cfg(feature = "serde")]
 impl<T: std::str::FromStr + strum::VariantNames> StrumVisitor<T> {
     pub(crate) fn new() -> Self {
         Self(std::marker::PhantomData)
     }
 }
 
+#[cfg(feature = "serde")]
 impl<T: std::str::FromStr + strum::VariantNames> serde::de::Visitor<'_> for StrumVisitor<T> {
     type Value = T;
 

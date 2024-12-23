@@ -3,81 +3,97 @@
 use crate::{
     CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportMap, Language, Threads,
 };
-use clap::{ColorChoice, Parser, ValueHint};
 use std::{num::NonZeroUsize, path::PathBuf};
 
+#[cfg(feature = "clap")]
+use clap::{ColorChoice, Parser, ValueHint};
+
 /// Blazingly fast Solidity compiler.
-#[derive(Clone, Debug, Default, clap::Parser)]
-#[command(
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "clap", derive(Parser))]
+#[cfg_attr(feature = "clap", command(
     name = "solar",
     version = crate::version::SHORT_VERSION,
     long_version = crate::version::LONG_VERSION,
     arg_required_else_help = true,
-)]
+))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
     /// Files to compile or import remappings.
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[cfg_attr(feature = "clap", arg(value_hint = ValueHint::FilePath))]
     pub input: Vec<PathBuf>,
     /// Directory to search for files.
-    #[arg(help_heading = "Input options", long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath)]
+    #[cfg_attr(feature = "clap", arg(help_heading = "Input options", long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath))]
     pub import_path: Vec<PathBuf>,
     /// Map to search for files. Can also be provided as a positional argument.
-    #[arg(help_heading = "Input options", long, short = 'm', value_name = "MAP=PATH")]
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Input options", long, short = 'm', value_name = "MAP=PATH")
+    )]
     pub import_map: Vec<ImportMap>,
     /// Source code language. Only Solidity is currently implemented.
-    #[arg(help_heading = "Input options", long, value_enum, default_value_t, hide = true)]
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Input options", long, value_enum, default_value_t, hide = true)
+    )]
     pub language: Language,
 
     /// Number of threads to use. Zero specifies the number of logical cores.
-    #[arg(long, short = 'j', visible_alias = "jobs", default_value_t)]
+    #[cfg_attr(feature = "clap", arg(long, short = 'j', visible_alias = "jobs", default_value_t))]
     pub threads: Threads,
     /// EVM version.
-    #[arg(long, value_enum, default_value_t)]
+    #[cfg_attr(feature = "clap", arg(long, value_enum, default_value_t))]
     pub evm_version: EvmVersion,
     /// Stop execution after the given compiler stage.
-    #[arg(long, value_enum)]
+    #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
 
     /// Directory to write output files.
-    #[arg(long, value_hint = ValueHint::DirPath)]
+    #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
     pub out_dir: Option<PathBuf>,
     /// Comma separated list of types of output for the compiler to emit.
-    #[arg(long, value_delimiter = ',')]
+    #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
 
     /// Coloring.
-    #[arg(help_heading = "Display options", long, value_enum, default_value = "auto")]
+    #[cfg(feature = "clap")] // TODO
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_enum, default_value = "auto")
+    )]
     pub color: ColorChoice,
     /// Use verbose output.
-    #[arg(help_heading = "Display options", long, short)]
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long, short))]
     pub verbose: bool,
     /// Pretty-print JSON output.
     ///
     /// Does not include errors. See `--pretty-json-err`.
-    #[arg(help_heading = "Display options", long)]
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub pretty_json: bool,
     /// Pretty-print error JSON output.
-    #[arg(help_heading = "Display options", long)]
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub pretty_json_err: bool,
     /// How errors and other messages are produced.
-    #[arg(help_heading = "Display options", long, value_enum, default_value_t)]
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_enum, default_value_t)
+    )]
     pub error_format: ErrorFormat,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
     /// See `-Zhelp` for more details.
     #[doc(hidden)]
-    #[arg(id = "unstable-features", value_name = "FLAG", short = 'Z')]
+    #[cfg_attr(feature = "clap", arg(id = "unstable-features", value_name = "FLAG", short = 'Z'))]
     pub _unstable: Vec<String>,
 
     /// Parsed unstable flags.
-    #[arg(skip)]
+    #[cfg_attr(feature = "clap", arg(skip))]
     pub unstable: UnstableOpts,
 
     // Allows `Opts { x: y, ..Default::default() }`.
     #[doc(hidden)]
-    #[arg(skip)]
+    #[cfg_attr(feature = "clap", arg(skip))]
     pub _non_exhaustive: (),
 }
 
@@ -92,6 +108,7 @@ impl Opts {
     ///
     /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
     /// in the future.
+    #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
@@ -103,8 +120,9 @@ impl Opts {
 }
 
 /// Internal options.
-#[derive(Clone, Debug, Default, clap::Parser)]
-#[clap(
+#[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "clap", derive(Parser))]
+#[cfg_attr(feature = "clap", clap(
     disable_help_flag = true,
     before_help = concat!(
         "List of all unstable flags.\n",
@@ -113,51 +131,51 @@ impl Opts {
         "   NOTE: the following flags should be passed on the command-line using `-Z`, not `--`",
     ),
     help_template = "{before-help}{all-args}"
-)]
+))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct UnstableOpts {
     /// Enables UI testing mode.
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub ui_testing: bool,
 
     /// Prints a note for every diagnostic that is emitted with the creation and emission location.
     ///
     /// This is enabled by default on debug builds.
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub track_diagnostics: bool,
 
     /// Enables parsing Yul files for testing.
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub parse_yul: bool,
 
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
-    #[arg(long, value_name = "KIND[=PATHS...]")]
+    #[cfg_attr(feature = "clap", arg(long, value_name = "KIND[=PATHS...]"))]
     pub dump: Option<Dump>,
 
     /// Print AST stats.
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
     /// Print help.
-    #[arg(long, action = clap::ArgAction::Help)]
+    #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),
 
     // Allows `UnstableOpts { x: y, ..Default::default() }`.
     #[doc(hidden)]
-    #[arg(skip)]
+    #[cfg_attr(feature = "clap", arg(skip))]
     pub _non_exhaustive: (),
 
     #[cfg(test)]
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub test_bool: bool,
     #[cfg(test)]
-    #[arg(long)]
+    #[cfg_attr(feature = "clap", arg(long))]
     pub test_value: Option<usize>,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "clap"))]
 mod tests {
     use super::*;
     use clap::CommandFactory;

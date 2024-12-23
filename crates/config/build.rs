@@ -1,6 +1,9 @@
-use std::env;
+const LONG_VERSION_LINES: usize = 5;
 
+#[cfg(feature = "version")]
 fn main() {
+    use std::env;
+
     vergen::EmitBuilder::builder()
         .git_describe(false, true, None)
         .git_dirty(true)
@@ -40,8 +43,16 @@ fn main() {
         env::var("VERGEN_CARGO_FEATURES").unwrap(),
         env::var("PROFILE").unwrap(),
     );
-    assert_eq!(long_version.lines().count(), 5);
+    assert_eq!(long_version.lines().count(), LONG_VERSION_LINES);
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
+    }
+}
+
+#[cfg(not(feature = "version"))]
+fn main() {
+    println!("cargo:rustc-env=SHORT_VERSION=");
+    for i in 0..LONG_VERSION_LINES {
+        println!("cargo:rustc-env=LONG_VERSION{i}=");
     }
 }

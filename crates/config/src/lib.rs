@@ -16,6 +16,7 @@ pub use opts::{Opts, UnstableOpts};
 
 mod utils;
 
+#[cfg(feature = "version")]
 pub mod version;
 
 str_enum! {
@@ -135,8 +136,7 @@ impl std::str::FromStr for Dump {
         } else {
             (s, None)
         };
-        let kind = <DumpKind as clap::ValueEnum>::from_str(kind, false)?;
-        Ok(Self { kind, paths })
+        Ok(Self { kind: kind.parse()?, paths })
     }
 }
 
@@ -239,6 +239,9 @@ mod tests {
     use super::*;
     use strum::IntoEnumIterator;
 
+    #[cfg(not(feature = "serde"))]
+    use serde_json as _;
+
     #[test]
     fn string_enum() {
         for value in EvmVersion::iter() {
@@ -246,9 +249,12 @@ mod tests {
             assert_eq!(value.to_string(), s);
             assert_eq!(value, s.parse().unwrap());
 
-            let json_s = format!("\"{value}\"");
-            assert_eq!(serde_json::to_string(&value).unwrap(), json_s);
-            assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
+            #[cfg(feature = "serde")]
+            {
+                let json_s = format!("\"{value}\"");
+                assert_eq!(serde_json::to_string(&value).unwrap(), json_s);
+                assert_eq!(serde_json::from_str::<EvmVersion>(&json_s).unwrap(), value);
+            }
         }
     }
 }

@@ -1,3 +1,5 @@
+//! Solar version information.
+
 /// The short version information.
 pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 
