@@ -121,7 +121,10 @@ impl Parser for Solar {
 }
 
 fn session() -> Session {
-    Session::builder().with_stderr_emitter().single_threaded().build()
+    Session::builder()
+        .with_stderr_emitter_and_color(solar_parse::interface::ColorChoice::Always)
+        .single_threaded()
+        .build()
 }
 
 pub struct Solang;
