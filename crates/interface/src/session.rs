@@ -16,6 +16,7 @@ pub struct Session {
     source_map: Arc<SourceMap>,
 
     /// The compiler options.
+    #[builder(default)]
     pub opts: Opts,
 }
 
