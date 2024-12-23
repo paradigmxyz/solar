@@ -40,5 +40,8 @@ fn main() {
         env::var("VERGEN_CARGO_FEATURES").unwrap(),
         env::var("PROFILE").unwrap(),
     );
-    println!("cargo:rustc-env=LONG_VERSION={long_version}");
+    assert_eq!(long_version.lines().count(), 5);
+    for (i, line) in long_version.lines().enumerate() {
+        println!("cargo:rustc-env=LONG_VERSION{i}={line}");
+    }
 }
