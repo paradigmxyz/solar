@@ -1,5 +1,3 @@
-const LONG_VERSION_LINES: usize = 5;
-
 #[cfg(feature = "version")]
 fn main() {
     use std::env;
@@ -43,16 +41,11 @@ fn main() {
         env::var("VERGEN_CARGO_FEATURES").unwrap(),
         env::var("PROFILE").unwrap(),
     );
-    assert_eq!(long_version.lines().count(), LONG_VERSION_LINES);
+    assert_eq!(long_version.lines().count(), 5); // `version.rs` must be updated as well.
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
     }
 }
 
 #[cfg(not(feature = "version"))]
-fn main() {
-    println!("cargo:rustc-env=SHORT_VERSION=");
-    for i in 0..LONG_VERSION_LINES {
-        println!("cargo:rustc-env=LONG_VERSION{i}=");
-    }
-}
+fn main() {}
