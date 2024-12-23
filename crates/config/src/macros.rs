@@ -1,9 +1,7 @@
 macro_rules! str_enum {
     ($(#[$attr:meta])* $vis:vis enum $name:ident { $( $(#[$var_attr:meta])* $var:ident),* $(,)? }) => {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::VariantNames)]
-        // Use `clap` in `FromStr` for a better error message when available.
-        #[cfg_attr(not(feature = "clap"), derive(strum::EnumString))]
+        #[derive(strum::IntoStaticStr, strum::EnumIter, strum::EnumCount, strum::EnumString, strum::VariantNames)]
         $(#[$attr])*
         $vis enum $name {
             $(
@@ -26,15 +24,6 @@ macro_rules! str_enum {
 
             fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
                 Some(clap::builder::PossibleValue::new(self.to_str()))
-            }
-        }
-
-        #[cfg(feature = "clap")]
-        impl std::str::FromStr for $name {
-            type Err = String;
-
-            fn from_str(s: &str) -> Result<Self, Self::Err> {
-                <Self as clap::ValueEnum>::from_str(s, false).map_err(|e| e.to_string())
             }
         }
 

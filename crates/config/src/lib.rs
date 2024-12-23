@@ -136,7 +136,7 @@ impl std::str::FromStr for Dump {
         } else {
             (s, None)
         };
-        Ok(Self { kind: kind.parse()?, paths })
+        Ok(Self { kind: kind.parse::<DumpKind>().map_err(|e| e.to_string())?, paths })
     }
 }
 
