@@ -60,7 +60,8 @@ impl SessionBuilder {
         self.threads(1)
     }
 
-    /// Sets the number of threads to use for parallelism.
+    /// Sets the number of threads to use for parallelism. Zero specifies the number of logical
+    /// cores.
     #[inline]
     pub fn threads(mut self, threads: usize) -> Self {
         self.opts_mut().threads = threads.into();
