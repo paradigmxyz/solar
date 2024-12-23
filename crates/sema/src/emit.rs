@@ -31,7 +31,7 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
     for id in gcx.hir.contract_ids() {
         let name = gcx.contract_fully_qualified_name(id).to_string();
         let contract_output = output.contracts.entry(name).or_default();
-        for &emit in &gcx.sess.emit {
+        for &emit in &gcx.sess.opts.emit {
             match emit {
                 CompilerOutput::Abi => contract_output.abi = Some(gcx.contract_abi(id)),
                 CompilerOutput::Hashes => {
@@ -48,9 +48,9 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
         }
     }
     let _ = (|| {
-        let out_path = gcx.sess.out_dir.as_deref().map(|dir| dir.join("combined.json"));
+        let out_path = gcx.sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.json"));
         let mut writer = out_writer(out_path.as_deref())?;
-        to_json(&mut writer, &output, gcx.sess.pretty_json)?;
+        to_json(&mut writer, &output, gcx.sess.opts.pretty_json)?;
         writer.flush()?;
         Ok::<_, io::Error>(())
     })()

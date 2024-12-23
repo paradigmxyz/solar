@@ -5,12 +5,19 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
+use std::{num::NonZeroUsize, path::PathBuf};
 use strum::EnumIs;
 
 #[macro_use]
 mod macros;
 
+mod opts;
+pub use opts::{Opts, UnstableOpts};
+
 mod utils;
+
+#[cfg(feature = "version")]
+pub mod version;
 
 str_enum! {
     /// Compiler stage.
@@ -119,7 +126,6 @@ pub struct Dump {
     pub paths: Option<Vec<String>>,
 }
 
-#[cfg(feature = "clap")]
 impl std::str::FromStr for Dump {
     type Err = String;
 
@@ -130,8 +136,7 @@ impl std::str::FromStr for Dump {
         } else {
             (s, None)
         };
-        let kind = <DumpKind as clap_builder::ValueEnum>::from_str(kind, false)?;
-        Ok(Self { kind, paths })
+        Ok(Self { kind: kind.parse::<DumpKind>().map_err(|e| e.to_string())?, paths })
     }
 }
 
@@ -144,6 +149,99 @@ str_enum! {
         Ast,
         /// Print the HIR.
         Hir,
+    }
+}
+
+str_enum! {
+    /// How errors and other messages are produced.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    pub enum ErrorFormat {
+        /// Human-readable output.
+        #[default]
+        Human,
+        /// Solc-like JSON output.
+        Json,
+        /// Rustc-like JSON output.
+        RustcJson,
+    }
+}
+
+/// A single import map, AKA remapping: `map=path`.
+#[derive(Clone, Debug)]
+pub struct ImportMap {
+    pub map: PathBuf,
+    pub path: PathBuf,
+}
+
+impl std::str::FromStr for ImportMap {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((a, b)) = s.split_once('=') {
+            Ok(Self { map: a.into(), path: b.into() })
+        } else {
+            Err("missing '='")
+        }
+    }
+}
+
+/// Wrapper to implement a custom `Default` value for the number of threads.
+#[derive(Clone, Copy)]
+pub struct Threads(pub NonZeroUsize);
+
+impl From<Threads> for NonZeroUsize {
+    fn from(threads: Threads) -> Self {
+        threads.0
+    }
+}
+
+impl From<NonZeroUsize> for Threads {
+    fn from(n: NonZeroUsize) -> Self {
+        Self(n)
+    }
+}
+
+impl From<usize> for Threads {
+    fn from(n: usize) -> Self {
+        Self::resolve(n)
+    }
+}
+
+impl Default for Threads {
+    fn default() -> Self {
+        Self(NonZeroUsize::new(8).unwrap())
+    }
+}
+
+impl std::str::FromStr for Threads {
+    type Err = <NonZeroUsize as std::str::FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<usize>().map(Self::resolve)
+    }
+}
+
+impl std::fmt::Display for Threads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::fmt::Debug for Threads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Threads {
+    /// Resolves the number of threads to use.
+    pub fn resolve(n: usize) -> Self {
+        Self(
+            NonZeroUsize::new(n)
+                .or_else(|| std::thread::available_parallelism().ok())
+                .unwrap_or(NonZeroUsize::MIN),
+        )
     }
 }
 
@@ -161,6 +259,7 @@ mod tests {
             let s = value.to_str();
             assert_eq!(value.to_string(), s);
             assert_eq!(value, s.parse().unwrap());
+
             #[cfg(feature = "serde")]
             {
                 let json_s = format!("\"{value}\"");

@@ -54,19 +54,19 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     });
     let mut sources = pcx.parse(&ast_arenas);
 
-    if let Some(dump) = &sess.dump {
+    if let Some(dump) = &sess.opts.unstable.dump {
         if dump.kind.is_ast() {
             dump_ast(sess, &sources, dump.paths.as_deref())?;
         }
     }
 
-    if sess.ast_stats {
+    if sess.opts.unstable.ast_stats {
         for source in sources.asts() {
             stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
 
-    if sess.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
+    if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
         return Ok(());
     }
 
@@ -119,7 +119,7 @@ fn lower<'sess, 'hir>(
 
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<()> {
-    if let Some(dump) = &gcx.sess.dump {
+    if let Some(dump) = &gcx.sess.opts.unstable.dump {
         if dump.kind.is_hir() {
             dump_hir(gcx, dump.paths.as_deref())?;
         }
@@ -139,7 +139,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
     typeck::check(gcx);
     gcx.sess.dcx.has_errors()?;
 
-    if !gcx.sess.emit.is_empty() {
+    if !gcx.sess.opts.emit.is_empty() {
         emit::emit(gcx);
         gcx.sess.dcx.has_errors()?;
     }

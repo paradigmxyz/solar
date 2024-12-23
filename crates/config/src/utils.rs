@@ -1,3 +1,4 @@
+/// [`strum`] -> [`serde`] adapter.
 #[cfg(feature = "serde")]
 pub(crate) struct StrumVisitor<T>(std::marker::PhantomData<T>);
 
