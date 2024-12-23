@@ -2,8 +2,8 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
     ColorChoice, SessionGlobals, SourceMap,
 };
-use solar_config::{CompilerOutput, CompilerStage, Dump, EvmVersion, Language};
-use std::{collections::BTreeSet, num::NonZeroUsize, path::PathBuf, sync::Arc};
+use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts};
+use std::sync::Arc;
 
 /// Information about the current compiler session.
 #[derive(derive_builder::Builder)]
@@ -15,36 +15,9 @@ pub struct Session {
     #[builder(default)]
     source_map: Arc<SourceMap>,
 
-    /// EVM version.
+    /// The compiler options.
     #[builder(default)]
-    pub evm_version: EvmVersion,
-    /// Source code language.
-    #[builder(default)]
-    pub language: Language,
-    /// Stop execution after the given compiler stage.
-    #[builder(default)]
-    pub stop_after: Option<CompilerStage>,
-    /// Types of output to emit.
-    #[builder(default)]
-    pub emit: BTreeSet<CompilerOutput>,
-    /// Output directory.
-    #[builder(default)]
-    pub out_dir: Option<PathBuf>,
-    /// Internal state to dump to stdout.
-    #[builder(default)]
-    pub dump: Option<Dump>,
-    /// Pretty-print any JSON output.
-    #[builder(default)]
-    pub pretty_json: bool,
-    /// Number of threads to use. Already resolved to a non-zero value.
-    ///
-    /// Note that this defaults to 1. If you wish to use parallelism, you must manually set this to
-    /// a value greater than 1.
-    #[builder(default = "NonZeroUsize::MIN")]
-    pub jobs: NonZeroUsize,
-    /// Whether to emit AST stats.
-    #[builder(default)]
-    pub ast_stats: bool,
+    pub opts: Opts,
 }
 
 impl SessionBuilder {
@@ -81,9 +54,28 @@ impl SessionBuilder {
         self.dcx(DiagCtxt::with_silent_emitter(fatal_note))
     }
 
+    /// Sets the number of threads to use for parallelism to 1.
+    #[inline]
+    pub fn single_threaded(self) -> Self {
+        self.threads(1)
+    }
+
+    /// Sets the number of threads to use for parallelism. Zero specifies the number of logical
+    /// cores.
+    #[inline]
+    pub fn threads(mut self, threads: usize) -> Self {
+        self.opts_mut().threads = threads.into();
+        self
+    }
+
     /// Gets the source map from the diagnostics context.
     fn get_source_map(&mut self) -> Arc<SourceMap> {
-        self.source_map.get_or_insert_with(Default::default).clone()
+        self.source_map.get_or_insert_default().clone()
+    }
+
+    /// Returns a mutable reference to the options.
+    fn opts_mut(&mut self) -> &mut Opts {
+        self.opts.get_or_insert_default()
     }
 
     /// Consumes the builder to create a new session.
@@ -133,6 +125,44 @@ impl Session {
         SessionBuilder::default()
     }
 
+    /// Infers the language from the input files.
+    pub fn infer_language(&mut self) {
+        if !self.opts.input.is_empty()
+            && self.opts.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
+        {
+            self.opts.language = solar_config::Language::Yul;
+        }
+    }
+
+    /// Validates the session options.
+    pub fn validate(&self) -> crate::Result<()> {
+        let mut result = Ok(());
+        result = result.and(self.check_unique("emit", &self.opts.emit));
+        result
+    }
+
+    fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
+        &self,
+        name: &str,
+        list: &[T],
+    ) -> crate::Result<()> {
+        let mut result = Ok(());
+        let mut seen = std::collections::HashSet::new();
+        for item in list {
+            if !seen.insert(item) {
+                let msg = format!("cannot specify `--{name} {item}` twice");
+                result = Err(self.dcx.err(msg).emit());
+            }
+        }
+        result
+    }
+
+    /// Returns the unstable options.
+    #[inline]
+    pub fn unstable(&self) -> &UnstableOpts {
+        &self.opts.unstable
+    }
+
     /// Returns the emitted diagnostics. Can be empty.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
@@ -166,13 +196,19 @@ impl Session {
     /// Returns `true` if compilation should stop after the given stage.
     #[inline]
     pub fn stop_after(&self, stage: CompilerStage) -> bool {
-        self.stop_after >= Some(stage)
+        self.opts.stop_after >= Some(stage)
+    }
+
+    /// Returns the number of threads to use for parallelism.
+    #[inline]
+    pub fn threads(&self) -> usize {
+        self.opts.threads().get()
     }
 
     /// Returns `true` if parallelism is not enabled.
     #[inline]
     pub fn is_sequential(&self) -> bool {
-        self.jobs == NonZeroUsize::MIN
+        self.threads() == 1
     }
 
     /// Returns `true` if parallelism is enabled.
@@ -184,7 +220,7 @@ impl Session {
     /// Returns `true` if the given output should be emitted.
     #[inline]
     pub fn do_emit(&self, output: CompilerOutput) -> bool {
-        self.emit.contains(&output)
+        self.opts.emit.contains(&output)
     }
 
     /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
@@ -237,7 +273,7 @@ impl Session {
     pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
         SessionGlobals::with_or_default(|session_globals| {
             SessionGlobals::with_source_map(self.clone_source_map(), || {
-                run_in_thread_pool_with_globals(self.jobs.get(), session_globals, f)
+                run_in_thread_pool_with_globals(self.threads(), session_globals, f)
             })
         })
     }

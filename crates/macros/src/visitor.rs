@@ -91,8 +91,13 @@ fn expand_streams(tts: &TokenStream) -> (TokenStream, TokenStream) {
         match tt {
             TokenTree::Group(group) => {
                 let (nm, m) = expand_streams(&group.stream());
-                nonmut_tts.append(Group::new(group.delimiter(), nm));
-                mut_tts.append(Group::new(group.delimiter(), m));
+                let group = |stream| {
+                    let mut g = Group::new(group.delimiter(), stream);
+                    g.set_span(group.span());
+                    g
+                };
+                nonmut_tts.append(group(nm));
+                mut_tts.append(group(m));
             }
             TokenTree::Punct(punct)
                 if punct.as_char() == '#' && tt_iter.clone().next().is_some_and(is_token_mut) =>
