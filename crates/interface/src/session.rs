@@ -56,7 +56,7 @@ impl SessionBuilder {
 
     /// Gets the source map from the diagnostics context.
     fn get_source_map(&mut self) -> Arc<SourceMap> {
-        self.source_map.get_or_insert_with(Default::default).clone()
+        self.source_map.get_or_insert_default().clone()
     }
 
     /// Consumes the builder to create a new session.
