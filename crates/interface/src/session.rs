@@ -54,9 +54,27 @@ impl SessionBuilder {
         self.dcx(DiagCtxt::with_silent_emitter(fatal_note))
     }
 
+    /// Sets the number of threads to use for parallelism to 1.
+    #[inline]
+    pub fn single_threaded(self) -> Self {
+        self.threads(1)
+    }
+
+    /// Sets the number of threads to use for parallelism.
+    #[inline]
+    pub fn threads(mut self, threads: usize) -> Self {
+        self.opts_mut().threads = threads.into();
+        self
+    }
+
     /// Gets the source map from the diagnostics context.
     fn get_source_map(&mut self) -> Arc<SourceMap> {
         self.source_map.get_or_insert_default().clone()
+    }
+
+    /// Returns a mutable reference to the options.
+    fn opts_mut(&mut self) -> &mut Opts {
+        self.opts.get_or_insert_default()
     }
 
     /// Consumes the builder to create a new session.

@@ -202,6 +202,12 @@ impl From<NonZeroUsize> for Threads {
     }
 }
 
+impl From<usize> for Threads {
+    fn from(n: usize) -> Self {
+        Self::resolve(n)
+    }
+}
+
 impl Default for Threads {
     fn default() -> Self {
         Self(NonZeroUsize::new(8).unwrap())
@@ -212,13 +218,7 @@ impl std::str::FromStr for Threads {
     type Err = <NonZeroUsize as std::str::FromStr>::Err;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse::<usize>().map(|n| {
-            Self(
-                NonZeroUsize::new(n)
-                    .or_else(|| std::thread::available_parallelism().ok())
-                    .unwrap_or(NonZeroUsize::MIN),
-            )
-        })
+        s.parse::<usize>().map(Self::resolve)
     }
 }
 
@@ -231,6 +231,17 @@ impl std::fmt::Display for Threads {
 impl std::fmt::Debug for Threads {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl Threads {
+    /// Resolves the number of threads to use.
+    pub fn resolve(n: usize) -> Self {
+        Self(
+            NonZeroUsize::new(n)
+                .or_else(|| std::thread::available_parallelism().ok())
+                .unwrap_or(NonZeroUsize::MIN),
+        )
     }
 }
 
