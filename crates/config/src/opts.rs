@@ -14,7 +14,7 @@ use std::{num::NonZeroUsize, path::PathBuf};
     long_version = crate::version::LONG_VERSION,
     arg_required_else_help = true,
 )]
-#[non_exhaustive]
+#[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
     /// Files to compile or import remappings.
     #[arg(value_hint = ValueHint::FilePath)]
@@ -74,6 +74,11 @@ pub struct Opts {
     /// Parsed unstable flags.
     #[arg(skip)]
     pub unstable: UnstableOpts,
+
+    // Allows `Opts { x: y, ..Default::default() }`.
+    #[doc(hidden)]
+    #[arg(skip)]
+    pub _non_exhaustive: (),
 }
 
 impl Opts {
@@ -109,7 +114,6 @@ impl Opts {
     ),
     help_template = "{before-help}{all-args}"
 )]
-#[non_exhaustive]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct UnstableOpts {
     /// Enables UI testing mode.
@@ -138,14 +142,19 @@ pub struct UnstableOpts {
 
     /// Print help.
     #[arg(long, action = clap::ArgAction::Help)]
-    help: (),
+    pub help: (),
+
+    // Allows `UnstableOpts { x: y, ..Default::default() }`.
+    #[doc(hidden)]
+    #[arg(skip)]
+    pub _non_exhaustive: (),
 
     #[cfg(test)]
     #[arg(long)]
-    test_bool: bool,
+    pub test_bool: bool,
     #[cfg(test)]
     #[arg(long)]
-    test_value: Option<usize>,
+    pub test_value: Option<usize>,
 }
 
 #[cfg(test)]
