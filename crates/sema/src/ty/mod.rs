@@ -260,6 +260,14 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::BuiltinModule(builtin))
     }
 
+    pub fn mk_ty_misc_err(self) -> Ty<'gcx> {
+        if let Err(e) = self.dcx().has_errors() {
+            self.mk_ty_err(e)
+        } else {
+            self.dcx().bug("mk_ty_misc_err: no errors").emit()
+        }
+    }
+
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
         Ty::new(self, TyKind::Err(guar))
     }
@@ -564,7 +572,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
-            if let Err(guar) = ty.has_error() {
+            if let Err(guar) = ty.error_reported() {
                 result = Err(guar);
                 continue;
             }
@@ -775,7 +783,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
 
     let mut var_loc = var.data_location;
     if !allowed.contains(&var_loc) {
-        if ty.has_error().is_ok() {
+        if !ty.references_error() {
             let msg = if !has_reference_or_mapping_type {
                 "data location can only be specified for array, struct or mapping types".to_string()
             } else if let Some(var_loc) = var_loc {

@@ -3,7 +3,8 @@ use solar_ast::{DataLocation, ElementaryType, TypeSize};
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
-    /// Empty tuple `()`, AKA unit, void.
+    /// The unit type `()`, AKA empty tuple, void.
+    #[doc(alias = "empty_tuple", alias = "void")]
     pub unit: Ty<'gcx>,
     /// `bool`.
     pub bool: Ty<'gcx>,

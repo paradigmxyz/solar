@@ -1,25 +1,12 @@
 use crate::{
+    builtins::Builtin,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType};
 use solar_data_structures::{map::FxHashMap, Never};
-use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use solar_interface::diagnostics::DiagCtxt;
 use std::ops::ControlFlow;
-
-#[allow(unused)]
-macro_rules! try_ty {
-    ($ty:expr) => {
-        match $ty {
-            ty => {
-                if ty.has_error().is_err() {
-                    return ty;
-                }
-                ty
-            }
-        }
-    };
-}
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
@@ -46,17 +33,35 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     #[must_use]
-    fn get(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        if let Some(ty) = self.types.get(&expr.id) {
-            return *ty;
+    fn check_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        self.check_expr_with(expr, None)
+    }
+
+    #[must_use]
+    fn expect_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, expected: Ty<'gcx>) -> Ty<'gcx> {
+        self.check_expr_with(expr, Some(expected))
+    }
+
+    #[must_use]
+    fn check_expr_with(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Option<Ty<'gcx>>,
+    ) -> Ty<'gcx> {
+        let ty = self.check_expr_kind(expr, expected);
+        if let Some(expected) = expected {
+            self.check_expected(expr, ty, expected);
         }
-        let ty = self.type_of(expr);
-        self.types.insert(expr.id, ty);
+        self.register_ty(expr, ty);
         ty
     }
 
     #[must_use]
-    fn type_of(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+    fn check_expr_kind(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Option<Ty<'gcx>>,
+    ) -> Ty<'gcx> {
         macro_rules! todo {
             () => {
                 return self
@@ -66,9 +71,9 @@ impl<'gcx> TypeChecker<'gcx> {
         }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
-                let mut common = None;
+                let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
                 for (i, expr) in exprs.iter().enumerate() {
-                    let expr_ty = self.get(expr);
+                    let expr_ty = self.check_expr_with(expr, expected);
                     if i == 0 {
                         common = expr_ty.mobile(self.gcx);
                     } else if let Some(common_ty) = &mut common {
@@ -101,14 +106,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 let _ = self.require_lvalue(expr);
                 self.gcx.types.unit
             }
-            hir::ExprKind::Ident(&[res]) => self.gcx.type_of_res(res),
+            hir::ExprKind::Ident(&[res]) => self.type_of_res(res),
             hir::ExprKind::Ident(res) => {
                 debug_assert!(!res.is_empty());
                 let _ = res;
                 todo!();
             }
             hir::ExprKind::Index(lhs, index) => {
-                let ty = self.get(lhs);
+                let ty = self.check_expr_with(lhs, expected);
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     let _ = self.expect_ty(index, index_ty);
                     result_ty
@@ -117,7 +122,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Slice(lhs, start, end) => {
-                let ty = self.get(lhs);
+                let ty = self.check_expr_with(lhs, expected);
                 if !ty.is_sliceable() {
                     self.dcx().err("can only slice arrays").span(expr.span).emit();
                 } else if !ty.is_ref_at(DataLocation::Calldata) {
@@ -141,7 +146,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
-                let ty = self.get(expr);
+                let ty = self.check_expr_with(expr, expected);
                 let possible_members = self
                     .gcx
                     .members_of(ty, self.source, self.contract)
@@ -174,17 +179,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::New(_) => todo!(),
             hir::ExprKind::Payable(expr) => {
-                if self.expect_ty(expr, self.gcx.types.address).is_ok() {
-                    self.gcx.types.address_payable
+                let ty = self.expect_ty(expr, self.gcx.types.address);
+                if ty.references_error() {
+                    ty
                 } else {
-                    self.get(expr)
+                    self.gcx.types.address_payable
                 }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
                 // TODO: Does mobile need to return None?
-                let true_ty = self.get(true_).mobile(self.gcx);
-                let false_ty = self.get(false_).mobile(self.gcx);
+                let true_ty = self.check_expr_with(true_, expected).mobile(self.gcx);
+                let false_ty = self.check_expr_with(false_, expected).mobile(self.gcx);
                 match (true_ty, false_ty) {
                     (Some(true_ty), Some(false_ty)) => {
                         true_ty.common_type(false_ty, self.gcx).unwrap_or_else(|| {
@@ -223,7 +229,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = if un_op.kind.is_modifying() {
                     self.require_lvalue(expr)
                 } else {
-                    self.get(expr)
+                    self.check_expr_with(expr, expected)
                 };
                 // TODO: Allow only on int, int literal,t bool
                 ty
@@ -253,14 +259,14 @@ impl<'gcx> TypeChecker<'gcx> {
         })
     }
 
-    fn expect_ty(
+    fn check_expected(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
+        actual: Ty<'gcx>,
         expected: Ty<'gcx>,
-    ) -> Result<(), ErrorGuaranteed> {
-        let actual = self.get(expr);
-        if actual.convert_implicit(expected) {
-            return Ok(());
+    ) {
+        if actual.convert_implicit_to(expected) {
+            return;
         }
         let mut err = self.dcx().err("mismatched types").span(expr.span);
         err = err.span_label(
@@ -271,13 +277,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 actual.display(self.gcx)
             ),
         );
-        Err(err.emit())
+        err.emit();
     }
 
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let prev = self.lvalue_context.replace(true);
-        let ty = self.get(expr);
+        let ty = self.check_expr(expr);
         let ctx = self.lvalue_context;
         debug_assert!(ctx.is_some());
         self.lvalue_context = prev;
@@ -290,6 +296,36 @@ impl<'gcx> TypeChecker<'gcx> {
         self.dcx().err("expected lvalue").span(expr.span).emit();
 
         ty
+    }
+
+    fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
+        match res {
+            hir::Res::Builtin(Builtin::This | Builtin::Super) => self
+                .contract
+                .map(|contract| self.gcx.type_of_item(contract.into()))
+                .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
+            // TODO: Different type for super
+            // hir::Res::Builtin(Builtin::Super) => {}
+            res => self.gcx.type_of_res(res),
+        }
+    }
+
+    fn register_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) {
+        if let Some(prev_ty) = self.types.insert(expr.id, ty) {
+            self.dcx()
+                .bug("already typechecked")
+                .span(expr.span)
+                .span_label(
+                    expr.span,
+                    format!(
+                        "{} -> {} for {:?}",
+                        prev_ty.display(self.gcx),
+                        ty.display(self.gcx),
+                        expr.id
+                    ),
+                )
+                .emit();
+        }
     }
 }
 
@@ -306,8 +342,8 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
-        let _ = self.get(expr);
-        self.walk_expr(expr)
+        let _ = self.check_expr(expr);
+        ControlFlow::Continue(())
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {

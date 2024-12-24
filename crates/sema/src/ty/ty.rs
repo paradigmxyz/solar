@@ -170,28 +170,37 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if the type is recursive.
+    #[inline]
     pub fn is_recursive(self) -> bool {
         self.flags.contains(TyFlags::IS_RECURSIVE)
     }
 
     /// Returns `true` if this type contains a mapping.
+    #[inline]
     pub fn has_mapping(self) -> bool {
         self.flags.contains(TyFlags::HAS_MAPPING)
     }
 
-    /// Returns `true` if this type contains an error.
-    pub fn has_error(self) -> Result<(), ErrorGuaranteed> {
-        if self.flags.contains(TyFlags::HAS_ERROR) {
+    /// Returns `Err(guar)` if this type contains an error.
+    #[inline]
+    pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
+        if self.references_error() {
             Err(ErrorGuaranteed::new_unchecked())
         } else {
             Ok(())
         }
     }
 
+    /// Returns `true` if this type contains an error.
+    #[inline]
+    pub fn references_error(self) -> bool {
+        self.flags.contains(TyFlags::HAS_ERROR)
+    }
+
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.has_error().is_err())
+        !(self.is_recursive() || self.has_mapping() || self.references_error())
     }
 
     /// Returns the parameter types of the type.
@@ -317,27 +326,41 @@ impl<'gcx> Ty<'gcx> {
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;
         if let Some(a) = a.mobile(gcx) {
-            if b.convert_implicit(a) {
+            if b.convert_implicit_to(a) {
                 return Some(a);
             }
         }
         if let Some(b) = b.mobile(gcx) {
-            if a.convert_implicit(b) {
+            if a.convert_implicit_to(b) {
                 return Some(b);
             }
         }
         None
     }
 
+    /// Returns the base type, if any.
+    pub fn base_type(self, gcx: Gcx<'gcx>) -> Option<Self> {
+        match self.kind {
+            TyKind::Array(base, _) | TyKind::ArrayLiteral(base, _) | TyKind::DynArray(base) => {
+                Some(base)
+            }
+            TyKind::Slice(base) => base.base_type(gcx),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(gcx.types.fixed_bytes(1))
+            }
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the type is implicitly convertible to the given type.
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
-    pub fn convert_implicit(self, other: Self) -> bool {
-        self.convert_implicit_result(other).is_ok()
+    pub fn convert_implicit_to(self, other: Self) -> bool {
+        self.convert_implicit_to_result(other).is_ok()
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn convert_implicit_result(self, other: Self) -> Result<(), ()> {
+    pub fn convert_implicit_to_result(self, other: Self) -> Result<(), ()> {
         // TODO
         if self == other {
             Ok(())
@@ -348,14 +371,14 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if the type is explicitly convertible to the given type.
     #[doc(alias = "is_explicity_convertible_to")]
-    pub fn convert_explicit(self, other: Self) -> bool {
-        self.convert_explicit_result(other).is_ok()
+    pub fn convert_explicit_to(self, other: Self) -> bool {
+        self.convert_explicit_to_result(other).is_ok()
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn convert_explicit_result(self, other: Self) -> Result<(), ()> {
+    pub fn convert_explicit_to_result(self, other: Self) -> Result<(), ()> {
         // TODO
-        self.convert_implicit_result(other)
+        self.convert_implicit_to_result(other)
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
@@ -416,6 +439,7 @@ pub enum TyKind<'gcx> {
     /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
     IntLiteral(bool, TypeSize),
 
+    // TODO: Can we merge this into `Array`?
     /// Type of an array literal expression: `[a, 0, 1]`.
     ArrayLiteral(Ty<'gcx>, usize),
 

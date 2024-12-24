@@ -302,7 +302,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             TyKind::Udvt(_, id) => write!(self.buf, "{}", self.gcx.item_canonical_name(id)),
             TyKind::Ref(ty, loc) => {
                 self.print(ty)?;
-                if self.data_locations {
+                if self.data_locations || self.human_readable {
                     write!(self.buf, " {loc}")?;
                 }
                 Ok(())
