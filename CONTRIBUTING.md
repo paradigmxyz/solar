@@ -4,7 +4,7 @@
 you!
 
 There are opportunities to contribute to Solar at any level. It doesn't matter if
-you are just getting started with Rust or are the most weathered expert, we can
+you are just getting started with Rust or are the most experienced expert, we can
 use your help.
 
 **No contribution is too small and all contributions are valued.**
@@ -65,7 +65,7 @@ of your ability. Do not worry if you cannot answer every detail, just fill in
 what you can.
 
 The two most important pieces of information we need in order to properly
-evaluate the report is a description of the behavior you are seeing and a simple
+evaluate the report are a description of the behavior you are seeing and a simple
 test case we can use to recreate the problem on our own. If we cannot recreate
 the issue, it becomes impossible for us to fix.
 
@@ -185,7 +185,7 @@ There are a few ways to write tests:
 - [documentation tests][documentation-tests]
 - [integration tests][integration-tests]
 
-Unit and documentation tests are used to test individual library functions or modules, where as
+Unit and documentation tests are used to test individual library functions or modules, whereas
 integration tests are used to test the compiler binary.
 
 #### Integration Tests
