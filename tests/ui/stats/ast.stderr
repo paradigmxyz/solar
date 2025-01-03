@@ -4,23 +4,23 @@ ast-stats ----------------------------------------------------------------
 ast-stats SourceUnit                16 ( 0.9%)             1            16
 ast-stats Block                     32 ( 1.8%)             2            16
 ast-stats Ident                     36 ( 2.0%)             3            12
-ast-stats PragmaDirective           40 ( 2.3%)             1            40
-ast-stats ItemContract              48 ( 2.7%)             1            48
-ast-stats VariableDefinition        88 ( 5.0%)             1            88
-ast-stats Span                      96 ( 5.4%)            12             8
-ast-stats DocComments              112 ( 6.3%)             7            16
-ast-stats Stmt                     160 ( 9.0%)             2            80
-ast-stats - Expr                   160 ( 9.0%)             2
-ast-stats ItemFunction             224 (12.6%)             2           112
-ast-stats Expr                     240 (13.5%)             5            48
-ast-stats - Assign                  48 ( 2.7%)             1
-ast-stats - Unary                   48 ( 2.7%)             1
-ast-stats - Ident                  144 ( 8.1%)             3
-ast-stats Item                     680 (38.4%)             5           136
-ast-stats - Variable               136 ( 7.7%)             1
-ast-stats - Contract               136 ( 7.7%)             1
-ast-stats - Pragma                 136 ( 7.7%)             1
-ast-stats - Function               272 (15.3%)             2
+ast-stats PragmaDirective           40 ( 2.2%)             1            40
+ast-stats ItemContract              48 ( 2.6%)             1            48
+ast-stats VariableDefinition        88 ( 4.8%)             1            88
+ast-stats Span                      96 ( 5.3%)            12             8
+ast-stats DocComments              112 ( 6.1%)             7            16
+ast-stats Stmt                     160 ( 8.8%)             2            80
+ast-stats - Expr                   160 ( 8.8%)             2
+ast-stats Expr                     240 (13.1%)             5            48
+ast-stats - Assign                  48 ( 2.6%)             1
+ast-stats - Unary                   48 ( 2.6%)             1
+ast-stats - Ident                  144 ( 7.9%)             3
+ast-stats ItemFunction             240 (13.1%)             2           120
+ast-stats Item                     720 (39.4%)             5           144
+ast-stats - Variable               144 ( 7.9%)             1
+ast-stats - Contract               144 ( 7.9%)             1
+ast-stats - Pragma                 144 ( 7.9%)             1
+ast-stats - Function               288 (15.8%)             2
 ast-stats ----------------------------------------------------------------
-ast-stats Total                  1_772
+ast-stats Total                  1_828
 ast-stats

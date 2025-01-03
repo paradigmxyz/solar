@@ -127,7 +127,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
         // handled later: parameters, body, modifiers, override_, returns
-        let ast::ItemFunction { kind, ref header, body: _ } = *i;
+        let ast::ItemFunction { kind, ref header, body: _, body_span } = *i;
         let ast::FunctionHeader {
             name,
             parameters: _,
@@ -158,6 +158,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             parameters: &[],
             returns: &[],
             body: None,
+            body_span,
         })
     }
 
@@ -322,5 +323,6 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         returns: &[],
         body: None,
         gettee: Some(id),
+        body_span: span,
     })
 }

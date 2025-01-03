@@ -830,7 +830,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
         let docs = self.arena.alloc_slice_copy(&self.docs);
         self.docs.clear();
-        docs
+        docs.into()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

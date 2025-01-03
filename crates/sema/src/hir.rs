@@ -597,6 +597,8 @@ pub struct Function<'hir> {
     pub returns: &'hir [VariableId],
     /// The function body.
     pub body: Option<Block<'hir>>,
+    /// The function body span.
+    pub body_span: Span,
     /// The variable this function is a getter of, if any.
     pub gettee: Option<VariableId>,
 }
