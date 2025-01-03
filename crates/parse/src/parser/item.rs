@@ -141,11 +141,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let flags = FunctionFlags::from_kind(kind);
         let header = self.parse_function_header(flags)?;
-        let body = if !flags.contains(FunctionFlags::ONLY_BLOCK) && self.eat(&TokenKind::Semi) {
-            None
-        } else {
-            Some(self.parse_block()?)
-        };
+        let (body_span, body) = self.parse_spanned(|this| {
+            Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(&TokenKind::Semi) {
+                None
+            } else {
+                Some(this.parse_block()?)
+            })
+        })?;
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");
@@ -153,7 +155,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         // All function kinds are allowed in contracts.
 
-        Ok(ItemFunction { kind, header, body })
+        Ok(ItemFunction { kind, header, body, body_span })
     }
 
     /// Parses a function a header.

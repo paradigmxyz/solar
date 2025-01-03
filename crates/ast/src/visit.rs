@@ -108,11 +108,12 @@ declare_visitors! {
         }
 
         fn visit_item_function(&mut self, function: &'ast #mut ItemFunction<'ast>) -> ControlFlow<Self::BreakValue> {
-            let ItemFunction { kind: _, header, body } = function;
+            let ItemFunction { kind: _, header, body, body_span } = function;
             self.visit_function_header #_mut(header)?;
             if let Some(body) = body {
                 self.visit_block #_mut(body)?;
             }
+            self.visit_span #_mut(body_span)?;
             ControlFlow::Continue(())
         }
 
