@@ -55,6 +55,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     }
 
     /// Creates a new `Lexer` for the given source file.
+    ///
+    /// Note that the source file must be added to the source map before calling this function.
     pub fn from_source_file(sess: &'sess Session, file: &'src SourceFile) -> Self {
         Self::with_start_pos(sess, &file.src, file.start_pos)
     }

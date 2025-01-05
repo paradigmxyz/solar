@@ -147,13 +147,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Creates a new parser from a file.
+    ///
+    /// The file will not be read if it has already been added into the source map.
     pub fn from_file(sess: &'sess Session, arena: &'ast ast::Arena, path: &Path) -> Result<Self> {
         Self::from_lazy_source_code(sess, arena, FileName::Real(path.to_path_buf()), || {
-            std::fs::read_to_string(path)
+            std::fs::read_to_string(path).map_err(|e| {
+                std::io::Error::new(
+                    e.kind(),
+                    solar_interface::source_map::ResolveError::ReadFile(path.to_path_buf(), e),
+                )
+            })
         })
     }
 
     /// Creates a new parser from a source code closure.
+    ///
+    /// The closure will not be called if the file name has already been added into the source map.
     pub fn from_lazy_source_code(
         sess: &'sess Session,
         arena: &'ast ast::Arena,
@@ -168,6 +177,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Creates a new parser from a source file.
+    ///
+    /// Note that the source file must be added to the source map before calling this function.
+    /// Prefer using [`from_source_code`](Self::from_source_code) or [`from_file`](Self::from_file)
+    /// instead.
     pub fn from_source_file(
         sess: &'sess Session,
         arena: &'ast ast::Arena,
