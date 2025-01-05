@@ -4,7 +4,7 @@ error: function signature hash collision
 LL |     function mintEfficientN2M_001Z5BWH() public {}
    |     ---------------------------------------------- note: first function
 LL | }
-LL | 
+LL |
 LL | contract D is C {
    |          ^
 LL |
