@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
+Notable and breaking changes (!):
+
+- The parser now fully supports doc-comments in any position ([#154](https://github.com/paradigmxyz/solar/issues/154)). This was the last major feature needed to support the full Solidity grammar, as implemented in solc. The parser and AST are now considered feature-complete.
+- Fixed some bugs in the parser
+- Implemented some more syntax checks and validations
+
+### Library
+
+- (!) Return ControlFlow from AST visitor methods ([#115](https://github.com/paradigmxyz/solar/issues/115))
+- (!) Remove Pos trait ([#137](https://github.com/paradigmxyz/solar/issues/137))
+- (!) Re-export solar_ast::ast::* internal module ([#141](https://github.com/paradigmxyz/solar/issues/141))
+- Unify CLI and Session options ([#176](https://github.com/paradigmxyz/solar/issues/176))
+  - `Session::builder`'s individual config option methods have been removed in favor of using `Args` directly.
+- Install rayon pool in Session::enter ([#123](https://github.com/paradigmxyz/solar/issues/123))
+  - Add Session::enter_parallel ([#183](https://github.com/paradigmxyz/solar/issues/183))
+  - The session is now parallel by default; `enter` will behave the same, use `enter_parallel` to be able to make use of rayon inside of the closure.
+
+---
+
+All changes:
+
 ### Bug Fixes
 
 - Add Session::enter_parallel ([#183](https://github.com/paradigmxyz/solar/issues/183))
