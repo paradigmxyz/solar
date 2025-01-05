@@ -9,6 +9,7 @@ changed or not.
 ## Requirements
 
 - [cargo-release](https://github.com/crate-ci/cargo-release): `cargo install cargo-release`
+- [git-cliff](https://github.com/orhun/git-cliff) (patched with [orhun/git-cliff#711](https://github.com/orhun/git-cliff/pull/711)): `cargo install --git https://github.com/DaniPopes/git-cliff.git --branch fix-include-paths git-cliff`
 - [dist](https://github.com/axodotdev/cargo-dist): `cargo install cargo-dist`
 
 ## Steps
