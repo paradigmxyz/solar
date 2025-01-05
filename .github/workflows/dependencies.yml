@@ -3,10 +3,9 @@
 name: Dependencies
 
 on:
-  # TODO
-  # schedule:
-  #   # Run weekly
-  #   - cron: "00 08 * * MON"
+  schedule:
+    # Run weekly
+    - cron: "00 08 * * MON"
   workflow_dispatch:
     # Needed so we can run it manually
 
