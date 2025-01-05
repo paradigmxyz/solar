@@ -273,7 +273,7 @@ impl Session {
     ///
     /// This also calls [`SessionGlobals::with_source_map`].
     #[inline]
-    pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
         SessionGlobals::with_or_default(|_| {
             SessionGlobals::with_source_map(self.clone_source_map(), f)
         })

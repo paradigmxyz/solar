@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
+
+### Bug Fixes
+
+- [parser] Accept leading dot in literals ([#151](https://github.com/paradigmxyz/solar/issues/151))
+
+### Documentation
+
+- Add icons ([#109](https://github.com/paradigmxyz/solar/issues/109))
+
+### Features
+
+- Add some more Span utils ([#179](https://github.com/paradigmxyz/solar/issues/179))
+- Set up codspeed ([#167](https://github.com/paradigmxyz/solar/issues/167))
+- Syntax checker for functions with modifiers ([#164](https://github.com/paradigmxyz/solar/issues/164))
+- [parser] Allow doc-comments anywhere ([#154](https://github.com/paradigmxyz/solar/issues/154))
+- Validate variable data locations ([#149](https://github.com/paradigmxyz/solar/issues/149))
+- Add some methods to CallArgs ([#140](https://github.com/paradigmxyz/solar/issues/140))
+- [parser] Recover old-style fallbacks ([#135](https://github.com/paradigmxyz/solar/issues/135))
+- Return ControlFlow from AST visitor methods ([#115](https://github.com/paradigmxyz/solar/issues/115))
+- Add more semver compat ([#113](https://github.com/paradigmxyz/solar/issues/113))
+
+### Miscellaneous Tasks
+
+- [macros] Fix expansion spans ([#175](https://github.com/paradigmxyz/solar/issues/175))
+
+### Refactor
+
+- Split Ty printers ([#144](https://github.com/paradigmxyz/solar/issues/144))
+- Re-export ast::* internal module ([#141](https://github.com/paradigmxyz/solar/issues/141))
+
 ## [0.1.0](https://github.com/paradigmxyz/solar/releases/tag/v0.1.0)
 
 Initial release.
