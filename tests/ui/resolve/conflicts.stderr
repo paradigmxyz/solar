@@ -14,7 +14,7 @@ LL | contract C {
    |          - note: previous declaration declared here
 LL |     // OK
 ...
-LL | 
+LL |
 LL | contract C {}
    |          ^
    |
