@@ -2,7 +2,7 @@ use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::DiagnosticMessage, error_code, kw, sym, Ident, Span};
+use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -909,7 +909,7 @@ impl<'p, 'sess, 'ast> SemverVersionParser<'p, 'sess, 'ast> {
         Self { p, bumps: 0, pos_inside: 0 }
     }
 
-    fn emit_err(&self, msg: impl Into<DiagnosticMessage>) {
+    fn emit_err(&self, msg: impl Into<DiagMsg>) {
         self.p.dcx().err(msg).span(self.current_span()).emit();
     }
 
