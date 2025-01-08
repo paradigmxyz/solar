@@ -1,4 +1,4 @@
-use super::{io_panic, rustc::FileWithAnnotatedLines, Diagnostic, Emitter};
+use super::{io_panic, rustc::FileWithAnnotatedLines, Diag, Emitter};
 use crate::{
     diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
     source_map::SourceFile,
@@ -27,7 +27,7 @@ const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .emphasis(anstyle::Style::new().bold())
     .none(anstyle::Style::new());
 
-/// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
+/// Diag emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
     writer_type_id: std::any::TypeId,
     real_writer: *mut Writer,
@@ -40,7 +40,7 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
@@ -156,11 +156,7 @@ impl HumanEmitter {
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
-    fn snippet<R>(
-        &mut self,
-        diagnostic: &Diagnostic,
-        f: impl FnOnce(&mut Self, Message<'_>) -> R,
-    ) -> R {
+    fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Message<'_>) -> R) -> R {
         // Current format (annotate-snippets 0.10.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
@@ -204,14 +200,14 @@ impl HumanEmitter {
     }
 }
 
-/// Diagnostic emitter that emits diagnostics in human-readable format to a local buffer.
+/// Diag emitter that emits diagnostics in human-readable format to a local buffer.
 pub struct HumanBufferEmitter {
     inner: HumanEmitter,
 }
 
 impl Emitter for HumanBufferEmitter {
     #[inline]
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.inner.emit_diagnostic(diagnostic);
     }
 
@@ -282,7 +278,7 @@ struct OwnedMessage {
 }
 
 impl OwnedMessage {
-    fn from_diagnostic(diag: &Diagnostic) -> Self {
+    fn from_diagnostic(diag: &Diag) -> Self {
         Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
     }
 
@@ -322,7 +318,7 @@ struct OwnedSnippet {
 }
 
 impl OwnedSnippet {
-    fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
+    fn collect(sm: &SourceMap, diagnostic: &Diag) -> Vec<Self> {
         // Collect main diagnostic.
         let mut files = Self::collect_files(sm, &diagnostic.span);
         files.iter_mut().for_each(|file| file.set_level(diagnostic.level));

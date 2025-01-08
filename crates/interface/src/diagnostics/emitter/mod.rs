@@ -1,4 +1,4 @@
-use super::{DiagCtxt, Diagnostic, Level};
+use super::{Diag, DiagCtxt, Level};
 use crate::SourceMap;
 use std::{any::Any, sync::Arc};
 
@@ -15,10 +15,10 @@ mod rustc;
 /// Dynamic diagnostic emitter. See [`Emitter`].
 pub type DynEmitter = dyn Emitter + Send;
 
-/// Diagnostic emitter.
+/// Diag emitter.
 pub trait Emitter: Any {
     /// Emits a diagnostic.
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic);
+    fn emit_diagnostic(&mut self, diagnostic: &Diag);
 
     /// Returns a reference to the source map, if any.
     #[inline]
@@ -48,7 +48,7 @@ impl DynEmitter {
     }
 }
 
-/// Diagnostic emitter that only emits fatal diagnostics.
+/// Diag emitter that only emits fatal diagnostics.
 pub struct SilentEmitter {
     fatal_dcx: DiagCtxt,
     note: Option<String>,
@@ -68,7 +68,7 @@ impl SilentEmitter {
 }
 
 impl Emitter for SilentEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         if diagnostic.level != Level::Fatal {
             return;
         }
@@ -81,10 +81,10 @@ impl Emitter for SilentEmitter {
     }
 }
 
-/// Diagnostic emitter that only stores emitted diagnostics.
+/// Diag emitter that only stores emitted diagnostics.
 #[derive(Clone, Debug)]
 pub struct LocalEmitter {
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diag>,
 }
 
 impl Default for LocalEmitter {
@@ -100,18 +100,18 @@ impl LocalEmitter {
     }
 
     /// Returns a reference to the emitted diagnostics.
-    pub fn diagnostics(&self) -> &[Diagnostic] {
+    pub fn diagnostics(&self) -> &[Diag] {
         &self.diagnostics
     }
 
     /// Consumes the emitter and returns the emitted diagnostics.
-    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+    pub fn into_diagnostics(self) -> Vec<Diag> {
         self.diagnostics
     }
 }
 
 impl Emitter for LocalEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.diagnostics.push(diagnostic.clone());
     }
 }
