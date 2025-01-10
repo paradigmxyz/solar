@@ -13,8 +13,7 @@ contract Complex {
         mapA[idx].b.arr.push(val);
     }
 
-    // TODO: Internal or recursive type is not allowed for public state variables.
-    mapping(uint256 => B) public mapB;
+    mapping(uint256 => B) public mapB; //~ ERROR: getter must return at least one value
 
     function pushValueB(uint256 idx, uint256 val) public {
         mapB[idx].arr.push(val);
