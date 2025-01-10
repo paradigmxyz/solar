@@ -74,10 +74,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr_with(expr, expected);
-                    if i == 0 {
-                        common = expr_ty.mobile(self.gcx);
-                    } else if let Some(common_ty) = &mut common {
+                    if let Some(common_ty) = &mut common {
                         common = common_ty.common_type(expr_ty, self.gcx);
+                    } else if i == 0 {
+                        common = expr_ty.mobile(self.gcx);
                     }
                 }
                 if let Some(common) = common {
