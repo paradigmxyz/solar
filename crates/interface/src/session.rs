@@ -265,12 +265,26 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up the thread pool and session globals if they doesn't exist already and then
-    /// executes the given closure.
+    /// Sets up the session globals if they doesn't exist already and then executes the given
+    /// closure.
+    ///
+    /// Note that this does not set up the rayon thread pool. This is only useful when parsing
+    /// sequentially, like manually using `Parser`.
     ///
     /// This also calls [`SessionGlobals::with_source_map`].
     #[inline]
-    pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
+        SessionGlobals::with_or_default(|_| {
+            SessionGlobals::with_source_map(self.clone_source_map(), f)
+        })
+    }
+
+    /// Sets up the thread pool and session globals if they doesn't exist already and then executes
+    /// the given closure.
+    ///
+    /// This also calls [`SessionGlobals::with_source_map`].
+    #[inline]
+    pub fn enter_parallel<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
         SessionGlobals::with_or_default(|session_globals| {
             SessionGlobals::with_source_map(self.clone_source_map(), || {
                 run_in_thread_pool_with_globals(self.threads(), session_globals, f)
@@ -287,6 +301,10 @@ fn run_in_thread_pool_with_globals<R: Send>(
 ) -> R {
     // Avoid panicking below if this is a recursive call.
     if rayon::current_thread_index().is_some() {
+        debug!(
+            "running in the current thread's rayon thread pool; \
+             this could cause panics later on if it was created without setting the session globals!"
+        );
         return f();
     }
 
@@ -380,15 +398,17 @@ mod tests {
             assert!(!s.contains("Span("), "{s}");
             let s = format!("{span:#?}");
             assert!(!s.contains("Span("), "{s}");
+
+            assert!(rayon::current_thread_index().is_some());
         }
 
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter(use_globals);
+        sess.enter_parallel(use_globals);
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter(|| {
+        sess.enter_parallel(|| {
             use_globals();
-            sess.enter(use_globals);
+            sess.enter_parallel(use_globals);
             use_globals();
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
@@ -396,9 +416,9 @@ mod tests {
 
         SessionGlobals::new().set(|| {
             use_globals_no_sm();
-            sess.enter(|| {
+            sess.enter_parallel(|| {
                 use_globals();
-                sess.enter(use_globals);
+                sess.enter_parallel(use_globals);
                 use_globals();
             });
             use_globals_no_sm();
@@ -411,12 +431,12 @@ mod tests {
     fn enter_diags() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter(|| {
+        sess.enter_parallel(|| {
             sess.dcx.err("test1").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
-        sess.enter(|| {
+        sess.enter_parallel(|| {
             sess.dcx.err("test2").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });

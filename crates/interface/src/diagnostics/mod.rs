@@ -7,7 +7,7 @@ use anstyle::{AnsiColor, Color};
 use std::{borrow::Cow, fmt, panic::Location};
 
 mod builder;
-pub use builder::{DiagnosticBuilder, EmissionGuarantee};
+pub use builder::{DiagBuilder, EmissionGuarantee};
 
 mod context;
 pub use context::{DiagCtxt, DiagCtxtFlags};
@@ -20,7 +20,7 @@ pub use emitter::{
 };
 
 mod message;
-pub use message::{DiagnosticMessage, MultiSpan, SpanLabel};
+pub use message::{DiagMsg, MultiSpan, SpanLabel};
 
 /// Represents all the diagnostics emitted up to a certain point.
 ///
@@ -81,22 +81,22 @@ pub struct ExplicitBug;
 /// Marker type which enables implementation of fatal diagnostics.
 pub struct FatalAbort;
 
-/// Diagnostic ID.
+/// Diag ID.
 ///
 /// Use [`error_code!`](crate::error_code) to create an error code diagnostic ID.
 ///
 /// # Examples
 ///
 /// ```
-/// # use solar_interface::{diagnostics::DiagnosticId, error_code};
-/// let id: DiagnosticId = error_code!(1234);
+/// # use solar_interface::{diagnostics::DiagId, error_code};
+/// let id: DiagId = error_code!(1234);
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DiagnosticId {
+pub struct DiagId {
     id: u32,
 }
 
-impl DiagnosticId {
+impl DiagId {
     /// Creates an error code diagnostic ID.
     ///
     /// Use [`error_code!`](crate::error_code) instead.
@@ -118,17 +118,17 @@ impl DiagnosticId {
 /// # Examples
 ///
 /// ```
-/// # use solar_interface::{diagnostics::DiagnosticId, error_code};
-/// let code: DiagnosticId = error_code!(1234);
+/// # use solar_interface::{diagnostics::DiagId, error_code};
+/// let code: DiagId = error_code!(1234);
 /// ```
 #[macro_export]
 macro_rules! error_code {
     ($id:literal) => {
-        const { $crate::diagnostics::DiagnosticId::new_from_macro($id) }
+        const { $crate::diagnostics::DiagId::new_from_macro($id) }
     };
 }
 
-/// Diagnostic level.
+/// Diag level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Level {
     /// For bugs in the compiler. Manifests as an ICE (internal compiler error) panic.
@@ -300,7 +300,7 @@ impl Style {
 #[derive(Clone, Debug, PartialEq, Hash)]
 pub struct SubDiagnostic {
     pub level: Level,
-    pub messages: Vec<(DiagnosticMessage, Style)>,
+    pub messages: Vec<(DiagMsg, Style)>,
     pub span: MultiSpan,
 }
 
@@ -314,39 +314,39 @@ impl SubDiagnostic {
 /// A compiler diagnostic.
 #[must_use]
 #[derive(Clone, Debug)]
-pub struct Diagnostic {
+pub struct Diag {
     pub(crate) level: Level,
 
-    pub messages: Vec<(DiagnosticMessage, Style)>,
+    pub messages: Vec<(DiagMsg, Style)>,
     pub span: MultiSpan,
     pub children: Vec<SubDiagnostic>,
-    pub code: Option<DiagnosticId>,
+    pub code: Option<DiagId>,
 
     pub created_at: &'static Location<'static>,
 }
 
-impl PartialEq for Diagnostic {
+impl PartialEq for Diag {
     fn eq(&self, other: &Self) -> bool {
         self.keys() == other.keys()
     }
 }
 
-impl std::hash::Hash for Diagnostic {
+impl std::hash::Hash for Diag {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.keys().hash(state);
     }
 }
 
-impl Diagnostic {
-    /// Creates a new `Diagnostic` with a single message.
+impl Diag {
+    /// Creates a new `Diag` with a single message.
     #[track_caller]
-    pub fn new<M: Into<DiagnosticMessage>>(level: Level, msg: M) -> Self {
+    pub fn new<M: Into<DiagMsg>>(level: Level, msg: M) -> Self {
         Self::new_with_messages(level, vec![(msg.into(), Style::NoStyle)])
     }
 
-    /// Creates a new `Diagnostic` with multiple messages.
+    /// Creates a new `Diag` with multiple messages.
     #[track_caller]
-    pub fn new_with_messages(level: Level, messages: Vec<(DiagnosticMessage, Style)>) -> Self {
+    pub fn new_with_messages(level: Level, messages: Vec<(DiagMsg, Style)>) -> Self {
         Self {
             level,
             messages,
@@ -373,7 +373,7 @@ impl Diagnostic {
     }
 
     /// Returns the messages of this diagnostic.
-    pub fn messages(&self) -> &[(DiagnosticMessage, Style)] {
+    pub fn messages(&self) -> &[(DiagMsg, Style)] {
         &self.messages
     }
 
@@ -403,7 +403,7 @@ impl Diagnostic {
 }
 
 /// Setters.
-impl Diagnostic {
+impl Diag {
     /// Sets the span of this diagnostic.
     pub fn span(&mut self, span: impl Into<MultiSpan>) -> &mut Self {
         self.span = span.into();
@@ -411,7 +411,7 @@ impl Diagnostic {
     }
 
     /// Sets the code of this diagnostic.
-    pub fn code(&mut self, code: impl Into<DiagnosticId>) -> &mut Self {
+    pub fn code(&mut self, code: impl Into<DiagId>) -> &mut Self {
         self.code = Some(code.into());
         self
     }
@@ -424,7 +424,7 @@ impl Diagnostic {
     ///
     /// This span is *not* considered a ["primary span"][`MultiSpan`]; only
     /// the `Span` supplied when creating the diagnostic is primary.
-    pub fn span_label(&mut self, span: Span, label: impl Into<DiagnosticMessage>) -> &mut Self {
+    pub fn span_label(&mut self, span: Span, label: impl Into<DiagMsg>) -> &mut Self {
         self.span.push_span_label(span, label);
         self
     }
@@ -434,7 +434,7 @@ impl Diagnostic {
     pub fn span_labels(
         &mut self,
         spans: impl IntoIterator<Item = Span>,
-        label: impl Into<DiagnosticMessage>,
+        label: impl Into<DiagMsg>,
     ) -> &mut Self {
         let label = label.into();
         for span in spans {
@@ -455,93 +455,75 @@ impl Diagnostic {
 }
 
 /// Sub-diagnostics.
-impl Diagnostic {
+impl Diag {
     /// Add a warning attached to this diagnostic.
-    pub fn warn(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+    pub fn warn(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Warning, msg, MultiSpan::new())
     }
 
     /// Prints the span with a warning above it.
-    /// This is like [`Diagnostic::warn()`], but it gets its own span.
-    pub fn span_warn(
-        &mut self,
-        span: impl Into<MultiSpan>,
-        msg: impl Into<DiagnosticMessage>,
-    ) -> &mut Self {
+    /// This is like [`Diag::warn()`], but it gets its own span.
+    pub fn span_warn(&mut self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Warning, msg, span)
     }
 
     /// Add a note to this diagnostic.
-    pub fn note(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+    pub fn note(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Note, msg, MultiSpan::new())
     }
 
     /// Prints the span with a note above it.
-    /// This is like [`Diagnostic::note()`], but it gets its own span.
-    pub fn span_note(
-        &mut self,
-        span: impl Into<MultiSpan>,
-        msg: impl Into<DiagnosticMessage>,
-    ) -> &mut Self {
+    /// This is like [`Diag::note()`], but it gets its own span.
+    pub fn span_note(&mut self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Note, msg, span)
     }
 
-    pub fn highlighted_note(
-        &mut self,
-        messages: Vec<(impl Into<DiagnosticMessage>, Style)>,
-    ) -> &mut Self {
+    pub fn highlighted_note(&mut self, messages: Vec<(impl Into<DiagMsg>, Style)>) -> &mut Self {
         self.sub_with_highlights(Level::Note, messages, MultiSpan::new())
     }
 
     /// Prints the span with a note above it.
-    /// This is like [`Diagnostic::note()`], but it gets emitted only once.
-    pub fn note_once(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+    /// This is like [`Diag::note()`], but it gets emitted only once.
+    pub fn note_once(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::OnceNote, msg, MultiSpan::new())
     }
 
     /// Prints the span with a note above it.
-    /// This is like [`Diagnostic::note_once()`], but it gets its own span.
+    /// This is like [`Diag::note_once()`], but it gets its own span.
     pub fn span_note_once(
         &mut self,
         span: impl Into<MultiSpan>,
-        msg: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagMsg>,
     ) -> &mut Self {
         self.sub(Level::OnceNote, msg, span)
     }
 
     /// Add a help message attached to this diagnostic.
-    pub fn help(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+    pub fn help(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Help, msg, MultiSpan::new())
     }
 
     /// Prints the span with a help above it.
-    /// This is like [`Diagnostic::help()`], but it gets its own span.
-    pub fn help_once(&mut self, msg: impl Into<DiagnosticMessage>) -> &mut Self {
+    /// This is like [`Diag::help()`], but it gets its own span.
+    pub fn help_once(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::OnceHelp, msg, MultiSpan::new())
     }
 
     /// Add a help message attached to this diagnostic with a customizable highlighted message.
-    pub fn highlighted_help(
-        &mut self,
-        msgs: Vec<(impl Into<DiagnosticMessage>, Style)>,
-    ) -> &mut Self {
+    pub fn highlighted_help(&mut self, msgs: Vec<(impl Into<DiagMsg>, Style)>) -> &mut Self {
         self.sub_with_highlights(Level::Help, msgs, MultiSpan::new())
     }
 
     /// Prints the span with some help above it.
-    /// This is like [`Diagnostic::help()`], but it gets its own span.
-    pub fn span_help(
-        &mut self,
-        span: impl Into<MultiSpan>,
-        msg: impl Into<DiagnosticMessage>,
-    ) -> &mut Self {
+    /// This is like [`Diag::help()`], but it gets its own span.
+    pub fn span_help(&mut self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> &mut Self {
         self.sub(Level::Help, msg, span)
     }
 
     fn sub(
         &mut self,
         level: Level,
-        msg: impl Into<DiagnosticMessage>,
+        msg: impl Into<DiagMsg>,
         span: impl Into<MultiSpan>,
     ) -> &mut Self {
         self.children.push(SubDiagnostic {
@@ -555,7 +537,7 @@ impl Diagnostic {
     fn sub_with_highlights(
         &mut self,
         level: Level,
-        messages: Vec<(impl Into<DiagnosticMessage>, Style)>,
+        messages: Vec<(impl Into<DiagMsg>, Style)>,
         span: MultiSpan,
     ) -> &mut Self {
         let messages = messages.into_iter().map(|(m, s)| (m.into(), s)).collect();
@@ -565,7 +547,7 @@ impl Diagnostic {
 }
 
 // TODO: Styles?
-fn flatten_messages(messages: &[(DiagnosticMessage, Style)]) -> Cow<'_, str> {
+fn flatten_messages(messages: &[(DiagMsg, Style)]) -> Cow<'_, str> {
     match messages {
         [] => Cow::Borrowed(""),
         [(message, _)] => Cow::Borrowed(message.as_str()),

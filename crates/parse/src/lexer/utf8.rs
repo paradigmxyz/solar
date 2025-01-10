@@ -22,6 +22,7 @@ const fn len_utf8(code: u32) -> usize {
 
 /// Copied from [`core::char::encode_utf8_raw`].
 #[inline]
+#[allow(clippy::precedence)]
 pub(super) fn encode_utf8_raw(code: u32, dst: &mut [u8]) -> &mut [u8] {
     let len = len_utf8(code);
     match (len, &mut dst[..]) {

@@ -8,7 +8,7 @@ use anstream::ColorChoice;
 use serde::Serialize;
 use std::{io, sync::Arc};
 
-/// Diagnostic emitter that emits diagnostics as JSON.
+/// Diag emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
     writer: Box<dyn io::Write + Send>,
     pretty: bool,
@@ -18,10 +18,10 @@ pub struct JsonEmitter {
 }
 
 impl Emitter for JsonEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) {
         if self.rustc_like {
             let diagnostic = self.diagnostic(diagnostic);
-            self.emit(&EmitTyped::Diagnostic(diagnostic))
+            self.emit(&EmitTyped::Diag(diagnostic))
         } else {
             let diagnostic = self.solc_diagnostic(diagnostic);
             self.emit(&diagnostic)
@@ -69,8 +69,8 @@ impl JsonEmitter {
         Emitter::source_map(self).unwrap()
     }
 
-    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> Diagnostic {
-        Diagnostic {
+    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> Diag {
+        Diag {
             message: diagnostic.label().into_owned(),
             code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
             level: diagnostic.level.to_str(),
@@ -80,8 +80,8 @@ impl JsonEmitter {
         }
     }
 
-    fn sub_diagnostic(&self, diagnostic: &crate::diagnostics::SubDiagnostic) -> Diagnostic {
-        Diagnostic {
+    fn sub_diagnostic(&self, diagnostic: &crate::diagnostics::SubDiagnostic) -> Diag {
+        Diag {
             message: diagnostic.label().into_owned(),
             code: None,
             level: diagnostic.level.to_str(),
@@ -128,7 +128,7 @@ impl JsonEmitter {
         }
     }
 
-    fn solc_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> SolcDiagnostic {
+    fn solc_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> SolcDiagnostic {
         let primary = diagnostic.span.primary_span();
         let file = primary
             .map(|span| {
@@ -194,7 +194,7 @@ impl JsonEmitter {
         }
     }
 
-    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diagnostic) -> String {
+    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diag) -> String {
         self.human_emitter.emit_diagnostic(diagnostic);
         std::mem::take(self.human_emitter.buffer_mut())
     }
@@ -215,11 +215,11 @@ impl JsonEmitter {
 #[derive(Serialize)]
 #[serde(tag = "$message_type", rename_all = "snake_case")]
 enum EmitTyped {
-    Diagnostic(Diagnostic),
+    Diag(Diag),
 }
 
 #[derive(Serialize)]
-struct Diagnostic {
+struct Diag {
     /// The primary error message.
     message: String,
     code: Option<DiagnosticCode>,
@@ -227,7 +227,7 @@ struct Diagnostic {
     level: &'static str,
     spans: Vec<DiagnosticSpan>,
     /// Associated diagnostic messages.
-    children: Vec<Diagnostic>,
+    children: Vec<Diag>,
     /// The message as the compiler would render it.
     rendered: Option<String>,
 }

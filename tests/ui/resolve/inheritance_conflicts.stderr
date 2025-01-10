@@ -4,7 +4,7 @@ error: identifier `x` already declared
 LL |     uint public x = 0;
    |                 - note: previous declaration declared here
 LL | }
-LL | 
+LL |
 LL | contract B is A {
 LL |     uint public x = 1;
    |                 ^
@@ -16,7 +16,7 @@ error: identifier `y` already declared
 LL |     uint public y = 2;
    |                 - note: previous declaration declared here
 LL | }
-LL | 
+LL |
 LL | contract BB {
 LL |     uint public y = 3;
    |                 ^

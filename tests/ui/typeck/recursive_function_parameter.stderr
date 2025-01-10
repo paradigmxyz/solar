@@ -1,8 +1,7 @@
 error: recursive struct definition
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |       struct A {
-   |  _____^
+LL | /     struct A {
 LL | |         B b;
 LL | |     }
    | |_____^
@@ -11,8 +10,7 @@ LL | |     }
 error: recursive struct definition
   --> ROOT/tests/ui/typeck/recursive_function_parameter.sol:LL:CC
    |
-LL |       struct B {
-   |  _____^
+LL | /     struct B {
 LL | |         A a;
 LL | |     }
    | |_____^
