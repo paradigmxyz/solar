@@ -1117,12 +1117,8 @@ pub enum ExprKind<'hir> {
     /// A binary operation: `a + b`, `a >> b`.
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
-    /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>),
-
-    // TODO: Move this to Call
-    /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
-    CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
+    /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.

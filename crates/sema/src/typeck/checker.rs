@@ -100,8 +100,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Binary(_, _bin_op, _) => todo!(),
-            hir::ExprKind::Call(_expr, ref _call_args) => todo!(),
-            hir::ExprKind::CallOptions(_expr, _opts) => todo!(),
+            hir::ExprKind::Call(_expr, ref _call_args, ref _opts) => todo!(),
             hir::ExprKind::Delete(expr) => {
                 let _ = self.require_lvalue(expr);
                 self.gcx.types.unit

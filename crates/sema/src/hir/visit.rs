@@ -67,8 +67,7 @@ pub trait Visit<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
-            ExprKind::Call(expr, _)
-            | ExprKind::CallOptions(expr, _)
+            ExprKind::Call(expr, _, _)
             | ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
