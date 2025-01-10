@@ -16,7 +16,10 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
-            checker::check(gcx, id);
+            if gcx.sess.opts.unstable.typeck {
+                // TODO: Parallelize more.
+                checker::check(gcx, id);
+            }
         }),
     );
 }

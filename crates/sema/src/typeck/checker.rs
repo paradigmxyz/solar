@@ -163,7 +163,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             "member `{ident}` not found on type `{}`",
                             ty.display(self.gcx)
                         );
-                        let err = self.dcx().err(msg).span(expr.span);
+                        let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
                     [member] => member.ty,
@@ -337,8 +337,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
-        self.contract = Some(id);
-        self.walk_nested_contract(id)
+        let prev = self.contract.replace(id);
+        let r = self.walk_nested_contract(id);
+        self.contract = prev;
+        r
     }
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {

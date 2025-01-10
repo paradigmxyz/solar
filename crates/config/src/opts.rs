@@ -158,6 +158,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Type check the program. WIP.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub typeck: bool,
+
+    // ----------------------------------------
+    // Please add new options above this point!
+    // ----------------------------------------
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),
