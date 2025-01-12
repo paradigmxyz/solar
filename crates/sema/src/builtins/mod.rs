@@ -27,7 +27,7 @@ fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
 }
 
 macro_rules! declare_builtins {
-    (|$gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
+    (|$slf:ident, $gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
         /// A compiler builtin.
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum Builtin {
@@ -50,8 +50,8 @@ macro_rules! declare_builtins {
             }
 
             /// Returns the type of the builtin.
-            pub fn ty(self, $gcx: Gcx<'_>) -> Ty<'_> {
-                match self {
+            pub fn ty($slf, $gcx: Gcx<'_>) -> Ty<'_> {
+                match $slf {
                     $(
                         Builtin::$variant_name => $ty,
                     )*
@@ -62,7 +62,7 @@ macro_rules! declare_builtins {
 }
 
 declare_builtins! {
-    |gcx|
+    |self, gcx|
 
     // Global
     Blockhash              => kw::Blockhash
@@ -99,13 +99,13 @@ declare_builtins! {
                            => gcx.mk_builtin_fn(&[gcx.types.fixed_bytes(32), gcx.types.uint(8), gcx.types.fixed_bytes(32), gcx.types.fixed_bytes(32)], SM::View, &[gcx.types.address]);
 
     Block                  => sym::block
-                           => gcx.mk_builtin_mod(Self::Block);
+                           => gcx.mk_builtin_mod(self);
     Msg                    => sym::msg
-                           => gcx.mk_builtin_mod(Self::Msg);
+                           => gcx.mk_builtin_mod(self);
     Tx                     => sym::tx
-                           => gcx.mk_builtin_mod(Self::Tx);
+                           => gcx.mk_builtin_mod(self);
     Abi                    => sym::abi
-                           => gcx.mk_builtin_mod(Self::Abi);
+                           => gcx.mk_builtin_mod(self);
 
     // Contract
     This                   => sym::this   => unreachable!();

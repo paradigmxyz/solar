@@ -3,8 +3,8 @@ use crate::{
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
-use solar_ast::{DataLocation, ElementaryType};
-use solar_data_structures::{map::FxHashMap, Never};
+use solar_ast::{DataLocation, ElementaryType, Span};
+use solar_data_structures::{map::FxHashMap, smallvec::SmallVec, Never};
 use solar_interface::diagnostics::DiagCtxt;
 use std::ops::ControlFlow;
 
@@ -63,11 +63,10 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
         macro_rules! todo {
-            () => {
-                return self
-                    .gcx
-                    .mk_ty_err(self.dcx().err("typeck: not yet implemented").span(expr.span).emit())
-            };
+            () => {{
+                let msg = format!("not yet implemented: {expr:?}");
+                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
+            }};
         }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
@@ -105,12 +104,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let _ = self.require_lvalue(expr);
                 self.gcx.types.unit
             }
-            hir::ExprKind::Ident(&[res]) => self.type_of_res(res),
-            hir::ExprKind::Ident(res) => {
-                debug_assert!(!res.is_empty());
-                let _ = res;
-                todo!();
-            }
+            hir::ExprKind::Ident(res) => self.type_of_res(self.resolve_overloads(res, expr.span)),
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr_with(lhs, expected);
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
@@ -150,9 +144,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     .gcx
                     .members_of(ty, self.source, self.contract)
                     .iter()
-                    .copied()
                     .filter(|m| m.name == ident.name)
-                    .collect::<Vec<_>>();
+                    .collect::<SmallVec<[_; 4]>>();
 
                 // TODO: overload resolution
 
@@ -162,6 +155,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             "member `{ident}` not found on type `{}`",
                             ty.display(self.gcx)
                         );
+                        // TODO: Did you mean ...?
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
@@ -230,7 +224,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr_with(expr, expected)
                 };
-                // TODO: Allow only on int, int literal,t bool
+                // TODO: Allow only on int, int literal, bool
                 ty
             }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
@@ -281,12 +275,12 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = self.lvalue_context.replace(true);
+        let prev = self.lvalue_context.replace(false);
         let ty = self.check_expr(expr);
         let ctx = self.lvalue_context;
         debug_assert!(ctx.is_some());
         self.lvalue_context = prev;
-        if ctx == Some(true) {
+        if ctx != Some(true) || !is_syntactic_lvalue(expr) {
             return ty;
         }
 
@@ -295,6 +289,37 @@ impl<'gcx> TypeChecker<'gcx> {
         self.dcx().err("expected lvalue").span(expr.span).emit();
 
         ty
+    }
+
+    fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
+        match self.try_resolve_overloads(res) {
+            Ok(res) => res,
+            Err(e) => {
+                let msg = match e {
+                    OverloadError::NotFound => "no matching declarations found",
+                    OverloadError::Ambiguous => "no unique declarations found",
+                };
+                hir::Res::Err(self.dcx().err(msg).span(span).emit())
+            }
+        }
+    }
+
+    fn try_resolve_overloads(&self, res: &[hir::Res]) -> Result<hir::Res, OverloadError> {
+        match res {
+            [] => unreachable!("no candidates for overload resolution"),
+            &[res] => return Ok(res),
+            _ => {}
+        }
+
+        match res
+            .iter()
+            .filter(|res| matches!(res, hir::Res::Item(hir::ItemId::Variable(_))))
+            .collect::<WantOne<_>>()
+        {
+            WantOne::Zero => Err(OverloadError::NotFound),
+            WantOne::One(var) => Ok(*var),
+            WantOne::Many => Err(OverloadError::Ambiguous),
+        }
     }
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
@@ -350,5 +375,59 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         // TODO
         self.walk_stmt(stmt)
+    }
+}
+
+fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
+    match expr.kind {
+        hir::ExprKind::Ident(_) | hir::ExprKind::Err(_) => true,
+
+        // The only lvalue call allowed is `array.push() = x;`
+        hir::ExprKind::Member(expr, _)
+        | hir::ExprKind::Call(expr, _, _)
+        | hir::ExprKind::Index(expr, _) => is_syntactic_lvalue(expr),
+        hir::ExprKind::Tuple(exprs) => exprs.iter().copied().flatten().all(is_syntactic_lvalue),
+
+        hir::ExprKind::Array(_)
+        | hir::ExprKind::Assign(..)
+        | hir::ExprKind::Binary(..)
+        | hir::ExprKind::Delete(_)
+        | hir::ExprKind::Slice(..)
+        | hir::ExprKind::Lit(_)
+        | hir::ExprKind::Payable(_)
+        | hir::ExprKind::New(_)
+        | hir::ExprKind::Ternary(..)
+        | hir::ExprKind::TypeCall(_)
+        | hir::ExprKind::Type(_)
+        | hir::ExprKind::Unary(..) => false,
+    }
+}
+
+enum OverloadError {
+    NotFound,
+    Ambiguous,
+}
+
+enum WantOne<T> {
+    Zero,
+    One(T),
+    Many,
+}
+
+impl<T> FromIterator<T> for WantOne<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut iter = iter.into_iter().peekable();
+        match iter.peek() {
+            None => WantOne::Zero,
+            Some(_) => {
+                let first = iter.next().unwrap();
+                match iter.peek() {
+                    None => WantOne::One(first),
+                    Some(_) => WantOne::Many
+                    // (std::iter::once(first).chain(iter).collect())
+                    ,
+                }
+            }
+        }
     }
 }

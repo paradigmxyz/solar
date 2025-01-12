@@ -78,6 +78,7 @@ impl<'gcx> CommonTypes<'gcx> {
         self.int_(TypeSize::new_int_bits(bits))
     }
     /// `int<size>`.
+    #[inline]
     pub fn int_(&self, size: TypeSize) -> Ty<'gcx> {
         self.ints[size.bytes() as usize - 1]
     }
@@ -89,6 +90,7 @@ impl<'gcx> CommonTypes<'gcx> {
         self.uint_(TypeSize::new_int_bits(bits))
     }
     /// `uint<size>`.
+    #[inline]
     pub fn uint_(&self, size: TypeSize) -> Ty<'gcx> {
         self.uints[size.bytes() as usize - 1]
     }
@@ -100,6 +102,7 @@ impl<'gcx> CommonTypes<'gcx> {
         self.fixed_bytes_(TypeSize::new_fb_bytes(bytes))
     }
     /// `bytes<size>`.
+    #[inline]
     pub fn fixed_bytes_(&self, size: TypeSize) -> Ty<'gcx> {
         self.fbs[size.bytes() as usize - 1]
     }

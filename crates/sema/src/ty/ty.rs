@@ -344,7 +344,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Array(base, _) | TyKind::ArrayLiteral(base, _) | TyKind::DynArray(base) => {
                 Some(base)
             }
-            TyKind::Slice(base) => base.base_type(gcx),
+            TyKind::Slice(arr) => arr.base_type(gcx),
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 Some(gcx.types.fixed_bytes(1))
             }
@@ -356,11 +356,15 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
     pub fn convert_implicit_to(self, other: Self) -> bool {
-        self.convert_implicit_to_result(other).is_ok()
+        self.try_convert_implicit_to(other).is_ok()
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn convert_implicit_to_result(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
+        if self.references_error() || other.references_error() {
+            return Ok(());
+        }
+
         // TODO
         if self == other {
             Ok(())
@@ -372,13 +376,13 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if the type is explicitly convertible to the given type.
     #[doc(alias = "is_explicity_convertible_to")]
     pub fn convert_explicit_to(self, other: Self) -> bool {
-        self.convert_explicit_to_result(other).is_ok()
+        self.try_convert_explicit_to(other).is_ok()
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn convert_explicit_to_result(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
         // TODO
-        self.convert_implicit_to_result(other)
+        self.try_convert_implicit_to(other)
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
