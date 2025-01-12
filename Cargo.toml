@@ -56,7 +56,7 @@ unicode-width.opt-level = 3
 [profile.release]
 opt-level = 3
 lto = "thin"
-debug = "line-tables-only"
+debug = "none"
 strip = "debuginfo" # "symbols" for less binary size but no backtraces
 panic = "abort"
 codegen-units = 16
@@ -65,7 +65,7 @@ codegen-units = 16
 # e.g. `cargo build --profile profiling`
 [profile.profiling]
 inherits = "release"
-debug = 2
+debug = "full"
 strip = false
 
 [profile.bench]
@@ -76,6 +76,13 @@ inherits = "profiling"
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+
+# `dist` with debug assertions.
+[profile.dist-dbg]
+inherits = "dist"
+debug = "full"
+strip = false
+debug-assertions = true
 
 [workspace.dependencies]
 # compiler crates
