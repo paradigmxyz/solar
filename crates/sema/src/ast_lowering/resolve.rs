@@ -450,7 +450,11 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         let mut ret_ty = &self.hir.variable(gettee).ty;
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
-        let new_param = |this: &mut Self, ty, name| {
+        let new_param = |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+            ty.span = span;
+            if let Some(name) = &mut name {
+                name.span = span;
+            }
             this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionParam)
         };
         for i in 0usize.. {
@@ -485,15 +489,23 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             }
         }
         let ret_ty = ret_ty.clone();
+        if let Some(name) = &mut ret_name {
+            name.span = span;
+        }
 
         let mut returns = SmallVec::<[_; 8]>::new();
-        let mut push_return = |this: &mut Self, ty, name| {
-            let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
-            if ret.ty.kind.is_reference_type() {
-                ret.data_location = Some(hir::DataLocation::Memory);
-            }
-            returns.push(this.hir.variables.push(ret))
-        };
+        let mut push_return =
+            |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+                ty.span = ret_ty.span;
+                if let Some(name) = &mut name {
+                    name.span = span;
+                }
+                let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
+                if ret.ty.kind.is_reference_type() {
+                    ret.data_location = Some(hir::DataLocation::Memory);
+                }
+                returns.push(this.hir.variables.push(ret))
+            };
         let mut ret_struct = None;
         if let hir::TypeKind::Custom(hir::ItemId::Struct(s_id)) = ret_ty.kind {
             ret_struct = Some(s_id);
@@ -532,8 +544,12 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             }
 
             match returns[..] {
-                // Will fail typechecking later.
-                [] => Some(&[]),
+                [] => {
+                    let msg = "getter must return at least one value";
+                    let note = "the struct has all its members omitted, therefore the getter cannot return any values";
+                    self.dcx().err(msg).span(span).span_note(ret_ty.span, note).emit();
+                    Some(&[])
+                }
                 // `return <expr>;`
                 [_] if ret_struct.is_none() => {
                     Some(self.arena.alloc_as_slice(mk_stmt(hir::StmtKind::Return(Some(expr)))))

@@ -153,7 +153,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.unwrap_or(ast::Visibility::Public),
+            visibility: visibility.unwrap_or_else(|| {
+                let is_free = self.current_contract_id.is_none();
+                if kind.is_modifier() || is_free {
+                    ast::Visibility::Internal
+                } else {
+                    ast::Visibility::Public
+                }
+            }),
             state_mutability,
             parameters: &[],
             returns: &[],

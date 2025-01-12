@@ -583,12 +583,13 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     continue;
                 }
 
+                let kind = f.description();
                 let msg = if ty.has_mapping() {
-                    "types containing mappings cannot be parameter or return types of public functions"
+                    format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.is_recursive() {
-                    "recursive types cannot be parameter or return types of public functions"
+                    format!("recursive types cannot be parameter or return types of public {kind}s")
                 } else {
-                    "this type cannot be parameter or return type of a public function"
+                    format!("this type cannot be parameter or return type of a public {kind}")
                 };
                 let span = gcx.hir.variable(var_id).ty.span;
                 result = Err(gcx.dcx().err(msg).span(span).emit());

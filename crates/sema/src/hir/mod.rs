@@ -341,8 +341,8 @@ impl<'hir> Item<'_, 'hir> {
     #[inline]
     pub fn description(self) -> &'static str {
         match self {
-            Item::Contract(c) => c.kind.to_str(),
-            Item::Function(f) => f.kind.to_str(),
+            Item::Contract(c) => c.description(),
+            Item::Function(f) => f.description(),
             Item::Struct(_) => "struct",
             Item::Enum(_) => "enum",
             Item::Udvt(_) => "UDVT",
@@ -565,6 +565,11 @@ impl Contract<'_> {
     pub fn is_abstract(&self) -> bool {
         self.kind.is_abstract_contract()
     }
+
+    /// Returns the description of the contract.
+    pub fn description(&self) -> &'static str {
+        self.kind.to_str()
+    }
 }
 
 /// A function.
@@ -628,6 +633,15 @@ impl Function<'_> {
     /// Returns an iterator over all variables in the function.
     pub fn variables(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + use<'_> {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
+    }
+
+    /// Returns the description of the function.
+    pub fn description(&self) -> &'static str {
+        if self.is_getter() {
+            "getter function"
+        } else {
+            self.kind.to_str()
+        }
     }
 }
 
@@ -1014,7 +1028,7 @@ impl LoopSource {
 }
 
 /// Resolved name.
-#[derive(Clone, Copy, PartialEq, Eq, From, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum Res {
     /// A resolved item.
     Item(ItemId),
@@ -1080,8 +1094,12 @@ impl Res {
         }
     }
 
-    pub fn is_err(&self) -> bool {
-        matches!(self, Self::Err(_))
+    pub fn as_variable(&self) -> Option<VariableId> {
+        if let Self::Item(id) = self {
+            id.as_variable()
+        } else {
+            None
+        }
     }
 }
 
