@@ -1025,7 +1025,7 @@ impl LoopSource {
 }
 
 /// Resolved name.
-#[derive(Clone, Copy, PartialEq, Eq, From, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum Res {
     /// A resolved item.
     Item(ItemId),
@@ -1091,8 +1091,12 @@ impl Res {
         }
     }
 
-    pub fn is_err(&self) -> bool {
-        matches!(self, Self::Err(_))
+    pub fn as_variable(&self) -> Option<VariableId> {
+        if let Self::Item(id) = self {
+            id.as_variable()
+        } else {
+            None
+        }
     }
 }
 
