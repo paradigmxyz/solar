@@ -311,11 +311,7 @@ impl<'gcx> TypeChecker<'gcx> {
             _ => {}
         }
 
-        match res
-            .iter()
-            .filter(|res| matches!(res, hir::Res::Item(hir::ItemId::Variable(_))))
-            .collect::<WantOne<_>>()
-        {
+        match res.iter().filter(|res| res.as_variable().is_some()).collect::<WantOne<_>>() {
             WantOne::Zero => Err(OverloadError::NotFound),
             WantOne::One(var) => Ok(*var),
             WantOne::Many => Err(OverloadError::Ambiguous),
