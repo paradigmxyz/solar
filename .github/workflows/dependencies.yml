@@ -13,4 +13,4 @@ jobs:
   update:
     uses: ithacaxyz/ci/.github/workflows/cargo-update-pr.yml@main
     secrets:
-      token: ${{ secrets.token }}
+      token: ${{ secrets.GITHUB_TOKEN }}
