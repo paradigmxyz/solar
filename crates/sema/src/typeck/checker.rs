@@ -414,12 +414,12 @@ impl<T> FromIterator<T> for WantOne<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut iter = iter.into_iter().peekable();
         match iter.peek() {
-            None => WantOne::Zero,
+            None => Self::Zero,
             Some(_) => {
                 let first = iter.next().unwrap();
                 match iter.peek() {
-                    None => WantOne::One(first),
-                    Some(_) => WantOne::Many
+                    None => Self::One(first),
+                    Some(_) => Self::Many
                     // (std::iter::once(first).chain(iter).collect())
                     ,
                 }
