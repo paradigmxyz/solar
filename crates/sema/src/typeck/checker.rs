@@ -32,6 +32,10 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.dcx()
     }
 
+    fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        self.types[&expr.id]
+    }
+
     #[must_use]
     fn check_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         self.check_expr_with(expr, None)
@@ -80,6 +84,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 }
                 if let Some(common) = common {
+                    // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1583
                     self.gcx.mk_ty(TyKind::ArrayLiteral(common, exprs.len()))
                 } else {
                     self.gcx.mk_ty_err(
@@ -98,13 +103,33 @@ impl<'gcx> TypeChecker<'gcx> {
                     ty
                 }
             }
-            hir::ExprKind::Binary(_, _bin_op, _) => todo!(),
-            hir::ExprKind::Call(_expr, ref _call_args, ref _opts) => todo!(),
+            hir::ExprKind::Binary(lhs, _bin_op, rhs) => {
+                let _ = self.check_expr(lhs);
+                let _ = self.check_expr(rhs);
+                todo!()
+            }
+            hir::ExprKind::Call(expr, ref _call_args, ref _opts) => {
+                let _ty = self.check_expr(expr);
+
+                // TODO: `array.push() = x;` is the only valid call lvalue
+                let is_array_push = false;
+                if !is_array_push {
+                    self.not_lvalue();
+                }
+
+                todo!()
+            }
             hir::ExprKind::Delete(expr) => {
                 let _ = self.require_lvalue(expr);
                 self.gcx.types.unit
             }
-            hir::ExprKind::Ident(res) => self.type_of_res(self.resolve_overloads(res, expr.span)),
+            hir::ExprKind::Ident(res) => {
+                let res = self.resolve_overloads(res, expr.span);
+                if !res_is_lvalue(self.gcx, res) {
+                    self.not_lvalue();
+                }
+                self.type_of_res(res)
+            }
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr_with(lhs, expected);
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
@@ -139,21 +164,21 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
-                let ty = self.check_expr_with(expr, expected);
+                let expr_ty = self.check_expr_with(expr, expected);
                 let possible_members = self
                     .gcx
-                    .members_of(ty, self.source, self.contract)
+                    .members_of(expr_ty, self.source, self.contract)
                     .iter()
                     .filter(|m| m.name == ident.name)
                     .collect::<SmallVec<[_; 4]>>();
 
                 // TODO: overload resolution
 
-                match possible_members[..] {
+                let ty = match possible_members[..] {
                     [] => {
                         let msg = format!(
                             "member `{ident}` not found on type `{}`",
-                            ty.display(self.gcx)
+                            expr_ty.display(self.gcx)
                         );
                         // TODO: Did you mean ...?
                         let err = self.dcx().err(msg).span(ident.span);
@@ -163,12 +188,29 @@ impl<'gcx> TypeChecker<'gcx> {
                     [..] => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
-                            ty.display(self.gcx)
+                            expr_ty.display(self.gcx)
                         );
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
+                };
+
+                // Validate lvalue.
+                match expr_ty.kind {
+                    TyKind::Ref(_, d) if d.is_calldata() => self.not_lvalue(),
+                    TyKind::Type(ty)
+                        if matches!(ty.kind, TyKind::Contract(_))
+                            && possible_members.len() == 1
+                            && !possible_members[0]
+                                .res
+                                .is_some_and(|res| res_is_lvalue(self.gcx, res)) =>
+                    {
+                        self.not_lvalue();
+                    }
+                    _ => {}
                 }
+
+                ty
             }
             hir::ExprKind::New(_) => todo!(),
             hir::ExprKind::Payable(expr) => {
@@ -210,7 +252,18 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 }
             }
-            hir::ExprKind::Tuple(_) => todo!(),
+            hir::ExprKind::Tuple(exprs) => match exprs {
+                [] | [None] => unreachable!("shouldn't be able to parse"),
+                [Some(expr)] => self.check_expr_with(expr, expected),
+                _ => {
+                    for expr in exprs {
+                        if let Some(expr) = expr {
+                            let _ = self.check_expr(expr);
+                        }
+                    }
+                    todo!()
+                }
+            },
             hir::ExprKind::TypeCall(ref ty) => {
                 self.gcx.mk_ty(TyKind::Meta(self.gcx.type_of_hir_ty(ty)))
             }
@@ -291,6 +344,12 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    fn not_lvalue(&mut self) {
+        if let Some(v) = &mut self.lvalue_context {
+            *v = false;
+        }
+    }
+
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
         match self.try_resolve_overloads(res) {
             Ok(res) => res,
@@ -369,7 +428,46 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
-        // TODO
+        match stmt.kind {
+            hir::StmtKind::If(cond, body, else_) => {
+                let _ = self.expect_ty(cond, self.gcx.types.bool);
+                self.visit_stmt(body);
+                if let Some(else_) = else_ {
+                    self.visit_stmt(else_);
+                }
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => {
+                let _ty = self.check_expr(expr);
+                let hir::ExprKind::Call(callee, ..) = expr.kind else {
+                    unreachable!("bad Emit|Revert");
+                };
+                let callee_ty = self.get(callee);
+                if !callee_ty.references_error() {
+                    match stmt.kind {
+                        hir::StmtKind::Emit(_) => {
+                            if !matches!(callee_ty.kind, TyKind::Event(..)) {
+                                self.dcx()
+                                    .err("expression is not an event")
+                                    .span(callee.span)
+                                    .emit();
+                            }
+                        }
+                        hir::StmtKind::Revert(_) => {
+                            if !matches!(callee_ty.kind, TyKind::Error(..)) {
+                                self.dcx()
+                                    .err("expression is not an error")
+                                    .span(callee.span)
+                                    .emit();
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                return ControlFlow::Continue(());
+            }
+            _ => {}
+        }
         self.walk_stmt(stmt)
     }
 }
@@ -425,5 +523,12 @@ impl<T> FromIterator<T> for WantOne<T> {
                 }
             }
         }
+    }
+}
+
+fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
+    match res {
+        hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
+        _ => false,
     }
 }

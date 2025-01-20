@@ -128,8 +128,8 @@ pub trait Visit<'hir> {
                     self.visit_stmt(stmt)?;
                 }
             }
-            StmtKind::Emit(_, _) => {}
-            StmtKind::Revert(_, _) => {}
+            StmtKind::Emit(expr) => self.visit_expr(expr)?,
+            StmtKind::Revert(expr) => self.visit_expr(expr)?,
             StmtKind::Return(expr) => {
                 if let Some(expr) = expr {
                     self.visit_expr(expr)?;

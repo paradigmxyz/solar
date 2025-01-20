@@ -745,11 +745,15 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
             ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
@@ -775,6 +779,29 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    /// Converts path + args into a Call expression for emit/revert statements.
+    fn make_call_expr_for_emit(
+        &mut self,
+        path: &ast::PathSlice,
+        res: &'hir [Res],
+        args: &ast::CallArgs<'_>,
+        span: Span,
+    ) -> &'hir hir::Expr<'hir> {
+        self.arena.alloc(hir::Expr {
+            kind: hir::ExprKind::Call(
+                self.arena.alloc(hir::Expr {
+                    id: self.next_id(),
+                    kind: hir::ExprKind::Ident(res),
+                    span: path.last().span,
+                }),
+                self.lower_call_args(args),
+                None,
+            ),
+            id: self.next_id(),
+            span,
+        })
     }
 
     fn lower_variables(

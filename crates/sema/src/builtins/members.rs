@@ -80,7 +80,7 @@ impl<'gcx> Member<'gcx> {
     }
 
     pub fn of_builtin(gcx: Gcx<'gcx>, builtin: Builtin) -> Self {
-        Self { name: builtin.name(), ty: builtin.ty(gcx), res: None }
+        Self::new(builtin.name(), builtin.ty(gcx))
     }
 
     pub fn of_builtins(

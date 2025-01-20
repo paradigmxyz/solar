@@ -950,10 +950,14 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Emit(&'hir Expr<'hir>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Revert(&'hir Expr<'hir>),
 
     /// A return statement: `return 42;`.
     Return(Option<&'hir Expr<'hir>>),
