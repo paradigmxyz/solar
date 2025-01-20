@@ -277,10 +277,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 [] | [None] => unreachable!("shouldn't be able to parse"),
                 [Some(expr)] => self.check_expr_with(expr, expected),
                 _ => {
-                    for expr in exprs {
-                        if let Some(expr) = expr {
-                            let _ = self.check_expr(expr);
-                        }
+                    for &expr in exprs.iter().flatten() {
+                        let _ = self.check_expr(expr);
                     }
                     todo!()
                 }
