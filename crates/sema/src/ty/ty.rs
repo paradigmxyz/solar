@@ -322,6 +322,33 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Returns `true` if the type is a fixed-size byte array.
+    pub fn is_fixed_bytes(self) -> bool {
+        matches!(self.kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+    }
+
+    /// Returns `true` if the type is an integer, including literals.
+    pub fn is_integer(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
+                | TyKind::IntLiteral(..)
+        )
+    }
+
+    /// Returns `true` if the type is a signed integer, including negative literals.
+    pub fn is_signed(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, _)
+        )
+    }
+
+    /// Returns `true` if the type is a tuple.
+    pub fn is_tuple(self) -> bool {
+        matches!(self.kind, TyKind::Tuple(..))
+    }
+
     /// Returns the common type between the two types.
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;

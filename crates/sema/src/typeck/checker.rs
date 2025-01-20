@@ -92,21 +92,36 @@ impl<'gcx> TypeChecker<'gcx> {
                     )
                 }
             }
-            hir::ExprKind::Assign(lhs, bin_op, rhs) => {
+            hir::ExprKind::Assign(lhs, op, rhs) => {
                 let ty = self.require_lvalue(lhs);
                 self.check_assign(ty, lhs);
-                if let Some(bin_op) = bin_op {
-                    let _ = bin_op;
-                    todo!()
+                if ty.is_tuple() {
+                    if op.is_some() {
+                        let err = self
+                            .dcx()
+                            .err("compound assignment is not allowed for tuples")
+                            .span(expr.span);
+                        return self.gcx.mk_ty_err(err.emit());
+                    }
+                    let _ = self.expect_ty(rhs, ty);
+                    ty
+                } else if let Some(op) = op {
+                    let rhs_ty = self.check_expr(rhs);
+                    let result = self.check_binop(lhs, ty, rhs, rhs_ty, op, true);
+                    debug_assert!(
+                        result.references_error() || result == ty,
+                        "compound assignment should not consider custom operators: {result:?} != {ty:?}"
+                    );
+                    result
                 } else {
                     let _ = self.expect_ty(rhs, ty);
                     ty
                 }
             }
-            hir::ExprKind::Binary(lhs, _bin_op, rhs) => {
-                let _ = self.check_expr(lhs);
-                let _ = self.check_expr(rhs);
-                todo!()
+            hir::ExprKind::Binary(lhs_e, op, rhs_e) => {
+                let lhs = self.check_expr(lhs_e);
+                let rhs = self.check_expr(rhs_e);
+                self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(expr, ref _call_args, ref _opts) => {
                 let _ty = self.check_expr(expr);
@@ -120,8 +135,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 todo!()
             }
             hir::ExprKind::Delete(expr) => {
-                let _ = self.require_lvalue(expr);
-                self.gcx.types.unit
+                let ty = self.require_lvalue(expr);
+                if valid_delete(ty) {
+                    self.gcx.types.unit
+                } else {
+                    let msg = format!("cannot delete `{}`", ty.display(self.gcx));
+                    let err = self.dcx().err(msg).span(expr.span);
+                    self.gcx.mk_ty_err(err.emit())
+                }
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
@@ -270,15 +291,23 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Type(ref ty) => {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
-            hir::ExprKind::Unary(un_op, expr) => {
-                // TODO: un_op
-                let ty = if un_op.kind.is_modifying() {
+            hir::ExprKind::Unary(op, expr) => {
+                let ty = if op.kind.is_modifying() {
                     self.require_lvalue(expr)
                 } else {
                     self.check_expr_with(expr, expected)
                 };
-                // TODO: Allow only on int, int literal, bool
-                ty
+                // TODO: custom operators
+                if valid_unop(ty, op.kind) {
+                    ty
+                } else {
+                    let msg = format!(
+                        "cannot apply unary operator `{op}` to `{}`",
+                        ty.display(self.gcx),
+                    );
+                    let err = self.dcx().err(msg).span(expr.span);
+                    self.gcx.mk_ty_err(err.emit())
+                }
             }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
@@ -287,6 +316,33 @@ impl<'gcx> TypeChecker<'gcx> {
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
         // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
         let _ = (ty, expr);
+    }
+
+    fn check_binop(
+        &mut self,
+        lhs_e: &'gcx hir::Expr<'gcx>,
+        lhs: Ty<'gcx>,
+        rhs_e: &'gcx hir::Expr<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOp,
+        assign: bool,
+    ) -> Ty<'gcx> {
+        let result = binop_result_type(self.gcx, lhs, rhs, op.kind);
+        // TODO: custom operators
+        if let Some(result) = result {
+            if !(assign && result != lhs) {
+                return result;
+            }
+        }
+        let msg = format!(
+            "cannot apply builtin operator `{op}` to `{}` and `{}`",
+            lhs.display(self.gcx),
+            rhs.display(self.gcx),
+        );
+        let mut err = self.dcx().err(msg).span(op.span);
+        err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
+        err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
+        self.gcx.mk_ty_err(err.emit())
     }
 
     /// Returns `(index_ty, result_ty)` for the given type, if it is indexable.
@@ -328,12 +384,12 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = self.lvalue_context.replace(false);
+        let prev = self.lvalue_context.replace(true);
         let ty = self.check_expr(expr);
         let ctx = self.lvalue_context;
         debug_assert!(ctx.is_some());
         self.lvalue_context = prev;
-        if ctx != Some(true) || !is_syntactic_lvalue(expr) {
+        if ctx == Some(true) && is_syntactic_lvalue(expr) {
             return ty;
         }
 
@@ -472,11 +528,13 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 }
 
+/// Returns `true` if the given expression can be an lvalue.
+///
+/// If `false`, it cannot be an lvalue.
 fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
     match expr.kind {
         hir::ExprKind::Ident(_) | hir::ExprKind::Err(_) => true,
 
-        // The only lvalue call allowed is `array.push() = x;`
         hir::ExprKind::Member(expr, _)
         | hir::ExprKind::Call(expr, _, _)
         | hir::ExprKind::Index(expr, _) => is_syntactic_lvalue(expr),
@@ -531,4 +589,136 @@ fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
         hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
         _ => false,
     }
+}
+
+fn valid_delete(ty: Ty<'_>) -> bool {
+    match ty.kind {
+        TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::FnPtr(_) => true,
+        TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
+
+        TyKind::Err(_) => true,
+
+        _ => false,
+    }
+}
+
+fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
+    let ty = ty.peel_refs();
+    match ty.kind {
+        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
+        | TyKind::IntLiteral(..) => match op {
+            hir::UnOpKind::Neg => ty.is_signed(),
+            hir::UnOpKind::Not => false,
+            hir::UnOpKind::PreInc
+            | hir::UnOpKind::PreDec
+            | hir::UnOpKind::BitNot
+            | hir::UnOpKind::PostInc
+            | hir::UnOpKind::PostDec => true,
+        },
+        TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => op == hir::UnOpKind::BitNot,
+        TyKind::Elementary(hir::ElementaryType::Bool) => op == hir::UnOpKind::Not,
+
+        TyKind::Err(_) => true,
+
+        _ => false,
+    }
+}
+
+fn binop_result_type<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    other: Ty<'gcx>,
+    op: hir::BinOpKind,
+) -> Option<Ty<'gcx>> {
+    let ty = ty.peel_refs();
+    let other = other.peel_refs();
+    match ty.kind {
+        TyKind::Elementary(hir::ElementaryType::Int(_))
+        | TyKind::Elementary(hir::ElementaryType::UInt(_))
+        | TyKind::IntLiteral(..) => {
+            use hir::BinOpKind::*;
+
+            if !other.is_integer() {
+                return None;
+            }
+            match op {
+                Shl | Shr | Sar => valid_shift(ty, other, op),
+                Pow => (!other.is_signed()).then_some(ty),
+                And | Or => None,
+                _ => ty.common_type(other, gcx),
+            }
+        }
+
+        TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
+            if op.is_shift() {
+                return valid_shift(ty, other, op);
+            }
+            if let Some(common_type) = ty.common_type(other, gcx) {
+                if common_type.is_fixed_bytes() {
+                    return Some(common_type);
+                }
+            }
+            None
+        }
+        TyKind::Elementary(hir::ElementaryType::Bool) => (other == ty
+            && matches!(
+                op,
+                hir::BinOpKind::Eq | hir::BinOpKind::Ne | hir::BinOpKind::And | hir::BinOpKind::Or
+            ))
+        .then_some(ty),
+
+        TyKind::Elementary(hir::ElementaryType::Address(_))
+        | TyKind::Contract(_)
+        | TyKind::Struct(_)
+        | TyKind::Enum(_)
+        | TyKind::Error(..)
+        | TyKind::Event(..) => {
+            if op.is_cmp() {
+                ty.common_type(other, gcx)
+            } else {
+                None
+            }
+        }
+
+        TyKind::FnPtr(_) => {
+            // TODO: Compare internal function pointers
+            // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3193
+            None
+        }
+
+        TyKind::Elementary(hir::ElementaryType::String)
+        | TyKind::Elementary(hir::ElementaryType::Bytes)
+        | TyKind::Elementary(hir::ElementaryType::Fixed(..))
+        | TyKind::Elementary(hir::ElementaryType::UFixed(..))
+        | TyKind::StringLiteral(..)
+        | TyKind::ArrayLiteral(..)
+        | TyKind::DynArray(_)
+        | TyKind::Array(..)
+        | TyKind::Slice(_)
+        | TyKind::Tuple(_)
+        | TyKind::Mapping(..)
+        | TyKind::Udvt(..)
+        | TyKind::Module(_)
+        | TyKind::BuiltinModule(_)
+        | TyKind::Type(_)
+        | TyKind::Meta(_) => None,
+
+        TyKind::Err(_) => Some(ty),
+
+        TyKind::Ref(..) => unreachable!(),
+    }
+}
+
+fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Option<Ty<'gcx>> {
+    debug_assert!(op.is_shift());
+    if matches!(op, hir::BinOpKind::Sar) {
+        return None;
+    }
+    if !matches!(
+        other.kind,
+        TyKind::Elementary(hir::ElementaryType::UInt(_)) | TyKind::IntLiteral(false, ..)
+    ) {
+        return None;
+    }
+    Some(ty)
 }

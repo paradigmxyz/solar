@@ -178,29 +178,20 @@ impl BinOpKind {
     /// Returns `true` if the operator is able to be used in an assignment.
     pub const fn assignable(self) -> bool {
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression
-        match self {
-            Self::BitOr
-            | Self::BitXor
-            | Self::BitAnd
-            | Self::Shl
-            | Self::Shr
-            | Self::Sar
-            | Self::Add
-            | Self::Sub
-            | Self::Mul
-            | Self::Div
-            | Self::Rem => true,
+        use BinOpKind::*;
+        matches!(self, BitOr | BitXor | BitAnd | Shl | Shr | Sar | Add | Sub | Mul | Div | Rem)
+    }
 
-            Self::Lt
-            | Self::Le
-            | Self::Gt
-            | Self::Ge
-            | Self::Eq
-            | Self::Ne
-            | Self::Or
-            | Self::And
-            | Self::Pow => false,
-        }
+    /// Returns `true` if the operator is a comparison operator.
+    pub const fn is_cmp(self) -> bool {
+        use BinOpKind::*;
+        matches!(self, Lt | Le | Gt | Ge | Eq | Ne)
+    }
+
+    /// Returns `true` if the operator is a shift operator.
+    pub const fn is_shift(self) -> bool {
+        use BinOpKind::*;
+        matches!(self, Shl | Shr | Sar)
     }
 }
 
