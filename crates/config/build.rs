@@ -36,10 +36,13 @@ fn main() {
     let short_version = format!("{version_suffixed} ({sha_short} {timestamp})");
     println!("cargo:rustc-env=SHORT_VERSION={short_version}");
 
+    // Use the out dir to determine the profile being used
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
+
+    let cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
     let long_version = format!(
-        "Version: {version}\nCommit SHA: {sha}\nBuild Timestamp: {timestamp}\nBuild Features: {}\nBuild Profile: {}",
-        env::var("VERGEN_CARGO_FEATURES").unwrap(),
-        env::var("PROFILE").unwrap(),
+        "Version: {version}\nCommit SHA: {sha}\nBuild Timestamp: {timestamp}\nBuild Features: {cargo_features}\nBuild Profile: {profile}",
     );
     assert_eq!(long_version.lines().count(), 5); // `version.rs` must be updated as well.
     for (i, line) in long_version.lines().enumerate() {
