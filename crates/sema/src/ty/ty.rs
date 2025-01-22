@@ -349,6 +349,11 @@ impl<'gcx> Ty<'gcx> {
         matches!(self.kind, TyKind::Tuple(..))
     }
 
+    /// Returns `true` if the type is the unit type `()`.
+    pub fn is_unit(self) -> bool {
+        matches!(self.kind, TyKind::Tuple([]))
+    }
+
     /// Returns `true` if the type can be used for variables.
     pub fn nameable(self) -> bool {
         matches!(

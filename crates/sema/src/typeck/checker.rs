@@ -333,16 +333,36 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 }
             }
-            hir::ExprKind::Tuple(exprs) => match exprs {
-                [] | [None] => unreachable!("shouldn't be able to parse"),
-                [Some(expr)] => self.check_expr_with(expr, expected),
-                _ => {
-                    for &expr in exprs.iter().flatten() {
-                        let _ = self.check_expr(expr);
+            hir::ExprKind::Tuple(exprs) => {
+                let gcx = self.gcx;
+                let mut tys = exprs.iter().map(|&expr_opt| {
+                    let empty_err = |this: &Self, span| {
+                        this.gcx.mk_ty_err(
+                            this.dcx().err("tuple components cannot be empty").span(span).emit(),
+                        )
+                    };
+                    if let Some(expr) = expr_opt {
+                        let ty = if self.in_lvalue() {
+                            self.require_lvalue(expr)
+                        } else {
+                            self.check_expr(expr)
+                        };
+                        if ty.is_unit() {
+                            empty_err(self, expr.span)
+                        } else {
+                            ty
+                        }
+                    } else {
+                        // TODO: allow lvalue empty tuple component with a placeholder type
+                        empty_err(self, expr.span)
                     }
-                    todo!()
+                });
+                if tys.len() == 1 {
+                    tys.next().unwrap()
+                } else {
+                    gcx.mk_ty_tuple(gcx.mk_ty_iter(tys))
                 }
-            },
+            }
             hir::ExprKind::TypeCall(ref hir_ty) => {
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 if valid_meta_type(ty) {
@@ -538,6 +558,10 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Some(v) = &mut self.lvalue_context {
             *v = false;
         }
+    }
+
+    fn in_lvalue(&self) -> bool {
+        self.lvalue_context.is_some()
     }
 
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
