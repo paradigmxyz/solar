@@ -72,7 +72,7 @@ impl MultiSpan {
     }
 
     pub fn from_spans(mut vec: Vec<Span>) -> Self {
-        vec.sort();
+        vec.sort_unstable();
         Self { primary_spans: vec, span_labels: vec![] }
     }
 
@@ -173,6 +173,16 @@ impl Default for MultiSpan {
 impl From<Span> for MultiSpan {
     fn from(span: Span) -> Self {
         Self::from_span(span)
+    }
+}
+
+impl From<Option<Span>> for MultiSpan {
+    fn from(span: Option<Span>) -> Self {
+        if let Some(span) = span {
+            Self::from_span(span)
+        } else {
+            Self::new()
+        }
     }
 }
 

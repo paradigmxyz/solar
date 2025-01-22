@@ -51,7 +51,7 @@ impl<'gcx> Ty<'gcx> {
 
     #[doc(alias = "with_location_if_reference")]
     pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
-        if self.is_ref() {
+        if self.is_reference_type() {
             return self.with_loc(gcx, loc);
         }
         self
@@ -164,7 +164,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_reference_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_reference_type(),
-            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) => true,
+            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Slice(_) => true,
             _ => false,
         }
     }
@@ -347,6 +347,21 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if the type is a tuple.
     pub fn is_tuple(self) -> bool {
         matches!(self.kind, TyKind::Tuple(..))
+    }
+
+    /// Returns `true` if the type can be used for variables.
+    pub fn nameable(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(_)
+                | TyKind::Array(..)
+                | TyKind::DynArray(_)
+                | TyKind::Contract(_)
+                | TyKind::Struct(_)
+                | TyKind::Enum(_)
+                | TyKind::Udvt(..)
+                | TyKind::Mapping(..)
+        )
     }
 
     /// Returns the common type between the two types.

@@ -14,7 +14,7 @@ pub trait Visit<'hir> {
     fn hir(&self) -> &'hir Hir<'hir>;
 
     fn visit_nested_source(&mut self, id: SourceId) -> ControlFlow<Self::BreakValue>{
-        nest_items(self, self.hir().source(id).items)
+        visit_nested_items(self, self.hir().source(id).items)
     }
 
     fn visit_nested_item(&mut self, id: impl Into<ItemId>) -> ControlFlow<Self::BreakValue> {
@@ -40,7 +40,7 @@ pub trait Visit<'hir> {
 
     fn visit_contract(&mut self, contract: &'hir Contract<'hir>) -> ControlFlow<Self::BreakValue> {
         // TODO: base initializers
-        nest_items(self, contract.items)
+        visit_nested_items(self, contract.items)
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
@@ -53,7 +53,7 @@ pub trait Visit<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn nest_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
+    fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
         self.visit_var(self.hir().variable(id))
     }
 
@@ -114,11 +114,11 @@ pub trait Visit<'hir> {
 
     fn visit_stmt(&mut self, stmt: &'hir Stmt<'hir>) -> ControlFlow<Self::BreakValue> {
         match stmt.kind {
-            StmtKind::DeclSingle(var) => self.nest_var(var)?,
+            StmtKind::DeclSingle(var) => self.visit_nested_var(var)?,
             StmtKind::DeclMulti(vars, expr) => {
                 for &var in vars {
                     if let Some(var) = var {
-                        self.nest_var(var)?;
+                        self.visit_nested_var(var)?;
                     }
                 }
                 self.visit_expr(expr)?;
@@ -147,14 +147,14 @@ pub trait Visit<'hir> {
             StmtKind::Try(try_) => {
                 self.visit_expr(&try_.expr);
                 for &var in try_.returns {
-                    self.nest_var(var)?;
+                    self.visit_nested_var(var)?;
                 }
                 for stmt in try_.block {
                     self.visit_stmt(stmt)?;
                 }
                 for catch in try_.catch {
                     for &var in catch.args {
-                        self.nest_var(var)?;
+                        self.visit_nested_var(var)?;
                     }
                     for stmt in catch.block {
                         self.visit_stmt(stmt)?;
@@ -179,10 +179,10 @@ pub trait Visit<'hir> {
             }
             TypeKind::Function(func) => {
                 for &param in func.parameters {
-                    self.nest_var(param)?;
+                    self.visit_nested_var(param)?;
                 }
                 for &ret in func.returns {
-                    self.nest_var(ret)?;
+                    self.visit_nested_var(ret)?;
                 }
             }
             TypeKind::Mapping(map) => {
@@ -197,7 +197,7 @@ pub trait Visit<'hir> {
 }
 }
 
-fn nest_items<'hir, V: Visit<'hir> + ?Sized>(
+fn visit_nested_items<'hir, V: Visit<'hir> + ?Sized>(
     v: &mut V,
     ids: &[ItemId],
 ) -> ControlFlow<V::BreakValue> {

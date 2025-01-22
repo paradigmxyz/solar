@@ -5,7 +5,7 @@ use crate::{
 };
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{map::FxHashMap, smallvec::SmallVec, Never};
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, pluralize};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -233,7 +233,67 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 ty
             }
-            hir::ExprKind::New(_) => todo!(),
+            hir::ExprKind::New(ref hir_ty) => {
+                let ty = self.gcx.type_of_hir_ty(hir_ty);
+                match ty.kind {
+                    TyKind::Contract(id) => {
+                        let c = self.gcx.hir.contract(id);
+                        let kind = c.kind;
+                        if !kind.is_contract() {
+                            let msg = format!("cannot instantiate {kind}s");
+                            self.gcx.mk_ty_err(self.dcx().err(msg).span(hir_ty.span).emit())
+                        } else {
+                            let mut parameters: &[Ty<'_>] = &[];
+                            let mut sm = hir::StateMutability::NonPayable;
+                            if let Some(ctor) = c.ctor {
+                                let func_ty = self.gcx.type_of_item(ctor.into());
+                                let TyKind::FnPtr(f) = func_ty.kind else { unreachable!() };
+                                parameters = f.parameters;
+                                sm = f.state_mutability;
+                                debug_assert!(
+                                    f.returns.is_empty(),
+                                    "non-empty constructor returns"
+                                );
+                            }
+                            self.gcx.mk_builtin_fn(parameters, sm, &[ty])
+                        }
+                    }
+                    TyKind::Array(..) => {
+                        let mut err = self.dcx().err("cannot instantiate static arrays");
+                        if let hir::TypeKind::Array(hir::TypeArray {
+                            element: _,
+                            size: Some(size_expr),
+                        }) = hir_ty.kind
+                        {
+                            err = err.span_help(
+                                size_expr.span,
+                                "the length must be placed inside the parentheses after the array type",
+                            );
+                        }
+                        self.gcx.mk_ty_err(err.emit())
+                    }
+                    _ if ty.is_array_like() => {
+                        if ty.has_mapping() {
+                            self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("cannot instantiate mappings")
+                                    .span(hir_ty.span)
+                                    .emit(),
+                            )
+                        } else {
+                            let ty = ty.with_loc(self.gcx, DataLocation::Memory);
+                            self.gcx.mk_builtin_fn(&[], hir::StateMutability::Pure, &[ty])
+                        }
+                    }
+                    TyKind::Err(_) => ty,
+                    _ => self.gcx.mk_ty_err(
+                        self.dcx()
+                            .err("expected contract or dynamic array type")
+                            .span(hir_ty.span)
+                            .emit(),
+                    ),
+                }
+            }
             hir::ExprKind::Payable(expr) => {
                 let ty = self.expect_ty(expr, self.gcx.types.address);
                 if ty.references_error() {
@@ -283,10 +343,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     todo!()
                 }
             },
-            hir::ExprKind::TypeCall(ref ty) => {
-                self.gcx.mk_ty(TyKind::Meta(self.gcx.type_of_hir_ty(ty)))
+            hir::ExprKind::TypeCall(ref hir_ty) => {
+                let ty = self.gcx.type_of_hir_ty(hir_ty);
+                if valid_meta_type(ty) {
+                    self.gcx.mk_ty(TyKind::Meta(ty))
+                } else {
+                    self.gcx.mk_ty_err(self.dcx().err("invalid type").span(hir_ty.span).emit())
+                }
             }
             hir::ExprKind::Type(ref ty) => {
+                debug_assert!(ty.kind.is_elementary(), "non-elementary ExprKind::Type: {ty:?}");
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, expr) => {
@@ -378,6 +444,76 @@ impl<'gcx> TypeChecker<'gcx> {
             ),
         );
         err.emit();
+    }
+
+    #[must_use]
+    fn check_var(&mut self, id: hir::VariableId) -> Ty<'gcx> {
+        self.check_var_(id, true)
+    }
+
+    #[must_use]
+    fn check_var_(&mut self, id: hir::VariableId, expect: bool) -> Ty<'gcx> {
+        let var = self.gcx.hir.variable(id);
+        self.visit_ty(&var.ty);
+        let ty = self.gcx.type_of_item(id.into());
+        if let Some(init) = var.initializer {
+            // TODO: might have different logic vs assigment
+            self.check_assign(ty, init);
+            if expect {
+                let _ = self.expect_ty(init, ty);
+            }
+        }
+        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
+        ty
+    }
+
+    fn check_decl(
+        &mut self,
+        span: Span,
+        decls: &[Option<hir::VariableId>],
+        init_opt: Option<&'gcx hir::Expr<'gcx>>,
+    ) {
+        let Some(init) = init_opt else {
+            if let &[Some(id)] = decls {
+                let _ = self.check_var(id);
+                return;
+            }
+            unreachable!("no initializer for multiple declarations")
+        };
+
+        let ty = self.check_expr(init);
+        let value_types =
+            if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
+
+        debug_assert!(!decls.is_empty());
+        if value_types.len() != decls.len() {
+            self.dcx()
+                .err("mismatched number of components")
+                .span(span)
+                .span_label(
+                    init.span,
+                    format!(
+                        "expected a tuple with {} element{}, found one with {} element{}",
+                        decls.len(),
+                        pluralize!(decls.len()),
+                        value_types.len(),
+                        pluralize!(value_types.len())
+                    ),
+                )
+                .emit();
+        }
+
+        let exprs = if let hir::ExprKind::Tuple(exprs) = init.kind {
+            exprs
+        } else {
+            std::slice::from_ref(&init_opt)
+        };
+        for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
+            let (Some(var), Some(expr)) = (var, expr) else { continue };
+            let var_ty = self.check_var_(var, false);
+            self.check_expected(expr, ty, var_ty);
+        }
+        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1219
     }
 
     #[must_use]
@@ -476,6 +612,30 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
+        let _ = self.check_var(id);
+        ControlFlow::Continue(())
+    }
+
+    fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match hir_ty.kind {
+            hir::TypeKind::Array(array) => {
+                if let Some(size) = array.size {
+                    let _ = self.expect_ty(size, self.gcx.types.uint(256));
+                }
+                return self.visit_ty(&array.element);
+            }
+            // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
+            // hir::TypeKind::Function(func) => {
+            //     if func.visibility == hir::Visibility::External {
+
+            //     }
+            // }
+            _ => {}
+        }
+        self.walk_ty(hir_ty)
+    }
+
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         let _ = self.check_expr(expr);
         ControlFlow::Continue(())
@@ -483,6 +643,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 
     fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
         match stmt.kind {
+            hir::StmtKind::DeclSingle(var) => {
+                let init = self.gcx.hir.variable(var).initializer;
+                self.check_decl(stmt.span, &[Some(var)], init);
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::DeclMulti(decls, init) => {
+                self.check_decl(stmt.span, decls, Some(init));
+                return ControlFlow::Continue(());
+            }
             hir::StmtKind::If(cond, body, else_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
                 self.visit_stmt(body);
@@ -658,12 +827,11 @@ fn binop_result_type<'gcx>(
             }
             None
         }
-        TyKind::Elementary(hir::ElementaryType::Bool) => (other == ty
-            && matches!(
-                op,
-                hir::BinOpKind::Eq | hir::BinOpKind::Ne | hir::BinOpKind::And | hir::BinOpKind::Or
-            ))
-        .then_some(ty),
+        TyKind::Elementary(hir::ElementaryType::Bool) => {
+            use hir::BinOpKind::*;
+
+            (other == ty && matches!(op, Eq | Ne | And | Or)).then_some(ty)
+        }
 
         TyKind::Elementary(hir::ElementaryType::Address(_))
         | TyKind::Contract(_)
@@ -709,6 +877,7 @@ fn binop_result_type<'gcx>(
 
 fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Option<Ty<'gcx>> {
     debug_assert!(op.is_shift());
+    // `>>>` is only allowed in fixed-point numbers.
     if matches!(op, hir::BinOpKind::Sar) {
         return None;
     }
@@ -719,4 +888,15 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
         return None;
     }
     Some(ty)
+}
+
+fn valid_meta_type(ty: Ty<'_>) -> bool {
+    debug_assert!(!matches!(ty.kind, TyKind::Type(_)));
+    // TODO: Disallow super
+    matches!(
+        ty.kind,
+        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
+            | TyKind::Contract(_)
+            | TyKind::Enum(_)
+    )
 }
