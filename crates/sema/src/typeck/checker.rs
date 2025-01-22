@@ -123,16 +123,37 @@ impl<'gcx> TypeChecker<'gcx> {
                 let rhs = self.check_expr(rhs_e);
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::Call(expr, ref _call_args, ref _opts) => {
-                let _ty = self.check_expr(expr);
+            hir::ExprKind::Call(callee, ref args, ref _opts) => {
+                let mut callee_ty = self.check_expr(callee);
+                // Get the function type for struct constructors.
+                if let TyKind::Type(struct_ty) = callee_ty.kind {
+                    if let TyKind::Struct(id) = struct_ty.kind {
+                        callee_ty = struct_constructor(self.gcx, struct_ty, id);
+                    }
+                }
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
+                let ty = match callee_ty.kind {
+                    TyKind::FnPtr(_f) => {
+                        // dbg!(callee_ty);
+                        todo!()
+                    }
+                    TyKind::Type(to) => self.check_explicit_cast(to, args),
+                    _ => {
+                        let msg =
+                            format!("expected function, found `{}`", callee_ty.display(self.gcx));
+                        let mut err = self.dcx().err(msg).span(callee.span);
+                        err = err.span_note(expr.span, "call expression requires function");
+                        self.gcx.mk_ty_err(err.emit())
+                    }
+                };
+
                 if !is_array_push {
                     self.not_lvalue();
                 }
 
-                todo!()
+                ty
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
@@ -445,15 +466,28 @@ impl<'gcx> TypeChecker<'gcx> {
         })
     }
 
+    #[must_use]
+    fn check_explicit_cast(&mut self, to: Ty<'gcx>, args: &'gcx hir::CallArgs<'gcx>) -> Ty<'gcx> {
+        let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
+            return self.gcx.mk_ty_err(
+                self.dcx().err("expected exactly one unnamed argument").span(args.span()).emit(),
+            );
+        };
+        let from = self.check_expr(from_expr);
+        let Err(()) = from.try_convert_explicit_to(to) else { return to };
+        let msg =
+            format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
+        let err = self.dcx().err(msg).span(from_expr.span);
+        self.gcx.mk_ty_err(err.emit())
+    }
+
     fn check_expected(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        if actual.convert_implicit_to(expected) {
-            return;
-        }
+        let Err(()) = actual.try_convert_implicit_to(expected) else { return };
         let mut err = self.dcx().err("mismatched types").span(expr.span);
         err = err.span_label(
             expr.span,
@@ -922,5 +956,16 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
             | TyKind::Contract(_)
             | TyKind::Enum(_)
+    )
+}
+
+fn struct_constructor<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>, id: hir::StructId) -> Ty<'gcx> {
+    gcx.mk_builtin_fn(
+        &gcx.struct_field_types(id)
+            .iter()
+            .map(|&ty| ty.with_loc_if_ref(gcx, DataLocation::Memory))
+            .collect::<Vec<_>>(),
+        hir::StateMutability::Pure,
+        &[ty.with_loc(gcx, DataLocation::Memory)],
     )
 }

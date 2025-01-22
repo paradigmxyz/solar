@@ -1,6 +1,6 @@
 use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
 use solar_interface::{kw, Ident, Span, Symbol};
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, num::NonZeroU8};
 
 /// A type name.
 ///
@@ -122,11 +122,11 @@ impl fmt::Debug for ElementaryType {
             Self::Bool => f.write_str("Bool"),
             Self::String => f.write_str("String"),
             Self::Bytes => f.write_str("Bytes"),
-            Self::Fixed(size, fixed) => write!(f, "Fixed({}, {})", size.bytes_raw(), fixed.get()),
-            Self::UFixed(size, fixed) => write!(f, "UFixed({}, {})", size.bytes_raw(), fixed.get()),
-            Self::Int(size) => write!(f, "Int({})", size.bits_raw()),
-            Self::UInt(size) => write!(f, "UInt({})", size.bits_raw()),
-            Self::FixedBytes(size) => write!(f, "FixedBytes({})", size.bytes_raw()),
+            Self::Fixed(size, fixed) => write!(f, "Fixed({}, {})", size.bytes(), fixed.get()),
+            Self::UFixed(size, fixed) => write!(f, "UFixed({}, {})", size.bytes(), fixed.get()),
+            Self::Int(size) => write!(f, "Int({})", size.bits()),
+            Self::UInt(size) => write!(f, "UInt({})", size.bits()),
+            Self::FixedBytes(size) => write!(f, "FixedBytes({})", size.bytes()),
         }
     }
 }
@@ -196,9 +196,9 @@ impl ElementaryType {
     }
 }
 
-/// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
+/// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 1..=32.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TypeSize(u8);
+pub struct TypeSize(NonZeroU8);
 
 impl fmt::Debug for TypeSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -206,9 +206,15 @@ impl fmt::Debug for TypeSize {
     }
 }
 
+impl Default for TypeSize {
+    #[inline]
+    fn default() -> Self {
+        Self::MAX_SIZE
+    }
+}
+
 impl TypeSize {
-    /// The value zero. Note that this is not a valid size for a fixed-bytes type.
-    pub const ZERO: Self = Self(0);
+    const MAX_SIZE: Self = Self::new(Self::MAX).unwrap();
 
     /// The maximum byte value of a `TypeSize`.
     pub const MAX: u8 = 32;
@@ -216,10 +222,12 @@ impl TypeSize {
     /// Creates a new `TypeSize` from a `u8` number of **bytes**.
     #[inline]
     pub const fn new(bytes: u8) -> Option<Self> {
-        if bytes > Self::MAX {
+        if bytes == 0 {
+            Some(const { Self(NonZeroU8::new(Self::MAX).unwrap()) })
+        } else if bytes > Self::MAX {
             None
         } else {
-            Some(Self(bytes))
+            Some(Self(NonZeroU8::new(bytes).unwrap()))
         }
     }
 
@@ -264,44 +272,28 @@ impl TypeSize {
         Self::new(bytes)
     }
 
-    /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
-    #[inline]
-    pub const fn bytes(self) -> u8 {
-        if self.0 == 0 {
-            Self::MAX
-        } else {
-            self.0
-        }
-    }
-
     /// Returns the number of **bytes**.
     #[inline]
-    pub const fn bytes_raw(self) -> u8 {
-        self.0
+    pub const fn bytes(self) -> u8 {
+        self.0.get()
     }
 
-    /// Returns the number of **bits**, with `0` defaulting to `MAX*8`.
+    /// Returns the number of **bits**.
     #[inline]
     pub const fn bits(self) -> u16 {
         self.bytes() as u16 * 8
     }
 
-    /// Returns the number of **bits**.
-    #[inline]
-    pub const fn bits_raw(self) -> u16 {
-        self.0 as u16 * 8
-    }
-
     /// Returns the `int` symbol for the type name.
     #[inline]
     pub const fn int_keyword(self) -> Symbol {
-        kw::int(self.0)
+        kw::int(self.bytes())
     }
 
     /// Returns the `uint` symbol for the type name.
     #[inline]
     pub const fn uint_keyword(self) -> Symbol {
-        kw::uint(self.0)
+        kw::uint(self.bytes())
     }
 
     /// Returns the `bytesN` symbol for the type name.
@@ -312,7 +304,7 @@ impl TypeSize {
     #[inline]
     #[track_caller]
     pub const fn bytes_keyword(self) -> Symbol {
-        kw::fixed_bytes(self.0)
+        kw::fixed_bytes(self.bytes())
     }
 }
 
@@ -323,6 +315,13 @@ pub struct TypeFixedSize(u8);
 impl fmt::Debug for TypeFixedSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TypeFixedSize({})", self.0)
+    }
+}
+
+impl Default for TypeFixedSize {
+    #[inline]
+    fn default() -> Self {
+        Self::ZERO
     }
 }
 

@@ -72,10 +72,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
-            kw::Int => ElementaryType::Int(TypeSize::ZERO),
-            kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
+            kw::Fixed => ElementaryType::Fixed(TypeSize::default(), TypeFixedSize::default()),
+            kw::UFixed => ElementaryType::UFixed(TypeSize::default(), TypeFixedSize::default()),
+            kw::Int => ElementaryType::Int(TypeSize::default()),
+            kw::UInt => ElementaryType::UInt(TypeSize::default()),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
                 let bytes = s.as_u32() - kw::UInt8.as_u32() + 1;
                 ElementaryType::UInt(TypeSize::new(bytes as u8).unwrap())

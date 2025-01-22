@@ -1238,6 +1238,16 @@ impl<'hir> CallArgs<'hir> {
             Self::Named(args) => Either::Right(args.iter().map(|arg| &arg.value)),
         }
     }
+
+    /// Returns the span of the arguments.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Unnamed(exprs) => Span::join_first_last(exprs.iter().map(|e| e.span)),
+            Self::Named(args) => {
+                Span::join_first_last(args.iter().map(|arg| arg.name.span.to(arg.value.span)))
+            }
+        }
+    }
 }
 
 /// A type name.

@@ -18,7 +18,16 @@ pub trait Visit<'hir> {
     }
 
     fn visit_nested_item(&mut self, id: impl Into<ItemId>) -> ControlFlow<Self::BreakValue> {
-        self.visit_item(self.hir().item(id))
+        match id.into() {
+            ItemId::Contract(id) => self.visit_nested_contract(id),
+            ItemId::Function(id) => self.visit_nested_function(id),
+            ItemId::Struct(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Enum(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Udvt(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Error(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Variable(id) => self.visit_nested_var(id),
+        }
     }
 
     fn visit_item(&mut self, item: Item<'hir, 'hir>) -> ControlFlow<Self::BreakValue> {
@@ -41,6 +50,10 @@ pub trait Visit<'hir> {
     fn visit_contract(&mut self, contract: &'hir Contract<'hir>) -> ControlFlow<Self::BreakValue> {
         // TODO: base initializers
         visit_nested_items(self, contract.items)
+    }
+
+    fn visit_nested_function(&mut self, id: FunctionId) -> ControlFlow<Self::BreakValue> {
+        self.visit_function(self.hir().function(id))
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {

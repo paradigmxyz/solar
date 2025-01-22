@@ -400,28 +400,31 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if the type is implicitly convertible to the given type.
+    ///
+    /// Prefer using [`Ty::try_convert_implicit_to`] if you need to handle the error case.
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
+    #[must_use]
     pub fn convert_implicit_to(self, other: Self) -> bool {
         self.try_convert_implicit_to(other).is_ok()
     }
 
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
-        if self.references_error() || other.references_error() {
+        if self == other || self.references_error() || other.references_error() {
             return Ok(());
         }
 
         // TODO
-        if self == other {
-            Ok(())
-        } else {
-            Err(())
-        }
+        Err(())
     }
 
     /// Returns `true` if the type is explicitly convertible to the given type.
+    ///
+    /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
+    #[inline]
     #[doc(alias = "is_explicity_convertible_to")]
+    #[must_use]
     pub fn convert_explicit_to(self, other: Self) -> bool {
         self.try_convert_explicit_to(other).is_ok()
     }
