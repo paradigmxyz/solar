@@ -376,6 +376,16 @@ impl OwnedSnippet {
     }
 }
 
+type MultiLine<'a> = (Option<&'a String>, usize);
+
+fn multi_line_at<'a, 'b>(mls: &'a mut Vec<MultiLine<'b>>, depth: usize) -> &'a mut MultiLine<'b> {
+    assert!(depth > 0);
+    if mls.len() < depth {
+        mls.resize_with(depth, || (None, 0));
+    }
+    &mut mls[depth - 1]
+}
+
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
@@ -402,7 +412,7 @@ fn file_to_snippet(
         fold: true,
         annotations: Vec::new(),
     };
-    let mut multiline_start = None;
+    let mut mls = Vec::new();
     for line in lines {
         let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
         let line_rel_pos = line_abs_pos - snippet_base;
@@ -421,13 +431,12 @@ fn file_to_snippet(
                         level: to_as_level(ann.level.unwrap_or(default_level)),
                     });
                 }
-                super::rustc::AnnotationType::MultilineStart(_) => {
-                    debug_assert!(multiline_start.is_none());
-                    multiline_start = Some((ann.label.as_ref(), rel_pos(&ann.start_col)));
+                super::rustc::AnnotationType::MultilineStart(depth) => {
+                    *multi_line_at(&mut mls, depth) = (ann.label.as_ref(), rel_pos(&ann.start_col));
                 }
                 super::rustc::AnnotationType::MultilineLine(_) => {}
-                super::rustc::AnnotationType::MultilineEnd(_) => {
-                    let (label, multiline_start_idx) = multiline_start.take().unwrap();
+                super::rustc::AnnotationType::MultilineEnd(depth) => {
+                    let (label, multiline_start_idx) = *multi_line_at(&mut mls, depth);
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
                     snippet.annotations.push(OwnedAnnotation {
