@@ -139,7 +139,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         // dbg!(callee_ty);
                         todo!()
                     }
-                    TyKind::Type(to) => self.check_explicit_cast(to, args),
+                    TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
+                    TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
@@ -174,11 +175,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr_with(lhs, expected);
+                if ty.references_error() {
+                    return ty;
+                }
+                if ty.loc() == Some(DataLocation::Calldata) {
+                    self.not_lvalue();
+                }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     let _ = self.expect_ty(index, index_ty);
                     result_ty
                 } else {
-                    self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
+                    let msg = format!("cannot index into {}", ty.display(self.gcx));
+                    self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
                 }
             }
             hir::ExprKind::Slice(lhs, start, end) => {
@@ -207,6 +215,10 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
                 let expr_ty = self.check_expr_with(expr, expected);
+                if expr_ty.references_error() {
+                    return expr_ty;
+                }
+
                 let possible_members = self
                     .gcx
                     .members_of(expr_ty, self.source, self.contract)
@@ -432,13 +444,14 @@ impl<'gcx> TypeChecker<'gcx> {
         op: hir::BinOp,
         assign: bool,
     ) -> Ty<'gcx> {
-        let result = binop_result_type(self.gcx, lhs, rhs, op.kind);
+        let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
         // TODO: custom operators
-        if let Some(result) = result {
-            if !(assign && result != lhs) {
-                return result;
+        if let Some(common) = common {
+            if !(assign && common != lhs) {
+                return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
             }
         }
+
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
@@ -455,7 +468,7 @@ impl<'gcx> TypeChecker<'gcx> {
     fn index_types(&self, ty: Ty<'gcx>) -> Option<(Ty<'gcx>, Ty<'gcx>)> {
         Some(match ty.peel_refs().kind {
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
-                (self.gcx.types.uint(256), element)
+                (self.gcx.types.uint(256), element.with_loc_if_ref(self.gcx, ty.loc()?))
             }
             TyKind::Elementary(ElementaryType::Bytes)
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
@@ -467,7 +480,12 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     #[must_use]
-    fn check_explicit_cast(&mut self, to: Ty<'gcx>, args: &'gcx hir::CallArgs<'gcx>) -> Ty<'gcx> {
+    fn check_explicit_cast(
+        &mut self,
+        span: Span,
+        to: Ty<'gcx>,
+        args: &'gcx hir::CallArgs<'gcx>,
+    ) -> Ty<'gcx> {
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
                 self.dcx().err("expected exactly one unnamed argument").span(args.span()).emit(),
@@ -475,9 +493,11 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         let from = self.check_expr(from_expr);
         let Err(()) = from.try_convert_explicit_to(to) else { return to };
+
         let msg =
             format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
-        let err = self.dcx().err(msg).span(from_expr.span);
+        let mut err = self.dcx().err(msg).span(span);
+        err = err.span_label(span, "invalid explicit type conversion");
         self.gcx.mk_ty_err(err.emit())
     }
 
@@ -488,6 +508,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expected: Ty<'gcx>,
     ) {
         let Err(()) = actual.try_convert_implicit_to(expected) else { return };
+
         let mut err = self.dcx().err("mismatched types").span(expr.span);
         err = err.span_label(
             expr.span,
@@ -577,7 +598,8 @@ impl<'gcx> TypeChecker<'gcx> {
         let ctx = self.lvalue_context;
         debug_assert!(ctx.is_some());
         self.lvalue_context = prev;
-        if ctx == Some(true) && is_syntactic_lvalue(expr) {
+        // TODO: check ctx
+        if is_syntactic_lvalue(expr) {
             return ty;
         }
 
@@ -758,12 +780,12 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 /// If `false`, it cannot be an lvalue.
 fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
     match expr.kind {
-        hir::ExprKind::Ident(_) | hir::ExprKind::Err(_) => true,
-
-        hir::ExprKind::Member(expr, _)
-        | hir::ExprKind::Call(expr, _, _)
-        | hir::ExprKind::Index(expr, _) => is_syntactic_lvalue(expr),
-        hir::ExprKind::Tuple(exprs) => exprs.iter().copied().flatten().all(is_syntactic_lvalue),
+        hir::ExprKind::Ident(_)
+        | hir::ExprKind::Index(..)
+        | hir::ExprKind::Member(..)
+        | hir::ExprKind::Call(..)
+        | hir::ExprKind::Tuple(..)
+        | hir::ExprKind::Err(_) => true,
 
         hir::ExprKind::Array(_)
         | hir::ExprKind::Assign(..)
@@ -849,7 +871,7 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
     }
 }
 
-fn binop_result_type<'gcx>(
+fn binop_common_type<'gcx>(
     gcx: Gcx<'gcx>,
     ty: Ty<'gcx>,
     other: Ty<'gcx>,

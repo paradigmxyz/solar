@@ -461,7 +461,14 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the type of the given [`hir::Res`].
     pub fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
         match res {
-            hir::Res::Item(id) => self.mk_ty(TyKind::Type(self.type_of_item(id))),
+            hir::Res::Item(id) => {
+                let ty = self.type_of_item(id);
+                if is_value_ns(id) {
+                    ty
+                } else {
+                    self.mk_ty(TyKind::Type(ty))
+                }
+            }
             hir::Res::Namespace(id) => self.mk_ty(TyKind::Module(id)),
             hir::Res::Builtin(builtin) => builtin.ty(self),
             hir::Res::Err(guar) => self.mk_ty_err(guar),
@@ -858,6 +865,17 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     } else {
         ty
     }
+}
+
+/// True if referencing the item returns its type directly rather than wrapped in Type().
+fn is_value_ns(id: hir::ItemId) -> bool {
+    matches!(
+        id,
+        hir::ItemId::Function(_)
+            | hir::ItemId::Variable(_)
+            | hir::ItemId::Error(_)
+            | hir::ItemId::Event(_)
+    )
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.

@@ -57,6 +57,15 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
+    /// Returns the location of the type if it is a reference.
+    #[doc(alias = "location")]
+    pub fn loc(self) -> Option<DataLocation> {
+        match self.kind {
+            TyKind::Ref(_, loc) => Some(loc),
+            _ => None,
+        }
+    }
+
     /// Peels `Ref` layers from the type, returning the inner type.
     pub fn peel_refs(mut self) -> Self {
         // There shouldn't be any double references so we can avoid using a loop here.
