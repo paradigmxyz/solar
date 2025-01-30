@@ -15,6 +15,9 @@ pub use ast::{
     StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
+mod visit;
+pub use visit::Visit;
+
 /// HIR arena allocator.
 pub struct Arena {
     pub bump: bumpalo::Bump,
@@ -947,10 +950,14 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Emit(&'hir Expr<'hir>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Revert(&'hir Expr<'hir>),
 
     /// A return statement: `return 42;`.
     Return(Option<&'hir Expr<'hir>>),
@@ -1132,12 +1139,10 @@ pub enum ExprKind<'hir> {
     /// A binary operation: `a + b`, `a >> b`.
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
-    /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>),
+    /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
 
-    /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
-    CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
-
+    // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
     Delete(&'hir Expr<'hir>),
 
@@ -1146,7 +1151,7 @@ pub enum ExprKind<'hir> {
     /// Potentially multiple references if it refers to something like an overloaded function.
     Ident(&'hir [Res]),
 
-    /// A square bracketed indexing expression: `vector[index]`.
+    /// A square bracketed indexing expression: `vector[index]`, `MyType[]`.
     Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
 
     /// A square bracketed slice expression: `slice[l:r]`.
@@ -1231,6 +1236,16 @@ impl<'hir> CallArgs<'hir> {
         match self {
             Self::Unnamed(exprs) => Either::Left(exprs.iter()),
             Self::Named(args) => Either::Right(args.iter().map(|arg| &arg.value)),
+        }
+    }
+
+    /// Returns the span of the arguments.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Unnamed(exprs) => Span::join_first_last(exprs.iter().map(|e| e.span)),
+            Self::Named(args) => {
+                Span::join_first_last(args.iter().map(|arg| arg.name.span.to(arg.value.span)))
+            }
         }
     }
 }

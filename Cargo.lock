@@ -2690,6 +2690,7 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
+ "solar-macros",
  "solar-parse",
  "strum",
  "thread_local",

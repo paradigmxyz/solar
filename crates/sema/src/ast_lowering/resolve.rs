@@ -745,11 +745,15 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
             ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
@@ -775,6 +779,29 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    /// Converts path + args into a Call expression for emit/revert statements.
+    fn make_call_expr_for_emit(
+        &mut self,
+        path: &ast::PathSlice,
+        res: &'hir [Res],
+        args: &ast::CallArgs<'_>,
+        span: Span,
+    ) -> &'hir hir::Expr<'hir> {
+        self.arena.alloc(hir::Expr {
+            kind: hir::ExprKind::Call(
+                self.arena.alloc(hir::Expr {
+                    id: self.next_id(),
+                    kind: hir::ExprKind::Ident(res),
+                    span: path.last().span,
+                }),
+                self.lower_call_args(args),
+                None,
+            ),
+            id: self.next_id(),
+            span,
+        })
     }
 
     fn lower_variables(
@@ -924,10 +951,26 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
-                hir::ExprKind::Call(self.lower_expr(callee), self.lower_call_args(args))
+                let (callee, options) =
+                    if let ast::ExprKind::CallOptions(expr, options) = &callee.kind {
+                        (self.lower_expr(expr), Some(self.lower_named_args(options)))
+                    } else {
+                        (self.lower_expr(callee), None)
+                    };
+                hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
             ast::ExprKind::CallOptions(callee, options) => {
-                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_named_args(options))
+                let callee = self.lower_expr(callee);
+                let _options = self.lower_named_args(options);
+                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
+                hir::ExprKind::Err(
+                    self.sess
+                        .dcx
+                        .err("call options must be part of a call expression")
+                        .span(options_span)
+                        .span_note(expr.span, "this expression is not a function call expression")
+                        .emit(),
+                )
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
@@ -941,7 +984,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::ExprKind::Index(expr, index) => match index {
                 ast::IndexKind::Index(index) => hir::ExprKind::Index(
                     self.lower_expr(expr),
-                    index.as_deref().map(|index| self.lower_expr(index)),
+                    self.lower_expr_opt(index.as_deref()),
                 ),
                 ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
                     self.lower_expr(expr),
