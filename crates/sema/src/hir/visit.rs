@@ -91,7 +91,9 @@ pub trait Visit<'hir> {
             }
             ExprKind::Index(expr, index) => {
                 self.visit_expr(expr)?;
-                self.visit_expr(index)?;
+                if let Some(index) = index {
+                    self.visit_expr(index)?;
+                }
             }
             ExprKind::Slice(expr, start, end) => {
                 self.visit_expr(expr)?;

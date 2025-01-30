@@ -194,9 +194,15 @@ declare_builtins! {
 
     ArrayLength            => sym::length
                            => gcx.types.uint(256);
+    ArrayPush0             => sym::push => unreachable!();
+    ArrayPush              => sym::push => unreachable!();
+    ArrayPop               => kw::Pop => unreachable!();
 
-    ErrorSelector          => sym::selector
+    FunctionSelector       => sym::selector
                            => gcx.types.fixed_bytes(4);
+
+    FunctionAddress        => kw::Address
+                           => gcx.types.address;
 
     EventSelector          => sym::selector
                            => gcx.types.fixed_bytes(32);

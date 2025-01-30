@@ -1151,8 +1151,8 @@ pub enum ExprKind<'hir> {
     /// Potentially multiple references if it refers to something like an overloaded function.
     Ident(&'hir [Res]),
 
-    /// A square bracketed indexing expression: `vector[index]`.
-    Index(&'hir Expr<'hir>, &'hir Expr<'hir>),
+    /// A square bracketed indexing expression: `vector[index]`, `MyType[]`.
+    Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
 
     /// A square bracketed slice expression: `slice[l:r]`.
     Slice(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>, Option<&'hir Expr<'hir>>),

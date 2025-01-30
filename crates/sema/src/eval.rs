@@ -8,6 +8,21 @@ const RECURSION_LIMIT: usize = 64;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
+/// Evaluates the given array size expression, emitting an error diagnostic if it fails.
+pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
+    match ConstantEvaluator::new(gcx).eval(size) {
+        Ok(int) => {
+            if int.data.is_zero() {
+                let msg = "array length must be greater than zero";
+                Err(gcx.dcx().err(msg).span(size.span).emit())
+            } else {
+                Ok(int.data)
+            }
+        }
+        Err(guar) => Err(guar),
+    }
+}
+
 /// Evaluates simple constants.
 ///
 /// This only supports basic arithmetic and logical operations, and does not support more complex

@@ -411,21 +411,13 @@ impl<'gcx> Gcx<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
-                let ty = self.type_of_hir_ty(&array.element);
+                let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match crate::eval::ConstantEvaluator::new(self).eval(size) {
-                        Ok(int) => {
-                            if int.data.is_zero() {
-                                let msg = "array length must be greater than zero";
-                                let guar = self.dcx().err(msg).span(size.span).emit();
-                                TyKind::Array(self.mk_ty_err(guar), int.data)
-                            } else {
-                                TyKind::Array(ty, int.data)
-                            }
-                        }
+                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                        Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
-                    None => TyKind::DynArray(ty),
+                    None => TyKind::DynArray(elem),
                 }
             }
             hir::TypeKind::Function(f) => TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
@@ -860,11 +852,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         }
     };
 
-    if ty.is_reference_type() {
-        ty.with_loc(gcx, ty_loc)
-    } else {
-        ty
-    }
+    ty.with_loc_if_ref(gcx, ty_loc)
 }
 
 /// True if referencing the item returns its type directly rather than wrapped in Type().

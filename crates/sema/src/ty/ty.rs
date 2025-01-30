@@ -57,6 +57,13 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
+    pub fn with_loc_if_ref_opt(self, gcx: Gcx<'gcx>, loc: Option<DataLocation>) -> Self {
+        if let Some(loc) = loc {
+            return self.with_loc_if_ref(gcx, loc);
+        }
+        self
+    }
+
     /// Returns the location of the type if it is a reference.
     #[doc(alias = "location")]
     pub fn loc(self) -> Option<DataLocation> {
@@ -396,11 +403,12 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns the base type, if any.
     pub fn base_type(self, gcx: Gcx<'gcx>) -> Option<Self> {
-        match self.kind {
+        let loc = self.loc();
+        match self.peel_refs().kind {
             TyKind::Array(base, _) | TyKind::ArrayLiteral(base, _) | TyKind::DynArray(base) => {
-                Some(base)
+                Some(base.with_loc_if_ref_opt(gcx, loc))
             }
-            TyKind::Slice(arr) => arr.base_type(gcx),
+            TyKind::Slice(arr) => arr.with_loc_if_ref_opt(gcx, loc).base_type(gcx),
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 Some(gcx.types.fixed_bytes(1))
             }

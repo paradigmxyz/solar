@@ -3,6 +3,7 @@ use crate::{
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
+use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{map::FxHashMap, smallvec::SmallVec, Never};
 use solar_interface::{diagnostics::DiagCtxt, pluralize};
@@ -46,16 +47,28 @@ impl<'gcx> TypeChecker<'gcx> {
         self.check_expr_with(expr, Some(expected))
     }
 
+    #[track_caller]
     #[must_use]
     fn check_expr_with(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        let ty = self.check_expr_kind(expr, expected);
+        let ty = self.check_expr_with_noexpect(expr, expected);
         if let Some(expected) = expected {
             self.check_expected(expr, ty, expected);
         }
+        ty
+    }
+
+    #[track_caller]
+    #[must_use]
+    fn check_expr_with_noexpect(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Option<Ty<'gcx>>,
+    ) -> Ty<'gcx> {
+        let ty = self.check_expr_kind(expr, expected);
         self.register_ty(expr, ty);
         ty
     }
@@ -76,8 +89,8 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
                 for (i, expr) in exprs.iter().enumerate() {
-                    let expr_ty = self.check_expr_with(expr, expected);
-                    if let Some(common_ty) = &mut common {
+                    let expr_ty = self.check_expr(expr);
+                    if let Some(common_ty) = common {
                         common = common_ty.common_type(expr_ty, self.gcx);
                     } else if i == 0 {
                         common = expr_ty.mobile(self.gcx);
@@ -140,7 +153,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         todo!()
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Err(_) => callee_ty,
+                    TyKind::Event(..) | TyKind::Error(..) | TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
@@ -174,7 +187,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.type_of_res(res)
             }
             hir::ExprKind::Index(lhs, index) => {
-                let ty = self.check_expr_with(lhs, expected);
+                let ty = self.check_expr(lhs);
                 if ty.references_error() {
                     return ty;
                 }
@@ -182,15 +195,35 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.not_lvalue();
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
-                    let _ = self.expect_ty(index, index_ty);
+                    // Index expression.
+                    if let Some(index) = index {
+                        let _ = self.expect_ty(index, index_ty);
+                    } else {
+                        self.dcx().err("index expression cannot be omitted").span(expr.span).emit();
+                    }
                     result_ty
+                } else if let TyKind::Type(elem_ty) = ty.kind {
+                    // `elem_ty` array type expression.
+                    let arr = if let Some(index) = index {
+                        let index_ty = self.expect_ty(index, self.gcx.types.uint(256));
+                        let len = index_ty
+                            .error_reported()
+                            .and_then(|()| crate::eval::eval_array_len(self.gcx, index));
+                        match len {
+                            Ok(len) => TyKind::Array(elem_ty, len),
+                            Err(guar) => TyKind::Array(self.gcx.mk_ty_err(guar), U256::from(1)),
+                        }
+                    } else {
+                        TyKind::DynArray(elem_ty)
+                    };
+                    self.gcx.mk_ty(TyKind::Type(self.gcx.mk_ty(arr)))
                 } else {
                     let msg = format!("cannot index into {}", ty.display(self.gcx));
                     self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
                 }
             }
             hir::ExprKind::Slice(lhs, start, end) => {
-                let ty = self.check_expr_with(lhs, expected);
+                let ty = self.check_expr(lhs);
                 if !ty.is_sliceable() {
                     self.dcx().err("can only slice arrays").span(expr.span).emit();
                 } else if !ty.is_ref_at(DataLocation::Calldata) {
@@ -214,7 +247,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
-                let expr_ty = self.check_expr_with(expr, expected);
+                let expr_ty = self.check_expr(expr);
                 if expr_ty.references_error() {
                     return expr_ty;
                 }
@@ -463,18 +496,24 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.mk_ty_err(err.emit())
     }
 
-    /// Returns `(index_ty, result_ty)` for the given type, if it is indexable.
+    /// Returns `(index_ty, result_ty)` for the given value type, if it is indexable.
+    ///
+    /// Does not consider `TypeKind::Type`.
     #[must_use]
     fn index_types(&self, ty: Ty<'gcx>) -> Option<(Ty<'gcx>, Ty<'gcx>)> {
+        let loc = ty.loc();
         Some(match ty.peel_refs().kind {
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
-                (self.gcx.types.uint(256), element.with_loc_if_ref(self.gcx, ty.loc()?))
+                (self.gcx.types.uint(256), element.with_loc_if_ref_opt(self.gcx, loc))
             }
             TyKind::Elementary(ElementaryType::Bytes)
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => (key, value),
+            TyKind::Mapping(key, value) => {
+                debug_assert!(!key.is_reference_type(), "invalid mapping key {key:?}");
+                (key, value.with_loc_if_ref_opt(self.gcx, loc))
+            }
             _ => return None,
         })
     }
@@ -501,6 +540,7 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.mk_ty_err(err.emit())
     }
 
+    #[track_caller]
     fn check_expected(
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
@@ -556,7 +596,9 @@ impl<'gcx> TypeChecker<'gcx> {
             unreachable!("no initializer for multiple declarations")
         };
 
-        let ty = self.check_expr(init);
+        let expected =
+            if let &[Some(id)] = decls { Some(self.gcx.type_of_item(id.into())) } else { None };
+        let ty = self.check_expr_with_noexpect(init, expected);
         let value_types =
             if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
 
@@ -834,11 +876,16 @@ impl<T> FromIterator<T> for WantOne<T> {
 fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
     match res {
         hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
+        hir::Res::Err(_) => true,
         _ => false,
     }
 }
 
 fn valid_delete(ty: Ty<'_>) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+
     match ty.kind {
         TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::FnPtr(_) => true,
         TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
@@ -850,6 +897,10 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+
     let ty = ty.peel_refs();
     match ty.kind {
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
@@ -877,6 +928,10 @@ fn binop_common_type<'gcx>(
     other: Ty<'gcx>,
     op: hir::BinOpKind,
 ) -> Option<Ty<'gcx>> {
+    if let Err(guar) = ty.error_reported().and_then(|()| other.error_reported()) {
+        return Some(gcx.mk_ty_err(guar));
+    }
+
     let ty = ty.peel_refs();
     let other = other.peel_refs();
     match ty.kind {
