@@ -8,7 +8,7 @@ use anstream::ColorChoice;
 use serde::Serialize;
 use std::{io, sync::Arc};
 
-/// Diag emitter that emits diagnostics as JSON.
+/// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
     writer: Box<dyn io::Write + Send>,
     pretty: bool,
