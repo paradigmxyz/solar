@@ -762,23 +762,28 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.lower_stmt(then),
                 else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
             ),
-            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+            ast::StmtKind::Try(ast::StmtTry { expr, clauses }) => {
                 hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
                     expr: self.lower_expr_full(expr),
-                    returns: self.lower_variables(returns, hir::VarKind::TryCatch),
-                    block: self.lower_block(block),
-                    catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
-                        hir::CatchClause {
-                            name: catch.name,
-                            args: self.lower_variables(catch.args, hir::VarKind::TryCatch),
-                            block: self.lower_block(catch.block),
-                        }
-                    })),
+                    clauses: self.arena.alloc_slice_fill_iter(
+                        clauses.iter().map(|catch| self.lower_try_catch_clause(catch)),
+                    ),
                 }))
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    fn lower_try_catch_clause(
+        &mut self,
+        &ast::TryCatchClause { name, ref args, ref block }: &ast::TryCatchClause<'_>,
+    ) -> hir::TryCatchClause<'hir> {
+        self.in_scope(|this| hir::TryCatchClause {
+            name,
+            args: this.lower_variables(args, hir::VarKind::TryCatch),
+            block: this.lower_block(block),
+        })
     }
 
     /// Converts path + args into a Call expression for emit/revert statements.
@@ -1266,7 +1271,6 @@ impl SymbolResolverScopes {
         self.scopes.push(Declarations::new());
     }
 
-    #[track_caller]
     #[inline]
     fn current_scope(&mut self) -> &mut Declarations {
         if self.scopes.is_empty() {

@@ -132,14 +132,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
+
+        let mut clauses = SmallVec::<[_; 4]>::new();
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
+        clauses.push(TryCatchClause { name: None, args: returns, block });
 
-        let mut catch = SmallVec::<[_; 4]>::new();
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
@@ -149,13 +151,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Default::default()
             };
             let block = self.parse_block()?;
-            catch.push(CatchClause { name, args, block });
+            clauses.push(TryCatchClause { name, args, block });
             if !self.eat_keyword(kw::Catch) {
                 break;
             }
         }
-        let catch = self.alloc_smallvec(catch);
-        Ok(StmtTry { expr, returns, block, catch })
+
+        let clauses = self.alloc_smallvec(clauses);
+        Ok(StmtTry { expr, clauses })
     }
 
     /// Parses an assembly block.

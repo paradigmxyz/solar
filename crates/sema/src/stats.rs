@@ -381,11 +381,11 @@ impl<'ast> Visit<'ast> for StatCollector {
         self.walk_stmt_try(try_)
     }
 
-    fn visit_catch_clause(
+    fn visit_try_catch_clause(
         &mut self,
-        catch: &'ast ast::CatchClause<'ast>,
+        catch: &'ast ast::TryCatchClause<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.record("CatchClause", None, catch);
+        self.record("TryCatchClause", None, catch);
         self.visit_parameter_list(&catch.args)?;
         self.visit_block(&catch.block)?;
         // Don't visit name field since it isn't boxed

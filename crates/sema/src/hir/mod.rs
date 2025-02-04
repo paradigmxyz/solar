@@ -991,19 +991,22 @@ pub enum StmtKind<'hir> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Debug)]
 pub struct StmtTry<'hir> {
+    /// The call expression.
     pub expr: Expr<'hir>,
-    pub returns: &'hir [VariableId],
-    /// The try block.
-    pub block: Block<'hir>,
-    /// The list of catch clauses. Never empty.
-    pub catch: &'hir [CatchClause<'hir>],
+    /// The list of clauses. Never empty.
+    ///
+    /// The first item is always the `returns` clause.
+    pub clauses: &'hir [TryCatchClause<'hir>],
 }
 
-/// A catch clause: `catch (...) { ... }`.
+/// Clause of a try/catch block: `returns/catch (...) { ... }`.
+///
+/// Includes both the successful case and the unsuccessful cases.
+/// Names are only allowed for unsuccessful cases.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
-pub struct CatchClause<'hir> {
+pub struct TryCatchClause<'hir> {
     pub name: Option<Ident>,
     pub args: &'hir [VariableId],
     pub block: Block<'hir>,
