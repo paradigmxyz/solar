@@ -27,7 +27,7 @@ const DEFAULT_RENDERER: Renderer = Renderer::plain()
     .emphasis(anstyle::Style::new().bold())
     .none(anstyle::Style::new());
 
-/// Diag emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
+/// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
     writer_type_id: std::any::TypeId,
     real_writer: *mut Writer,
@@ -200,7 +200,7 @@ impl HumanEmitter {
     }
 }
 
-/// Diag emitter that emits diagnostics in human-readable format to a local buffer.
+/// Diagnostic emitter that emits diagnostics in human-readable format to a local buffer.
 pub struct HumanBufferEmitter {
     inner: HumanEmitter,
 }

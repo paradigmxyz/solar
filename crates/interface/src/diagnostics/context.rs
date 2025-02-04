@@ -100,9 +100,12 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.
+    ///
+    /// Fatal diagnostics will still be emitted, optionally with the given note.
     pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
-        let fatal_dcx = Self::with_stderr_emitter(None).disable_warnings();
-        Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
+        let fatal_emitter = HumanEmitter::stderr(Default::default());
+        Self::new(Box::new(SilentEmitter::new(fatal_emitter).with_note(fatal_note)))
+            .disable_warnings()
     }
 
     /// Creates a new `DiagCtxt` with a human emitter that emits diagnostics to a local buffer.
@@ -111,6 +114,24 @@ impl DiagCtxt {
         color_choice: ColorChoice,
     ) -> Self {
         Self::new(Box::new(HumanBufferEmitter::new(color_choice).source_map(source_map)))
+    }
+
+    /// Sets the emitter to [`SilentEmitter`].
+    pub fn make_silent(&self, fatal_note: Option<String>, emit_fatal: bool) {
+        self.wrap_emitter(|prev| {
+            Box::new(SilentEmitter::new_boxed(emit_fatal.then_some(prev)).with_note(fatal_note))
+        });
+    }
+
+    fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
+        struct FakeEmitter;
+        impl crate::diagnostics::Emitter for FakeEmitter {
+            fn emit_diagnostic(&mut self, _diagnostic: &Diag) {}
+        }
+
+        let mut inner = self.inner.lock();
+        let prev = std::mem::replace(&mut inner.emitter, Box::new(FakeEmitter));
+        inner.emitter = f(prev);
     }
 
     /// Gets the source map associated with this context.
