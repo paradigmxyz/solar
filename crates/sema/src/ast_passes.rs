@@ -338,7 +338,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         let r = self.walk_item_function(func);
         self.function_kind = None;
 
-        if func.kind.is_modifier() {
+        if func.kind.is_modifier() && func.is_implemented() {
             let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
             if num_placeholders_increased == 0 {
                 if let Some(func_name) = func.header.name {
