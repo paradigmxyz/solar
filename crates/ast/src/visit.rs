@@ -345,18 +345,16 @@ declare_visitors! {
         }
 
         fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) -> ControlFlow<Self::BreakValue> {
-            let StmtTry { expr, returns, block, catch } = try_;
+            let StmtTry { expr, clauses } = try_;
             self.visit_expr #_mut(expr)?;
-            self.visit_parameter_list #_mut(returns)?;
-            self.visit_block #_mut(block)?;
-            for catch in catch.iter #_mut() {
-                self.visit_catch_clause #_mut(catch)?;
+            for catch in clauses.iter #_mut() {
+                self.visit_try_catch_clause #_mut(catch)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let CatchClause { name, args, block } = catch;
+        fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
+            let TryCatchClause { name, args, block } = catch;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
