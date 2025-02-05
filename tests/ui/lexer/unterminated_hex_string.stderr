@@ -1,19 +1,15 @@
 error: unterminated hex string
   --> ROOT/tests/ui/lexer/unterminated_hex_string.sol:LL:CC
    |
-LL | / hex"
-LL | |
-LL | |
-   | |_________________________________^
+LL | hex"
+   | ^^^^
    |
 
 error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `<error>`
   --> ROOT/tests/ui/lexer/unterminated_hex_string.sol:LL:CC
    |
-LL | / hex"
-LL | |
-LL | |
-   | |_________________________________^
+LL | hex"
+   | ^^^^
    |
    = note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
 

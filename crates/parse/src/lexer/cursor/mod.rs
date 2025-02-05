@@ -293,15 +293,15 @@ impl<'a> Cursor<'a> {
     }
 
     fn maybe_string_prefix(&mut self, prefix: &str) -> Option<bool> {
-        debug_assert_eq!(self.prev(), prefix.chars().next().unwrap());
+        debug_assert_eq!(self.prev(), prefix.bytes().next().unwrap() as char);
         let prefix = &prefix[1..];
         let s = self.as_str();
         if s.starts_with(prefix) {
             let skip = prefix.len();
-            let Some(quote @ ('"' | '\'')) = s.chars().nth(skip) else { return None };
-            self.ignore(skip);
+            let Some(&quote @ (b'"' | b'\'')) = s.as_bytes().get(skip) else { return None };
+            self.ignore_bytes(skip);
             self.bump();
-            let terminated = self.eat_string(quote);
+            let terminated = self.eat_string(quote as char);
             Some(terminated)
         } else {
             None
@@ -310,21 +310,22 @@ impl<'a> Cursor<'a> {
 
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: char) -> bool {
+        debug_assert!(quote == '\'' || quote == '"', "Invalid quote character: {quote:?}");
         debug_assert_eq!(self.prev(), quote);
-        while let Some(c) = self.bump() {
-            if c == quote {
-                return true;
+        loop {
+            let Some(idx) = memchr::memchr(quote as u8, self.as_str().as_bytes()) else {
+                // End of file reached.
+                return false;
+            };
+            let cont = idx > 0
+                && self.as_str().as_bytes()[idx - 1] == b'\\'
+                && (idx == 1 || self.as_str().as_bytes()[idx - 2] != b'\\');
+            self.ignore_bytes(idx + 1);
+            if cont {
+                continue;
             }
-            if c == '\\' {
-                let first = self.first();
-                if first == '\\' || first == quote {
-                    // Bump again to skip escaped character.
-                    self.bump();
-                }
-            }
+            return true;
         }
-        // End of file reached.
-        false
     }
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
@@ -435,11 +436,9 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    /// Advances `n` characters, without setting `prev`.
-    fn ignore(&mut self, n: usize) {
-        for _ in 0..n {
-            self.chars.next();
-        }
+    /// Advances `n` bytes, without setting `prev`.
+    fn ignore_bytes(&mut self, n: usize) {
+        self.chars = self.as_str()[n..].chars();
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
