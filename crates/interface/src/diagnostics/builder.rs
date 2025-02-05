@@ -1,6 +1,6 @@
 use super::{
-    BugAbort, DiagCtxt, Diagnostic, DiagnosticId, DiagnosticMessage, ErrorGuaranteed, ExplicitBug,
-    FatalAbort, Level, MultiSpan, Style,
+    BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug, FatalAbort, Level,
+    MultiSpan, Style,
 };
 use crate::Span;
 use solar_data_structures::Never;
@@ -12,32 +12,32 @@ use std::{
     panic::Location,
 };
 
-/// Trait for types that `DiagnosticBuilder::emit` can return as a "guarantee" (or "proof") token
+/// Trait for types that `DiagBuilder::emit` can return as a "guarantee" (or "proof") token
 /// that the emission happened.
 pub trait EmissionGuarantee: Sized {
     /// This exists so that bugs and fatal errors can both result in `!` (an abort) when emitted,
     /// but have different aborting behaviour.
     type EmitResult;
 
-    /// Implementation of `DiagnosticBuilder::emit`, fully controlled by each `impl` of
+    /// Implementation of `DiagBuilder::emit`, fully controlled by each `impl` of
     /// `EmissionGuarantee`, to make it impossible to create a value of `Self::EmitResult` without
     /// actually performing the emission.
     #[track_caller]
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult;
+    fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult;
 }
 
 impl EmissionGuarantee for ErrorGuaranteed {
     type EmitResult = Self;
 
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
+    fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         let guar = db.emit_producing_error_guaranteed();
 
         // Only allow a guarantee if the `level` wasn't switched to a
-        // non-error - the field isn't `pub`, but the whole `Diagnostic`
+        // non-error - the field isn't `pub`, but the whole `Diag`
         // can be overwritten with a new one, thanks to `DerefMut`.
         assert!(
             db.diagnostic.is_error(),
-            "emitted non-error ({:?}) diagnostic from `DiagnosticBuilder<ErrorGuaranteed>`",
+            "emitted non-error ({:?}) diagnostic from `DiagBuilder<ErrorGuaranteed>`",
             db.diagnostic.level,
         );
 
@@ -48,7 +48,7 @@ impl EmissionGuarantee for ErrorGuaranteed {
 impl EmissionGuarantee for () {
     type EmitResult = Self;
 
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
+    fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
     }
 }
@@ -56,7 +56,7 @@ impl EmissionGuarantee for () {
 impl EmissionGuarantee for BugAbort {
     type EmitResult = Never;
 
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
+    fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
         std::panic::panic_any(ExplicitBug);
     }
@@ -65,7 +65,7 @@ impl EmissionGuarantee for BugAbort {
 impl EmissionGuarantee for FatalAbort {
     type EmitResult = Never;
 
-    fn emit_producing_guarantee(db: &mut DiagnosticBuilder<'_, Self>) -> Self::EmitResult {
+    fn emit_producing_guarantee(db: &mut DiagBuilder<'_, Self>) -> Self::EmitResult {
         db.emit_producing_nothing();
         std::panic::panic_any(Self);
     }
@@ -76,33 +76,33 @@ impl EmissionGuarantee for FatalAbort {
 /// **Note:** Incorrect usage of this type results in a panic when dropped.
 /// This is to ensure that all errors are either emitted or cancelled.
 #[must_use = "diagnostics must be emitted or cancelled"]
-pub struct DiagnosticBuilder<'a, G: EmissionGuarantee> {
+pub struct DiagBuilder<'a, G: EmissionGuarantee> {
     dcx: &'a DiagCtxt,
 
-    /// `Diagnostic` is a large type, and `DiagnosticBuilder` is often used as a
+    /// `Diag` is a large type, and `DiagBuilder` is often used as a
     /// return value, especially within the frequently-used `PResult` type.
     /// In theory, return value optimization (RVO) should avoid unnecessary
     /// copying. In practice, it does not (at the time of writing).
-    diagnostic: Box<Diagnostic>,
+    diagnostic: Box<Diag>,
 
     _marker: PhantomData<G>,
 }
 
-impl<G: EmissionGuarantee> Clone for DiagnosticBuilder<'_, G> {
+impl<G: EmissionGuarantee> Clone for DiagBuilder<'_, G> {
     #[inline]
     fn clone(&self) -> Self {
         Self { dcx: self.dcx, diagnostic: self.diagnostic.clone(), _marker: PhantomData }
     }
 }
 
-impl<G: EmissionGuarantee> fmt::Debug for DiagnosticBuilder<'_, G> {
+impl<G: EmissionGuarantee> fmt::Debug for DiagBuilder<'_, G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.diagnostic.fmt(f)
     }
 }
 
-impl<G: EmissionGuarantee> Deref for DiagnosticBuilder<'_, G> {
-    type Target = Diagnostic;
+impl<G: EmissionGuarantee> Deref for DiagBuilder<'_, G> {
+    type Target = Diag;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -110,21 +110,21 @@ impl<G: EmissionGuarantee> Deref for DiagnosticBuilder<'_, G> {
     }
 }
 
-impl<G: EmissionGuarantee> DerefMut for DiagnosticBuilder<'_, G> {
+impl<G: EmissionGuarantee> DerefMut for DiagBuilder<'_, G> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.diagnostic
     }
 }
 
-impl<G: EmissionGuarantee> Drop for DiagnosticBuilder<'_, G> {
+impl<G: EmissionGuarantee> Drop for DiagBuilder<'_, G> {
     #[track_caller]
     fn drop(&mut self) {
         if std::thread::panicking() {
             return;
         }
 
-        let _ = self.dcx.emit_diagnostic(Diagnostic::new(
+        let _ = self.dcx.emit_diagnostic(Diag::new(
             Level::Bug,
             "the following error was constructed but not emitted",
         ));
@@ -133,11 +133,11 @@ impl<G: EmissionGuarantee> Drop for DiagnosticBuilder<'_, G> {
     }
 }
 
-impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
-    /// Creates a new `DiagnosticBuilder`.
+impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
+    /// Creates a new `DiagBuilder`.
     #[track_caller]
-    pub fn new<M: Into<DiagnosticMessage>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
-        Self { dcx, diagnostic: Box::new(Diagnostic::new(level, msg)), _marker: PhantomData }
+    pub fn new<M: Into<DiagMsg>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
+        Self { dcx, diagnostic: Box::new(Diag::new(level, msg)), _marker: PhantomData }
     }
 
     /// Returns the [`DiagCtxt`].
@@ -178,7 +178,7 @@ impl<'a, G: EmissionGuarantee> DiagnosticBuilder<'a, G> {
     }
 }
 
-/// Forwards methods to [`Diagnostic`].
+/// Forwards methods to [`Diag`].
 macro_rules! forward {
     (
         $(
@@ -188,7 +188,7 @@ macro_rules! forward {
     ) => {
         $(
             $(#[$attrs])*
-            #[doc = concat!("See [`Diagnostic::", stringify!($n), "()`].")]
+            #[doc = concat!("See [`Diag::", stringify!($n), "()`].")]
             $vis fn $n(mut self, $($name: $ty),*) -> Self {
                 self.diagnostic.$n($($name),*);
                 self
@@ -197,27 +197,27 @@ macro_rules! forward {
     };
 }
 
-/// Forwarded methods to [`Diagnostic`].
-impl<G: EmissionGuarantee> DiagnosticBuilder<'_, G> {
+/// Forwarded methods to [`Diag`].
+impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
     forward! {
         pub fn span(span: impl Into<MultiSpan>);
-        pub fn code(code: impl Into<DiagnosticId>);
+        pub fn code(code: impl Into<DiagId>);
 
-        pub fn span_label(span: Span, label: impl Into<DiagnosticMessage>);
-        pub fn span_labels(spans: impl IntoIterator<Item = Span>, label: impl Into<DiagnosticMessage>);
+        pub fn span_label(span: Span, label: impl Into<DiagMsg>);
+        pub fn span_labels(spans: impl IntoIterator<Item = Span>, label: impl Into<DiagMsg>);
 
-        pub fn warn(msg: impl Into<DiagnosticMessage>);
-        pub fn span_warn(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
+        pub fn warn(msg: impl Into<DiagMsg>);
+        pub fn span_warn(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
 
-        pub fn note(msg: impl Into<DiagnosticMessage>);
-        pub fn span_note(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
-        pub fn highlighted_note(messages: Vec<(impl Into<DiagnosticMessage>, Style)>);
-        pub fn note_once(msg: impl Into<DiagnosticMessage>);
-        pub fn span_note_once(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
+        pub fn note(msg: impl Into<DiagMsg>);
+        pub fn span_note(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
+        pub fn highlighted_note(messages: Vec<(impl Into<DiagMsg>, Style)>);
+        pub fn note_once(msg: impl Into<DiagMsg>);
+        pub fn span_note_once(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
 
-        pub fn help(msg: impl Into<DiagnosticMessage>);
-        pub fn help_once(msg: impl Into<DiagnosticMessage>);
-        pub fn highlighted_help(messages: Vec<(impl Into<DiagnosticMessage>, Style)>);
-        pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagnosticMessage>);
+        pub fn help(msg: impl Into<DiagMsg>);
+        pub fn help_once(msg: impl Into<DiagMsg>);
+        pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
+        pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
     }
 }

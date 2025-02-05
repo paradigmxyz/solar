@@ -14,6 +14,10 @@ impl NodeStats {
     fn new() -> Self {
         Self { count: 0, size: 0 }
     }
+
+    fn accum_size(&self) -> usize {
+        self.count * self.size
+    }
 }
 
 struct Node {
@@ -80,9 +84,9 @@ impl StatCollector {
 
     fn print(&self, title: &str, prefix: &str) {
         let mut nodes: Vec<_> = self.nodes.iter().collect();
-        nodes.sort_by_key(|(_, node)| node.stats.count * node.stats.size);
+        nodes.sort_by_cached_key(|(label, node)| (node.stats.accum_size(), label.to_string()));
 
-        let total_size = nodes.iter().map(|(_, node)| node.stats.count * node.stats.size).sum();
+        let total_size = nodes.iter().map(|(_, node)| node.stats.accum_size()).sum();
 
         eprintln!("{prefix} {title}");
         eprintln!(
@@ -94,7 +98,7 @@ impl StatCollector {
         let percent = |m, n| (m * 100) as f64 / n as f64;
 
         for (label, node) in nodes {
-            let size = node.stats.count * node.stats.size;
+            let size = node.stats.accum_size();
             eprintln!(
                 "{} {:<18}{:>10} ({:4.1}%){:>14}{:>14}",
                 prefix,
@@ -106,10 +110,12 @@ impl StatCollector {
             );
             if !node.subnodes.is_empty() {
                 let mut subnodes: Vec<_> = node.subnodes.iter().collect();
-                subnodes.sort_by_key(|(_, subnode)| subnode.count * subnode.size);
+                subnodes.sort_by_cached_key(|(label, subnode)| {
+                    (subnode.accum_size(), label.to_string())
+                });
 
                 for (label, subnode) in subnodes {
-                    let size = subnode.count * subnode.size;
+                    let size = subnode.accum_size();
                     eprintln!(
                         "{} - {:<16}{:>10} ({:4.1}%){:>14}",
                         prefix,
@@ -375,11 +381,11 @@ impl<'ast> Visit<'ast> for StatCollector {
         self.walk_stmt_try(try_)
     }
 
-    fn visit_catch_clause(
+    fn visit_try_catch_clause(
         &mut self,
-        catch: &'ast ast::CatchClause<'ast>,
+        catch: &'ast ast::TryCatchClause<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.record("CatchClause", None, catch);
+        self.record("TryCatchClause", None, catch);
         self.visit_parameter_list(&catch.args)?;
         self.visit_block(&catch.block)?;
         // Don't visit name field since it isn't boxed

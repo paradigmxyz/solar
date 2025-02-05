@@ -127,7 +127,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
         // handled later: parameters, body, modifiers, override_, returns
-        let ast::ItemFunction { kind, ref header, body: _ } = *i;
+        let ast::ItemFunction { kind, ref header, body: _, body_span } = *i;
         let ast::FunctionHeader {
             name,
             parameters: _,
@@ -153,11 +153,19 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.unwrap_or(ast::Visibility::Public),
+            visibility: visibility.unwrap_or_else(|| {
+                let is_free = self.current_contract_id.is_none();
+                if kind.is_modifier() || is_free {
+                    ast::Visibility::Internal
+                } else {
+                    ast::Visibility::Public
+                }
+            }),
             state_mutability,
             parameters: &[],
             returns: &[],
             body: None,
+            body_span,
         })
     }
 
@@ -322,5 +330,6 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         returns: &[],
         body: None,
         gettee: Some(id),
+        body_span: span,
     })
 }

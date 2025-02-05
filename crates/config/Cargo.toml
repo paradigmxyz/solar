@@ -15,13 +15,18 @@ categories.workspace = true
 [lints]
 workspace = true
 
+[build-dependencies]
+vergen = { workspace = true, optional = true, features = [
+    "build",
+    "git",
+    "gitcl",
+    "cargo",
+] }
+
 [dependencies]
 strum = { workspace = true, features = ["derive"] }
 
-# clap
-clap_builder = { workspace = true, optional = true }
-
-# serde
+clap = { workspace = true, optional = true, features = ["derive"] }
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -30,5 +35,6 @@ serde_json.workspace = true
 [features]
 nightly = []
 
-clap = ["dep:clap_builder"]
+clap = ["version", "dep:clap"]
+version = ["dep:vergen"]
 serde = ["dep:serde"]

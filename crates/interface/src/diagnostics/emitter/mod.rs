@@ -1,4 +1,4 @@
-use super::{DiagCtxt, Diagnostic, Level};
+use super::{Diag, Level};
 use crate::SourceMap;
 use std::{any::Any, sync::Arc};
 
@@ -18,7 +18,7 @@ pub type DynEmitter = dyn Emitter + Send;
 /// Diagnostic emitter.
 pub trait Emitter: Any {
     /// Emits a diagnostic.
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic);
+    fn emit_diagnostic(&mut self, diagnostic: &Diag);
 
     /// Returns a reference to the source map, if any.
     #[inline]
@@ -48,16 +48,30 @@ impl DynEmitter {
     }
 }
 
-/// Diagnostic emitter that only emits fatal diagnostics.
+/// Diagnostic emitter.
+///
+/// Emits fatal diagnostics by default, with `note` if set.
 pub struct SilentEmitter {
-    fatal_dcx: DiagCtxt,
+    fatal_emitter: Option<Box<DynEmitter>>,
     note: Option<String>,
 }
 
 impl SilentEmitter {
-    /// Creates a new `SilentEmitter`. `fatal_dcx` is only used to emit fatal diagnostics.
-    pub fn new(fatal_dcx: DiagCtxt) -> Self {
-        Self { fatal_dcx, note: None }
+    /// Creates a new `SilentEmitter`. Emits fatal diagnostics with `fatal_emitter`.
+    pub fn new(fatal_emitter: impl Emitter + Send) -> Self {
+        Self::new_boxed(Some(Box::new(fatal_emitter)))
+    }
+
+    /// Creates a new `SilentEmitter`. Emits fatal diagnostics with `fatal_emitter` if `Some`.
+    pub fn new_boxed(fatal_emitter: Option<Box<DynEmitter>>) -> Self {
+        Self { fatal_emitter, note: None }
+    }
+
+    /// Creates a new `SilentEmitter` that does not emit any diagnostics at all.
+    ///
+    /// Same as `new_boxed(None)`.
+    pub fn new_silent() -> Self {
+        Self::new_boxed(None)
     }
 
     /// Sets the note to be emitted for fatal diagnostics.
@@ -68,23 +82,26 @@ impl SilentEmitter {
 }
 
 impl Emitter for SilentEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+        let Some(fatal_emitter) = self.fatal_emitter.as_deref_mut() else { return };
         if diagnostic.level != Level::Fatal {
             return;
         }
 
-        let mut diagnostic = diagnostic.clone();
         if let Some(note) = &self.note {
+            let mut diagnostic = diagnostic.clone();
             diagnostic.note(note.clone());
+            fatal_emitter.emit_diagnostic(&diagnostic);
+        } else {
+            fatal_emitter.emit_diagnostic(diagnostic);
         }
-        let _ = self.fatal_dcx.emit_diagnostic(diagnostic);
     }
 }
 
 /// Diagnostic emitter that only stores emitted diagnostics.
 #[derive(Clone, Debug)]
 pub struct LocalEmitter {
-    diagnostics: Vec<Diagnostic>,
+    diagnostics: Vec<Diag>,
 }
 
 impl Default for LocalEmitter {
@@ -100,18 +117,18 @@ impl LocalEmitter {
     }
 
     /// Returns a reference to the emitted diagnostics.
-    pub fn diagnostics(&self) -> &[Diagnostic] {
+    pub fn diagnostics(&self) -> &[Diag] {
         &self.diagnostics
     }
 
     /// Consumes the emitter and returns the emitted diagnostics.
-    pub fn into_diagnostics(self) -> Vec<Diagnostic> {
+    pub fn into_diagnostics(self) -> Vec<Diag> {
         self.diagnostics
     }
 }
 
 impl Emitter for LocalEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.diagnostics.push(diagnostic.clone());
     }
 }

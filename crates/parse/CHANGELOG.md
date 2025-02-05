@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
+
+### Bug Fixes
+
+- Add Session::enter_parallel ([#183](https://github.com/paradigmxyz/solar/issues/183))
+- [parser] Accept leading dot in literals ([#151](https://github.com/paradigmxyz/solar/issues/151))
+- [parser] Span of partially-parsed expressions ([#139](https://github.com/paradigmxyz/solar/issues/139))
+- [parser] Ignore more doc comments ([#136](https://github.com/paradigmxyz/solar/issues/136))
+
+### Documentation
+
+- Add icons ([#109](https://github.com/paradigmxyz/solar/issues/109))
+
+### Features
+
+- Add some more Span utils ([#179](https://github.com/paradigmxyz/solar/issues/179))
+- [parser] Allow doc-comments anywhere ([#154](https://github.com/paradigmxyz/solar/issues/154))
+- Validate variable data locations ([#149](https://github.com/paradigmxyz/solar/issues/149))
+- [parser] Recover old-style fallbacks ([#135](https://github.com/paradigmxyz/solar/issues/135))
+- Make parse_semver_req public ([#114](https://github.com/paradigmxyz/solar/issues/114))
+
+### Miscellaneous Tasks
+
+- Remove Pos trait ([#137](https://github.com/paradigmxyz/solar/issues/137))
+
+### Other
+
+- Validate num. variants in enum declaration ([#120](https://github.com/paradigmxyz/solar/issues/120))
+- Better error for struct without any fields ([#121](https://github.com/paradigmxyz/solar/issues/121))
+
+### Refactor
+
+- Re-export ast::* internal module ([#141](https://github.com/paradigmxyz/solar/issues/141))
+
 ## [0.1.0](https://github.com/paradigmxyz/solar/releases/tag/v0.1.0)
 
 Initial release.

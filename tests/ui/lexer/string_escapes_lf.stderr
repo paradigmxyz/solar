@@ -15,14 +15,14 @@ LL | bytes constant s = hex"\
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 
@@ -43,7 +43,7 @@ LL | bytes constant s = hex"\
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 

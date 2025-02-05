@@ -6,16 +6,16 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use cli::Args;
+use solar_config::{ErrorFormat, ImportMap};
 use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SourceMap,
 };
-use std::{collections::BTreeSet, num::NonZeroUsize, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
 
-pub mod cli;
+pub use solar_config::{self as config, version, Opts, UnstableOpts};
+
 pub mod utils;
-pub mod version;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod sigsegv_handler;
@@ -34,30 +34,29 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut args = Args::try_parse_from(itr)?;
-    args.finish()?;
-    Ok(args)
+    let mut opts = Opts::try_parse_from(itr)?;
+    opts.finish()?;
+    Ok(opts)
 }
 
-pub fn run_compiler_args(args: Args) -> Result<()> {
-    run_compiler_with(args, Compiler::run_default)
+pub fn run_compiler_args(opts: Opts) -> Result<()> {
+    run_compiler_with(opts, Compiler::run_default)
 }
 
 pub struct Compiler {
     pub sess: Session,
-    pub args: Args,
 }
 
 impl Compiler {
     pub fn run_default(&self) -> Result<()> {
-        let Self { sess, args } = self;
+        let Self { sess } = self;
 
-        if sess.language.is_yul() && !args.unstable.parse_yul {
+        if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
             return Err(sess.dcx.err("Yul is not supported yet").emit());
         }
 
@@ -65,20 +64,20 @@ impl Compiler {
         // - `stdin`: `-`, occurrences after the first are ignored
         // - remappings: `path=mapped`
         // - paths: everything else
-        let stdin = args.input.iter().any(|arg| *arg == Path::new("-"));
-        let non_stdin_args = args.input.iter().filter(|arg| *arg != Path::new("-"));
+        let stdin = sess.opts.input.iter().any(|arg| *arg == Path::new("-"));
+        let non_stdin_args = sess.opts.input.iter().filter(|arg| *arg != Path::new("-"));
         let arg_remappings = non_stdin_args
             .clone()
-            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<cli::ImportMap>().ok());
+            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<ImportMap>().ok());
         let paths =
             non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
 
         let mut pcx = solar_sema::ParsingContext::new(sess);
-        let remappings = arg_remappings.chain(args.import_map.iter().cloned());
+        let remappings = arg_remappings.chain(sess.opts.import_map.iter().cloned());
         for map in remappings {
             pcx.file_resolver.add_import_map(map.map, map.path);
         }
-        for path in &args.import_path {
+        for path in &sess.opts.import_path {
             let new = pcx.file_resolver.add_import_path(path.clone());
             if !new {
                 let msg = format!("import path {} already specified", path.display());
@@ -101,12 +100,12 @@ impl Compiler {
     }
 }
 
-fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
-    let ui_testing = args.unstable.ui_testing;
+fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
+    let ui_testing = opts.unstable.ui_testing;
     let source_map = Arc::new(SourceMap::empty());
-    let emitter: Box<DynEmitter> = match args.error_format {
-        cli::ErrorFormat::Human => {
-            let color = match args.color {
+    let emitter: Box<DynEmitter> = match opts.error_format {
+        ErrorFormat::Human => {
+            let color = match opts.color {
                 clap::ColorChoice::Always => solar_interface::ColorChoice::Always,
                 clap::ColorChoice::Auto => solar_interface::ColorChoice::Auto,
                 clap::ColorChoice::Never => solar_interface::ColorChoice::Never,
@@ -116,12 +115,12 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
                 .ui_testing(ui_testing);
             Box::new(human)
         }
-        cli::ErrorFormat::Json | cli::ErrorFormat::RustcJson => {
+        ErrorFormat::Json | ErrorFormat::RustcJson => {
             // `io::Stderr` is not buffered.
             let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
             let json = JsonEmitter::new(writer, source_map.clone())
-                .pretty(args.pretty_json_err)
-                .rustc_like(matches!(args.error_format, cli::ErrorFormat::RustcJson))
+                .pretty(opts.pretty_json_err)
+                .rustc_like(matches!(opts.error_format, ErrorFormat::RustcJson))
                 .ui_testing(ui_testing);
             Box::new(json)
         }
@@ -129,37 +128,15 @@ fn run_compiler_with(args: Args, f: impl FnOnce(&Compiler) -> Result + Send) -> 
     let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
         flags.deduplicate_diagnostics &= !ui_testing;
         flags.track_diagnostics &= !ui_testing;
-        flags.track_diagnostics |= args.unstable.track_diagnostics;
+        flags.track_diagnostics |= opts.unstable.track_diagnostics;
     });
 
-    let mut sess = Session::new(dcx, source_map);
-    sess.evm_version = args.evm_version;
-    sess.language = args.language;
-    sess.stop_after = args.stop_after;
-    sess.dump = args.unstable.dump.clone();
-    sess.ast_stats = args.unstable.ast_stats;
-    sess.jobs = NonZeroUsize::new(args.threads)
-        .unwrap_or_else(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN));
-    if !args.input.is_empty()
-        && args.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
-    {
-        sess.language = solar_config::Language::Yul;
-    }
-    sess.emit = {
-        let mut set = BTreeSet::default();
-        for &emit in &args.emit {
-            if !set.insert(emit) {
-                let msg = format!("cannot specify `--emit {emit}` twice");
-                return Err(sess.dcx.err(msg).emit());
-            }
-        }
-        set
-    };
-    sess.out_dir = args.out_dir.clone();
-    sess.pretty_json = args.pretty_json;
+    let mut sess = Session::builder().dcx(dcx).source_map(source_map).opts(opts).build();
+    sess.infer_language();
+    sess.validate()?;
 
-    let compiler = Compiler { sess, args };
-    compiler.sess.enter(|| {
+    let compiler = Compiler { sess };
+    compiler.sess.enter_parallel(|| {
         let mut r = f(&compiler);
         r = compiler.finish_diagnostics().and(r);
         r

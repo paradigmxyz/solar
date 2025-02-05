@@ -5,7 +5,7 @@ LL |         new string[](3)
    |                        ^ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
 LL |      
 LL |  
-LL | 
+LL |
 LL |         new string[](4)
    |         ^^^ unexpected token
    |

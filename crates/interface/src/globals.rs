@@ -58,6 +58,18 @@ impl SessionGlobals {
     /// Panics if `set` has not previously been called.
     #[inline]
     pub fn with<R>(f: impl FnOnce(&Self) -> R) -> R {
+        #[cfg(debug_assertions)]
+        if !SESSION_GLOBALS.is_set() {
+            let msg = if rayon::current_thread_index().is_some() {
+                "cannot access a scoped thread local variable without calling `set` first;\n\
+                 did you forget to call `Session::enter_parallel`?"
+            } else {
+                "cannot access a scoped thread local variable without calling `set` first;\n\
+                 did you forget to call `Session::enter`, or `Session::enter_parallel` \
+                 if using Rayon?"
+            };
+            panic!("{msg}");
+        }
         SESSION_GLOBALS.with(f)
     }
 

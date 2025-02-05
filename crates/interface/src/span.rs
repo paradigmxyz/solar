@@ -184,4 +184,24 @@ impl Span {
     pub fn until(self, end: Self) -> Self {
         Self::new(self.lo(), end.lo())
     }
+
+    /// Joins all the spans in the given iterator using [`to`](Self::to).
+    #[inline]
+    pub fn join_many(spans: impl IntoIterator<Item = Self>) -> Self {
+        spans.into_iter().reduce(Self::to).unwrap_or_default()
+    }
+
+    /// Joins the first and last span in the given iterator.
+    #[inline]
+    pub fn join_first_last(
+        spans: impl IntoIterator<Item = Self, IntoIter: DoubleEndedIterator>,
+    ) -> Self {
+        let mut spans = spans.into_iter();
+        let first = spans.next().unwrap_or_default();
+        if let Some(last) = spans.next_back() {
+            first.to(last)
+        } else {
+            first
+        }
+    }
 }

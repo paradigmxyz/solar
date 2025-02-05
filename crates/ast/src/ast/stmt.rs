@@ -95,19 +95,20 @@ pub struct StmtAssembly<'ast> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Debug)]
 pub struct StmtTry<'ast> {
+    /// The call expression.
     pub expr: Box<'ast, Expr<'ast>>,
-    pub returns: ParameterList<'ast>,
-    /// The try block.
-    pub block: Block<'ast>,
-    /// The list of catch clauses. Cannot be parsed empty.
-    pub catch: Box<'ast, [CatchClause<'ast>]>,
+    /// The list of clauses. Never empty.
+    pub clauses: Box<'ast, [TryCatchClause<'ast>]>,
 }
 
-/// A catch clause: `catch (...) { ... }`.
+/// Clause of a try/catch block: `returns/catch (...) { ... }`.
+///
+/// Includes both the successful case and the unsuccessful cases.
+/// Names are only allowed for unsuccessful cases.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
-pub struct CatchClause<'ast> {
+pub struct TryCatchClause<'ast> {
     pub name: Option<Ident>,
     pub args: ParameterList<'ast>,
     pub block: Block<'ast>,

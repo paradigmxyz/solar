@@ -8,6 +8,9 @@ uint constant tooBigLiteral = 11579208923731619542357098500868790785326998466564
 
 contract C {
     uint constant zero = x - x;
+    uint public constant zeroPublic = x / x - 1;
+    uint[zero] public zeroArray; //~ ERROR: array length must be greater than zero
+    uint[zeroPublic + 1] public oneArray;
 
     uint[bigLiteral] public big;
     uint[bigLiteral + 1] public tooBig1; //~ ERROR: evaluation of constant value failed
@@ -25,10 +28,11 @@ contract C {
 
     function g(uint[0] memory) public {} //~ ERROR: array length must be greater than zero
     function h(uint[zero] memory) public {} //~ ERROR: array length must be greater than zero
+    function h2(uint[zeroPublic] memory) public {} //~ ERROR: array length must be greater than zero
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: evaluation of constant value failed
     function j(uint["lol"] memory) public {} //~ ERROR: evaluation of constant value failed
     function k(uint[--x] memory) public {} //~ ERROR: evaluation of constant value failed
     function l(uint[stateVar] memory) public {} //~ ERROR: evaluation of constant value failed
-    function l(uint[stateVarPublic] memory) public {} //~ ERROR: evaluation of constant value failed
+    function m(uint[stateVarPublic] memory) public {} //~ ERROR: evaluation of constant value failed
 }
