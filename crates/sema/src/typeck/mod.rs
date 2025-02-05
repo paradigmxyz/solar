@@ -5,6 +5,7 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_data_structures::{map::FxHashSet, parallel};
+use solar_interface::error_code;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -31,7 +32,8 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
         gcx.dcx()
             .warn("contract has a payable fallback function, but no receive ether function")
             .span(contract.name.span)
-            .help("consider adding a `receive() external payable { ... }`")
+            .code(error_code!(3628))
+            .help("consider changing fallback to receive")
             .emit();
     }
 }
