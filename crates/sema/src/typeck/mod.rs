@@ -31,9 +31,8 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
     if payable_fallback_found && !receive_found {
         gcx.dcx()
             .warn("contract has a payable fallback function, but no receive ether function")
-            .span(contract.name.span)
             .code(error_code!(3628))
-            .help("consider changing fallback to receive")
+            .span_help(contract.name.span, "consider changing fallback to receive")
             .emit();
     }
 }
