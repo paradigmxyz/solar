@@ -319,7 +319,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         span,
         name,
         kind: ast::FunctionKind::Function,
-        visibility: ast::Visibility::Public,
+        visibility: ast::Visibility::External,
         state_mutability: ast::StateMutability::View,
         modifiers: &[],
         marked_virtual: false,
