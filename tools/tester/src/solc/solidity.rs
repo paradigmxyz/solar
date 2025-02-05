@@ -52,7 +52,7 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
 
     // Directories starting with `_` are not tests.
     if path_contains("/_")
-        && !path.components().last().unwrap().as_os_str().to_str().unwrap().starts_with('_')
+        && !path.components().next_back().unwrap().as_os_str().to_str().unwrap().starts_with('_')
     {
         return Some("supporting file");
     }

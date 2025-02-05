@@ -2,16 +2,18 @@ error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function a(uint[x / 0] memory) public {}
-   |                     ^^^^^
-   |                     ----- note: division by zero
+   |                     -----
+   |                     |
+   |                     note: division by zero
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function d(uint[0 - 1] memory) public {}
-   |                     ^^^^^
-   |                     ----- note: arithmetic overflow
+   |                     -----
+   |                     |
+   |                     note: arithmetic overflow
    |
 
 error: evaluation of constant value failed
@@ -52,52 +54,72 @@ LL |     function h(uint[zero] memory) public {}
    |                     ^^^^
    |
 
+error: array length must be greater than zero
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function h2(uint[zeroPublic] memory) public {}
+   |                      ^^^^^^^^^^
+   |
+
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function i(uint[block.timestamp] memory) public {}
-   |                     ^^^^^^^^^^^^^^^
-   |                     --------------- note: unsupported expression
+   |                     ---------------
+   |                     |
+   |                     note: unsupported expression
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function j(uint["lol"] memory) public {}
-   |                     ^^^^^
-   |                     ----- note: unsupported literal
+   |                     -----
+   |                     |
+   |                     note: unsupported literal
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function k(uint[--x] memory) public {}
-   |                     ^^^
-   |                     --- note: unsupported unary operation
+   |                     ---
+   |                     |
+   |                     note: unsupported unary operation
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function l(uint[stateVar] memory) public {}
-   |                     ^^^^^^^^
-   |                     -------- note: only constant variables are allowed
+   |                     --------
+   |                     |
+   |                     note: only constant variables are allowed
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
-LL |     function l(uint[stateVarPublic] memory) public {}
-   |                     ^^^^^^^^^^^^^^
-   |                     -------------- note: unsupported expression
+LL |     function m(uint[stateVarPublic] memory) public {}
+   |                     --------------
+   |                     |
+   |                     note: only constant variables are allowed
+   |
+
+error: array length must be greater than zero
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     uint[zero] public zeroArray;
+   |          ^^^^
    |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     uint[bigLiteral + 1] public tooBig1;
-   |          ^^^^^^^^^^^^^^
-   |          -------------- note: arithmetic overflow
+   |          --------------
+   |          |
+   |          note: arithmetic overflow
    |
 
 error: evaluation of constant value failed
@@ -105,12 +127,12 @@ error: evaluation of constant value failed
    |
 LL | uint constant tooBigLiteral = 115792089237316195423570985008687907853269984665640564039457584007913129639936;
    |                               ------------------------------------------------------------------------------ note: integer value is too big
-LL | 
+LL |
 ...
 LL |     uint[bigLiteral + 1] public tooBig1;
 LL |     uint[tooBigLiteral] public tooBig2;
    |          ^^^^^^^^^^^^^
    |
 
-error: aborting due to 13 previous errors
+error: aborting due to 15 previous errors
 

@@ -172,7 +172,7 @@ error: event with same name and parameter types declared twice
 LL |     event E5();
    |           -- note: other declaration
 LL | }
-LL | 
+LL |
 LL | contract D is C2 {
 LL |     event E5() anonymous;
    |           ^^

@@ -108,11 +108,12 @@ declare_visitors! {
         }
 
         fn visit_item_function(&mut self, function: &'ast #mut ItemFunction<'ast>) -> ControlFlow<Self::BreakValue> {
-            let ItemFunction { kind: _, header, body } = function;
+            let ItemFunction { kind: _, header, body, body_span } = function;
             self.visit_function_header #_mut(header)?;
             if let Some(body) = body {
                 self.visit_block #_mut(body)?;
             }
+            self.visit_span #_mut(body_span)?;
             ControlFlow::Continue(())
         }
 
@@ -273,10 +274,8 @@ declare_visitors! {
                     self.visit_variable_definition #_mut(var)?;
                 }
                 StmtKind::DeclMulti(vars, expr) => {
-                    for var in vars.iter #_mut() {
-                        if let Some(var) = var {
-                            self.visit_variable_definition #_mut(var)?;
-                        }
+                    for var in vars.iter #_mut().flatten() {
+                        self.visit_variable_definition #_mut(var)?;
                     }
                     self.visit_expr #_mut(expr)?;
                 }
@@ -346,18 +345,16 @@ declare_visitors! {
         }
 
         fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) -> ControlFlow<Self::BreakValue> {
-            let StmtTry { expr, returns, block, catch } = try_;
+            let StmtTry { expr, clauses } = try_;
             self.visit_expr #_mut(expr)?;
-            self.visit_parameter_list #_mut(returns)?;
-            self.visit_block #_mut(block)?;
-            for catch in catch.iter #_mut() {
-                self.visit_catch_clause #_mut(catch)?;
+            for catch in clauses.iter #_mut() {
+                self.visit_try_catch_clause #_mut(catch)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let CatchClause { name, args, block } = catch;
+        fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
+            let TryCatchClause { name, args, block } = catch;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
@@ -441,10 +438,8 @@ declare_visitors! {
                     self.visit_expr #_mut(false_)?;
                 }
                 ExprKind::Tuple(exprs) => {
-                    for expr in exprs.iter #_mut() {
-                        if let Some(expr) = expr {
-                            self.visit_expr #_mut(expr)?;
-                        }
+                    for expr in exprs.iter #_mut().flatten() {
+                        self.visit_expr #_mut(expr)?;
                     }
                 }
                 ExprKind::TypeCall(ty) => {

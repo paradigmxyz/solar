@@ -22,14 +22,14 @@ LL | bytes constant s = hex"\
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 
@@ -58,13 +58,13 @@ error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
 LL | ...
-   | ^
+   |^
    |
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
-LL | 
+LL |
    | ^
    |
 

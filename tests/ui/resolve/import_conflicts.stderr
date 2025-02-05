@@ -4,7 +4,7 @@ error: identifier `MyUdvt` already declared
 LL | import {MyUdvt, MyUdvt as MyUdvt} from "./auxiliary/udvt.sol";
    |         ------ note: previous declaration declared here
 LL | import {MyUdvt as MyUdvt2, MyUdvt as MyUdvt2} from "./auxiliary/udvt.sol";
-LL | 
+LL |
 LL | import "./auxiliary/udvt.sol" as MyUdvt;
    |                                  ^^^^^^
    |

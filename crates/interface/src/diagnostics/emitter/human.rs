@@ -1,4 +1,4 @@
-use super::{io_panic, rustc::FileWithAnnotatedLines, Diagnostic, Emitter};
+use super::{io_panic, rustc::FileWithAnnotatedLines, Diag, Emitter};
 use crate::{
     diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
     source_map::SourceFile,
@@ -40,7 +40,7 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
@@ -156,11 +156,7 @@ impl HumanEmitter {
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
-    fn snippet<R>(
-        &mut self,
-        diagnostic: &Diagnostic,
-        f: impl FnOnce(&mut Self, Message<'_>) -> R,
-    ) -> R {
+    fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Message<'_>) -> R) -> R {
         // Current format (annotate-snippets 0.10.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
@@ -211,7 +207,7 @@ pub struct HumanBufferEmitter {
 
 impl Emitter for HumanBufferEmitter {
     #[inline]
-    fn emit_diagnostic(&mut self, diagnostic: &Diagnostic) {
+    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
         self.inner.emit_diagnostic(diagnostic);
     }
 
@@ -282,7 +278,7 @@ struct OwnedMessage {
 }
 
 impl OwnedMessage {
-    fn from_diagnostic(diag: &Diagnostic) -> Self {
+    fn from_diagnostic(diag: &Diag) -> Self {
         Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
     }
 
@@ -322,7 +318,7 @@ struct OwnedSnippet {
 }
 
 impl OwnedSnippet {
-    fn collect(sm: &SourceMap, diagnostic: &Diagnostic) -> Vec<Self> {
+    fn collect(sm: &SourceMap, diagnostic: &Diag) -> Vec<Self> {
         // Collect main diagnostic.
         let mut files = Self::collect_files(sm, &diagnostic.span);
         files.iter_mut().for_each(|file| file.set_level(diagnostic.level));
@@ -380,6 +376,16 @@ impl OwnedSnippet {
     }
 }
 
+type MultiLine<'a> = (Option<&'a String>, usize);
+
+fn multi_line_at<'a, 'b>(mls: &'a mut Vec<MultiLine<'b>>, depth: usize) -> &'a mut MultiLine<'b> {
+    assert!(depth > 0);
+    if mls.len() < depth {
+        mls.resize_with(depth, || (None, 0));
+    }
+    &mut mls[depth - 1]
+}
+
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
@@ -406,7 +412,7 @@ fn file_to_snippet(
         fold: true,
         annotations: Vec::new(),
     };
-    let mut multiline_start = None;
+    let mut mls = Vec::new();
     for line in lines {
         let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
         let line_rel_pos = line_abs_pos - snippet_base;
@@ -425,13 +431,12 @@ fn file_to_snippet(
                         level: to_as_level(ann.level.unwrap_or(default_level)),
                     });
                 }
-                super::rustc::AnnotationType::MultilineStart(_) => {
-                    debug_assert!(multiline_start.is_none());
-                    multiline_start = Some((ann.label.as_ref(), rel_pos(&ann.start_col)));
+                super::rustc::AnnotationType::MultilineStart(depth) => {
+                    *multi_line_at(&mut mls, depth) = (ann.label.as_ref(), rel_pos(&ann.start_col));
                 }
                 super::rustc::AnnotationType::MultilineLine(_) => {}
-                super::rustc::AnnotationType::MultilineEnd(_) => {
-                    let (label, multiline_start_idx) = multiline_start.take().unwrap();
+                super::rustc::AnnotationType::MultilineEnd(depth) => {
+                    let (label, multiline_start_idx) = *multi_line_at(&mut mls, depth);
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
                     snippet.annotations.push(OwnedAnnotation {

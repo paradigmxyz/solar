@@ -15,6 +15,9 @@ pub use ast::{
     StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
+mod visit;
+pub use visit::Visit;
+
 /// HIR arena allocator.
 pub struct Arena {
     pub bump: bumpalo::Bump,
@@ -338,8 +341,8 @@ impl<'hir> Item<'_, 'hir> {
     #[inline]
     pub fn description(self) -> &'static str {
         match self {
-            Item::Contract(c) => c.kind.to_str(),
-            Item::Function(f) => f.kind.to_str(),
+            Item::Contract(c) => c.description(),
+            Item::Function(f) => f.description(),
             Item::Struct(_) => "struct",
             Item::Enum(_) => "enum",
             Item::Udvt(_) => "UDVT",
@@ -562,6 +565,11 @@ impl Contract<'_> {
     pub fn is_abstract(&self) -> bool {
         self.kind.is_abstract_contract()
     }
+
+    /// Returns the description of the contract.
+    pub fn description(&self) -> &'static str {
+        self.kind.to_str()
+    }
 }
 
 /// A function.
@@ -597,6 +605,8 @@ pub struct Function<'hir> {
     pub returns: &'hir [VariableId],
     /// The function body.
     pub body: Option<Block<'hir>>,
+    /// The function body span.
+    pub body_span: Span,
     /// The variable this function is a getter of, if any.
     pub gettee: Option<VariableId>,
 }
@@ -623,6 +633,15 @@ impl Function<'_> {
     /// Returns an iterator over all variables in the function.
     pub fn variables(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + use<'_> {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
+    }
+
+    /// Returns the description of the function.
+    pub fn description(&self) -> &'static str {
+        if self.is_getter() {
+            "getter function"
+        } else {
+            self.kind.to_str()
+        }
     }
 }
 
@@ -931,10 +950,14 @@ pub enum StmtKind<'hir> {
     UncheckedBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Emit(&'hir Expr<'hir>),
 
     /// A revert statement: `revert Foo.bar(42);`.
-    Revert(&'hir [Res], CallArgs<'hir>),
+    ///
+    /// Always contains an `ExprKind::Call`.
+    Revert(&'hir Expr<'hir>),
 
     /// A return statement: `return 42;`.
     Return(Option<&'hir Expr<'hir>>),
@@ -968,19 +991,22 @@ pub enum StmtKind<'hir> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
 #[derive(Debug)]
 pub struct StmtTry<'hir> {
+    /// The call expression.
     pub expr: Expr<'hir>,
-    pub returns: &'hir [VariableId],
-    /// The try block.
-    pub block: Block<'hir>,
-    /// The list of catch clauses. Never empty.
-    pub catch: &'hir [CatchClause<'hir>],
+    /// The list of clauses. Never empty.
+    ///
+    /// The first item is always the `returns` clause.
+    pub clauses: &'hir [TryCatchClause<'hir>],
 }
 
-/// A catch clause: `catch (...) { ... }`.
+/// Clause of a try/catch block: `returns/catch (...) { ... }`.
+///
+/// Includes both the successful case and the unsuccessful cases.
+/// Names are only allowed for unsuccessful cases.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
-pub struct CatchClause<'hir> {
+pub struct TryCatchClause<'hir> {
     pub name: Option<Ident>,
     pub args: &'hir [VariableId],
     pub block: Block<'hir>,
@@ -1009,7 +1035,7 @@ impl LoopSource {
 }
 
 /// Resolved name.
-#[derive(Clone, Copy, PartialEq, Eq, From, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum Res {
     /// A resolved item.
     Item(ItemId),
@@ -1075,8 +1101,12 @@ impl Res {
         }
     }
 
-    pub fn is_err(&self) -> bool {
-        matches!(self, Self::Err(_))
+    pub fn as_variable(&self) -> Option<VariableId> {
+        if let Self::Item(id) = self {
+            id.as_variable()
+        } else {
+            None
+        }
     }
 }
 
@@ -1112,12 +1142,10 @@ pub enum ExprKind<'hir> {
     /// A binary operation: `a + b`, `a >> b`.
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
-    /// A function call expression: `foo(42)` or `foo({ bar: 42 })`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>),
+    /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
 
-    /// Function call options: `foo.bar{ value: 1, gas: 2 }`.
-    CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
-
+    // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
     Delete(&'hir Expr<'hir>),
 
@@ -1126,7 +1154,7 @@ pub enum ExprKind<'hir> {
     /// Potentially multiple references if it refers to something like an overloaded function.
     Ident(&'hir [Res]),
 
-    /// A square bracketed indexing expression: `vector[index]`.
+    /// A square bracketed indexing expression: `vector[index]`, `MyType[]`.
     Index(&'hir Expr<'hir>, Option<&'hir Expr<'hir>>),
 
     /// A square bracketed slice expression: `slice[l:r]`.
@@ -1211,6 +1239,16 @@ impl<'hir> CallArgs<'hir> {
         match self {
             Self::Unnamed(exprs) => Either::Left(exprs.iter()),
             Self::Named(args) => Either::Right(args.iter().map(|arg| &arg.value)),
+        }
+    }
+
+    /// Returns the span of the arguments.
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Unnamed(exprs) => Span::join_first_last(exprs.iter().map(|e| e.span)),
+            Self::Named(args) => {
+                Span::join_first_last(args.iter().map(|arg| arg.name.span.to(arg.value.span)))
+            }
         }
     }
 }

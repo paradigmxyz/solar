@@ -11,26 +11,24 @@ macro_rules! str_enum {
         }
 
         impl std::fmt::Display for $name {
-            #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.write_str(self.to_str())
             }
         }
 
         #[cfg(feature = "clap")]
-        impl clap_builder::ValueEnum for $name {
+        impl clap::ValueEnum for $name {
             fn value_variants<'a>() -> &'a [Self] {
                 &[$(Self::$var),*]
             }
 
-            fn to_possible_value(&self) -> Option<clap_builder::builder::PossibleValue> {
-                Some(clap_builder::builder::PossibleValue::new(self.to_str()))
+            fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+                Some(clap::builder::PossibleValue::new(self.to_str()))
             }
         }
 
         #[cfg(feature = "serde")]
         impl serde::Serialize for $name {
-            #[inline]
             fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 serializer.serialize_str(self.to_str())
             }
@@ -38,7 +36,6 @@ macro_rules! str_enum {
 
         #[cfg(feature = "serde")]
         impl<'de> serde::Deserialize<'de> for $name {
-            #[inline]
             fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 deserializer.deserialize_any(crate::utils::StrumVisitor::<Self>::new())
             }
@@ -46,7 +43,6 @@ macro_rules! str_enum {
 
         impl $name {
             /// Returns the string representation of `self`.
-            #[inline]
             pub fn to_str(self) -> &'static str {
                 self.into()
             }
