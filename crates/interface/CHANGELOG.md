@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
+
+### Bug Fixes
+
+- Add Session::enter_parallel ([#183](https://github.com/paradigmxyz/solar/issues/183))
+- [parser] Accept leading dot in literals ([#151](https://github.com/paradigmxyz/solar/issues/151))
+- Properly handle recursive types ([#133](https://github.com/paradigmxyz/solar/issues/133))
+- Install rayon pool in Session::enter ([#123](https://github.com/paradigmxyz/solar/issues/123))
+
+### Dependencies
+
+- Update dependencies ([#161](https://github.com/paradigmxyz/solar/issues/161))
+
+### Documentation
+
+- Fix typos
+- Add some more docs to Session ([#155](https://github.com/paradigmxyz/solar/issues/155))
+- Add icons ([#109](https://github.com/paradigmxyz/solar/issues/109))
+
+### Features
+
+- Add some more Span utils ([#179](https://github.com/paradigmxyz/solar/issues/179))
+- Unify CLI and Session options ([#176](https://github.com/paradigmxyz/solar/issues/176))
+- Add more methods to index types ([#156](https://github.com/paradigmxyz/solar/issues/156))
+- Update to Rust 1.83 ([#150](https://github.com/paradigmxyz/solar/issues/150))
+- Add some FileName functions ([#143](https://github.com/paradigmxyz/solar/issues/143))
+- Print AST statistics with -Zast-stats flag ([#125](https://github.com/paradigmxyz/solar/issues/125))
+
+### Miscellaneous Tasks
+
+- Extend rayon threadpool comment ([#138](https://github.com/paradigmxyz/solar/issues/138))
+- Remove Pos trait ([#137](https://github.com/paradigmxyz/solar/issues/137))
+
+### Testing
+
+- Add a test for SessionGlobals + Session::enter ([#142](https://github.com/paradigmxyz/solar/issues/142))
+- Add another Session test ([#134](https://github.com/paradigmxyz/solar/issues/134))
+
 ## [0.1.0](https://github.com/paradigmxyz/solar/releases/tag/v0.1.0)
 
 Initial release.

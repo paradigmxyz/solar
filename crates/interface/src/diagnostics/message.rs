@@ -4,29 +4,29 @@ use crate::Span;
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DiagnosticMessage {
+pub struct DiagMsg {
     inner: Cow<'static, str>,
 }
 
-impl From<&'static str> for DiagnosticMessage {
+impl From<&'static str> for DiagMsg {
     fn from(value: &'static str) -> Self {
         Self { inner: Cow::Borrowed(value) }
     }
 }
 
-impl From<String> for DiagnosticMessage {
+impl From<String> for DiagMsg {
     fn from(value: String) -> Self {
         Self { inner: Cow::Owned(value) }
     }
 }
 
-impl From<Cow<'static, str>> for DiagnosticMessage {
+impl From<Cow<'static, str>> for DiagMsg {
     fn from(value: Cow<'static, str>) -> Self {
         Self { inner: value }
     }
 }
 
-impl DiagnosticMessage {
+impl DiagMsg {
     /// Returns the message as a string.
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -45,7 +45,7 @@ pub struct SpanLabel {
     pub is_primary: bool,
 
     /// What label should we attach to this span (if any)?
-    pub label: Option<DiagnosticMessage>,
+    pub label: Option<DiagMsg>,
 }
 
 /// A collection of `Span`s.
@@ -58,7 +58,7 @@ pub struct SpanLabel {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MultiSpan {
     primary_spans: Vec<Span>,
-    span_labels: Vec<(Span, DiagnosticMessage)>,
+    span_labels: Vec<(Span, DiagMsg)>,
 }
 
 impl MultiSpan {
@@ -72,11 +72,11 @@ impl MultiSpan {
     }
 
     pub fn from_spans(mut vec: Vec<Span>) -> Self {
-        vec.sort();
+        vec.sort_unstable();
         Self { primary_spans: vec, span_labels: vec![] }
     }
 
-    pub fn push_span_label(&mut self, span: Span, label: impl Into<DiagnosticMessage>) {
+    pub fn push_span_label(&mut self, span: Span, label: impl Into<DiagMsg>) {
         self.span_labels.push((span, label.into()));
     }
 
@@ -119,7 +119,7 @@ impl MultiSpan {
         replacements_occurred
     }
 
-    pub fn pop_span_label(&mut self) -> Option<(Span, DiagnosticMessage)> {
+    pub fn pop_span_label(&mut self) -> Option<(Span, DiagMsg)> {
         self.span_labels.pop()
     }
 
@@ -173,6 +173,16 @@ impl Default for MultiSpan {
 impl From<Span> for MultiSpan {
     fn from(span: Span) -> Self {
         Self::from_span(span)
+    }
+}
+
+impl From<Option<Span>> for MultiSpan {
+    fn from(span: Option<Span>) -> Self {
+        if let Some(span) = span {
+            Self::from_span(span)
+        } else {
+            Self::new()
+        }
     }
 }
 

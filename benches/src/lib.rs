@@ -97,7 +97,7 @@ impl Parser for Solar {
     }
 
     fn lex(&self, src: &str) {
-        let sess = Session::builder().with_stderr_emitter().build();
+        let sess = session();
         for token in solar_parse::Lexer::new(&sess, src) {
             black_box(token);
         }
@@ -105,7 +105,7 @@ impl Parser for Solar {
     }
 
     fn parse(&self, src: &str) {
-        let sess = Session::builder().with_stderr_emitter().build();
+        let sess = session();
         sess.enter(|| -> solar_parse::interface::Result {
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
@@ -118,6 +118,13 @@ impl Parser for Solar {
         })
         .unwrap();
     }
+}
+
+fn session() -> Session {
+    Session::builder()
+        .with_stderr_emitter_and_color(solar_parse::interface::ColorChoice::Always)
+        .single_threaded()
+        .build()
 }
 
 pub struct Solang;

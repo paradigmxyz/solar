@@ -5,6 +5,7 @@ run_unless_dry_run() {
     if [ "$DRY_RUN" = "true" ]; then
         echo "skipping due to dry run: $*" >&2
     else
+        echo "running: $*" >&2
         "$@"
     fi
 }
@@ -17,8 +18,14 @@ if [[ "$CRATE_ROOT" != *crates/* ]]; then
     exit 0
 fi
 
-command=(git cliff --workdir "$root" --config "$root/cliff.toml" --latest "${@}")
-run_unless_dry_run "${command[@]}" --prepend "$root/CHANGELOG.md"
+command=(git cliff --workdir "$root" --config "$root/cliff.toml" --unreleased "${@}")
+if [ -z "$(git status --porcelain "$root/CHANGELOG.md")" ]; then
+    pushd "$root" >/dev/null
+    run_unless_dry_run "${command[@]}" --prepend "$root/CHANGELOG.md"
+    popd >/dev/null
+else
+    echo "$root/CHANGELOG.md has already been generated" >&2
+fi
 if [ -n "$crate" ] && [ "$root" != "$crate" ]; then
     run_unless_dry_run "${command[@]}" --include-path "$crate_glob" --prepend "$crate/CHANGELOG.md"
 fi

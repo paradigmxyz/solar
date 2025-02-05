@@ -528,7 +528,11 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         let mut ret_ty = &self.hir.variable(gettee).ty;
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
-        let new_param = |this: &mut Self, ty, name| {
+        let new_param = |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+            ty.span = span;
+            if let Some(name) = &mut name {
+                name.span = span;
+            }
             this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionParam)
         };
         for i in 0usize.. {
@@ -563,15 +567,23 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             }
         }
         let ret_ty = ret_ty.clone();
+        if let Some(name) = &mut ret_name {
+            name.span = span;
+        }
 
         let mut returns = SmallVec::<[_; 8]>::new();
-        let mut push_return = |this: &mut Self, ty, name| {
-            let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
-            if ret.ty.kind.is_reference_type() {
-                ret.data_location = Some(hir::DataLocation::Memory);
-            }
-            returns.push(this.hir.variables.push(ret))
-        };
+        let mut push_return =
+            |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+                ty.span = ret_ty.span;
+                if let Some(name) = &mut name {
+                    name.span = span;
+                }
+                let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
+                if ret.ty.kind.is_reference_type() {
+                    ret.data_location = Some(hir::DataLocation::Memory);
+                }
+                returns.push(this.hir.variables.push(ret))
+            };
         let mut ret_struct = None;
         if let hir::TypeKind::Custom(hir::ItemId::Struct(s_id)) = ret_ty.kind {
             ret_struct = Some(s_id);
@@ -610,8 +622,12 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             }
 
             match returns[..] {
-                // Will fail typechecking later.
-                [] => Some(&[]),
+                [] => {
+                    let msg = "getter must return at least one value";
+                    let note = "the struct has all its members omitted, therefore the getter cannot return any values";
+                    self.dcx().err(msg).span(span).span_note(ret_ty.span, note).emit();
+                    Some(&[])
+                }
                 // `return <expr>;`
                 [_] if ret_struct.is_none() => {
                     Some(self.arena.alloc_as_slice(mk_stmt(hir::StmtKind::Return(Some(expr)))))
@@ -807,11 +823,15 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             | ast::StmtKind::DoWhile(_, _)
             | ast::StmtKind::For { .. } => self.lower_loop_stmt(stmt),
             ast::StmtKind::Emit(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Emit(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Emit(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Revert(path, args) => match self.resolve_path(path) {
-                Ok(res) => hir::StmtKind::Revert(res, self.lower_call_args(args)),
+                Ok(res) => {
+                    hir::StmtKind::Revert(self.make_call_expr_for_emit(path, res, args, stmt.span))
+                }
                 Err(guar) => hir::StmtKind::Err(guar),
             },
             ast::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_expr(expr)),
@@ -820,23 +840,51 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.lower_stmt(then),
                 else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
             ),
-            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+            ast::StmtKind::Try(ast::StmtTry { expr, clauses }) => {
                 hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
                     expr: self.lower_expr_full(expr),
-                    returns: self.lower_variables(returns, hir::VarKind::TryCatch),
-                    block: self.lower_block(block),
-                    catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
-                        hir::CatchClause {
-                            name: catch.name,
-                            args: self.lower_variables(catch.args, hir::VarKind::TryCatch),
-                            block: self.lower_block(catch.block),
-                        }
-                    })),
+                    clauses: self.arena.alloc_slice_fill_iter(
+                        clauses.iter().map(|catch| self.lower_try_catch_clause(catch)),
+                    ),
                 }))
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    fn lower_try_catch_clause(
+        &mut self,
+        &ast::TryCatchClause { name, ref args, ref block }: &ast::TryCatchClause<'_>,
+    ) -> hir::TryCatchClause<'hir> {
+        self.in_scope(|this| hir::TryCatchClause {
+            name,
+            args: this.lower_variables(args, hir::VarKind::TryCatch),
+            block: this.lower_block(block),
+        })
+    }
+
+    /// Converts path + args into a Call expression for emit/revert statements.
+    fn make_call_expr_for_emit(
+        &mut self,
+        path: &ast::PathSlice,
+        res: &'hir [Res],
+        args: &ast::CallArgs<'_>,
+        span: Span,
+    ) -> &'hir hir::Expr<'hir> {
+        self.arena.alloc(hir::Expr {
+            kind: hir::ExprKind::Call(
+                self.arena.alloc(hir::Expr {
+                    id: self.next_id(),
+                    kind: hir::ExprKind::Ident(res),
+                    span: path.last().span,
+                }),
+                self.lower_call_args(args),
+                None,
+            ),
+            id: self.next_id(),
+            span,
+        })
     }
 
     fn lower_variables(
@@ -986,10 +1034,26 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
-                hir::ExprKind::Call(self.lower_expr(callee), self.lower_call_args(args))
+                let (callee, options) =
+                    if let ast::ExprKind::CallOptions(expr, options) = &callee.kind {
+                        (self.lower_expr(expr), Some(self.lower_named_args(options)))
+                    } else {
+                        (self.lower_expr(callee), None)
+                    };
+                hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
             ast::ExprKind::CallOptions(callee, options) => {
-                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_named_args(options))
+                let callee = self.lower_expr(callee);
+                let _options = self.lower_named_args(options);
+                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
+                hir::ExprKind::Err(
+                    self.sess
+                        .dcx
+                        .err("call options must be part of a call expression")
+                        .span(options_span)
+                        .span_note(expr.span, "this expression is not a function call expression")
+                        .emit(),
+                )
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
@@ -1003,7 +1067,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             ast::ExprKind::Index(expr, index) => match index {
                 ast::IndexKind::Index(index) => hir::ExprKind::Index(
                     self.lower_expr(expr),
-                    index.as_deref().map(|index| self.lower_expr(index)),
+                    self.lower_expr_opt(index.as_deref()),
                 ),
                 ast::IndexKind::Range(start, end) => hir::ExprKind::Slice(
                     self.lower_expr(expr),
@@ -1285,7 +1349,6 @@ impl SymbolResolverScopes {
         self.scopes.push(Declarations::new());
     }
 
-    #[track_caller]
     #[inline]
     fn current_scope(&mut self) -> &mut Declarations {
         if self.scopes.is_empty() {

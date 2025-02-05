@@ -29,9 +29,6 @@ name = "tests"
 path = "./tests.rs"
 harness = false
 
-[build-dependencies]
-vergen = { workspace = true, features = ["build", "git", "gitcl"] }
-
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true

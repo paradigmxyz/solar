@@ -62,9 +62,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
         let expr = expr.peel_parens();
         match expr.kind {
-            // hir::ExprKind::Array(_) => {
-            //     unimplemented!()
-            // }
+            // hir::ExprKind::Array(_) => unimplemented!(),
             // hir::ExprKind::Assign(_, _, _) => unimplemented!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval(l)?;
@@ -74,7 +72,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Call(_, _) => unimplemented!(),
             // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
             // hir::ExprKind::Delete(_) => unimplemented!(),
-            hir::ExprKind::Ident(&[hir::Res::Item(hir::ItemId::Variable(v))]) => {
+            hir::ExprKind::Ident(res) => {
+                // Ignore invalid overloads since they will get correctly detected later.
+                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
+                    return Err(EE::NonConstantVar.into());
+                };
+
                 let v = self.gcx.hir.variable(v);
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());

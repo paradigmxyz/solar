@@ -1,7 +1,6 @@
 use super::{
-    emitter::HumanEmitter, BugAbort, Diagnostic, DiagnosticBuilder, DiagnosticMessage, DynEmitter,
-    EmissionGuarantee, EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level,
-    SilentEmitter,
+    emitter::HumanEmitter, BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee,
+    EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -101,9 +100,12 @@ impl DiagCtxt {
     }
 
     /// Creates a new `DiagCtxt` with a silent emitter.
+    ///
+    /// Fatal diagnostics will still be emitted, optionally with the given note.
     pub fn with_silent_emitter(fatal_note: Option<String>) -> Self {
-        let fatal_dcx = Self::with_stderr_emitter(None).disable_warnings();
-        Self::new(Box::new(SilentEmitter::new(fatal_dcx).with_note(fatal_note))).disable_warnings()
+        let fatal_emitter = HumanEmitter::stderr(Default::default());
+        Self::new(Box::new(SilentEmitter::new(fatal_emitter).with_note(fatal_note)))
+            .disable_warnings()
     }
 
     /// Creates a new `DiagCtxt` with a human emitter that emits diagnostics to a local buffer.
@@ -112,6 +114,24 @@ impl DiagCtxt {
         color_choice: ColorChoice,
     ) -> Self {
         Self::new(Box::new(HumanBufferEmitter::new(color_choice).source_map(source_map)))
+    }
+
+    /// Sets the emitter to [`SilentEmitter`].
+    pub fn make_silent(&self, fatal_note: Option<String>, emit_fatal: bool) {
+        self.wrap_emitter(|prev| {
+            Box::new(SilentEmitter::new_boxed(emit_fatal.then_some(prev)).with_note(fatal_note))
+        });
+    }
+
+    fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
+        struct FakeEmitter;
+        impl crate::diagnostics::Emitter for FakeEmitter {
+            fn emit_diagnostic(&mut self, _diagnostic: &Diag) {}
+        }
+
+        let mut inner = self.inner.lock();
+        let prev = std::mem::replace(&mut inner.emitter, Box::new(FakeEmitter));
+        inner.emitter = f(prev);
     }
 
     /// Gets the source map associated with this context.
@@ -142,17 +162,17 @@ impl DiagCtxt {
 
     /// Emits the given diagnostic with this context.
     #[inline]
-    pub fn emit_diagnostic(&self, mut diagnostic: Diagnostic) -> Result<(), ErrorGuaranteed> {
+    pub fn emit_diagnostic(&self, mut diagnostic: Diag) -> Result<(), ErrorGuaranteed> {
         self.emit_diagnostic_without_consuming(&mut diagnostic)
     }
 
     /// Emits the given diagnostic with this context, without consuming the diagnostic.
     ///
-    /// **Note:** This function is intended to be used only internally in `DiagnosticBuilder`.
+    /// **Note:** This function is intended to be used only internally in `DiagBuilder`.
     /// Use [`emit_diagnostic`](Self::emit_diagnostic) instead.
     pub(super) fn emit_diagnostic_without_consuming(
         &self,
-        diagnostic: &mut Diagnostic,
+        diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
         self.inner.lock().emit_diagnostic_without_consuming(diagnostic)
     }
@@ -196,35 +216,35 @@ impl DiagCtxt {
     }
 }
 
-/// Diagnostic constructors.
+/// Diag constructors.
 ///
-/// Note that methods returning a [`DiagnosticBuilder`] must also marked with `#[track_caller]`.
+/// Note that methods returning a [`DiagBuilder`] must also marked with `#[track_caller]`.
 impl DiagCtxt {
     /// Creates a builder at the given `level` with the given `msg`.
     #[track_caller]
     pub fn diag<G: EmissionGuarantee>(
         &self,
         level: Level,
-        msg: impl Into<DiagnosticMessage>,
-    ) -> DiagnosticBuilder<'_, G> {
-        DiagnosticBuilder::new(self, level, msg)
+        msg: impl Into<DiagMsg>,
+    ) -> DiagBuilder<'_, G> {
+        DiagBuilder::new(self, level, msg)
     }
 
     /// Creates a builder at the `Bug` level with the given `msg`.
     #[track_caller]
-    pub fn bug(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, BugAbort> {
+    pub fn bug(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, BugAbort> {
         self.diag(Level::Bug, msg)
     }
 
     /// Creates a builder at the `Fatal` level with the given `msg`.
     #[track_caller]
-    pub fn fatal(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, FatalAbort> {
+    pub fn fatal(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, FatalAbort> {
         self.diag(Level::Fatal, msg)
     }
 
     /// Creates a builder at the `Error` level with the given `msg`.
     #[track_caller]
-    pub fn err(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ErrorGuaranteed> {
+    pub fn err(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ErrorGuaranteed> {
         self.diag(Level::Error, msg)
     }
 
@@ -232,31 +252,31 @@ impl DiagCtxt {
     ///
     /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
     #[track_caller]
-    pub fn warn(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+    pub fn warn(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ()> {
         self.diag(Level::Warning, msg)
     }
 
     /// Creates a builder at the `Help` level with the given `msg`.
     #[track_caller]
-    pub fn help(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+    pub fn help(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ()> {
         self.diag(Level::Help, msg)
     }
 
     /// Creates a builder at the `Note` level with the given `msg`.
     #[track_caller]
-    pub fn note(&self, msg: impl Into<DiagnosticMessage>) -> DiagnosticBuilder<'_, ()> {
+    pub fn note(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ()> {
         self.diag(Level::Note, msg)
     }
 }
 
 impl DiagCtxtInner {
-    fn emit_diagnostic(&mut self, mut diagnostic: Diagnostic) -> Result<(), ErrorGuaranteed> {
+    fn emit_diagnostic(&mut self, mut diagnostic: Diag) -> Result<(), ErrorGuaranteed> {
         self.emit_diagnostic_without_consuming(&mut diagnostic)
     }
 
     fn emit_diagnostic_without_consuming(
         &mut self,
-        diagnostic: &mut Diagnostic,
+        diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
         if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
             return Ok(());
@@ -325,11 +345,11 @@ impl DiagCtxtInner {
         match (self.deduplicated_err_count, self.deduplicated_warn_count) {
             (0, 0) => Ok(()),
             (0, w) => {
-                self.emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, warnings(w)));
+                self.emitter.emit_diagnostic(&Diag::new(Level::Warning, warnings(w)));
                 Ok(())
             }
-            (e, 0) => self.emit_diagnostic(Diagnostic::new(Level::Error, errors(e))),
-            (e, w) => self.emit_diagnostic(Diagnostic::new(
+            (e, 0) => self.emit_diagnostic(Diag::new(Level::Error, errors(e))),
+            (e, w) => self.emit_diagnostic(Diag::new(
                 Level::Error,
                 format!("{}; {}", errors(e), warnings(w)),
             )),

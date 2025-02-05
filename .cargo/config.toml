@@ -3,7 +3,7 @@ xtask = "run --package xtask --bin xtask --"
 tq = "xtask test"
 qt = "tq"
 ryul = "run --package solar-compiler --bin solar -- --language yul -Zparse-yul"
-bless = "xtask test --bless"
+bless = "uibless"
 uitest = "xtask test ui"
 uibless = "xtask test ui --bless"
 

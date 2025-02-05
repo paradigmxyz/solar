@@ -403,6 +403,8 @@ pub struct ItemFunction<'ast> {
     pub header: FunctionHeader<'ast>,
     /// The body of the function. This is `;` when the value is `None`.
     pub body: Option<Block<'ast>>,
+    /// The span of the body. Points to the `;` if the function is not implemented.
+    pub body_span: Span,
 }
 
 impl ItemFunction<'_> {

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
+
+### Bug Fixes
+
+- Properly handle recursive types ([#133](https://github.com/paradigmxyz/solar/issues/133))
+
+### Dependencies
+
+- Update dependencies ([#161](https://github.com/paradigmxyz/solar/issues/161))
+
+### Documentation
+
+- Add icons ([#109](https://github.com/paradigmxyz/solar/issues/109))
+
+### Features
+
+- Add more methods to index types ([#156](https://github.com/paradigmxyz/solar/issues/156))
+- Add try_new to newtype_index! types ([#152](https://github.com/paradigmxyz/solar/issues/152))
+- Validate variable data locations ([#149](https://github.com/paradigmxyz/solar/issues/149))
+
 ## [0.1.0](https://github.com/paradigmxyz/solar/releases/tag/v0.1.0)
 
 Initial release.

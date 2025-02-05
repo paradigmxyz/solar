@@ -1,5 +1,10 @@
 [files]
-extend-exclude = ["testdata", "crates/parse/src/lexer/unicode_chars.rs"]
+extend-exclude = [
+    "tests",
+    "testdata",
+    "dist-workspace.toml",
+    "crates/parse/src/lexer/unicode_chars.rs",
+]
 
 [default.extend-words]
 ket = "ket"

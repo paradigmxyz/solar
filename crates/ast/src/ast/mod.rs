@@ -70,7 +70,44 @@ impl std::ops::Deref for Arena {
 }
 
 /// A list of doc-comments.
-pub type DocComments<'ast> = Box<'ast, [DocComment]>;
+#[derive(Default)]
+pub struct DocComments<'ast>(pub Box<'ast, [DocComment]>);
+
+impl<'ast> std::ops::Deref for DocComments<'ast> {
+    type Target = Box<'ast, [DocComment]>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for DocComments<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'ast> From<Box<'ast, [DocComment]>> for DocComments<'ast> {
+    fn from(comments: Box<'ast, [DocComment]>) -> Self {
+        Self(comments)
+    }
+}
+
+impl fmt::Debug for DocComments<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("DocComments ")?;
+        self.0.fmt(f)
+    }
+}
+
+impl DocComments<'_> {
+    /// Returns the span containing all doc-comments.
+    pub fn span(&self) -> Span {
+        Span::join_first_last(self.iter().map(|d| d.span))
+    }
+}
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Clone, Copy, Debug)]

@@ -169,13 +169,13 @@ impl Ident {
         self.name.is_location_specifier()
     }
 
-    /// Returns `true` if the identfier is a mutability specifier.
+    /// Returns `true` if the identifier is a mutability specifier.
     #[inline]
     pub fn is_mutability_specifier(self) -> bool {
         self.name.is_mutability_specifier()
     }
 
-    /// Returns `true` if the identfier is a visibility specifier.
+    /// Returns `true` if the identifier is a visibility specifier.
     #[inline]
     pub fn is_visibility_specifier(self) -> bool {
         self.name.is_visibility_specifier()
