@@ -1,0 +1,3 @@
+ROOT/tests/ui/typeck/contract_storage_size_check.sol:B requires a maximum of 2 storage slots
+ROOT/tests/ui/typeck/contract_storage_size_check.sol:A requires a maximum of 77 storage slots
+ROOT/tests/ui/typeck/contract_storage_size_check.sol:M requires a maximum of 8 storage slots
