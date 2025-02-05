@@ -164,7 +164,7 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), '/' if self.second() != '/');
 
-        self.eat_while(|c| c != '\n');
+        self.eat_until(b'\n');
         RawTokenKind::LineComment { is_doc }
     }
 
@@ -449,6 +449,14 @@ impl<'a> Cursor<'a> {
         while predicate(self.first()) && !self.is_eof() {
             self.bump();
         }
+    }
+
+    /// Eats symbols until the given byte is encountered or until the end of file is reached.
+    fn eat_until(&mut self, byte: u8) {
+        self.chars = match memchr::memchr(byte, self.as_str().as_bytes()) {
+            Some(index) => self.as_str()[index..].chars(),
+            None => "".chars(),
+        };
     }
 }
 
