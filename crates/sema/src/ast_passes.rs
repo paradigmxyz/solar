@@ -399,7 +399,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx()
                         .err("return parameters in function types may not be named")
                         .span(param.span)
-                        .help(format!("remove `{param_name}`"))
+                        .span_help(param_name.span, format!("remove `{param_name}`"))
                         .emit();
                 }
             }
