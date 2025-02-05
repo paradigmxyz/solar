@@ -1,4 +1,4 @@
-//@ compile-flags: -Zstorage-sz-ub
+//@ compile-flags: -Zcontract-max-storage-size
 
 struct Person {
     string name;

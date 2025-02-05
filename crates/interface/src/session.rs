@@ -18,10 +18,6 @@ pub struct Session {
     /// The compiler options.
     #[builder(default)]
     pub opts: Opts,
-
-    /// Whether to emit contract's storage size upper bound
-    #[builder(default)]
-    pub storage_sz_ub: bool,
 }
 
 impl SessionBuilder {
