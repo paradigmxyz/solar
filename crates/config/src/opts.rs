@@ -158,6 +158,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Print contract's max storage size.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub print_contract_max_storage_size: bool,
+
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),
@@ -170,6 +174,7 @@ pub struct UnstableOpts {
     #[cfg(test)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub test_bool: bool,
+
     #[cfg(test)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub test_value: Option<usize>,
