@@ -160,7 +160,7 @@ pub struct UnstableOpts {
 
     /// Print contract's max storage size.
     #[cfg_attr(feature = "clap", arg(long))]
-    pub contract_max_storage_size: bool,
+    pub print_contract_max_storage_size: bool,
 
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
