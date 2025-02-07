@@ -6,55 +6,55 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
+pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     let path_contains = path_contains_curry(path);
 
     if path_contains("/libyul/") {
-        return Some("actually a Yul test");
+        return Err("actually a Yul test");
     }
 
     if path_contains("/cmdlineTests/") {
-        return Some("CLI tests do not have the same format as everything else");
+        return Err("CLI tests do not have the same format as everything else");
     }
 
     if path_contains("/lsp/") {
-        return Some("LSP tests do not have the same format as everything else");
+        return Err("LSP tests do not have the same format as everything else");
     }
 
     if path_contains("/ASTJSON/") {
-        return Some("no JSON AST");
+        return Err("no JSON AST");
     }
 
     if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental") {
-        return Some("solidity experimental is not implemented");
+        return Err("solidity experimental is not implemented");
     }
 
     // We don't parse licenses.
     if path_contains("/license/") {
-        return Some("licenses are not checked");
+        return Err("licenses are not checked");
     }
 
     if path_contains("natspec") {
-        return Some("natspec is not checked");
+        return Err("natspec is not checked");
     }
 
     if path_contains("_direction_override") {
-        return Some("Unicode direction override checks not implemented");
+        return Err("Unicode direction override checks not implemented");
     }
 
     if path_contains("max_depth_reached_") {
-        return Some("recursion guard will not be implemented");
+        return Err("recursion guard will not be implemented");
     }
 
     if path_contains("wrong_compiler_") {
-        return Some("Solidity pragma version is not checked");
+        return Err("Solidity pragma version is not checked");
     }
 
     // Directories starting with `_` are not tests.
     if path_contains("/_")
         && !path.components().next_back().unwrap().as_os_str().to_str().unwrap().starts_with('_')
     {
-        return Some("supporting file");
+        return Err("supporting file");
     }
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -102,10 +102,10 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "invalid_state_variable_location"
         | "location_specifiers_for_state_variables"
     ) {
-        return Some("manually skipped");
+        return Err("manually skipped");
     };
 
-    None
+    Ok(())
 }
 
 /// Handles `====` and `==== ExternalSource: ... ====` delimiters in a solc test file.
