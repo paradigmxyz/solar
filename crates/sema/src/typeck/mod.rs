@@ -50,7 +50,7 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     }
 
     if gcx.sess.opts.unstable.print_contract_max_storage_size {
-        let full_contract_name = format!("{}", gcx.contract_fully_qualified_name(contract_id));
+        let full_contract_name = gcx.contract_fully_qualified_name(contract_id);
         println!("{full_contract_name} requires a maximum of {total_size} storage slots");
     }
 }
