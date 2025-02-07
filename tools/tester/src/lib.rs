@@ -173,8 +173,8 @@ fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Opti
     }
     let skip = match cfg.mode {
         Mode::Ui => false,
-        Mode::SolcSolidity => solc::solidity::should_skip(path).is_some(),
-        Mode::SolcYul => solc::yul::should_skip(path).is_some(),
+        Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
+        Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
     Some(!skip)
 }
