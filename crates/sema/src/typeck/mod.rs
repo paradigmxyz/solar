@@ -1,10 +1,11 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
-    hir::{self, Res},
+    hir::{self, Res, Variable},
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
 use rayon::prelude::*;
+use solar_ast::DataLocation;
 use solar_data_structures::{map::FxHashSet, parallel};
 
 pub(crate) fn check(gcx: Gcx<'_>) {
@@ -23,27 +24,24 @@ pub(crate) fn check(gcx: Gcx<'_>) {
 /// Checks for violation of maximum storage size to ensure slot allocation algorithms works.
 /// Reference: https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
-    let contract = gcx.hir.contract(contract_id);
-    let contract_items = gcx.hir.contract_items(contract_id);
     let mut total_size = U256::ZERO;
-    for item in contract_items {
-        if let hir::Item::Variable(variable) = item {
-            // Skip constant and immutable variables
-            if variable.mutability.is_none() {
-                let t = gcx.type_of_hir_ty(&variable.ty);
-                match ty_upper_bound_storage_var_size(t, gcx)
-                    .and_then(|size_contribution| total_size.checked_add(size_contribution))
-                {
-                    Some(sz) => {
-                        total_size = sz;
-                    }
-                    None => {
-                        gcx.dcx()
-                            .err("contract requires too much storage")
-                            .span(contract.name.span)
-                            .emit();
-                        return;
-                    }
+    for item_id in gcx.hir.contract_item_ids(contract_id) {
+        // Skip constant and immutable variables
+        if let hir::Item::Variable(Variable { mutability: None, .. }) = gcx.hir.item(item_id) {
+            let t = gcx.type_of_item(item_id);
+            match ty_upper_bound_storage_var_size(t, gcx)
+                .and_then(|size_contribution| total_size.checked_add(size_contribution))
+            {
+                Some(sz) => {
+                    total_size = sz;
+                }
+                None => {
+                    let contract = gcx.hir.contract(contract_id);
+                    gcx.dcx()
+                        .err("contract requires too much storage")
+                        .span(contract.name.span)
+                        .emit();
+                    return;
                 }
             }
         }
@@ -65,6 +63,7 @@ fn ty_upper_bound_storage_var_size(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
         | TyKind::DynArray(..) => Some(U256::from(1)),
+        TyKind::Ref(ty, DataLocation::Storage) => ty_upper_bound_storage_var_size(ty, gcx),
         TyKind::Ref(..)
         | TyKind::Tuple(..)
         | TyKind::FnPtr(..)
@@ -82,13 +81,10 @@ fn ty_upper_bound_storage_var_size(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
             uint.checked_mul(elem_size)
         }
         TyKind::Struct(struct_id) => {
-            let strukt = gcx.hir.strukt(struct_id);
             // Reference https://github.com/ethereum/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
             let mut total_size = U256::from(1);
-            for field_id in strukt.fields {
-                let variable = gcx.hir.variable(*field_id);
-                let t = gcx.type_of_hir_ty(&variable.ty);
-                let size_contribution = ty_upper_bound_storage_var_size(t, gcx)?;
+            for t in gcx.struct_field_types(struct_id) {
+                let size_contribution = ty_upper_bound_storage_var_size(*t, gcx)?;
                 total_size = total_size.checked_add(size_contribution)?;
             }
             Some(total_size)
