@@ -1,4 +1,4 @@
-//@ compile-flags: -Zcontract-max-storage-size
+//@ compile-flags: -Zprint-contract-max-storage-size
 
 // Okay because 2^256 - 1 slots, which are the maximum permissible slots, are used
 contract BarelyLegal {
