@@ -391,4 +391,19 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         }
         self.walk_expr(expr)
     }
+
+    fn visit_ty(&mut self, ty: &'ast solar_ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
+        if let ast::TypeKind::Function(f) = &ty.kind {
+            for param in f.returns.iter() {
+                if let Some(param_name) = param.name {
+                    self.dcx()
+                        .err("return parameters in function types may not be named")
+                        .span(param.span)
+                        .span_help(param_name.span, format!("remove `{param_name}`"))
+                        .emit();
+                }
+            }
+        }
+        self.walk_ty(ty)
+    }
 }
