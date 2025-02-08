@@ -136,8 +136,13 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
 }
 
 fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
-    let _ = (gcx, f);
-    todo!()
+    // Function pointers in Solidity have the following members:
+    // - selector: returns the function selector as bytes4
+    // - address: returns the contract address where the function is located
+    vec![
+        Member::of_builtin(gcx, Builtin::FunctionSelector),
+        Member::of_builtin(gcx, Builtin::FunctionAddress),
+    ]
 }
 
 fn reference<'gcx>(
