@@ -19,6 +19,15 @@ mod utils;
 #[cfg(feature = "version")]
 pub mod version;
 
+/// Whether the target is single-threaded.
+///
+/// We still allow passing `-j` greater than 1, but it should gracefully handle the error when
+/// spawning the thread pool.
+///
+/// Modified from `libtest`: <https://github.com/rust-lang/rust/blob/96cfc75584359ae7ad11cc45968059f29e7b44b7/library/test/src/lib.rs#L605-L607>
+pub const SINGLE_THREADED_TARGET: bool =
+    cfg!(target_os = "emscripten") || cfg!(target_family = "wasm") || cfg!(target_os = "zkvm");
+
 str_enum! {
     /// Compiler stage.
     #[derive(strum::EnumIs)]
@@ -210,7 +219,7 @@ impl From<usize> for Threads {
 
 impl Default for Threads {
     fn default() -> Self {
-        Self(NonZeroUsize::new(8).unwrap())
+        Self::resolve(if SINGLE_THREADED_TARGET { 1 } else { 8 })
     }
 }
 
