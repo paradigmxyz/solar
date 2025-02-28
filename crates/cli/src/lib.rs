@@ -25,6 +25,9 @@ pub mod sigsegv_handler;
 /// This is a no-op because this platform doesn't support our signal handler's requirements.
 #[cfg(not(all(unix, any(target_env = "gnu", target_os = "macos"))))]
 pub mod sigsegv_handler {
+    #[cfg(unix)]
+    use libc as _;
+
     /// No-op function.
     pub fn install() {}
 }
