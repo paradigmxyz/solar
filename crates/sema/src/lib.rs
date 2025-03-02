@@ -25,6 +25,7 @@ mod ast_lowering;
 mod ast_passes;
 
 mod parse;
+use crate::hir::{Arena, Hir};
 pub use parse::{ParsedSource, ParsedSources, ParsingContext};
 
 pub mod builtins;
@@ -98,6 +99,29 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     analysis(gcx)?;
 
     Ok(())
+}
+
+/// Parses and lowers to HIR, recursing into imports.
+pub fn parse_and_lower_to_hir<'hir>(pcx: ParsingContext<'_>, hir_arena: &'hir Arena) -> Result<Hir<'hir>> {
+    let sess = pcx.sess;
+
+    if pcx.sources.is_empty() {
+        let msg = "no files found";
+        let note = "if you wish to use the standard input, please specify `-` explicitly";
+        return Err(sess.dcx.err(msg).note(note).emit());
+    }
+
+    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
+        debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
+        debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
+    });
+    let mut sources = pcx.parse(&ast_arenas);
+
+    sources.topo_sort();
+
+    let (hir, _) = lower(sess, &sources, hir_arena)?;
+
+    Ok(hir)
 }
 
 /// Lowers the parsed ASTs into the HIR.

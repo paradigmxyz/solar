@@ -1,4 +1,4 @@
-use crate::hir::SourceId;
+use crate::hir::{Arena, Hir, SourceId};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -88,6 +88,10 @@ impl<'sess> ParsingContext<'sess> {
 
     pub fn parse_and_resolve(self) -> Result<()> {
         crate::parse_and_resolve(self)
+    }
+
+    pub fn parse_and_lower_to_hir(self, hir_arena: &Arena) -> Result<Hir<'_>> {
+        crate::parse_and_lower_to_hir(self, hir_arena)
     }
 
     /// Parses all the loaded sources, recursing into imports.
