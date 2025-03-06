@@ -1,7 +1,7 @@
 use solar::{
     interface::{diagnostics::EmittedDiagnostics, Session},
     sema::{
-        hir::{Arena, ContractId, Hir},
+        hir::{Arena, ContractId},
         ParsingContext,
     },
 };
@@ -23,9 +23,9 @@ fn main() -> Result<(), EmittedDiagnostics> {
         let mut parsing_context = ParsingContext::new(&sess);
         parsing_context.load_files(paths)?;
         let hir = parsing_context.parse_and_lower_to_hir(&hir_arena)?;
-        let counter_contract = Hir::contract(&hir, ContractId::new(0));
+        let counter_contract = hir.contract(ContractId::new(0));
         assert_eq!(counter_contract.name.to_string(), "Counter");
-        let another_counter_contract = Hir::contract(&hir, ContractId::new(1));
+        let another_counter_contract = hir.contract(ContractId::new(1));
         assert_eq!(another_counter_contract.name.to_string(), "AnotherCounter");
         Ok(())
     });
@@ -34,3 +34,4 @@ fn main() -> Result<(), EmittedDiagnostics> {
     // If any errors were emitted, this returns `Err(_)`, otherwise `Ok(())`.
     sess.emitted_errors().unwrap()
 }
+
