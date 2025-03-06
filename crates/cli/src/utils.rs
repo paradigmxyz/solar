@@ -38,13 +38,29 @@ pub const fn new_allocator() -> Allocator {
 }
 
 /// Initialize the tracing logger.
+#[must_use]
 pub fn init_logger() -> impl Sized {
+    #[cfg(not(feature = "tracing"))]
+    {
+        if std::env::var_os("RUST_LOG").is_some() {
+            let msg = "`RUST_LOG` is set, but \"tracing\" support was not enabled at compile time";
+            DiagCtxt::new_early().warn(msg).emit();
+        }
+        if std::env::var_os("SOLAR_PROFILE").is_some() {
+            let msg =
+                "`SOLAR_PROFILE` is set, but \"tracing\" support was not enabled at compile time";
+            DiagCtxt::new_early().warn(msg).emit();
+        }
+    }
+
+    #[cfg(feature = "tracing")]
     match try_init_logger() {
         Ok(guard) => guard,
         Err(e) => DiagCtxt::new_early().fatal(e).emit(),
     }
 }
 
+#[cfg(feature = "tracing")]
 fn try_init_logger() -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
@@ -74,6 +90,7 @@ fn try_init_logger() -> Result<impl Sized, String> {
         .map_err(|e| e.to_string())
 }
 
+#[cfg(feature = "tracing")]
 #[cfg(feature = "tracy")]
 fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
     struct Config(tracing_subscriber::fmt::format::DefaultFields);
@@ -92,11 +109,13 @@ fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
     tracing_tracy::TracyLayer::new(Config(Default::default()))
 }
 
+#[cfg(feature = "tracing")]
 #[cfg(not(feature = "tracy"))]
 fn tracy_layer() -> tracing_subscriber::layer::Identity {
     tracing_subscriber::layer::Identity::new()
 }
 
+#[cfg(feature = "tracing")]
 #[cfg(feature = "tracing-chrome")]
 fn chrome_layer<S>() -> (tracing_chrome::ChromeLayer<S>, tracing_chrome::FlushGuard)
 where
@@ -108,12 +127,14 @@ where
     tracing_chrome::ChromeLayerBuilder::new().include_args(true).build()
 }
 
+#[cfg(feature = "tracing")]
 #[cfg(not(feature = "tracing-chrome"))]
 fn chrome_layer() -> (tracing_subscriber::layer::Identity, ()) {
     (tracing_subscriber::layer::Identity::new(), ())
 }
 
-#[allow(dead_code)]
+/*
 pub(crate) fn env_to_bool(value: Option<&std::ffi::OsStr>) -> bool {
     value.is_some_and(|value| value == "1" || value == "true")
 }
+*/

@@ -86,15 +86,15 @@ debug-assertions = true
 
 [workspace.dependencies]
 # compiler crates
-solar = { version = "0.1.1", path = "crates/solar", package = "solar-compiler" }
-solar-ast = { version = "0.1.1", path = "crates/ast" }
-solar-cli = { version = "0.1.1", path = "crates/cli" }
-solar-config = { version = "0.1.1", path = "crates/config" }
-solar-data-structures = { version = "0.1.1", path = "crates/data-structures" }
-solar-interface = { version = "0.1.1", path = "crates/interface" }
-solar-macros = { version = "0.1.1", path = "crates/macros" }
-solar-parse = { version = "0.1.1", path = "crates/parse" }
-solar-sema = { version = "0.1.1", path = "crates/sema" }
+solar = { version = "0.1.1", path = "crates/solar", package = "solar-compiler", default-features = false }
+solar-ast = { version = "0.1.1", path = "crates/ast", default-features = false }
+solar-cli = { version = "0.1.1", path = "crates/cli", default-features = false }
+solar-config = { version = "0.1.1", path = "crates/config", default-features = false }
+solar-data-structures = { version = "0.1.1", path = "crates/data-structures", default-features = false }
+solar-interface = { version = "0.1.1", path = "crates/interface", default-features = false }
+solar-macros = { version = "0.1.1", path = "crates/macros", default-features = false }
+solar-parse = { version = "0.1.1", path = "crates/parse", default-features = false }
+solar-sema = { version = "0.1.1", path = "crates/sema", default-features = false }
 
 # internal crates
 solar-tester = { path = "tools/tester" }
