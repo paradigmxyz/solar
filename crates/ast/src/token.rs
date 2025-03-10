@@ -597,7 +597,7 @@ impl Token {
     /// Returns `true` if the token is any of the given keywords.
     #[inline]
     pub fn is_keyword_any(&self, kws: &[Symbol]) -> bool {
-        self.is_ident_where(|id| kws.iter().any(|kw| id.name == *kw))
+        self.is_ident_where(|id| kws.contains(&id.name))
     }
 
     /// Returns `true` if the token is a keyword used in the language.
