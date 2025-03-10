@@ -34,4 +34,3 @@ fn main() -> Result<(), EmittedDiagnostics> {
     // If any errors were emitted, this returns `Err(_)`, otherwise `Ok(())`.
     sess.emitted_errors().unwrap()
 }
-

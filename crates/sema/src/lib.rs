@@ -102,7 +102,10 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
 }
 
 /// Parses and lowers to HIR, recursing into imports.
-pub fn parse_and_lower_to_hir<'hir>(pcx: ParsingContext<'_>, hir_arena: &'hir Arena) -> Result<Hir<'hir>> {
+pub fn parse_and_lower_to_hir<'hir>(
+    pcx: ParsingContext<'_>,
+    hir_arena: &'hir Arena,
+) -> Result<Hir<'hir>> {
     let sess = pcx.sess;
 
     if pcx.sources.is_empty() {
