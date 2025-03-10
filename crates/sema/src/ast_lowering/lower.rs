@@ -62,7 +62,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             receive: None,
             items: &[],
         });
-        let prev_contract_id = std::mem::replace(&mut self.current_contract_id, Some(id));
+        let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);
 
         let mut items = SmallVec::<[_; 16]>::new();
