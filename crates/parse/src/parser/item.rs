@@ -119,6 +119,99 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             || self.token.is_elementary_type()
     }
 
+    /// Returns `true` if the statement accesses a state variable.
+    fn does_stmt_access_state(&self, stmt: &Stmt<'ast>) -> bool {
+        match &stmt.kind {
+            StmtKind::DeclSingle(variable_definition) => variable_definition
+                .initializer
+                .as_ref()
+                .is_some_and(|e| self.does_expr_access_state(e)),
+            StmtKind::DeclMulti(variable_definitions, expr) => {
+                variable_definitions.iter().any(|var_def| {
+                    var_def.as_ref().is_some_and(|vd| {
+                        vd.initializer.as_ref().is_some_and(|e| self.does_expr_access_state(e))
+                    })
+                }) || self.does_expr_access_state(expr)
+            }
+            StmtKind::Block(stmts) => stmts.iter().any(|s| self.does_stmt_access_state(s)),
+            StmtKind::DoWhile(stmt, expr) => {
+                self.does_stmt_access_state(stmt) || self.does_expr_access_state(expr)
+            }
+            StmtKind::Expr(expr) => self.does_expr_access_state(expr),
+            StmtKind::For { init: _, cond, next: _, body } => {
+                let cond_access = cond.as_ref().is_some_and(|e| self.does_expr_access_state(e));
+                cond_access || self.does_stmt_access_state(body)
+            }
+            StmtKind::If(expr, stmt, stmt1) => {
+                self.does_expr_access_state(expr)
+                    || self.does_stmt_access_state(stmt)
+                    || (stmt1.as_ref().is_some_and(|s| self.does_stmt_access_state(s)))
+            }
+            StmtKind::Return(expr) => expr.as_ref().is_some_and(|e| self.does_expr_access_state(e)),
+            StmtKind::Try(stmt_try) => {
+                self.does_expr_access_state(stmt_try.expr)
+                    || stmt_try.clauses.iter().any(|clause| {
+                        clause.block.iter().any(|stmt| self.does_stmt_access_state(stmt))
+                    })
+            }
+            StmtKind::UncheckedBlock(stmts) => stmts.iter().any(|s| self.does_stmt_access_state(s)),
+            StmtKind::While(expr, stmt) => {
+                self.does_expr_access_state(expr) || self.does_stmt_access_state(stmt)
+            }
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if the expression accesses a state variable.
+    fn does_expr_access_state(&self, expr: &Expr<'ast>) -> bool {
+        match &expr.kind {
+            ExprKind::Array(exprs) => exprs.iter().any(|expr| self.does_expr_access_state(expr)),
+            ExprKind::Assign(expr, _, expr1) => {
+                self.does_expr_access_state(expr) || self.does_expr_access_state(expr1)
+            }
+            ExprKind::Binary(expr, _, expr1) => {
+                self.does_expr_access_state(expr) || self.does_expr_access_state(expr1)
+            }
+            ExprKind::Call(expr, call_args) => {
+                self.does_expr_access_state(expr)
+                    || call_args.exprs().any(|expr| self.does_expr_access_state(expr))
+            }
+            ExprKind::CallOptions(expr, named_args) => {
+                self.does_expr_access_state(expr)
+                    || named_args.iter().any(|arg| self.does_expr_access_state(arg.value))
+            }
+            ExprKind::Delete(expr) => self.does_expr_access_state(expr),
+            ExprKind::Ident(ident) => self.state_vars.contains(ident),
+            ExprKind::Index(expr, index_kind) => {
+                let accesses_state = match index_kind {
+                    IndexKind::Index(expr) => {
+                        expr.as_ref().is_some_and(|e| self.does_expr_access_state(e))
+                    }
+                    IndexKind::Range(expr, expr1) => {
+                        expr.as_ref().is_some_and(|e| self.does_expr_access_state(e))
+                            && expr1.as_ref().is_some_and(|e| self.does_expr_access_state(e))
+                    }
+                };
+
+                accesses_state || self.does_expr_access_state(expr)
+            }
+            ExprKind::Member(expr, _) => self.does_expr_access_state(expr),
+            ExprKind::Payable(call_args) => {
+                call_args.exprs().any(|expr| self.does_expr_access_state(expr))
+            }
+            ExprKind::Ternary(expr, expr1, expr2) => {
+                self.does_expr_access_state(expr)
+                    || self.does_expr_access_state(expr1)
+                    || self.does_expr_access_state(expr2)
+            }
+            ExprKind::Tuple(exprs) => exprs
+                .iter()
+                .any(|expr| expr.as_ref().is_some_and(|e| self.does_expr_access_state(e))),
+            ExprKind::Unary(_, expr) => self.does_expr_access_state(expr),
+            _ => false,
+        }
+    }
+
     /* ----------------------------------------- Items ----------------------------------------- */
     // These functions expect that the keyword has already been eaten unless otherwise noted.
 
@@ -148,6 +241,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Some(this.parse_block()?)
             })
         })?;
+
+        if header.state_mutability == StateMutability::Pure && body.is_some() {
+            let body = body.as_ref().unwrap();
+
+            let mut accesses_state_when_pure = false;
+            for stmt in body.iter() {
+                accesses_state_when_pure |= self.does_stmt_access_state(stmt);
+            }
+
+            if accesses_state_when_pure {
+                let msg = "Function declared as pure, but this expression (potentially) reads from the environment or state and thus requires \"view\"";
+                self.dcx().err(msg).span(body_span).emit();
+            }
+        }
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");

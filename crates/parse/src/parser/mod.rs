@@ -1,4 +1,5 @@
 use crate::{Lexer, PErr, PResult};
+use alloy_primitives::map::HashSet;
 use smallvec::SmallVec;
 use solar_ast::{
     self as ast,
@@ -47,6 +48,8 @@ pub struct Parser<'sess, 'ast> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
+    /// Seen state variables located `in_contract`
+    state_vars: HashSet<Ident>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,6 +134,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
+            state_vars: HashSet::default(),
         };
         parser.bump();
         parser
