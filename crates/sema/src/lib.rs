@@ -45,6 +45,30 @@ pub mod stats;
 pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let sess = pcx.sess;
 
+    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
+        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
+    });
+
+    if let Some((hir, symbol_resolver)) = parse_and_lower(pcx, hir_arena.get_or_default())? {
+        let global_context =
+            OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
+                debug_span!("drop_gcx").in_scope(|| drop(gcx));
+            });
+        let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
+        analysis(gcx)?;
+    }
+
+    Ok(())
+}
+
+/// Parses and lowers to HIR, recursing into imports.
+pub(crate) fn parse_and_lower<'hir, 'sess>(
+    pcx: ParsingContext<'sess>,
+    hir_arena: &'hir Arena,
+) -> Result<Option<(hir::Hir<'hir>, ast_lowering::SymbolResolver<'sess>)>> {
+    let sess = pcx.sess;
+
     if pcx.sources.is_empty() {
         let msg = "no files found";
         let note = "if you wish to use the standard input, please specify `-` explicitly";
@@ -70,16 +94,12 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     }
 
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(());
+        return Ok(None);
     }
 
     sources.topo_sort();
 
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
-        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
-    });
-    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
+    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena)?;
 
     // Drop the ASTs and AST arenas in a separate thread.
     sess.spawn({
@@ -93,40 +113,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         }
     });
 
-    let global_context =
-        OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
-            debug_span!("drop_gcx").in_scope(|| drop(gcx));
-        });
-    let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
-    analysis(gcx)?;
-
-    Ok(())
-}
-
-/// Parses and lowers to HIR, recursing into imports.
-pub fn parse_and_lower_to_hir<'hir>(
-    pcx: ParsingContext<'_>,
-    hir_arena: &'hir Arena,
-) -> Result<Hir<'hir>> {
-    let sess = pcx.sess;
-
-    if pcx.sources.is_empty() {
-        let msg = "no files found";
-        let note = "if you wish to use the standard input, please specify `-` explicitly";
-        return Err(sess.dcx.err(msg).note(note).emit());
-    }
-
-    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
-        debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
-    });
-    let mut sources = pcx.parse(&ast_arenas);
-
-    sources.topo_sort();
-
-    let (hir, _) = lower(sess, &sources, hir_arena)?;
-
-    Ok(hir)
+    Ok(Some((hir, symbol_resolver)))
 }
 
 /// Lowers the parsed ASTs into the HIR.

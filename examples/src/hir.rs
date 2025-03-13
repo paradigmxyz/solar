@@ -22,11 +22,12 @@ fn main() -> Result<(), EmittedDiagnostics> {
         let hir_arena = Arena::new();
         let mut parsing_context = ParsingContext::new(&sess);
         parsing_context.load_files(paths)?;
-        let hir = parsing_context.parse_and_lower_to_hir(&hir_arena)?;
-        let counter_contract = hir.contract(ContractId::new(0));
-        assert_eq!(counter_contract.name.to_string(), "Counter");
-        let another_counter_contract = hir.contract(ContractId::new(1));
-        assert_eq!(another_counter_contract.name.to_string(), "AnotherCounter");
+        if let Some(hir) = parsing_context.parse_and_lower(&hir_arena)? {
+            let counter_contract = hir.contract(ContractId::new(0));
+            assert_eq!(counter_contract.name.to_string(), "Counter");
+            let another_counter_contract = hir.contract(ContractId::new(1));
+            assert_eq!(another_counter_contract.name.to_string(), "AnotherCounter");
+        }
         Ok(())
     });
 

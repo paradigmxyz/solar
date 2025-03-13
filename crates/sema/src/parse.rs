@@ -90,8 +90,8 @@ impl<'sess> ParsingContext<'sess> {
         crate::parse_and_resolve(self)
     }
 
-    pub fn parse_and_lower_to_hir(self, hir_arena: &Arena) -> Result<Hir<'_>> {
-        crate::parse_and_lower_to_hir(self, hir_arena)
+    pub fn parse_and_lower(self, hir_arena: &Arena) -> Result<Option<Hir<'_>>> {
+        Ok(crate::parse_and_lower(self, hir_arena)?.map(|(hir, _)| hir))
     }
 
     /// Parses all the loaded sources, recursing into imports.
