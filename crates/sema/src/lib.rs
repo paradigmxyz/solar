@@ -25,12 +25,14 @@ mod ast_lowering;
 mod ast_passes;
 
 mod parse;
-use crate::hir::{Arena, Hir};
 pub use parse::{ParsedSource, ParsedSources, ParsingContext};
 
 pub mod builtins;
 pub mod eval;
+
 pub mod hir;
+pub use hir::{Arena, Hir};
+
 pub mod ty;
 
 mod typeck;
