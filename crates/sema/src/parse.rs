@@ -1,4 +1,7 @@
-use crate::hir::{Arena, Hir, SourceId};
+use crate::{
+    hir::{Arena, SourceId},
+    GcxWrapper,
+};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -86,12 +89,21 @@ impl<'sess> ParsingContext<'sess> {
         self.sources.add_file(file);
     }
 
+    /// Parses and semantically analyzes all the loaded sources, recursing into imports.
     pub fn parse_and_resolve(self) -> Result<()> {
         crate::parse_and_resolve(self)
     }
 
-    pub fn parse_and_lower(self, hir_arena: &Arena) -> Result<Option<Hir<'_>>> {
-        Ok(crate::parse_and_lower(self, hir_arena)?.map(|(hir, _)| hir))
+    /// Parses and lowers the entire program to HIR.
+    /// Returns the global context if successful and if lowering was requested (default).
+    pub fn parse_and_lower<'hir>(
+        self,
+        hir_arena: &'hir ThreadLocal<Arena>,
+    ) -> Result<Option<GcxWrapper<'hir>>>
+    where
+        'sess: 'hir,
+    {
+        crate::parse_and_lower(self, hir_arena)
     }
 
     /// Parses all the loaded sources, recursing into imports.
