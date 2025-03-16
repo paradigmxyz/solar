@@ -29,7 +29,10 @@ pub use parse::{ParsedSource, ParsedSources, ParsingContext};
 
 pub mod builtins;
 pub mod eval;
+
 pub mod hir;
+pub use hir::Hir;
+
 pub mod ty;
 
 mod typeck;
@@ -38,8 +41,44 @@ mod emit;
 
 pub mod stats;
 
+/// Thin wrapper around the global context to ensure it is accessed and dropped correctly.
+pub struct GcxWrapper<'gcx>(std::mem::ManuallyDrop<ty::GlobalCtxt<'gcx>>);
+
+impl<'gcx> GcxWrapper<'gcx> {
+    fn new(gcx: ty::GlobalCtxt<'gcx>) -> Self {
+        Self(std::mem::ManuallyDrop::new(gcx))
+    }
+
+    /// Get a reference to the global context.
+    pub fn get(&self) -> Gcx<'gcx> {
+        Gcx::new(unsafe { trustme::decouple_lt(&self.0) })
+    }
+}
+
+impl Drop for GcxWrapper<'_> {
+    fn drop(&mut self) {
+        debug_span!("drop_gcx").in_scope(|| unsafe { std::mem::ManuallyDrop::drop(&mut self.0) });
+    }
+}
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
-pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
+pub(crate) fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
+    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
+        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
+    });
+    if let Some(gcx) = parse_and_lower(pcx, &hir_arena)? {
+        analysis(gcx.get())?;
+    }
+    Ok(())
+}
+
+/// Parses and lowers the entire program to HIR.
+/// Returns the global context if successful and if lowering was requested (default).
+pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
+    pcx: ParsingContext<'sess>,
+    hir_arena: &'hir ThreadLocal<hir::Arena>,
+) -> Result<Option<GcxWrapper<'hir>>> {
     let sess = pcx.sess;
 
     if pcx.sources.is_empty() {
@@ -67,15 +106,11 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     }
 
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(());
+        return Ok(None);
     }
 
     sources.topo_sort();
 
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
-        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
-    });
     let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
 
     // Drop the ASTs and AST arenas in a separate thread.
@@ -90,14 +125,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         }
     });
 
-    let global_context =
-        OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
-            debug_span!("drop_gcx").in_scope(|| drop(gcx));
-        });
-    let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
-    analysis(gcx)?;
-
-    Ok(())
+    Ok(Some(GcxWrapper::new(ty::GlobalCtxt::new(sess, hir_arena, hir, symbol_resolver))))
 }
 
 /// Lowers the parsed ASTs into the HIR.
@@ -117,6 +145,9 @@ fn lower<'sess, 'hir>(
     Ok(ast_lowering::lower(sess, sources, arena))
 }
 
+/// Performs the analysis phase.
+///
+/// This is not yet exposed publicly as it is not yet fully implemented.
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<()> {
     if let Some(dump) = &gcx.sess.opts.unstable.dump {
