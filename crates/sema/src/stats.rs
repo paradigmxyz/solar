@@ -39,7 +39,7 @@ struct StatCollector {
 
 pub fn print_ast_stats(ast: &ast::SourceUnit<'_>, title: &str, prefix: &str) {
     let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
-    collector.visit_source_unit(ast);
+    let _ = collector.visit_source_unit(ast);
     collector.print(title, prefix)
 }
 

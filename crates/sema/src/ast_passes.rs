@@ -14,7 +14,7 @@ pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
 #[instrument(name = "validate", level = "debug", skip_all)]
 pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
     let mut validator = AstValidator::new(sess);
-    validator.visit_source_unit(ast);
+    let _ = validator.visit_source_unit(ast);
 }
 
 /// AST validator.

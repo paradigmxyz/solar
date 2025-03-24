@@ -160,7 +160,7 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Try(try_) => {
-                self.visit_expr(&try_.expr);
+                self.visit_expr(&try_.expr)?;
                 for clause in try_.clauses {
                     for &var in clause.args {
                         self.visit_nested_var(var)?;
