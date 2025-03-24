@@ -54,14 +54,19 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "linkersymbol_shadowing"
         | "loadimmutable_shadowing"
         | "setimmutable_shadowing"
-        // TODO: Not in the grammar, but docs are used to denote locations in the original src.
-        | "sourceLocations"
         // TODO: EVM version-aware parsing.
         | "blobbasefee_identifier_pre_cancun"
         | "blobhash_pre_cancun"
         | "mcopy_as_identifier_pre_cancun"
         | "mcopy_pre_cancun"
         | "tstore_tload_as_identifiers_pre_cancun"
+        | "eof_names_reserved_in_eof"
+        | "extcall_function_in_eof"
+        | "extdelegatecall_function_in_eof"
+        | "extstaticcall_function_in_eof"
+        | "clash_with_non_reserved_pure_yul_builtin"
+        | "clash_with_reserved_pure_yul_builtin_eof"
+        | "clash_with_reserved_pure_yul_builtin"
     ) {
         return Err("manually skipped");
     };

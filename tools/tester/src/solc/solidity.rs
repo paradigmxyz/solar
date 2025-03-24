@@ -57,6 +57,11 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("supporting file");
     }
 
+    // TODO: Implement.
+    if path_contains("/storageLayoutSpecifier/") {
+        return Err("storage layout specifier is not yet implemented");
+    }
+
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
     if matches!(
@@ -177,8 +182,11 @@ fn handle_delimiters_(
         } else {
             // Sometimes `==== Source: ... ====` is missing after external sources.
             let mut contents = String::with_capacity(src.len());
-            for line in lines {
-                assert!(!line.starts_with("===="));
+            while let Some(&line) = lines.peek() {
+                if line.starts_with("====") {
+                    break;
+                }
+                lines.next();
                 contents.push_str(line);
                 contents.push('\n');
             }
@@ -186,7 +194,6 @@ fn handle_delimiters_(
             let path = tmp_dir.join("test.sol");
             fs::write(&path, contents).unwrap();
             arg(path.into());
-            break;
         }
     }
     if let Some(tmp_dir) = &tmp_dir2 {
