@@ -3,4 +3,5 @@
 #![allow(unreachable_pub)]
 #![cfg(test)]
 
+mod hir;
 mod parser;
