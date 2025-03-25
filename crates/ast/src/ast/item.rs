@@ -334,13 +334,14 @@ impl UserDefinableOperator {
 }
 
 /// A contract, abstract contract, interface, or library definition:
-/// `contract Foo is Bar("foo"), Baz { ... }`.
+/// `contract Foo layout at 10 is Bar("foo"), Baz { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition>
 #[derive(Debug)]
 pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
+    pub layout: Option<StorageLayoutSpecifier<'ast>>,
     pub bases: Box<'ast, [Modifier<'ast>]>,
     pub body: Box<'ast, [Item<'ast>]>,
 }
@@ -374,6 +375,15 @@ impl ContractKind {
             Self::Library => "library",
         }
     }
+}
+
+/// The storage layout specifier of a contract.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/contracts.html#custom-storage-layout>
+#[derive(Debug)]
+pub struct StorageLayoutSpecifier<'ast> {
+    pub span: Span,
+    pub slot: Box<'ast, Expr<'ast>>,
 }
 
 /// A function, constructor, fallback, receive, or modifier definition:
@@ -470,6 +480,18 @@ impl FunctionKind {
 pub struct Modifier<'ast> {
     pub name: AstPath<'ast>,
     pub arguments: CallArgs<'ast>,
+}
+
+impl Modifier<'_> {
+    /// Returns the span of the modifier.
+    pub fn span(&self) -> Span {
+        let span = self.name.span();
+        if let Some(arguments) = self.arguments.span() {
+            span.to(arguments)
+        } else {
+            span
+        }
+    }
 }
 
 /// An override specifier: `override`, `override(a, b.c)`.

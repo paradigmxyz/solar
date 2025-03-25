@@ -319,6 +319,14 @@ impl<'ast> CallArgs<'ast> {
             Self::Named(args) => Either::Right(args.iter_mut().map(|arg| &mut arg.value)),
         }
     }
+
+    /// Returns the span of the arguments.
+    pub fn span(&self) -> Option<Span> {
+        if self.is_empty() {
+            return None;
+        }
+        Some(Span::join_first_last(self.exprs().map(|e| e.span)))
+    }
 }
 
 /// A named argument: `name: value`.

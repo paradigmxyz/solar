@@ -96,8 +96,12 @@ declare_visitors! {
         }
 
         fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) -> ControlFlow<Self::BreakValue> {
-            let ItemContract { kind: _, name, bases, body } = contract;
+            let ItemContract { kind: _, name, layout, bases, body } = contract;
             self.visit_ident #_mut(name)?;
+            if let Some(StorageLayoutSpecifier { span, slot }) = layout {
+                self.visit_span #_mut(span)?;
+                self.visit_expr #_mut(slot)?;
+            }
             for base in bases.iter #_mut() {
                 self.visit_modifier #_mut(base)?;
             }
