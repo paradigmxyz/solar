@@ -29,7 +29,7 @@ impl<'sess> ParsingContext<'sess> {
     pub fn new(sess: &'sess Session) -> Self {
         Self {
             sess,
-            file_resolver: FileResolver::new(sess.source_map()),
+            file_resolver: FileResolver::new(sess.source_map(), None),
             sources: ParsedSources::new(),
         }
     }
@@ -66,7 +66,7 @@ impl<'sess> ParsingContext<'sess> {
             Ok(path) => {
                 // Base paths from arguments to the current directory for shorter diagnostics
                 // output.
-                match path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
+                match path.strip_prefix(self.file_resolver.current_dir()) {
                     Ok(path) => path.to_path_buf(),
                     Err(_) => path,
                 }

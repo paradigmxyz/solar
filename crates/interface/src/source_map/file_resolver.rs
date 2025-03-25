@@ -29,17 +29,36 @@ pub enum ResolveError {
 pub struct FileResolver<'a> {
     source_map: &'a SourceMap,
     import_paths: Vec<(Option<PathBuf>, PathBuf)>,
+    current_dir: PathBuf,
 }
 
 impl<'a> FileResolver<'a> {
     /// Creates a new file resolver.
-    pub fn new(source_map: &'a SourceMap) -> Self {
-        Self { source_map, import_paths: Vec::new() }
+    ///
+    /// If `current_dir` is `None`, the current directory is fetched from the environment.
+    pub fn new(source_map: &'a SourceMap, current_dir: Option<PathBuf>) -> Self {
+        Self {
+            source_map,
+            import_paths: Vec::new(),
+            current_dir: current_dir
+                .or_else(|| std::env::current_dir().ok())
+                .unwrap_or_else(|| PathBuf::from(".")),
+        }
     }
 
     /// Returns the source map.
     pub fn source_map(&self) -> &'a SourceMap {
         self.source_map
+    }
+
+    /// Returns the current directory.
+    pub fn current_dir(&self) -> &Path {
+        &self.current_dir
+    }
+
+    /// Sets the current directory.
+    pub fn set_current_dir(&mut self, current_dir: PathBuf) {
+        self.current_dir = current_dir;
     }
 
     /// Adds an import path. Returns `true` if the path is newly inserted.
@@ -173,10 +192,8 @@ impl<'a> FileResolver<'a> {
             // TODO: avoids loading the same file twice by canonicalizing,
             // and then not displaying the full path in the error message
             let mut path = path.as_path();
-            if let Ok(curdir) = std::env::current_dir() {
-                if let Ok(p) = path.strip_prefix(curdir) {
-                    path = p;
-                }
+            if let Ok(p) = path.strip_prefix(&self.current_dir) {
+                path = p;
             }
             trace!("canonicalized to {}", path.display());
             return self
