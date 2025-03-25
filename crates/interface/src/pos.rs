@@ -112,7 +112,8 @@ macro_rules! impl_pos {
 impl_pos! {
     /// A byte offset relative to the global source map.
     ///
-    /// Keep this small (currently 32-bits), as AST contains a lot of them.
+    /// See [`Span`](crate::Span) for more information.
+    // Keep this small (currently 32-bits), as AST contains a lot of them.
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct BytePos(pub u32);
 
@@ -124,7 +125,7 @@ impl_pos! {
     ///
     /// Because of multibyte UTF-8 characters, a byte offset
     /// is not equivalent to a character offset. The [`SourceMap`](crate::SourceMap) will convert
-    /// [`BytePos`] values to `CharPos` values as necessary.
+    /// [`BytePos`] values to [`CharPos`] values as necessary.
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct CharPos(pub usize);
 }

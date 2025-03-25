@@ -5,7 +5,13 @@ use std::{cmp, fmt, ops::Range};
 ///
 /// Essentially a `lo..hi` range into a `SourceMap` file's source code.
 ///
-/// Both `lo` and `hi` are offset by the file's starting position.
+/// Note that `lo` and `hi` are both offset from the file's starting position in the source map,
+/// meaning that they are not always directly usable to index into the source string.
+///
+/// This is the case when there are multiple source files in the source map.
+/// Use [`SourceMap::span_to_snippet`](crate::SourceMap::span_to_snippet) to get the actual source
+/// code snippet of the span, or [`SourceMap::span_to_source`](crate::SourceMap::span_to_source) to
+/// get the source file and source code range.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
     lo: BytePos,
@@ -65,18 +71,27 @@ impl Span {
     }
 
     /// Returns the span as a `Range<usize>`.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline]
     pub fn to_range(self) -> Range<usize> {
         self.lo().to_usize()..self.hi().to_usize()
     }
 
     /// Returns the span as a `Range<u32>`.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline]
     pub fn to_u32_range(self) -> Range<u32> {
         self.lo().to_u32()..self.hi().to_u32()
     }
 
     /// Returns the span's start position.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
         self.lo
@@ -89,6 +104,9 @@ impl Span {
     }
 
     /// Returns the span's end position.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
         self.hi
