@@ -57,11 +57,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("supporting file");
     }
 
-    // TODO: Implement.
-    if path_contains("/storageLayoutSpecifier/") {
-        return Err("storage layout specifier is not yet implemented");
-    }
-
     let stem = path.file_stem().unwrap().to_str().unwrap();
     #[rustfmt::skip]
     if matches!(

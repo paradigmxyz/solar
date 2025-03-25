@@ -208,6 +208,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("ItemContract", None, contract);
+        if let Some(layout) = &contract.layout {
+            self.visit_expr(layout.slot)?;
+        }
         for base in contract.bases.iter() {
             self.visit_modifier(base)?;
         }

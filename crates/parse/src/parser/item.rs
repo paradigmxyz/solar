@@ -1,6 +1,7 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
+use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span};
 
@@ -320,12 +321,54 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let bases =
-            if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Default::default() };
+
+        let mut bases = None::<Box<'_, [Modifier<'_>]>>;
+        let mut layout = None::<StorageLayoutSpecifier<'_>>;
+        loop {
+            if self.eat_keyword(kw::Is) {
+                let new_bases = self.parse_inheritance()?;
+                if let Some(prev) = &bases {
+                    let msg = "base contracts already specified";
+                    let span = |bases: &[Modifier<'_>]| {
+                        Span::join_first_last(bases.iter().map(|m| m.span()))
+                    };
+                    self.dcx()
+                        .err(msg)
+                        .span(span(new_bases))
+                        .span_note(span(prev), "previous definition")
+                        .emit();
+                } else if !new_bases.is_empty() {
+                    bases = Some(new_bases);
+                }
+            } else if self.check_keyword(sym::layout) {
+                let new_layout = self.parse_storage_layout_specifier()?;
+                if let Some(prev) = &layout {
+                    let msg = "storage layout already specified";
+                    self.dcx()
+                        .err(msg)
+                        .span(new_layout.span)
+                        .span_note(prev.span, "previous definition")
+                        .emit();
+                } else {
+                    layout = Some(new_layout);
+                }
+            } else {
+                break;
+            }
+        }
+
+        if let Some(layout) = &layout {
+            if !kind.is_contract() {
+                let msg = "storage layout is only allowed for contracts";
+                self.dcx().err(msg).span(layout.span).emit();
+            }
+        }
+
         self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
             self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
-        Ok(ItemContract { kind, name, bases, body })
+
+        Ok(ItemContract { kind, name, layout, bases: bases.unwrap_or_default(), body })
     }
 
     /// Parses an enum definition.
@@ -791,13 +834,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a list of inheritance specifiers.
     fn parse_inheritance(&mut self) -> PResult<'sess, Box<'ast, [Modifier<'ast>]>> {
-        self.parse_seq_to_before_end(
-            &TokenKind::OpenDelim(Delimiter::Brace),
-            SeqSep::trailing_disallowed(TokenKind::Comma),
-            false,
-            Self::parse_modifier,
-        )
-        .map(|(x, _)| x)
+        let mut list = SmallVec::<[_; 8]>::new();
+        loop {
+            list.push(self.parse_modifier()?);
+            if !self.eat(&TokenKind::Comma) {
+                break;
+            }
+        }
+        Ok(self.alloc_smallvec(list))
+    }
+
+    /// Parses a storage layout specifier.
+    fn parse_storage_layout_specifier(&mut self) -> PResult<'sess, StorageLayoutSpecifier<'ast>> {
+        let lo = self.token.span;
+        self.expect_keyword(sym::layout)?;
+        self.expect_keyword(sym::at)?;
+        let slot = self.parse_expr()?;
+        Ok(StorageLayoutSpecifier { span: lo.to(self.prev_token.span), slot })
     }
 
     /// Parses a single modifier invocation.
