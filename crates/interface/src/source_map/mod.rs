@@ -29,6 +29,10 @@ pub enum SpanLinesError {
     DistinctSources(Box<DistinctSources>),
 }
 
+/// An error that can occur when converting a `Span` to a snippet.
+///
+/// In general these errors only occur on malformed spans created by the user.
+/// The parser never creates a span that would cause these errors.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum SpanSnippetError {
     IllFormedSpan(Span),
@@ -95,6 +99,7 @@ pub struct FileLines {
     pub lines: Vec<LineInfo>,
 }
 
+/// Stores all the sources of the current compilation session.
 pub struct SourceMap {
     // INVARIANT: The only operation allowed on `source_files` is `push`.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
@@ -232,11 +237,14 @@ impl SourceMap {
 
     /// Returns the source snippet as `String` corresponding to the given `Span`.
     pub fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
-        self.span_to_source(span, |src, start_index, end_index| {
-            src.get(start_index..end_index)
-                .map(|s| s.to_string())
-                .ok_or(SpanSnippetError::IllFormedSpan(span))
-        })
+        let (sf, range) = self.span_to_source(span)?;
+        sf.src.get(range).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(span))
+    }
+
+    /// Returns the source snippet as `String` before the given `Span`.
+    pub fn span_to_prev_source(&self, sp: Span) -> Result<String, SpanSnippetError> {
+        let (sf, range) = self.span_to_source(sp)?;
+        sf.src.get(..range.start).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(sp))
     }
 
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
@@ -275,13 +283,6 @@ impl SourceMap {
             Some(line) => Ok(SourceFileAndLine { sf: f, line }),
             None => Err(f),
         }
-    }
-
-    /// Returns the source snippet as `String` before the given `Span`.
-    pub fn span_to_prev_source(&self, sp: Span) -> Result<String, SpanSnippetError> {
-        self.span_to_source(sp, |src, start_index, _| {
-            src.get(..start_index).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(sp))
-        })
     }
 
     pub fn is_valid_span(&self, sp: Span) -> Result<(Loc, Loc), SpanLinesError> {
@@ -337,39 +338,37 @@ impl SourceMap {
         Ok(FileLines { file: lo.file, lines })
     }
 
-    /// Extracts the source surrounding the given `Span` using the `extract_source` function. The
-    /// extract function takes three arguments: a string slice containing the source, an index in
-    /// the slice for the beginning of the span and an index in the slice for the end of the span.
-    fn span_to_source<F, T>(&self, sp: Span, extract_source: F) -> Result<T, SpanSnippetError>
-    where
-        F: Fn(&str, usize, usize) -> Result<T, SpanSnippetError>,
-    {
+    /// Returns the source file and the range of text corresponding to the given span.
+    pub fn span_to_source(
+        &self,
+        sp: Span,
+    ) -> Result<(Arc<SourceFile>, std::ops::Range<usize>), SpanSnippetError> {
         let local_begin = self.lookup_byte_offset(sp.lo());
         let local_end = self.lookup_byte_offset(sp.hi());
 
         if local_begin.sf.start_pos != local_end.sf.start_pos {
-            Err(SpanSnippetError::DistinctSources(Box::new(DistinctSources {
+            return Err(SpanSnippetError::DistinctSources(Box::new(DistinctSources {
                 begin: (local_begin.sf.name.clone(), local_begin.sf.start_pos),
                 end: (local_end.sf.name.clone(), local_end.sf.start_pos),
-            })))
-        } else {
-            // self.ensure_source_file_source_present(&local_begin.sf);
-
-            let start_index = local_begin.pos.to_usize();
-            let end_index = local_end.pos.to_usize();
-            let source_len = local_begin.sf.source_len.to_usize();
-
-            if start_index > end_index || end_index > source_len {
-                return Err(SpanSnippetError::MalformedForSourcemap(MalformedSourceMapPositions {
-                    name: local_begin.sf.name.clone(),
-                    source_len,
-                    begin_pos: local_begin.pos,
-                    end_pos: local_end.pos,
-                }));
-            }
-
-            extract_source(&local_begin.sf.src, start_index, end_index)
+            })));
         }
+
+        // self.ensure_source_file_source_present(&local_begin.sf);
+
+        let start_index = local_begin.pos.to_usize();
+        let end_index = local_end.pos.to_usize();
+        let source_len = local_begin.sf.source_len.to_usize();
+
+        if start_index > end_index || end_index > source_len {
+            return Err(SpanSnippetError::MalformedForSourcemap(MalformedSourceMapPositions {
+                name: local_begin.sf.name.clone(),
+                source_len,
+                begin_pos: local_begin.pos,
+                end_pos: local_end.pos,
+            }));
+        }
+
+        Ok((local_begin.sf, start_index..end_index))
     }
 
     /// Format the span location to be printed in diagnostics. Must not be emitted
