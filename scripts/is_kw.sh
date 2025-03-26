@@ -223,10 +223,10 @@ for kw in "${kws[@]}"; do
 
     [ "$n" -eq 1 ] && printf "%s\n" "$r"
 
-    if [[ $code -gt 0 ]]; then
-        result="yes"
-    else
+    if [[ $code -eq 0 ]]; then
         result="no"
+    else
+        result="yes"
     fi
     printf "%-${align}s %s\n" "$kw:" "$result"
 done
