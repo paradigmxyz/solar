@@ -17,13 +17,14 @@ pub struct Lit {
 }
 
 /// A kind of literal.
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub enum LitKind {
     /// A string, unicode string, or hex string literal. Contains the kind and the unescaped
     /// contents of the string.
     ///
     /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
     /// are allowed, and as such this cannot be a `str` or `Symbol`.
+    #[debug("Str({_0:?}, ..)")]
     Str(StrKind, Arc<[u8]>),
     /// A decimal or hexadecimal number literal.
     Number(num_bigint::BigInt),
