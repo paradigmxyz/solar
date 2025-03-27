@@ -155,6 +155,12 @@ impl<'a> FileResolver<'a> {
         // Only when the path starts with ./ or ../ are relative paths considered; this means
         // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
         // will only check the path relative to the current file.
+        //
+        // `parent.is_none()` only happens when resolving imports from a custom/stdin file, or when
+        // manually resolving a file, like from CLI arguments. In these cases, the file is
+        // considered to be in the current directory.
+        // Technically, this behavior allows the latter, the manual case, to also be resolved using
+        // remappings, which is not the case in solc, but this simplifies the implementation.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if (is_relative && parent.is_some()) || parent.is_none() {
             let try_path = if let Some(base) = parent.filter(|_| is_relative).and_then(Path::parent)
