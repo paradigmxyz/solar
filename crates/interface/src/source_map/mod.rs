@@ -7,7 +7,7 @@ use solar_data_structures::{
 };
 use std::{
     io::{self, Read},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 
@@ -100,9 +100,11 @@ pub struct FileLines {
 }
 
 /// Stores all the sources of the current compilation session.
+#[derive(derive_more::Debug)]
 pub struct SourceMap {
     // INVARIANT: The only operation allowed on `source_files` is `push`.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
+    #[debug(skip)]
     stable_id_to_source_file: scc::HashIndex<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
     hash_kind: SourceFileHashAlgorithm,
 }
@@ -128,37 +130,58 @@ impl SourceMap {
         Self::new(SourceFileHashAlgorithm::default())
     }
 
+    /// Returns the source file with the given path, if it exists.
+    /// Does not attempt to load the file.
+    pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        self.get_file_by_name(&path.to_path_buf().into())
+    }
+
+    /// Returns the source file with the given name, if it exists.
+    /// Does not attempt to load the file.
+    pub fn get_file_by_name(&self, name: &FileName) -> Option<Arc<SourceFile>> {
+        let stable_id = StableSourceFileId::from_filename_in_current_crate(name);
+        self.stable_id_to_source_file.get(&stable_id).map(|entry| entry.get().clone())
+    }
+
     /// Loads a file from the given path.
     pub fn load_file(&self, path: &Path) -> io::Result<Arc<SourceFile>> {
-        let filename = path.to_owned().into();
-        self.new_source_file(filename, || std::fs::read_to_string(path))
+        self.load_file_with_name(path.to_owned().into(), path)
+    }
+
+    /// Loads a file with the given name from the given path.
+    pub fn load_file_with_name(&self, name: FileName, path: &Path) -> io::Result<Arc<SourceFile>> {
+        self.new_source_file_with(name, || std::fs::read_to_string(path))
     }
 
     /// Loads `stdin`.
     pub fn load_stdin(&self) -> io::Result<Arc<SourceFile>> {
-        self.new_source_file(FileName::Stdin, || {
+        self.new_source_file_with(FileName::Stdin, || {
             let mut src = String::new();
             io::stdin().read_to_string(&mut src)?;
             Ok(src)
         })
     }
 
-    /// Loads a file with the given source string.
+    /// Creates a new `SourceFile` with the given name and source string.
     ///
-    /// This is useful for testing.
-    pub fn new_dummy_source_file(&self, path: PathBuf, src: String) -> io::Result<Arc<SourceFile>> {
-        self.new_source_file(path.into(), || Ok(src))
+    /// See [`new_source_file_with`](Self::new_source_file_with) for more details.
+    pub fn new_source_file(
+        &self,
+        name: impl Into<FileName>,
+        src: impl Into<String>,
+    ) -> io::Result<Arc<SourceFile>> {
+        self.new_source_file_with(name.into(), || Ok(src.into()))
     }
 
-    /// Creates a new `SourceFile`.
+    /// Creates a new `SourceFile` with the given name and source string closure.
     ///
     /// If a file already exists in the `SourceMap` with the same ID, that file is returned
-    /// unmodified.
+    /// unmodified, and `get_src` is not called.
     ///
     /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
     /// `SourceFile`.
     #[instrument(level = "debug", skip_all, fields(filename = %filename.display()))]
-    pub fn new_source_file(
+    pub fn new_source_file_with(
         &self,
         filename: FileName,
         get_src: impl FnOnce() -> io::Result<String>,

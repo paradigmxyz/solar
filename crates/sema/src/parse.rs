@@ -64,21 +64,9 @@ impl<'sess> ParsingContext<'sess> {
     /// Loads a file into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
-        // Paths must be canonicalized before passing to the resolver.
-        let path = match solar_interface::canonicalize(path) {
-            Ok(path) => {
-                // Base paths from arguments to the current directory for shorter diagnostics
-                // output.
-                match path.strip_prefix(self.file_resolver.current_dir()) {
-                    Ok(path) => path.to_path_buf(),
-                    Err(_) => path,
-                }
-            }
-            Err(_) => path.to_path_buf(),
-        };
         let file = self
             .file_resolver
-            .resolve_file(&path, None)
+            .resolve_file(path, None)
             .map_err(|e| self.dcx().err(e.to_string()).emit())?;
         self.add_file(file);
         Ok(())
@@ -219,9 +207,7 @@ macro_rules! resolve_imports {
         let ast = $ast;
         let parent = match &file.name {
             FileName::Real(path) => Some(path.to_path_buf()),
-            // Use current directory for stdin.
-            FileName::Stdin => Some(Path::new("").to_path_buf()),
-            FileName::Custom(_) => None,
+            FileName::Stdin | FileName::Custom(_) => None,
         };
         let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
         items
