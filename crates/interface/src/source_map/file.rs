@@ -201,29 +201,35 @@ impl From<OffsetOverflowError> for io::Error {
 }
 
 /// A single source in the `SourceMap`.
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
     /// (e.g., `<stdin>`).
     pub name: FileName,
     /// The complete source code.
+    #[debug(skip)]
     pub src: Arc<String>,
     /// The source code's hash.
+    #[debug(skip)]
     pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
     pub start_pos: BytePos,
     /// The byte length of this source.
     pub source_len: RelativeBytePos,
     /// Locations of lines beginnings in the source code.
+    #[debug(skip)]
     pub lines: Vec<RelativeBytePos>,
     /// Locations of multi-byte characters in the source code.
+    #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
     /// Width of characters that are not narrow in the source code.
+    #[debug(skip)]
     pub non_narrow_chars: Vec<NonNarrowChar>,
     /// A hash of the filename & crate-id, used for uniquely identifying source
     /// files within the crate graph and for speeding up hashing in incremental
     /// compilation.
+    #[debug(skip)]
     pub stable_id: StableSourceFileId,
 }
 

@@ -25,6 +25,7 @@ solar-data-structures.workspace = true
 solar-macros.workspace = true
 
 derive_builder.workspace = true
+derive_more.workspace = true
 match_cfg.workspace = true
 thiserror.workspace = true
 

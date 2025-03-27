@@ -520,15 +520,17 @@ pub struct Contract<'hir> {
     pub name: Ident,
     /// The contract kind.
     pub kind: ContractKind,
-    /// The contract bases.
+    /// The contract bases, as declared in the source code.
     pub bases: &'hir [ContractId],
     /// The linearized contract bases.
+    ///
+    /// The first element is the contract itself, followed by its bases in order of inheritance.
     pub linearized_bases: &'hir [ContractId],
-    /// The constructor function.
+    /// The resolved constructor function.
     pub ctor: Option<FunctionId>,
-    /// The `fallback` function.
+    /// The resolved `fallback` function.
     pub fallback: Option<FunctionId>,
-    /// The `receive` function.
+    /// The resolved `receive` function.
     pub receive: Option<FunctionId>,
     /// The contract items.
     ///

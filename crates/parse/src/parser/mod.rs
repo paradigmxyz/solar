@@ -171,7 +171,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ) -> Result<Self> {
         let file = sess
             .source_map()
-            .new_source_file(filename, get_src)
+            .new_source_file_with(filename, get_src)
             .map_err(|e| sess.dcx.err(e.to_string()).emit())?;
         Ok(Self::from_source_file(sess, arena, &file))
     }
