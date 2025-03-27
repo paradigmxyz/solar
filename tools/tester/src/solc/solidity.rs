@@ -108,7 +108,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Handles `====` and `==== ExternalSource: ... ====` delimiters in a solc test file.
+/// Handles `====` delimiters in a solc test file, and creates temporary files as necessary.
 ///
 /// Returns `true` if it contains delimiters and the caller should not compile the original file.
 #[must_use]
@@ -119,7 +119,7 @@ pub(crate) fn handle_delimiters(
     mut arg: impl FnMut(OsString),
 ) -> bool {
     if has_delimiters(src) {
-        handle_delimiters_(src, path, tmp_dir, arg)
+        split_sources(src, path, tmp_dir, arg)
     } else {
         arg("-I".into());
         arg(path.parent().unwrap().into());
@@ -128,16 +128,12 @@ pub(crate) fn handle_delimiters(
 }
 
 fn has_delimiters(src: &str) -> bool {
+    // We currently only care about Source and ExternalSource which start a line with `==== `.
     src.contains("==== ")
 }
 
 #[must_use]
-fn handle_delimiters_(
-    src: &str,
-    path: &Path,
-    tmp_dir: &Path,
-    mut arg: impl FnMut(OsString),
-) -> bool {
+fn split_sources(src: &str, path: &Path, tmp_dir: &Path, mut arg: impl FnMut(OsString)) -> bool {
     let mut tmp_dir2 = None;
     let make_tmp_dir = || {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -202,10 +198,11 @@ fn handle_delimiters_(
     tmp_dir2.is_some()
 }
 
+// https://github.com/ethereum/solidity/blob/ac54fe1972f25227f9932c8b224ef119360b0e2d/test/TestCaseReader.cpp#L111
 fn source_delim(line: &str) -> Option<&str> {
-    line.strip_prefix("==== Source: ").and_then(|s| s.strip_suffix(" ===="))
+    line.strip_prefix("==== Source:").and_then(|s| s.strip_suffix("====")).map(str::trim)
 }
 
 fn external_source_delim(line: &str) -> Option<&str> {
-    line.strip_prefix("==== ExternalSource: ").and_then(|s| s.strip_suffix(" ===="))
+    line.strip_prefix("==== ExternalSource:").and_then(|s| s.strip_suffix("====")).map(str::trim)
 }
