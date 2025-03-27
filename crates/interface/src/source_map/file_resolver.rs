@@ -156,17 +156,20 @@ impl<'a> FileResolver<'a> {
         // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
         // will only check the path relative to the current file.
         let is_relative = path.starts_with("./") || path.starts_with("../");
-        let try_path = if let Some(base) = parent.filter(|_| is_relative).and_then(Path::parent) {
-            &base.join(path)
-        } else {
-            path
-        };
-        if let Some(file) = self.try_file(try_path)? {
-            return Ok(file);
-        }
-        // See above.
-        if is_relative {
-            return Err(ResolveError::NotFound(path.into()));
+        if (is_relative && parent.is_some()) || parent.is_none() {
+            let try_path = if let Some(base) = parent.filter(|_| is_relative).and_then(Path::parent)
+            {
+                &base.join(path)
+            } else {
+                path
+            };
+            if let Some(file) = self.try_file(try_path)? {
+                return Ok(file);
+            }
+            // See above.
+            if is_relative {
+                return Err(ResolveError::NotFound(path.into()));
+            }
         }
 
         let original_path = path;
@@ -222,8 +225,8 @@ impl<'a> FileResolver<'a> {
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all)]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        let cache_path = path.normalize();
-        if let Ok(file) = self.source_map().load_file(&cache_path) {
+        let path = &*path.normalize();
+        if let Some(file) = self.source_map().get_file(path) {
             trace!("loaded from cache");
             return Ok(Some(file));
         }

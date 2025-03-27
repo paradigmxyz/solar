@@ -130,6 +130,19 @@ impl SourceMap {
         Self::new(SourceFileHashAlgorithm::default())
     }
 
+    /// Returns the source file with the given path, if it exists.
+    /// Does not attempt to load the file.
+    pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        self.get_file_by_name(&path.to_path_buf().into())
+    }
+
+    /// Returns the source file with the given name, if it exists.
+    /// Does not attempt to load the file.
+    pub fn get_file_by_name(&self, name: &FileName) -> Option<Arc<SourceFile>> {
+        let stable_id = StableSourceFileId::from_filename_in_current_crate(name);
+        self.stable_id_to_source_file.get(&stable_id).map(|entry| entry.get().clone())
+    }
+
     /// Loads a file from the given path.
     pub fn load_file(&self, path: &Path) -> io::Result<Arc<SourceFile>> {
         self.load_file_with_name(path.to_owned().into(), path)
