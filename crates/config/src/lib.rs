@@ -5,7 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-use std::{num::NonZeroUsize, path::PathBuf};
+use std::num::NonZeroUsize;
 use strum::EnumIs;
 
 #[macro_use]
@@ -176,19 +176,30 @@ str_enum! {
     }
 }
 
-/// A single import map, AKA remapping: `map=path`.
+/// A single import remapping: `[context:]prefix=path`.
 #[derive(Clone, Debug)]
-pub struct ImportMap {
-    pub map: PathBuf,
-    pub path: PathBuf,
+pub struct ImportRemapping {
+    /// The remapping context, or empty string if none.
+    pub context: String,
+    pub prefix: String,
+    pub path: String,
 }
 
-impl std::str::FromStr for ImportMap {
+impl std::str::FromStr for ImportRemapping {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some((a, b)) = s.split_once('=') {
-            Ok(Self { map: a.into(), path: b.into() })
+        if let Some((prefix_, path)) = s.split_once('=') {
+            let (context, prefix) = prefix_.split_once(':').unzip();
+            let prefix = prefix.unwrap_or(prefix_);
+            if prefix.is_empty() {
+                return Err("empty prefix");
+            }
+            Ok(Self {
+                context: context.unwrap_or_default().into(),
+                prefix: prefix.into(),
+                path: path.into(),
+            })
         } else {
             Err("missing '='")
         }

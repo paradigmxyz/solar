@@ -166,7 +166,6 @@ fn split_sources(src: &str, path: &Path, tmp_dir: &Path, mut arg: impl FnMut(OsS
             arg(path.into());
         } else if let Some(eq) = external_source_delim(line) {
             if eq.contains('=') {
-                arg("-m".into());
                 arg(eq.into());
             }
             add_import_path = true;
