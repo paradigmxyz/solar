@@ -3,7 +3,7 @@ use crate::{
     ColorChoice, SessionGlobals, SourceMap,
 };
 use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts, SINGLE_THREADED_TARGET};
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 /// Information about the current compiler session.
 #[derive(derive_builder::Builder)]
@@ -128,7 +128,7 @@ impl Session {
     /// Infers the language from the input files.
     pub fn infer_language(&mut self) {
         if !self.opts.input.is_empty()
-            && self.opts.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
+            && self.opts.input.iter().all(|arg| Path::new(arg).extension() == Some("yul".as_ref()))
         {
             self.opts.language = solar_config::Language::Yul;
         }

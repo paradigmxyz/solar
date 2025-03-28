@@ -6,12 +6,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use solar_config::{ErrorFormat, ImportMap};
+use solar_config::{ErrorFormat, ImportRemapping};
 use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SourceMap,
 };
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 pub use solar_config::{self as config, version, Opts, UnstableOpts};
 
@@ -63,35 +63,33 @@ impl Compiler {
             return Err(sess.dcx.err("Yul is not supported yet").emit());
         }
 
+        let mut pcx = solar_sema::ParsingContext::new(sess);
+        pcx.file_resolver.add_include_paths(sess.opts.include_path.iter().cloned());
+
         // Partition arguments into three categories:
         // - `stdin`: `-`, occurrences after the first are ignored
-        // - remappings: `path=mapped`
+        // - remappings: `[context:]prefix=path`
         // - paths: everything else
-        let stdin = sess.opts.input.iter().any(|arg| *arg == Path::new("-"));
-        let non_stdin_args = sess.opts.input.iter().filter(|arg| *arg != Path::new("-"));
-        let arg_remappings = non_stdin_args
-            .clone()
-            .filter_map(|arg| arg.to_str().unwrap_or("").parse::<ImportMap>().ok());
-        let paths =
-            non_stdin_args.filter(|arg| !arg.as_os_str().as_encoded_bytes().contains(&b'='));
-
-        let mut pcx = solar_sema::ParsingContext::new(sess);
-        let remappings = arg_remappings.chain(sess.opts.import_map.iter().cloned());
-        for map in remappings {
-            pcx.file_resolver.add_import_map(map.map, map.path);
-        }
-        for path in &sess.opts.import_path {
-            let new = pcx.file_resolver.add_import_path(path.clone());
-            if !new {
-                let msg = format!("import path {} already specified", path.display());
-                return Err(sess.dcx.err(msg).emit());
+        let mut seen_stdin = false;
+        for arg in sess.opts.input.iter().map(String::as_str) {
+            if arg == "-" {
+                if !seen_stdin {
+                    pcx.load_stdin()?;
+                }
+                seen_stdin = true;
+                continue;
             }
-        }
 
-        if stdin {
-            pcx.load_stdin()?;
+            if arg.contains('=') {
+                let remapping = arg.parse::<ImportRemapping>().map_err(|e| {
+                    self.sess.dcx.err(format!("invalid remapping {arg:?}: {e}")).emit()
+                })?;
+                pcx.file_resolver.add_import_remapping(remapping);
+                continue;
+            }
+
+            pcx.load_file(arg.as_ref())?;
         }
-        pcx.load_files(paths)?;
 
         pcx.parse_and_resolve()?;
 

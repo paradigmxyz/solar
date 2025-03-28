@@ -32,7 +32,7 @@ impl<'sess> ParsingContext<'sess> {
     pub fn new(sess: &'sess Session) -> Self {
         Self {
             sess,
-            file_resolver: FileResolver::new(sess.source_map(), None),
+            file_resolver: FileResolver::new(sess.source_map()),
             sources: ParsedSources::new(),
         }
     }
