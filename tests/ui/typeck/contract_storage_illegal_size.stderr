@@ -1,0 +1,9 @@
+error: contract requires too much storage
+  --> ROOT/tests/ui/typeck/contract_storage_illegal_size.sol:LL:CC
+   |
+LL | contract Illegal {
+   |          ^^^^^^^
+   |
+
+error: aborting due to 1 previous error
+
