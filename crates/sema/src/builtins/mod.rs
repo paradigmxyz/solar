@@ -29,6 +29,7 @@ fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
 macro_rules! declare_builtins {
     (|$gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
         /// A compiler builtin.
+        #[repr(u8)]
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
         pub enum Builtin {
             $(
