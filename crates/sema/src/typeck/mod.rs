@@ -5,17 +5,35 @@ use crate::{
 };
 use rayon::prelude::*;
 use solar_data_structures::{map::FxHashSet, parallel};
+use solar_interface::error_code;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
         gcx.sess,
         gcx.hir.par_contract_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+            check_payable_fallback_without_receive(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
     );
+}
+
+fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+
+    if let Some(fallback) = contract.fallback {
+        let fallback = gcx.hir.function(fallback);
+        if fallback.state_mutability.is_payable() && contract.receive.is_none() {
+            gcx.dcx()
+                .warn("contract has a payable fallback function, but no receive ether function")
+                .span(contract.name.span)
+                .code(error_code!(3628))
+                .span_help(fallback.keyword_span(), "consider changing `fallback` to `receive`")
+                .emit();
+        }
+    }
 }
 
 /// Checks for definitions that have the same name and parameter types in the given scope.
