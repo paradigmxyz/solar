@@ -271,6 +271,16 @@ impl Builtin {
             assert!(std::mem::size_of::<Self>() == 1);
         };
         if i < Self::COUNT {
+            // SAFETY:
+            //
+            // `Self` is a field-less, `repr(u8)` enum and therefore guaranteed
+            // to have the same size and alignment as `u8`.
+            //
+            // This branch ensures `i < Self::COUNT` where `Self::COUNT` is the
+            // number of variants in `Self`. The discriminants of `Self` are
+            // contiguous because no variant specifies a custom discriminant
+            // with `Variant = value`. This ensures that `i as u8` is a valid
+            // inhabitant of type `Self`.
             Some(unsafe { std::mem::transmute::<u8, Self>(i as u8) })
         } else {
             None
