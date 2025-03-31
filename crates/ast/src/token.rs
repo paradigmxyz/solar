@@ -186,8 +186,7 @@ impl TokenLitKind {
 }
 
 /// A kind of token.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(missing_copy_implementations)] // Future-proofing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     // Expression-operator symbols.
     /// `=`
@@ -412,10 +411,10 @@ impl TokenKind {
     }
 
     /// Glues two token kinds together.
-    pub const fn glue(&self, other: &Self) -> Option<Self> {
+    pub const fn glue(self, other: Self) -> Option<Self> {
         use BinOpToken::*;
         use TokenKind::*;
-        Some(match *self {
+        Some(match self {
             Eq => match other {
                 Eq => EqEq,
                 Gt => FatArrow,
@@ -466,8 +465,7 @@ impl TokenKind {
 }
 
 /// A single token.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(missing_copy_implementations)] // Future-proofing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Token {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -733,13 +731,13 @@ impl Token {
 
     /// Returns this token's description, if any.
     #[inline]
-    pub fn description(&self) -> Option<TokenDescription> {
+    pub fn description(self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
     }
 
     /// Glues two tokens together.
-    pub fn glue(&self, other: &Self) -> Option<Self> {
-        self.kind.glue(&other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
+    pub fn glue(self, other: Self) -> Option<Self> {
+        self.kind.glue(other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
     }
 }
 
@@ -767,7 +765,7 @@ impl fmt::Display for TokenDescription {
 
 impl TokenDescription {
     /// Returns the description of the given token.
-    pub fn from_token(token: &Token) -> Option<Self> {
+    pub fn from_token(token: Token) -> Option<Self> {
         match token.kind {
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),

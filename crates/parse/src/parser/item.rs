@@ -9,11 +9,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
-        self.parse_items(&TokenKind::Eof).map(SourceUnit::new)
+        self.parse_items(TokenKind::Eof).map(SourceUnit::new)
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: &TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
+    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -143,7 +143,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let flags = FunctionFlags::from_kind(kind);
         let header = self.parse_function_header(flags)?;
         let (body_span, body) = self.parse_spanned(|this| {
-            Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(&TokenKind::Semi) {
+            Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(TokenKind::Semi) {
                 None
             } else {
                 Some(this.parse_block()?)
@@ -364,9 +364,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
-            self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
+            self.in_contract(|this| this.parse_items(TokenKind::CloseDelim(Delimiter::Brace)))?;
 
         Ok(ItemContract { kind, name, layout, bases: bases.unwrap_or_default(), body })
     }
@@ -389,7 +389,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a pragma directive.
     fn parse_pragma(&mut self) -> PResult<'sess, PragmaDirective<'ast>> {
-        let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
+        let is_ident_or_strlit = |t: Token| t.is_ident() || t.is_str_lit();
 
         let tokens = if self.check_keyword(sym::solidity)
             || (self.token.is_ident()
@@ -399,8 +399,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let ident = self.parse_ident_any()?;
             let req = self.parse_semver_req()?;
             PragmaTokens::Version(ident, req)
-        } else if (is_ident_or_strlit(&self.token) && self.look_ahead(1).kind == TokenKind::Semi)
-            || (is_ident_or_strlit(&self.token)
+        } else if (is_ident_or_strlit(self.token) && self.look_ahead(1).kind == TokenKind::Semi)
+            || (is_ident_or_strlit(self.token)
                 && self.look_ahead_with(1, is_ident_or_strlit)
                 && self.look_ahead(2).kind == TokenKind::Semi)
         {
@@ -416,7 +416,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             let mut tokens = Vec::new();
             while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
-                tokens.push(self.token.clone());
+                tokens.push(self.token);
                 self.bump();
             }
             if !self.token.is_eof() && tokens.is_empty() {
@@ -443,7 +443,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
     pub fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq<'ast>> {
-        if self.check_noexpect(&TokenKind::Semi) || self.check_noexpect(&TokenKind::Eof) {
+        if self.check_noexpect(TokenKind::Semi) || self.check_noexpect(TokenKind::Eof) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
             return Err(self.dcx().err(msg).span(span));
@@ -459,10 +459,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut dis = Vec::new();
         loop {
             dis.push(self.parse_semver_req_components_con()?);
-            if self.eat(&TokenKind::OrOr) {
+            if self.eat(TokenKind::OrOr) {
                 continue;
             }
-            if self.check(&TokenKind::Semi) || self.check(&TokenKind::Eof) {
+            if self.check(TokenKind::Semi) || self.check(TokenKind::Eof) {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -491,7 +491,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut components = Vec::new();
         let lo = self.token.span;
         let (op, v) = self.parse_semver_component()?;
-        if self.eat(&TokenKind::BinOp(BinOpToken::Minus)) {
+        if self.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             // range
             // Ops are parsed and overwritten: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
             let _ = op;
@@ -545,13 +545,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an import directive.
     fn parse_import(&mut self) -> PResult<'sess, ImportDirective<'ast>> {
         let path;
-        let items = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
+        let items = if self.eat(TokenKind::BinOp(BinOpToken::Star)) {
             // * as alias from ""
             let alias = self.parse_as_alias()?;
             self.expect_keyword(sym::from)?;
             path = self.parse_str_lit()?;
             ImportItems::Glob(alias)
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             // { x as y, ... } from ""
             let list = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
@@ -588,7 +588,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_using(&mut self) -> PResult<'sess, UsingDirective<'ast>> {
         let list = self.parse_using_list()?;
         self.expect_keyword(kw::For)?;
-        let ty = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
+        let ty = if self.eat(TokenKind::BinOp(BinOpToken::Star)) {
             None
         } else {
             Some(self.parse_type()?)
@@ -599,7 +599,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_using_list(&mut self) -> PResult<'sess, UsingList<'ast>> {
-        if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
                 let op = if this.eat_keyword(kw::As) {
@@ -680,7 +680,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if ty.is_function()
             && flags == VarFlags::STATE_VAR
-            && self.check_noexpect(&TokenKind::OpenDelim(Delimiter::Brace))
+            && self.check_noexpect(TokenKind::OpenDelim(Delimiter::Brace))
         {
             let msg = "expected a state variable declaration";
             let note = "this style of fallback function has been removed; use the `fallback` or `receive` keywords instead";
@@ -778,7 +778,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(&TokenKind::Eq) {
+        let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
             Some(self.parse_expr()?)
         } else {
             None
@@ -837,7 +837,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut list = SmallVec::<[_; 8]>::new();
         loop {
             list.push(self.parse_modifier()?);
-            if !self.eat(&TokenKind::Comma) {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }

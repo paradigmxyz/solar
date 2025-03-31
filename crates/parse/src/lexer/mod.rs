@@ -115,7 +115,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             (next_token, preceded_by_whitespace) = self.bump();
             if preceded_by_whitespace {
                 break;
-            } else if let Some(glued) = self.token.glue(&next_token) {
+            } else if let Some(glued) = self.token.glue(next_token) {
                 self.token = glued;
             } else {
                 break;
