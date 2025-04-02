@@ -155,21 +155,27 @@ impl<'a> FileResolver<'a> {
         let original_path = path;
         let path = &*self.remap_path(path, parent);
         let mut result = Vec::with_capacity(1);
-
-        // Walk over the import paths until we find one that resolves.
-        for include_path in &self.include_paths {
-            let path = include_path.join(path);
-            if let Some(file) = self.try_file(&path)? {
+        // Quick deduplication when include paths are duplicated.
+        let mut push_file = |file: Arc<SourceFile>| {
+            if !result.iter().any(|f| Arc::ptr_eq(f, &file)) {
                 result.push(file);
             }
-        }
+        };
 
         // If there are no include paths, then try the file directly. See
         // https://docs.soliditylang.org/en/latest/path-resolution.html#base-path-and-include-paths
         // "By default the base path is empty, which leaves the source unit name unchanged."
-        if self.include_paths.is_empty() {
+        if self.include_paths.is_empty() || path.is_absolute() {
             if let Some(file) = self.try_file(path)? {
                 result.push(file);
+            }
+        } else {
+            // Try all the import paths.
+            for include_path in &self.include_paths {
+                let path = include_path.join(path);
+                if let Some(file) = self.try_file(&path)? {
+                    push_file(file);
+                }
             }
         }
 
@@ -226,7 +232,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         let path = &*path.normalize();
         if let Some(file) = self.source_map().get_file(path) {
