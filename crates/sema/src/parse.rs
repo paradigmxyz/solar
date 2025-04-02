@@ -129,7 +129,7 @@ impl<'sess> ParsingContext<'sess> {
 
             let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
-            for (import_item_id, import) in resolve_imports!(self, &source.file, ast.as_ref()) {
+            for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
                 sources.add_import(current_file, import_item_id, import);
             }
             let new_files = sources.len() - n_sources;
@@ -160,7 +160,7 @@ impl<'sess> ParsingContext<'sess> {
                 .flat_map_iter(|(i, source)| {
                     debug_assert!(source.ast.is_none(), "source already parsed");
                     source.ast = self.parse_one(&source.file, arenas.get_or_default());
-                    resolve_imports!(self, &source.file, source.ast.as_ref())
+                    self.resolve_imports(&source.file, source.ast.as_ref())
                         .map(move |import| (i, import))
                 })
                 .collect_vec_list();
@@ -193,18 +193,14 @@ impl<'sess> ParsingContext<'sess> {
         trace!(allocated = arena.allocated_bytes(), used = arena.used_bytes(), "AST arena stats");
         r
     }
-}
 
-/// Resolves the imports of the given file, returning an iterator over all the imported files.
-///
-/// This is currently a macro as I have not figured out how to win against the borrow checker to
-/// return `impl Iterator` instead of having to collect, since it obviously isn't necessary given
-/// this macro.
-macro_rules! resolve_imports {
-    ($self:expr, $file:expr, $ast:expr) => {{
-        let this = $self;
-        let file = $file;
-        let ast = $ast;
+    /// Resolves the imports of the given file, returning an iterator over all the imported files
+    /// that were successfully resolved.
+    fn resolve_imports<'a, 'b, 'c>(
+        &'a self,
+        file: &SourceFile,
+        ast: Option<&'b ast::SourceUnit<'c>>,
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + use<'a, 'b, 'c> {
         let parent = match &file.name {
             FileName::Real(path) => Some(path.to_path_buf()),
             FileName::Stdin | FileName::Custom(_) => None,
@@ -214,26 +210,26 @@ macro_rules! resolve_imports {
             .iter_enumerated()
             .filter_map(|(id, item)| {
                 if let ast::ItemKind::Import(import) = &item.kind {
-                    Some((id, import, item.span))
+                    Some((id, import))
                 } else {
                     None
                 }
             })
-            .filter_map(move |(id, import, span)| {
+            .filter_map(move |(id, import)| {
+                let span = import.path.span;
                 let path_bytes = escape_import_path(import.path.value.as_str())?;
                 let Some(path) = path_from_bytes(&path_bytes[..]) else {
-                    this.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+                    self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
                     return None;
                 };
-                this.file_resolver
+                self.file_resolver
                     .resolve_file(path, parent.as_deref())
-                    .map_err(|e| this.dcx().err(e.to_string()).span(span).emit())
+                    .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
                     .ok()
                     .map(|file| (id, file))
             })
-    }};
+    }
 }
-use resolve_imports;
 
 fn escape_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
     let mut any_error = false;
