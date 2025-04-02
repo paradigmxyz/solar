@@ -2787,7 +2787,6 @@ dependencies = [
  "rayon",
  "scc",
  "serde",
- "serde_json",
  "solar-ast",
  "solar-data-structures",
  "solar-interface",

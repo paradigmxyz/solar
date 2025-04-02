@@ -65,6 +65,19 @@ macro_rules! pluralize {
     };
 }
 
+/// Writes a value to a writer as JSON with a dynamic `pretty` flag.
+pub fn json_to_writer<W: std::io::Write, T: serde::Serialize + ?Sized>(
+    writer: W,
+    value: &T,
+    pretty: bool,
+) -> serde_json::Result<()> {
+    if pretty {
+        serde_json::to_writer_pretty(writer, value)
+    } else {
+        serde_json::to_writer(writer, value)
+    }
+}
+
 /// Creates new session globals on the current thread if they doesn't exist already and then
 /// executes the given closure.
 ///

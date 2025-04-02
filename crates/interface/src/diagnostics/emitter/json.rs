@@ -200,11 +200,7 @@ impl JsonEmitter {
     }
 
     fn emit<T: ?Sized + Serialize>(&mut self, value: &T) -> io::Result<()> {
-        if self.pretty {
-            serde_json::to_writer_pretty(&mut *self.writer, value)
-        } else {
-            serde_json::to_writer(&mut *self.writer, value)
-        }?;
+        crate::json_to_writer(&mut *self.writer, value, self.pretty)?;
         self.writer.write_all(b"\n")?;
         self.writer.flush()
     }

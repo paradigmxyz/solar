@@ -50,7 +50,7 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
     let _ = (|| {
         let out_path = gcx.sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.json"));
         let mut writer = out_writer(out_path.as_deref())?;
-        to_json(&mut writer, &output, gcx.sess.opts.pretty_json)?;
+        solar_interface::json_to_writer(&mut writer, &output, gcx.sess.opts.pretty_json)?;
         writer.flush()?;
         Ok::<_, io::Error>(())
     })()
@@ -64,16 +64,4 @@ fn out_writer(path: Option<&Path>) -> io::Result<impl io::Write> {
         Box::new(std::io::stdout())
     };
     Ok(io::BufWriter::new(out))
-}
-
-fn to_json<W: io::Write, T: Serialize>(
-    writer: W,
-    value: &T,
-    pretty: bool,
-) -> serde_json::Result<()> {
-    if pretty {
-        serde_json::to_writer_pretty(writer, value)
-    } else {
-        serde_json::to_writer(writer, value)
-    }
 }
