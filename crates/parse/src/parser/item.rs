@@ -555,7 +555,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // { x as y, ... } from ""
             let list = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
-                let alias = this.parse_as_alias()?;
+                let alias = this.parse_as_alias_opt()?;
                 Ok((name, alias))
             })?;
             self.expect_keyword(sym::from)?;
@@ -564,7 +564,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             // "" as alias
             path = self.parse_str_lit()?;
-            let alias = self.parse_as_alias()?;
+            let alias = self.parse_as_alias_opt()?;
             ImportItems::Plain(alias)
         };
         if path.value.as_str().is_empty() {
@@ -575,13 +575,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(ImportDirective { path, items })
     }
 
-    /// Parses an `as` alias identifier.
-    fn parse_as_alias(&mut self) -> PResult<'sess, Option<Ident>> {
+    /// Parses an optional `as` alias identifier.
+    fn parse_as_alias_opt(&mut self) -> PResult<'sess, Option<Ident>> {
         if self.eat_keyword(kw::As) {
             self.parse_ident().map(Some)
         } else {
             Ok(None)
         }
+    }
+
+    /// Parses an `as` alias identifier.
+    fn parse_as_alias(&mut self) -> PResult<'sess, Ident> {
+        self.expect_keyword(kw::As)?;
+        self.parse_ident()
     }
 
     /// Parses a using directive.

@@ -69,9 +69,7 @@ declare_visitors! {
                     }
                 }
                 ImportItems::Glob(alias) => {
-                    if let Some(alias) = alias {
-                        self.visit_ident #_mut(alias)?;
-                    }
+                    self.visit_ident #_mut(alias)?;
                 }
             }
             ControlFlow::Continue(())

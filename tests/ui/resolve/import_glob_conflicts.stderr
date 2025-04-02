@@ -3,8 +3,8 @@ error: identifier `MyUdvt` already declared
    |
 LL | import "./auxiliary/udvt.sol";
    | ------------------------------ note: previous declaration imported here
-LL | import * from "./auxiliary/udvt2.sol";
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL | import "./auxiliary/udvt2.sol";
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |
   ::: ROOT/tests/ui/resolve/auxiliary/udvt.sol:LL:CC
    |
