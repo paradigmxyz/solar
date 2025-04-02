@@ -5,7 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-use std::num::NonZeroUsize;
+use std::{fmt, num::NonZeroUsize};
 use strum::EnumIs;
 
 #[macro_use]
@@ -177,7 +177,7 @@ str_enum! {
 }
 
 /// A single import remapping: `[context:]prefix=path`.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ImportRemapping {
     /// The remapping context, or empty string if none.
     pub context: String,
@@ -203,6 +203,21 @@ impl std::str::FromStr for ImportRemapping {
         } else {
             Err("missing '='")
         }
+    }
+}
+
+impl fmt::Display for ImportRemapping {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !self.context.is_empty() {
+            write!(f, "{}:", self.context)?;
+        }
+        write!(f, "{}={}", self.prefix, self.path)
+    }
+}
+
+impl fmt::Debug for ImportRemapping {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ImportRemapping({self})")
     }
 }
 
