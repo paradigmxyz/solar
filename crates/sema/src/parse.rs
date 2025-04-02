@@ -194,7 +194,8 @@ impl<'sess> ParsingContext<'sess> {
         r
     }
 
-    /// Resolves the imports of the given file, returning an iterator over all the imported files.
+    /// Resolves the imports of the given file, returning an iterator over all the imported files
+    /// that were successfully resolved.
     fn resolve_imports<'a, 'b, 'c>(
         &'a self,
         file: &SourceFile,
@@ -209,12 +210,13 @@ impl<'sess> ParsingContext<'sess> {
             .iter_enumerated()
             .filter_map(|(id, item)| {
                 if let ast::ItemKind::Import(import) = &item.kind {
-                    Some((id, import, item.span))
+                    Some((id, import))
                 } else {
                     None
                 }
             })
-            .filter_map(move |(id, import, span)| {
+            .filter_map(move |(id, import)| {
+                let span = import.path.span;
                 let path_bytes = escape_import_path(import.path.value.as_str())?;
                 let Some(path) = path_from_bytes(&path_bytes[..]) else {
                     self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
