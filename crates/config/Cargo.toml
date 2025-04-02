@@ -38,3 +38,12 @@ nightly = []
 clap = ["version", "dep:clap"]
 version = ["dep:vergen"]
 serde = ["dep:serde"]
+
+# solar-cli features, only used by build.rs to include in the version string.
+asm = []
+jemalloc = []
+tracing = []
+tracing-off = []
+tracing-chrome = []
+tracy = []
+tracy-allocator = []

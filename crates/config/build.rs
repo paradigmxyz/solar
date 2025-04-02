@@ -40,9 +40,20 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
 
-    let cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
+    let mut cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
+    let ignore = ["clap", "version", "serde"];
+    for feature in ignore {
+        cargo_features = cargo_features
+            .replace(&format!(",{feature}"), "")
+            .replace(&format!("{feature},"), "")
+            .replace(feature, "");
+    }
     let long_version = format!(
-        "Version: {version}\nCommit SHA: {sha}\nBuild Timestamp: {timestamp}\nBuild Features: {cargo_features}\nBuild Profile: {profile}",
+        "Version: {version}\n\
+         Commit SHA: {sha}\n\
+         Build Timestamp: {timestamp}\n\
+         Build Features: {cargo_features}\n\
+         Build Profile: {profile}",
     );
     assert_eq!(long_version.lines().count(), 5); // `version.rs` must be updated as well.
     for (i, line) in long_version.lines().enumerate() {

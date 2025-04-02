@@ -47,13 +47,13 @@ nightly = [
     "solar-sema/nightly",
 ]
 # Faster but less portable algorithm implementations, such as Keccak-256.
-asm = ["alloy-primitives/asm-keccak"]
+asm = ["alloy-primitives/asm-keccak", "solar-config/asm"]
 # Faster but less portable allocator.
-jemalloc = ["dep:tikv-jemallocator"]
+jemalloc = ["dep:tikv-jemallocator", "solar-config/jemalloc"]
 
 # Debugging and profiling.
-tracing = ["dep:tracing-subscriber"]
-tracing-off = ["tracing/release_max_level_off"]
-tracing-chrome = ["tracing", "dep:tracing-chrome"]
-tracy = ["tracing", "dep:tracing-tracy"]
-tracy-allocator = ["tracing", "tracy"]
+tracing = ["dep:tracing-subscriber", "solar-config/tracing"]
+tracing-off = ["tracing/release_max_level_off", "solar-config/tracing-off"]
+tracing-chrome = ["tracing", "dep:tracing-chrome", "solar-config/tracing-chrome"]
+tracy = ["tracing", "dep:tracing-tracy", "solar-config/tracy"]
+tracy-allocator = ["tracing", "tracy", "solar-config/tracy-allocator"]
