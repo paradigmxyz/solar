@@ -230,14 +230,16 @@ impl IdentOrStrLit {
 #[derive(Debug)]
 pub struct ImportDirective<'ast> {
     /// The path string literal value.
+    ///
+    /// Note that this is not escaped.
     pub path: StrLit,
     pub items: ImportItems<'ast>,
 }
 
 impl ImportDirective<'_> {
-    /// Returns `true` if the import directive imports all items from the target.
-    pub fn imports_all(&self) -> bool {
-        matches!(self.items, ImportItems::Glob(None) | ImportItems::Plain(None))
+    /// Returns the alias of the source, if any.
+    pub fn source_alias(&self) -> Option<Ident> {
+        self.items.source_alias()
     }
 }
 
@@ -249,7 +251,18 @@ pub enum ImportItems<'ast> {
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
     Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
-    Glob(Option<Ident>),
+    Glob(Ident),
+}
+
+impl ImportItems<'_> {
+    /// Returns the alias of the source, if any.
+    pub fn source_alias(&self) -> Option<Ident> {
+        match *self {
+            ImportItems::Plain(ident) => ident,
+            ImportItems::Aliases(_) => None,
+            ImportItems::Glob(ident) => Some(ident),
+        }
+    }
 }
 
 /// A `using` directive: `using { A, B.add as + } for uint256 global;`.

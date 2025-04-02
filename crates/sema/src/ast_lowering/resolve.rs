@@ -52,8 +52,8 @@ impl super::LoweringContext<'_, '_, '_> {
                     (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
-                    ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
-                        if let Some(alias) = alias {
+                    ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
+                        if let Some(alias) = import.items.source_alias() {
                             let _ = source_scope.declare_res(
                                 self.sess,
                                 &self.hir,
