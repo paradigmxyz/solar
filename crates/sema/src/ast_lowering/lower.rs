@@ -301,7 +301,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         name,
         visibility,
         mutability: _,
-        data_location,
+        data_location: _,
         override_,
         overrides,
         indexed,
@@ -309,7 +309,6 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         getter,
     } = *hir.variable(id);
     debug_assert!(!indexed);
-    debug_assert!(data_location.is_none());
     debug_assert_eq!(visibility, Some(ast::Visibility::Public));
     debug_assert!(kind.is_state());
     debug_assert!(getter.is_none());
