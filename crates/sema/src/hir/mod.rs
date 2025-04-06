@@ -1200,7 +1200,7 @@ pub struct NamedArg<'hir> {
 }
 
 /// A list of function call arguments.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum CallArgs<'hir> {
     /// A list of unnamed arguments: `(1, 2, 3)`.
     Unnamed(&'hir [Expr<'hir>]),
