@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Bug Fixes
+
+- Hir call visiting ([#250](https://github.com/paradigmxyz/solar/issues/250))
+- Public transient assert ([#248](https://github.com/paradigmxyz/solar/issues/248))
+- Dedup resolved files ([#246](https://github.com/paradigmxyz/solar/issues/246))
+- [parser] Glob imports require an alias ([#245](https://github.com/paradigmxyz/solar/issues/245))
+- Point resolution errors to the import string ([#244](https://github.com/paradigmxyz/solar/issues/244))
+- Correct features in version string ([#242](https://github.com/paradigmxyz/solar/issues/242))
+- Unsound transmute ([#239](https://github.com/paradigmxyz/solar/issues/239))
+- Disable default features
+- Variable getter functions are external ([#202](https://github.com/paradigmxyz/solar/issues/202))
+- Error when func type has named return param  ([#173](https://github.com/paradigmxyz/solar/issues/173))
+- Don't check placeholders in virtual modifiers ([#201](https://github.com/paradigmxyz/solar/issues/201))
+- Correctly resolve try/catch scopes ([#200](https://github.com/paradigmxyz/solar/issues/200))
+- Panic in multiline diagnostics ([#193](https://github.com/paradigmxyz/solar/issues/193))
+- Use custom build profile in --version ([#192](https://github.com/paradigmxyz/solar/issues/192))
+- Correctly evaluate public constants ([#187](https://github.com/paradigmxyz/solar/issues/187))
+- Allow storage in modifiers ([#185](https://github.com/paradigmxyz/solar/issues/185))
+
+### Dependencies
+
+- Bump solidity submodule to 0.8.29 ([#230](https://github.com/paradigmxyz/solar/issues/230))
+
+### Features
+
+- Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
+- Refactor FileResolver to allow custom current_dir ([#235](https://github.com/paradigmxyz/solar/issues/235))
+- Improve SourceMap helpers for Span to source ([#233](https://github.com/paradigmxyz/solar/issues/233))
+- [hir] Expose hir from parsing context ([#210](https://github.com/paradigmxyz/solar/issues/210))
+- Parse storage layout specifiers ([#232](https://github.com/paradigmxyz/solar/issues/232))
+- Make current_dir configurable ([#231](https://github.com/paradigmxyz/solar/issues/231))
+- Allow compiling out tracing-subscriber ([#213](https://github.com/paradigmxyz/solar/issues/213))
+- Saner defaults for single threaded targets ([#212](https://github.com/paradigmxyz/solar/issues/212))
+- Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
+
+### Miscellaneous Tasks
+
+- [ast] Don't debug raw bytes in LitKind ([#236](https://github.com/paradigmxyz/solar/issues/236))
+- Make SilentEmitter wrap DynEmitter ([#199](https://github.com/paradigmxyz/solar/issues/199))
+- Add dist-dbg profile
+- Shorten Diagnostic* to Diag ([#184](https://github.com/paradigmxyz/solar/issues/184))
+
+### Other
+
+- Use reusable cargo update workflow ([#188](https://github.com/paradigmxyz/solar/issues/188))
+
+### Performance
+
+- Make Token implement Copy ([#241](https://github.com/paradigmxyz/solar/issues/241))
+
+### Testing
+
+- Update source delim matching ([#237](https://github.com/paradigmxyz/solar/issues/237))
+- Use Result instead of Option in should_skip ([#204](https://github.com/paradigmxyz/solar/issues/204))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 Notable and breaking changes (!):

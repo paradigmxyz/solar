@@ -4,7 +4,7 @@ default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.83" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
@@ -86,15 +86,15 @@ debug-assertions = true
 
 [workspace.dependencies]
 # compiler crates
-solar = { version = "0.1.1", path = "crates/solar", package = "solar-compiler", default-features = false }
-solar-ast = { version = "0.1.1", path = "crates/ast", default-features = false }
-solar-cli = { version = "0.1.1", path = "crates/cli", default-features = false }
-solar-config = { version = "0.1.1", path = "crates/config", default-features = false }
-solar-data-structures = { version = "0.1.1", path = "crates/data-structures", default-features = false }
-solar-interface = { version = "0.1.1", path = "crates/interface", default-features = false }
-solar-macros = { version = "0.1.1", path = "crates/macros", default-features = false }
-solar-parse = { version = "0.1.1", path = "crates/parse", default-features = false }
-solar-sema = { version = "0.1.1", path = "crates/sema", default-features = false }
+solar = { version = "0.1.2", path = "crates/solar", package = "solar-compiler", default-features = false }
+solar-ast = { version = "0.1.2", path = "crates/ast", default-features = false }
+solar-cli = { version = "0.1.2", path = "crates/cli", default-features = false }
+solar-config = { version = "0.1.2", path = "crates/config", default-features = false }
+solar-data-structures = { version = "0.1.2", path = "crates/data-structures", default-features = false }
+solar-interface = { version = "0.1.2", path = "crates/interface", default-features = false }
+solar-macros = { version = "0.1.2", path = "crates/macros", default-features = false }
+solar-parse = { version = "0.1.2", path = "crates/parse", default-features = false }
+solar-sema = { version = "0.1.2", path = "crates/sema", default-features = false }
 
 # internal crates
 solar-tester = { path = "tools/tester" }
