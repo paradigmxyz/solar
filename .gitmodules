@@ -2,3 +2,4 @@
 	path = testdata/solidity
 	url = https://github.com/ethereum/solidity.git
 	shallow = true
+	fetchRecurseSubmodules = false
