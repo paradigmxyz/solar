@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Bug Fixes
+
+- Dedup resolved files ([#246](https://github.com/paradigmxyz/solar/issues/246))
+- Panic in multiline diagnostics ([#193](https://github.com/paradigmxyz/solar/issues/193))
+
+### Features
+
+- Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
+- Refactor FileResolver to allow custom current_dir ([#235](https://github.com/paradigmxyz/solar/issues/235))
+- Improve SourceMap helpers for Span to source ([#233](https://github.com/paradigmxyz/solar/issues/233))
+- Parse storage layout specifiers ([#232](https://github.com/paradigmxyz/solar/issues/232))
+- Make current_dir configurable ([#231](https://github.com/paradigmxyz/solar/issues/231))
+- Saner defaults for single threaded targets ([#212](https://github.com/paradigmxyz/solar/issues/212))
+- Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
+
+### Miscellaneous Tasks
+
+- Make SilentEmitter wrap DynEmitter ([#199](https://github.com/paradigmxyz/solar/issues/199))
+- Shorten Diagnostic* to Diag ([#184](https://github.com/paradigmxyz/solar/issues/184))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Bug Fixes
