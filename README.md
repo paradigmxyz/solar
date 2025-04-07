@@ -44,7 +44,7 @@ You can add Solar to your Rust project by adding the following to your `Cargo.to
 
 ```toml
 [dependencies]
-solar = { version = "0.1.0", package = "solar-compiler" }
+solar = { version = "=0.1.2", package = "solar-compiler" }
 ```
 
 Or through the CLI:
