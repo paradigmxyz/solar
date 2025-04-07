@@ -35,6 +35,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Make current_dir configurable ([#231](https://github.com/paradigmxyz/solar/issues/231))
 - Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
 
+### Miscellaneous Tasks
+
+- Release 0.1.2 ([#251](https://github.com/paradigmxyz/solar/issues/251))
+
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Bug Fixes
+
+- Hir call visiting ([#250](https://github.com/paradigmxyz/solar/issues/250))
+- Public transient assert ([#248](https://github.com/paradigmxyz/solar/issues/248))
+- [parser] Glob imports require an alias ([#245](https://github.com/paradigmxyz/solar/issues/245))
+- Point resolution errors to the import string ([#244](https://github.com/paradigmxyz/solar/issues/244))
+- Unsound transmute ([#239](https://github.com/paradigmxyz/solar/issues/239))
+- Variable getter functions are external ([#202](https://github.com/paradigmxyz/solar/issues/202))
+- Error when func type has named return param  ([#173](https://github.com/paradigmxyz/solar/issues/173))
+- Don't check placeholders in virtual modifiers ([#201](https://github.com/paradigmxyz/solar/issues/201))
+- Correctly resolve try/catch scopes ([#200](https://github.com/paradigmxyz/solar/issues/200))
+- Correctly evaluate public constants ([#187](https://github.com/paradigmxyz/solar/issues/187))
+- Allow storage in modifiers ([#185](https://github.com/paradigmxyz/solar/issues/185))
+
+### Dependencies
+
+- Bump solidity submodule to 0.8.29 ([#230](https://github.com/paradigmxyz/solar/issues/230))
+- [deps] Weekly `cargo update` ([#225](https://github.com/paradigmxyz/solar/issues/225))
+
+### Features
+
+- Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
+- Refactor FileResolver to allow custom current_dir ([#235](https://github.com/paradigmxyz/solar/issues/235))
+- [hir] Expose hir from parsing context ([#210](https://github.com/paradigmxyz/solar/issues/210))
+- Parse storage layout specifiers ([#232](https://github.com/paradigmxyz/solar/issues/232))
+- Make current_dir configurable ([#231](https://github.com/paradigmxyz/solar/issues/231))
+- Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Bug Fixes

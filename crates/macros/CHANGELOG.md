@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
 
+### Miscellaneous Tasks
+
+- Release 0.1.2 ([#251](https://github.com/paradigmxyz/solar/issues/251))
+
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Features
+
+- Implement minimal HIR visitor ([#195](https://github.com/paradigmxyz/solar/issues/195))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Documentation
