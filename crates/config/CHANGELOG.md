@@ -18,23 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
 - Saner defaults for single threaded targets ([#212](https://github.com/paradigmxyz/solar/issues/212))
 
-### Miscellaneous Tasks
-
-- Release 0.1.2 ([#251](https://github.com/paradigmxyz/solar/issues/251))
-
-## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
-
-### Bug Fixes
-
-- Dedup resolved files ([#246](https://github.com/paradigmxyz/solar/issues/246))
-- Correct features in version string ([#242](https://github.com/paradigmxyz/solar/issues/242))
-- Use custom build profile in --version ([#192](https://github.com/paradigmxyz/solar/issues/192))
-
-### Features
-
-- Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
-- Saner defaults for single threaded targets ([#212](https://github.com/paradigmxyz/solar/issues/212))
-
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Documentation

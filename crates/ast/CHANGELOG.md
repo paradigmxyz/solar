@@ -22,30 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
-- Release 0.1.2 ([#251](https://github.com/paradigmxyz/solar/issues/251))
-- [ast] Don't debug raw bytes in LitKind ([#236](https://github.com/paradigmxyz/solar/issues/236))
-
-### Performance
-
-- Make Token implement Copy ([#241](https://github.com/paradigmxyz/solar/issues/241))
-
-## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
-
-### Bug Fixes
-
-- [parser] Glob imports require an alias ([#245](https://github.com/paradigmxyz/solar/issues/245))
-- Correctly resolve try/catch scopes ([#200](https://github.com/paradigmxyz/solar/issues/200))
-
-### Dependencies
-
-- [deps] Weekly `cargo update` ([#225](https://github.com/paradigmxyz/solar/issues/225))
-
-### Features
-
-- Parse storage layout specifiers ([#232](https://github.com/paradigmxyz/solar/issues/232))
-
-### Miscellaneous Tasks
-
 - [ast] Don't debug raw bytes in LitKind ([#236](https://github.com/paradigmxyz/solar/issues/236))
 
 ### Performance
