@@ -10,6 +10,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     diagnostics::DiagCtxt,
+    pluralize,
     source_map::{FileName, FileResolver, SourceFile},
     Result, Session,
 };
@@ -99,7 +100,7 @@ impl<'sess> ParsingContext<'sess> {
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
     pub fn parse<'ast>(mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> ParsedSources<'ast> {
-        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the asts are
+        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the ASTs are
         // populated, so this is safe.
         let sources: ParsedSources<'static> = std::mem::take(&mut self.sources);
         let mut sources: ParsedSources<'ast> =
@@ -112,9 +113,10 @@ impl<'sess> ParsingContext<'sess> {
             }
             debug!(
                 num_sources = sources.len(),
-                total_bytes = sources.iter().map(|s| s.file.src.len()).sum::<usize>(),
+                num_contracts = sources.iter().map(|s| s.count_contracts()).sum::<usize>(),
+                total_bytes = %crate::fmt_bytes(sources.iter().map(|s| s.file.src.len()).sum::<usize>()),
                 total_lines = sources.iter().map(|s| s.file.count_lines()).sum::<usize>(),
-                "parsed",
+                "parsed all sources",
             );
         }
         sources.assert_unique();
@@ -152,7 +154,7 @@ impl<'sess> ParsingContext<'sess> {
             if to_parse.is_empty() {
                 break;
             }
-            trace!(start, "parsing {} files", to_parse.len());
+            debug!(start, "parsing {} file{}", to_parse.len(), pluralize!(to_parse.len()));
             start += to_parse.len();
             let imports = to_parse
                 .par_iter_mut()
@@ -184,14 +186,12 @@ impl<'sess> ParsingContext<'sess> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        let r = if self.sess.opts.language.is_yul() {
+        if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
-        };
-        trace!(allocated = arena.allocated_bytes(), used = arena.used_bytes(), "AST arena stats");
-        r
+        }
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files
@@ -287,7 +287,6 @@ impl ParsedSources<'_> {
         if let Some((id, _)) =
             self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
         {
-            trace!(file = %file.name.display(), "skipping duplicate source file");
             return id;
         }
         self.sources.push(ParsedSource::new(file))
@@ -400,6 +399,10 @@ impl ParsedSource<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new() }
+    }
+
+    fn count_contracts(&self) -> usize {
+        self.ast.as_ref().map(|ast| ast.count_contracts()).unwrap_or(0)
     }
 }
 

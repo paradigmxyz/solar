@@ -287,7 +287,7 @@ impl SourceFile {
                 // that want to use the display col instead of byte offsets to modify code, but
                 // that is a problem for another day, the previous code was already incorrect for
                 // both displaying *and* third party tools using the json output naïvely.
-                tracing::info!("couldn't find line {line} {:?}", self.name);
+                debug!("couldn't find line {line} in {:?}", self.name);
                 return (line, col_or_chpos, col_or_chpos.0);
             };
             let display_col = code.chars().take(col_or_chpos.0).map(char_width).sum();
