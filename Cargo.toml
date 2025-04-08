@@ -100,8 +100,8 @@ solar-sema = { version = "0.1.2", path = "crates/sema", default-features = false
 solar-tester = { path = "tools/tester" }
 
 # Ethereum
-alloy-primitives = "0.8"
-alloy-json-abi = "0.8"
+alloy-primitives = "1"
+alloy-json-abi = "1"
 
 num-bigint = "0.4"
 num-integer = "0.1"
@@ -130,21 +130,20 @@ derive_builder = "0.20.2"
 derive_more = { version = "2.0", features = ["full"] }
 match_cfg = "0.1"
 strum = "0.27"
-thiserror = ">=1.0"
+thiserror = ">=1"
 
 # parallel
 parking_lot = "0.12"
 rayon = "1.8"
 
 # tracing
-tracing-error = "0.2"
 tracing-subscriber = "0.3"
 tracing = "0.1"
 
 # testing
 criterion = "0.5"
 expect-test = "1.4"
-rand = "0.8"
+rand = "0.9"
 regex = "1.10"
 tempfile = "3.9"
 tester = "0.9"
@@ -168,7 +167,7 @@ md-5 = "0.10"
 memchr = "2.7"
 once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
-petgraph = "0.7"
+petgraph = "0.8"
 rustc-hash = "2.0"
 scc = "2"
 scoped-tls = "1.0"
@@ -178,4 +177,4 @@ thread_local = "1.1"
 tikv-jemallocator = "0.6"
 typed-arena = "2.0"
 unicode-width = "0.2"
-vergen = "8.3"
+vergen = "8"

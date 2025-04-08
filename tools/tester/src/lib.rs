@@ -17,6 +17,16 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
+
+    // Fast path for `--list`, invoked by `cargo-nextest`.
+    {
+        let mut dummy_config = ui_test::Config::dummy();
+        dummy_config.with_args(&args);
+        if ui_test::nextest::emulate(&mut vec![dummy_config]) {
+            return Ok(());
+        }
+    }
+
     // Condense output if not explicitly requested.
     let requested_pretty = || std::env::args().any(|x| x.contains("--format"));
     if matches!(args.format, ui_test::Format::Pretty) && !requested_pretty() {
