@@ -139,6 +139,11 @@ impl<'ast> SourceUnit<'ast> {
     pub fn new(items: Box<'ast, [Item<'ast>]>) -> Self {
         Self { items: IndexSlice::from_slice_mut(items) }
     }
+
+    /// Counts the number of contracts in the source unit.
+    pub fn count_contracts(&self) -> usize {
+        self.items.iter().filter(|item| matches!(item.kind, ItemKind::Contract(_))).count()
+    }
 }
 
 newtype_index! {

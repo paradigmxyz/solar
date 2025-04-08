@@ -64,8 +64,9 @@ impl Drop for GcxWrapper<'_> {
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub(crate) fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
-        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
+        let _guard = debug_span!("dropping_hir_arena").entered();
+        debug!(hir_allocated = %fmt_bytes(hir_arena.get_or_default().allocated_bytes()));
+        drop(hir_arena);
     });
     if let Some(gcx) = parse_and_lower(pcx, &hir_arena)? {
         analysis(gcx.get())?;
@@ -88,8 +89,9 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
     }
 
     let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
-        debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
+        let _guard = debug_span!("dropping_ast_arenas").entered();
+        debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
+        drop(arenas);
     });
     let mut sources = pcx.parse(&ast_arenas);
 
@@ -219,4 +221,30 @@ fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> 
         solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
         solar_interface::source_map::FileName::Custom(name) => path == name,
     }
+}
+
+fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {
+    solar_data_structures::fmt::from_fn(move |f| {
+        let mut size = bytes as f64;
+        let mut suffix = "B";
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "KiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "MiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "GiB";
+        }
+
+        let precision = if size.fract() != 0.0 { 2 } else { 0 };
+        write!(f, "{size:.precision$} {suffix}")?;
+        if suffix != "B" {
+            write!(f, " ({bytes} B)")?;
+        }
+        Ok(())
+    })
 }
