@@ -282,6 +282,7 @@ impl SourceMap {
     ///
     /// This index is guaranteed to be valid for the lifetime of this `SourceMap`.
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
+        assert!(!self.files().is_empty(), "attempted to lookup source file in empty `SourceMap`");
         self.files().partition_point(|x| x.start_pos <= pos) - 1
     }
 
