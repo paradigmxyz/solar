@@ -141,9 +141,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sess: &'sess Session,
         arena: &'ast ast::Arena,
         filename: FileName,
-        src: String,
+        src: impl Into<String>,
     ) -> Result<Self> {
-        Self::from_lazy_source_code(sess, arena, filename, || Ok(src))
+        Self::from_lazy_source_code(sess, arena, filename, || Ok(src.into()))
     }
 
     /// Creates a new parser from a file.

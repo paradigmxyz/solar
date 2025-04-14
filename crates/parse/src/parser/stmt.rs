@@ -477,7 +477,7 @@ mod tests {
                     let name = i.to_string();
                     let arena = Arena::new();
                     let mut parser =
-                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
+                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s)?;
 
                     let list = parser
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)

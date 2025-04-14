@@ -110,7 +110,7 @@ impl Parser for Solar {
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;
+                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src)?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);
