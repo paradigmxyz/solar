@@ -192,8 +192,11 @@ mod tests {
     fn verify_cli() {
         Opts::command().debug_assert();
         let _ = Opts::default();
+        let _ = Opts { evm_version: EvmVersion::Berlin, ..Default::default() };
+
         UnstableOpts::command().debug_assert();
         let _ = UnstableOpts::default();
+        let _ = UnstableOpts { ast_stats: false, ..Default::default() };
     }
 
     #[test]

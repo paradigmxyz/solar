@@ -32,6 +32,7 @@ str_enum! {
     /// Compiler stage.
     #[derive(strum::EnumIs)]
     #[strum(serialize_all = "lowercase")]
+    #[non_exhaustive]
     pub enum CompilerStage {
         /// Source code was parsed into an AST.
         #[strum(serialize = "parsed", serialize = "parsing")]
@@ -48,6 +49,7 @@ str_enum! {
     #[derive(Default)]
     #[derive(strum::EnumIs)]
     #[strum(serialize_all = "lowercase")]
+    #[non_exhaustive]
     pub enum Language {
         #[default]
         Solidity,
@@ -61,6 +63,7 @@ str_enum! {
     /// Defaults to the latest version deployed on Ethereum Mainnet at the time of compiler release.
     #[derive(Default)]
     #[strum(serialize_all = "camelCase")]
+    #[non_exhaustive]
     pub enum EvmVersion {
         // NOTE: Order matters.
         Homestead,
@@ -119,6 +122,7 @@ impl EvmVersion {
 str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
     pub enum CompilerOutput {
         /// JSON ABI.
         Abi,
@@ -156,6 +160,7 @@ str_enum! {
     /// What kind of output to dump. See [`Dump`].
     #[derive(EnumIs)]
     #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
     pub enum DumpKind {
         /// Print the AST.
         Ast,
@@ -168,6 +173,7 @@ str_enum! {
     /// How errors and other messages are produced.
     #[derive(Default)]
     #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
     pub enum ErrorFormat {
         /// Human-readable output.
         #[default]

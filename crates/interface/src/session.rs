@@ -455,4 +455,16 @@ mod tests {
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
     }
+
+    #[test]
+    fn set_opts() {
+        let _ = Session::builder()
+            .with_test_emitter()
+            .opts(Opts {
+                evm_version: solar_config::EvmVersion::Berlin,
+                unstable: UnstableOpts { ast_stats: false, ..Default::default() },
+                ..Default::default()
+            })
+            .build();
+    }
 }

@@ -44,6 +44,7 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
                     }
                     contract_output.hashes = Some(hashes);
                 }
+                emit => todo!("{emit:?}"),
             }
         }
     }
