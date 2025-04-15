@@ -126,6 +126,7 @@ fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> 
                 .ui_testing(ui_testing);
             Box::new(json)
         }
+        format => todo!("{format:?}"),
     };
     let dcx = DiagCtxt::new(emitter).set_flags(|flags| {
         flags.deduplicate_diagnostics &= !ui_testing;
