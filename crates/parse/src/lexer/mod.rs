@@ -169,11 +169,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
-                RawTokenKind::UnknownPrefix => {
-                    self.report_unknown_prefix(start);
-                    let sym = self.symbol_from(start);
-                    TokenKind::Ident(sym)
-                }
                 RawTokenKind::Literal { kind } => {
                     let (kind, symbol) = self.cook_literal(start, self.pos, kind);
                     TokenKind::Literal(kind, symbol)
@@ -441,12 +436,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Slice of the source text spanning from `start` until the end.
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
         &self.src[self.src_index(start)..]
-    }
-
-    fn report_unknown_prefix(&self, start: BytePos) {
-        let prefix = self.str_from_to(start, self.pos);
-        let msg = format!("literal prefix {prefix} is unknown");
-        self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
     }
 }
 

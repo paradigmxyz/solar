@@ -106,10 +106,10 @@ fn hex_str() {
             RawToken { kind: Whitespace, len: 1 }
             RawToken { kind: Literal { kind: HexStr { terminated: true } }, len: 7 }
             RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: UnknownPrefix, len: 1 }
+            RawToken { kind: Ident, len: 1 }
             RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
             RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: UnknownPrefix, len: 2 }
+            RawToken { kind: Ident, len: 2 }
             RawToken { kind: Literal { kind: Str { terminated: false, unicode: false } }, len: 2 }
         "#]],
     );
@@ -124,10 +124,10 @@ fn unicode_str() {
             RawToken { kind: Whitespace, len: 1 }
             RawToken { kind: Literal { kind: Str { terminated: true, unicode: true } }, len: 11 }
             RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: UnknownPrefix, len: 1 }
+            RawToken { kind: Ident, len: 1 }
             RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
             RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: UnknownPrefix, len: 3 }
+            RawToken { kind: Ident, len: 3 }
             RawToken { kind: Literal { kind: Str { terminated: false, unicode: false } }, len: 2 }
         "#]],
     );
