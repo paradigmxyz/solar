@@ -250,12 +250,16 @@ pub enum TokenKind {
     /// A literal token.
     ///
     /// Note that this does not include boolean literals.
+    ///
+    /// `Symbol` is the literal's parsed data. In string literals, this is the unescaped value, and
+    /// excludes its quotes (`"`, `'`) and prefix (`hex`, `unicode`).
     Literal(TokenLitKind, Symbol),
 
     /// Identifier token.
     Ident(Symbol),
 
     /// A comment or doc-comment token.
+    ///
     /// `Symbol` is the comment's data excluding its "quotes" (`//`, `/**`)
     /// similarly to symbols in string literal tokens.
     Comment(bool /* is_doc */, CommentKind, Symbol),
