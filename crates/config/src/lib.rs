@@ -36,6 +36,9 @@ str_enum! {
         /// Source code was parsed into an AST.
         #[strum(serialize = "parsed", serialize = "parsing")]
         Parsed,
+        /// Source code was parsed, and all imports were recursively resolved and parsed.
+        #[strum(serialize = "parsed-and-imported")]
+        ParsedAndImported,
         // TODO: More
     }
 }

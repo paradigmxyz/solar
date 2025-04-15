@@ -26,6 +26,8 @@ pub struct ParsingContext<'sess> {
     /// The loaded sources. Consumed once `parse` is called.
     /// The `'static` lifetime is a lie, as nothing borrowed is ever stored in this field.
     pub(crate) sources: ParsedSources<'static>,
+    /// Whether to recursively resolve and parse imports.
+    resolve_imports: bool,
 }
 
 impl<'sess> ParsingContext<'sess> {
@@ -35,6 +37,7 @@ impl<'sess> ParsingContext<'sess> {
             sess,
             file_resolver: FileResolver::new(sess.source_map()),
             sources: ParsedSources::new(),
+            resolve_imports: true,
         }
     }
 
@@ -42,6 +45,13 @@ impl<'sess> ParsingContext<'sess> {
     #[inline]
     pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
+    }
+
+    /// Sets whether to recursively resolve and parse imports.
+    ///
+    /// Default: `true`.
+    pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
+        self.resolve_imports = resolve_imports;
     }
 
     /// Loads `stdin` into the context.
@@ -78,7 +88,8 @@ impl<'sess> ParsingContext<'sess> {
         self.sources.add_file(file);
     }
 
-    /// Parses and semantically analyzes all the loaded sources, recursing into imports.
+    /// Parses and semantically analyzes all the loaded sources, recursing into imports if
+    /// specified.
     pub fn parse_and_resolve(self) -> Result<()> {
         crate::parse_and_resolve(self)
     }
@@ -95,7 +106,7 @@ impl<'sess> ParsingContext<'sess> {
         crate::parse_and_lower(self, hir_arena)
     }
 
-    /// Parses all the loaded sources, recursing into imports.
+    /// Parses all the loaded sources, recursing into imports if specified.
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
@@ -205,7 +216,8 @@ impl<'sess> ParsingContext<'sess> {
             FileName::Real(path) => Some(path.to_path_buf()),
             FileName::Stdin | FileName::Custom(_) => None,
         };
-        let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
+        let items =
+            ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
         items
             .iter_enumerated()
             .filter_map(|(id, item)| {
