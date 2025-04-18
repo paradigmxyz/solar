@@ -158,10 +158,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
 
         let mut value = unescape::parse_string_literal(lit.symbol.as_str(), mode);
+        let mut extra = vec![];
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
+            extra.push((self.token.span, lit.symbol));
             value
                 .to_mut()
                 .extend_from_slice(&unescape::parse_string_literal(symbol.as_str(), mode));
@@ -174,7 +176,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             TokenLitKind::HexStr => StrKind::Hex,
             _ => unreachable!(),
         };
-        Ok(LitKind::Str(kind, value.into()))
+        Ok(LitKind::Str(kind, value.into(), extra))
     }
 }
 
