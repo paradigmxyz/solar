@@ -89,8 +89,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
     #[instrument(name = "lex", level = "debug", skip_all)]
     pub fn into_tokens(mut self) -> Vec<Token> {
-        // `src.len() / 8` is an estimate of the number of tokens in the source.
-        let mut tokens = Vec::with_capacity(self.src.len() / 8);
+        // This is an estimate of the number of tokens in the source.
+        let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
             let token = self.next_token();
             if token.is_eof() {
