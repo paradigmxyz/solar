@@ -338,7 +338,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
             }
             _ => LitError::ParseExponent(e),
         })?;
-        let exp_abs = exp.abs() as u32;
+        let exp_abs = exp.unsigned_abs();
         let power = || BigInt::from(10u64).pow(exp_abs);
         if exp.is_negative() {
             if !fits_precision_base_10(&number.denom().abs().into_parts().1, exp_abs) {
@@ -398,10 +398,10 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
 }
 
 fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
-    if s.len() > max_digits::<{ MAX_BITS as u32 }>(base) as usize {
+    if s.len() > max_digits::<MAX_BITS>(base) {
         return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
     }
-    if s.len() <= max_digits::<{ Primitive::BITS }>(base) as usize {
+    if s.len() <= max_digits::<{ Primitive::BITS }>(base) {
         if let Ok(n) = Primitive::from_str_radix(s, base as u32) {
             return Ok(BigInt::from(n));
         }
