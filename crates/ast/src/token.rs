@@ -96,7 +96,7 @@ impl BinOpToken {
             Self::Star => BinOpKind::Mul,
             Self::Slash => BinOpKind::Div,
             Self::Percent => BinOpKind::Rem,
-            Self::Caret => BinOpKind::Pow,
+            Self::Caret => BinOpKind::BitXor,
             Self::And => BinOpKind::BitAnd,
             Self::Or => BinOpKind::BitOr,
             Self::Shl => BinOpKind::Shl,
