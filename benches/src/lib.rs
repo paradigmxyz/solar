@@ -28,14 +28,14 @@ pub fn get_srcs() -> &'static [Source] {
 }
 
 fn include_source(path: &'static str) -> Source {
-    source_from_path(
-        path,
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
-            .unwrap_or_else(|e| {
-                panic!("failed to read {path}: {e}; you may need to initialize submodules")
-            })
-            .leak(),
-    )
+    let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
+        Ok(source) => source,
+        Err(e) => panic!(
+            "failed to read {path}: {e};\n\
+             you may need to initialize submodules: `git submodule update --init --checkout`"
+        ),
+    };
+    source_from_path(path, source.leak())
 }
 
 fn source_from_path(path: &'static str, src: &'static str) -> Source {

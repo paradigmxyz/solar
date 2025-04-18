@@ -75,7 +75,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let tests_root = root.join(path);
     assert!(
         tests_root.exists(),
-        "tests root directory does not exist: {path}; you may need to initialize submodules"
+        "tests root directory does not exist: {path};\n\
+         you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
     let mut config = ui_test::Config {
