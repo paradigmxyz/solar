@@ -779,11 +779,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// tokens.
     #[inline]
     pub fn look_ahead(&self, dist: usize) -> Token {
-        if dist == 0 {
-            self.token
-        } else {
-            self.tokens.as_slice().get(dist - 1).copied().unwrap_or(Token::EOF)
+        // Specialize for the common `dist` cases.
+        match dist {
+            0 => self.token,
+            1 => self.look_ahead_full(1),
+            2 => self.look_ahead_full(2),
+            dist => self.look_ahead_full(dist),
         }
+    }
+
+    fn look_ahead_full(&self, dist: usize) -> Token {
+        self.tokens
+            .as_slice()
+            .iter()
+            .copied()
+            .filter(|t| !t.is_comment_or_doc())
+            .nth(dist - 1)
+            .unwrap_or(Token::EOF)
     }
 
     /// Calls `f` with the token `dist` tokens ahead of the current one.
