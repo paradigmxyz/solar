@@ -204,12 +204,16 @@ impl Span {
     }
 
     /// Joins all the spans in the given iterator using [`to`](Self::to).
+    ///
+    /// Returns [`DUMMY`](Self::DUMMY) if the iterator is empty.
     #[inline]
     pub fn join_many(spans: impl IntoIterator<Item = Self>) -> Self {
         spans.into_iter().reduce(Self::to).unwrap_or_default()
     }
 
     /// Joins the first and last span in the given iterator.
+    ///
+    /// Returns [`DUMMY`](Self::DUMMY) if the iterator is empty.
     #[inline]
     pub fn join_first_last(
         spans: impl IntoIterator<Item = Self, IntoIter: DoubleEndedIterator>,

@@ -344,6 +344,14 @@ impl UserDefinableOperator {
             Self::Ne => Either::Right(BinOpKind::Ne),
         }
     }
+
+    /// Returns the string representation of the operator.
+    pub const fn to_str(self) -> &'static str {
+        match self.to_op() {
+            Either::Left(unop) => unop.to_str(),
+            Either::Right(binop) => binop.to_str(),
+        }
+    }
 }
 
 /// A contract, abstract contract, interface, or library definition:

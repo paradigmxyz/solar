@@ -82,6 +82,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_lit_inner(&mut self) -> PResult<'sess, (Symbol, LitKind)> {
+        let lo = self.token.span;
         if let TokenKind::Ident(symbol @ (kw::True | kw::False)) = self.token.kind {
             self.bump();
             return Ok((symbol, LitKind::Bool(symbol != kw::False)));
@@ -95,7 +96,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             unreachable!("check_lit() returned true for non-literal token");
         };
         self.bump();
-        let kind = match lit.kind {
+        let result = match lit.kind {
             TokenLitKind::Integer => self.parse_lit_int(lit.symbol),
             TokenLitKind::Rational => self.parse_lit_rational(lit.symbol),
             TokenLitKind::Str | TokenLitKind::UnicodeStr | TokenLitKind::HexStr => {
@@ -103,7 +104,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             TokenLitKind::Err(guar) => Ok(LitKind::Err(guar)),
         };
-        kind.map(|kind| (lit.symbol, kind))
+        let kind =
+            result.unwrap_or_else(|e| LitKind::Err(e.span(lo.to(self.prev_token.span)).emit()));
+        Ok((lit.symbol, kind))
     }
 
     /// Parses an integer literal.
