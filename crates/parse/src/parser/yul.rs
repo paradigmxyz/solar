@@ -72,7 +72,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
         let data = self.parse_lit()?;
-        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, _)) {
+        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
             return Err(self.dcx().err(msg).span(data.span));
         }

@@ -61,6 +61,9 @@ pub enum ExprKind<'ast> {
     Index(Box<'ast, Expr<'ast>>, IndexKind<'ast>),
 
     /// A literal: `hex"1234"`, `5.6 ether`.
+    ///
+    /// Note that the `SubDenomination` is only present for numeric literals, and it's already
+    /// applied to `Lit`'s value. It is only present for error reporting/formatting purposes.
     Lit(&'ast mut Lit, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
