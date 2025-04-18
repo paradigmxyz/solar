@@ -16,6 +16,22 @@ pub struct Lit {
     pub kind: LitKind,
 }
 
+impl fmt::Display for Lit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { ref kind, symbol, span: _ } = *self;
+        match kind {
+            LitKind::Str(StrKind::Str, _) => write!(f, "\"{symbol}\""),
+            LitKind::Str(StrKind::Unicode, _) => write!(f, "unicode\"{symbol}\""),
+            LitKind::Str(StrKind::Hex, _) => write!(f, "hex\"{symbol}\""),
+            LitKind::Number(_)
+            | LitKind::Rational(_)
+            | LitKind::Err(_)
+            | LitKind::Address(_)
+            | LitKind::Bool(_) => write!(f, "{symbol}"),
+        }
+    }
+}
+
 /// A kind of literal.
 #[derive(Clone, derive_more::Debug)]
 pub enum LitKind {
@@ -24,7 +40,7 @@ pub enum LitKind {
     ///
     /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
     /// are allowed, and as such this cannot be a `str` or `Symbol`.
-    #[debug("Str({_0:?}, ..)")]
+    #[debug("Str({:?}, {})", _0, debug_str_literal(_1))]
     Str(StrKind, Arc<[u8]>),
     /// A decimal or hexadecimal number literal.
     Number(num_bigint::BigInt),
@@ -39,6 +55,17 @@ pub enum LitKind {
     Bool(bool),
     /// An error occurred while parsing the literal, which has been emitted.
     Err(ErrorGuaranteed),
+}
+
+#[allow(dead_code)] // False positive somehow. Used in `LitKind::Str` above.
+fn debug_str_literal(value: &[u8]) -> impl fmt::Display + '_ {
+    solar_data_structures::fmt::from_fn(move |f| {
+        if let Ok(utf8) = std::str::from_utf8(value) {
+            fmt::Debug::fmt(utf8, f)
+        } else {
+            f.write_str(&alloy_primitives::hex::encode_prefixed(value))
+        }
+    })
 }
 
 impl LitKind {
@@ -267,5 +294,17 @@ impl Base {
             Self::Decimal => "decimal",
             Self::Hexadecimal => "hexadecimal",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn literal_fmt() {
+        let lit = LitKind::Str(StrKind::Str, Arc::from(b"hello world" as &[u8]));
+        assert_eq!(lit.description(), "string");
+        assert_eq!(format!("{lit:?}"), "Str(Str, \"hello world\")");
     }
 }

@@ -4,6 +4,7 @@ use solar_data_structures::{index::IndexSlice, newtype_index, BumpExt};
 use std::fmt;
 
 pub use crate::token::CommentKind;
+pub use either::{self, Either};
 pub use solar_interface::{Ident, Span, Symbol};
 
 mod expr;
