@@ -69,13 +69,14 @@ pub enum LitKind {
     /// are allowed, and as such this cannot be a `str` or `Symbol`.
     ///
     /// The `Vec<(Span, Symbol)>` contains the extra string literals of the same kind that were
-    /// concatenated together to form this literal. For example, `"foo" "bar"` would be parsed
-    /// as: ```ignore (illustrative-debug-format)
+    /// concatenated together to form this literal.
+    /// For example, `"foo" "bar"` would be parsed as:
+    /// ```ignore (illustrative-debug-format)
     /// # #![rustfmt::skip]
     /// Lit {
     ///     span: 0..11,
     ///     symbol: "foo",
-    ///     kind: Str(Str, "foobar", [(6..11, "bar")]),
+    ///     kind: Str("foobar", [(6..11, "bar")]),
     /// }
     /// ```
     Str(StrKind, Arc<[u8]>, Vec<(Span, Symbol)>),
@@ -97,7 +98,7 @@ pub enum LitKind {
 impl fmt::Debug for LitKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LitKind::Str(kind, value, extra) => {
+            Self::Str(kind, value, extra) => {
                 write!(f, "{kind:?}(")?;
                 if let Ok(utf8) = std::str::from_utf8(value) {
                     write!(f, "{utf8:?}")?;
@@ -109,11 +110,11 @@ impl fmt::Debug for LitKind {
                 }
                 f.write_str(")")
             }
-            LitKind::Number(value) => write!(f, "Number({value:?})"),
-            LitKind::Rational(value) => write!(f, "Rational({value:?})"),
-            LitKind::Address(value) => write!(f, "Address({value:?})"),
-            LitKind::Bool(value) => write!(f, "Bool({value:?})"),
-            LitKind::Err(_) => write!(f, "Err"),
+            Self::Number(value) => write!(f, "Number({value:?})"),
+            Self::Rational(value) => write!(f, "Rational({value:?})"),
+            Self::Address(value) => write!(f, "Address({value:?})"),
+            Self::Bool(value) => write!(f, "Bool({value:?})"),
+            Self::Err(_) => write!(f, "Err"),
         }
     }
 }

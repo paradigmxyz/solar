@@ -245,7 +245,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 ///
 /// This is mainly used in the `internalType` field of the ABI.
 ///
-/// Example: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358
+/// Example: <https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358>
 struct TySolcPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
