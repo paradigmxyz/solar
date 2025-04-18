@@ -283,10 +283,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 }
 
 fn token_precedence(t: Token) -> usize {
+    // https://github.com/ethereum/solidity/blob/78ec8dd6f93bf5a5b4ca7582f9d491a4f66c3610/liblangutil/Token.h#L68
     use BinOpToken::*;
     use TokenKind::*;
     match t.kind {
         Question => 3,
+        Eq => 2,
         BinOpEq(_) => 2,
         Comma => 1,
         OrOr => 4,
@@ -302,7 +304,7 @@ fn token_precedence(t: Token) -> usize {
         BinOp(Star) => 13,
         BinOp(Slash) => 13,
         BinOp(Percent) => 13,
-        StarStar => 4,
+        StarStar => 14,
         EqEq => 6,
         Ne => 6,
         Lt => 7,
