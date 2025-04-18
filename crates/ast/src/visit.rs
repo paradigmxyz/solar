@@ -243,11 +243,13 @@ declare_visitors! {
         }
 
         fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) -> ControlFlow<Self::BreakValue> {
-            match args {
-                CallArgs::Named(named) => {
+            let CallArgs { span, kind } = args;
+            self.visit_span #_mut(span)?;
+            match kind {
+                CallArgsKind::Named(named) => {
                     self.visit_named_args #_mut(named)?;
                 }
-                CallArgs::Unnamed(unnamed) => {
+                CallArgsKind::Unnamed(unnamed) => {
                     for arg in unnamed.iter #_mut() {
                         self.visit_expr #_mut(arg)?;
                     }

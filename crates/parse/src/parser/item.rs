@@ -865,7 +865,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
         } else {
-            CallArgs::empty()
+            CallArgs::empty(name.span().shrink_to_hi())
         };
         Ok(Modifier { name, arguments })
     }

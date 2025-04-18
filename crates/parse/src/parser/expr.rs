@@ -219,13 +219,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a list of function call arguments.
     #[track_caller]
     pub(super) fn parse_call_args(&mut self) -> PResult<'sess, CallArgs<'ast>> {
+        self.parse_spanned(Self::parse_call_args_kind).map(|(span, kind)| CallArgs { span, kind })
+    }
+
+    #[track_caller]
+    fn parse_call_args_kind(&mut self) -> PResult<'sess, CallArgsKind<'ast>> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-            let args = self.parse_named_args().map(CallArgs::Named)?;
+            let args = self.parse_named_args().map(CallArgsKind::Named)?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             Ok(args)
         } else {
-            self.parse_unnamed_args().map(CallArgs::Unnamed)
+            self.parse_unnamed_args().map(CallArgsKind::Unnamed)
         }
     }
 

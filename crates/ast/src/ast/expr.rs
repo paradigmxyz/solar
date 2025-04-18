@@ -267,7 +267,59 @@ impl UnOpKind {
 
 /// A list of function call arguments.
 #[derive(Debug)]
-pub enum CallArgs<'ast> {
+pub struct CallArgs<'ast> {
+    /// The span of the arguments. This points to the parenthesized list of arguments.
+    ///
+    /// If the list is empty, this points to the empty `()` or to where the `(` would be.
+    pub span: Span,
+    pub kind: CallArgsKind<'ast>,
+}
+
+impl<'ast> CallArgs<'ast> {
+    /// Creates a new empty list of arguments.
+    ///
+    /// `span` should be an empty span.
+    pub fn empty(span: Span) -> Self {
+        Self { span, kind: CallArgsKind::empty() }
+    }
+
+    /// Returns `true` if the argument list is not present in the source code.
+    ///
+    /// For example, a modifier `m` can be invoked in a function declaration as `m` or `m()`. In the
+    /// first case, this returns `true`, and the span will point to after `m`. In the second case,
+    /// this returns `false`.
+    pub fn is_dummy(&self) -> bool {
+        self.span.lo() == self.span.hi()
+    }
+
+    /// Returns the length of the arguments.
+    pub fn len(&self) -> usize {
+        self.kind.len()
+    }
+
+    /// Returns `true` if the list of arguments is empty.
+    pub fn is_empty(&self) -> bool {
+        self.kind.is_empty()
+    }
+
+    /// Returns an iterator over the expressions.
+    pub fn exprs(
+        &self,
+    ) -> impl ExactSizeIterator<Item = &Expr<'ast>> + DoubleEndedIterator + Clone {
+        self.kind.exprs()
+    }
+
+    /// Returns an iterator over the expressions.
+    pub fn exprs_mut(
+        &mut self,
+    ) -> impl ExactSizeIterator<Item = &mut Box<'ast, Expr<'ast>>> + DoubleEndedIterator {
+        self.kind.exprs_mut()
+    }
+}
+
+/// A list of function call argument expressions.
+#[derive(Debug)]
+pub enum CallArgsKind<'ast> {
     /// A list of unnamed arguments: `(1, 2, 3)`.
     Unnamed(Box<'ast, [Box<'ast, Expr<'ast>>]>),
 
@@ -275,13 +327,13 @@ pub enum CallArgs<'ast> {
     Named(NamedArgList<'ast>),
 }
 
-impl Default for CallArgs<'_> {
+impl Default for CallArgsKind<'_> {
     fn default() -> Self {
         Self::empty()
     }
 }
 
-impl<'ast> CallArgs<'ast> {
+impl<'ast> CallArgsKind<'ast> {
     /// Creates a new empty list of unnamed arguments.
     pub fn empty() -> Self {
         Self::Unnamed(Box::default())
@@ -320,7 +372,7 @@ impl<'ast> CallArgs<'ast> {
         }
     }
 
-    /// Returns the span of the arguments.
+    /// Returns the span of the argument expressions. Does not include the parentheses.
     pub fn span(&self) -> Option<Span> {
         if self.is_empty() {
             return None;
