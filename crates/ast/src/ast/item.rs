@@ -506,12 +506,7 @@ pub struct Modifier<'ast> {
 impl Modifier<'_> {
     /// Returns the span of the modifier.
     pub fn span(&self) -> Span {
-        let span = self.name.span();
-        if let Some(arguments) = self.arguments.span() {
-            span.to(arguments)
-        } else {
-            span
-        }
+        self.name.span().to(self.arguments.span)
     }
 }
 

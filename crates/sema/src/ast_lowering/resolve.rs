@@ -1005,7 +1005,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {
-                if let ast::CallArgs::Unnamed(args) = args {
+                if let ast::CallArgsKind::Unnamed(args) = &args.kind {
                     if let [arg] = &args[..] {
                         break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                     }
@@ -1039,10 +1039,13 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_call_args(&mut self, args: &ast::CallArgs<'_>) -> hir::CallArgs<'hir> {
-        match args {
-            ast::CallArgs::Unnamed(args) => hir::CallArgs::Unnamed(self.lower_exprs(&**args)),
-            ast::CallArgs::Named(args) => hir::CallArgs::Named(self.lower_named_args(args)),
-        }
+        let kind = match &args.kind {
+            ast::CallArgsKind::Unnamed(args) => {
+                hir::CallArgsKind::Unnamed(self.lower_exprs(&**args))
+            }
+            ast::CallArgsKind::Named(args) => hir::CallArgsKind::Named(self.lower_named_args(args)),
+        };
+        hir::CallArgs { kind, span: args.span }
     }
 
     #[instrument(name = "lower_stmt", level = "debug", skip_all)]
