@@ -215,6 +215,33 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            ast::StmtKind::Assembly(assembly) => {
+                let mut memory_safe_found = false;
+
+                // Check for multiple memory-safe flags
+                for flag in assembly.flags.iter() {
+                    if flag.value.to_string() == "memory-safe" {
+                        if memory_safe_found {
+                            self.dcx()
+                                .err("Inline assembly marked memory-safe multiple times.")
+                                .span(stmt.span)
+                                .emit();
+                            break;
+                        }
+                        memory_safe_found = true;
+
+                        // TODO: Add annotation to Assembly block to indicate that it is memory-safe
+                    }
+                    // TODO: Add warning for unknown flags
+                    // else {
+                    //     // Warning for unknown flags
+                    //     self.dcx()
+                    //         .warn(format!("Unknown inline assembly flag: \"{}\"", flag.value))
+                    //         .span(flag.span)
+                    //         .emit();
+                    // }
+                }
+            }
             _ => {}
         }
 
