@@ -176,7 +176,24 @@ def generate_markdown_tables(data, benchmarks, parsers, min_times):
                 ]
             )
 
+            # Find parsers that have data for this benchmark and kind
+            available_parsers = []
             for parser in parsers:
+                if any(x[0:3] == [bench_name, parser, kind] for x in data):
+                    available_parsers.append(parser)
+
+            # Find the slowest parser for this benchmark and kind
+            slowest_time = 0
+            for parser in available_parsers:
+                entry = next(
+                    (x for x in data if x[0:3] == [bench_name, parser, kind]),
+                    None,
+                )
+                if entry and entry[4] > slowest_time:
+                    slowest_time = entry[4]
+
+            # Add data for each available parser
+            for parser in available_parsers:
                 related = next(
                     (x for x in data if x[0:3] == [bench_name, parser, kind]),
                     None,
@@ -184,9 +201,9 @@ def generate_markdown_tables(data, benchmarks, parsers, min_times):
                 if not related:
                     continue
 
-                min_time = min_times[bench_name][kind][1]
                 time_ns = related[4]
-                relative = format_number(time_ns / min_time) + "x"
+                # Calculate relative speed compared to slowest parser (inverted)
+                relative = format_number(slowest_time / time_ns) + "x"
                 time_s = related[3]
                 loc_s = get_per_second(loc, time_ns)
                 bytes_s = get_per_second(bytes, time_ns)
@@ -200,7 +217,8 @@ def generate_markdown_tables(data, benchmarks, parsers, min_times):
                     ]
                 )
 
-            table[1:] = sorted(table[1:], key=lambda x: float(x[1][:-1]))
+            # Sort by relative speed (fastest first)
+            table[1:] = sorted(table[1:], key=lambda x: float(x[1][:-1]), reverse=True)
 
             out_s += f"#### {kind.capitalize()}\n"
             out_s += tabulate(table, headers="firstrow", tablefmt="pipe")
@@ -261,12 +279,18 @@ def plot_benchmark_times(data, benchmarks, parsers):
 
     # Generate separate plots for each kind
     for kind in KINDS:
+        # Filter parsers that have data for this kind
+        available_parsers = []
+        for parser in sorted_parsers[kind]:
+            if any(x[1] == parser and x[2] == kind for x in data):
+                available_parsers.append(parser)
+
         # Generate absolute time plots
         plot_paths[kind] = create_plot(
             data,
             kind,
             sorted_bench_names[kind],
-            sorted_parsers[kind],
+            available_parsers,
             output_dir,
         )
 
@@ -275,7 +299,7 @@ def plot_benchmark_times(data, benchmarks, parsers):
             data,
             kind,
             sorted_bench_names[kind],
-            sorted_parsers[kind],
+            available_parsers,
             output_dir,
         )
 
@@ -320,7 +344,7 @@ def calculate_benchmark_avg_times(data, bench_names, parsers):
     return bench_avg_times
 
 
-def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
+def create_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
     """Create a single plot for a specific kind."""
     # Create a figure
     plt.figure(figsize=(12, 8))
@@ -334,10 +358,10 @@ def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
-    width = 0.8 / len(sorted_parsers)
+    width = 0.8 / len(available_parsers) if available_parsers else 0.8
 
     # Plot each parser
-    for i, parser in enumerate(sorted_parsers):
+    for i, parser in enumerate(available_parsers):
         times = []
         for bench_name in sorted_bench_names:
             # Find the time for this parser and benchmark
@@ -376,7 +400,7 @@ def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
     return output_path
 
 
-def create_relative_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
+def create_relative_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
     """
     Create a relative performance plot showing speedup factors compared to the slowest parser.
 
@@ -394,13 +418,13 @@ def create_relative_plot(data, kind, sorted_bench_names, sorted_parsers, output_
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
-    width = 0.8 / len(sorted_parsers)
+    width = 0.8 / len(available_parsers) if available_parsers else 0.8
 
     # Find the slowest parser for each benchmark
     slowest_times = {}
     for bench_name in sorted_bench_names:
         max_time = 0
-        for parser in sorted_parsers:
+        for parser in available_parsers:
             entry = next(
                 (x for x in data if x[0:3] == [bench_name, parser, kind]), None
             )
@@ -409,7 +433,7 @@ def create_relative_plot(data, kind, sorted_bench_names, sorted_parsers, output_
         slowest_times[bench_name] = max_time
 
     # Plot each parser
-    for i, parser in enumerate(sorted_parsers):
+    for i, parser in enumerate(available_parsers):
         speedups = []
         for bench_name in sorted_bench_names:
             # Find the time for this parser and benchmark
