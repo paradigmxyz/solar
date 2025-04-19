@@ -527,7 +527,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
-                self.dcx().err("expected exactly one unnamed argument").span(args.span()).emit(),
+                self.dcx().err("expected exactly one unnamed argument").span(args.span).emit(),
             );
         };
         let from = self.check_expr(from_expr);
@@ -569,7 +569,7 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_var_(&mut self, id: hir::VariableId, expect: bool) -> Ty<'gcx> {
         let var = self.gcx.hir.variable(id);
-        self.visit_ty(&var.ty);
+        let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
         if let Some(init) = var.initializer {
             // TODO: might have different logic vs assigment
@@ -776,9 +776,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             }
             hir::StmtKind::If(cond, body, else_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
-                self.visit_stmt(body);
+                self.visit_stmt(body)?;
                 if let Some(else_) = else_ {
-                    self.visit_stmt(else_);
+                    self.visit_stmt(else_)?;
                 }
                 return ControlFlow::Continue(());
             }

@@ -470,7 +470,7 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the type of the given literal.
     pub fn type_of_lit(self, lit: &'gcx hir::Lit) -> Ty<'gcx> {
         match &lit.kind {
-            solar_ast::LitKind::Str(_, s) => self.mk_ty_string_literal(s),
+            solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s),
             solar_ast::LitKind::Number(int) => {
                 self.mk_ty_int_literal(int.sign() as usize == 0, int.bits()).unwrap_or_else(|| {
                     self.mk_ty_err(
