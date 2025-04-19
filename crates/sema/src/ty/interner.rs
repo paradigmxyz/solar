@@ -129,7 +129,7 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> Intern<K> for scc::HashMap<K, 
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        if let Some(key) = self.read(&key, |k, _| *k) {
+        if let Some(key) = self.read(&key, intern_reader) {
             return key;
         }
         *self.entry(make(key)).or_insert(()).key()
@@ -140,9 +140,14 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> Intern<K> for scc::HashMap<K, 
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
-        if let Some(key) = self.read(key, |k, _| *k) {
+        if let Some(key) = self.read(key, intern_reader) {
             return key;
         }
         *self.entry(make()).or_insert(()).key()
     }
+}
+
+#[inline]
+fn intern_reader<K: Copy, V>(k: &K, _: &V) -> K {
+    *k
 }
