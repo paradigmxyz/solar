@@ -43,6 +43,14 @@ The following results were achieved on:
 
 ![Parsing Performance](parse_benchmark_times.png)
 
+#### Lexing Relative Performance
+
+![Lexing Relative Performance](lex_relative_performance.png)
+
+#### Parsing Relative Performance
+
+![Parsing Relative Performance](parse_relative_performance.png)
+
 ### empty (0 LoC, 0 bytes)
 
 #### Lex

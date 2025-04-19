@@ -46,6 +46,10 @@ def main():
     out_s += f"#### Lexing Performance\n\n![Lexing Performance]({os.path.basename(plot_paths['lex'])})\n\n"
     out_s += f"#### Parsing Performance\n\n![Parsing Performance]({os.path.basename(plot_paths['parse'])})\n\n"
 
+    # Add relative performance charts
+    out_s += f"#### Lexing Relative Performance\n\n![Lexing Relative Performance]({os.path.basename(plot_paths['lex_relative'])})\n\n"
+    out_s += f"#### Parsing Relative Performance\n\n![Parsing Relative Performance]({os.path.basename(plot_paths['parse_relative'])})\n\n"
+
     # Generate markdown tables
     out_s += generate_markdown_tables(data, benchmarks, parsers, min_times)
 
@@ -206,9 +210,6 @@ def generate_markdown_tables(data, benchmarks, parsers, min_times):
     return out_s
 
 
-maybe_better = False
-
-
 def plot_benchmark_times(data, benchmarks, parsers):
     """
     Plot the parsing and lexing times on a log chart for all parsers.
@@ -223,9 +224,6 @@ def plot_benchmark_times(data, benchmarks, parsers):
     """
     # Filter out the "empty" benchmark
     benchmarks = [b for b in benchmarks if b[0] != "empty"]
-
-    if maybe_better:
-        parsers = [p for p in parsers if p != "slang"]
 
     # Get unique benchmark names
     bench_names = sorted(set(b[0] for b in benchmarks))
@@ -264,7 +262,17 @@ def plot_benchmark_times(data, benchmarks, parsers):
 
     # Generate separate plots for each kind
     for kind in KINDS:
+        # Generate absolute time plots
         plot_paths[kind] = create_plot(
+            data,
+            kind,
+            sorted_bench_names[kind],
+            sorted_parsers[kind],
+            output_dir,
+        )
+
+        # Generate relative performance plots
+        plot_paths[f"{kind}_relative"] = create_relative_plot(
             data,
             kind,
             sorted_bench_names[kind],
@@ -323,8 +331,7 @@ def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
     ax.set_title(f"Time to {kind} (log scale)")
     ax.set_xlabel("Benchmark")
     ax.set_ylabel("Time (ns)")
-    if not maybe_better:
-        ax.set_yscale("log")
+    ax.set_yscale("log")
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
@@ -363,6 +370,80 @@ def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
     output_path = os.path.join(output_dir, f"{kind}_benchmark_times.png")
     plt.savefig(output_path, dpi=300)
     print(f"{kind.capitalize()} plot saved to {output_path}")
+
+    # Close the figure to free memory
+    plt.close()
+
+    return output_path
+
+
+def create_relative_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
+    """
+    Create a relative performance plot showing speedup factors compared to the slowest parser.
+
+    This visualization better highlights the performance differences between parsers
+    by showing how many times faster each parser is compared to the slowest one.
+    """
+    # Create a figure
+    plt.figure(figsize=(12, 8))
+    ax = plt.gca()
+
+    # Set up the plot
+    ax.set_title(f"Relative {kind} Performance (higher is better)")
+    ax.set_xlabel("Benchmark")
+    ax.set_ylabel("Speedup Factor (x faster than slowest)")
+
+    # Set up x-axis positions
+    x = np.arange(len(sorted_bench_names))
+    width = 0.8 / len(sorted_parsers)
+
+    # Find the slowest parser for each benchmark
+    slowest_times = {}
+    for bench_name in sorted_bench_names:
+        max_time = 0
+        for parser in sorted_parsers:
+            entry = next(
+                (x for x in data if x[0:3] == [bench_name, parser, kind]), None
+            )
+            if entry and entry[4] > max_time:
+                max_time = entry[4]
+        slowest_times[bench_name] = max_time
+
+    # Plot each parser
+    for i, parser in enumerate(sorted_parsers):
+        speedups = []
+        for bench_name in sorted_bench_names:
+            # Find the time for this parser and benchmark
+            entry = next(
+                (x for x in data if x[0:3] == [bench_name, parser, kind]), None
+            )
+            if entry:
+                # Calculate speedup factor compared to slowest parser
+                speedup = slowest_times[bench_name] / entry[4]
+                speedups.append(speedup)
+            else:
+                speedups.append(np.nan)  # Missing data
+
+        # Plot the data
+        ax.bar(x + i * width - 0.4 + width / 2, speedups, width, label=parser)
+
+    # Set x-axis labels
+    ax.set_xticks(x)
+    ax.set_xticklabels(sorted_bench_names, rotation=45, ha="right")
+
+    # Add grid for better readability
+    ax.grid(True, axis="y", linestyle="--", alpha=0.7)
+
+    # Add legend
+    ax.legend()
+
+    # Adjust layout to prevent label cutoff
+    plt.tight_layout()
+
+    # Save the figure
+    output_path = os.path.join(output_dir, f"{kind}_relative_performance.png")
+    plt.savefig(output_path, dpi=300)
+    print(f"{kind.capitalize()} relative performance plot saved to {output_path}")
 
     # Close the figure to free memory
     plt.close()
