@@ -11,7 +11,7 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-type InternSet<T> = scc::HashMap<T, (), FxBuildHasher>;
+type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
 
 pub(super) struct Interner<'gcx> {
     pub(super) arena: &'gcx ThreadLocal<hir::Arena>,
@@ -50,7 +50,7 @@ impl<'gcx> Interner<'gcx> {
         if tys.is_empty() {
             return &[];
         }
-        self.ty_lists.intern_ref(tys, || self.bump().alloc_slice_copy(tys))
+        self.ty_lists.intern_ref(tys, |tys| self.bump().alloc_slice_copy(tys))
     }
 
     pub(super) fn intern_ty_iter(&self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
@@ -68,7 +68,7 @@ trait Intern<K> {
         K: Borrow<Q>,
         Q: Hash + Eq;
 
-    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce(&Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq;
@@ -76,7 +76,7 @@ trait Intern<K> {
 
 /*
 use dashmap::{Map, SharedValue};
-impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> MapIntern<K> for dashmap::DashMap<K, (), S> {
+impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> Intern<K> for dashmap::DashMap<K, (), S> {
     fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
     where
         K: Borrow<Q>,
@@ -99,7 +99,7 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> MapIntern<K> for dashmap::Dash
         unsafe { bucket.as_ref() }.0
     }
 
-    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce(&Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
@@ -115,7 +115,7 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> MapIntern<K> for dashmap::Dash
         ) {
             Ok(elem) => elem,
             Err(slot) => unsafe {
-                shard.insert_in_slot(hash, slot, (make(), SharedValue::new(())))
+                shard.insert_in_slot(hash, slot, (make(key), SharedValue::new(())))
             },
         };
         unsafe { bucket.as_ref() }.0
@@ -123,26 +123,62 @@ impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> MapIntern<K> for dashmap::Dash
 }
 */
 
+/*
 impl<K: Eq + Hash + Copy, S: BuildHasher + Clone> Intern<K> for scc::HashMap<K, (), S> {
     fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        if let Some(key) = self.read(&key, |k, _| *k) {
+        if let Some(key) = self.read(&key, intern_reader) {
             return key;
         }
         *self.entry(make(key)).or_insert(()).key()
     }
 
-    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce() -> K) -> K
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce(&Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
-        if let Some(key) = self.read(key, |k, _| *k) {
+        if let Some(key) = self.read(key, intern_reader) {
             return key;
         }
-        *self.entry(make()).or_insert(()).key()
+        *self.entry(make(key)).or_insert(()).key()
     }
+}
+
+#[inline]
+fn intern_reader<K: Copy, V>(k: &K, _: &V) -> K {
+    *k
+}
+*/
+
+impl<K: Eq + Hash + Copy, S: BuildHasher> Intern<K> for once_map::OnceMap<K, (), S> {
+    #[inline]
+    fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
+    {
+        const { assert!(!std::mem::needs_drop::<Q>()) }
+        self.map_insert_ref(&key, |key| make(unsafe { std::ptr::read(key) }), make_val, with_result)
+    }
+
+    #[inline]
+    fn intern_ref<Q>(&self, key: &Q, make: impl FnOnce(&Q) -> K) -> K
+    where
+        K: Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        self.map_insert_ref(key, make, make_val, with_result)
+    }
+}
+
+#[inline]
+fn make_val<K>(_: &K) {}
+
+#[inline]
+fn with_result<K: Copy, V>(k: &K, _: &V) -> K {
+    *k
 }

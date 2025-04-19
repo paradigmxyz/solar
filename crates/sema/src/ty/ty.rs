@@ -228,7 +228,10 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Meta(ty) => ty.visit(f),
 
             TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
-                list.iter().copied().try_for_each(f)
+                for ty in list {
+                    ty.visit(f)?;
+                }
+                ControlFlow::Continue(())
             }
 
             TyKind::Mapping(k, v) => {
@@ -240,15 +243,31 @@ impl<'gcx> Ty<'gcx> {
 }
 
 /// The interned data of a type.
-#[derive(PartialEq, Eq, Hash)]
 pub struct TyData<'gcx> {
     pub kind: TyKind<'gcx>,
     pub flags: TyFlags,
 }
 
 impl<'gcx> Borrow<TyKind<'gcx>> for &TyData<'gcx> {
+    #[inline]
     fn borrow(&self) -> &TyKind<'gcx> {
         &self.kind
+    }
+}
+
+impl PartialEq for TyData<'_> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Eq for TyData<'_> {}
+
+impl std::hash::Hash for TyData<'_> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
     }
 }
 
