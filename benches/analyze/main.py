@@ -58,7 +58,11 @@ class BenchmarkData:
 
     def get_available_parsers(self, kind: str) -> List[str]:
         """Get parsers that have data for a specific kind."""
-        return sorted(set(e.parser for e in self.entries if e.kind == kind))
+        available_parsers = []
+        for parser in self.get_sorted_parsers()[kind]:
+            if any(x.parser == parser and x.kind == kind for x in self.entries):
+                available_parsers.append(parser)
+        return available_parsers
 
     def get_slowest_time(self, bench_name: str, kind: str) -> int:
         """Get the slowest time for a specific benchmark and kind."""
@@ -365,7 +369,7 @@ def create_plot(
     sorted_bench_names: List[str],
     available_parsers: List[str],
     output_dir: str,
-    color_map: Dict[str, Tuple[float, float, float, float]],
+    color_map,
 ) -> str:
     """Create a single plot for a specific kind."""
     # Create a figure
@@ -441,7 +445,7 @@ def create_relative_plot(
     sorted_bench_names: List[str],
     available_parsers: List[str],
     output_dir: str,
-    color_map: Dict[str, Tuple[float, float, float, float]],
+    color_map,
 ) -> str:
     """
     Create a relative performance plot showing speedup factors compared to the slowest parser.
@@ -460,7 +464,7 @@ def create_relative_plot(
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
-    width = 0.8 / len(available_parsers) if available_parsers else 0.8
+    width = 0.8 / len(available_parsers)
 
     # Find the slowest parser for each benchmark
     slowest_times = {}
