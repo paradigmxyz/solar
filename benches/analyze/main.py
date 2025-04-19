@@ -41,9 +41,9 @@ def main():
     # Generate plots
     plot_paths = plot_benchmark_times(data, benchmarks, parsers)
 
-    # Add plot images to the output
-    for kind in KINDS:
-        out_s += f"#### {kind.capitalize()} Performance\n\n![{kind} Performance]({os.path.basename(plot_paths[kind])})\n\n"
+    # # Add plot images to the output
+    # for kind in KINDS:
+    #     out_s += f"#### {kind.capitalize()} Performance\n\n![{kind} Performance]({os.path.basename(plot_paths[kind])})\n\n"
 
     # Add relative performance charts
     for kind in KINDS:
