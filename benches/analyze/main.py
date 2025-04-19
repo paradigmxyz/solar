@@ -42,13 +42,12 @@ def main():
     plot_paths = plot_benchmark_times(data, benchmarks, parsers)
 
     # Add plot images to the output
-    out_s += "### Charts\n\n"
-    out_s += f"#### Lexing Performance\n\n![Lexing Performance]({os.path.basename(plot_paths['lex'])})\n\n"
-    out_s += f"#### Parsing Performance\n\n![Parsing Performance]({os.path.basename(plot_paths['parse'])})\n\n"
+    for kind in KINDS:
+        out_s += f"#### {kind.capitalize()} Performance\n\n![{kind} Performance]({os.path.basename(plot_paths[kind])})\n\n"
 
     # Add relative performance charts
-    out_s += f"#### Lexing Relative Performance\n\n![Lexing Relative Performance]({os.path.basename(plot_paths['lex_relative'])})\n\n"
-    out_s += f"#### Parsing Relative Performance\n\n![Parsing Relative Performance]({os.path.basename(plot_paths['parse_relative'])})\n\n"
+    for kind in KINDS:
+        out_s += f"#### {kind.capitalize()} Relative Performance\n\n![{kind} Relative Performance]({os.path.basename(plot_paths[f'{kind}_relative'])})\n\n"
 
     # Generate markdown tables
     out_s += generate_markdown_tables(data, benchmarks, parsers, min_times)
@@ -389,9 +388,9 @@ def create_relative_plot(data, kind, sorted_bench_names, sorted_parsers, output_
     ax = plt.gca()
 
     # Set up the plot
-    ax.set_title(f"Relative {kind} Performance (higher is better)")
+    ax.set_title(f"Relative {kind} performance (higher is better)")
     ax.set_xlabel("Benchmark")
-    ax.set_ylabel("Speedup Factor (x faster than slowest)")
+    ax.set_ylabel("Speedup factor (x faster than slowest)")
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
