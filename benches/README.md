@@ -23,11 +23,11 @@ invoking other commands such as `cargo test`.
 You view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
 
 The following results were achieved on:
-- Target: `x86_64-unknown-linux-gnu` 
+- Target: `x86_64-unknown-linux-gnu`
 - CPU: AMD Ryzen 9 7950X;
-- Versions: 
+- Versions:
   - `solc 0.8.28`
-  - `solar @ 30b73e9`
+  - `solar 0.1.2`
   - `solang-parser 0.3.4`
   - `slang 0.18.3`
 
