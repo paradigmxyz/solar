@@ -20,7 +20,7 @@ targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-da
 # Build only the required packages, and individually
 precise-builds = true
 # Features to pass to cargo build
-features = ["cli", "asm", "jemalloc"]
+features = ["cli", "asm", "mimalloc"]
 # Whether dist should create a Github Release or use an existing draft
 create-release = true
 # Which actions to run on pull requests

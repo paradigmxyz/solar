@@ -42,6 +42,7 @@ serde = ["dep:serde"]
 # solar-cli features, only used by build.rs to include in the version string.
 asm = []
 jemalloc = []
+mimalloc = []
 tracing = []
 tracing-off = []
 tracing-chrome = []

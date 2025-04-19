@@ -63,6 +63,7 @@ nightly = [
 asm = ["solar-cli?/asm", "alloy-primitives/asm-keccak"]
 # Faster but less portable allocator.
 jemalloc = ["solar-cli?/jemalloc"]
+mimalloc = ["solar-cli?/mimalloc"]
 
 # Debugging and profiling.
 tracing = ["solar-cli?/tracing"]
