@@ -18,6 +18,9 @@ pub use ast::{
 mod visit;
 pub use visit::Visit;
 
+mod pretty;
+pub use pretty::HirPrettyPrinter;
+
 /// HIR arena allocator.
 pub struct Arena {
     pub bump: bumpalo::Bump,
