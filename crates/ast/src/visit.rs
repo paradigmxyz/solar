@@ -69,9 +69,7 @@ declare_visitors! {
                     }
                 }
                 ImportItems::Glob(alias) => {
-                    if let Some(alias) = alias {
-                        self.visit_ident #_mut(alias)?;
-                    }
+                    self.visit_ident #_mut(alias)?;
                 }
             }
             ControlFlow::Continue(())
@@ -96,8 +94,12 @@ declare_visitors! {
         }
 
         fn visit_item_contract(&mut self, contract: &'ast #mut ItemContract<'ast>) -> ControlFlow<Self::BreakValue> {
-            let ItemContract { kind: _, name, bases, body } = contract;
+            let ItemContract { kind: _, name, layout, bases, body } = contract;
             self.visit_ident #_mut(name)?;
+            if let Some(StorageLayoutSpecifier { span, slot }) = layout {
+                self.visit_span #_mut(span)?;
+                self.visit_expr #_mut(slot)?;
+            }
             for base in bases.iter #_mut() {
                 self.visit_modifier #_mut(base)?;
             }
@@ -241,11 +243,13 @@ declare_visitors! {
         }
 
         fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) -> ControlFlow<Self::BreakValue> {
-            match args {
-                CallArgs::Named(named) => {
+            let CallArgs { span, kind } = args;
+            self.visit_span #_mut(span)?;
+            match kind {
+                CallArgsKind::Named(named) => {
                     self.visit_named_args #_mut(named)?;
                 }
-                CallArgs::Unnamed(unnamed) => {
+                CallArgsKind::Unnamed(unnamed) => {
                     for arg in unnamed.iter #_mut() {
                         self.visit_expr #_mut(arg)?;
                     }
@@ -345,18 +349,16 @@ declare_visitors! {
         }
 
         fn visit_stmt_try(&mut self, try_: &'ast #mut StmtTry<'ast>) -> ControlFlow<Self::BreakValue> {
-            let StmtTry { expr, returns, block, catch } = try_;
+            let StmtTry { expr, clauses } = try_;
             self.visit_expr #_mut(expr)?;
-            self.visit_parameter_list #_mut(returns)?;
-            self.visit_block #_mut(block)?;
-            for catch in catch.iter #_mut() {
-                self.visit_catch_clause #_mut(catch)?;
+            for catch in clauses.iter #_mut() {
+                self.visit_try_catch_clause #_mut(catch)?;
             }
             ControlFlow::Continue(())
         }
 
-        fn visit_catch_clause(&mut self, catch: &'ast #mut CatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let CatchClause { name, args, block } = catch;
+        fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
+            let TryCatchClause { name, args, block } = catch;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }

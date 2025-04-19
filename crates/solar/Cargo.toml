@@ -65,7 +65,8 @@ asm = ["solar-cli?/asm", "alloy-primitives/asm-keccak"]
 jemalloc = ["solar-cli?/jemalloc"]
 
 # Debugging and profiling.
+tracing = ["solar-cli?/tracing"]
 tracing-off = ["solar-cli?/tracing-off"]
-tracing-chrome = ["solar-cli?/tracing-chrome"]
-tracy = ["solar-cli?/tracy"]
-tracy-allocator = ["solar-cli?/tracy-allocator"]
+tracing-chrome = ["tracing", "solar-cli?/tracing-chrome"]
+tracy = ["tracing", "solar-cli?/tracy"]
+tracy-allocator = ["tracing", "solar-cli?/tracy-allocator"]

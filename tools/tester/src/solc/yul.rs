@@ -1,15 +1,15 @@
 use crate::utils::path_contains_curry;
 use std::path::Path;
 
-pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
+pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     let path_contains = path_contains_curry(path);
 
     if path_contains("/recursion_depth.yul") {
-        return Some("recursion stack overflow");
+        return Err("recursion stack overflow");
     }
 
     if path_contains("/verbatim") {
-        return Some("verbatim Yul builtin is not implemented");
+        return Err("verbatim Yul builtin is not implemented");
     }
 
     if path_contains("/period_in_identifier")
@@ -19,16 +19,16 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         // Why does Solc parse periods as part of Yul identifiers?
         // `yul-identifier` is the same as `solidity-identifier`, which disallows periods:
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.YulIdentifier
-        return Some("not actually valid identifiers");
+        return Err("not actually valid identifiers");
     }
 
     if path_contains("objects/conflict_") || path_contains("objects/code.yul") {
         // Not the parser's job to check conflicting names.
-        return Some("not implemented in the parser");
+        return Err("not implemented in the parser");
     }
 
     if path_contains(".sol") {
-        return Some("not a Yul file");
+        return Err("not a Yul file");
     }
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -54,17 +54,22 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "linkersymbol_shadowing"
         | "loadimmutable_shadowing"
         | "setimmutable_shadowing"
-        // TODO: Not in the grammar, but docs are used to denote locations in the original src.
-        | "sourceLocations"
         // TODO: EVM version-aware parsing.
         | "blobbasefee_identifier_pre_cancun"
         | "blobhash_pre_cancun"
         | "mcopy_as_identifier_pre_cancun"
         | "mcopy_pre_cancun"
         | "tstore_tload_as_identifiers_pre_cancun"
+        | "eof_names_reserved_in_eof"
+        | "extcall_function_in_eof"
+        | "extdelegatecall_function_in_eof"
+        | "extstaticcall_function_in_eof"
+        | "clash_with_non_reserved_pure_yul_builtin"
+        | "clash_with_reserved_pure_yul_builtin_eof"
+        | "clash_with_reserved_pure_yul_builtin"
     ) {
-        return Some("manually skipped");
+        return Err("manually skipped");
     };
 
-    None
+    Ok(())
 }

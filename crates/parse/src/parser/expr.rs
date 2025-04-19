@@ -15,9 +15,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let expr = self.parse_binary_expr(4, with)?;
-        if self.eat(&TokenKind::Question) {
+        if self.eat(TokenKind::Question) {
             let then = self.parse_expr()?;
-            self.expect(&TokenKind::Colon)?;
+            self.expect(TokenKind::Colon)?;
             let else_ = self.parse_expr()?;
             let span = expr.span.to(self.prev_token.span);
             Ok(self.alloc(Expr { span, kind: ExprKind::Ternary(expr, then, else_) }))
@@ -43,9 +43,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let mut expr = self.parse_unary_expr(with)?;
-        let mut precedence = token_precedence(&self.token);
+        let mut precedence = token_precedence(self.token);
         while precedence >= min_precedence {
-            while token_precedence(&self.token) == precedence {
+            while token_precedence(self.token) == precedence {
                 // Parse a**b**c as a**(b**c)
                 let next_precedence = if self.token.kind == TokenKind::BinOp(BinOpToken::Star) {
                     precedence + 1
@@ -53,7 +53,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     precedence
                 };
 
-                let token = self.token.clone();
+                let token = self.token;
                 self.bump(); // binop token
 
                 let rhs = self.parse_binary_expr(next_precedence, None)?;
@@ -82,7 +82,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        if with.is_none() && self.eat(&TokenKind::BinOp(BinOpToken::Plus)) {
+        if with.is_none() && self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
             self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
         }
 
@@ -138,18 +138,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parse_primary_expr()
         }?;
         loop {
-            let kind = if self.eat(&TokenKind::Dot) {
+            let kind = if self.eat(TokenKind::Dot) {
                 // expr.member
                 let member = self.parse_ident_any()?;
                 ExprKind::Member(expr, member)
-            } else if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 // expr(args)
                 let args = self.parse_call_args()?;
                 ExprKind::Call(expr, args)
-            } else if self.check(&TokenKind::OpenDelim(Delimiter::Bracket)) {
+            } else if self.check(TokenKind::OpenDelim(Delimiter::Bracket)) {
                 let kind = self.parse_expr_index_kind()?;
                 ExprKind::Index(expr, kind)
-            } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+            } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
                 // This may be `try` statement block.
                 if !self.look_ahead(1).is_ident() || self.look_ahead(2).kind != TokenKind::Colon {
                     break;
@@ -174,9 +174,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let (lit, sub) = self.parse_lit_with_subdenomination()?;
             ExprKind::Lit(lit, sub)
         } else if self.eat_keyword(kw::Type) {
-            self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+            self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;
-            self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             ExprKind::TypeCall(ty)
         } else if self.check_elementary_type() {
             let mut ty = self.parse_type()?;
@@ -191,8 +191,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.check_nr_ident() {
             let ident = self.parse_ident()?;
             ExprKind::Ident(ident)
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis))
-            || self.check(&TokenKind::OpenDelim(Delimiter::Bracket))
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis))
+            || self.check(TokenKind::OpenDelim(Delimiter::Bracket))
         {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
@@ -219,27 +219,32 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a list of function call arguments.
     #[track_caller]
     pub(super) fn parse_call_args(&mut self) -> PResult<'sess, CallArgs<'ast>> {
+        self.parse_spanned(Self::parse_call_args_kind).map(|(span, kind)| CallArgs { span, kind })
+    }
+
+    #[track_caller]
+    fn parse_call_args_kind(&mut self) -> PResult<'sess, CallArgsKind<'ast>> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
-            self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-            let args = self.parse_named_args().map(CallArgs::Named)?;
-            self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+            self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+            let args = self.parse_named_args().map(CallArgsKind::Named)?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             Ok(args)
         } else {
-            self.parse_unnamed_args().map(CallArgs::Unnamed)
+            self.parse_unnamed_args().map(CallArgsKind::Unnamed)
         }
     }
 
     /// Parses a `[]` indexing expression.
     pub(super) fn parse_expr_index_kind(&mut self) -> PResult<'sess, IndexKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Bracket))?;
-        let kind = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+        self.expect(TokenKind::OpenDelim(Delimiter::Bracket))?;
+        let kind = if self.check(TokenKind::CloseDelim(Delimiter::Bracket)) {
             // expr[]
             IndexKind::Index(None)
         } else {
-            let start = if self.check(&TokenKind::Colon) { None } else { Some(self.parse_expr()?) };
-            if self.eat_noexpect(&TokenKind::Colon) {
+            let start = if self.check(TokenKind::Colon) { None } else { Some(self.parse_expr()?) };
+            if self.eat_noexpect(TokenKind::Colon) {
                 // expr[start?:end?]
-                let end = if self.check(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+                let end = if self.check(TokenKind::CloseDelim(Delimiter::Bracket)) {
                     None
                 } else {
                     Some(self.parse_expr()?)
@@ -250,7 +255,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 IndexKind::Index(start)
             }
         };
-        self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
         Ok(kind)
     }
 
@@ -264,7 +269,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn parse_named_arg(&mut self) -> PResult<'sess, NamedArg<'ast>> {
         let name = self.parse_ident()?;
-        self.expect(&TokenKind::Colon)?;
+        self.expect(TokenKind::Colon)?;
         let value = self.parse_expr()?;
         Ok(NamedArg { name, value })
     }
@@ -277,11 +282,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 }
 
-fn token_precedence(t: &Token) -> usize {
+fn token_precedence(t: Token) -> usize {
+    // https://github.com/ethereum/solidity/blob/78ec8dd6f93bf5a5b4ca7582f9d491a4f66c3610/liblangutil/Token.h#L68
     use BinOpToken::*;
     use TokenKind::*;
     match t.kind {
         Question => 3,
+        Eq => 2,
         BinOpEq(_) => 2,
         Comma => 1,
         OrOr => 4,
@@ -297,7 +304,7 @@ fn token_precedence(t: &Token) -> usize {
         BinOp(Star) => 13,
         BinOp(Slash) => 13,
         BinOp(Percent) => 13,
-        StarStar => 4,
+        StarStar => 14,
         EqEq => 6,
         Ne => 6,
         Lt => 7,

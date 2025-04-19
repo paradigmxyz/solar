@@ -107,7 +107,7 @@ fn get_two_mut_idx<I: Idx, T>(sl: &mut IndexVec<I, T>, idx_1: I, idx_2: I) -> (&
 #[inline]
 #[track_caller]
 fn get_two_mut<T>(sl: &mut [T], idx_1: usize, idx_2: usize) -> (&mut T, &mut T) {
-    // TODO: `sl.get_many_mut([idx_1, idx_2])` once stable.
+    // TODO: `sl.get_disjoint_mut([idx_1, idx_2])` once stable.
 
     assert!(idx_1 != idx_2 && idx_1 < sl.len() && idx_2 < sl.len());
     let ptr = sl.as_mut_ptr();

@@ -249,7 +249,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 
 /// Prints types similarly to `Type::toString(bool)` or `Type::humanReadableName()` in solc.
 ///
-/// Example: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358
+/// Example: <https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358>
 pub(crate) struct TySolcPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,

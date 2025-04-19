@@ -5,7 +5,7 @@ use solar_ast::{
     Base,
 };
 use solar_interface::{
-    diagnostics::DiagCtxt, source_map::SourceFile, sym, BytePos, Session, Span, Symbol,
+    diagnostics::DiagCtxt, source_map::SourceFile, BytePos, Session, Span, Symbol,
 };
 
 mod cursor;
@@ -89,19 +89,22 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
     #[instrument(name = "lex", level = "debug", skip_all)]
     pub fn into_tokens(mut self) -> Vec<Token> {
-        // `src.len() / 8` is an estimate of the number of tokens in the source.
-        let mut tokens = Vec::with_capacity(self.src.len() / 8);
+        // This is an estimate of the number of tokens in the source.
+        let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
             let token = self.next_token();
             if token.is_eof() {
                 break;
+            }
+            if token.is_comment() {
+                continue;
             }
             tokens.push(token);
         }
         trace!(
             src.len = self.src.len(),
             tokens.len = tokens.len(),
-            ratio = %format!("{:.2}", self.src.len() as f64 / tokens.len() as f64),
+            ratio = %format_args!("{:.2}", self.src.len() as f64 / tokens.len() as f64),
             "lexed"
         );
         tokens
@@ -115,7 +118,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             (next_token, preceded_by_whitespace) = self.bump();
             if preceded_by_whitespace {
                 break;
-            } else if let Some(glued) = self.token.glue(&next_token) {
+            } else if let Some(glued) = self.token.glue(next_token) {
                 self.token = glued;
             } else {
                 break;
@@ -166,11 +169,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     continue;
                 }
                 RawTokenKind::Ident => {
-                    let sym = self.symbol_from(start);
-                    TokenKind::Ident(sym)
-                }
-                RawTokenKind::UnknownPrefix => {
-                    self.report_unknown_prefix(start);
                     let sym = self.symbol_from(start);
                     TokenKind::Ident(sym)
                 }
@@ -309,8 +307,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
                     let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
-                    let prefix_len = if unicode { 7 } else { 0 }; // `unicode`
-                    self.cook_quoted(kind, start, end, prefix_len)
+                    self.cook_quoted(kind, start, end)
                 }
             }
             RawLiteralKind::HexStr { terminated } => {
@@ -319,15 +316,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     let guar = self.dcx().err("unterminated hex string").span(span).emit();
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
-                    let prefix_len = 3; // `hex`
-                    self.cook_quoted(TokenLitKind::HexStr, start, end, prefix_len)
+                    self.cook_quoted(TokenLitKind::HexStr, start, end)
                 }
             }
             RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
                     let span = self.new_span(start, end);
                     self.dcx().err("no valid digits found for number").span(span).emit();
-                    (TokenLitKind::Integer, sym::integer(0))
+                    (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
                         let start = start + 2;
@@ -374,12 +370,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         kind: TokenLitKind,
         start: BytePos,
         end: BytePos,
-        prefix_len: u32,
     ) -> (TokenLitKind, Symbol) {
-        let mode = match kind {
-            TokenLitKind::Str => unescape::Mode::Str,
-            TokenLitKind::UnicodeStr => unescape::Mode::UnicodeStr,
-            TokenLitKind::HexStr => unescape::Mode::HexStr,
+        let (mode, prefix_len) = match kind {
+            TokenLitKind::Str => (unescape::Mode::Str, 0),
+            TokenLitKind::UnicodeStr => (unescape::Mode::UnicodeStr, 7),
+            TokenLitKind::HexStr => (unescape::Mode::HexStr, 3),
             _ => unreachable!(),
         };
 
@@ -445,12 +440,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
         &self.src[self.src_index(start)..]
     }
-
-    fn report_unknown_prefix(&self, start: BytePos) {
-        let prefix = self.str_from_to(start, self.pos);
-        let msg = format!("literal prefix {prefix} is unknown");
-        self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
-    }
 }
 
 impl Iterator for Lexer<'_, '_> {
@@ -489,19 +478,25 @@ mod tests {
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
-    fn check(src: &str, expected: Expected<'_>) {
-        let sess = Session::builder().with_test_emitter().build();
+    fn check(src: &str, should_fail: bool, expected: Expected<'_>) {
+        let sess = Session::builder().with_silent_emitter(None).build();
         let tokens: Vec<_> = Lexer::new(&sess, src)
             .filter(|t| !t.is_comment())
             .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
             .collect();
-        sess.dcx.has_errors().unwrap();
+        assert_eq!(sess.dcx.has_errors().is_err(), should_fail, "{src:?}");
         assert_eq!(tokens, expected, "{src:?}");
     }
 
     fn checks(tests: &[(&str, Expected<'_>)]) {
         for &(src, expected) in tests {
-            check(src, expected);
+            check(src, false, expected);
+        }
+    }
+
+    fn checks_full(tests: &[(&str, bool, Expected<'_>)]) {
+        for &(src, should_fail, expected) in tests {
+            check(src, should_fail, expected);
         }
     }
 
@@ -547,7 +542,6 @@ mod tests {
                 //
                 ("0", &[(0..1, lit(Integer, "0"))]),
                 ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
-                ("0xa", &[(0..3, lit(Integer, "0xa"))]),
                 ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
                 (
                     "0.e-1",
@@ -566,6 +560,15 @@ mod tests {
                 ("0.0e-1", &[(0..6, lit(Rational, "0.0e-1"))]),
                 ("0e1", &[(0..3, lit(Rational, "0e1"))]),
                 ("0e1.", &[(0..3, lit(Rational, "0e1")), (3..4, Dot)]),
+            ]);
+
+            checks_full(&[
+                ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
+                ("0B0", false, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
+                ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
+                ("0O0", false, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
+                ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
+                ("0Xa", false, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
             ]);
         });
     }

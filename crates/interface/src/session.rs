@@ -2,8 +2,8 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
     ColorChoice, SessionGlobals, SourceMap,
 };
-use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts};
-use std::sync::Arc;
+use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts, SINGLE_THREADED_TARGET};
+use std::{path::Path, sync::Arc};
 
 /// Information about the current compiler session.
 #[derive(derive_builder::Builder)]
@@ -128,7 +128,7 @@ impl Session {
     /// Infers the language from the input files.
     pub fn infer_language(&mut self) {
         if !self.opts.input.is_empty()
-            && self.opts.input.iter().all(|arg| arg.extension() == Some("yul".as_ref()))
+            && self.opts.input.iter().all(|arg| Path::new(arg).extension() == Some("yul".as_ref()))
         {
             self.opts.language = solar_config::Language::Yul;
         }
@@ -287,7 +287,7 @@ impl Session {
     pub fn enter_parallel<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
         SessionGlobals::with_or_default(|session_globals| {
             SessionGlobals::with_source_map(self.clone_source_map(), || {
-                run_in_thread_pool_with_globals(self.threads(), session_globals, f)
+                run_in_thread_pool_with_globals(self, session_globals, f)
             })
         })
     }
@@ -295,7 +295,7 @@ impl Session {
 
 /// Runs the given closure in a thread pool with the given number of threads.
 fn run_in_thread_pool_with_globals<R: Send>(
-    threads: usize,
+    sess: &Session,
     session_globals: &SessionGlobals,
     f: impl FnOnce() -> R + Send,
 ) -> R {
@@ -308,6 +308,8 @@ fn run_in_thread_pool_with_globals<R: Send>(
         return f();
     }
 
+    let threads = sess.threads();
+    debug_assert!(threads > 0, "number of threads must already be resolved");
     let mut builder =
         rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
     // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
@@ -315,15 +317,25 @@ fn run_in_thread_pool_with_globals<R: Send>(
     if threads == 1 {
         builder = builder.use_current_thread();
     }
-    builder
-        .build_scoped(
-            // Initialize each new worker thread when created.
-            // Note that this is not called on the current thread, so `set` can't panic.
-            move |thread| session_globals.set(|| thread.run()),
-            // Run `f` on the first thread in the thread pool.
-            move |pool| pool.install(f),
-        )
-        .unwrap()
+    match builder.build_scoped(
+        // Initialize each new worker thread when created.
+        // Note that this is not called on the current thread, so `set` can't panic.
+        move |thread| session_globals.set(|| thread.run()),
+        // Run `f` on the first thread in the thread pool.
+        move |pool| pool.install(f),
+    ) {
+        Ok(r) => r,
+        Err(e) => {
+            let mut err = sess.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
+            if threads > 1 {
+                if SINGLE_THREADED_TARGET {
+                    err = err.note("the current target might not support multi-threaded execution");
+                }
+                err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
+            }
+            err.emit();
+        }
+    }
 }
 
 #[cfg(test)]
@@ -442,5 +454,17 @@ mod tests {
         });
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
+    }
+
+    #[test]
+    fn set_opts() {
+        let _ = Session::builder()
+            .with_test_emitter()
+            .opts(Opts {
+                evm_version: solar_config::EvmVersion::Berlin,
+                unstable: UnstableOpts { ast_stats: false, ..Default::default() },
+                ..Default::default()
+            })
+            .build();
     }
 }

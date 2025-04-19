@@ -543,9 +543,7 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
     let kind = gcx.hir.contract(id).kind;
     assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
     let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
-    let iid = selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor);
-    debug!("{}.interfaceId = {iid}", gcx.contract_fully_qualified_name(id));
-    iid
+    selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
 }
 
 /// Returns all the exported functions of the given contract.
@@ -621,7 +619,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         Some(InterfaceFunction { selector, id: f_id, ty })
     });
     let functions = gcx.bump().alloc_from_iter(functions);
-    debug!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
+    trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
 }

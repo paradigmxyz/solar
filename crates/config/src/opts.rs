@@ -1,8 +1,6 @@
 //! Solar CLI arguments.
 
-use crate::{
-    CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportMap, Language, Threads,
-};
+use crate::{CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, Language, Threads};
 use std::{num::NonZeroUsize, path::PathBuf};
 
 #[cfg(feature = "clap")]
@@ -19,18 +17,28 @@ use clap::{ColorChoice, Parser, ValueHint};
 ))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
-    /// Files to compile or import remappings.
+    /// Files to compile, or import remappings.
+    ///
+    /// `-` specifies standard input.
+    ///
+    /// Import remappings are specified as `[context:]prefix=path`.
+    /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
     #[cfg_attr(feature = "clap", arg(value_hint = ValueHint::FilePath))]
-    pub input: Vec<PathBuf>,
+    pub input: Vec<String>,
     /// Directory to search for files.
-    #[cfg_attr(feature = "clap", arg(help_heading = "Input options", long, short = 'I', visible_alias = "base-path", value_hint = ValueHint::FilePath))]
-    pub import_path: Vec<PathBuf>,
-    /// Map to search for files. Can also be provided as a positional argument.
+    ///
+    /// Can be used multiple times.
     #[cfg_attr(
         feature = "clap",
-        arg(help_heading = "Input options", long, short = 'm', value_name = "MAP=PATH")
+        arg(
+            help_heading = "Input options",
+            long,
+            short = 'I',
+            alias = "import-path",
+            value_hint = ValueHint::DirPath,
+        )
     )]
-    pub import_map: Vec<ImportMap>,
+    pub include_path: Vec<PathBuf>,
     /// Source code language. Only Solidity is currently implemented.
     #[cfg_attr(
         feature = "clap",
@@ -191,8 +199,11 @@ mod tests {
     fn verify_cli() {
         Opts::command().debug_assert();
         let _ = Opts::default();
+        let _ = Opts { evm_version: EvmVersion::Berlin, ..Default::default() };
+
         UnstableOpts::command().debug_assert();
         let _ = UnstableOpts::default();
+        let _ = UnstableOpts { ast_stats: false, ..Default::default() };
     }
 
     #[test]

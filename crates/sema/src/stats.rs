@@ -39,7 +39,7 @@ struct StatCollector {
 
 pub fn print_ast_stats(ast: &ast::SourceUnit<'_>, title: &str, prefix: &str) {
     let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
-    collector.visit_source_unit(ast);
+    let _ = collector.visit_source_unit(ast);
     collector.print(title, prefix)
 }
 
@@ -208,6 +208,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("ItemContract", None, contract);
+        if let Some(layout) = &contract.layout {
+            self.visit_expr(layout.slot)?;
+        }
         for base in contract.bases.iter() {
             self.visit_modifier(base)?;
         }
@@ -381,11 +384,11 @@ impl<'ast> Visit<'ast> for StatCollector {
         self.walk_stmt_try(try_)
     }
 
-    fn visit_catch_clause(
+    fn visit_try_catch_clause(
         &mut self,
-        catch: &'ast ast::CatchClause<'ast>,
+        catch: &'ast ast::TryCatchClause<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        self.record("CatchClause", None, catch);
+        self.record("TryCatchClause", None, catch);
         self.visit_parameter_list(&catch.args)?;
         self.visit_block(&catch.block)?;
         // Don't visit name field since it isn't boxed

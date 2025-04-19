@@ -6,55 +6,55 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
+pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     let path_contains = path_contains_curry(path);
 
     if path_contains("/libyul/") {
-        return Some("actually a Yul test");
+        return Err("actually a Yul test");
     }
 
     if path_contains("/cmdlineTests/") {
-        return Some("CLI tests do not have the same format as everything else");
+        return Err("CLI tests do not have the same format as everything else");
     }
 
     if path_contains("/lsp/") {
-        return Some("LSP tests do not have the same format as everything else");
+        return Err("LSP tests do not have the same format as everything else");
     }
 
     if path_contains("/ASTJSON/") {
-        return Some("no JSON AST");
+        return Err("no JSON AST");
     }
 
     if path_contains("/functionDependencyGraphTests/") || path_contains("/experimental") {
-        return Some("solidity experimental is not implemented");
+        return Err("solidity experimental is not implemented");
     }
 
     // We don't parse licenses.
     if path_contains("/license/") {
-        return Some("licenses are not checked");
+        return Err("licenses are not checked");
     }
 
     if path_contains("natspec") {
-        return Some("natspec is not checked");
+        return Err("natspec is not checked");
     }
 
     if path_contains("_direction_override") {
-        return Some("Unicode direction override checks not implemented");
+        return Err("Unicode direction override checks not implemented");
     }
 
     if path_contains("max_depth_reached_") {
-        return Some("recursion guard will not be implemented");
+        return Err("recursion guard will not be implemented");
     }
 
     if path_contains("wrong_compiler_") {
-        return Some("Solidity pragma version is not checked");
+        return Err("Solidity pragma version is not checked");
     }
 
     // Directories starting with `_` are not tests.
     if path_contains("/_")
         && !path.components().next_back().unwrap().as_os_str().to_str().unwrap().starts_with('_')
     {
-        return Some("supporting file");
+        return Err("supporting file");
     }
 
     let stem = path.file_stem().unwrap().to_str().unwrap();
@@ -102,13 +102,13 @@ pub(crate) fn should_skip(path: &Path) -> Option<&'static str> {
         | "invalid_state_variable_location"
         | "location_specifiers_for_state_variables"
     ) {
-        return Some("manually skipped");
+        return Err("manually skipped");
     };
 
-    None
+    Ok(())
 }
 
-/// Handles `====` and `==== ExternalSource: ... ====` delimiters in a solc test file.
+/// Handles `====` delimiters in a solc test file, and creates temporary files as necessary.
 ///
 /// Returns `true` if it contains delimiters and the caller should not compile the original file.
 #[must_use]
@@ -119,7 +119,7 @@ pub(crate) fn handle_delimiters(
     mut arg: impl FnMut(OsString),
 ) -> bool {
     if has_delimiters(src) {
-        handle_delimiters_(src, path, tmp_dir, arg)
+        split_sources(src, path, tmp_dir, arg)
     } else {
         arg("-I".into());
         arg(path.parent().unwrap().into());
@@ -128,16 +128,12 @@ pub(crate) fn handle_delimiters(
 }
 
 fn has_delimiters(src: &str) -> bool {
+    // We currently only care about Source and ExternalSource which start a line with `==== `.
     src.contains("==== ")
 }
 
 #[must_use]
-fn handle_delimiters_(
-    src: &str,
-    path: &Path,
-    tmp_dir: &Path,
-    mut arg: impl FnMut(OsString),
-) -> bool {
+fn split_sources(src: &str, path: &Path, tmp_dir: &Path, mut arg: impl FnMut(OsString)) -> bool {
     let mut tmp_dir2 = None;
     let make_tmp_dir = || {
         static COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -170,15 +166,17 @@ fn handle_delimiters_(
             arg(path.into());
         } else if let Some(eq) = external_source_delim(line) {
             if eq.contains('=') {
-                arg("-m".into());
                 arg(eq.into());
             }
             add_import_path = true;
         } else {
             // Sometimes `==== Source: ... ====` is missing after external sources.
             let mut contents = String::with_capacity(src.len());
-            for line in lines {
-                assert!(!line.starts_with("===="));
+            while let Some(&line) = lines.peek() {
+                if line.starts_with("====") {
+                    break;
+                }
+                lines.next();
                 contents.push_str(line);
                 contents.push('\n');
             }
@@ -186,7 +184,6 @@ fn handle_delimiters_(
             let path = tmp_dir.join("test.sol");
             fs::write(&path, contents).unwrap();
             arg(path.into());
-            break;
         }
     }
     if let Some(tmp_dir) = &tmp_dir2 {
@@ -200,10 +197,11 @@ fn handle_delimiters_(
     tmp_dir2.is_some()
 }
 
+// https://github.com/ethereum/solidity/blob/ac54fe1972f25227f9932c8b224ef119360b0e2d/test/TestCaseReader.cpp#L111
 fn source_delim(line: &str) -> Option<&str> {
-    line.strip_prefix("==== Source: ").and_then(|s| s.strip_suffix(" ===="))
+    line.strip_prefix("==== Source:").and_then(|s| s.strip_suffix("====")).map(str::trim)
 }
 
 fn external_source_delim(line: &str) -> Option<&str> {
-    line.strip_prefix("==== ExternalSource: ").and_then(|s| s.strip_suffix(" ===="))
+    line.strip_prefix("==== ExternalSource:").and_then(|s| s.strip_suffix("====")).map(str::trim)
 }

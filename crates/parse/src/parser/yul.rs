@@ -23,7 +23,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Object { docs, span, name, code, children: Box::default(), data: Box::default() }
             })
         }?;
-        self.expect(&TokenKind::Eof)?;
+        self.expect(TokenKind::Eof)?;
         Ok(object)
     }
 
@@ -35,7 +35,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect_keyword(sym::object)?;
         let name = self.parse_str_lit()?;
 
-        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let code = self.parse_yul_code()?;
         let mut children = Vec::new();
         let mut data = Vec::new();
@@ -49,7 +49,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 break;
             }
         }
-        self.expect(&TokenKind::CloseDelim(Delimiter::Brace))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Brace))?;
 
         let span = lo.to(self.prev_token.span);
         let children = self.alloc_vec(children);
@@ -72,7 +72,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
         let data = self.parse_lit()?;
-        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, _)) {
+        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
             return Err(self.dcx().err(msg).span(data.span));
         }
@@ -107,7 +107,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parse_yul_stmt_var_decl()
         } else if self.eat_keyword(kw::Function) {
             self.parse_yul_function()
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             self.parse_yul_block_unchecked().map(StmtKind::Block)
         } else if self.eat_keyword(kw::If) {
             self.parse_yul_stmt_if()
@@ -123,22 +123,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Ok(StmtKind::Leave)
         } else if self.check_ident() {
             let path = self.parse_path_any()?;
-            if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 let name = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
-            } else if self.eat(&TokenKind::Walrus) {
+            } else if self.eat(TokenKind::Walrus) {
                 self.check_valid_path(path);
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
-            } else if self.check(&TokenKind::Comma) {
+            } else if self.check(TokenKind::Comma) {
                 self.check_valid_path(path);
                 let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
-                while self.eat(&TokenKind::Comma) {
+                while self.eat(TokenKind::Comma) {
                     paths.push(self.parse_path()?);
                 }
                 let paths = self.alloc_smallvec(paths);
-                self.expect(&TokenKind::Walrus)?;
+                self.expect(TokenKind::Walrus)?;
                 let expr = self.parse_yul_expr()?;
                 let ExprKind::Call(expr) = expr.kind else {
                     let msg = "only function calls are allowed in multi-assignment";
@@ -158,12 +158,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut idents = SmallVec::<[_; 8]>::new();
         loop {
             idents.push(self.parse_ident()?);
-            if !self.eat(&TokenKind::Comma) {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
         let idents = self.alloc_smallvec(idents);
-        let expr = if self.eat(&TokenKind::Walrus) { Some(self.parse_yul_expr()?) } else { None };
+        let expr = if self.eat(TokenKind::Walrus) { Some(self.parse_yul_expr()?) } else { None };
         Ok(StmtKind::VarDecl(idents, expr))
     }
 
@@ -171,9 +171,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let name = self.parse_ident()?;
         let parameters = self.parse_paren_comma_seq(true, Self::parse_ident)?;
-        let returns = if self.eat(&TokenKind::Arrow) {
+        let returns = if self.eat(TokenKind::Arrow) {
             self.parse_nodelim_comma_seq(
-                &TokenKind::OpenDelim(Delimiter::Brace),
+                TokenKind::OpenDelim(Delimiter::Brace),
                 false,
                 Self::parse_ident,
             )?

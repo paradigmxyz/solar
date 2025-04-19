@@ -20,6 +20,6 @@ changed or not.
 - [ ] Push, open and merge the PR. The name of the PR should be the same as the `cargo-release` commit message.
 - [ ] `git checkout main` and `git pull`.
 - [ ] Verify `dist plan` is correct.
-- [ ] Run `cargo-release` to tag and publish: `cargo release --execute [--no-verify] <version>`
+- [ ] Run `cargo-release` to tag and publish: `NO_GIT_CLIFF=1 cargo release --execute [--no-verify] <version>`
 
 These steps are adapted from the recommended `cargo-release` + `dist` workflow, described in more detail [here](https://opensource.axo.dev/cargo-dist/book/workspaces/cargo-release-guide.html#using-cargo-release-with-pull-requests).

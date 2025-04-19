@@ -3,11 +3,9 @@ use std::path::PathBuf;
 
 fn init_source_map() -> SourceMap {
     let sm = SourceMap::empty();
-    sm.new_dummy_source_file(PathBuf::from("blork.rs"), "first line.\nsecond line".to_string())
-        .unwrap();
-    sm.new_dummy_source_file(PathBuf::from("empty.rs"), String::new()).unwrap();
-    sm.new_dummy_source_file(PathBuf::from("blork2.rs"), "first line.\nsecond line".to_string())
-        .unwrap();
+    sm.new_source_file(PathBuf::from("blork.rs"), "first line.\nsecond line").unwrap();
+    sm.new_source_file(PathBuf::from("empty.rs"), "").unwrap();
+    sm.new_source_file(PathBuf::from("blork2.rs"), "first line.\nsecond line").unwrap();
     sm
 }
 
@@ -105,16 +103,8 @@ fn t5() {
 fn init_source_map_mbc() -> SourceMap {
     let sm = SourceMap::empty();
     // "€" is a three-byte UTF8 char.
-    sm.new_dummy_source_file(
-        PathBuf::from("blork.rs"),
-        "fir€st €€€€ line.\nsecond line".to_string(),
-    )
-    .unwrap();
-    sm.new_dummy_source_file(
-        PathBuf::from("blork2.rs"),
-        "first line€€.\n€ second line".to_string(),
-    )
-    .unwrap();
+    sm.new_source_file(PathBuf::from("blork.rs"), "fir€st €€€€ line.\nsecond line").unwrap();
+    sm.new_source_file(PathBuf::from("blork2.rs"), "first line€€.\n€ second line").unwrap();
     sm
 }
 
@@ -166,7 +156,7 @@ fn span_to_snippet_and_lines_spanning_multiple_lines() {
     let sm = SourceMap::empty();
     let inputtext = "aaaaa\nbbbbBB\nCCC\nDDDDDddddd\neee\n";
     let selection = "     \n    ~~\n~~~\n~~~~~     \n   \n";
-    sm.new_dummy_source_file(Path::new("blork.rs").to_owned(), inputtext.to_string()).unwrap();
+    sm.new_source_file(Path::new("blork.rs").to_owned(), inputtext).unwrap();
     let span = span_from_selection(inputtext, selection);
 
     // Check that we are extracting the text we thought we were extracting.
@@ -209,7 +199,7 @@ fn span_merging_fail() {
     let inputtext = "bbbb BB\ncc CCC\n";
     let selection1 = "     ~~\n      \n";
     let selection2 = "       \n   ~~~\n";
-    sm.new_dummy_source_file(Path::new("blork.rs").to_owned(), inputtext.to_owned()).unwrap();
+    sm.new_source_file(Path::new("blork.rs").to_owned(), inputtext).unwrap();
     let span1 = span_from_selection(inputtext, selection1);
     let span2 = span_from_selection(inputtext, selection2);
 

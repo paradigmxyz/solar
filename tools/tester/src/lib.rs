@@ -17,6 +17,16 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
+
+    // Fast path for `--list`, invoked by `cargo-nextest`.
+    {
+        let mut dummy_config = ui_test::Config::dummy();
+        dummy_config.with_args(&args);
+        if ui_test::nextest::emulate(&mut vec![dummy_config]) {
+            return Ok(());
+        }
+    }
+
     // Condense output if not explicitly requested.
     let requested_pretty = || std::env::args().any(|x| x.contains("--format"));
     if matches!(args.format, ui_test::Format::Pretty) && !requested_pretty() {
@@ -65,7 +75,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let tests_root = root.join(path);
     assert!(
         tests_root.exists(),
-        "tests root directory does not exist: {path}; you may need to initialize submodules"
+        "tests root directory does not exist: {path};\n\
+         you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
     let mut config = ui_test::Config {
@@ -79,7 +90,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 let mut args =
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
                 if mode.is_solc() {
-                    args.push("--stop-after=parsing");
+                    args.push("--stop-after=parsed-and-imported");
                 }
                 args.into_iter().map(Into::into).collect()
             },
@@ -173,8 +184,8 @@ fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Opti
     }
     let skip = match cfg.mode {
         Mode::Ui => false,
-        Mode::SolcSolidity => solc::solidity::should_skip(path).is_some(),
-        Mode::SolcYul => solc::yul::should_skip(path).is_some(),
+        Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
+        Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
     Some(!skip)
 }

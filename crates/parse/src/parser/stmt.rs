@@ -35,7 +35,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Unchecked) {
             semi = false;
             self.parse_block().map(StmtKind::UncheckedBlock)
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             semi = false;
             self.parse_block().map(StmtKind::Block)
         } else if self.eat_keyword(kw::Continue) {
@@ -43,7 +43,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Break) {
             Ok(StmtKind::Break)
         } else if self.eat_keyword(kw::Return) {
-            let expr = if self.check(&TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
+            let expr = if self.check(TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
             Ok(StmtKind::Return(expr))
         } else if self.eat_keyword(kw::Throw) {
             let msg = "`throw` statements have been removed; use `revert`, `require`, or `assert` instead";
@@ -79,9 +79,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses an if statement.
     fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let true_stmt = self.parse_stmt()?;
         let else_stmt =
             if self.eat_keyword(kw::Else) { Some(self.parse_stmt_boxed()?) } else { None };
@@ -90,9 +90,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a while statement.
     fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let stmt = self.parse_stmt()?;
         Ok(StmtKind::While(expr, self.alloc(stmt)))
     }
@@ -102,29 +102,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let stmt = self.parse_stmt()?;
         let stmt = self.alloc(stmt);
         self.expect_keyword(kw::While)?;
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         Ok(StmtKind::DoWhile(stmt, expr))
     }
 
     /// Parses a for statement.
     fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
-        let init =
-            if self.check(&TokenKind::Semi) { None } else { Some(self.parse_simple_stmt()?) };
-        self.expect(&TokenKind::Semi)?;
+        let init = if self.check(TokenKind::Semi) { None } else { Some(self.parse_simple_stmt()?) };
+        self.expect(TokenKind::Semi)?;
 
-        let cond = if self.check(&TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
+        let cond = if self.check(TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
         self.expect_semi()?;
 
-        let next = if self.check_noexpect(&TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+        let next = if self.check_noexpect(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             None
         } else {
             Some(self.parse_expr()?)
         };
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let body = self.parse_stmt_boxed()?;
         Ok(StmtKind::For { init: init.map(|init| self.alloc(init)), cond, next, body })
     }
@@ -132,36 +131,39 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
+
+        let mut clauses = SmallVec::<[_; 4]>::new();
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
+        clauses.push(TryCatchClause { name: None, args: returns, block });
 
-        let mut catch = SmallVec::<[_; 4]>::new();
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
-            let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            let args = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 self.parse_parameter_list(false, VarFlags::FUNCTION)?
             } else {
                 Default::default()
             };
             let block = self.parse_block()?;
-            catch.push(CatchClause { name, args, block });
+            clauses.push(TryCatchClause { name, args, block });
             if !self.eat_keyword(kw::Catch) {
                 break;
             }
         }
-        let catch = self.alloc_smallvec(catch);
-        Ok(StmtTry { expr, returns, block, catch })
+
+        let clauses = self.alloc_smallvec(clauses);
+        Ok(StmtTry { expr, clauses })
     }
 
     /// Parses an assembly block.
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
-        let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, Self::parse_str_lit)?
         } else {
             Default::default()
@@ -185,9 +187,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
-        if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             let mut empty_components = 0usize;
-            while self.eat(&TokenKind::Comma) {
+            while self.eat(TokenKind::Comma) {
                 empty_components += 1;
             }
 
@@ -203,7 +205,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         &mut variables,
                         |this| this.parse_variable_definition(VarFlags::FUNCTION),
                     )?;
-                    self.expect(&TokenKind::Eq)?;
+                    self.expect(TokenKind::Eq)?;
                     let expr = self.parse_expr()?;
                     Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
                 }
@@ -248,12 +250,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, Box<'ast, [Option<T>]>> {
-        self.expect(&TokenKind::OpenDelim(delim))?;
+        self.expect(TokenKind::OpenDelim(delim))?;
         let mut out = SmallVec::<[_; 8]>::new();
-        while self.eat(&TokenKind::Comma) {
+        while self.eat(TokenKind::Comma) {
             out.push(None);
         }
-        if !self.check(&TokenKind::CloseDelim(delim)) {
+        if !self.check(TokenKind::CloseDelim(delim)) {
             out.push(Some(f(self)?));
         }
         self.parse_optional_items_seq_required(delim, &mut out, f)
@@ -267,9 +269,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, ()> {
         let close = TokenKind::CloseDelim(delim);
-        while !self.eat(&close) {
-            self.expect(&TokenKind::Comma)?;
-            if self.check(&TokenKind::Comma) || self.check(&close) {
+        while !self.eat(close) {
+            self.expect(TokenKind::Comma)?;
+            if self.check(TokenKind::Comma) || self.check(close) {
                 out.push(None);
             } else {
                 out.push(Some(f(self)?));
@@ -337,7 +339,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
-            while self.eat(&TokenKind::Dot) {
+            while self.eat(TokenKind::Dot) {
                 let id = self.ident_or_err(true)?;
                 if id.name != kw::Address && id.is_reserved(self.in_yul) {
                     self.expected_ident_found_err().emit();
@@ -353,7 +355,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let n_idents = path.len();
 
-        while self.check(&TokenKind::OpenDelim(Delimiter::Bracket)) {
+        while self.check(TokenKind::OpenDelim(Delimiter::Bracket)) {
             let (span, kind) = self.parse_spanned(Self::parse_expr_index_kind)?;
             path.push(IapKind::Index(span, kind));
         }
@@ -475,7 +477,7 @@ mod tests {
                     let name = i.to_string();
                     let arena = Arena::new();
                     let mut parser =
-                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
+                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s)?;
 
                     let list = parser
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)

@@ -96,7 +96,7 @@ impl BinOpToken {
             Self::Star => BinOpKind::Mul,
             Self::Slash => BinOpKind::Div,
             Self::Percent => BinOpKind::Rem,
-            Self::Caret => BinOpKind::Pow,
+            Self::Caret => BinOpKind::BitXor,
             Self::And => BinOpKind::BitAnd,
             Self::Or => BinOpKind::BitOr,
             Self::Shl => BinOpKind::Shl,
@@ -186,8 +186,7 @@ impl TokenLitKind {
 }
 
 /// A kind of token.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(missing_copy_implementations)] // Future-proofing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TokenKind {
     // Expression-operator symbols.
     /// `=`
@@ -251,12 +250,16 @@ pub enum TokenKind {
     /// A literal token.
     ///
     /// Note that this does not include boolean literals.
+    ///
+    /// `Symbol` is the literal's parsed data. In string literals, this is the unescaped value, and
+    /// excludes its quotes (`"`, `'`) and prefix (`hex`, `unicode`).
     Literal(TokenLitKind, Symbol),
 
     /// Identifier token.
     Ident(Symbol),
 
     /// A comment or doc-comment token.
+    ///
     /// `Symbol` is the comment's data excluding its "quotes" (`//`, `/**`)
     /// similarly to symbols in string literal tokens.
     Comment(bool /* is_doc */, CommentKind, Symbol),
@@ -412,10 +415,10 @@ impl TokenKind {
     }
 
     /// Glues two token kinds together.
-    pub const fn glue(&self, other: &Self) -> Option<Self> {
+    pub const fn glue(self, other: Self) -> Option<Self> {
         use BinOpToken::*;
         use TokenKind::*;
-        Some(match *self {
+        Some(match self {
             Eq => match other {
                 Eq => EqEq,
                 Gt => FatArrow,
@@ -466,8 +469,7 @@ impl TokenKind {
 }
 
 /// A single token.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[allow(missing_copy_implementations)] // Future-proofing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Token {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -597,7 +599,7 @@ impl Token {
     /// Returns `true` if the token is any of the given keywords.
     #[inline]
     pub fn is_keyword_any(&self, kws: &[Symbol]) -> bool {
-        self.is_ident_where(|id| kws.iter().any(|kw| id.name == *kw))
+        self.is_ident_where(|id| kws.contains(&id.name))
     }
 
     /// Returns `true` if the token is a keyword used in the language.
@@ -733,13 +735,13 @@ impl Token {
 
     /// Returns this token's description, if any.
     #[inline]
-    pub fn description(&self) -> Option<TokenDescription> {
+    pub fn description(self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
     }
 
     /// Glues two tokens together.
-    pub fn glue(&self, other: &Self) -> Option<Self> {
-        self.kind.glue(&other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
+    pub fn glue(self, other: Self) -> Option<Self> {
+        self.kind.glue(other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
     }
 }
 
@@ -767,7 +769,7 @@ impl fmt::Display for TokenDescription {
 
 impl TokenDescription {
     /// Returns the description of the given token.
-    pub fn from_token(token: &Token) -> Option<Self> {
+    pub fn from_token(token: Token) -> Option<Self> {
         match token.kind {
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),

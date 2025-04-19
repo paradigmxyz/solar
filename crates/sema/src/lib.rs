@@ -29,7 +29,10 @@ pub use parse::{ParsedSource, ParsedSources, ParsingContext};
 
 pub mod builtins;
 pub mod eval;
+
 pub mod hir;
+pub use hir::Hir;
+
 pub mod ty;
 
 mod typeck;
@@ -38,8 +41,45 @@ mod emit;
 
 pub mod stats;
 
+/// Thin wrapper around the global context to ensure it is accessed and dropped correctly.
+pub struct GcxWrapper<'gcx>(std::mem::ManuallyDrop<ty::GlobalCtxt<'gcx>>);
+
+impl<'gcx> GcxWrapper<'gcx> {
+    fn new(gcx: ty::GlobalCtxt<'gcx>) -> Self {
+        Self(std::mem::ManuallyDrop::new(gcx))
+    }
+
+    /// Get a reference to the global context.
+    pub fn get(&self) -> Gcx<'gcx> {
+        Gcx::new(unsafe { trustme::decouple_lt(&self.0) })
+    }
+}
+
+impl Drop for GcxWrapper<'_> {
+    fn drop(&mut self) {
+        debug_span!("drop_gcx").in_scope(|| unsafe { std::mem::ManuallyDrop::drop(&mut self.0) });
+    }
+}
+
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
-pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
+pub(crate) fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
+    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+        let _guard = debug_span!("dropping_hir_arena").entered();
+        debug!(hir_allocated = %fmt_bytes(hir_arena.get_or_default().allocated_bytes()));
+        drop(hir_arena);
+    });
+    if let Some(gcx) = parse_and_lower(pcx, &hir_arena)? {
+        analysis(gcx.get())?;
+    }
+    Ok(())
+}
+
+/// Parses and lowers the entire program to HIR.
+/// Returns the global context if successful and if lowering was requested (default).
+pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
+    pcx: ParsingContext<'sess>,
+    hir_arena: &'hir ThreadLocal<hir::Arena>,
+) -> Result<Option<GcxWrapper<'hir>>> {
     let sess = pcx.sess;
 
     if pcx.sources.is_empty() {
@@ -49,8 +89,9 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     }
 
     let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
-        debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
+        let _guard = debug_span!("dropping_ast_arenas").entered();
+        debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
+        drop(arenas);
     });
     let mut sources = pcx.parse(&ast_arenas);
 
@@ -67,15 +108,11 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
     }
 
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(());
+        return Ok(None);
     }
 
     sources.topo_sort();
 
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
-        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
-    });
     let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
 
     // Drop the ASTs and AST arenas in a separate thread.
@@ -90,14 +127,7 @@ pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
         }
     });
 
-    let global_context =
-        OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
-            debug_span!("drop_gcx").in_scope(|| drop(gcx));
-        });
-    let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
-    analysis(gcx)?;
-
-    Ok(())
+    Ok(Some(GcxWrapper::new(ty::GlobalCtxt::new(sess, hir_arena, hir, symbol_resolver))))
 }
 
 /// Lowers the parsed ASTs into the HIR.
@@ -117,6 +147,9 @@ fn lower<'sess, 'hir>(
     Ok(ast_lowering::lower(sess, sources, arena))
 }
 
+/// Performs the analysis phase.
+///
+/// This is not yet exposed publicly as it is not yet fully implemented.
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<()> {
     if let Some(dump) = &gcx.sess.opts.unstable.dump {
@@ -188,4 +221,30 @@ fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> 
         solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
         solar_interface::source_map::FileName::Custom(name) => path == name,
     }
+}
+
+fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {
+    solar_data_structures::fmt::from_fn(move |f| {
+        let mut size = bytes as f64;
+        let mut suffix = "B";
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "KiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "MiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "GiB";
+        }
+
+        let precision = if size.fract() != 0.0 { 2 } else { 0 };
+        write!(f, "{size:.precision$} {suffix}")?;
+        if suffix != "B" {
+            write!(f, " ({bytes} B)")?;
+        }
+        Ok(())
+    })
 }

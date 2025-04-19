@@ -13,13 +13,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .map(|(span, kind)| Type { span, kind })?;
 
         // Parse suffixes.
-        while self.eat(&TokenKind::OpenDelim(Delimiter::Bracket)) {
-            let size = if self.check_noexpect(&TokenKind::CloseDelim(Delimiter::Bracket)) {
+        while self.eat(TokenKind::OpenDelim(Delimiter::Bracket)) {
+            let size = if self.check_noexpect(TokenKind::CloseDelim(Delimiter::Bracket)) {
                 None
             } else {
                 Some(self.parse_expr()?)
             };
-            self.expect(&TokenKind::CloseDelim(Delimiter::Bracket))?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Bracket))?;
             ty = Type {
                 span: ty.span.to(self.prev_token.span),
                 kind: TypeKind::Array(self.alloc(TypeArray { element: ty, size })),
@@ -115,7 +115,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a mapping type.
     fn parse_mapping_type(&mut self) -> PResult<'sess, TypeMapping<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
         // TODO: Move to type checking.
@@ -126,12 +126,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let key_name = self.parse_ident_opt()?;
 
-        self.expect(&TokenKind::FatArrow)?;
+        self.expect(TokenKind::FatArrow)?;
 
         let value = self.parse_type()?;
         let value_name = self.parse_ident_opt()?;
 
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
 
         Ok(TypeMapping { key, key_name, value, value_name })
     }

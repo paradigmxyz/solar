@@ -4,6 +4,7 @@ use solar_data_structures::{index::IndexSlice, newtype_index, BumpExt};
 use std::fmt;
 
 pub use crate::token::CommentKind;
+pub use either::{self, Either};
 pub use solar_interface::{Ident, Span, Symbol};
 
 mod expr;
@@ -138,6 +139,11 @@ impl<'ast> SourceUnit<'ast> {
     /// Creates a new source unit from the given items.
     pub fn new(items: Box<'ast, [Item<'ast>]>) -> Self {
         Self { items: IndexSlice::from_slice_mut(items) }
+    }
+
+    /// Counts the number of contracts in the source unit.
+    pub fn count_contracts(&self) -> usize {
+        self.items.iter().filter(|item| matches!(item.kind, ItemKind::Contract(_))).count()
     }
 }
 

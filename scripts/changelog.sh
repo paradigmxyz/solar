@@ -18,6 +18,10 @@ if [[ "$CRATE_ROOT" != *crates/* ]]; then
     exit 0
 fi
 
+if [ -n "$NO_GIT_CLIFF" ]; then
+    exit 0
+fi
+
 command=(git cliff --workdir "$root" --config "$root/cliff.toml" --unreleased "${@}")
 if [ -z "$(git status --porcelain "$root/CHANGELOG.md")" ]; then
     pushd "$root" >/dev/null

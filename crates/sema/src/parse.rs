@@ -1,4 +1,7 @@
-use crate::hir::SourceId;
+use crate::{
+    hir::{Arena, SourceId},
+    GcxWrapper,
+};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -7,6 +10,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     diagnostics::DiagCtxt,
+    pluralize,
     source_map::{FileName, FileResolver, SourceFile},
     Result, Session,
 };
@@ -22,6 +26,8 @@ pub struct ParsingContext<'sess> {
     /// The loaded sources. Consumed once `parse` is called.
     /// The `'static` lifetime is a lie, as nothing borrowed is ever stored in this field.
     pub(crate) sources: ParsedSources<'static>,
+    /// Whether to recursively resolve and parse imports.
+    resolve_imports: bool,
 }
 
 impl<'sess> ParsingContext<'sess> {
@@ -31,6 +37,7 @@ impl<'sess> ParsingContext<'sess> {
             sess,
             file_resolver: FileResolver::new(sess.source_map()),
             sources: ParsedSources::new(),
+            resolve_imports: true,
         }
     }
 
@@ -38,6 +45,13 @@ impl<'sess> ParsingContext<'sess> {
     #[inline]
     pub fn dcx(&self) -> &'sess DiagCtxt {
         &self.sess.dcx
+    }
+
+    /// Sets whether to recursively resolve and parse imports.
+    ///
+    /// Default: `true`.
+    pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
+        self.resolve_imports = resolve_imports;
     }
 
     /// Loads `stdin` into the context.
@@ -61,21 +75,9 @@ impl<'sess> ParsingContext<'sess> {
     /// Loads a file into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
-        // Paths must be canonicalized before passing to the resolver.
-        let path = match solar_interface::canonicalize(path) {
-            Ok(path) => {
-                // Base paths from arguments to the current directory for shorter diagnostics
-                // output.
-                match path.strip_prefix(std::env::current_dir().unwrap_or_default()) {
-                    Ok(path) => path.to_path_buf(),
-                    Err(_) => path,
-                }
-            }
-            Err(_) => path.to_path_buf(),
-        };
         let file = self
             .file_resolver
-            .resolve_file(&path, None)
+            .resolve_file(path, None)
             .map_err(|e| self.dcx().err(e.to_string()).emit())?;
         self.add_file(file);
         Ok(())
@@ -86,16 +88,30 @@ impl<'sess> ParsingContext<'sess> {
         self.sources.add_file(file);
     }
 
+    /// Parses and semantically analyzes all the loaded sources, recursing into imports if
+    /// specified.
     pub fn parse_and_resolve(self) -> Result<()> {
         crate::parse_and_resolve(self)
     }
 
-    /// Parses all the loaded sources, recursing into imports.
+    /// Parses and lowers the entire program to HIR.
+    /// Returns the global context if successful and if lowering was requested (default).
+    pub fn parse_and_lower<'hir>(
+        self,
+        hir_arena: &'hir ThreadLocal<Arena>,
+    ) -> Result<Option<GcxWrapper<'hir>>>
+    where
+        'sess: 'hir,
+    {
+        crate::parse_and_lower(self, hir_arena)
+    }
+
+    /// Parses all the loaded sources, recursing into imports if specified.
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
     pub fn parse<'ast>(mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> ParsedSources<'ast> {
-        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the asts are
+        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the ASTs are
         // populated, so this is safe.
         let sources: ParsedSources<'static> = std::mem::take(&mut self.sources);
         let mut sources: ParsedSources<'ast> =
@@ -108,9 +124,10 @@ impl<'sess> ParsingContext<'sess> {
             }
             debug!(
                 num_sources = sources.len(),
-                total_bytes = sources.iter().map(|s| s.file.src.len()).sum::<usize>(),
+                num_contracts = sources.iter().map(|s| s.count_contracts()).sum::<usize>(),
+                total_bytes = %crate::fmt_bytes(sources.iter().map(|s| s.file.src.len()).sum::<usize>()),
                 total_lines = sources.iter().map(|s| s.file.count_lines()).sum::<usize>(),
-                "parsed",
+                "parsed all sources",
             );
         }
         sources.assert_unique();
@@ -125,7 +142,7 @@ impl<'sess> ParsingContext<'sess> {
 
             let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
-            for (import_item_id, import) in resolve_imports!(self, &source.file, ast.as_ref()) {
+            for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
                 sources.add_import(current_file, import_item_id, import);
             }
             let new_files = sources.len() - n_sources;
@@ -148,7 +165,7 @@ impl<'sess> ParsingContext<'sess> {
             if to_parse.is_empty() {
                 break;
             }
-            trace!(start, "parsing {} files", to_parse.len());
+            debug!(start, "parsing {} file{}", to_parse.len(), pluralize!(to_parse.len()));
             start += to_parse.len();
             let imports = to_parse
                 .par_iter_mut()
@@ -156,7 +173,7 @@ impl<'sess> ParsingContext<'sess> {
                 .flat_map_iter(|(i, source)| {
                     debug_assert!(source.ast.is_none(), "source already parsed");
                     source.ast = self.parse_one(&source.file, arenas.get_or_default());
-                    resolve_imports!(self, &source.file, source.ast.as_ref())
+                    self.resolve_imports(&source.file, source.ast.as_ref())
                         .map(move |import| (i, import))
                 })
                 .collect_vec_list();
@@ -180,58 +197,51 @@ impl<'sess> ParsingContext<'sess> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        let r = if self.sess.opts.language.is_yul() {
+        if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
-        };
-        trace!(allocated = arena.allocated_bytes(), used = arena.used_bytes(), "AST arena stats");
-        r
+        }
     }
-}
 
-/// Resolves the imports of the given file, returning an iterator over all the imported files.
-///
-/// This is currently a macro as I have not figured out how to win against the borrow checker to
-/// return `impl Iterator` instead of having to collect, since it obviously isn't necessary given
-/// this macro.
-macro_rules! resolve_imports {
-    ($self:expr, $file:expr, $ast:expr) => {{
-        let this = $self;
-        let file = $file;
-        let ast = $ast;
+    /// Resolves the imports of the given file, returning an iterator over all the imported files
+    /// that were successfully resolved.
+    fn resolve_imports<'a, 'b, 'c>(
+        &'a self,
+        file: &SourceFile,
+        ast: Option<&'b ast::SourceUnit<'c>>,
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + use<'a, 'b, 'c> {
         let parent = match &file.name {
             FileName::Real(path) => Some(path.to_path_buf()),
-            // Use current directory for stdin.
-            FileName::Stdin => Some(Path::new("").to_path_buf()),
-            FileName::Custom(_) => None,
+            FileName::Stdin | FileName::Custom(_) => None,
         };
-        let items = ast.map(|ast| &ast.items[..]).unwrap_or_default();
+        let items =
+            ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
         items
             .iter_enumerated()
             .filter_map(|(id, item)| {
                 if let ast::ItemKind::Import(import) = &item.kind {
-                    Some((id, import, item.span))
+                    Some((id, import))
                 } else {
                     None
                 }
             })
-            .filter_map(move |(id, import, span)| {
+            .filter_map(move |(id, import)| {
+                let span = import.path.span;
                 let path_bytes = escape_import_path(import.path.value.as_str())?;
                 let Some(path) = path_from_bytes(&path_bytes[..]) else {
-                    this.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+                    self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
                     return None;
                 };
-                this.file_resolver
+                self.file_resolver
                     .resolve_file(path, parent.as_deref())
-                    .map_err(|e| this.dcx().err(e.to_string()).span(span).emit())
+                    .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
                     .ok()
                     .map(|file| (id, file))
             })
-    }};
+    }
 }
-use resolve_imports;
 
 fn escape_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
     let mut any_error = false;
@@ -289,7 +299,6 @@ impl ParsedSources<'_> {
         if let Some((id, _)) =
             self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
         {
-            trace!(file = %file.name.display(), "skipping duplicate source file");
             return id;
         }
         self.sources.push(ParsedSource::new(file))
@@ -402,6 +411,10 @@ impl ParsedSource<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new() }
+    }
+
+    fn count_contracts(&self) -> usize {
+        self.ast.as_ref().map(|ast| ast.count_contracts()).unwrap_or(0)
     }
 }
 

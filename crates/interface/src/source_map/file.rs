@@ -15,68 +15,6 @@ pub struct MultiByteChar {
     pub bytes: u8,
 }
 
-/// Identifies an offset of a non-narrow character in a `SourceFile`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NonNarrowChar {
-    /// Represents a zero-width character.
-    ZeroWidth(RelativeBytePos),
-    /// Represents a wide (full-width) character.
-    Wide(RelativeBytePos),
-    /// Represents a tab character, represented visually with a width of 4 characters.
-    Tab(RelativeBytePos),
-}
-
-impl NonNarrowChar {
-    pub(crate) fn new(pos: RelativeBytePos, width: usize) -> Self {
-        match width {
-            0 => Self::ZeroWidth(pos),
-            2 => Self::Wide(pos),
-            4 => Self::Tab(pos),
-            _ => panic!("width {width} given for non-narrow character"),
-        }
-    }
-
-    /// Returns the relative offset of the character in the `SourceFile`.
-    pub fn pos(&self) -> RelativeBytePos {
-        match *self {
-            Self::ZeroWidth(p) | Self::Wide(p) | Self::Tab(p) => p,
-        }
-    }
-
-    /// Returns the width of the character, 0 (zero-width) or 2 (wide).
-    pub fn width(&self) -> usize {
-        match *self {
-            Self::ZeroWidth(_) => 0,
-            Self::Wide(_) => 2,
-            Self::Tab(_) => 4,
-        }
-    }
-}
-
-impl std::ops::Add<RelativeBytePos> for NonNarrowChar {
-    type Output = Self;
-
-    fn add(self, rhs: RelativeBytePos) -> Self {
-        match self {
-            Self::ZeroWidth(pos) => Self::ZeroWidth(pos + rhs),
-            Self::Wide(pos) => Self::Wide(pos + rhs),
-            Self::Tab(pos) => Self::Tab(pos + rhs),
-        }
-    }
-}
-
-impl std::ops::Sub<RelativeBytePos> for NonNarrowChar {
-    type Output = Self;
-
-    fn sub(self, rhs: RelativeBytePos) -> Self {
-        match self {
-            Self::ZeroWidth(pos) => Self::ZeroWidth(pos - rhs),
-            Self::Wide(pos) => Self::Wide(pos - rhs),
-            Self::Tab(pos) => Self::Tab(pos - rhs),
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -201,29 +139,32 @@ impl From<OffsetOverflowError> for io::Error {
 }
 
 /// A single source in the `SourceMap`.
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
     /// (e.g., `<stdin>`).
     pub name: FileName,
     /// The complete source code.
+    #[debug(skip)]
     pub src: Arc<String>,
     /// The source code's hash.
+    #[debug(skip)]
     pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
     pub start_pos: BytePos,
     /// The byte length of this source.
     pub source_len: RelativeBytePos,
     /// Locations of lines beginnings in the source code.
+    #[debug(skip)]
     pub lines: Vec<RelativeBytePos>,
     /// Locations of multi-byte characters in the source code.
+    #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
-    /// Width of characters that are not narrow in the source code.
-    pub non_narrow_chars: Vec<NonNarrowChar>,
     /// A hash of the filename & crate-id, used for uniquely identifying source
     /// files within the crate graph and for speeding up hashing in incremental
     /// compilation.
+    #[debug(skip)]
     pub stable_id: StableSourceFileId,
 }
 
@@ -241,7 +182,7 @@ impl SourceFile {
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
-        let (lines, multibyte_chars, non_narrow_chars) = super::analyze::analyze_source_file(&src);
+        let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
 
         src.shrink_to_fit();
         Ok(Self {
@@ -252,7 +193,6 @@ impl SourceFile {
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
-            non_narrow_chars,
             stable_id,
         })
     }
@@ -339,37 +279,22 @@ impl SourceFile {
         let pos = self.relative_position(pos);
         let (line, col_or_chpos) = self.lookup_file_pos(pos);
         if line > 0 {
-            let col = col_or_chpos;
-            let linebpos = self.lines()[line - 1];
-            let col_display = {
-                let start_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&linebpos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let end_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&pos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let special_chars = end_width_idx - start_width_idx;
-                let non_narrow: usize = self.non_narrow_chars[start_width_idx..end_width_idx]
-                    .iter()
-                    .map(|x| x.width())
-                    .sum();
-                col.0 - special_chars + non_narrow
+            let Some(code) = self.get_line(line - 1) else {
+                // If we don't have the code available, it is ok as a fallback to return the bytepos
+                // instead of the "display" column, which is only used to properly show underlines
+                // in the terminal.
+                // FIXME: we'll want better handling of this in the future for the sake of tools
+                // that want to use the display col instead of byte offsets to modify code, but
+                // that is a problem for another day, the previous code was already incorrect for
+                // both displaying *and* third party tools using the json output naïvely.
+                debug!("couldn't find line {line} in {:?}", self.name);
+                return (line, col_or_chpos, col_or_chpos.0);
             };
-            (line, col, col_display)
+            let display_col = code.chars().take(col_or_chpos.0).map(char_width).sum();
+            (line, col_or_chpos, display_col)
         } else {
-            let chpos = col_or_chpos;
-            let col_display = {
-                let end_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&pos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let non_narrow: usize =
-                    self.non_narrow_chars[0..end_width_idx].iter().map(|x| x.width()).sum();
-                chpos.0 - end_width_idx + non_narrow
-            };
-            (0, chpos, col_display)
+            // This is never meant to happen?
+            (0, col_or_chpos, col_or_chpos.0)
         }
     }
 
@@ -427,6 +352,13 @@ impl SourceFile {
     pub fn original_relative_byte_pos(&self, pos: BytePos) -> RelativeBytePos {
         let pos = self.relative_position(pos);
         RelativeBytePos::from_u32(pos.0)
+    }
+}
+
+pub fn char_width(ch: char) -> usize {
+    match ch {
+        '\t' => 4,
+        _ => unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1),
     }
 }
 

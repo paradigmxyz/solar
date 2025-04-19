@@ -4,7 +4,7 @@ default-members = ["crates/*"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 rust-version = "1.83" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
@@ -86,22 +86,22 @@ debug-assertions = true
 
 [workspace.dependencies]
 # compiler crates
-solar = { version = "0.1.1", path = "crates/solar", package = "solar-compiler" }
-solar-ast = { version = "0.1.1", path = "crates/ast" }
-solar-cli = { version = "0.1.1", path = "crates/cli" }
-solar-config = { version = "0.1.1", path = "crates/config" }
-solar-data-structures = { version = "0.1.1", path = "crates/data-structures" }
-solar-interface = { version = "0.1.1", path = "crates/interface" }
-solar-macros = { version = "0.1.1", path = "crates/macros" }
-solar-parse = { version = "0.1.1", path = "crates/parse" }
-solar-sema = { version = "0.1.1", path = "crates/sema" }
+solar = { version = "0.1.2", path = "crates/solar", package = "solar-compiler", default-features = false }
+solar-ast = { version = "0.1.2", path = "crates/ast", default-features = false }
+solar-cli = { version = "0.1.2", path = "crates/cli", default-features = false }
+solar-config = { version = "0.1.2", path = "crates/config", default-features = false }
+solar-data-structures = { version = "0.1.2", path = "crates/data-structures", default-features = false }
+solar-interface = { version = "0.1.2", path = "crates/interface", default-features = false }
+solar-macros = { version = "0.1.2", path = "crates/macros", default-features = false }
+solar-parse = { version = "0.1.2", path = "crates/parse", default-features = false }
+solar-sema = { version = "0.1.2", path = "crates/sema", default-features = false }
 
 # internal crates
 solar-tester = { path = "tools/tester" }
 
 # Ethereum
-alloy-primitives = "0.8"
-alloy-json-abi = "0.8"
+alloy-primitives = "1"
+alloy-json-abi = "1"
 
 num-bigint = "0.4"
 num-integer = "0.1"
@@ -127,24 +127,23 @@ quote = "1.0"
 syn = "2.0"
 
 derive_builder = "0.20.2"
-derive_more = { version = "1.0", features = ["full"] }
+derive_more = { version = "2.0", features = ["full"] }
 match_cfg = "0.1"
-strum = "0.26"
-thiserror = ">=1.0"
+strum = "0.27"
+thiserror = ">=1"
 
 # parallel
 parking_lot = "0.12"
 rayon = "1.8"
 
 # tracing
-tracing-error = "0.2"
 tracing-subscriber = "0.3"
 tracing = "0.1"
 
 # testing
 criterion = "0.5"
 expect-test = "1.4"
-rand = "0.8"
+rand = "0.9"
 regex = "1.10"
 tempfile = "3.9"
 tester = "0.9"
@@ -168,7 +167,7 @@ md-5 = "0.10"
 memchr = "2.7"
 once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
-petgraph = "0.7"
+petgraph = "0.8"
 rustc-hash = "2.0"
 scc = "2"
 scoped-tls = "1.0"
@@ -178,10 +177,4 @@ thread_local = "1.1"
 tikv-jemallocator = "0.6"
 typed-arena = "2.0"
 unicode-width = "0.2"
-vergen = "8.3"
-
-[patch.crates-io]
-# https://github.com/oli-obk/ui_test/pull/286
-# https://github.com/oli-obk/ui_test/pull/289
-# https://github.com/oli-obk/ui_test/pull/291
-ui_test = { git = "https://github.com/oli-obk/ui_test", rev = "a2a7d13b0394767f5770eb563fc7fc30a3b780e5" }
+vergen = "8"

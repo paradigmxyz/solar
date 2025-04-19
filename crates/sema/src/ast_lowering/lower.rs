@@ -62,7 +62,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             receive: None,
             items: &[],
         });
-        let prev_contract_id = std::mem::replace(&mut self.current_contract_id, Some(id));
+        let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);
 
         let mut items = SmallVec::<[_; 16]>::new();
@@ -301,7 +301,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         name,
         visibility,
         mutability: _,
-        data_location,
+        data_location: _,
         override_,
         overrides,
         indexed,
@@ -309,7 +309,6 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         getter,
     } = *hir.variable(id);
     debug_assert!(!indexed);
-    debug_assert!(data_location.is_none());
     debug_assert_eq!(visibility, Some(ast::Visibility::Public));
     debug_assert!(kind.is_state());
     debug_assert!(getter.is_none());
@@ -319,7 +318,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         span,
         name,
         kind: ast::FunctionKind::Function,
-        visibility: ast::Visibility::Public,
+        visibility: ast::Visibility::External,
         state_mutability: ast::StateMutability::View,
         modifiers: &[],
         marked_virtual: false,

@@ -14,7 +14,7 @@ pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
 #[instrument(name = "validate", level = "debug", skip_all)]
 pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
     let mut validator = AstValidator::new(sess);
-    validator.visit_source_unit(ast);
+    let _ = validator.visit_source_unit(ast);
 }
 
 /// AST validator.
@@ -338,7 +338,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         let r = self.walk_item_function(func);
         self.function_kind = None;
 
-        if func.kind.is_modifier() {
+        if func.kind.is_modifier() && func.is_implemented() {
             let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
             if num_placeholders_increased == 0 {
                 if let Some(func_name) = func.header.name {
@@ -390,5 +390,20 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             self.check_underscores_in_number_literals(lit);
         }
         self.walk_expr(expr)
+    }
+
+    fn visit_ty(&mut self, ty: &'ast solar_ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
+        if let ast::TypeKind::Function(f) = &ty.kind {
+            for param in f.returns.iter() {
+                if let Some(param_name) = param.name {
+                    self.dcx()
+                        .err("return parameters in function types may not be named")
+                        .span(param.span)
+                        .span_help(param_name.span, format!("remove `{param_name}`"))
+                        .emit();
+                }
+            }
+        }
+        self.walk_ty(ty)
     }
 }

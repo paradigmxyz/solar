@@ -47,12 +47,6 @@ pub enum RawTokenKind {
     /// At this step, keywords are also considered identifiers.
     Ident,
 
-    /// An unknown prefix, like `foo'`, `foo"`.
-    ///
-    /// Note that only the prefix (`foo`) is included in the token, not the separator (which is
-    /// lexed as its own distinct token).
-    UnknownPrefix,
-
     /// Examples: `123`, `0x123`, `hex"123"`. Note that `_` is an invalid
     /// suffix, but may be present here on string and float literals. Users of
     /// this type will need to check for and reject that case.

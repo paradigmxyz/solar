@@ -52,8 +52,8 @@ impl super::LoweringContext<'_, '_, '_> {
                     (&mut self.resolver.source_scopes[source_id], None)
                 };
                 match import.items {
-                    ast::ImportItems::Plain(alias) | ast::ImportItems::Glob(alias) => {
-                        if let Some(alias) = alias {
+                    ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
+                        if let Some(alias) = import.items.source_alias() {
                             let _ = source_scope.declare_res(
                                 self.sess,
                                 &self.hir,
@@ -762,23 +762,28 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 self.lower_stmt(then),
                 else_.as_deref().map(|stmt| self.lower_stmt(stmt)),
             ),
-            ast::StmtKind::Try(ast::StmtTry { expr, returns, block, catch }) => {
+            ast::StmtKind::Try(ast::StmtTry { expr, clauses }) => {
                 hir::StmtKind::Try(self.arena.alloc(hir::StmtTry {
                     expr: self.lower_expr_full(expr),
-                    returns: self.lower_variables(returns, hir::VarKind::TryCatch),
-                    block: self.lower_block(block),
-                    catch: self.arena.alloc_slice_fill_iter(catch.iter().map(|catch| {
-                        hir::CatchClause {
-                            name: catch.name,
-                            args: self.lower_variables(catch.args, hir::VarKind::TryCatch),
-                            block: self.lower_block(catch.block),
-                        }
-                    })),
+                    clauses: self.arena.alloc_slice_fill_iter(
+                        clauses.iter().map(|catch| self.lower_try_catch_clause(catch)),
+                    ),
                 }))
             }
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    fn lower_try_catch_clause(
+        &mut self,
+        &ast::TryCatchClause { name, ref args, ref block }: &ast::TryCatchClause<'_>,
+    ) -> hir::TryCatchClause<'hir> {
+        self.in_scope(|this| hir::TryCatchClause {
+            name,
+            args: this.lower_variables(args, hir::VarKind::TryCatch),
+            block: this.lower_block(block),
+        })
     }
 
     /// Converts path + args into a Call expression for emit/revert statements.
@@ -1000,7 +1005,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {
-                if let ast::CallArgs::Unnamed(args) = args {
+                if let ast::CallArgsKind::Unnamed(args) = &args.kind {
                     if let [arg] = &args[..] {
                         break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                     }
@@ -1034,10 +1039,13 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn lower_call_args(&mut self, args: &ast::CallArgs<'_>) -> hir::CallArgs<'hir> {
-        match args {
-            ast::CallArgs::Unnamed(args) => hir::CallArgs::Unnamed(self.lower_exprs(&**args)),
-            ast::CallArgs::Named(args) => hir::CallArgs::Named(self.lower_named_args(args)),
-        }
+        let kind = match &args.kind {
+            ast::CallArgsKind::Unnamed(args) => {
+                hir::CallArgsKind::Unnamed(self.lower_exprs(&**args))
+            }
+            ast::CallArgsKind::Named(args) => hir::CallArgsKind::Named(self.lower_named_args(args)),
+        };
+        hir::CallArgs { kind, span: args.span }
     }
 
     #[instrument(name = "lower_stmt", level = "debug", skip_all)]
@@ -1266,7 +1274,6 @@ impl SymbolResolverScopes {
         self.scopes.push(Declarations::new());
     }
 
-    #[track_caller]
     #[inline]
     fn current_scope(&mut self) -> &mut Declarations {
         if self.scopes.is_empty() {

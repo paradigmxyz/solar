@@ -28,14 +28,14 @@ pub fn get_srcs() -> &'static [Source] {
 }
 
 fn include_source(path: &'static str) -> Source {
-    source_from_path(
-        path,
-        std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
-            .unwrap_or_else(|e| {
-                panic!("failed to read {path}: {e}; you may need to initialize submodules")
-            })
-            .leak(),
-    )
+    let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
+        Ok(source) => source,
+        Err(e) => panic!(
+            "failed to read {path}: {e};\n\
+             you may need to initialize submodules: `git submodule update --init --checkout`"
+        ),
+    };
+    source_from_path(path, source.leak())
 }
 
 fn source_from_path(path: &'static str, src: &'static str) -> Source {
@@ -110,7 +110,7 @@ impl Parser for Solar {
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src.into())?;
+                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src)?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);

@@ -17,8 +17,8 @@ pub trait Visit<'hir> {
         visit_nested_items(self, self.hir().source(id).items)
     }
 
-    fn visit_nested_item(&mut self, id: impl Into<ItemId>) -> ControlFlow<Self::BreakValue> {
-        match id.into() {
+    fn visit_nested_item(&mut self, id: ItemId) -> ControlFlow<Self::BreakValue> {
+        match id {
             ItemId::Contract(id) => self.visit_nested_contract(id),
             ItemId::Function(id) => self.visit_nested_function(id),
             ItemId::Struct(_id) => ControlFlow::Continue(()), // TODO
@@ -80,8 +80,18 @@ pub trait Visit<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
-            ExprKind::Call(expr, _, _)
-            | ExprKind::Delete(expr)
+            ExprKind::Call(expr, ref args, opts) => {
+                self.visit_expr(expr)?;
+                if let Some(opts) = opts {
+                    for opt in opts {
+                        self.visit_expr(&opt.value)?;
+                    }
+                }
+                for arg in args.exprs() {
+                    self.visit_expr(arg)?;
+                }
+            }
+            ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
             | ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
@@ -115,7 +125,7 @@ pub trait Visit<'hir> {
                 }
             }
             ExprKind::Tuple(exprs) => {
-                exprs.iter().flatten().try_for_each(|expr| self.visit_expr(expr))?;
+                exprs.iter().copied().flatten().try_for_each(|expr| self.visit_expr(expr))?;
             }
             ExprKind::Ident(_) => {}
             ExprKind::Lit(_) => {}
@@ -160,18 +170,12 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Try(try_) => {
-                self.visit_expr(&try_.expr);
-                for &var in try_.returns {
-                    self.visit_nested_var(var)?;
-                }
-                for stmt in try_.block {
-                    self.visit_stmt(stmt)?;
-                }
-                for catch in try_.catch {
-                    for &var in catch.args {
+                self.visit_expr(&try_.expr)?;
+                for clause in try_.clauses {
+                    for &var in clause.args {
                         self.visit_nested_var(var)?;
                     }
-                    for stmt in catch.block {
+                    for stmt in clause.block {
                         self.visit_stmt(stmt)?;
                     }
                 }

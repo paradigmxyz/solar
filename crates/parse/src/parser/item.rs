@@ -1,6 +1,7 @@
 use super::{ExpectedToken, SeqSep};
 use crate::{PResult, Parser};
 use itertools::Itertools;
+use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span};
 
@@ -8,11 +9,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
-        self.parse_items(&TokenKind::Eof).map(SourceUnit::new)
+        self.parse_items(TokenKind::Eof).map(SourceUnit::new)
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: &TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
+    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -142,7 +143,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let flags = FunctionFlags::from_kind(kind);
         let header = self.parse_function_header(flags)?;
         let (body_span, body) = self.parse_spanned(|this| {
-            Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(&TokenKind::Semi) {
+            Ok(if !flags.contains(FunctionFlags::ONLY_BLOCK) && this.eat(TokenKind::Semi) {
                 None
             } else {
                 Some(this.parse_block()?)
@@ -320,12 +321,54 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             _ => unreachable!("parse_contract called without contract-like keyword"),
         };
         let name = self.parse_ident()?;
-        let bases =
-            if self.eat_keyword(kw::Is) { self.parse_inheritance()? } else { Default::default() };
-        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+
+        let mut bases = None::<Box<'_, [Modifier<'_>]>>;
+        let mut layout = None::<StorageLayoutSpecifier<'_>>;
+        loop {
+            if self.eat_keyword(kw::Is) {
+                let new_bases = self.parse_inheritance()?;
+                if let Some(prev) = &bases {
+                    let msg = "base contracts already specified";
+                    let span = |bases: &[Modifier<'_>]| {
+                        Span::join_first_last(bases.iter().map(|m| m.span()))
+                    };
+                    self.dcx()
+                        .err(msg)
+                        .span(span(new_bases))
+                        .span_note(span(prev), "previous definition")
+                        .emit();
+                } else if !new_bases.is_empty() {
+                    bases = Some(new_bases);
+                }
+            } else if self.check_keyword(sym::layout) {
+                let new_layout = self.parse_storage_layout_specifier()?;
+                if let Some(prev) = &layout {
+                    let msg = "storage layout already specified";
+                    self.dcx()
+                        .err(msg)
+                        .span(new_layout.span)
+                        .span_note(prev.span, "previous definition")
+                        .emit();
+                } else {
+                    layout = Some(new_layout);
+                }
+            } else {
+                break;
+            }
+        }
+
+        if let Some(layout) = &layout {
+            if !kind.is_contract() {
+                let msg = "storage layout is only allowed for contracts";
+                self.dcx().err(msg).span(layout.span).emit();
+            }
+        }
+
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let body =
-            self.in_contract(|this| this.parse_items(&TokenKind::CloseDelim(Delimiter::Brace)))?;
-        Ok(ItemContract { kind, name, bases, body })
+            self.in_contract(|this| this.parse_items(TokenKind::CloseDelim(Delimiter::Brace)))?;
+
+        Ok(ItemContract { kind, name, layout, bases: bases.unwrap_or_default(), body })
     }
 
     /// Parses an enum definition.
@@ -346,7 +389,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a pragma directive.
     fn parse_pragma(&mut self) -> PResult<'sess, PragmaDirective<'ast>> {
-        let is_ident_or_strlit = |t: &Token| t.is_ident() || t.is_str_lit();
+        let is_ident_or_strlit = |t: Token| t.is_ident() || t.is_str_lit();
 
         let tokens = if self.check_keyword(sym::solidity)
             || (self.token.is_ident()
@@ -356,8 +399,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let ident = self.parse_ident_any()?;
             let req = self.parse_semver_req()?;
             PragmaTokens::Version(ident, req)
-        } else if (is_ident_or_strlit(&self.token) && self.look_ahead(1).kind == TokenKind::Semi)
-            || (is_ident_or_strlit(&self.token)
+        } else if (is_ident_or_strlit(self.token) && self.look_ahead(1).kind == TokenKind::Semi)
+            || (is_ident_or_strlit(self.token)
                 && self.look_ahead_with(1, is_ident_or_strlit)
                 && self.look_ahead(2).kind == TokenKind::Semi)
         {
@@ -373,7 +416,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             let mut tokens = Vec::new();
             while !matches!(self.token.kind, TokenKind::Semi | TokenKind::Eof) {
-                tokens.push(self.token.clone());
+                tokens.push(self.token);
                 self.bump();
             }
             if !self.token.is_eof() && tokens.is_empty() {
@@ -400,7 +443,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// See `crates/ast/src/ast/semver.rs` for more details on the implementation.
     pub fn parse_semver_req(&mut self) -> PResult<'sess, SemverReq<'ast>> {
-        if self.check_noexpect(&TokenKind::Semi) || self.check_noexpect(&TokenKind::Eof) {
+        if self.check_noexpect(TokenKind::Semi) || self.check_noexpect(TokenKind::Eof) {
             let msg = "empty version requirement";
             let span = self.prev_token.span.to(self.token.span);
             return Err(self.dcx().err(msg).span(span));
@@ -416,10 +459,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut dis = Vec::new();
         loop {
             dis.push(self.parse_semver_req_components_con()?);
-            if self.eat(&TokenKind::OrOr) {
+            if self.eat(TokenKind::OrOr) {
                 continue;
             }
-            if self.check(&TokenKind::Semi) || self.check(&TokenKind::Eof) {
+            if self.check(TokenKind::Semi) || self.check(TokenKind::Eof) {
                 break;
             }
             // `parse_semver_req_components_con` parses a single range,
@@ -448,7 +491,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut components = Vec::new();
         let lo = self.token.span;
         let (op, v) = self.parse_semver_component()?;
-        if self.eat(&TokenKind::BinOp(BinOpToken::Minus)) {
+        if self.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             // range
             // Ops are parsed and overwritten: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
             let _ = op;
@@ -502,17 +545,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an import directive.
     fn parse_import(&mut self) -> PResult<'sess, ImportDirective<'ast>> {
         let path;
-        let items = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
+        let items = if self.eat(TokenKind::BinOp(BinOpToken::Star)) {
             // * as alias from ""
             let alias = self.parse_as_alias()?;
             self.expect_keyword(sym::from)?;
             path = self.parse_str_lit()?;
             ImportItems::Glob(alias)
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             // { x as y, ... } from ""
             let list = self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let name = this.parse_ident()?;
-                let alias = this.parse_as_alias()?;
+                let alias = this.parse_as_alias_opt()?;
                 Ok((name, alias))
             })?;
             self.expect_keyword(sym::from)?;
@@ -521,7 +564,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             // "" as alias
             path = self.parse_str_lit()?;
-            let alias = self.parse_as_alias()?;
+            let alias = self.parse_as_alias_opt()?;
             ImportItems::Plain(alias)
         };
         if path.value.as_str().is_empty() {
@@ -532,8 +575,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(ImportDirective { path, items })
     }
 
-    /// Parses an `as` alias identifier.
-    fn parse_as_alias(&mut self) -> PResult<'sess, Option<Ident>> {
+    /// Parses an optional `as` alias identifier.
+    fn parse_as_alias_opt(&mut self) -> PResult<'sess, Option<Ident>> {
         if self.eat_keyword(kw::As) {
             self.parse_ident().map(Some)
         } else {
@@ -541,11 +584,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
+    /// Parses an `as` alias identifier.
+    fn parse_as_alias(&mut self) -> PResult<'sess, Ident> {
+        self.expect_keyword(kw::As)?;
+        self.parse_ident()
+    }
+
     /// Parses a using directive.
     fn parse_using(&mut self) -> PResult<'sess, UsingDirective<'ast>> {
         let list = self.parse_using_list()?;
         self.expect_keyword(kw::For)?;
-        let ty = if self.eat(&TokenKind::BinOp(BinOpToken::Star)) {
+        let ty = if self.eat(TokenKind::BinOp(BinOpToken::Star)) {
             None
         } else {
             Some(self.parse_type()?)
@@ -556,7 +605,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_using_list(&mut self) -> PResult<'sess, UsingList<'ast>> {
-        if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             self.parse_delim_comma_seq(Delimiter::Brace, false, |this| {
                 let path = this.parse_path()?;
                 let op = if this.eat_keyword(kw::As) {
@@ -637,7 +686,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if ty.is_function()
             && flags == VarFlags::STATE_VAR
-            && self.check_noexpect(&TokenKind::OpenDelim(Delimiter::Brace))
+            && self.check_noexpect(TokenKind::OpenDelim(Delimiter::Brace))
         {
             let msg = "expected a state variable declaration";
             let note = "this style of fallback function has been removed; use the `fallback` or `receive` keywords instead";
@@ -735,7 +784,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(&TokenKind::Eq) {
+        let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
             Some(self.parse_expr()?)
         } else {
             None
@@ -791,13 +840,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a list of inheritance specifiers.
     fn parse_inheritance(&mut self) -> PResult<'sess, Box<'ast, [Modifier<'ast>]>> {
-        self.parse_seq_to_before_end(
-            &TokenKind::OpenDelim(Delimiter::Brace),
-            SeqSep::trailing_disallowed(TokenKind::Comma),
-            false,
-            Self::parse_modifier,
-        )
-        .map(|(x, _)| x)
+        let mut list = SmallVec::<[_; 8]>::new();
+        loop {
+            list.push(self.parse_modifier()?);
+            if !self.eat(TokenKind::Comma) {
+                break;
+            }
+        }
+        Ok(self.alloc_smallvec(list))
+    }
+
+    /// Parses a storage layout specifier.
+    fn parse_storage_layout_specifier(&mut self) -> PResult<'sess, StorageLayoutSpecifier<'ast>> {
+        let lo = self.token.span;
+        self.expect_keyword(sym::layout)?;
+        self.expect_keyword(sym::at)?;
+        let slot = self.parse_expr()?;
+        Ok(StorageLayoutSpecifier { span: lo.to(self.prev_token.span), slot })
     }
 
     /// Parses a single modifier invocation.
@@ -806,7 +865,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
         } else {
-            CallArgs::empty()
+            CallArgs::empty(name.span().shrink_to_hi())
         };
         Ok(Modifier { name, arguments })
     }
