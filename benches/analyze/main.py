@@ -250,12 +250,10 @@ def plot_benchmark_times(data, benchmarks, parsers):
 
     # Sort parsers by average time (fastest last)
     sorted_parsers = {
-        kind: list(
-            reversed(
-                sorted(
-                    parsers, key=lambda p: parser_avg_times[kind].get(p, float("inf"))
-                )
-            )
+        kind: sorted(
+            parsers,
+            key=lambda p: parser_avg_times[kind].get(p, float("inf")),
+            reverse=True,
         )
         for kind in KINDS
     }
@@ -275,6 +273,10 @@ def plot_benchmark_times(data, benchmarks, parsers):
     output_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.makedirs(output_dir, exist_ok=True)
 
+    # Define a consistent color map for all parsers
+    all_parsers = sorted(set(x[1] for x in data))
+    color_map = {parser: plt.cm.tab10(i % 10) for i, parser in enumerate(all_parsers)}
+
     plot_paths = {}
 
     # Generate separate plots for each kind
@@ -292,6 +294,7 @@ def plot_benchmark_times(data, benchmarks, parsers):
             sorted_bench_names[kind],
             available_parsers,
             output_dir,
+            color_map,
         )
 
         # Generate relative performance plots
@@ -301,6 +304,7 @@ def plot_benchmark_times(data, benchmarks, parsers):
             sorted_bench_names[kind],
             available_parsers,
             output_dir,
+            color_map,
         )
 
     return plot_paths
@@ -344,7 +348,9 @@ def calculate_benchmark_avg_times(data, bench_names, parsers):
     return bench_avg_times
 
 
-def create_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
+def create_plot(
+    data, kind, sorted_bench_names, available_parsers, output_dir, color_map
+):
     """Create a single plot for a specific kind."""
     # Create a figure
     plt.figure(figsize=(12, 8))
@@ -373,8 +379,14 @@ def create_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
             else:
                 times.append(np.nan)  # Missing data
 
-        # Plot the data
-        ax.bar(x + i * width - 0.4 + width / 2, times, width, label=parser)
+        # Plot the data with consistent color
+        ax.bar(
+            x + i * width - 0.4 + width / 2,
+            times,
+            width,
+            label=parser,
+            color=color_map[parser],
+        )
 
     # Set x-axis labels
     ax.set_xticks(x)
@@ -400,7 +412,9 @@ def create_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
     return output_path
 
 
-def create_relative_plot(data, kind, sorted_bench_names, available_parsers, output_dir):
+def create_relative_plot(
+    data, kind, sorted_bench_names, available_parsers, output_dir, color_map
+):
     """
     Create a relative performance plot showing speedup factors compared to the slowest parser.
 
@@ -447,8 +461,14 @@ def create_relative_plot(data, kind, sorted_bench_names, available_parsers, outp
             else:
                 speedups.append(np.nan)  # Missing data
 
-        # Plot the data
-        ax.bar(x + i * width - 0.4 + width / 2, speedups, width, label=parser)
+        # Plot the data with consistent color
+        ax.bar(
+            x + i * width - 0.4 + width / 2,
+            speedups,
+            width,
+            label=parser,
+            color=color_map[parser],
+        )
 
     # Set x-axis labels
     ax.set_xticks(x)
