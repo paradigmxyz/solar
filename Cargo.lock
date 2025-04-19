@@ -2735,7 +2735,6 @@ dependencies = [
  "lasso",
  "match_cfg",
  "normalize-path",
- "once_map",
  "rayon",
  "scoped-tls",
  "serde",
