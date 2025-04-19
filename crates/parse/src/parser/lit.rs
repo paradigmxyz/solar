@@ -164,7 +164,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if kind != lit.kind {
                 break;
             }
-            extra.push((self.token.span, lit.symbol));
+            extra.push((self.token.span, symbol));
             value
                 .to_mut()
                 .extend_from_slice(&unescape::parse_string_literal(symbol.as_str(), mode));
