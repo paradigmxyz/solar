@@ -193,14 +193,14 @@ impl SourceMap {
             StdEntry::Occupied(entry) => Ok(entry.get().clone()),
             StdEntry::Vacant(entry) => {
                 let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-                let file = Self::new_source_file_inner(&mut files.source_files, file, stable_id)?;
+                let file = Self::append_source_file(&mut files.source_files, file, stable_id)?;
                 entry.insert(file.clone());
                 Ok(file)
             }
         }
     }
 
-    fn new_source_file_inner(
+    fn append_source_file(
         source_files: &mut Vec<Arc<SourceFile>>,
         mut file: SourceFile,
         stable_id: StableSourceFileId,
@@ -273,8 +273,7 @@ impl SourceMap {
 
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
     pub fn lookup_byte_offset(&self, bpos: BytePos) -> SourceFileAndBytePos {
-        let idx = self.lookup_source_file_idx(bpos);
-        let sf = self.files()[idx].clone();
+        let sf = self.lookup_source_file(bpos);
         let offset = bpos - sf.start_pos;
         SourceFileAndBytePos { sf, pos: offset }
     }
@@ -283,14 +282,19 @@ impl SourceMap {
     ///
     /// This index is guaranteed to be valid for the lifetime of this `SourceMap`.
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
-        assert!(!self.files().is_empty(), "attempted to lookup source file in empty `SourceMap`");
-        self.files().partition_point(|x| x.start_pos <= pos) - 1
+        Self::lookup_sf_idx(&self.files(), pos)
     }
 
     /// Return the SourceFile that contains the given `BytePos`.
     pub fn lookup_source_file(&self, pos: BytePos) -> Arc<SourceFile> {
-        let idx = self.lookup_source_file_idx(pos);
-        self.files()[idx].clone()
+        let files = &*self.files();
+        let idx = Self::lookup_sf_idx(files, pos);
+        files[idx].clone()
+    }
+
+    fn lookup_sf_idx(files: &[Arc<SourceFile>], pos: BytePos) -> usize {
+        assert!(!files.is_empty(), "attempted to lookup source file in empty `SourceMap`");
+        files.partition_point(|x| x.start_pos <= pos) - 1
     }
 
     /// Looks up source information about a `BytePos`.
