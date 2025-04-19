@@ -1,6 +1,7 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Span};
+use once_map::OnceMap;
 use solar_data_structures::{
     map::FxBuildHasher,
     sync::{ReadGuard, RwLock},
@@ -105,7 +106,7 @@ pub struct SourceMap {
     // INVARIANT: The only operation allowed on `source_files` is `push`.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
     #[debug(skip)]
-    stable_id_to_source_file: scc::HashIndex<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    stable_id_to_source_file: OnceMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -133,14 +134,14 @@ impl SourceMap {
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        self.get_file_by_name(&path.to_path_buf().into())
+        self.source_file_by_file_name(&path.to_path_buf().into())
     }
 
     /// Returns the source file with the given name, if it exists.
     /// Does not attempt to load the file.
+    #[deprecated = "use `source_file_by_file_name` instead"]
     pub fn get_file_by_name(&self, name: &FileName) -> Option<Arc<SourceFile>> {
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(name);
-        self.stable_id_to_source_file.get(&stable_id).map(|entry| entry.get().clone())
+        self.source_file_by_file_name(name)
     }
 
     /// Loads a file from the given path.
@@ -187,15 +188,14 @@ impl SourceMap {
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
-        match self.stable_id_to_source_file.entry(stable_id) {
-            scc::hash_index::Entry::Occupied(entry) => Ok(entry.get().clone()),
-            scc::hash_index::Entry::Vacant(entry) => {
+        self.stable_id_to_source_file.map_try_insert(
+            stable_id,
+            |&stable_id| {
                 let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-                let file = self.new_source_file_inner(file, stable_id)?;
-                entry.insert_entry(file.clone());
-                Ok(file)
-            }
-        }
+                self.new_source_file_inner(file, stable_id)
+            },
+            |_k, v| v.clone(),
+        )
     }
 
     fn new_source_file_inner(
@@ -238,7 +238,7 @@ impl SourceMap {
         &self,
         stable_id: StableSourceFileId,
     ) -> Option<Arc<SourceFile>> {
-        self.stable_id_to_source_file.get(&stable_id).as_deref().cloned()
+        self.stable_id_to_source_file.get_cloned(&stable_id)
     }
 
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {

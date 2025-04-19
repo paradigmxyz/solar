@@ -35,8 +35,8 @@ itertools.workspace = true
 itoa.workspace = true
 lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
 normalize-path = "0.2.1"
+once_map.workspace = true
 rayon.workspace = true
-scc.workspace = true
 scoped-tls.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true
