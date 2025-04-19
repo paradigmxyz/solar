@@ -43,11 +43,11 @@ def main():
 
     # # Add plot images to the output
     # for kind in KINDS:
-    #     out_s += f"#### {kind.capitalize()} Performance\n\n![{kind} Performance]({os.path.basename(plot_paths[kind])})\n\n"
+    #     out_s += f"![{kind} Performance]({os.path.basename(plot_paths[kind])})\n\n"
 
     # Add relative performance charts
     for kind in KINDS:
-        out_s += f"#### {kind.capitalize()} Relative Performance\n\n![{kind} Relative Performance]({os.path.basename(plot_paths[f'{kind}_relative'])})\n\n"
+        out_s += f"![{kind} Relative Performance]({os.path.basename(plot_paths[f'{kind}_relative'])})\n\n"
 
     # Generate markdown tables
     out_s += generate_markdown_tables(data, benchmarks, parsers, min_times)
