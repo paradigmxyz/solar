@@ -202,13 +202,13 @@ def plot_benchmark_times(data, benchmarks, parsers):
     plot_paths = {}
 
     # Generate separate plots for each kind
-    for kind in ["lex", "parse"]:
+    for kind, title in [("lex", "Lexing"), ("parse", "Parsing")]:
         # Create a figure
         plt.figure(figsize=(12, 8))
         ax = plt.gca()
 
         # Set up the plot
-        ax.set_title(f"{kind.capitalize()}ing Times (log scale)")
+        ax.set_title(f"{title} Times (log scale)")
         ax.set_xlabel("Benchmark")
         ax.set_ylabel("Time (ns)")
         ax.set_yscale("log")
