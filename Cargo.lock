@@ -2805,7 +2805,6 @@ dependencies = [
  "once_map",
  "paste",
  "rayon",
- "scc",
  "serde",
  "serde_json",
  "solar-ast",
