@@ -206,6 +206,9 @@ def generate_markdown_tables(data, benchmarks, parsers, min_times):
     return out_s
 
 
+maybe_better = False
+
+
 def plot_benchmark_times(data, benchmarks, parsers):
     """
     Plot the parsing and lexing times on a log chart for all parsers.
@@ -221,15 +224,24 @@ def plot_benchmark_times(data, benchmarks, parsers):
     # Filter out the "empty" benchmark
     benchmarks = [b for b in benchmarks if b[0] != "empty"]
 
+    if maybe_better:
+        parsers = [p for p in parsers if p != "slang"]
+
     # Get unique benchmark names
     bench_names = sorted(set(b[0] for b in benchmarks))
 
     # Calculate average times for each parser and kind to sort them
     parser_avg_times = calculate_parser_avg_times(data, bench_names, parsers)
 
-    # Sort parsers by average time (fastest first)
+    # Sort parsers by average time (fastest last)
     sorted_parsers = {
-        kind: sorted(parsers, key=lambda p: parser_avg_times[kind].get(p, float("inf")))
+        kind: list(
+            reversed(
+                sorted(
+                    parsers, key=lambda p: parser_avg_times[kind].get(p, float("inf"))
+                )
+            )
+        )
         for kind in KINDS
     }
 
@@ -311,7 +323,8 @@ def create_plot(data, kind, sorted_bench_names, sorted_parsers, output_dir):
     ax.set_title(f"Time to {kind} (log scale)")
     ax.set_xlabel("Benchmark")
     ax.set_ylabel("Time (ns)")
-    ax.set_yscale("log")
+    if not maybe_better:
+        ax.set_yscale("log")
 
     # Set up x-axis positions
     x = np.arange(len(sorted_bench_names))
