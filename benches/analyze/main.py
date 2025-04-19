@@ -78,6 +78,36 @@ def main():
     out_s += f"#### Lexing Performance\n\n![Lexing Performance]({os.path.basename(plot_paths['lex'])})\n\n"
     out_s += f"#### Parsing Performance\n\n![Parsing Performance]({os.path.basename(plot_paths['parse'])})\n\n"
 
+    # Generate markdown tables
+    out_s += generate_markdown_tables(data, benchmarks, parsers, min_times)
+
+    out_s = out_s.rstrip()
+
+    # Replace the marker with the new output, or print to stdout
+    if out_file:
+        with open(out_file, "r") as f:
+            content = f.read()
+        idx = content.index(MARKER) + len(MARKER)
+        with open(out_file, "w") as f:
+            f.write(content[:idx] + "\n" + out_s + "\n")
+    else:
+        print(out_s)
+
+
+def generate_markdown_tables(data, benchmarks, parsers, min_times):
+    """
+    Generate markdown tables for each benchmark and kind.
+
+    Args:
+        data: List of [bench_name, parser, kind, time_str, time_ns] entries
+        benchmarks: List of (bench_name, loc, bytes) tuples
+        parsers: List of parser names
+        min_times: Dictionary of minimum times for each benchmark and kind
+
+    Returns:
+        String containing markdown tables
+    """
+    out_s = ""
     for bench_name, loc, bytes in benchmarks:
         out_s += f"### {bench_name} ({loc} LoC, {bytes} bytes)\n\n"
 
@@ -123,16 +153,7 @@ def main():
             out_s += tabulate(table, headers="firstrow", tablefmt="pipe")
             out_s += "\n\n"
 
-    out_s = out_s.rstrip()
-
-    if out_file:
-        with open(out_file, "r") as f:
-            content = f.read()
-        idx = content.index(MARKER) + len(MARKER)
-        with open(out_file, "w") as f:
-            f.write(content[:idx] + "\n" + out_s + "\n")
-    else:
-        print(out_s)
+    return out_s
 
 
 def plot_benchmark_times(data, benchmarks, parsers):
