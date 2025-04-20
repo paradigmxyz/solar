@@ -361,31 +361,22 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        let mut has_digits = false;
-        loop {
-            match self.first() {
-                b'_' => {
-                    self.bump();
-                }
-                b'0'..=b'9' => {
-                    has_digits = true;
-                    self.bump();
-                }
-                _ => break,
-            }
-        }
-        has_digits
+        self.eat_digits(|x| x.is_ascii_digit())
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
+        self.eat_digits(|x| x.is_ascii_hexdigit())
+    }
+
+    fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
         let mut has_digits = false;
         loop {
             match self.first() {
                 b'_' => {
                     self.bump();
                 }
-                b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
+                c if is_digit(c) => {
                     has_digits = true;
                     self.bump();
                 }
