@@ -1,9 +1,9 @@
 #![allow(unused_crate_dependencies)]
 
 use solar_interface::{
-    source_map::{FileName, SourceFile, SourceFileHashAlgorithm},
     diagnostics::EmittedDiagnostics,
-    Session, Result,
+    source_map::{FileName, SourceFile, SourceFileHashAlgorithm},
+    Result, Session,
 };
 
 #[test]
@@ -32,7 +32,11 @@ contract Test {
 "#;
 
     // Create the source file
-    let _file = match SourceFile::new(FileName::custom("test.sol"), src.to_string(), SourceFileHashAlgorithm::default()) {
+    let _file = match SourceFile::new(
+        FileName::custom("test.sol"),
+        src.to_string(),
+        SourceFileHashAlgorithm::default(),
+    ) {
         Ok(file) => file,
         Err(e) => {
             let _ = dcx.err(e.to_string()).emit();
@@ -43,4 +47,4 @@ contract Test {
     // TODO: Find a way to parse and lower the source code using public APIs.
     // For now, just return Ok(())
     Ok(())
-} 
+}
