@@ -59,19 +59,19 @@ pub const fn is_ident(s: &str) -> bool {
 ///
 /// See [`is_ident`] for more details.
 pub const fn is_ident_bytes(s: &[u8]) -> bool {
-    // Note: valid idents can only contain ASCII characters, so we can
-    // use the byte representation here.
-    let [first, rest @ ..] = s else {
+    // Note: valid idents can only contain ASCII characters, so we can use the byte representation
+    // here.
+    let [first, ref rest @ ..] = *s else {
         return false;
     };
 
-    if !is_id_start(*first as char) {
+    if !is_id_start_byte(first) {
         return false;
     }
 
     let mut i = 0;
     while i < rest.len() {
-        if !is_id_continue(rest[i] as char) {
+        if !is_id_continue_byte(rest[i]) {
             return false;
         }
         i += 1;
@@ -81,20 +81,12 @@ pub const fn is_ident_bytes(s: &[u8]) -> bool {
 }
 
 /// Converts a `char` to a `u8`.
-///
-/// `char` is more ergonomic to use in Rust and we want to correctly handle UTF-8 characters when
-/// bumping the iterator, but the grammar only allows ASCII, so we want to do this conversion to
-/// inform the optimizer that we only care about ASCII characters.
 #[inline(always)]
 const fn ch2u8(c: char) -> u8 {
     c as u32 as u8
 }
-#[inline(always)]
-const fn ascii(c: char) -> char {
-    c as u32 as u8 as char
-}
 
-const EOF_CHAR: char = '\0';
+const EOF: u8 = b'\0';
 
 /// Peekable iterator over a char sequence.
 ///
@@ -105,7 +97,7 @@ pub struct Cursor<'a> {
     len_remaining: usize,
     chars: Chars<'a>,
     #[cfg(debug_assertions)]
-    prev: char,
+    prev: u8,
 }
 
 impl<'a> Cursor<'a> {
@@ -115,7 +107,7 @@ impl<'a> Cursor<'a> {
             len_remaining: input.len(),
             chars: input.chars(),
             #[cfg(debug_assertions)]
-            prev: EOF_CHAR,
+            prev: EOF,
         }
     }
 
@@ -126,7 +118,7 @@ impl<'a> Cursor<'a> {
             None => return RawToken::EOF,
         };
         let token_kind = if first_char.is_ascii() {
-            self.advance_token_kind(ch2u8(first_char))
+            self.advance_token_kind(first_char)
         } else {
             RawTokenKind::Unknown
         };
@@ -137,57 +129,57 @@ impl<'a> Cursor<'a> {
 
     #[inline]
     fn advance_token_kind(&mut self, first_char: u8) -> RawTokenKind {
-        match first_char as char {
+        match first_char {
             // Slash, comment or block comment.
-            '/' => match self.first() {
-                '/' => self.line_comment(),
-                '*' => self.block_comment(),
+            b'/' => match self.first() {
+                b'/' => self.line_comment(),
+                b'*' => self.block_comment(),
                 _ => RawTokenKind::Slash,
             },
 
             // Whitespace sequence.
-            c if is_whitespace(c) => self.whitespace(),
+            c if is_whitespace_byte(c) => self.whitespace(),
 
             // Identifier (this should be checked after other variant that can start as identifier).
-            c if is_id_start(c) => self.ident_or_prefixed_literal(c),
+            c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
 
             // Numeric literal.
-            '0'..='9' => {
+            b'0'..=b'9' => {
                 let kind = self.number(first_char);
                 RawTokenKind::Literal { kind }
             }
-            '.' if self.first().is_ascii_digit() => {
+            b'.' if self.first().is_ascii_digit() => {
                 let kind = self.rational_number_after_dot(Base::Decimal);
                 RawTokenKind::Literal { kind }
             }
 
             // One-symbol tokens.
-            ';' => RawTokenKind::Semi,
-            ',' => RawTokenKind::Comma,
-            '.' => RawTokenKind::Dot,
-            '(' => RawTokenKind::OpenParen,
-            ')' => RawTokenKind::CloseParen,
-            '{' => RawTokenKind::OpenBrace,
-            '}' => RawTokenKind::CloseBrace,
-            '[' => RawTokenKind::OpenBracket,
-            ']' => RawTokenKind::CloseBracket,
-            '~' => RawTokenKind::Tilde,
-            '?' => RawTokenKind::Question,
-            ':' => RawTokenKind::Colon,
-            '=' => RawTokenKind::Eq,
-            '!' => RawTokenKind::Bang,
-            '<' => RawTokenKind::Lt,
-            '>' => RawTokenKind::Gt,
-            '-' => RawTokenKind::Minus,
-            '&' => RawTokenKind::And,
-            '|' => RawTokenKind::Or,
-            '+' => RawTokenKind::Plus,
-            '*' => RawTokenKind::Star,
-            '^' => RawTokenKind::Caret,
-            '%' => RawTokenKind::Percent,
+            b';' => RawTokenKind::Semi,
+            b',' => RawTokenKind::Comma,
+            b'.' => RawTokenKind::Dot,
+            b'(' => RawTokenKind::OpenParen,
+            b')' => RawTokenKind::CloseParen,
+            b'{' => RawTokenKind::OpenBrace,
+            b'}' => RawTokenKind::CloseBrace,
+            b'[' => RawTokenKind::OpenBracket,
+            b']' => RawTokenKind::CloseBracket,
+            b'~' => RawTokenKind::Tilde,
+            b'?' => RawTokenKind::Question,
+            b':' => RawTokenKind::Colon,
+            b'=' => RawTokenKind::Eq,
+            b'!' => RawTokenKind::Bang,
+            b'<' => RawTokenKind::Lt,
+            b'>' => RawTokenKind::Gt,
+            b'-' => RawTokenKind::Minus,
+            b'&' => RawTokenKind::And,
+            b'|' => RawTokenKind::Or,
+            b'+' => RawTokenKind::Plus,
+            b'*' => RawTokenKind::Star,
+            b'^' => RawTokenKind::Caret,
+            b'%' => RawTokenKind::Percent,
 
             // String literal.
-            '\'' | '"' => {
+            b'\'' | b'"' => {
                 let terminated = self.eat_string(first_char);
                 let kind = RawLiteralKind::Str { terminated, unicode: false };
                 RawTokenKind::Literal { kind }
@@ -202,27 +194,27 @@ impl<'a> Cursor<'a> {
     }
 
     fn line_comment(&mut self) -> RawTokenKind {
-        debug_assert!(self.prev() == '/' && self.first() == '/');
+        debug_assert!(self.prev() == b'/' && self.first() == b'/');
         self.bump();
 
         // `////` (more than 3 slashes) is not considered a doc comment.
-        let is_doc = matches!(self.first(), '/' if self.second() != '/');
+        let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-        self.eat_while(|c| c != '\n');
+        self.eat_while(|c| c != b'\n');
         RawTokenKind::LineComment { is_doc }
     }
 
     fn block_comment(&mut self) -> RawTokenKind {
-        debug_assert!(self.prev() == '/' && self.first() == '*');
+        debug_assert!(self.prev() == b'/' && self.first() == b'*');
         self.bump();
 
         // `/***` (more than 2 stars) is not considered a doc comment.
         // `/**/` is not considered a doc comment.
-        let is_doc = matches!(self.first(), '*' if !matches!(self.second(), '*' | '/'));
+        let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
         let mut terminated = false;
-        while let Some(c) = self.bump().map(ascii) {
-            if c == '*' && self.first() == '/' {
+        while let Some(c) = self.bump() {
+            if c == b'*' && self.first() == b'/' {
                 terminated = true;
                 self.bump();
                 break;
@@ -233,25 +225,25 @@ impl<'a> Cursor<'a> {
     }
 
     fn whitespace(&mut self) -> RawTokenKind {
-        debug_assert!(is_whitespace(self.prev()));
-        self.eat_while(is_whitespace);
+        debug_assert!(is_whitespace_byte(self.prev()));
+        self.eat_while(is_whitespace_byte);
         RawTokenKind::Whitespace
     }
 
-    fn ident_or_prefixed_literal(&mut self, first_char: char) -> RawTokenKind {
-        debug_assert!(is_id_start(self.prev()));
+    fn ident_or_prefixed_literal(&mut self, first: u8) -> RawTokenKind {
+        debug_assert!(is_id_start_byte(self.prev()));
 
         // Check for potential prefixed literals.
-        match first_char {
+        match first {
             // `hex"01234"`
-            'h' => {
+            b'h' => {
                 if let Some(terminated) = self.maybe_string_prefix("hex") {
                     let kind = RawLiteralKind::HexStr { terminated };
                     return RawTokenKind::Literal { kind };
                 }
             }
             // `unicode"abc"`
-            'u' => {
+            b'u' => {
                 if let Some(terminated) = self.maybe_string_prefix("unicode") {
                     let kind = RawLiteralKind::Str { terminated, unicode: true };
                     return RawTokenKind::Literal { kind };
@@ -261,35 +253,33 @@ impl<'a> Cursor<'a> {
         }
 
         // Start is already eaten, eat the rest of identifier.
-        self.eat_while(is_id_continue);
+        self.eat_while(is_id_continue_byte);
         RawTokenKind::Ident
     }
 
     fn number(&mut self, first_digit: u8) -> RawLiteralKind {
-        let first_digit = first_digit as char;
-
         debug_assert!(self.prev().is_ascii_digit());
         let mut base = Base::Decimal;
-        if first_digit == '0' {
+        if first_digit == b'0' {
             // Attempt to parse encoding base.
             let has_digits = match self.first() {
-                'b' => {
+                b'b' => {
                     base = Base::Binary;
                     self.bump();
                     self.eat_decimal_digits()
                 }
-                'o' => {
+                b'o' => {
                     base = Base::Octal;
                     self.bump();
                     self.eat_decimal_digits()
                 }
-                'x' => {
+                b'x' => {
                     base = Base::Hexadecimal;
                     self.bump();
                     self.eat_hexadecimal_digits()
                 }
                 // Not a base prefix.
-                '0'..='9' | '_' | '.' | 'e' | 'E' => {
+                b'0'..=b'9' | b'_' | b'.' | b'e' | b'E' => {
                     self.eat_decimal_digits();
                     true
                 }
@@ -308,11 +298,11 @@ impl<'a> Cursor<'a> {
         match self.first() {
             // Don't be greedy if this is actually an integer literal followed
             // by field/method access (`12.foo()`)
-            '.' if !is_id_start(self.second()) => {
+            b'.' if !is_id_start_byte(self.second()) => {
                 self.bump();
                 self.rational_number_after_dot(base)
             }
-            'e' | 'E' => {
+            b'e' | b'E' => {
                 self.bump();
                 let empty_exponent = !self.eat_exponent();
                 RawLiteralKind::Rational { base, empty_exponent }
@@ -325,7 +315,7 @@ impl<'a> Cursor<'a> {
     fn rational_number_after_dot(&mut self, base: Base) -> RawLiteralKind {
         self.eat_decimal_digits();
         let empty_exponent = match self.first() {
-            'e' | 'E' => {
+            b'e' | b'E' => {
                 self.bump();
                 !self.eat_exponent()
             }
@@ -335,12 +325,12 @@ impl<'a> Cursor<'a> {
     }
 
     fn maybe_string_prefix(&mut self, prefix: &str) -> Option<bool> {
-        debug_assert_eq!(self.prev(), prefix.chars().next().unwrap());
+        debug_assert_eq!(self.prev(), prefix.bytes().next().unwrap());
         let prefix = &prefix[1..];
         let s = self.as_str();
         if s.starts_with(prefix) {
             let skip = prefix.len();
-            let Some(quote @ (b'"' | b'\'')) = s.bytes().nth(skip) else { return None };
+            let Some(quote @ (b'"' | b'\'')) = s.as_bytes().get(skip).copied() else { return None };
             self.ignore_bytes(skip);
             self.bump();
             let terminated = self.eat_string(quote);
@@ -352,16 +342,14 @@ impl<'a> Cursor<'a> {
 
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: u8) -> bool {
-        let quote = quote as char;
-
         debug_assert_eq!(self.prev(), quote);
-        while let Some(c) = self.bump().map(ascii) {
+        while let Some(c) = self.bump() {
             if c == quote {
                 return true;
             }
-            if c == '\\' {
+            if c == b'\\' {
                 let first = self.first();
-                if first == '\\' || first == quote {
+                if first == b'\\' || first == quote {
                     // Bump again to skip escaped character.
                     self.bump();
                 }
@@ -376,10 +364,10 @@ impl<'a> Cursor<'a> {
         let mut has_digits = false;
         loop {
             match self.first() {
-                '_' => {
+                b'_' => {
                     self.bump();
                 }
-                '0'..='9' => {
+                b'0'..=b'9' => {
                     has_digits = true;
                     self.bump();
                 }
@@ -394,10 +382,10 @@ impl<'a> Cursor<'a> {
         let mut has_digits = false;
         loop {
             match self.first() {
-                '_' => {
+                b'_' => {
                     self.bump();
                 }
-                '0'..='9' | 'a'..='f' | 'A'..='F' => {
+                b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F' => {
                     has_digits = true;
                     self.bump();
                 }
@@ -409,9 +397,9 @@ impl<'a> Cursor<'a> {
 
     /// Eats the exponent. Returns `true` if any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
-        debug_assert!(self.prev() == 'e' || self.prev() == 'E');
-        // '+' is not a valid prefix for an exponent.
-        if self.first() == '-' {
+        debug_assert!(self.prev() == b'e' || self.prev() == b'E');
+        // b'+' is not a valid prefix for an exponent.
+        if self.first() == b'-' {
             self.bump();
         }
         self.eat_decimal_digits()
@@ -425,35 +413,35 @@ impl<'a> Cursor<'a> {
 
     /// Returns the last eaten symbol. Only available with `debug_assertions` enabled.
     #[inline]
-    fn prev(&self) -> char {
+    fn prev(&self) -> u8 {
         #[cfg(debug_assertions)]
         return self.prev;
         #[cfg(not(debug_assertions))]
-        return EOF_CHAR;
+        return EOF;
     }
 
     /// Peeks the next symbol from the input stream without consuming it.
-    /// If requested position doesn't exist, `EOF_CHAR` is returned.
-    /// However, getting `EOF_CHAR` doesn't always mean actual end of file,
+    /// If requested position doesn't exist, `EOF` is returned.
+    /// However, getting `EOF` doesn't always mean actual end of file,
     /// it should be checked with `is_eof` method.
     #[inline]
-    fn first(&self) -> char {
-        self.peek_byte(0) as char
+    fn first(&self) -> u8 {
+        self.peek_byte(0)
     }
 
     /// Peeks the second symbol from the input stream without consuming it.
     #[inline]
-    fn second(&self) -> char {
+    fn second(&self) -> u8 {
         // This function is only called after `first` was called and checked, so in practice it
         // doesn't matter if it's part of the first UTF-8 character.
-        self.peek_byte(1) as char
+        self.peek_byte(1)
     }
 
     // Do not use directly.
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        self.as_str().as_bytes().get(index).copied().unwrap_or(EOF_CHAR as u8)
+        self.as_str().as_bytes().get(index).copied().unwrap_or(EOF)
     }
 
     /// Checks if there is nothing more to consume.
@@ -475,8 +463,8 @@ impl<'a> Cursor<'a> {
     }
 
     /// Moves to the next character.
-    fn bump(&mut self) -> Option<char> {
-        let c = self.chars.next();
+    fn bump(&mut self) -> Option<u8> {
+        let c = self.chars.next().map(ch2u8);
         #[cfg(debug_assertions)]
         if let Some(c) = c {
             self.prev = c;
@@ -493,7 +481,7 @@ impl<'a> Cursor<'a> {
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
     #[inline]
-    fn eat_while(&mut self, mut predicate: impl FnMut(char) -> bool) {
+    fn eat_while(&mut self, mut predicate: impl FnMut(u8) -> bool) {
         while predicate(self.first()) && !self.is_eof() {
             self.bump();
         }
