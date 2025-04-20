@@ -2,13 +2,19 @@
 
 use solar_interface::diagnostics::DiagCtxt;
 
+#[cfg(feature = "mimalloc")]
+use mimalloc as _;
 #[cfg(all(feature = "jemalloc", unix))]
 use tikv_jemallocator as _;
 
-// We use jemalloc for performance reasons.
-// Except in tests, where we spawn a ton of processes and jemalloc has a higher startup cost.
+// Keep the system allocator in tests, where we spawn a ton of processes and any extra startup cost
+// slows down tests massively.
 cfg_if::cfg_if! {
-    if #[cfg(all(feature = "jemalloc", unix, not(debug_assertions)))] {
+    if #[cfg(debug_assertions)] {
+        type AllocatorInner = std::alloc::System;
+    } else if #[cfg(feature = "mimalloc")] {
+        type AllocatorInner = mimalloc::MiMalloc;
+    } else if #[cfg(all(feature = "jemalloc", unix))] {
         type AllocatorInner = tikv_jemallocator::Jemalloc;
     } else {
         type AllocatorInner = std::alloc::System;

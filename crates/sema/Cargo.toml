@@ -32,7 +32,6 @@ bumpalo.workspace = true
 either.workspace = true
 once_map.workspace = true
 rayon.workspace = true
-scc.workspace = true
 thread_local.workspace = true
 tracing.workspace = true
 typed-arena.workspace = true

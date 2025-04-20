@@ -174,7 +174,6 @@ scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
 thread_local = "1.1"
-tikv-jemallocator = "0.6"
 typed-arena = "2.0"
 unicode-width = "0.2"
 vergen = "8"
