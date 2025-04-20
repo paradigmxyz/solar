@@ -113,7 +113,7 @@ impl<'a> Cursor<'a> {
 
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> RawToken {
-        let first_char = match self.bump() {
+        let first_char = match self.bump_ret() {
             Some(c) => c,
             None => return RawToken::EOF,
         };
@@ -213,7 +213,7 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
         let mut terminated = false;
-        while let Some(c) = self.bump() {
+        while let Some(c) = self.bump_ret() {
             if c == b'*' && self.first() == b'/' {
                 terminated = true;
                 self.bump();
@@ -343,7 +343,7 @@ impl<'a> Cursor<'a> {
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: u8) -> bool {
         debug_assert_eq!(self.prev(), quote);
-        while let Some(c) = self.bump() {
+        while let Some(c) = self.bump_ret() {
             if c == quote {
                 return true;
             }
@@ -463,13 +463,27 @@ impl<'a> Cursor<'a> {
     }
 
     /// Moves to the next character.
-    fn bump(&mut self) -> Option<u8> {
-        let c = self.chars.next().map(ch2u8);
-        #[cfg(debug_assertions)]
-        if let Some(c) = c {
-            self.prev = c;
-        }
+    fn bump(&mut self) {
+        self.bump_inlined();
+    }
+
+    /// Moves to the next character, returning the current one.
+    fn bump_ret(&mut self) -> Option<u8> {
+        let c = self.as_str().as_bytes().first().copied();
+        self.bump_inlined();
         c
+    }
+
+    #[inline]
+    fn bump_inlined(&mut self) {
+        // NOTE: This intentionally does not assign `_c` in the next line, as rustc currently emit a
+        // lot more LLVM IR (for an `assume`), which messes with the optimizations and inling costs.
+        #[cfg(not(debug_assertions))]
+        self.chars.next();
+        #[cfg(debug_assertions)]
+        if let Some(c) = self.chars.next() {
+            self.prev = c as u8;
+        }
     }
 
     /// Advances `n` bytes, without setting `prev`.
