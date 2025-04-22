@@ -62,34 +62,40 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit) {
-        let ast::LitKind::Number(_) = lit.kind else {
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
             return;
         };
-        let literal_span = lit.span;
-        let literal_str = lit.symbol.as_str();
+        let value = lit.symbol.as_str();
 
-        let error_help_msg = {
-            if literal_str.ends_with('_') {
-                Some("remove trailing underscores")
-            } else if literal_str.contains("__") {
-                Some("only 1 consecutive underscore `_` is allowed between digits")
-            } else if literal_str.contains("._") || literal_str.contains("_.") {
-                Some("remove underscores in front of the fraction part")
-            } else if literal_str.contains("_e") {
-                Some("remove underscores at the end of the mantissa")
-            } else if literal_str.contains("e_") {
-                Some("remove underscores in front of the exponent")
-            } else {
-                None
-            }
+        let report = |help: &'static str| {
+            let _ = self
+                .dcx()
+                .err("invalid use of underscores in number literal")
+                .span(lit.span)
+                .help(help)
+                .emit();
         };
 
-        if let Some(error_help_msg) = error_help_msg {
-            self.dcx()
-                .err("invalid use of underscores in number literal")
-                .span(literal_span)
-                .help(error_help_msg)
-                .emit();
+        if value.ends_with('_') {
+            report("remove trailing underscores");
+            return;
+        }
+        if value.contains("__") {
+            report("only 1 consecutive underscore `_` is allowed between digits");
+            return;
+        }
+
+        if value.starts_with("0x") {
+            return;
+        }
+        if value.contains("._") || value.contains("_.") {
+            report("remove underscores in front of the fraction part");
+        }
+        if value.contains("_e") || value.contains("_E") {
+            report("remove underscores at the end of the mantissa");
+        }
+        if value.contains("e_") || value.contains("E_") {
+            report("remove underscores in front of the exponent");
         }
     }
 }
