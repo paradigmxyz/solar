@@ -296,9 +296,10 @@ impl<'a> Cursor<'a> {
         };
 
         match self.first() {
-            // Don't be greedy if this is actually an integer literal followed
-            // by field/method access (`12.foo()`)
-            b'.' if !is_id_start_byte(self.second()) => {
+            // Don't be greedy if this is actually an integer literal followed by field/method
+            // access (`12.foo()`).
+            // `_` is special cased, we assume it's always an invalid rational: https://github.com/ethereum/solidity/blob/c012b725bb8ce755b93ce0dd05e83c34c499acd6/liblangutil/Scanner.cpp#L979
+            b'.' if !is_id_start_byte(self.second()) || self.second() == b'_' => {
                 self.bump();
                 self.rational_number_after_dot(base)
             }
