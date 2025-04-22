@@ -10,7 +10,7 @@ use solar_interface::{
 
 mod cursor;
 use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
-pub use cursor::{is_id_continue, is_id_start, is_ident, is_whitespace, token, Cursor};
+pub use cursor::*;
 
 pub mod unescape;
 
