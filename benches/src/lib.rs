@@ -8,7 +8,7 @@ use std::{
 
 #[allow(unexpected_cfgs)]
 pub const PARSERS: &[&dyn Parser] =
-    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang] };
+    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang, &TreeSitter] };
 
 pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
@@ -198,5 +198,28 @@ impl Parser for Slang {
 
         let res = output.tree();
         black_box(res);
+    }
+}
+
+pub struct TreeSitter;
+impl Parser for TreeSitter {
+    fn name(&self) -> &'static str {
+        "tree-sitter"
+    }
+
+    fn lex(&self, src: &str) {
+        let _ = src;
+    }
+
+    fn can_lex(&self) -> bool {
+        false
+    }
+
+    fn parse(&self, src: &str) {
+        let mut parser = tree_sitter::Parser::new();
+        let language = tree_sitter_solidity::LANGUAGE;
+        parser.set_language(&language.into()).expect("Error loading Solidity parser");
+        let tree = parser.parse(src, None).unwrap();
+        assert!(!tree.root_node().has_error());
     }
 }
