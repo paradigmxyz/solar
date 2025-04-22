@@ -4,6 +4,8 @@ use solar_interface::{Ident, Span};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
+///
+/// Present in [`CallArgsKind::Named`] and [`ExprKind::CallOptions`].
 pub type NamedArgList<'ast> = Box<'ast, [NamedArg<'ast>]>;
 
 /// An expression.
