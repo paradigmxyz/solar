@@ -1,5 +1,4 @@
 use crate::{unescape, PResult, Parser};
-use alloy_primitives::Address;
 use num_bigint::{BigInt, BigUint};
 use num_rational::BigRational;
 use num_traits::{Num, Signed, Zero};
@@ -232,11 +231,8 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
 
     // Address literal.
     if base == Base::Hexadecimal && s.len() == 42 {
-        match Address::parse_checksummed(s, None) {
-            Ok(address) => return Ok(LitKind::Address(address)),
-            // Continue parsing as a number to emit better errors.
-            Err(alloy_primitives::AddressError::InvalidChecksum) => {}
-            Err(alloy_primitives::AddressError::Hex(_)) => {}
+        if let Ok(address) = s.parse() {
+            return Ok(LitKind::Address(address));
         }
     }
 
@@ -459,7 +455,7 @@ fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
 mod tests {
     use super::*;
     use crate::Lexer;
-    use alloy_primitives::address;
+    use alloy_primitives::{address, Address};
     use solar_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.
@@ -542,7 +538,7 @@ mod tests {
             );
             check_address(
                 "0x52908400098527886E0F7030069857D2E4169Ee7",
-                Err("471360049350540672339372329809862569580528312039"),
+                Ok(address!("52908400098527886E0F7030069857D2E4169EE7")),
             );
 
             check_address(
