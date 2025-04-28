@@ -1,5 +1,6 @@
 //! AST-related passes.
 
+use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
@@ -96,6 +97,50 @@ impl<'sess> AstValidator<'sess, '_> {
         }
         if value.contains("e_") || value.contains("E_") {
             report("remove underscores in front of the exponent");
+        }
+    }
+
+    fn check_subdenominations_for_number_literals(
+        &self,
+        lit: &ast::Lit,
+        subdenomination: &Option<ast::SubDenomination>,
+    ) {
+        let Some(denom) = subdenomination else {
+            return;
+        };
+
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+            panic!("non-number literal with denomination {:?}", lit.kind)
+        };
+
+        if lit.symbol.as_str().starts_with("0x") {
+            self.dcx()
+                .err("hexadecimal numbers cannot be used with unit denominations")
+                .span(lit.span)
+                .help("you can use an expression of the form \"0x1234 * 1 days\" instead")
+                .emit();
+        }
+
+        if let ast::SubDenomination::Time(ast::TimeSubDenomination::Years) = denom {
+            self.dcx()
+                .err("using \"years\" as a unit denomination is deprecated")
+                .span(lit.span)
+                .emit();
+        }
+    }
+
+    fn check_address_checksums(&self, lit: &ast::Lit) {
+        let ast::LitKind::Address(addr) = lit.kind else {
+            return;
+        };
+
+        if Address::parse_checksummed(lit.symbol.as_str(), None).is_err() {
+            self.dcx()
+                .err("invalid checksummed address")
+                .span(lit.span)
+                .help(format!("correct checksummed address: \"{}\"", addr.to_checksum(None)))
+                .note("if this is not used as an address, please prepend \"00\"")
+                .emit();
         }
     }
 }
@@ -392,8 +437,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
         let ast::Expr { kind, .. } = expr;
-        if let ast::ExprKind::Lit(lit, _) = kind {
+        if let ast::ExprKind::Lit(lit, subdenomination) = kind {
             self.check_underscores_in_number_literals(lit);
+            self.check_subdenominations_for_number_literals(lit, subdenomination);
+            self.check_address_checksums(lit);
         }
         self.walk_expr(expr)
     }

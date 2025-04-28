@@ -1,0 +1,25 @@
+error: hexadecimal numbers cannot be used with unit denominations
+  --> ROOT/tests/ui/resolve/denominations.sol:LL:CC
+   |
+LL |     uint256 public a = 0x123 ether;
+   |                        ^^^^^
+   |
+   = help: you can use an expression of the form "0x1234 * 1 days" instead
+
+error: hexadecimal numbers cannot be used with unit denominations
+  --> ROOT/tests/ui/resolve/denominations.sol:LL:CC
+   |
+LL |     uint256 public b = 0x123 days;
+   |                        ^^^^^
+   |
+   = help: you can use an expression of the form "0x1234 * 1 days" instead
+
+error: using "years" as a unit denomination is deprecated
+  --> ROOT/tests/ui/resolve/denominations.sol:LL:CC
+   |
+LL |     uint256 public h = 1 years;
+   |                        ^
+   |
+
+error: aborting due to 3 previous errors
+
