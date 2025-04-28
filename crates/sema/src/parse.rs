@@ -273,7 +273,7 @@ pub struct ParsedSources<'ast> {
 
 impl fmt::Debug for ParsedSources<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ParsedSources ")?;
+        f.write_str("ParsedSources")?;
         self.sources.fmt(f)
     }
 }

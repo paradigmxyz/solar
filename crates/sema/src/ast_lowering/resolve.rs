@@ -1294,7 +1294,7 @@ pub(crate) struct Declarations {
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declarations ")?;
+        f.write_str("Declarations")?;
         self.declarations.fmt(f)
     }
 }

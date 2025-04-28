@@ -98,7 +98,7 @@ impl<'ast> From<Box<'ast, [DocComment]>> for DocComments<'ast> {
 
 impl fmt::Debug for DocComments<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("DocComments ")?;
+        f.write_str("DocComments")?;
         self.0.fmt(f)
     }
 }
@@ -130,7 +130,7 @@ pub struct SourceUnit<'ast> {
 
 impl fmt::Debug for SourceUnit<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("SourceUnit ")?;
+        f.write_str("SourceUnit")?;
         self.items.fmt(f)
     }
 }
