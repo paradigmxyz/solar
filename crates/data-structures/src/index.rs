@@ -38,7 +38,9 @@ macro_rules! newtype_index {
             /// The maximum index value.
             $vis const MAX: Self = Self($crate::index::BaseIndex32::MAX);
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -49,7 +51,9 @@ macro_rules! newtype_index {
                 Self($crate::index::BaseIndex32::new(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Safety
             ///
@@ -60,7 +64,9 @@ macro_rules! newtype_index {
                 Self($crate::index::BaseIndex32::new_unchecked(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -72,7 +78,9 @@ macro_rules! newtype_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -83,7 +91,9 @@ macro_rules! newtype_index {
                 Self($crate::index::BaseIndex32::from_usize(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Safety
             ///
@@ -94,7 +104,9 @@ macro_rules! newtype_index {
                 Self($crate::index::BaseIndex32::from_usize_unchecked(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -170,7 +182,9 @@ macro_rules! base_index {
             /// The maximum index value.
             pub const MAX: Self = Self::new(Self::MAX_AS);
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -185,7 +199,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -199,7 +215,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -214,7 +232,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -228,7 +248,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`, without checking for overflow."]
             ///
             /// # Safety
             ///
@@ -247,7 +269,9 @@ macro_rules! base_index {
             }
 
 
-            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`, without checking for overflow."]
             ///
             /// # Safety
             ///
