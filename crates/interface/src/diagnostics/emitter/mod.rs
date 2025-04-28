@@ -35,16 +35,7 @@ pub trait Emitter: Any {
 
 impl DynEmitter {
     pub(crate) fn local_buffer(&self) -> Option<&str> {
-        self.downcast_ref::<HumanBufferEmitter>().map(HumanBufferEmitter::buffer)
-    }
-
-    // TODO: Remove when dyn trait upcasting is stable.
-    fn downcast_ref<T: Any>(&self) -> Option<&T> {
-        if self.type_id() == std::any::TypeId::of::<T>() {
-            unsafe { Some(&*(self as *const dyn Emitter as *const T)) }
-        } else {
-            None
-        }
+        (self as &dyn Any).downcast_ref::<HumanBufferEmitter>().map(HumanBufferEmitter::buffer)
     }
 }
 
