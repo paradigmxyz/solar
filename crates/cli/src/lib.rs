@@ -132,6 +132,7 @@ fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> 
         flags.deduplicate_diagnostics &= !ui_testing;
         flags.track_diagnostics &= !ui_testing;
         flags.track_diagnostics |= opts.unstable.track_diagnostics;
+        flags.can_emit_warnings |= !opts.no_warnings;
     });
 
     let mut sess = Session::builder().dcx(dcx).source_map(source_map).opts(opts).build();

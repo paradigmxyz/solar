@@ -87,6 +87,9 @@ pub struct Opts {
         arg(help_heading = "Display options", long, value_enum, default_value_t)
     )]
     pub error_format: ErrorFormat,
+    /// Whether to disable warnings.
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
+    pub no_warnings: bool,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
