@@ -84,30 +84,52 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Consumes the lexer and collects the remaining tokens into a vector.
     ///
-    /// Note that this skips comments, as [required by the parser](crate::Parser::new).
+    /// Prefer using this method instead of manually collecting tokens using [`Iterator`] as
+    /// it also estimates the number of tokens in the source to preallocate the vector.
+    #[inline]
+    pub fn into_tokens(self) -> Vec<Token> {
+        self.into_tokens_with_comments(false)
+    }
+
+    /// Consumes the lexer and collects the remaining tokens into a vector, without skipping
+    /// comments.
     ///
-    /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
+    /// Note that the parser can handle comments fine, but it may be more efficient to simply skip
+    /// them during lexing.
+    ///
+    /// Prefer using this method instead of manually collecting tokens using [`Iterator`] as
+    /// it also estimates the number of tokens in the source to preallocate the vector.
     #[instrument(name = "lex", level = "debug", skip_all)]
-    pub fn into_tokens(mut self) -> Vec<Token> {
+    pub fn into_tokens_with_comments(mut self, keep_comments: bool) -> Vec<Token> {
         // This is an estimate of the number of tokens in the source.
         let mut tokens = Vec::with_capacity(self.src.len() / 4);
+        if keep_comments {
+            self.collect_tokens::<true>(&mut tokens);
+        } else {
+            self.collect_tokens::<false>(&mut tokens);
+        }
+        trace!(
+            keep_comments,
+            src.len = self.src.len(),
+            tokens.len = tokens.len(),
+            tokens.capacity = tokens.capacity(),
+            ratio = %format_args!("{:.2}", self.src.len() as f64 / tokens.len() as f64),
+            "lexed"
+        );
+        tokens
+    }
+
+    fn collect_tokens<const KEEP_COMMENTS: bool>(&mut self, tokens: &mut Vec<Token>) {
         loop {
             let token = self.next_token();
             if token.is_eof() {
                 break;
             }
-            if token.is_comment() {
+            if !KEEP_COMMENTS && token.is_comment() {
                 continue;
             }
             tokens.push(token);
         }
-        trace!(
-            src.len = self.src.len(),
-            tokens.len = tokens.len(),
-            ratio = %format_args!("{:.2}", self.src.len() as f64 / tokens.len() as f64),
-            "lexed"
-        );
-        tokens
     }
 
     /// Returns the next token, advancing the lexer.
