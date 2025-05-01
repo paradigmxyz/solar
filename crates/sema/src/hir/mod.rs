@@ -614,6 +614,11 @@ pub struct Function<'hir> {
 }
 
 impl Function<'_> {
+    /// Returns the span of the `kind` keyword.
+    pub fn keyword_span(&self) -> Span {
+        self.span.with_hi(self.span.lo() + self.kind.to_str().len() as u32)
+    }
+
     /// Returns `true` if this is a free function, meaning it is not part of a contract.
     pub fn is_free(&self) -> bool {
         self.contract.is_none()
