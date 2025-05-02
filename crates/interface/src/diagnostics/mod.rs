@@ -111,7 +111,7 @@ impl DiagId {
     #[doc(hidden)]
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn new_from_macro(id: u32) -> Self {
-        debug_assert!(id >= 1 && id <= 9999, "error code must be in range 0001-9999");
+        debug_assert!((1..=9999).contains(&id), "error code must be in range 0001-9999");
         Self { s: Cow::Owned(format!("{id:04}")) }
     }
 
