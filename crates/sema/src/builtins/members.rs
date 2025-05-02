@@ -48,8 +48,7 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
         TyKind::BuiltinModule(builtin) => builtin
             .members()
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
-            .iter()
-            .map(|&b| Member::of_builtin(gcx, b))
+            .map(|b| Member::of_builtin(gcx, b))
             .collect(),
         TyKind::Type(_ty) => type_type(gcx, ty),
         TyKind::Meta(_ty) => meta(gcx, ty),
