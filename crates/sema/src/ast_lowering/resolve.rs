@@ -378,7 +378,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             cx.hir.functions[id].returns =
                 cx.lower_variables(ast_func.header.returns, hir::VarKind::FunctionReturn);
             if let Some(body) = &ast_func.body {
-                cx.hir.functions[id].body = Some(cx.lower_stmts(body));
+                cx.hir.functions[id].body = Some(cx.lower_block(body));
             }
         }
 
@@ -1294,7 +1294,7 @@ pub(crate) struct Declarations {
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declarations ")?;
+        f.write_str("Declarations")?;
         self.declarations.fmt(f)
     }
 }

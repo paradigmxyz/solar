@@ -93,23 +93,31 @@ pub struct FatalAbort;
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagId {
-    id: u32,
+    s: Cow<'static, str>,
 }
 
 impl DiagId {
+    /// Creates a new diagnostic ID from a number.
+    ///
+    /// This should be used for custom lints. For solc-like error codes, use
+    /// the [`error_code!`](crate::error_code) macro.
+    pub fn new_str(s: impl Into<Cow<'static, str>>) -> Self {
+        Self { s: s.into() }
+    }
+
     /// Creates an error code diagnostic ID.
     ///
     /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
-    #[track_caller]
-    pub const fn new_from_macro(id: u32) -> Self {
-        assert!(id >= 1 && id <= 9999, "error code must be in range 0001-9999");
-        Self { id }
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn new_from_macro(id: u32) -> Self {
+        debug_assert!((1..=9999).contains(&id), "error code must be in range 0001-9999");
+        Self { s: Cow::Owned(format!("{id:04}")) }
     }
 
     /// Returns the string representation of the diagnostic ID.
     pub fn as_string(&self) -> String {
-        format!("{:04}", self.id)
+        self.s.to_string()
     }
 }
 
@@ -124,7 +132,7 @@ impl DiagId {
 #[macro_export]
 macro_rules! error_code {
     ($id:literal) => {
-        const { $crate::diagnostics::DiagId::new_from_macro($id) }
+        $crate::diagnostics::DiagId::new_from_macro($id)
     };
 }
 

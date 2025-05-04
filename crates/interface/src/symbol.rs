@@ -353,39 +353,17 @@ impl fmt::Display for Symbol {
     }
 }
 
-type InternerInner = LassoInterner;
-
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
-pub(crate) struct Interner(InternerInner);
+pub(crate) struct Interner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
 
 impl Interner {
     pub(crate) fn fresh() -> Self {
-        Self(InternerInner::fresh())
+        Self::prefill(PREINTERNED)
     }
 
-    #[cfg(test)]
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
-        Self(InternerInner::prefill(init))
-    }
-
-    #[inline]
-    fn intern(&self, string: &str) -> Symbol {
-        self.0.intern(string)
-    }
-
-    #[inline]
-    fn get(&self, symbol: Symbol) -> &str {
-        self.0.get(symbol)
-    }
-}
-
-// TODO: We could finalize the interner after parsing to a `RodeoResolver`, making it read-only.
-struct LassoInterner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
-
-impl LassoInterner {
-    fn prefill(init: &[&'static str]) -> Self {
         let capacity = if init.is_empty() {
             Default::default()
         } else {

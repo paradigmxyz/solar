@@ -1,0 +1,11 @@
+error: invalid checksummed address
+  --> ROOT/tests/ui/resolve/address_checksums.sol:LL:CC
+   |
+LL |     address public a = 0xb71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121;
+   |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: correct checksummed address: "0xB71cb1A7ab0B6Bc6c07f5A3Ef2EA36757968A121"
+   = note: if this is not used as an address, please prepend "00"
+
+error: aborting due to 1 previous error
+

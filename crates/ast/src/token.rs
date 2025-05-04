@@ -117,6 +117,26 @@ pub enum Delimiter {
     Bracket,
 }
 
+impl Delimiter {
+    /// Returns the string representation of the opening delimiter.
+    pub const fn to_open_str(self) -> &'static str {
+        match self {
+            Self::Parenthesis => "(",
+            Self::Brace => "{",
+            Self::Bracket => "[",
+        }
+    }
+
+    /// Returns the string representation of the closing delimiter.
+    pub const fn to_close_str(self) -> &'static str {
+        match self {
+            Self::Parenthesis => ")",
+            Self::Brace => "}",
+            Self::Bracket => "]",
+        }
+    }
+}
+
 /// A literal token. Different from an AST literal as this is unparsed and only contains the raw
 /// contents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -309,12 +329,8 @@ impl TokenKind {
             Self::Arrow => "->",
             Self::FatArrow => "=>",
             Self::Question => "?",
-            Self::OpenDelim(Delimiter::Parenthesis) => "(",
-            Self::CloseDelim(Delimiter::Parenthesis) => ")",
-            Self::OpenDelim(Delimiter::Brace) => "{",
-            Self::CloseDelim(Delimiter::Brace) => "}",
-            Self::OpenDelim(Delimiter::Bracket) => "[",
-            Self::CloseDelim(Delimiter::Bracket) => "]",
+            Self::OpenDelim(d) => d.to_open_str(),
+            Self::CloseDelim(d) => d.to_close_str(),
 
             Self::Literal(.., symbol) | Self::Ident(.., symbol) | Self::Comment(.., symbol) => {
                 symbol.as_str()

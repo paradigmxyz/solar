@@ -104,6 +104,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         trace!(
             src.len = self.src.len(),
             tokens.len = tokens.len(),
+            tokens.capacity = tokens.capacity(),
             ratio = %format_args!("{:.2}", self.src.len() as f64 / tokens.len() as f64),
             "lexed"
         );
