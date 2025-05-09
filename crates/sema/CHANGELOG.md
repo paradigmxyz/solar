@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Bug Fixes
+
+- [sema] Declare selfdestruct builtin ([#297](https://github.com/paradigmxyz/solar/issues/297))
+- [sema] Correct variable declaration scopes ([#300](https://github.com/paradigmxyz/solar/issues/300))
+- Invalid underscores check ([#281](https://github.com/paradigmxyz/solar/issues/281))
+
+### Features
+
+- Warn when payable fallback function found but no receive function ([#170](https://github.com/paradigmxyz/solar/issues/170))
+- Literal checks ([#287](https://github.com/paradigmxyz/solar/issues/287))
+- [ast] Store concatenated string literals ([#266](https://github.com/paradigmxyz/solar/issues/266))
+- [ast] Add span to CallArgs ([#265](https://github.com/paradigmxyz/solar/issues/265))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+
+### Miscellaneous Tasks
+
+- Shorter Debug impls ([#291](https://github.com/paradigmxyz/solar/issues/291))
+- Misc map cleanups ([#277](https://github.com/paradigmxyz/solar/issues/277))
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Tweak tracing events ([#255](https://github.com/paradigmxyz/solar/issues/255))
+- Revert extra changelog
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes
