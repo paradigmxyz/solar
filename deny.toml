@@ -40,4 +40,6 @@ unknown-git = "deny"
 allow-git = [
     # Used only for testing.
     "https://github.com/oli-obk/ui_test",
+    # Temporary patch to build releases, only for this repo.
+    "https://github.com/purpleprotocol/mimalloc_rust",
 ]
