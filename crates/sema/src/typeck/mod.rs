@@ -33,8 +33,7 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let mut external_declarations: FxHashMap<U256, Vec<ItemId>> = FxHashMap::default();
 
     for item_id in gcx.hir.contract_item_ids(contract_id) {
-        let item = gcx.hir.item(item_id);
-        match item {
+        match gcx.hir.item(item_id) {
             Item::Function(f) if f.is_part_of_external_interface() => {
                 let s = keccak256(gcx.item_signature(item_id));
                 external_declarations.entry(s.into()).or_default().push(item_id);
@@ -52,7 +51,8 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                         "function overload clash during conversion to external types for arguments",
                     )
                     .code(error_code!(9914))
-                    .span(gcx.item_span(dup))
+                    .span(gcx.item_span(item))
+                    .span_help(gcx.item_span(dup), "other declaration is here")
                     .emit();
             }
         }
