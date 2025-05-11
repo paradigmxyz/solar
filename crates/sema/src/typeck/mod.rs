@@ -1,10 +1,14 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
-    hir::{self, Res},
+    hir::{self, Item, ItemId, Res},
     ty::{Gcx, Ty},
 };
+use alloy_primitives::{keccak256, U256};
 use rayon::prelude::*;
-use solar_data_structures::{map::FxHashSet, parallel};
+use solar_data_structures::{
+    map::{FxHashMap, FxHashSet},
+    parallel,
+};
 use solar_interface::error_code;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
@@ -13,11 +17,46 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         gcx.hir.par_contract_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
             check_payable_fallback_without_receive(gcx, id);
+            check_external_type_clashes(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
         }),
     );
+}
+
+fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    if gcx.hir.contract(contract_id).kind.is_library() {
+        return;
+    }
+
+    let mut external_declarations: FxHashMap<U256, Vec<ItemId>> = FxHashMap::default();
+
+    for item_id in gcx.hir.contract_item_ids(contract_id) {
+        let item = gcx.hir.item(item_id);
+        match item {
+            Item::Function(f) if f.is_part_of_external_interface() => {
+                let s = keccak256(gcx.item_signature(item_id));
+                external_declarations.entry(s.into()).or_default().push(item_id);
+            }
+            _ => {}
+        }
+    }
+    for items in external_declarations.values() {
+        for (i, &item) in items.iter().enumerate() {
+            if let Some(&dup) = items.iter().skip(i + 1).find(|&&other| {
+                !same_external_params(gcx, gcx.type_of_item(item), gcx.type_of_item(other))
+            }) {
+                gcx.dcx()
+                    .err(
+                        "function overload clash during conversion to external types for arguments",
+                    )
+                    .code(error_code!(9914))
+                    .span(gcx.item_span(dup))
+                    .emit();
+            }
+        }
+    }
 }
 
 fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::ContractId) {
