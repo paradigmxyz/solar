@@ -13,6 +13,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         gcx.hir.par_contract_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
             check_payable_fallback_without_receive(gcx, id);
+            check_external_type_clashes(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
@@ -97,4 +98,64 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
     let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
     key(a) == key(b)
+}
+
+/// Checks for type clashes in external functions across inheritance chains.
+fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    let mut external_declarations = FxHashMap::<&str, Vec<(hir::ItemId, Ty<'_>)>>::default();
+
+    // Collect all external declarations (functions and state variables) from the contract and its bases
+    for &base_id in contract.linearized_bases {
+        let base = gcx.hir.contract(base_id);
+        
+        // Check functions
+        for &func_id in base.functions() {
+            let func = gcx.hir.function(func_id);
+            if !func.is_part_of_external_interface() {
+                continue;
+            }
+
+            let func_ty = gcx.type_of_item(func_id.into());
+            if let Some(external_sig) = func_ty.as_externally_callable_function(gcx).map(|f| f.external_signature()) {
+                external_declarations
+                    .entry(external_sig)
+                    .or_default()
+                    .push((func_id.into(), func_ty));
+            }
+        }
+
+        // Check state variables
+        for &var_id in base.variables() {
+            let var = gcx.hir.variable(var_id);
+            if !var.is_public() {
+                continue;
+            }
+
+            let var_ty = gcx.type_of_item(var_id.into());
+            if let Some(external_sig) = var_ty.as_externally_callable_function(gcx).map(|f| f.external_signature()) {
+                external_declarations
+                    .entry(external_sig)
+                    .or_default()
+                    .push((var_id.into(), var_ty));
+            }
+        }
+    }
+
+    // Check for type clashes in each group of declarations with the same external signature
+    for (_, declarations) in external_declarations {
+        for i in 0..declarations.len() {
+            for j in (i + 1)..declarations.len() {
+                let (item1, ty1) = &declarations[i];
+                let (item2, ty2) = &declarations[j];
+
+                if !same_external_params(gcx, *ty1, *ty2) {
+                    let msg = "Function overload clash during conversion to external types for arguments";
+                    let mut err = gcx.dcx().err(msg).span(gcx.item_span(*item2));
+                    err = err.span_note(gcx.item_span(*item1), "conflicting declaration");
+                    err.emit();
+                }
+            }
+        }
+    }
 }
