@@ -579,7 +579,7 @@ pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
 }
 
-fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
+pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 

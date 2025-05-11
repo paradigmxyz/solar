@@ -3,7 +3,7 @@ use crate::{
     hir::{self, Item, ItemId, Res},
     ty::{Gcx, Ty},
 };
-use alloy_primitives::{keccak256, U256};
+use alloy_primitives::B256;
 use rayon::prelude::*;
 use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
@@ -30,13 +30,13 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         return;
     }
 
-    let mut external_declarations: FxHashMap<U256, Vec<ItemId>> = FxHashMap::default();
+    let mut external_declarations: FxHashMap<B256, Vec<ItemId>> = FxHashMap::default();
 
     for item_id in gcx.hir.contract_item_ids(contract_id) {
         match gcx.hir.item(item_id) {
             Item::Function(f) if f.is_part_of_external_interface() => {
-                let s = keccak256(gcx.item_signature(item_id));
-                external_declarations.entry(s.into()).or_default().push(item_id);
+                let s = gcx.item_selector(item_id);
+                external_declarations.entry(s).or_default().push(item_id);
             }
             _ => {}
         }
