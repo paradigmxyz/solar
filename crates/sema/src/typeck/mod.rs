@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty},
 };
 use rayon::prelude::*;
-use solar_data_structures::{map::FxHashSet, parallel};
+use solar_data_structures::{map::{FxHashMap, FxHashSet}, parallel};
 use solar_interface::error_code;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
