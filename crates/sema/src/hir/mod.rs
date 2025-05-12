@@ -926,7 +926,21 @@ impl VarKind {
 }
 
 /// A block of statements.
-pub type Block<'hir> = &'hir [Stmt<'hir>];
+#[derive(Clone, Copy, Debug)]
+pub struct Block<'hir> {
+    /// The span of the block, including the `{` and `}`.
+    pub span: Span,
+    /// The statements in the block.
+    pub stmts: &'hir [Stmt<'hir>],
+}
+
+impl<'hir> std::ops::Deref for Block<'hir> {
+    type Target = [Stmt<'hir>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.stmts
+    }
+}
 
 /// A statement.
 #[derive(Debug)]
