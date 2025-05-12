@@ -24,23 +24,23 @@ LL |     function f(uint8 a) public {}
 error[9914]: function overload clash during conversion to external types for arguments
   --> ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
    |
-LL |     function f(address) external pure {}
-   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-LL |
-LL |     
-LL |     function f(address payable) external pure {}
-   |     -------------------------------------------- help: other declaration is here
-   |
-
-error[9914]: function overload clash during conversion to external types for arguments
-  --> ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
-   |
 LL |     function c(address) public pure {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 LL |
 LL |     
 LL |     function c(address payable) public pure {}
    |     ------------------------------------------ help: other declaration is here
+   |
+
+error[9914]: function overload clash during conversion to external types for arguments
+  --> ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
+   |
+LL |     function f(address) external pure {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+LL |
+LL |     
+LL |     function f(address payable) external pure {}
+   |     -------------------------------------------- help: other declaration is here
    |
 
 error[9914]: function overload clash during conversion to external types for arguments
