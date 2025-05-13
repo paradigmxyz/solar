@@ -58,8 +58,8 @@ pub trait Visit<'hir> {
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
         // TODO: modifiers
-        if let Some(body) = func.body {
-            for stmt in body {
+        if let Some(body) = &func.body {
+            for stmt in body.iter() {
                 self.visit_stmt(stmt)?;
             }
         }
@@ -148,8 +148,8 @@ pub trait Visit<'hir> {
                 }
                 self.visit_expr(expr)?;
             }
-            StmtKind::Block(stmts) | StmtKind::UncheckedBlock(stmts) | StmtKind::Loop(stmts, _) => {
-                for stmt in stmts {
+            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) | StmtKind::Loop(block, _) => {
+                for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }
             }
@@ -175,7 +175,7 @@ pub trait Visit<'hir> {
                     for &var in clause.args {
                         self.visit_nested_var(var)?;
                     }
-                    for stmt in clause.block {
+                    for stmt in clause.block.iter() {
                         self.visit_stmt(stmt)?;
                     }
                 }
