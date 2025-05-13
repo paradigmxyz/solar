@@ -938,7 +938,7 @@ impl<'hir> std::ops::Deref for Block<'hir> {
     type Target = [Stmt<'hir>];
 
     fn deref(&self) -> &Self::Target {
-        &self.stmts
+        self.stmts
     }
 }
 

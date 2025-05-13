@@ -703,7 +703,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
 
     /// Lowers the given statements by first entering a new scope.
     fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'hir> {
-        self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(&block.stmts, block.span))
+        self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block.stmts, block.span))
     }
 
     fn lower_stmts(&mut self, stmts: &[ast::Stmt<'_>], span: Span) -> hir::Block<'hir> {

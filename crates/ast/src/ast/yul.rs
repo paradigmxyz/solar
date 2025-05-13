@@ -18,13 +18,13 @@ impl<'ast> std::ops::Deref for Block<'ast> {
     type Target = [Stmt<'ast>];
 
     fn deref(&self) -> &Self::Target {
-        &self.stmts
+        self.stmts
     }
 }
 
 impl<'ast> std::ops::DerefMut for Block<'ast> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.stmts
+        self.stmts
     }
 }
 
