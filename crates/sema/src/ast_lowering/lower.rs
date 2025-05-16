@@ -129,6 +129,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         // handled later: parameters, body, modifiers, override_, returns
         let ast::ItemFunction { kind, ref header, body: _, body_span } = *i;
         let ast::FunctionHeader {
+            span: _,
             name,
             parameters: _,
             visibility,

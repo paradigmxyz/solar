@@ -215,6 +215,7 @@ declare_visitors! {
 
         fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) -> ControlFlow<Self::BreakValue> {
             let FunctionHeader {
+                span,
                 name,
                 parameters,
                 visibility: _,
@@ -224,6 +225,7 @@ declare_visitors! {
                 override_: _,
                 returns,
             } = header;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }

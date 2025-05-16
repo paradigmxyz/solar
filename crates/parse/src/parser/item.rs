@@ -164,6 +164,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         flags: FunctionFlags,
     ) -> PResult<'sess, FunctionHeader<'ast>> {
+        let lo = self.prev_token.span; // the header span includes the "function" kw
+
         let mut header = FunctionHeader::default();
         let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
             VarFlags::FUNCTION_TY
@@ -268,6 +270,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
             header.returns = self.parse_parameter_list(false, var_flags)?;
         }
+
+        header.span = lo.to(self.prev_token.span);
 
         Ok(header)
     }
@@ -1557,5 +1561,60 @@ mod tests {
             ("0.8.1", "0.8 || 0.8.2", true),
             ("0.8.1", "0.8 || 0.9", true),
         ]);
+    }
+
+    #[test]
+    /// Test if the span of a function header is correct (should start at the function-like kw and
+    /// end at the last token)
+    fn function_header_span() {
+        let test_functions = [
+            "function foo(uint256 a) public view returns (uint256) {
+}",
+            "modifier foo() {
+    _;
+}",
+            "receive() external payable {
+}",
+            "fallback() external payable {
+}",
+            "constructor() {
+}",
+        ];
+
+        let test_function_headers = [
+            "function foo(uint256 a) public view returns (uint256)",
+            "modifier foo()",
+            "receive() external payable",
+            "fallback() external payable",
+            "constructor()",
+        ];
+
+        for (idx, src) in test_functions.iter().enumerate() {
+            let sess = Session::builder().with_test_emitter().build();
+            sess.enter(|| -> Result {
+                let arena = Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    FileName::Custom(String::from("test")),
+                    *src,
+                )?;
+
+                parser.in_contract = true; // Silence the wrong scope error
+
+                let header_span = parser.parse_function().unwrap().header.span;
+
+                assert_eq!(
+                    header_span,
+                    Span::new(
+                        solar_interface::BytePos(0),
+                        solar_interface::BytePos(test_function_headers[idx].len() as u32,),
+                    ),
+                );
+
+                Ok(())
+            })
+            .unwrap();
+        }
     }
 }
