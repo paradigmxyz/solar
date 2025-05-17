@@ -1,0 +1,70 @@
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:7:5
+   |
+7  |     function foo(string memory x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:3:5
+   |
+3  |     function foo(uint x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:15:5
+   |
+15 |     string public bar;
+   |     ^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:11:5
+   |
+11 |     uint public bar;
+   |     ^^^^^^^^^^^^^^^
+
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:35:1
+   |
+35 | contract Derived5 is Base5A, Base5B {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:29:5
+   |
+29 |     function baz(string memory x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:25:5
+   |
+25 |     function baz(uint x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:44:5
+   |
+44 |     function complex(string[] memory x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:40:5
+   |
+40 |     function complex(uint[] memory x) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:53:5
+   |
+53 |     function multi(string memory x, uint y) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:49:5
+   |
+49 |     function multi(uint x, string memory y) public {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: Function overload clash during conversion to external types for arguments
+  --> tests/ui/typeck/external_type_clash.sol:63:5
+   |
+63 |     function value() public returns (string memory) {}
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: conflicting declaration
+  --> tests/ui/typeck/external_type_clash.sol:59:5
+   |
+59 |     uint public value;
+   |     ^^^^^^^^^^^^^^^^ 
