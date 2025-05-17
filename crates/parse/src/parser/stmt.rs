@@ -74,7 +74,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
     /// Parses an if statement.
