@@ -42,6 +42,8 @@ pub(crate) fn lower<'sess, 'hir>(
 
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     lcx.resolve_symbols();
+    // Resolve constructor base args.
+    lcx.resolve_base_args();
 
     // Clean up.
     lcx.shrink_to_fit();

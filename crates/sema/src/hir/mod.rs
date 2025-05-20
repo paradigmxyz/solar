@@ -284,11 +284,14 @@ newtype_index! {
 
     /// A [`Variable`] ID.
     pub struct VariableId;
+
+    /// An [`Expr`] ID.
+    pub struct ExprId;
 }
 
 newtype_index! {
-    /// An [`Expr`] ID.
-    pub struct ExprId;
+    /// Position in `linearized_bases` of a contract.
+    pub struct BaseIndex;
 }
 
 /// A source file.
@@ -537,6 +540,10 @@ pub struct Contract<'hir> {
     /// Note that this only includes items defined in the contract itself, not inherited items.
     /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
+    /// The constructor base arguments (if any).
+    ///
+    /// The index maps against the position in `linearized_bases`.
+    pub base_args: IndexVec<BaseIndex, &'hir [Expr<'hir>]>,
 }
 
 impl Contract<'_> {
