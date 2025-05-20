@@ -234,6 +234,86 @@ impl super::LoweringContext<'_, '_, '_> {
             c.receive = receive;
         }
     }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_base_args(&mut self) {
+        let next_id = &AtomicUsize::new(0);
+        for c_id in self.hir.contract_ids() {
+            let contract = self.hir.contract(c_id);
+            let Some(ctor_id) = contract.ctor else {
+                continue;
+            };
+            let len = contract.linearized_bases.len() - 1;
+            let mut base_args: IndexVec<hir::BaseIndex, &[hir::Expr<'_>]> =
+                IndexVec::with_capacity(len);
+            base_args.raw = vec![&[]; len]; // fill vec
+
+            let ast::ItemKind::Contract(ast_contract) =
+                &self.hir_to_ast[&hir::ItemId::Contract(c_id)].kind
+            else {
+                unreachable!()
+            };
+            let ast::ItemKind::Function(ast_func) =
+                &self.hir_to_ast[&hir::ItemId::Function(ctor_id)].kind
+            else {
+                unreachable!()
+            };
+
+            let scopes = SymbolResolverScopes::new_in(contract.source, Some(c_id));
+            let mut cx = ResolveContext::new(self, scopes, next_id, None);
+            let bases_len = ast_contract.bases.len();
+
+            for (idx, modifier) in
+                ast_contract.bases.iter().chain(ast_func.header.modifiers.iter()).enumerate()
+            {
+                if idx == bases_len {
+                    // we're now in ctor func modifiers
+                    cx.scopes.source = Some(cx.hir.function(ctor_id).source);
+                    cx.function_id = Some(ctor_id);
+                }
+                let Ok(b) = cx.resolve_path_as::<hir::ItemId>(modifier.name, "base class") else {
+                    continue;
+                };
+                let Some(b) = b.as_contract() else {
+                    continue; // general modifiers were already lowered in `resolve_symbols`
+                };
+
+                if let Some(base_idx) =
+                    cx.hir.contract(c_id).linearized_bases.iter().skip(1).position(|&l| l == b)
+                {
+                    let ast_exprs = match &modifier.arguments.kind {
+                        ast::CallArgsKind::Unnamed(e) => e,
+                        ast::CallArgsKind::Named(_) => {
+                            cx.sess.dcx.err("expected unnamed args").span(modifier.span()).emit();
+                            continue;
+                        }
+                    };
+                    let exprs = cx.lower_exprs(&**ast_exprs);
+                    if exprs.len() == 0 && idx >= bases_len {
+                        cx.sess
+                            .dcx
+                            .err("modifier-style base constructor call without arguments")
+                            .span(modifier.span())
+                            .emit();
+                    }
+                    let base_idx = hir::BaseIndex::from_usize(base_idx);
+                    if base_args[base_idx].len() != 0 {
+                        let mut err = cx
+                            .sess
+                            .dcx
+                            .err("base constructor arguments given twice")
+                            .span(modifier.span());
+                        if let Some(prev) = base_args[base_idx].first() {
+                            err = err.span_help(prev.span, "previous declaration");
+                        }
+                        err.emit();
+                    }
+                    base_args[base_idx] = exprs;
+                }
+            }
+            cx.hir.contracts[c_id].base_args = base_args;
+        }
+    }
 }
 
 impl<'hir> super::LoweringContext<'_, '_, 'hir> {
