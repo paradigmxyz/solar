@@ -1,7 +1,7 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res},
-    ty::{Gcx, Ty},
+    ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::B256;
 use rayon::prelude::*;
@@ -148,14 +148,15 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         let base = gcx.hir.contract(base_id);
         
         // Check functions
-        for &func_id in base.functions() {
+        for func_id in base.functions() {
             let func = gcx.hir.function(func_id);
             if !func.is_part_of_external_interface() {
                 continue;
             }
 
             let func_ty = gcx.type_of_item(func_id.into());
-            if let Some(external_sig) = func_ty.as_externally_callable_function(gcx).map(|f| f.external_signature()) {
+            if let TyKind::FnPtr(_fn_ptr) = func_ty.as_externally_callable_function(gcx).kind {
+                let external_sig = gcx.item_signature(func_id.into());
                 external_declarations
                     .entry(external_sig)
                     .or_default()
@@ -164,14 +165,15 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
 
         // Check state variables
-        for &var_id in base.variables() {
+        for var_id in base.variables() {
             let var = gcx.hir.variable(var_id);
             if !var.is_public() {
                 continue;
             }
 
             let var_ty = gcx.type_of_item(var_id.into());
-            if let Some(external_sig) = var_ty.as_externally_callable_function(gcx).map(|f| f.external_signature()) {
+            if let TyKind::FnPtr(_fn_ptr) = var_ty.as_externally_callable_function(gcx).kind {
+                let external_sig = gcx.item_signature(var_id.into());
                 external_declarations
                     .entry(external_sig)
                     .or_default()
