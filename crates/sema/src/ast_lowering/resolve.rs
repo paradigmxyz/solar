@@ -289,7 +289,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         }
                     };
                     let exprs = cx.lower_exprs(&**ast_exprs);
-                    if exprs.len() == 0 && idx >= bases_len {
+                    if exprs.is_empty() && idx >= bases_len {
                         cx.sess
                             .dcx
                             .err("modifier-style base constructor call without arguments")
@@ -297,7 +297,7 @@ impl super::LoweringContext<'_, '_, '_> {
                             .emit();
                     }
                     let base_idx = hir::BaseIndex::from_usize(base_idx);
-                    if base_args[base_idx].len() != 0 {
+                    if !base_args[base_idx].is_empty() {
                         let mut err = cx
                             .sess
                             .dcx
