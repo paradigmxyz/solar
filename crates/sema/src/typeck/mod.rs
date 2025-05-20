@@ -18,6 +18,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
+            check_receive_function(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
@@ -136,4 +137,69 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
     let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
     key(a) == key(b)
+}
+
+fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+    
+    // Libraries cannot have receive functions
+    if contract.kind.is_library() {
+        if let Some(receive) = contract.receive {
+            gcx.dcx()
+                .err("libraries cannot have receive ether functions")
+                .span(gcx.item_span(receive))
+                .emit();
+        }
+        return;
+    }
+
+    // Check for multiple receive functions
+    let mut receive_count = 0;
+    for item_id in gcx.hir.contract_item_ids(contract_id) {
+        if let Item::Function(f) = gcx.hir.item(item_id) {
+            if f.kind.is_receive() {
+                receive_count += 1;
+                if receive_count > 1 {
+                    gcx.dcx()
+                        .err("only one receive function is allowed")
+                        .span(gcx.item_span(item_id))
+                        .emit();
+                    continue;
+                }
+
+                // Check visibility
+                if f.visibility.to_str() != "external" {
+                    gcx.dcx()
+                        .err("receive ether function must be defined as \"external\"")
+                        .span(gcx.item_span(item_id))
+                        .emit();
+                }
+
+                // Check state mutability
+                if f.state_mutability.to_str() != "payable" {
+                    gcx.dcx()
+                        .err("receive ether function must be payable")
+                        .span(gcx.item_span(item_id))
+                        .help("add `payable` state mutability")
+                        .emit();
+                }
+
+                // Check parameters
+                if !f.parameters.is_empty() {
+                    gcx.dcx()
+                        .err("receive ether function cannot take parameters")
+                        .span(gcx.item_span(item_id))
+                        .emit();
+                }
+
+                // Check return values
+                if !f.returns.is_empty() {
+                    gcx.dcx()
+                        .err("receive ether function cannot return values")
+                        .span(gcx.item_span(item_id))
+                        .emit();
+                }
+            }
+        }
+    }
 }

@@ -1,0 +1,16 @@
+error: `public` not allowed here; allowed values: external
+  --> ROOT/tests/ui/typeck/receive_function.sol:LL:CC
+   |
+LL |     receive() public payable {}
+   |               ^^^^^^
+   |
+
+error: expected one of `;`, `external`, `internal`, `override`, `payable`, `private`, `public`, `pure`, `view`, `virtual`, or `{`, found keyword `returns`
+  --> ROOT/tests/ui/typeck/receive_function.sol:LL:CC
+   |
+LL |     receive() external payable returns (uint256) {}
+   |                                ^^^^^^^ expected one of 11 possible tokens
+   |
+
+error: aborting due to 2 previous errors
+
