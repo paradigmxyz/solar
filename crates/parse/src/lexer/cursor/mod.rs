@@ -186,14 +186,11 @@ impl<'a> Cursor<'a> {
                 RawTokenKind::Literal { kind }
             }
 
-            // Identifier starting with an emoji. Only lexed for graceful error recovery.
-            // c if !c.is_ascii() && unic_emoji_char::is_emoji(c) => {
-            //     self.fake_ident_or_unknown_prefix()
-            // }
             _ => RawTokenKind::Unknown,
         }
     }
 
+    #[inline(never)]
     fn line_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == b'/' && self.first() == b'/');
         self.bump();
@@ -201,7 +198,7 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-        self.eat_while(|c| c != b'\n');
+        self.eat_until(b'\n');
         RawTokenKind::LineComment { is_doc }
     }
 
@@ -467,6 +464,21 @@ impl<'a> Cursor<'a> {
         if let Some(c) = self.chars.next() {
             self.prev = c as u8;
         }
+    }
+
+    /// Advances `n` bytes, without setting `prev`.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn ignore_bytes(&mut self, n: usize) {
+        debug_assert!(n <= self.as_str().len());
+        self.chars = unsafe { self.as_str().get_unchecked(n..) }.chars();
+    }
+
+    /// Eats symbols until `ch` is found or until the end of file is reached.
+    #[inline]
+    fn eat_until(&mut self, ch: u8) {
+        let b = self.as_str().as_bytes();
+        self.ignore_bytes(memchr::memchr(ch, b).unwrap_or(b.len()));
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
