@@ -478,7 +478,8 @@ impl<'a> Cursor<'a> {
     #[inline]
     #[cfg_attr(debug_assertions, track_caller)]
     fn ignore_bytes(&mut self, n: usize) {
-        self.chars = self.chars.as_str()[n..].chars();
+        debug_assert!(n <= self.as_str().len());
+        self.chars = unsafe { self.as_str().get_unchecked(n..) }.chars();
     }
 
     /// Eats symbols until `ch` is found or until the end of file is reached.
