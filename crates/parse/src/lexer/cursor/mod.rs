@@ -483,14 +483,10 @@ impl<'a> Cursor<'a> {
     }
 
     /// Eats symbols until `ch` is found or until the end of file is reached.
-    #[inline]
+    #[inline(never)]
     fn eat_until(&mut self, ch: u8) {
-        #[inline(never)]
-        fn memchr_outline(ch: u8, b: &[u8]) -> usize {
-            memchr::memchr(ch, b).unwrap_or(b.len())
-        }
         let b = self.as_str().as_bytes();
-        self.ignore_bytes(memchr_outline(ch, b));
+        self.ignore_bytes(memchr::memchr(ch, b).unwrap_or(b.len()));
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
