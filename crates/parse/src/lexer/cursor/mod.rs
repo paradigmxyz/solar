@@ -132,11 +132,7 @@ impl<'a> Cursor<'a> {
     fn advance_token_kind(&mut self, first_char: u8) -> RawTokenKind {
         match first_char {
             // Slash, comment or block comment.
-            b'/' => match self.first() {
-                b'/' => self.line_comment(),
-                b'*' => self.block_comment(),
-                _ => RawTokenKind::Slash,
-            },
+            b'/' => self.slash(),
 
             // Whitespace sequence.
             c if is_whitespace_byte(c) => self.whitespace(),
@@ -145,14 +141,8 @@ impl<'a> Cursor<'a> {
             c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
 
             // Numeric literal.
-            b'0'..=b'9' => {
-                let kind = self.number(first_char);
-                RawTokenKind::Literal { kind }
-            }
-            b'.' if self.first().is_ascii_digit() => {
-                let kind = self.rational_number_after_dot(Base::Decimal);
-                RawTokenKind::Literal { kind }
-            }
+            b'0'..=b'9' => self.number(first_char),
+            b'.' if self.first().is_ascii_digit() => self.rational_number_after_dot(),
 
             // One-symbol tokens.
             b';' => RawTokenKind::Semi,
@@ -180,17 +170,22 @@ impl<'a> Cursor<'a> {
             b'%' => RawTokenKind::Percent,
 
             // String literal.
-            b'\'' | b'"' => {
-                let terminated = self.eat_string(first_char);
-                let kind = RawLiteralKind::Str { kind: StrKind::Str, terminated };
-                RawTokenKind::Literal { kind }
-            }
+            b'\'' | b'"' => self.string(first_char),
 
             _ => RawTokenKind::Unknown,
         }
     }
 
     #[inline(never)]
+    fn slash(&mut self) -> RawTokenKind {
+        debug_assert_eq!(self.prev(), b'/');
+        match self.first() {
+            b'/' => self.line_comment(),
+            b'*' => self.block_comment(),
+            _ => RawTokenKind::Slash,
+        }
+    }
+
     fn line_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == b'/' && self.first() == b'/');
         self.bump();
@@ -222,12 +217,14 @@ impl<'a> Cursor<'a> {
         RawTokenKind::BlockComment { is_doc, terminated }
     }
 
+    #[inline(never)]
     fn whitespace(&mut self) -> RawTokenKind {
         debug_assert!(is_whitespace_byte(self.prev()));
         self.eat_while(is_whitespace_byte);
         RawTokenKind::Whitespace
     }
 
+    #[inline(never)]
     fn ident_or_prefixed_literal(&mut self, first: u8) -> RawTokenKind {
         debug_assert!(is_id_start_byte(self.prev()));
 
@@ -261,7 +258,12 @@ impl<'a> Cursor<'a> {
         RawTokenKind::Ident
     }
 
-    fn number(&mut self, first_digit: u8) -> RawLiteralKind {
+    #[inline(never)]
+    fn number(&mut self, first_digit: u8) -> RawTokenKind {
+        RawTokenKind::Literal { kind: self.number_(first_digit) }
+    }
+
+    fn number_(&mut self, first_digit: u8) -> RawLiteralKind {
         debug_assert!(self.prev().is_ascii_digit());
         let mut base = Base::Decimal;
         if first_digit == b'0' {
@@ -305,7 +307,8 @@ impl<'a> Cursor<'a> {
             // `_` is special cased, we assume it's always an invalid rational: https://github.com/ethereum/solidity/blob/c012b725bb8ce755b93ce0dd05e83c34c499acd6/liblangutil/Scanner.cpp#L979
             b'.' if !is_id_start_byte(self.second()) || self.second() == b'_' => {
                 self.bump();
-                self.rational_number_after_dot(base)
+                let empty_exponent = self.rational_number_after_dot_();
+                RawLiteralKind::Rational { base, empty_exponent }
             }
             b'e' | b'E' => {
                 self.bump();
@@ -316,17 +319,30 @@ impl<'a> Cursor<'a> {
         }
     }
 
-    #[cold]
-    fn rational_number_after_dot(&mut self, base: Base) -> RawLiteralKind {
+    #[inline(never)]
+    fn rational_number_after_dot(&mut self) -> RawTokenKind {
+        let empty_exponent = self.rational_number_after_dot_();
+        RawTokenKind::Literal {
+            kind: RawLiteralKind::Rational { base: Base::Decimal, empty_exponent },
+        }
+    }
+
+    fn rational_number_after_dot_(&mut self) -> bool {
         self.eat_decimal_digits();
-        let empty_exponent = match self.first() {
+        match self.first() {
             b'e' | b'E' => {
                 self.bump();
                 !self.eat_exponent()
             }
             _ => false,
-        };
-        RawLiteralKind::Rational { base, empty_exponent }
+        }
+    }
+
+    #[inline(never)]
+    fn string(&mut self, quote: u8) -> RawTokenKind {
+        debug_assert!(self.prev() == quote);
+        let terminated = self.eat_string(quote);
+        RawTokenKind::Literal { kind: RawLiteralKind::Str { kind: StrKind::Str, terminated } }
     }
 
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
