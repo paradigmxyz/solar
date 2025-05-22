@@ -1,4 +1,4 @@
-error: unterminated hex string
+error: unterminated string
   --> ROOT/tests/ui/lexer/unterminated_hex_string.sol:LL:CC
    |
 LL | / hex"

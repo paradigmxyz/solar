@@ -2,7 +2,7 @@
 
 use solar_ast::{
     token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
-    Base,
+    Base, StrKind,
 };
 use solar_interface::{
     diagnostics::DiagCtxt, source_map::SourceFile, BytePos, Session, Span, Symbol,
@@ -301,23 +301,13 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         kind: RawLiteralKind,
     ) -> (TokenLitKind, Symbol) {
         match kind {
-            RawLiteralKind::Str { terminated, unicode } => {
+            RawLiteralKind::Str { kind, terminated } => {
                 if !terminated {
                     let span = self.new_span(start, end);
                     let guar = self.dcx().err("unterminated string").span(span).emit();
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
-                    let kind = if unicode { TokenLitKind::UnicodeStr } else { TokenLitKind::Str };
-                    self.cook_quoted(kind, start, end)
-                }
-            }
-            RawLiteralKind::HexStr { terminated } => {
-                if !terminated {
-                    let span = self.new_span(start, end);
-                    let guar = self.dcx().err("unterminated hex string").span(span).emit();
-                    (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
-                } else {
-                    self.cook_quoted(TokenLitKind::HexStr, start, end)
+                    (kind.into(), self.cook_quoted(kind, start, end))
                 }
             }
             RawLiteralKind::Int { base, empty_int } => {
@@ -366,17 +356,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         }
     }
 
-    fn cook_quoted(
-        &self,
-        kind: TokenLitKind,
-        start: BytePos,
-        end: BytePos,
-    ) -> (TokenLitKind, Symbol) {
+    fn cook_quoted(&self, kind: StrKind, start: BytePos, end: BytePos) -> Symbol {
         let (mode, prefix_len) = match kind {
-            TokenLitKind::Str => (unescape::Mode::Str, 0),
-            TokenLitKind::UnicodeStr => (unescape::Mode::UnicodeStr, 7),
-            TokenLitKind::HexStr => (unescape::Mode::HexStr, 3),
-            _ => unreachable!(),
+            StrKind::Str => (unescape::Mode::Str, 0),
+            StrKind::Unicode => (unescape::Mode::UnicodeStr, 7),
+            StrKind::Hex => (unescape::Mode::HexStr, 3),
         };
 
         // Account for quote (`"` or `'`) and prefix.
@@ -399,9 +383,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
         // We normally exclude the quotes for the symbol, but for errors we
         // include it because it results in clearer error messages.
-        let symbol =
-            if has_err { self.symbol_from_to(start, end) } else { Symbol::intern(lit_content) };
-        (kind, symbol)
+        if has_err {
+            self.symbol_from_to(start, end)
+        } else {
+            Symbol::intern(lit_content)
+        }
     }
 
     #[inline]
