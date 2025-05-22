@@ -142,12 +142,12 @@ impl<'a> Cursor<'a> {
 
             // Numeric literal.
             b'0'..=b'9' => self.number(first_char),
-            b'.' if self.first().is_ascii_digit() => self.rational_number_after_dot(),
+            b'.' => self.dot(),
 
             // One-symbol tokens.
             b';' => RawTokenKind::Semi,
             b',' => RawTokenKind::Comma,
-            b'.' => RawTokenKind::Dot,
+            // b'.' => RawTokenKind::Dot,
             b'(' => RawTokenKind::OpenParen,
             b')' => RawTokenKind::CloseParen,
             b'{' => RawTokenKind::OpenBrace,
@@ -307,7 +307,7 @@ impl<'a> Cursor<'a> {
             // `_` is special cased, we assume it's always an invalid rational: https://github.com/ethereum/solidity/blob/c012b725bb8ce755b93ce0dd05e83c34c499acd6/liblangutil/Scanner.cpp#L979
             b'.' if !is_id_start_byte(self.second()) || self.second() == b'_' => {
                 self.bump();
-                let empty_exponent = self.rational_number_after_dot_();
+                let empty_exponent = self.rational_number_after_dot();
                 RawLiteralKind::Rational { base, empty_exponent }
             }
             b'e' | b'E' => {
@@ -320,14 +320,19 @@ impl<'a> Cursor<'a> {
     }
 
     #[inline(never)]
-    fn rational_number_after_dot(&mut self) -> RawTokenKind {
-        let empty_exponent = self.rational_number_after_dot_();
-        RawTokenKind::Literal {
-            kind: RawLiteralKind::Rational { base: Base::Decimal, empty_exponent },
+    fn dot(&mut self) -> RawTokenKind {
+        debug_assert_eq!(self.prev(), b'.');
+        if self.first().is_ascii_digit() {
+            let empty_exponent = self.rational_number_after_dot();
+            RawTokenKind::Literal {
+                kind: RawLiteralKind::Rational { base: Base::Decimal, empty_exponent },
+            }
+        } else {
+            RawTokenKind::Dot
         }
     }
 
-    fn rational_number_after_dot_(&mut self) -> bool {
+    fn rational_number_after_dot(&mut self) -> bool {
         self.eat_decimal_digits();
         match self.first() {
             b'e' | b'E' => {
