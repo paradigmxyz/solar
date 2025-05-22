@@ -2,7 +2,8 @@
 //!
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
-use solar_ast::Base;
+use solar_ast::{Base, StrKind};
+use solar_data_structures::hint::unlikely;
 use std::str::Chars;
 
 pub mod token;
@@ -181,7 +182,7 @@ impl<'a> Cursor<'a> {
             // String literal.
             b'\'' | b'"' => {
                 let terminated = self.eat_string(first_char);
-                let kind = RawLiteralKind::Str { terminated, unicode: false };
+                let kind = RawLiteralKind::Str { kind: StrKind::Str, terminated };
                 RawTokenKind::Literal { kind }
             }
 
@@ -230,27 +231,33 @@ impl<'a> Cursor<'a> {
     fn ident_or_prefixed_literal(&mut self, first: u8) -> RawTokenKind {
         debug_assert!(is_id_start_byte(self.prev()));
 
-        // Check for potential prefixed literals.
-        match first {
-            // `hex"01234"`
-            b'h' => {
-                if let Some(terminated) = self.maybe_string_prefix("hex") {
-                    let kind = RawLiteralKind::HexStr { terminated };
-                    return RawTokenKind::Literal { kind };
+        // Start is already eaten, eat the rest of identifier.
+        let start = self.as_str().as_ptr();
+        self.eat_while(is_id_continue_byte);
+
+        // Check if the identifier is a string literal prefix.
+        if unlikely(matches!(first, b'h' | b'u')) {
+            // SAFETY: within bounds and lifetime of `self.chars`.
+            let id = unsafe {
+                let start = start.sub(1);
+                std::slice::from_raw_parts(
+                    start,
+                    self.as_str().as_ptr().offset_from_unsigned(start),
+                )
+            };
+            let is_hex = id == b"hex";
+            if is_hex || id == b"unicode" {
+                if let quote @ (b'\'' | b'"') = self.first() {
+                    self.bump();
+                    let terminated = self.eat_string(quote);
+                    let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
+                    return RawTokenKind::Literal {
+                        kind: RawLiteralKind::Str { kind, terminated },
+                    };
                 }
             }
-            // `unicode"abc"`
-            b'u' => {
-                if let Some(terminated) = self.maybe_string_prefix("unicode") {
-                    let kind = RawLiteralKind::Str { terminated, unicode: true };
-                    return RawTokenKind::Literal { kind };
-                }
-            }
-            _ => {}
         }
 
-        // Start is already eaten, eat the rest of identifier.
-        self.eat_while(is_id_continue_byte);
         RawTokenKind::Ident
     }
 
@@ -320,22 +327,6 @@ impl<'a> Cursor<'a> {
             _ => false,
         };
         RawLiteralKind::Rational { base, empty_exponent }
-    }
-
-    fn maybe_string_prefix(&mut self, prefix: &str) -> Option<bool> {
-        debug_assert_eq!(self.prev(), prefix.bytes().next().unwrap());
-        let prefix = &prefix[1..];
-        let s = self.as_str();
-        if s.starts_with(prefix) {
-            let skip = prefix.len();
-            let Some(quote @ (b'"' | b'\'')) = s.as_bytes().get(skip).copied() else { return None };
-            self.ignore_bytes(skip);
-            self.bump();
-            let terminated = self.eat_string(quote);
-            Some(terminated)
-        } else {
-            None
-        }
     }
 
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
