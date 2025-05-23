@@ -144,7 +144,7 @@ fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool 
 
 fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
-    
+
     // Libraries cannot have receive functions
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
@@ -155,54 +155,40 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
         return;
     }
-
     // Check for multiple receive functions
-    let mut receive_count = 0;
-    for item_id in gcx.hir.contract_item_ids(contract_id) {
-        if let Item::Function(f) = gcx.hir.item(item_id) {
-            if f.kind.is_receive() {
-                receive_count += 1;
-                if receive_count > 1 {
-                    gcx.dcx()
-                        .err("only one receive function is allowed")
-                        .span(gcx.item_span(item_id))
-                        .emit();
-                    continue;
-                }
+    if let Some(receive) = contract.receive {
+        let f = gcx.hir.function(receive);
+        // Check visibility
+        if f.visibility != Visibility::External {
+            gcx.dcx()
+                .err("receive ether function must be defined as \"external\"")
+                .span(gcx.item_span(receive))
+                .emit();
+        }
 
-                // Check visibility
-                if f.visibility != Visibility::External {
-                    gcx.dcx()
-                        .err("receive ether function must be defined as \"external\"")
-                        .span(gcx.item_span(item_id))
-                        .emit();
-                }
+        // Check state mutability
+        if f.state_mutability != StateMutability::Payable {
+            gcx.dcx()
+                .err("receive ether function must be payable")
+                .span(gcx.item_span(receive))
+                .help("add `payable` state mutability")
+                .emit();
+        }
 
-                // Check state mutability
-                if f.state_mutability != StateMutability::Payable {
-                    gcx.dcx()
-                        .err("receive ether function must be payable")
-                        .span(gcx.item_span(item_id))
-                        .help("add `payable` state mutability")
-                        .emit();
-                }
+        // Check parameters
+        if !f.parameters.is_empty() {
+            gcx.dcx()
+                .err("receive ether function cannot take parameters")
+                .span(gcx.item_span(receive))
+                .emit();
+        }
 
-                // Check parameters
-                if !f.parameters.is_empty() {
-                    gcx.dcx()
-                        .err("receive ether function cannot take parameters")
-                        .span(gcx.item_span(item_id))
-                        .emit();
-                }
-
-                // Check return values
-                if !f.returns.is_empty() {
-                    gcx.dcx()
-                        .err("receive ether function cannot return values")
-                        .span(gcx.item_span(item_id))
-                        .emit();
-                }
-            }
+        // Check return values
+        if !f.returns.is_empty() {
+            gcx.dcx()
+                .err("receive ether function cannot return values")
+                .span(gcx.item_span(receive))
+                .emit();
         }
     }
 }
