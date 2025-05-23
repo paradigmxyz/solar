@@ -64,7 +64,10 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
 
     if let Some(fallback) = contract.fallback {
         let fallback = gcx.hir.function(fallback);
-        if fallback.state_mutability.is_payable() && contract.receive.is_none() {
+        if fallback.state_mutability.is_payable()
+            && contract.receive.is_none()
+            && !gcx.interface_functions(contract_id).is_empty()
+        {
             gcx.dcx()
                 .warn("contract has a payable fallback function, but no receive ether function")
                 .span(contract.name.span)
