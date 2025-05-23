@@ -155,7 +155,6 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         }
         return;
     }
-    // Check for multiple receive functions
     if let Some(receive) = contract.receive {
         let f = gcx.hir.function(receive);
         // Check visibility
