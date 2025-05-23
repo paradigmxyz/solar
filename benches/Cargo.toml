@@ -23,6 +23,7 @@ semver.workspace = true
 
 tree-sitter = "=0.25.3"
 tree-sitter-solidity = "=1.2.11"
+criterion.workspace = true
 
 [dev-dependencies]
 criterion = { package = "codspeed-criterion-compat", version = "2.7" }

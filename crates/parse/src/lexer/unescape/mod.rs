@@ -250,7 +250,9 @@ fn unescape_hex_str<F>(src: &str, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
+    let len = src.len();
     let mut chars = src.char_indices();
+    
     if src.starts_with("0x") || src.starts_with("0X") {
         chars.next();
         chars.next();
@@ -259,7 +261,7 @@ where
 
     let count = chars.clone().filter(|(_, c)| c.is_ascii_hexdigit()).count();
     if count % 2 != 0 {
-        callback(0..src.len(), Err(EscapeError::HexOddDigits));
+        callback(0..len, Err(EscapeError::HexOddDigits));
         return;
     }
 
@@ -291,8 +293,8 @@ where
         callback(start..end, res);
     }
 
-    if emit_underscore_errors && src.len() > 1 && src.ends_with('_') {
-        callback(src.len() - 1..src.len(), Err(EscapeError::HexBadUnderscore));
+    if emit_underscore_errors && len > 1 && src.ends_with('_') {
+        callback(len - 1..len, Err(EscapeError::HexBadUnderscore));
     }
 }
 
