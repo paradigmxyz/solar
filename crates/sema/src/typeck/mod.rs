@@ -3,6 +3,9 @@ use crate::{
     hir::{self, Item, ItemId, Res},
     ty::{Gcx, Ty},
 };
+use solar_ast::{
+    StateMutability, Visibility
+};
 use alloy_primitives::B256;
 use rayon::prelude::*;
 use solar_data_structures::{
@@ -168,7 +171,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 }
 
                 // Check visibility
-                if f.visibility.to_str() != "external" {
+                if f.visibility != Visibility::External {
                     gcx.dcx()
                         .err("receive ether function must be defined as \"external\"")
                         .span(gcx.item_span(item_id))
@@ -176,7 +179,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
                 }
 
                 // Check state mutability
-                if f.state_mutability.to_str() != "payable" {
+                if f.state_mutability != StateMutability::Payable {
                     gcx.dcx()
                         .err("receive ether function must be payable")
                         .span(gcx.item_span(item_id))
