@@ -250,6 +250,7 @@ fn unescape_hex_str<F>(src: &str, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
+    // Cache the length since it's used multiple times.
     let len = src.len();
     let mut chars = src.char_indices();
     
