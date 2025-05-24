@@ -421,7 +421,7 @@ impl<'a> Cursor<'a> {
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        let bytes = r.as_str().as_bytes();
+        let bytes = self.as_str().as_bytes();
         if index < bytes.len() {
             unsafe { *bytes.get_unchecked(index) }
         } else {
