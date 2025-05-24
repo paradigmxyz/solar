@@ -422,7 +422,12 @@ impl<'a> Cursor<'a> {
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        self.as_str().as_bytes().get(index).copied().unwrap_or(EOF)
+        let bytes = self.as_str().as_bytes();
+        if index < bytes.len() {
+            unsafe { *bytes.get_unchecked(index) }
+        } else {
+            EOF
+        }
     }
 
     /// Checks if there is nothing more to consume.
