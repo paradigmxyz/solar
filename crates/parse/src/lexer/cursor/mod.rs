@@ -112,6 +112,7 @@ impl<'a> Cursor<'a> {
         }
     }
 
+
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> RawToken {
         let first_char = match self.bump_ret() {
@@ -131,6 +132,29 @@ impl<'a> Cursor<'a> {
     #[inline]
     fn advance_token_kind(&mut self, first_char: u8) -> RawTokenKind {
         match first_char {
+            // Slash, comment or block comment.
+            b'/' => match self.first() {
+                b'/' => self.line_comment(),
+                b'*' => self.block_comment(),
+                _ => RawTokenKind::Slash,
+            },
+
+            // Whitespace sequence.
+            c if is_whitespace_byte(c) => self.whitespace(),
+
+            // Identifier (this should be checked after other variant that can start as identifier).
+            c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
+
+            // Numeric literal.
+            b'0'..=b'9' => {
+                let kind = self.number(first_char);
+                RawTokenKind::Literal { kind }
+            }
+            b'.' if self.first().is_ascii_digit() => {
+                let kind = self.rational_number_after_dot(Base::Decimal);
+                RawTokenKind::Literal { kind }
+            }
+
             // One-symbol tokens.
             b';' => RawTokenKind::Semi,
             b',' => RawTokenKind::Comma,
@@ -155,29 +179,6 @@ impl<'a> Cursor<'a> {
             b'*' => RawTokenKind::Star,
             b'^' => RawTokenKind::Caret,
             b'%' => RawTokenKind::Percent,
-
-            // Slash, comment or block comment.
-            b'/' => match self.first() {
-                b'/' => self.line_comment(),
-                b'*' => self.block_comment(),
-                _ => RawTokenKind::Slash,
-            },
-
-            // Whitespace sequence.
-            c if is_whitespace_byte(c) => self.whitespace(),
-
-            // Identifier (this should be checked after other variant that can start as identifier).
-            c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
-
-            // Numeric literal.
-            b'0'..=b'9' => {
-                let kind = self.number(first_char);
-                RawTokenKind::Literal { kind }
-            }
-            b'.' if self.first().is_ascii_digit() => {
-                let kind = self.rational_number_after_dot(Base::Decimal);
-                RawTokenKind::Literal { kind }
-            }
 
             // String literal.
             b'\'' | b'"' => {
@@ -421,12 +422,7 @@ impl<'a> Cursor<'a> {
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        let bytes = self.as_str().as_bytes();
-        if index < bytes.len() {
-            unsafe { *bytes.get_unchecked(index) }
-        } else {
-            EOF
-        }
+        self.as_str().as_bytes().get(index).copied().unwrap_or(EOF)
     }
 
     /// Checks if there is nothing more to consume.
@@ -449,8 +445,6 @@ impl<'a> Cursor<'a> {
 
     /// Moves to the next character.
     fn bump(&mut self) {
-        // self.bump_inlined();
-
         let bytes = self.as_str().as_bytes();
         if !bytes.is_empty() {
             let byte = bytes[0];
@@ -472,10 +466,6 @@ impl<'a> Cursor<'a> {
     /// Moves to the next character, returning the current one.
     #[inline]
     fn bump_ret(&mut self) -> Option<u8> {
-        // let c = self.as_str().as_bytes().first().copied();
-        // self.bump_inlined();
-        // c
-
         let bytes = self.as_str().as_bytes();
         if bytes.is_empty() {
             return None;
