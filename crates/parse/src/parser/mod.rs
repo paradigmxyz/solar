@@ -710,7 +710,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
                 self.dcx().err(msg).span(self.prev_token.span).emit();
-            } 
+            }
         }
 
         Ok((self.alloc_smallvec(v), recovered))
