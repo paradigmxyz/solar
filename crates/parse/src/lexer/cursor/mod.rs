@@ -237,28 +237,33 @@ impl<'a> Cursor<'a> {
 
         // Check if the identifier is a string literal prefix.
         if unlikely(matches!(first, b'h' | b'u')) {
-            // SAFETY: within bounds and lifetime of `self.chars`.
-            let id = unsafe {
-                let start = start.sub(1);
-                std::slice::from_raw_parts(
-                    start,
-                    self.as_str().as_ptr().offset_from_unsigned(start),
-                )
-            };
-            let is_hex = id == b"hex";
-            if is_hex || id == b"unicode" {
-                if let quote @ (b'\'' | b'"') = self.first() {
-                    self.bump();
-                    let terminated = self.eat_string(quote);
-                    let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
-                    return RawTokenKind::Literal {
-                        kind: RawLiteralKind::Str { kind, terminated },
-                    };
-                }
+            if let Some(kind) = self.maybe_prefixed_literal(start) {
+                return kind;
             }
         }
 
         RawTokenKind::Ident
+    }
+
+    #[cold]
+    fn maybe_prefixed_literal(&mut self, start: *const u8) -> Option<RawTokenKind> {
+        // SAFETY: within bounds and lifetime of `self.chars`.
+        let id = unsafe {
+            let start = start.sub(1);
+            std::slice::from_raw_parts(start, self.as_str().as_ptr().offset_from_unsigned(start))
+        };
+        let is_hex = id == b"hex";
+        if is_hex || id == b"unicode" {
+            if let quote @ (b'\'' | b'"') = self.first() {
+                self.bump();
+                let terminated = self.eat_string(quote);
+                let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
+                return Some(RawTokenKind::Literal {
+                    kind: RawLiteralKind::Str { kind, terminated },
+                });
+            }
+        }
+        None
     }
 
     fn number(&mut self, first_digit: u8) -> RawLiteralKind {
