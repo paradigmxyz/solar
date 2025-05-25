@@ -1,0 +1,585 @@
+   Compiling solar-parse v0.1.3 (/Users/malik/Desktop/mc2/solar/crates/parse)
+   Compiling solar-bench v0.1.3 (/Users/malik/Desktop/mc2/solar/benches)
+    Finished `bench` profile [optimized + debuginfo] target(s) in 18.40s
+Gnuplot not found, using plotters backend
+empty: 0 LoC, 0 bytes
+Counter: 14 LoC, 258 bytes
+verifier: 208 LoC, 11040 bytes
+OptimizorClub: 782 LoC, 35905 bytes
+UniswapV3: 3189 LoC, 146583 bytes
+Solarray: 1544 LoC, 35898 bytes
+console: 1552 LoC, 67315 bytes
+Vm: 1763 LoC, 91405 bytes
+safeconsole: 13248 LoC, 397898 bytes
+Seaport: 19935 LoC, 770547 bytes
+
+Benchmarking parser/empty/solc/parse
+Benchmarking parser/empty/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/empty/solc/parse: Collecting 20 samples in estimated 10.272 s (5460 iterations)
+Benchmarking parser/empty/solc/parse: Analyzing
+parser/empty/solc/parse time:   [1.8362 ms 1.8394 ms 1.8425 ms]
+                        change: [-54.985% -46.549% -35.847%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking parser/empty/solar/lex
+Benchmarking parser/empty/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/empty/solar/lex: Collecting 20 samples in estimated 10.000 s (65M iterations)
+Benchmarking parser/empty/solar/lex: Analyzing
+parser/empty/solar/lex  time:   [151.07 ns 153.49 ns 155.68 ns]
+                        change: [-13.725% -9.1668% -4.6960%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/empty/solar/parse
+Benchmarking parser/empty/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/empty/solar/parse: Collecting 20 samples in estimated 10.000 s (18M iterations)
+Benchmarking parser/empty/solar/parse: Analyzing
+parser/empty/solar/parse
+                        time:   [544.54 ns 550.30 ns 558.41 ns]
+                        change: [-9.4965% -5.6598% -2.4271%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/empty/solang/lex
+Benchmarking parser/empty/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/empty/solang/lex: Collecting 20 samples in estimated 10.000 s (1.3B iterations)
+Benchmarking parser/empty/solang/lex: Analyzing
+parser/empty/solang/lex time:   [7.5055 ns 7.5133 ns 7.5226 ns]
+                        change: [-1.0331% -0.3672% +0.0905%] (p = 0.26 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/empty/solang/parse
+Benchmarking parser/empty/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/empty/solang/parse: Collecting 20 samples in estimated 10.000 s (104M iterations)
+Benchmarking parser/empty/solang/parse: Analyzing
+parser/empty/solang/parse
+                        time:   [93.978 ns 94.342 ns 95.152 ns]
+                        change: [-6.6580% -0.8201% +4.6377%] (p = 0.82 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/empty/slang/parse
+Benchmarking parser/empty/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/empty/slang/parse: Collecting 20 samples in estimated 10.001 s (2.2M iterations)
+Benchmarking parser/empty/slang/parse: Analyzing
+parser/empty/slang/parse
+                        time:   [4.4552 µs 4.4874 µs 4.5159 µs]
+                        change: [-12.960% -8.6215% -4.9848%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/empty/tree-sitter/parse
+Benchmarking parser/empty/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/empty/tree-sitter/parse: Collecting 20 samples in estimated 10.000 s (11M iterations)
+Benchmarking parser/empty/tree-sitter/parse: Analyzing
+parser/empty/tree-sitter/parse
+                        time:   [868.71 ns 871.78 ns 876.97 ns]
+                        change: [-1.0883% +0.2461% +1.6016%] (p = 0.73 > 0.05)
+                        No change in performance detected.
+
+Benchmarking parser/Counter/solc/parse
+Benchmarking parser/Counter/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/Counter/solc/parse: Collecting 20 samples in estimated 10.010 s (5040 iterations)
+Benchmarking parser/Counter/solc/parse: Analyzing
+parser/Counter/solc/parse
+                        time:   [1.9075 ms 1.9154 ms 1.9312 ms]
+                        change: [-0.5480% +1.8178% +5.1574%] (p = 0.21 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Counter/solar/lex
+Benchmarking parser/Counter/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/Counter/solar/lex: Collecting 20 samples in estimated 10.000 s (12M iterations)
+Benchmarking parser/Counter/solar/lex: Analyzing
+parser/Counter/solar/lex
+                        time:   [822.50 ns 827.43 ns 836.10 ns]
+                        change: [-12.799% -7.3147% -3.1271%] (p = 0.01 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Counter/solar/parse
+Benchmarking parser/Counter/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/Counter/solar/parse: Collecting 20 samples in estimated 10.000 s (3.6M iterations)
+Benchmarking parser/Counter/solar/parse: Analyzing
+parser/Counter/solar/parse
+                        time:   [2.8048 µs 2.8112 µs 2.8193 µs]
+                        change: [-10.690% -6.6708% -3.5673%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Counter/solang/lex
+Benchmarking parser/Counter/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/Counter/solang/lex: Collecting 20 samples in estimated 10.000 s (6.8M iterations)
+Benchmarking parser/Counter/solang/lex: Analyzing
+parser/Counter/solang/lex
+                        time:   [1.4546 µs 1.4611 µs 1.4686 µs]
+                        change: [-1.6876% -0.1435% +0.9301%] (p = 0.87 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Counter/solang/parse
+Benchmarking parser/Counter/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/Counter/solang/parse: Collecting 20 samples in estimated 10.001 s (1.2M iterations)
+Benchmarking parser/Counter/solang/parse: Analyzing
+parser/Counter/solang/parse
+                        time:   [8.4360 µs 8.4696 µs 8.5010 µs]
+                        change: [-2.2689% -1.0759% -0.0129%] (p = 0.08 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Counter/slang/parse
+Benchmarking parser/Counter/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/Counter/slang/parse: Collecting 20 samples in estimated 10.030 s (39k iterations)
+Benchmarking parser/Counter/slang/parse: Analyzing
+parser/Counter/slang/parse
+                        time:   [261.30 µs 288.55 µs 336.82 µs]
+                        change: [-0.3967% +5.6103% +14.935%] (p = 0.17 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Counter/tree-sitter/parse
+Benchmarking parser/Counter/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/Counter/tree-sitter/parse: Collecting 20 samples in estimated 10.000 s (841k iterations)
+Benchmarking parser/Counter/tree-sitter/parse: Analyzing
+parser/Counter/tree-sitter/parse
+                        time:   [11.918 µs 11.969 µs 12.049 µs]
+                        change: [-0.5296% +0.3327% +1.2146%] (p = 0.49 > 0.05)
+                        No change in performance detected.
+
+Benchmarking parser/verifier/solc/parse
+Benchmarking parser/verifier/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/verifier/solc/parse: Collecting 20 samples in estimated 10.521 s (2940 iterations)
+Benchmarking parser/verifier/solc/parse: Analyzing
+parser/verifier/solc/parse
+                        time:   [3.5588 ms 3.6207 ms 3.7051 ms]
+                        change: [-20.049% -11.878% -4.1709%] (p = 0.01 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/solar/lex
+Benchmarking parser/verifier/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/verifier/solar/lex: Collecting 20 samples in estimated 10.002 s (343k iterations)
+Benchmarking parser/verifier/solar/lex: Analyzing
+parser/verifier/solar/lex
+                        time:   [29.333 µs 29.430 µs 29.578 µs]
+                        change: [-5.7237% -4.2540% -2.8764%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/solar/parse
+Benchmarking parser/verifier/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/verifier/solar/parse: Collecting 20 samples in estimated 10.012 s (124k iterations)
+Benchmarking parser/verifier/solar/parse: Analyzing
+parser/verifier/solar/parse
+                        time:   [80.765 µs 81.545 µs 82.744 µs]
+                        change: [-6.7171% -4.3765% -2.0447%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/solang/lex
+Benchmarking parser/verifier/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/verifier/solang/lex: Collecting 20 samples in estimated 10.011 s (162k iterations)
+Benchmarking parser/verifier/solang/lex: Analyzing
+parser/verifier/solang/lex
+                        time:   [61.304 µs 61.497 µs 61.726 µs]
+                        change: [-14.491% -8.3063% -2.9541%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/solang/parse
+Benchmarking parser/verifier/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/verifier/solang/parse: Collecting 20 samples in estimated 10.086 s (24k iterations)
+Benchmarking parser/verifier/solang/parse: Analyzing
+parser/verifier/solang/parse
+                        time:   [411.15 µs 413.31 µs 415.56 µs]
+                        change: [-5.5270% -3.3558% -1.3092%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/slang/parse
+Benchmarking parser/verifier/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/verifier/slang/parse: Collecting 20 samples in estimated 11.477 s (840 iterations)
+Benchmarking parser/verifier/slang/parse: Analyzing
+parser/verifier/slang/parse
+                        time:   [13.615 ms 13.650 ms 13.701 ms]
+                        change: [-11.379% -7.1462% -3.5946%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/verifier/tree-sitter/parse
+Benchmarking parser/verifier/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/verifier/tree-sitter/parse: Collecting 20 samples in estimated 10.112 s (14k iterations)
+Benchmarking parser/verifier/tree-sitter/parse: Analyzing
+parser/verifier/tree-sitter/parse
+                        time:   [699.57 µs 707.62 µs 720.57 µs]
+                        change: [-7.0202% -3.3038% -0.0763%] (p = 0.09 > 0.05)
+                        No change in performance detected.
+
+Benchmarking parser/OptimizorClub/solc/parse
+Benchmarking parser/OptimizorClub/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/solc/parse: Collecting 20 samples in estimated 10.591 s (1680 iterations)
+Benchmarking parser/OptimizorClub/solc/parse: Analyzing
+parser/OptimizorClub/solc/parse
+                        time:   [6.1508 ms 6.2488 ms 6.3920 ms]
+                        change: [-11.049% -6.1740% -1.7756%] (p = 0.01 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/solar/lex
+Benchmarking parser/OptimizorClub/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/solar/lex: Collecting 20 samples in estimated 10.008 s (88k iterations)
+Benchmarking parser/OptimizorClub/solar/lex: Analyzing
+parser/OptimizorClub/solar/lex
+                        time:   [112.10 µs 112.41 µs 112.88 µs]
+                        change: [-10.119% -6.5829% -4.2157%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/solar/parse
+Benchmarking parser/OptimizorClub/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/solar/parse: Collecting 20 samples in estimated 10.006 s (40k iterations)
+Benchmarking parser/OptimizorClub/solar/parse: Analyzing
+parser/OptimizorClub/solar/parse
+                        time:   [248.66 µs 249.14 µs 249.63 µs]
+                        change: [-12.908% -6.2342% -1.4931%] (p = 0.04 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/solang/lex
+Benchmarking parser/OptimizorClub/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/solang/lex: Collecting 20 samples in estimated 10.036 s (53k iterations)
+Benchmarking parser/OptimizorClub/solang/lex: Analyzing
+parser/OptimizorClub/solang/lex
+                        time:   [187.68 µs 191.63 µs 195.85 µs]
+                        change: [-15.214% -8.1481% -2.7917%] (p = 0.01 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/solang/parse
+Benchmarking parser/OptimizorClub/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/solang/parse: Collecting 20 samples in estimated 10.154 s (8820 iterations)
+Benchmarking parser/OptimizorClub/solang/parse: Analyzing
+parser/OptimizorClub/solang/parse
+                        time:   [1.1460 ms 1.1568 ms 1.1687 ms]
+                        change: [-5.4766% -3.9002% -2.3503%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/slang/parse
+Benchmarking parser/OptimizorClub/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/slang/parse: Collecting 20 samples in estimated 15.515 s (420 iterations)
+Benchmarking parser/OptimizorClub/slang/parse: Analyzing
+parser/OptimizorClub/slang/parse
+                        time:   [36.816 ms 36.937 ms 37.128 ms]
+                        change: [-5.8005% -3.6147% -1.6402%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/OptimizorClub/tree-sitter/parse
+Benchmarking parser/OptimizorClub/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/OptimizorClub/tree-sitter/parse: Collecting 20 samples in estimated 10.163 s (5250 iterations)
+Benchmarking parser/OptimizorClub/tree-sitter/parse: Analyzing
+parser/OptimizorClub/tree-sitter/parse
+                        time:   [1.9311 ms 1.9343 ms 1.9403 ms]
+                        change: [-6.7891% -4.4207% -2.1437%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+
+Benchmarking parser/UniswapV3/solc/parse
+Benchmarking parser/UniswapV3/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/solc/parse: Collecting 20 samples in estimated 11.710 s (630 iterations)
+Benchmarking parser/UniswapV3/solc/parse: Analyzing
+parser/UniswapV3/solc/parse
+                        time:   [18.544 ms 18.750 ms 19.064 ms]
+                        change: [-11.414% -6.0798% -1.1434%] (p = 0.03 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/UniswapV3/solar/lex
+Benchmarking parser/UniswapV3/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/solar/lex: Collecting 20 samples in estimated 10.018 s (39k iterations)
+Benchmarking parser/UniswapV3/solar/lex: Analyzing
+parser/UniswapV3/solar/lex
+                        time:   [254.34 µs 255.63 µs 256.98 µs]
+                        change: [-11.789% -9.1057% -6.4459%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking parser/UniswapV3/solar/parse
+Benchmarking parser/UniswapV3/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/solar/parse: Collecting 20 samples in estimated 10.112 s (17k iterations)
+Benchmarking parser/UniswapV3/solar/parse: Analyzing
+parser/UniswapV3/solar/parse
+                        time:   [595.29 µs 597.62 µs 600.76 µs]
+                        change: [-8.1185% -5.5018% -3.3498%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/UniswapV3/solang/lex
+Benchmarking parser/UniswapV3/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/solang/lex: Collecting 20 samples in estimated 10.035 s (16k iterations)
+Benchmarking parser/UniswapV3/solang/lex: Analyzing
+parser/UniswapV3/solang/lex
+                        time:   [633.88 µs 634.45 µs 635.33 µs]
+                        change: [-1.5945% -0.5175% +0.4452%] (p = 0.38 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/UniswapV3/solang/parse
+Benchmarking parser/UniswapV3/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/solang/parse: Collecting 20 samples in estimated 10.178 s (3150 iterations)
+Benchmarking parser/UniswapV3/solang/parse: Analyzing
+parser/UniswapV3/solang/parse
+                        time:   [3.1434 ms 3.1583 ms 3.1875 ms]
+                        change: [-0.9699% +1.1973% +4.1010%] (p = 0.37 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/UniswapV3/slang/parse
+Benchmarking parser/UniswapV3/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/slang/parse: Collecting 20 samples in estimated 10.121 s (100 iterations)
+Benchmarking parser/UniswapV3/slang/parse: Analyzing
+parser/UniswapV3/slang/parse
+                        time:   [101.20 ms 101.41 ms 101.66 ms]
+                        change: [-0.3709% -0.0118% +0.3502%] (p = 0.95 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/UniswapV3/tree-sitter/parse
+Benchmarking parser/UniswapV3/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/UniswapV3/tree-sitter/parse: Collecting 20 samples in estimated 10.508 s (1890 iterations)
+Benchmarking parser/UniswapV3/tree-sitter/parse: Analyzing
+parser/UniswapV3/tree-sitter/parse
+                        time:   [5.5175 ms 5.5376 ms 5.5621 ms]
+                        change: [+0.0771% +0.6286% +1.2646%] (p = 0.05 > 0.05)
+                        No change in performance detected.
+
+Benchmarking parser/Solarray/solc/parse
+Benchmarking parser/Solarray/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/Solarray/solc/parse: Collecting 20 samples in estimated 10.039 s (1470 iterations)
+Benchmarking parser/Solarray/solc/parse: Analyzing
+parser/Solarray/solc/parse
+                        time:   [6.7426 ms 6.7665 ms 6.8083 ms]
+                        change: [-0.2066% +0.4829% +1.2095%] (p = 0.21 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Solarray/solar/lex
+Benchmarking parser/Solarray/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/Solarray/solar/lex: Collecting 20 samples in estimated 10.004 s (63k iterations)
+Benchmarking parser/Solarray/solar/lex: Analyzing
+parser/Solarray/solar/lex
+                        time:   [159.01 µs 160.25 µs 162.74 µs]
+                        change: [+1.3231% +4.4045% +7.3583%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Solarray/solar/parse
+Benchmarking parser/Solarray/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/Solarray/solar/parse: Collecting 20 samples in estimated 10.066 s (23k iterations)
+Benchmarking parser/Solarray/solar/parse: Analyzing
+parser/Solarray/solar/parse
+                        time:   [428.94 µs 432.36 µs 437.02 µs]
+                        change: [-0.0935% +0.8255% +1.9213%] (p = 0.14 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Solarray/solang/lex
+Benchmarking parser/Solarray/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/Solarray/solang/lex: Collecting 20 samples in estimated 10.050 s (38k iterations)
+Benchmarking parser/Solarray/solang/lex: Analyzing
+parser/Solarray/solang/lex
+                        time:   [265.25 µs 265.87 µs 266.85 µs]
+                        change: [+0.6444% +1.0289% +1.4256%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Solarray/solang/parse
+Benchmarking parser/Solarray/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/Solarray/solang/parse: Collecting 20 samples in estimated 10.102 s (3990 iterations)
+Benchmarking parser/Solarray/solang/parse: Analyzing
+parser/Solarray/solang/parse
+                        time:   [2.5250 ms 2.5290 ms 2.5351 ms]
+                        change: [-4.1156% -1.8441% -0.3431%] (p = 0.06 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Solarray/slang/parse
+Benchmarking parser/Solarray/slang/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 20 samples in 10.0s. You may wish to increase target time to 19.9s, enable flat sampling, or reduce sample count to 10.
+Benchmarking parser/Solarray/slang/parse: Collecting 20 samples in estimated 19.876 s (210 iterations)
+Benchmarking parser/Solarray/slang/parse: Analyzing
+parser/Solarray/slang/parse
+                        time:   [93.775 ms 94.155 ms 94.740 ms]
+                        change: [-18.227% -8.4814% -0.4081%] (p = 0.10 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Solarray/tree-sitter/parse
+Benchmarking parser/Solarray/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/Solarray/tree-sitter/parse: Collecting 20 samples in estimated 10.023 s (2520 iterations)
+Benchmarking parser/Solarray/tree-sitter/parse: Analyzing
+parser/Solarray/tree-sitter/parse
+                        time:   [3.9871 ms 4.0035 ms 4.0262 ms]
+                        change: [-17.613% -12.722% -8.0092%] (p = 0.00 < 0.05)
+                        Performance has improved.
+
+Benchmarking parser/console/solc/parse
+Benchmarking parser/console/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/console/solc/parse: Collecting 20 samples in estimated 10.673 s (1050 iterations)
+Benchmarking parser/console/solc/parse: Analyzing
+parser/console/solc/parse
+                        time:   [10.076 ms 10.144 ms 10.233 ms]
+                        change: [-8.5239% -6.0223% -3.6572%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/console/solar/lex
+Benchmarking parser/console/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/console/solar/lex: Collecting 20 samples in estimated 10.048 s (41k iterations)
+Benchmarking parser/console/solar/lex: Analyzing
+parser/console/solar/lex
+                        time:   [244.34 µs 247.59 µs 251.51 µs]
+                        change: [-10.476% -8.1793% -6.2829%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking parser/console/solar/parse
+Benchmarking parser/console/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/console/solar/parse: Collecting 20 samples in estimated 10.078 s (18k iterations)
+Benchmarking parser/console/solar/parse: Analyzing
+parser/console/solar/parse
+                        time:   [557.99 µs 562.95 µs 569.58 µs]
+                        change: [-5.6981% -3.5146% -1.5228%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/console/solang/lex
+Benchmarking parser/console/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/console/solang/lex: Collecting 20 samples in estimated 10.002 s (25k iterations)
+Benchmarking parser/console/solang/lex: Analyzing
+parser/console/solang/lex
+                        time:   [402.44 µs 404.13 µs 406.35 µs]
+                        change: [-3.1802% -1.1156% +0.4471%] (p = 0.30 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/console/solang/parse
+Benchmarking parser/console/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/console/solang/parse: Collecting 20 samples in estimated 10.105 s (3150 iterations)
+Benchmarking parser/console/solang/parse: Analyzing
+parser/console/solang/parse
+                        time:   [3.1887 ms 3.1989 ms 3.2123 ms]
+                        change: [-11.592% -9.2936% -6.9128%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking parser/console/slang/parse
+Benchmarking parser/console/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/console/slang/parse: Collecting 20 samples in estimated 10.158 s (100 iterations)
+Benchmarking parser/console/slang/parse: Analyzing
+parser/console/slang/parse
+                        time:   [101.56 ms 110.64 ms 125.27 ms]
+                        change: [-3.5805% +5.6754% +20.597%] (p = 0.49 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/console/tree-sitter/parse
+Benchmarking parser/console/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/console/tree-sitter/parse: Collecting 20 samples in estimated 10.702 s (2100 iterations)
+Benchmarking parser/console/tree-sitter/parse: Analyzing
+parser/console/tree-sitter/parse
+                        time:   [5.0369 ms 5.0571 ms 5.0797 ms]
+                        change: [-3.4175% -1.7313% -0.3027%] (p = 0.03 < 0.05)
+                        Change within noise threshold.
+
+Benchmarking parser/Vm/solc/parse
+Benchmarking parser/Vm/solc/parse: Warming up for 3.0000 s
+Benchmarking parser/Vm/solc/parse: Collecting 20 samples in estimated 12.136 s (1050 iterations)
+Benchmarking parser/Vm/solc/parse: Analyzing
+parser/Vm/solc/parse    time:   [11.493 ms 11.551 ms 11.636 ms]
+                        change: [-17.774% -9.0118% -2.5003%] (p = 0.04 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Vm/solar/lex
+Benchmarking parser/Vm/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/Vm/solar/lex: Collecting 20 samples in estimated 10.006 s (65k iterations)
+Benchmarking parser/Vm/solar/lex: Analyzing
+parser/Vm/solar/lex     time:   [154.41 µs 154.68 µs 155.07 µs]
+                        change: [-12.634% -9.9285% -7.5082%] (p = 0.00 < 0.05)
+                        Performance has improved.
+Benchmarking parser/Vm/solar/parse
+Benchmarking parser/Vm/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/Vm/solar/parse: Collecting 20 samples in estimated 10.052 s (31k iterations)
+Benchmarking parser/Vm/solar/parse: Analyzing
+parser/Vm/solar/parse   time:   [324.98 µs 328.31 µs 333.75 µs]
+                        change: [-0.6369% +0.7369% +2.5228%] (p = 0.41 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Vm/solang/lex
+Benchmarking parser/Vm/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/Vm/solang/lex: Collecting 20 samples in estimated 10.020 s (26k iterations)
+Benchmarking parser/Vm/solang/lex: Analyzing
+parser/Vm/solang/lex    time:   [386.33 µs 387.65 µs 389.46 µs]
+                        change: [-1.3033% -0.5732% +0.0372%] (p = 0.11 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Vm/solang/parse
+Benchmarking parser/Vm/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/Vm/solang/parse: Collecting 20 samples in estimated 10.205 s (7560 iterations)
+Benchmarking parser/Vm/solang/parse: Analyzing
+parser/Vm/solang/parse  time:   [1.3295 ms 1.3335 ms 1.3398 ms]
+                        change: [-0.1579% +0.9140% +1.8526%] (p = 0.08 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Vm/slang/parse
+Benchmarking parser/Vm/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/Vm/slang/parse: Collecting 20 samples in estimated 10.762 s (420 iterations)
+Benchmarking parser/Vm/slang/parse: Analyzing
+parser/Vm/slang/parse   time:   [25.630 ms 26.455 ms 27.804 ms]
+                        change: [+0.6305% +2.6755% +6.1145%] (p = 0.05 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Vm/tree-sitter/parse
+Benchmarking parser/Vm/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/Vm/tree-sitter/parse: Collecting 20 samples in estimated 10.324 s (4830 iterations)
+Benchmarking parser/Vm/tree-sitter/parse: Analyzing
+parser/Vm/tree-sitter/parse
+                        time:   [2.1282 ms 2.1675 ms 2.2325 ms]
+                        change: [+0.4064% +2.6938% +5.4340%] (p = 0.04 < 0.05)
+                        Change within noise threshold.
+
+Benchmarking parser/safeconsole/solc/parse
+Benchmarking parser/safeconsole/solc/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 20 samples in 10.0s. You may wish to increase target time to 10.8s, enable flat sampling, or reduce sample count to 10.
+Benchmarking parser/safeconsole/solc/parse: Collecting 20 samples in estimated 10.794 s (210 iterations)
+Benchmarking parser/safeconsole/solc/parse: Analyzing
+parser/safeconsole/solc/parse
+                        time:   [50.975 ms 51.183 ms 51.474 ms]
+                        change: [-1.8682% -0.8950% -0.0405%] (p = 0.07 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/safeconsole/solar/lex
+Benchmarking parser/safeconsole/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/safeconsole/solar/lex: Collecting 20 samples in estimated 10.165 s (8190 iterations)
+Benchmarking parser/safeconsole/solar/lex: Analyzing
+parser/safeconsole/solar/lex
+                        time:   [1.2341 ms 1.2639 ms 1.3088 ms]
+                        change: [-1.5676% -0.1599% +1.6783%] (p = 0.88 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/safeconsole/solar/parse
+Benchmarking parser/safeconsole/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/safeconsole/solar/parse: Collecting 20 samples in estimated 10.478 s (3150 iterations)
+Benchmarking parser/safeconsole/solar/parse: Analyzing
+parser/safeconsole/solar/parse
+                        time:   [3.3299 ms 3.3626 ms 3.4173 ms]
+                        change: [-1.8310% -0.7395% +0.3893%] (p = 0.25 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/safeconsole/solang/lex
+Benchmarking parser/safeconsole/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/safeconsole/solang/lex: Collecting 20 samples in estimated 10.113 s (4620 iterations)
+Benchmarking parser/safeconsole/solang/lex: Analyzing
+parser/safeconsole/solang/lex
+                        time:   [2.1868 ms 2.2113 ms 2.2492 ms]
+                        change: [+0.8953% +2.0623% +3.5222%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/safeconsole/solang/parse
+Benchmarking parser/safeconsole/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/safeconsole/solang/parse: Collecting 20 samples in estimated 13.139 s (840 iterations)
+Benchmarking parser/safeconsole/solang/parse: Analyzing
+parser/safeconsole/solang/parse
+                        time:   [15.408 ms 15.462 ms 15.555 ms]
+                        change: [-5.2493% -3.5275% -1.9819%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/safeconsole/slang/parse
+Benchmarking parser/safeconsole/slang/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 20 samples in 10.0s. You may wish to increase target time to 11.6s, or reduce sample count to 10.
+Benchmarking parser/safeconsole/slang/parse: Collecting 20 samples in estimated 11.602 s (20 iterations)
+Benchmarking parser/safeconsole/slang/parse: Analyzing
+parser/safeconsole/slang/parse
+                        time:   [574.26 ms 575.81 ms 577.80 ms]
+                        change: [-0.7511% -0.2366% +0.3065%] (p = 0.38 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/safeconsole/tree-sitter/parse
+Benchmarking parser/safeconsole/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/safeconsole/tree-sitter/parse: Collecting 20 samples in estimated 11.765 s (630 iterations)
+Benchmarking parser/safeconsole/tree-sitter/parse: Analyzing
+parser/safeconsole/tree-sitter/parse
+                        time:   [18.602 ms 18.639 ms 18.688 ms]
+                        change: [-1.0839% +0.1764% +1.7699%] (p = 0.85 > 0.05)
+                        No change in performance detected.
+
+Benchmarking parser/Seaport/solc/parse
+Benchmarking parser/Seaport/solc/parse: Warming up for 3.0000 s
+
+Warning: Unable to complete 20 samples in 10.0s. You may wish to increase target time to 18.6s, enable flat sampling, or reduce sample count to 10.
+Benchmarking parser/Seaport/solc/parse: Collecting 20 samples in estimated 18.597 s (210 iterations)
+Benchmarking parser/Seaport/solc/parse: Analyzing
+parser/Seaport/solc/parse
+                        time:   [85.408 ms 85.775 ms 86.099 ms]
+                        change: [-1.7526% -0.6359% +0.2277%] (p = 0.26 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Seaport/solar/lex
+Benchmarking parser/Seaport/solar/lex: Warming up for 3.0000 s
+Benchmarking parser/Seaport/solar/lex: Collecting 20 samples in estimated 10.164 s (8820 iterations)
+Benchmarking parser/Seaport/solar/lex: Analyzing
+parser/Seaport/solar/lex
+                        time:   [1.1293 ms 1.1327 ms 1.1382 ms]
+                        change: [-2.8104% -1.9124% -1.2206%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Seaport/solar/parse
+Benchmarking parser/Seaport/solar/parse: Warming up for 3.0000 s
+Benchmarking parser/Seaport/solar/parse: Collecting 20 samples in estimated 10.098 s (3780 iterations)
+Benchmarking parser/Seaport/solar/parse: Analyzing
+parser/Seaport/solar/parse
+                        time:   [2.4255 ms 2.4685 ms 2.5566 ms]
+                        change: [-1.7004% +0.7726% +3.7104%] (p = 0.69 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Seaport/solang/lex
+Benchmarking parser/Seaport/solang/lex: Warming up for 3.0000 s
+Benchmarking parser/Seaport/solang/lex: Collecting 20 samples in estimated 10.359 s (3780 iterations)
+Benchmarking parser/Seaport/solang/lex: Analyzing
+parser/Seaport/solang/lex
+                        time:   [2.7326 ms 2.7597 ms 2.8019 ms]
+                        change: [+0.1822% +1.4303% +2.7647%] (p = 0.04 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Seaport/solang/parse
+Benchmarking parser/Seaport/solang/parse: Warming up for 3.0000 s
+Benchmarking parser/Seaport/solang/parse: Collecting 20 samples in estimated 10.810 s (1050 iterations)
+Benchmarking parser/Seaport/solang/parse: Analyzing
+parser/Seaport/solang/parse
+                        time:   [10.155 ms 10.201 ms 10.277 ms]
+                        change: [-12.015% -6.8155% -3.1543%] (p = 0.00 < 0.05)
+                        Change within noise threshold.
+Benchmarking parser/Seaport/slang/parse
+Benchmarking parser/Seaport/slang/parse: Warming up for 3.0000 s
+Benchmarking parser/Seaport/slang/parse: Collecting 20 samples in estimated 14.324 s (40 iterations)
+Benchmarking parser/Seaport/slang/parse: Analyzing
+parser/Seaport/slang/parse
+                        time:   [355.76 ms 356.45 ms 357.36 ms]
+                        change: [-0.4101% +0.0562% +0.4641%] (p = 0.82 > 0.05)
+                        No change in performance detected.
+Benchmarking parser/Seaport/tree-sitter/parse
+Benchmarking parser/Seaport/tree-sitter/parse: Warming up for 3.0000 s
+Benchmarking parser/Seaport/tree-sitter/parse: Collecting 20 samples in estimated 12.652 s (630 iterations)
+Benchmarking parser/Seaport/tree-sitter/parse: Analyzing
+parser/Seaport/tree-sitter/parse
+                        time:   [19.903 ms 20.261 ms 20.536 ms]
+                        change: [-0.9900% -0.2648% +0.7010%] (p = 0.55 > 0.05)
+                        No change in performance detected.
+
+
