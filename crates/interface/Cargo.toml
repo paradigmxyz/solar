@@ -33,7 +33,8 @@ dunce = "1"
 hex.workspace = true
 itertools.workspace = true
 itoa.workspace = true
-lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
+# lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
+the-interner = { path = "../../../../danipopes/the-interner" }
 normalize-path = "0.2.1"
 rayon.workspace = true
 scoped-tls.workspace = true
