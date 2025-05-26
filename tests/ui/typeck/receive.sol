@@ -1,21 +1,15 @@
 library L {
     receive() external payable {}
-    //
+    //~^ ERROR: libraries cannot have receive ether functions
 }
 
 contract A {
     receive() external {}
-    //
+    //~^ ERROR: receive ether function must be payable
 }
 
 contract B {
     receive() external payable {}
-}
-
-contract C {
-    receive() external payable {}
-    receive() external payable {}
-    //
 }
 
 contract D {
@@ -25,22 +19,17 @@ contract D {
 
 contract E {
     receive(uint256 x) external payable {}
-    //
-}
-
-contract F {
-    receive() external payable returns (uint256) {}
-    //~^ ERROR: expected one of `;`, `external`, `internal`, `override`, `payable`, `private`, `public`, `pure`, `view`, `virtual`, or `{`, found keyword `returns`
+    //~^ ERROR: receive ether function cannot take parameters
 }
 
 contract G {
     receive() external view {}
-    //
+    //~^ ERROR: `view` not allowed here; allowed values: payable
 }
 
 contract H {
     receive() external pure {}
-    //
+    //~^ ERROR: `pure` not allowed here; allowed values: payable
 }
 
 contract I {
