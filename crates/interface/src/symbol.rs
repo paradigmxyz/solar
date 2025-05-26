@@ -356,7 +356,9 @@ impl fmt::Display for Symbol {
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
-pub(crate) struct Interner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
+pub(crate) struct Interner {
+    inner: inturn::Interner<Symbol, solar_data_structures::map::FxBuildHasher>,
+}
 
 impl Interner {
     pub(crate) fn fresh() -> Self {
@@ -364,43 +366,66 @@ impl Interner {
     }
 
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
-        let capacity = if init.is_empty() {
-            Default::default()
-        } else {
-            let actual_string = init.len();
-            let strings = actual_string.next_power_of_two();
-            let actual_bytes = PREINTERNED_SYMBOLS_BYTES as usize;
-            let bytes = actual_bytes.next_power_of_two().max(4096);
-            trace!(strings, bytes, "prefill capacity");
-            lasso::Capacity::new(strings, std::num::NonZeroUsize::new(bytes).unwrap())
-        };
-        let rodeo = lasso::ThreadedRodeo::with_capacity_and_hasher(capacity, Default::default());
-        for &s in init {
-            rodeo.get_or_intern_static(s);
-        }
-        Self(rodeo)
+        let mut inner =
+            inturn::Interner::with_capacity_and_hasher(init.len() * 4, Default::default());
+        inner.intern_many_mut_static(init.iter().copied());
+        Self { inner }
     }
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        self.0.get_or_intern(string)
+        self.inner.intern(string)
     }
 
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
-        self.0.resolve(&symbol)
+        self.inner.resolve(symbol)
+    }
+
+    fn trace_stats(&mut self) {
+        if enabled!(tracing::Level::TRACE) {
+            self.trace_stats_impl();
+        }
+    }
+
+    #[inline(never)]
+    fn trace_stats_impl(&mut self) {
+        let mut lengths = self.inner.iter().map(|(_, s)| s.len()).collect::<Vec<_>>();
+        lengths.sort_unstable();
+        let len = lengths.len();
+        assert!(len > 0);
+        let bytes = lengths.iter().copied().sum::<usize>();
+        trace!(
+            preinterned=PREINTERNED_SYMBOLS_COUNT,
+            len,
+            bytes,
+            max=lengths.last().copied().unwrap_or(0),
+            mean=%format!("{:.2}", (bytes as f64 / len as f64)),
+            median=%format!("{:.2}", if len % 2 == 0 {
+                (lengths[len / 2 - 1] + lengths[len / 2]) as f64 / 2.0
+            } else {
+                lengths[len / 2] as f64
+            }),
+            "Interner stats",
+        );
     }
 }
 
-unsafe impl lasso::Key for Symbol {
+impl inturn::InternerSymbol for Symbol {
     #[inline]
-    fn into_usize(self) -> usize {
-        self.0.index()
+    fn try_from_usize(n: usize) -> Option<Self> {
+        BaseIndex32::try_from_usize(n).map(Self)
     }
 
     #[inline]
-    fn try_from_usize(value: usize) -> Option<Self> {
-        BaseIndex32::try_from_usize(value).map(Self)
+    fn to_usize(self) -> usize {
+        self.0.index()
+    }
+}
+
+impl Drop for Interner {
+    fn drop(&mut self) {
+        self.trace_stats();
     }
 }
 
