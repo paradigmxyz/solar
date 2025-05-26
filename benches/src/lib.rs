@@ -24,6 +24,7 @@ pub fn get_srcs() -> &'static [Source] {
             include_source("../testdata/Vm.sol"),
             include_source("../testdata/safeconsole.sol"),
             include_source("../testdata/Seaport.sol"),
+            include_source("../testdata/Solady.sol"),
         ]
     })
 }
