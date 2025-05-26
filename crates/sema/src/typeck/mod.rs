@@ -3,11 +3,9 @@ use crate::{
     hir::{self, Item, ItemId, Res},
     ty::{Gcx, Ty},
 };
-use solar_ast::{
-    StateMutability, Visibility
-};
 use alloy_primitives::B256;
 use rayon::prelude::*;
+use solar_ast::{StateMutability, Visibility};
 use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     parallel,
