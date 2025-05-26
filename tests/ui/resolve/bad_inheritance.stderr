@@ -40,5 +40,19 @@ LL | contract G is self2 {}
    |               ^^^^^
    |
 
-error: aborting due to 6 previous errors
+error: expected base class, found namespace
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
+   |
+LL | contract F is self1 {}
+   |               ^^^^^
+   |
+
+error: expected base class, found namespace
+  --> ROOT/tests/ui/resolve/bad_inheritance.sol:LL:CC
+   |
+LL | contract G is self2 {}
+   |               ^^^^^
+   |
+
+error: aborting due to 8 previous errors
 

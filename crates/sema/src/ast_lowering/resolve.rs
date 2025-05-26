@@ -276,7 +276,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     }
                 }
 
-                let Ok(b) = cx.resolve_path_as::<hir::ItemId>(modifier.name, "contract") else {
+                let Ok(b) = cx.resolve_path_as::<hir::ItemId>(modifier.name, "base class") else {
                     continue;
                 };
                 let Some(b) = b.as_contract() else {
