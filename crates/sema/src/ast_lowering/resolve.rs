@@ -240,9 +240,7 @@ impl super::LoweringContext<'_, '_, '_> {
         for c_id in self.hir.contract_ids() {
             let contract = self.hir.contract(c_id);
             let len = contract.linearized_bases.len() - 1;
-            let mut base_args: IndexVec<hir::BaseIndex, &[hir::Expr<'_>]> =
-                IndexVec::with_capacity(len);
-            base_args.raw = vec![&[]; len]; // fill vec
+            let mut base_args: Vec<&[hir::Expr<'_>]> = vec![&[]; len]; // fill vec
 
             let ast::ItemKind::Contract(ast_contract) =
                 &self.hir_to_ast[&hir::ItemId::Contract(c_id)].kind
@@ -301,7 +299,6 @@ impl super::LoweringContext<'_, '_, '_> {
                             .span(modifier.span())
                             .emit();
                     }
-                    let base_idx = hir::BaseIndex::from_usize(base_idx);
                     if !base_args[base_idx].is_empty() {
                         let mut err = cx
                             .sess
@@ -316,7 +313,7 @@ impl super::LoweringContext<'_, '_, '_> {
                     base_args[base_idx] = args;
                 }
             }
-            cx.hir.contracts[c_id].base_args = base_args;
+            cx.hir.contracts[c_id].base_args = cx.arena.alloc_vec(base_args);
         }
     }
 }

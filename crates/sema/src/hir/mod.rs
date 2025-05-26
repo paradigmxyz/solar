@@ -289,11 +289,6 @@ newtype_index! {
     pub struct ExprId;
 }
 
-newtype_index! {
-    /// Position in `linearized_bases` of a contract.
-    pub struct BaseIndex;
-}
-
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
@@ -542,8 +537,8 @@ pub struct Contract<'hir> {
     pub items: &'hir [ItemId],
     /// The constructor base arguments (if any).
     ///
-    /// The index maps against the position in `linearized_bases`.
-    pub base_args: IndexVec<BaseIndex, &'hir [Expr<'hir>]>,
+    /// The index maps to the position in `linearized_bases` - 1.
+    pub base_args: &'hir [&'hir [Expr<'hir>]],
 }
 
 impl Contract<'_> {
