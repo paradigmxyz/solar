@@ -216,24 +216,34 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
                 .then_some(());
             if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
-                if !flags.contains(FunctionFlags::from_visibility(visibility)) {
-                    let msg = visibility_error(visibility, flags.visibilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.visibility.is_some() {
+                if header.visibility.is_some() {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.visibility = Some(visibility);
+                    header.visibility =
+                        if !flags.contains(FunctionFlags::from_visibility(visibility)) {
+                            let msg = visibility_error(visibility, flags.visibilities());
+                            self.dcx().err(msg).span(self.prev_token.span).emit();
+                            flags.visibilities().into_iter().flatten().next()
+                        } else {
+                            Some(visibility)
+                        };
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
-                if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
-                    let msg = state_mutability_error(state_mutability, flags.state_mutabilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if !header.state_mutability.is_non_payable() {
+                if !header.state_mutability.is_non_payable() {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.state_mutability = state_mutability;
+                    header.state_mutability = if !flags
+                        .contains(FunctionFlags::from_state_mutability(state_mutability))
+                    {
+                        let msg =
+                            state_mutability_error(state_mutability, flags.state_mutabilities());
+                        self.dcx().err(msg).span(self.prev_token.span).emit();
+                        flags.state_mutabilities().into_iter().flatten().next().unwrap_or_default()
+                    } else {
+                        state_mutability
+                    }
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
