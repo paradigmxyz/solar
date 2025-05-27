@@ -2,9 +2,10 @@
 //!
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
+use memchr::memmem;
 use solar_ast::{Base, StrKind};
 use solar_data_structures::hint::unlikely;
-use std::str::Chars;
+use std::{str::Chars, sync::OnceLock};
 
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
@@ -212,14 +213,11 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
         let b = self.as_str().as_bytes();
-        let (terminated, n) = 'outer: {
-            for i in memchr::Memchr::new(b'*', b) {
-                if b.get(i + 1).copied() == Some(b'/') {
-                    break 'outer (true, i + 2);
-                }
-            }
-            (false, b.len())
-        };
+        static FINDER: OnceLock<memmem::Finder<'static>> = OnceLock::new();
+        let (terminated, n) = FINDER
+            .get_or_init(|| memmem::Finder::new(b"*/"))
+            .find(b)
+            .map_or((false, b.len()), |pos| (true, pos + 2));
         self.ignore_bytes(n);
 
         RawTokenKind::BlockComment { is_doc, terminated }
