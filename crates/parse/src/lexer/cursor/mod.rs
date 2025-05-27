@@ -202,6 +202,7 @@ impl<'a> Cursor<'a> {
         RawTokenKind::LineComment { is_doc }
     }
 
+    #[inline(never)]
     fn block_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == b'/' && self.first() == b'*');
         self.bump();
@@ -211,8 +212,9 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
         let mut terminated = false;
-        while let Some(c) = self.bump_ret() {
-            if c == b'*' && self.first() == b'/' {
+        while self.eat_until(b'*') {
+            self.bump();
+            if self.first() == b'/' {
                 terminated = true;
                 self.bump();
                 break;
@@ -475,10 +477,14 @@ impl<'a> Cursor<'a> {
     }
 
     /// Eats symbols until `ch` is found or until the end of file is reached.
+    ///
+    /// Returns `true` if `ch` was found, `false` if the end of file was reached.
     #[inline]
-    fn eat_until(&mut self, ch: u8) {
+    fn eat_until(&mut self, ch: u8) -> bool {
         let b = self.as_str().as_bytes();
-        self.ignore_bytes(memchr::memchr(ch, b).unwrap_or(b.len()));
+        let res = memchr::memchr(ch, b);
+        self.ignore_bytes(res.unwrap_or(b.len()));
+        res.is_some()
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
