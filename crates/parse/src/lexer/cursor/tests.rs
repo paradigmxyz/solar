@@ -147,8 +147,8 @@ unicode"è"
 hex'è'
 unicode'è'
 
-hexè
-unicodeè
+hex👀
+unicode👀
 
 //è
 /*è */
@@ -178,10 +178,10 @@ RawToken { kind: Whitespace, len: 1 }
 RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
 RawToken { kind: Whitespace, len: 2 }
 RawToken { kind: Ident, len: 3 }
-RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Unknown, len: 4 }
 RawToken { kind: Whitespace, len: 1 }
 RawToken { kind: Ident, len: 7 }
-RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Unknown, len: 4 }
 RawToken { kind: Whitespace, len: 2 }
 RawToken { kind: LineComment { is_doc: false }, len: 4 }
 RawToken { kind: Whitespace, len: 1 }
