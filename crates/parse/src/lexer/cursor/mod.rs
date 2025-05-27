@@ -211,18 +211,16 @@ impl<'a> Cursor<'a> {
         // `/**/` is not considered a doc comment.
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
-        let mut terminated = false;
         let b = self.as_str().as_bytes();
-        for i in memchr::Memchr::new(b'*', b) {
-            if b.get(i + 1).copied() == Some(b'/') {
-                terminated = true;
-                self.ignore_bytes(i + 2);
-                break;
+        let (terminated, n) = 'outer: {
+            for i in memchr::Memchr::new(b'*', b) {
+                if b.get(i + 1).copied() == Some(b'/') {
+                    break 'outer (true, i + 2);
+                }
             }
-        }
-        if !terminated {
-            self.ignore_bytes(b.len());
-        }
+            (false, b.len())
+        };
+        self.ignore_bytes(n);
 
         RawTokenKind::BlockComment { is_doc, terminated }
     }
