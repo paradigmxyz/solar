@@ -2,9 +2,10 @@
 //!
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
+use memchr::memmem;
 use solar_ast::{Base, StrKind};
 use solar_data_structures::hint::unlikely;
-use std::str::Chars;
+use std::{str::Chars, sync::OnceLock};
 
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
@@ -202,6 +203,7 @@ impl<'a> Cursor<'a> {
         RawTokenKind::LineComment { is_doc }
     }
 
+    #[inline(never)]
     fn block_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == b'/' && self.first() == b'*');
         self.bump();
@@ -210,14 +212,13 @@ impl<'a> Cursor<'a> {
         // `/**/` is not considered a doc comment.
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
-        let mut terminated = false;
-        while let Some(c) = self.bump_ret() {
-            if c == b'*' && self.first() == b'/' {
-                terminated = true;
-                self.bump();
-                break;
-            }
-        }
+        let b = self.as_str().as_bytes();
+        static FINDER: OnceLock<memmem::Finder<'static>> = OnceLock::new();
+        let (terminated, n) = FINDER
+            .get_or_init(|| memmem::Finder::new(b"*/"))
+            .find(b)
+            .map_or((false, b.len()), |pos| (true, pos + 2));
+        self.ignore_bytes(n);
 
         RawTokenKind::BlockComment { is_doc, terminated }
     }
@@ -475,10 +476,14 @@ impl<'a> Cursor<'a> {
     }
 
     /// Eats symbols until `ch` is found or until the end of file is reached.
+    ///
+    /// Returns `true` if `ch` was found, `false` if the end of file was reached.
     #[inline]
-    fn eat_until(&mut self, ch: u8) {
+    fn eat_until(&mut self, ch: u8) -> bool {
         let b = self.as_str().as_bytes();
-        self.ignore_bytes(memchr::memchr(ch, b).unwrap_or(b.len()));
+        let res = memchr::memchr(ch, b);
+        self.ignore_bytes(res.unwrap_or(b.len()));
+        res.is_some()
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
