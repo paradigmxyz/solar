@@ -132,3 +132,81 @@ RawToken { kind: Literal { kind: Str { kind: Str, terminated: false } }, len: 2 
 "#]],
     );
 }
+
+#[test]
+fn random_unicode() {
+    check(
+        r#"
+è
+
+"è"
+hex"è"
+unicode"è"
+
+'è'
+hex'è'
+unicode'è'
+
+hexè
+unicodeè
+
+//è
+/*è */
+
+///è
+/**è */
+
+.è
+0.è
+1.eè
+1.e1è
+"#,
+        str![[r#"
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Ident, len: 3 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 7 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: LineComment { is_doc: false }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 7 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: LineComment { is_doc: true }, len: 5 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: true, terminated: true }, len: 8 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Rational { base: Decimal, empty_exponent: false } }, len: 2 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Int { base: Decimal, empty_int: false } }, len: 1 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Ident, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Int { base: Decimal, empty_int: false } }, len: 1 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Ident, len: 2 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+"#]],
+    );
+}
