@@ -119,11 +119,7 @@ impl<'a> Cursor<'a> {
             Some(c) => c,
             None => return RawToken::EOF,
         };
-        let token_kind = if first_char.is_ascii() {
-            self.advance_token_kind(first_char)
-        } else {
-            RawTokenKind::Unknown
-        };
+        let token_kind = self.advance_token_kind(first_char);
         let len = self.pos_within_token();
         self.reset_pos_within_token();
         RawToken::new(token_kind, len)
