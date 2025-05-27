@@ -212,13 +212,16 @@ impl<'a> Cursor<'a> {
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
         let mut terminated = false;
-        while self.eat_until(b'*') {
-            self.bump();
-            if self.first() == b'/' {
+        let b = self.as_str().as_bytes();
+        for i in memchr::Memchr::new(b'*', b) {
+            if b.get(i + 1).copied() == Some(b'/') {
                 terminated = true;
-                self.bump();
+                self.ignore_bytes(i + 2);
                 break;
             }
+        }
+        if !terminated {
+            self.ignore_bytes(b.len());
         }
 
         RawTokenKind::BlockComment { is_doc, terminated }
