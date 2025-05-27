@@ -96,7 +96,6 @@ const EOF: u8 = b'\0';
 /// and position can be shifted forward via `bump` method.
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {
-    len_remaining: usize,
     chars: Chars<'a>,
     #[cfg(debug_assertions)]
     prev: u8,
@@ -106,7 +105,6 @@ impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
     pub fn new(input: &'a str) -> Self {
         Cursor {
-            len_remaining: input.len(),
             chars: input.chars(),
             #[cfg(debug_assertions)]
             prev: EOF,
@@ -115,18 +113,20 @@ impl<'a> Cursor<'a> {
 
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> RawToken {
+        // Use the pointer instead of the length to track how many bytes were consumed, since
+        // internally the iterator is a pair of `start` and `end` pointers.
+        let start = self.as_str().as_ptr();
+
         let first_char = match self.bump_ret() {
             Some(c) => c,
             None => return RawToken::EOF,
         };
-        let token_kind = if first_char.is_ascii() {
-            self.advance_token_kind(first_char)
-        } else {
-            RawTokenKind::Unknown
-        };
-        let len = self.pos_within_token();
-        self.reset_pos_within_token();
-        RawToken::new(token_kind, len)
+        let token_kind = self.advance_token_kind(first_char);
+
+        // SAFETY: `start` points to the same string.
+        let len = unsafe { self.as_str().as_ptr().offset_from_unsigned(start) };
+
+        RawToken::new(token_kind, len as u32)
     }
 
     #[inline]
@@ -429,18 +429,6 @@ impl<'a> Cursor<'a> {
     #[inline]
     fn is_eof(&self) -> bool {
         self.as_str().is_empty()
-    }
-
-    /// Returns amount of already consumed symbols.
-    #[inline]
-    fn pos_within_token(&self) -> u32 {
-        (self.len_remaining - self.as_str().len()) as u32
-    }
-
-    /// Resets the number of bytes consumed to 0.
-    #[inline]
-    fn reset_pos_within_token(&mut self) {
-        self.len_remaining = self.as_str().len();
     }
 
     /// Moves to the next character.
