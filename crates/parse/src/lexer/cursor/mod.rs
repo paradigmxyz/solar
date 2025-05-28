@@ -198,7 +198,8 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-        self.eat_until(b'\n');
+        // Take into account Windows line ending (CRLF)
+        self.eat_until_either(b'\n', b'\r');
         RawTokenKind::LineComment { is_doc }
     }
 
@@ -477,13 +478,13 @@ impl<'a> Cursor<'a> {
         self.bytes = unsafe { self.as_bytes().get_unchecked(n..) }.iter();
     }
 
-    /// Eats symbols until `ch` is found or until the end of file is reached.
+    /// Eats symbols until `ch1` or `ch2` is found or until the end of file is reached.
     ///
-    /// Returns `true` if `ch` was found, `false` if the end of file was reached.
+    /// Returns `true` if `ch1` or `ch2` was found, `false` if the end of file was reached.
     #[inline]
-    fn eat_until(&mut self, ch: u8) -> bool {
+    fn eat_until_either(&mut self, ch1: u8, ch2: u8) -> bool {
         let b = self.as_bytes();
-        let res = memchr::memchr(ch, b);
+        let res = memchr::memchr2(ch1, ch2, b);
         self.ignore_bytes(res.unwrap_or(b.len()));
         res.is_some()
     }
