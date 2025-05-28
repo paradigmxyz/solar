@@ -7,6 +7,8 @@ contract D is self1.D {} //~ ERROR: contracts cannot inherit from themselves
 contract E is self2.E {} //~ ERROR: contracts cannot inherit from themselves
 
 contract F is self1 {} //~ ERROR: expected contract, found namespace
+//~^ ERROR: expected base class, found namespace
 contract G is self2 {} //~ ERROR: expected contract, found namespace
+//~^ ERROR: expected base class, found namespace
 
 contract H is does_not_exist {}
