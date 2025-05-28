@@ -456,13 +456,26 @@ impl<'a> Cursor<'a> {
 
     #[inline]
     fn bump_inlined(&mut self) {
-        // NOTE: This intentionally does not assign `_c` in the next line, as rustc currently emit a
-        // lot more LLVM IR (for an `assume`), which messes with the optimizations and inling costs.
-        #[cfg(not(debug_assertions))]
-        self.chars.next();
-        #[cfg(debug_assertions)]
-        if let Some(c) = self.chars.next() {
-            self.prev = c as u8;
+        
+
+        let s = self.chars.as_str();
+        let len = s.len();
+
+        if len != 0 {
+            let ptr = s.as_ptr();
+
+            let byte = unsafe { *ptr };
+
+            #[cfg(debug_assertions)]
+            {
+                self.prev = byte;
+            }
+
+            
+            let new_slice = unsafe { std::slice::from_raw_parts(ptr.add(1), len - 1) };
+            let new_str = unsafe { std::str::from_utf8_unchecked(new_slice) };
+
+            self.chars = new_str.chars();
         }
     }
 
