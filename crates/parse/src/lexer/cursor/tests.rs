@@ -210,3 +210,14 @@ RawToken { kind: Whitespace, len: 1 }
 "#]],
     );
 }
+
+#[test]
+fn windows_line_ending() {
+    check(
+        "/// doc line\r\n",
+        str![[r#"
+RawToken { kind: LineComment { is_doc: true }, len: 12 }
+RawToken { kind: Whitespace, len: 2 }
+"#]],
+    );
+}
