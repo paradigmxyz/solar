@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
+
+### Bug Fixes
+
+- Windows eol lexing ([#340](https://github.com/paradigmxyz/solar/issues/340))
+- [parser] Allow EVM builtins to be present in yul paths ([#336](https://github.com/paradigmxyz/solar/issues/336))
+
+### Dependencies
+
+- [lexer] Rewrite prefixed literal lexing ([#325](https://github.com/paradigmxyz/solar/issues/325))
+
+### Features
+
+- [sema] Implement receive function checks ([#321](https://github.com/paradigmxyz/solar/issues/321))
+- Add span in FunctionHeader ([#318](https://github.com/paradigmxyz/solar/issues/318))
+- [ast] Add spans to blocks ([#314](https://github.com/paradigmxyz/solar/issues/314))
+
+### Miscellaneous Tasks
+
+- [lexer] Cursor cleanup ([#338](https://github.com/paradigmxyz/solar/issues/338))
+
+### Performance
+
+- [lexer] Use slice::Iter instead of Chars in Cursor ([#339](https://github.com/paradigmxyz/solar/issues/339))
+- [lexer] Use memchr in block_comment ([#337](https://github.com/paradigmxyz/solar/issues/337))
+- [lexer] Add eat_until ([#324](https://github.com/paradigmxyz/solar/issues/324))
+
 ## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
 
 ### Bug Fixes
