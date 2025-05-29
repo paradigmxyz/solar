@@ -110,7 +110,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
             LitKind::Number(ref big_int) => {
-                let (_, bytes) = big_int.to_bytes_be();
+                let  bytes = big_int.to_digits::<u8>(rug::integer::Order::MsfBe);
                 if bytes.len() > 32 {
                     return Err(EE::IntTooBig.into());
                 }

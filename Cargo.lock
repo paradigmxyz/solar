@@ -2850,6 +2850,7 @@ dependencies = [
  "once_map",
  "paste",
  "rayon",
+ "rug",
  "serde",
  "serde_json",
  "solar-ast",

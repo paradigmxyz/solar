@@ -1,7 +1,4 @@
 use crate::{unescape, PResult, Parser};
-use num_bigint::{BigInt, BigUint};
-use num_rational::BigRational;
-use num_traits::{Num, Signed, Zero};
 use rug::{ops::Pow, Integer};
 use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
@@ -32,9 +29,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 LitKind::Number(n) => *n *= sub.value(),
                 l @ LitKind::Rational(_) => {
                     let LitKind::Rational(n) = l else { unreachable!() };
-                    *n *= BigInt::from(sub.value());
+                    *n *= rug::Integer::from(sub.value());
                     if n.is_integer() {
-                        *l = LitKind::Number(n.to_integer());
+                        *l = LitKind::Number(rug::Integer::from_str(n.to_string().as_str()).unwrap());
                     }
                 }
                 _ => {
@@ -120,13 +117,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Err(EmptyInteger) => Ok(LitKind::Err(ErrorGuaranteed::new_unchecked())),
             // Lexer internal error.
             Err(e @ ParseInteger(_)) => panic!("failed to parse integer literal {symbol:?}: {e}"),
-            Err(e @ RugParseInteger(_)) => {
-                panic!("failed to parse integer literal {symbol:?}: {e}")
-            }
             // Should never happen.
             Err(
                 e @ (InvalidRational | EmptyRational | EmptyExponent | ParseRational(_)
-                | RugParseRational(_) | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
+                 | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
             ) => panic!("this error shouldn't happen for normal integer literals: {e}"),
         }
     }
@@ -148,7 +142,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Lexer internal error.
             Err(
                 e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_) | EmptyInteger
-                | RugParseInteger(_) | RugParseRational(_)),
+                ),
             ) => {
                 panic!("failed to parse rational literal {symbol:?}: {e}")
             }
@@ -195,10 +189,8 @@ enum LitError {
     EmptyRational,
     EmptyExponent,
 
-    ParseInteger(num_bigint::ParseBigIntError),
-    RugParseInteger(rug::integer::ParseIntegerError),
-    RugParseRational(rug::integer::ParseIntegerError),
-    ParseRational(num_bigint::ParseBigIntError),
+    ParseInteger(rug::integer::ParseIntegerError),
+    ParseRational(rug::integer::ParseIntegerError),
     ParseExponent(std::num::ParseIntError),
 
     IntegerTooLarge,
@@ -216,8 +208,6 @@ impl fmt::Display for LitError {
             Self::EmptyExponent => write!(f, "empty exponent"),
             Self::ParseInteger(e) => write!(f, "failed to parse integer: {e}"),
             Self::ParseRational(e) => write!(f, "failed to parse rational: {e}"),
-            Self::RugParseInteger(e) => write!(f, "failed to parse integer: {e}"),
-            Self::RugParseRational(e) => write!(f, "failed to parse rational: {e}"),
             Self::ParseExponent(e) => write!(f, "failed to parse exponent: {e}"),
             Self::IntegerTooLarge => write!(f, "integer part too large"),
             Self::RationalTooLarge => write!(f, "rational part too large"),
@@ -252,7 +242,7 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    rug_big_int_from_str_radix(s, base, false).map(LitKind::RugNumber)
+    rug_big_int_from_str_radix(s, base, false).map(LitKind::Number)
 }
 
 fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
@@ -336,7 +326,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
 
     // 0E... is always zero.
     if number.is_zero() {
-        return Ok(LitKind::RugNumber(rug::Integer::ZERO));
+        return Ok(LitKind::Number(rug::Integer::ZERO));
     }
 
     if let Some(exp) = exp {
@@ -365,9 +355,9 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     }
 
     if number.is_integer() {
-        Ok(LitKind::RugNumber(Integer::from_str(number.to_string().as_str()).unwrap()))
+        Ok(LitKind::Number(Integer::from_str(number.to_string().as_str()).unwrap()))
     } else {
-        Ok(LitKind::RugRational(number))
+        Ok(LitKind::Rational(number))
     }
 }
 
@@ -408,24 +398,6 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
     }
 }
 
-fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
-    if s.len() > max_digits::<MAX_BITS>(base) {
-        return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
-    }
-    if s.len() <= max_digits::<{ Primitive::BITS }>(base) {
-        if let Ok(n) = Primitive::from_str_radix(s, base as u32) {
-            return Ok(BigInt::from(n));
-        }
-    }
-    BigInt::from_str_radix(s, base as u32).map_err(|e| {
-        if rat {
-            LitError::ParseRational(e)
-        } else {
-            LitError::ParseInteger(e)
-        }
-    })
-}
-
 fn rug_big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<Integer, LitError> {
     if s.len() > max_digits::<MAX_BITS>(base) {
         return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
@@ -441,9 +413,9 @@ fn rug_big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<Integer,
     // Use rug::Integer for arbitrary precision parsing
     Integer::from_str_radix(s, base as i32).map_err(|e| {
         if rat {
-            LitError::RugParseRational(e)
+            LitError::ParseRational(e)
         } else {
-            LitError::RugParseInteger(e)
+            LitError::ParseInteger(e)
         }
     })
 }
@@ -515,7 +487,7 @@ mod tests {
         fn check_int(src: &str, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, false);
             let res = match parse_integer(symbol) {
-                Ok(LitKind::RugNumber(n)) => Ok(n),
+                Ok(LitKind::Number(n)) => Ok(n),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
@@ -535,7 +507,7 @@ mod tests {
                     e => panic!("not an address: {e:?} ({src:?})"),
                 },
                 Err(int) => match parse_integer(symbol) {
-                    Ok(LitKind::RugNumber(n)) => {
+                    Ok(LitKind::Number(n)) => {
                         assert_eq!(n, rug::Integer::from_str_radix(int, 10).unwrap(), "{src:?}")
                     }
                     e => panic!("not an integer: {e:?} ({src:?})"),
@@ -617,7 +589,7 @@ mod tests {
         fn check_int_full(src: &str, should_fail_lexing: bool, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, should_fail_lexing);
             let res = match parse_rational(symbol) {
-                Ok(LitKind::RugNumber(r)) => Ok(r),
+                Ok(LitKind::Number(r)) => Ok(r),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
@@ -637,7 +609,7 @@ mod tests {
         fn check_rat(src: &str, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, false);
             let res = match parse_rational(symbol) {
-                Ok(LitKind::RugRational(r)) => Ok(r),
+                Ok(LitKind::Rational(r)) => Ok(r),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
