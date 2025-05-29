@@ -515,12 +515,12 @@ mod tests {
         fn check_int(src: &str, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, false);
             let res = match parse_integer(symbol) {
-                Ok(LitKind::Number(n)) => Ok(n),
+                Ok(LitKind::RugNumber(n)) => Ok(n),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigInt::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Integer::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");
@@ -535,8 +535,8 @@ mod tests {
                     e => panic!("not an address: {e:?} ({src:?})"),
                 },
                 Err(int) => match parse_integer(symbol) {
-                    Ok(LitKind::Number(n)) => {
-                        assert_eq!(n, BigInt::from_str_radix(int, 10).unwrap(), "{src:?}")
+                    Ok(LitKind::RugNumber(n)) => {
+                        assert_eq!(n, rug::Integer::from_str_radix(int, 10).unwrap(), "{src:?}")
                     }
                     e => panic!("not an integer: {e:?} ({src:?})"),
                 },
@@ -616,14 +616,13 @@ mod tests {
         #[track_caller]
         fn check_int_full(src: &str, should_fail_lexing: bool, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, should_fail_lexing);
-            println!("check_int_full({src:?}) -> {symbol:?}");
             let res = match parse_rational(symbol) {
-                Ok(LitKind::Number(r)) => Ok(r),
+                Ok(LitKind::RugNumber(r)) => Ok(r),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigInt::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Integer::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");
@@ -638,12 +637,12 @@ mod tests {
         fn check_rat(src: &str, expected: Result<&str, LitError>) {
             let symbol = lex_literal(src, false);
             let res = match parse_rational(symbol) {
-                Ok(LitKind::Rational(r)) => Ok(r),
+                Ok(LitKind::RugRational(r)) => Ok(r),
                 Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigRational::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Rational::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");

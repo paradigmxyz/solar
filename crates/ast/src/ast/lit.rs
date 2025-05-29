@@ -1,6 +1,7 @@
 use alloy_primitives::Address;
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Span, Symbol};
 use std::{fmt, sync::Arc};
+use rug::Integer;
 
 /// A literal: `hex"1234"`, `5.6 ether`.
 ///
@@ -32,7 +33,9 @@ impl fmt::Display for Lit {
             LitKind::Str(StrKind::Unicode, ..) => write!(f, "unicode\"{symbol}\""),
             LitKind::Str(StrKind::Hex, ..) => write!(f, "hex\"{symbol}\""),
             LitKind::Number(_)
+            | LitKind::RugNumber(_)
             | LitKind::Rational(_)
+            | LitKind::RugRational(_)
             | LitKind::Err(_)
             | LitKind::Address(_)
             | LitKind::Bool(_) => write!(f, "{symbol}"),
@@ -82,11 +85,14 @@ pub enum LitKind {
     Str(StrKind, Arc<[u8]>, Vec<(Span, Symbol)>),
     /// A decimal or hexadecimal number literal.
     Number(num_bigint::BigInt),
+    RugNumber(rug::Integer),
+
     /// A rational number literal.
     ///
     /// Note that rational literals that evaluate to integers are represented as
     /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
     Rational(num_rational::BigRational),
+    RugRational(rug::Rational),
     /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
     Address(Address),
     /// A boolean literal.
@@ -111,7 +117,9 @@ impl fmt::Debug for LitKind {
                 f.write_str(")")
             }
             Self::Number(value) => write!(f, "Number({value:?})"),
+            Self::RugNumber(value) => write!(f, "Number({value:?})"),
             Self::Rational(value) => write!(f, "Rational({value:?})"),
+             Self::RugRational(value) => write!(f, "Rational({value:?})"),
             Self::Address(value) => write!(f, "Address({value:?})"),
             Self::Bool(value) => write!(f, "Bool({value:?})"),
             Self::Err(_) => write!(f, "Err"),
@@ -125,7 +133,9 @@ impl LitKind {
         match self {
             Self::Str(kind, ..) => kind.description(),
             Self::Number(_) => "number",
+            Self::RugNumber(_) => "number",
             Self::Rational(_) => "rational",
+            Self::RugRational(_) => "rational",
             Self::Address(_) => "address",
             Self::Bool(_) => "boolean",
             Self::Err(_) => "<error>",
