@@ -2,7 +2,6 @@ use alloy_primitives::Address;
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Span, Symbol};
 use std::{fmt, sync::Arc};
 
-
 /// A literal: `hex"1234"`, `5.6 ether`.
 ///
 /// Note that multiple string literals of the same kind are concatenated together to form a single

@@ -120,7 +120,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Should never happen.
             Err(
                 e @ (InvalidRational | EmptyRational | EmptyExponent | ParseRational(_)
-                 | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
+                | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
             ) => panic!("this error shouldn't happen for normal integer literals: {e}"),
         }
     }
@@ -140,10 +140,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Ok(LitKind::Err(ErrorGuaranteed::new_unchecked()))
             }
             // Lexer internal error.
-            Err(
-                e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_) | EmptyInteger
-                ),
-            ) => {
+            Err(e @ (ParseExponent(_) | ParseInteger(_) | ParseRational(_) | EmptyInteger)) => {
                 panic!("failed to parse rational literal {symbol:?}: {e}")
             }
         }
