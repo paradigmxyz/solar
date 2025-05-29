@@ -2,7 +2,7 @@ use crate::{unescape, PResult, Parser};
 use rug::{ops::Pow, Integer};
 use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
-use std::{borrow::Cow, fmt, str::FromStr};
+use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a literal.
@@ -31,7 +31,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let LitKind::Rational(n) = l else { unreachable!() };
                     *n *= rug::Integer::from(sub.value());
                     if n.is_integer() {
-                        *l = LitKind::Number(rug::Integer::from_str(n.to_string().as_str()).unwrap());
+                        *l = LitKind::Number(n.numer().clone());
                     }
                 }
                 _ => {
@@ -355,7 +355,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     }
 
     if number.is_integer() {
-        Ok(LitKind::Number(Integer::from_str(number.to_string().as_str()).unwrap()))
+        Ok(LitKind::Number(number.numer().clone()))
     } else {
         Ok(LitKind::Rational(number))
     }

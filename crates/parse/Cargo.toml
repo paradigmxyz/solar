@@ -30,9 +30,6 @@ bitflags.workspace = true
 bumpalo.workspace = true
 itertools.workspace = true
 memchr.workspace = true
-num-bigint.workspace = true
-num-rational.workspace = true
-num-traits.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
