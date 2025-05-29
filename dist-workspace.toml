@@ -33,6 +33,7 @@ github-release = "announce"
 install-updater = false
 # Path that installers should place binaries in
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
+rust-toolchain-version = "stable"
 
 [dist.dependencies.apt]
 gcc-aarch64-linux-gnu = { version = '*', targets = [
