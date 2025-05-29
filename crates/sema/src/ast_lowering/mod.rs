@@ -46,6 +46,9 @@ pub(crate) fn lower<'sess, 'hir>(
     // Clean up.
     lcx.shrink_to_fit();
 
+    // Perform validation checks
+    lcx.check_base_ctor_args();
+
     lcx.finish()
 }
 
