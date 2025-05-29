@@ -2,9 +2,10 @@
 //!
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
+use memchr::memmem;
 use solar_ast::{Base, StrKind};
 use solar_data_structures::hint::unlikely;
-use std::str::Chars;
+use std::sync::OnceLock;
 
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
@@ -95,37 +96,31 @@ const EOF: u8 = b'\0';
 /// and position can be shifted forward via `bump` method.
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {
-    len_remaining: usize,
-    chars: Chars<'a>,
-    #[cfg(debug_assertions)]
-    prev: u8,
+    bytes: std::slice::Iter<'a, u8>,
 }
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
     pub fn new(input: &'a str) -> Self {
-        Cursor {
-            len_remaining: input.len(),
-            chars: input.chars(),
-            #[cfg(debug_assertions)]
-            prev: EOF,
-        }
+        Cursor { bytes: input.as_bytes().iter() }
     }
 
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> RawToken {
+        // Use the pointer instead of the length to track how many bytes were consumed, since
+        // internally the iterator is a pair of `start` and `end` pointers.
+        let start = self.as_ptr();
+
         let first_char = match self.bump_ret() {
             Some(c) => c,
             None => return RawToken::EOF,
         };
-        let token_kind = if first_char.is_ascii() {
-            self.advance_token_kind(first_char)
-        } else {
-            RawTokenKind::Unknown
-        };
-        let len = self.pos_within_token();
-        self.reset_pos_within_token();
-        RawToken::new(token_kind, len)
+        let token_kind = self.advance_token_kind(first_char);
+
+        // SAFETY: `start` points to the same string.
+        let len = unsafe { self.as_ptr().offset_from_unsigned(start) };
+
+        RawToken::new(token_kind, len as u32)
     }
 
     #[inline]
@@ -186,7 +181,12 @@ impl<'a> Cursor<'a> {
                 RawTokenKind::Literal { kind }
             }
 
-            _ => RawTokenKind::Unknown,
+            _ => {
+                if unlikely(!first_char.is_ascii()) {
+                    self.bump_utf8_with(first_char);
+                }
+                RawTokenKind::Unknown
+            }
         }
     }
 
@@ -198,10 +198,12 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-        self.eat_until(b'\n');
+        // Take into account Windows line ending (CRLF)
+        self.eat_until_either(b'\n', b'\r');
         RawTokenKind::LineComment { is_doc }
     }
 
+    #[inline(never)]
     fn block_comment(&mut self) -> RawTokenKind {
         debug_assert!(self.prev() == b'/' && self.first() == b'*');
         self.bump();
@@ -210,14 +212,13 @@ impl<'a> Cursor<'a> {
         // `/**/` is not considered a doc comment.
         let is_doc = matches!(self.first(), b'*' if !matches!(self.second(), b'*' | b'/'));
 
-        let mut terminated = false;
-        while let Some(c) = self.bump_ret() {
-            if c == b'*' && self.first() == b'/' {
-                terminated = true;
-                self.bump();
-                break;
-            }
-        }
+        let b = self.as_bytes();
+        static FINDER: OnceLock<memmem::Finder<'static>> = OnceLock::new();
+        let (terminated, n) = FINDER
+            .get_or_init(|| memmem::Finder::new(b"*/"))
+            .find(b)
+            .map_or((false, b.len()), |pos| (true, pos + 2));
+        self.ignore_bytes(n);
 
         RawTokenKind::BlockComment { is_doc, terminated }
     }
@@ -232,7 +233,7 @@ impl<'a> Cursor<'a> {
         debug_assert!(is_id_start_byte(self.prev()));
 
         // Start is already eaten, eat the rest of identifier.
-        let start = self.as_str().as_ptr();
+        let start = self.as_ptr();
         self.eat_while(is_id_continue_byte);
 
         // Check if the identifier is a string literal prefix.
@@ -240,10 +241,7 @@ impl<'a> Cursor<'a> {
             // SAFETY: within bounds and lifetime of `self.chars`.
             let id = unsafe {
                 let start = start.sub(1);
-                std::slice::from_raw_parts(
-                    start,
-                    self.as_str().as_ptr().offset_from_unsigned(start),
-                )
+                std::slice::from_raw_parts(start, self.as_ptr().offset_from_unsigned(start))
             };
             let is_hex = id == b"hex";
             if is_hex || id == b"unicode" {
@@ -387,20 +385,32 @@ impl<'a> Cursor<'a> {
 
     /// Returns the remaining input as a string slice.
     #[inline]
+    #[deprecated = "use `as_bytes` instead; utf-8 is not guaranteed anymore"]
     pub fn as_str(&self) -> &'a str {
-        self.chars.as_str()
+        // SAFETY: Not safe.
+        unsafe { std::str::from_utf8_unchecked(self.bytes.as_slice()) }
     }
 
-    /// Returns the last eaten symbol. Only available with `debug_assertions` enabled.
+    /// Returns the remaining input as a byte slice.
+    #[inline]
+    pub fn as_bytes(&self) -> &'a [u8] {
+        self.bytes.as_slice()
+    }
+
+    /// Returns the pointer to the first byte of the remaining input.
+    #[inline]
+    pub fn as_ptr(&self) -> *const u8 {
+        self.bytes.as_slice().as_ptr()
+    }
+
+    /// Returns the last eaten byte.
     #[inline]
     fn prev(&self) -> u8 {
-        #[cfg(debug_assertions)]
-        return self.prev;
-        #[cfg(not(debug_assertions))]
-        return EOF;
+        // SAFETY: We always bump at least one character before calling this method.
+        unsafe { *self.as_ptr().sub(1) }
     }
 
-    /// Peeks the next symbol from the input stream without consuming it.
+    /// Peeks the next byte from the input stream without consuming it.
     /// If requested position doesn't exist, `EOF` is returned.
     /// However, getting `EOF` doesn't always mean actual end of file,
     /// it should be checked with `is_eof` method.
@@ -409,7 +419,7 @@ impl<'a> Cursor<'a> {
         self.peek_byte(0)
     }
 
-    /// Peeks the second symbol from the input stream without consuming it.
+    /// Peeks the second byte from the input stream without consuming it.
     #[inline]
     fn second(&self) -> u8 {
         // This function is only called after `first` was called and checked, so in practice it
@@ -421,64 +431,62 @@ impl<'a> Cursor<'a> {
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        self.as_str().as_bytes().get(index).copied().unwrap_or(EOF)
+        self.as_bytes().get(index).copied().unwrap_or(EOF)
     }
 
     /// Checks if there is nothing more to consume.
     #[inline]
     fn is_eof(&self) -> bool {
-        self.as_str().is_empty()
-    }
-
-    /// Returns amount of already consumed symbols.
-    #[inline]
-    fn pos_within_token(&self) -> u32 {
-        (self.len_remaining - self.as_str().len()) as u32
-    }
-
-    /// Resets the number of bytes consumed to 0.
-    #[inline]
-    fn reset_pos_within_token(&mut self) {
-        self.len_remaining = self.as_str().len();
+        self.as_bytes().is_empty()
     }
 
     /// Moves to the next character.
     fn bump(&mut self) {
-        self.bump_inlined();
+        self.bytes.next();
+    }
+
+    /// Skips to the end of the current UTF-8 character sequence, with `x` as the first byte.
+    ///
+    /// Assumes that `x` is the previously consumed byte.
+    #[cold]
+    #[allow(clippy::match_overlapping_arm)]
+    fn bump_utf8_with(&mut self, x: u8) {
+        debug_assert_eq!(self.prev(), x);
+        let skip = match x {
+            ..0x80 => 0,
+            ..0xE0 => 1,
+            ..0xF0 => 2,
+            _ => 3,
+        };
+        // NOTE: The internal iterator was created with from valid UTF-8 string, so we can freely
+        // skip bytes here without checking bounds.
+        self.ignore_bytes(skip);
     }
 
     /// Moves to the next character, returning the current one.
     fn bump_ret(&mut self) -> Option<u8> {
-        let c = self.as_str().as_bytes().first().copied();
-        self.bump_inlined();
+        let c = self.as_bytes().first().copied();
+        self.bytes.next();
         c
     }
 
-    #[inline]
-    fn bump_inlined(&mut self) {
-        // NOTE: This intentionally does not assign `_c` in the next line, as rustc currently emit a
-        // lot more LLVM IR (for an `assume`), which messes with the optimizations and inling costs.
-        #[cfg(not(debug_assertions))]
-        self.chars.next();
-        #[cfg(debug_assertions)]
-        if let Some(c) = self.chars.next() {
-            self.prev = c as u8;
-        }
-    }
-
-    /// Advances `n` bytes, without setting `prev`.
+    /// Advances `n` bytes.
     #[inline]
     #[cfg_attr(debug_assertions, track_caller)]
     fn ignore_bytes(&mut self, n: usize) {
-        debug_assert!(n <= self.as_str().len());
-        self.chars = unsafe { self.as_str().get_unchecked(n..) }.chars();
+        debug_assert!(n <= self.as_bytes().len());
+        self.bytes = unsafe { self.as_bytes().get_unchecked(n..) }.iter();
     }
 
-    /// Eats symbols until `ch` is found or until the end of file is reached.
+    /// Eats symbols until `ch1` or `ch2` is found or until the end of file is reached.
+    ///
+    /// Returns `true` if `ch1` or `ch2` was found, `false` if the end of file was reached.
     #[inline]
-    fn eat_until(&mut self, ch: u8) {
-        let b = self.as_str().as_bytes();
-        self.ignore_bytes(memchr::memchr(ch, b).unwrap_or(b.len()));
+    fn eat_until_either(&mut self, ch1: u8, ch2: u8) -> bool {
+        let b = self.as_bytes();
+        let res = memchr::memchr2(ch1, ch2, b);
+        self.ignore_bytes(res.unwrap_or(b.len()));
+        res.is_some()
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.

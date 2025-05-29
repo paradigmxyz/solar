@@ -140,7 +140,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
                 while self.eat(TokenKind::Comma) {
-                    paths.push(self.parse_path()?);
+                    paths.push(self.parse_yul_path()?);
                 }
                 let paths = self.alloc_smallvec(paths);
                 self.expect(TokenKind::Walrus)?;
@@ -280,16 +280,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         *path.last()
     }
 
+    fn parse_yul_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
+        let path = self.parse_path_any()?;
+        self.check_valid_path(path);
+        Ok(path)
+    }
+
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulPath
     #[track_caller]
     fn check_valid_path(&mut self, path: &PathSlice) {
-        let first = path.first();
-        if first.is_reserved(true) {
-            self.expected_ident_found_other((*first).into(), false).unwrap_err().emit();
+        // We allow EVM builtins in any position if multiple segments are present:
+        // https://github.com/ethereum/solidity/issues/16054
+        let first = *path.first();
+        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_yul_evm_builtin()) {
+            self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
-        for ident in &path.segments()[1..] {
-            if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
-                self.expected_ident_found_other((*ident).into(), false).unwrap_err().emit();
+        for &ident in &path.segments()[1..] {
+            if ident.is_yul_keyword() {
+                self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
             }
         }
     }
