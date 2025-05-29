@@ -1,7 +1,5 @@
 use crate::{unescape, PResult, Parser};
-use num_bigint::{BigInt, BigUint};
-use num_rational::BigRational;
-use num_traits::{Num, Signed, Zero};
+use rug::{ops::Pow, Integer};
 use solar_ast::{token::*, *};
 use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
 use std::{borrow::Cow, fmt};
@@ -31,9 +29,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 LitKind::Number(n) => *n *= sub.value(),
                 l @ LitKind::Rational(_) => {
                     let LitKind::Rational(n) = l else { unreachable!() };
-                    *n *= BigInt::from(sub.value());
+                    *n *= rug::Integer::from(sub.value());
                     if n.is_integer() {
-                        *l = LitKind::Number(n.to_integer());
+                        *l = LitKind::Number(n.numer().clone());
                     }
                 }
                 _ => {
@@ -188,8 +186,8 @@ enum LitError {
     EmptyRational,
     EmptyExponent,
 
-    ParseInteger(num_bigint::ParseBigIntError),
-    ParseRational(num_bigint::ParseBigIntError),
+    ParseInteger(rug::integer::ParseIntegerError),
+    ParseRational(rug::integer::ParseIntegerError),
     ParseExponent(std::num::ParseIntError),
 
     IntegerTooLarge,
@@ -241,7 +239,7 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    big_int_from_str_radix(s, base, false).map(LitKind::Number)
+    rug_big_int_from_str_radix(s, base, false).map(LitKind::Number)
 }
 
 fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
@@ -312,19 +310,20 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     let int = match rat {
         Some(rat) => {
             let s = [int, rat].concat();
-            big_int_from_str_radix(&s, Base::Decimal, true)
+            rug_big_int_from_str_radix(&s, Base::Decimal, true)
         }
-        None => big_int_from_str_radix(int, Base::Decimal, false),
+        None => rug_big_int_from_str_radix(int, Base::Decimal, false),
     }?;
 
     let fract_len = rat.map_or(0, str::len);
     let fract_len = u16::try_from(fract_len).map_err(|_| LitError::RationalTooLarge)?;
-    let denominator = BigInt::from(10u64).pow(fract_len as u32);
-    let mut number = BigRational::new(int, denominator);
+    let denominator = rug::Integer::from(10u64).pow(fract_len as u32);
+    // let mut number = BigRational::new(int, denominator);
+    let mut number = rug::Rational::from((int, denominator));
 
     // 0E... is always zero.
     if number.is_zero() {
-        return Ok(LitKind::Number(BigInt::ZERO));
+        return Ok(LitKind::Number(rug::Integer::ZERO));
     }
 
     if let Some(exp) = exp {
@@ -335,14 +334,17 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
             _ => LitError::ParseExponent(e),
         })?;
         let exp_abs = exp.unsigned_abs();
-        let power = || BigInt::from(10u64).pow(exp_abs);
+        let power = || Integer::from(10u64).pow(exp_abs);
         if exp.is_negative() {
-            if !fits_precision_base_10(&number.denom().abs().into_parts().1, exp_abs) {
+            let denom_abs = number.denom().clone().abs();
+            if !fits_precision_base_10(&denom_abs, exp_abs) {
                 return Err(LitError::ExponentTooLarge);
             }
+
             number /= power();
         } else if exp > 0 {
-            if !fits_precision_base_10(&number.numer().abs().into_parts().1, exp_abs) {
+            let numer_abs = number.numer().clone().abs();
+            if !fits_precision_base_10(&numer_abs, exp_abs) {
                 return Err(LitError::ExponentTooLarge);
             }
             number *= power();
@@ -350,7 +352,7 @@ fn parse_rational(symbol: Symbol) -> Result<LitKind, LitError> {
     }
 
     if number.is_integer() {
-        Ok(LitKind::Number(number.to_integer()))
+        Ok(LitKind::Number(number.numer().clone()))
     } else {
         Ok(LitKind::Rational(number))
     }
@@ -393,16 +395,20 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
     }
 }
 
-fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
+fn rug_big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<Integer, LitError> {
     if s.len() > max_digits::<MAX_BITS>(base) {
         return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
     }
+
+    // Try to parse as primitive first for small numbers (optimization)
     if s.len() <= max_digits::<{ Primitive::BITS }>(base) {
         if let Ok(n) = Primitive::from_str_radix(s, base as u32) {
-            return Ok(BigInt::from(n));
+            return Ok(Integer::from(n));
         }
     }
-    BigInt::from_str_radix(s, base as u32).map_err(|e| {
+
+    // Use rug::Integer for arbitrary precision parsing
+    Integer::from_str_radix(s, base as i32).map_err(|e| {
         if rat {
             LitError::ParseRational(e)
         } else {
@@ -412,21 +418,21 @@ fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitE
 }
 
 /// Checks whether mantissa * (10 ** exp) fits into [`MAX_BITS`] bits.
-fn fits_precision_base_10(mantissa: &BigUint, exp: u32) -> bool {
+fn fits_precision_base_10(mantissa: &Integer, exp: u32) -> bool {
     // https://github.com/ethereum/solidity/blob/14232980e4b39dee72972f3e142db584f0848a16/libsolidity/ast/Types.cpp#L66
     fits_precision_base_x(mantissa, std::f64::consts::LOG2_10, exp)
 }
 
 /// Checks whether `mantissa * (X ** exp)` fits into [`MAX_BITS`] bits,
 /// where `X` is given indirectly via `log_2_of_base = log2(X)`.
-fn fits_precision_base_x(mantissa: &BigUint, log_2_of_base: f64, exp: u32) -> bool {
+fn fits_precision_base_x(mantissa: &Integer, log_2_of_base: f64, exp: u32) -> bool {
     // https://github.com/ethereum/solidity/blob/53c4facf4e01d603c21a8544fc3b016229628a16/libsolutil/Numeric.cpp#L25
     if mantissa.is_zero() {
         return true;
     }
 
     let max = MAX_BITS as u64;
-    let bits = mantissa.bits();
+    let bits = mantissa.significant_bits() as u64;
     if bits > max {
         return false;
     }
@@ -483,7 +489,7 @@ mod tests {
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigInt::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Integer::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");
@@ -499,7 +505,7 @@ mod tests {
                 },
                 Err(int) => match parse_integer(symbol) {
                     Ok(LitKind::Number(n)) => {
-                        assert_eq!(n, BigInt::from_str_radix(int, 10).unwrap(), "{src:?}")
+                        assert_eq!(n, rug::Integer::from_str_radix(int, 10).unwrap(), "{src:?}")
                     }
                     e => panic!("not an integer: {e:?} ({src:?})"),
                 },
@@ -585,7 +591,7 @@ mod tests {
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigInt::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Integer::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");
@@ -605,7 +611,7 @@ mod tests {
                 Err(e) => Err(e),
             };
             let expected = match expected {
-                Ok(s) => Ok(BigRational::from_str_radix(s, 10).unwrap()),
+                Ok(s) => Ok(rug::Rational::from_str_radix(s, 10).unwrap()),
                 Err(e) => Err(e),
             };
             assert_eq!(res, expected, "{src:?}");

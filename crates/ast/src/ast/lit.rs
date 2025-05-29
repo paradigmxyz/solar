@@ -81,12 +81,13 @@ pub enum LitKind {
     /// ```
     Str(StrKind, Arc<[u8]>, Vec<(Span, Symbol)>),
     /// A decimal or hexadecimal number literal.
-    Number(num_bigint::BigInt),
+    Number(rug::Integer),
+
     /// A rational number literal.
     ///
     /// Note that rational literals that evaluate to integers are represented as
     /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
-    Rational(num_rational::BigRational),
+    Rational(rug::Rational),
     /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
     Address(Address),
     /// A boolean literal.

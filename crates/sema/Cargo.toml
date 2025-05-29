@@ -39,6 +39,7 @@ typed-arena.workspace = true
 alloy-json-abi.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rug.workspace = true
 
 [features]
 nightly = [
