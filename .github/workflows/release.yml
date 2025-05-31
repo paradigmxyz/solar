@@ -60,6 +60,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Install Rust
+        run: rustup update "stable" --no-self-update && rustup default "stable"
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
         # failing. otherwise `sh` won't catch that `curl` returned non-0
@@ -127,6 +129,8 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: Use rustup to set correct Rust version
+        run: rustup update "stable" --no-self-update && rustup default "stable"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
@@ -179,6 +183,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Install Rust
+        run: rustup update "stable" --no-self-update && rustup default "stable"
       - name: Install cached dist
         uses: actions/download-artifact@v4
         with:
@@ -229,6 +235,8 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Install Rust
+        run: rustup update "stable" --no-self-update && rustup default "stable"
       - name: Install cached dist
         uses: actions/download-artifact@v4
         with:
