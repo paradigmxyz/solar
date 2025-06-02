@@ -21,7 +21,7 @@ pub const fn is_whitespace(c: char) -> bool {
 /// Returns `true` if the given character is considered a whitespace.
 #[inline]
 pub const fn is_whitespace_byte(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r')
+    c == b' ' || matches!(c, b'\t' | b'\n' | b'\r')
 }
 
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
@@ -32,7 +32,12 @@ pub const fn is_id_start(c: char) -> bool {
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
 #[inline]
 pub const fn is_id_start_byte(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$')
+    let is_lowercase = (c >= b'a') & (c <= b'z');
+    let is_uppercase = (c >= b'A') & (c <= b'Z');
+    let is_underscore = c == b'_';
+    let is_dollar = c == b'$';
+
+    is_lowercase | is_uppercase | is_underscore | is_dollar
 }
 
 /// Returns `true` if the given character is valid in a Solidity identifier.
@@ -43,7 +48,13 @@ pub const fn is_id_continue(c: char) -> bool {
 /// Returns `true` if the given character is valid in a Solidity identifier.
 #[inline]
 pub const fn is_id_continue_byte(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'$')
+    let is_lowercase = (c >= b'a') & (c <= b'z');
+    let is_uppercase = (c >= b'A') & (c <= b'Z');
+    let is_underscore = c == b'_';
+    let is_number = (c >= b'0') & (c <= b'9');
+    let is_dollar = c == b'$';
+
+    is_lowercase | is_uppercase | is_underscore | is_dollar | is_number
 }
 
 /// Returns `true` if the given string is a valid Solidity identifier.
