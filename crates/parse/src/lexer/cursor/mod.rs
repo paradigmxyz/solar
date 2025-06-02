@@ -21,7 +21,7 @@ pub const fn is_whitespace(c: char) -> bool {
 /// Returns `true` if the given character is considered a whitespace.
 #[inline]
 pub const fn is_whitespace_byte(c: u8) -> bool {
-     matches!(c, b' ' | b'\t' | b'\n' | b'\r')
+    matches!(c, b' ' | b'\t' | b'\n' | b'\r')
 }
 
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
