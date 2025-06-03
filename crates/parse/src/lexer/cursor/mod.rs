@@ -32,12 +32,7 @@ pub const fn is_id_start(c: char) -> bool {
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
 #[inline]
 pub const fn is_id_start_byte(c: u8) -> bool {
-    let is_lowercase = (c >= b'a') & (c <= b'z');
-    let is_uppercase = (c >= b'A') & (c <= b'Z');
-    let is_underscore = c == b'_';
-    let is_dollar = c == b'$';
-
-    is_lowercase | is_uppercase | is_underscore | is_dollar
+    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$')
 }
 
 /// Returns `true` if the given character is valid in a Solidity identifier.
@@ -48,13 +43,8 @@ pub const fn is_id_continue(c: char) -> bool {
 /// Returns `true` if the given character is valid in a Solidity identifier.
 #[inline]
 pub const fn is_id_continue_byte(c: u8) -> bool {
-    let is_lowercase = (c >= b'a') & (c <= b'z');
-    let is_uppercase = (c >= b'A') & (c <= b'Z');
-    let is_underscore = c == b'_';
     let is_number = (c >= b'0') & (c <= b'9');
-    let is_dollar = c == b'$';
-
-    is_lowercase | is_uppercase | is_underscore | is_dollar | is_number
+    is_id_start_byte(c) || is_number
 }
 
 /// Returns `true` if the given string is a valid Solidity identifier.
@@ -74,6 +64,7 @@ pub const fn is_ident(s: &str) -> bool {
 pub const fn is_ident_bytes(s: &[u8]) -> bool {
     // Note: valid idents can only contain ASCII characters, so we can use the byte representation
     // here.
+
     let [first, ref rest @ ..] = *s else {
         return false;
     };
@@ -82,7 +73,7 @@ pub const fn is_ident_bytes(s: &[u8]) -> bool {
         return false;
     }
 
-    let mut i = 0;
+    let mut i: usize = 0;
     while i < rest.len() {
         if !is_id_continue_byte(rest[i]) {
             return false;
@@ -209,8 +200,7 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-        // Take into account Windows line ending (CRLF)
-        self.eat_until_either(b'\n', b'\r');
+        self.eat_until(b'\n');
         RawTokenKind::LineComment { is_doc }
     }
 
@@ -489,13 +479,13 @@ impl<'a> Cursor<'a> {
         self.bytes = unsafe { self.as_bytes().get_unchecked(n..) }.iter();
     }
 
-    /// Eats symbols until `ch1` or `ch2` is found or until the end of file is reached.
+    /// Eats symbols until `ch` is found or until the end of file is reached.
     ///
-    /// Returns `true` if `ch1` or `ch2` was found, `false` if the end of file was reached.
+    /// Returns `true` if `ch` was found, `false` if the end of file was reached.
     #[inline]
-    fn eat_until_either(&mut self, ch1: u8, ch2: u8) -> bool {
+    fn eat_until(&mut self, ch: u8) -> bool {
         let b = self.as_bytes();
-        let res = memchr::memchr2(ch1, ch2, b);
+        let res = memchr::memchr(ch, b);
         self.ignore_bytes(res.unwrap_or(b.len()));
         res.is_some()
     }
