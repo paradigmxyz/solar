@@ -41,7 +41,7 @@ pub const fn is_id_continue(c: char) -> bool {
     is_id_continue_byte(ch2u8(c))
 }
 /// Returns `true` if the given character is valid in a Solidity identifier.
-#[inline]
+#[inline(always)]
 pub const fn is_id_continue_byte(c: u8) -> bool {
     let is_number = (c >= b'0') & (c <= b'9');
     is_id_start_byte(c) || is_number
