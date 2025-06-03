@@ -200,7 +200,7 @@ impl<'a> Cursor<'a> {
         // `////` (more than 3 slashes) is not considered a doc comment.
         let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
 
-         // Take into account Windows line ending (CRLF)
+        // Take into account Windows line ending (CRLF)
         self.eat_until_either(b'\n', b'\r');
         RawTokenKind::LineComment { is_doc }
     }
