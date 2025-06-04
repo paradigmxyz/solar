@@ -101,8 +101,19 @@ pub struct Cursor<'a> {
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
+    #[inline]
     pub fn new(input: &'a str) -> Self {
         Cursor { bytes: input.as_bytes().iter() }
+    }
+
+    /// Creates a new iterator that also returns the position of each token in the input string.
+    ///
+    /// Note that the position currently always starts at 0 when this method is called, so if called
+    /// after tokens are parsed the position will be relative to when this method is called, not the
+    /// beginning of the string.
+    #[inline]
+    pub fn with_position(self) -> CursorWithPosition<'a> {
+        CursorWithPosition::new(self)
     }
 
     /// Parses a token from the input string.
@@ -111,10 +122,7 @@ impl<'a> Cursor<'a> {
         // internally the iterator is a pair of `start` and `end` pointers.
         let start = self.as_ptr();
 
-        let first_char = match self.bump_ret() {
-            Some(c) => c,
-            None => return RawToken::EOF,
-        };
+        let Some(first_char) = self.bump_ret() else { return RawToken::EOF };
         let token_kind = self.advance_token_kind(first_char);
 
         // SAFETY: `start` points to the same string.
@@ -513,3 +521,58 @@ impl Iterator for Cursor<'_> {
 }
 
 impl std::iter::FusedIterator for Cursor<'_> {}
+
+/// [`Cursor`] that also tracks the position of each token in the input string.
+///
+/// Created by calling [`Cursor::with_position`]. See that method and [`Cursor`] for more details.
+#[derive(Clone, Debug)]
+pub struct CursorWithPosition<'a> {
+    cursor: Cursor<'a>,
+    position: u32,
+}
+
+impl<'a> CursorWithPosition<'a> {
+    /// Creates a new cursor with position tracking from the given cursor.
+    #[inline]
+    fn new(cursor: Cursor<'a>) -> Self {
+        CursorWithPosition { cursor, position: 0 }
+    }
+
+    /// Returns a reference to the inner cursor.
+    #[inline]
+    pub fn inner(&self) -> &Cursor<'a> {
+        &self.cursor
+    }
+
+    /// Returns a mutable reference to the inner cursor.
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut Cursor<'a> {
+        &mut self.cursor
+    }
+
+    /// Returns the current position in the input string.
+    #[inline]
+    pub fn position(&self) -> usize {
+        self.position as usize
+    }
+}
+
+impl Iterator for CursorWithPosition<'_> {
+    type Item = (usize, RawToken);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cursor.next().map(|t| {
+            let pos = self.position;
+            self.position = pos + t.len;
+            (pos as usize, t)
+        })
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.cursor.size_hint()
+    }
+}
+
+impl std::iter::FusedIterator for CursorWithPosition<'_> {}
