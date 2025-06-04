@@ -43,7 +43,8 @@ pub const fn is_id_continue(c: char) -> bool {
 /// Returns `true` if the given character is valid in a Solidity identifier.
 #[inline]
 pub const fn is_id_continue_byte(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'$')
+    let is_number = (c >= b'0') & (c <= b'9');
+    is_id_start_byte(c) || is_number
 }
 
 /// Returns `true` if the given string is a valid Solidity identifier.
@@ -61,8 +62,6 @@ pub const fn is_ident(s: &str) -> bool {
 ///
 /// See [`is_ident`] for more details.
 pub const fn is_ident_bytes(s: &[u8]) -> bool {
-    // Note: valid idents can only contain ASCII characters, so we can use the byte representation
-    // here.
     let [first, ref rest @ ..] = *s else {
         return false;
     };
