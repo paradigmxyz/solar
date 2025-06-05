@@ -23,4 +23,6 @@ contract C is A, B {
 }
 
 contract D is this.C {} //~ ERROR: unresolved symbol `this`
+//~^ ERROR: `this` is a builtin, which cannot be indexed in type paths
 contract E is super.C {} //~ ERROR: unresolved symbol `super`
+//~^ ERROR: `super` is a builtin, which cannot be indexed in type paths
