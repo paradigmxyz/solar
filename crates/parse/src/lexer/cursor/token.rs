@@ -111,6 +111,26 @@ pub enum RawTokenKind {
     Eof,
 }
 
+impl RawTokenKind {
+    /// Returns `true` if this token is EOF.
+    #[inline]
+    pub const fn is_eof(&self) -> bool {
+        matches!(self, Self::Eof)
+    }
+
+    /// Returns `true` if this token is a line comment or a block comment.
+    #[inline]
+    pub const fn is_comment(&self) -> bool {
+        matches!(self, Self::LineComment { .. } | Self::BlockComment { .. })
+    }
+
+    /// Returns `true` if this token is a whitespace, line comment, or block comment.
+    #[inline]
+    pub const fn is_trivial(&self) -> bool {
+        matches!(self, Self::Whitespace | Self::LineComment { .. } | Self::BlockComment { .. })
+    }
+}
+
 /// The literal types supported by the lexer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RawLiteralKind {
