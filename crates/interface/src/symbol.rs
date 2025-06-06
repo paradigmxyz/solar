@@ -356,7 +356,9 @@ impl fmt::Display for Symbol {
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
-pub(crate) struct Interner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
+pub(crate) struct Interner(
+    lasso::ThreadedRodeo<Symbol, solar_data_structures::map::foldhash::fast::RandomState>,
+);
 
 impl Interner {
     pub(crate) fn fresh() -> Self {

@@ -5,6 +5,8 @@ use std::collections::{HashMap, HashSet};
 
 pub use rustc_hash::{self, FxBuildHasher, FxHasher};
 
+pub use foldhash;
+
 /// [`HashMap`] entry type.
 pub type StdEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
 /// [`IndexMap`] entry type.

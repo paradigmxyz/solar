@@ -25,6 +25,7 @@ index_vec.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
+foldhash.workspace = true
 rustc-hash.workspace = true
 smallvec.workspace = true
 

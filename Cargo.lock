@@ -2705,6 +2705,7 @@ name = "solar-data-structures"
 version = "0.1.4"
 dependencies = [
  "bumpalo",
+ "foldhash",
  "index_vec",
  "indexmap",
  "parking_lot",
