@@ -15,7 +15,7 @@ use solar_interface::{
     Result, Session,
 };
 use solar_parse::{unescape, Lexer, Parser};
-use std::{borrow::Cow, fmt, path::Path, sync::Arc};
+use std::{borrow::Cow, fmt, mem::ManuallyDrop, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {
@@ -110,17 +110,29 @@ impl<'sess> ParsingContext<'sess> {
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse<'ast>(mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> ParsedSources<'ast> {
+    pub fn parse(self) -> ParsedSourcesOwned {
+        let arena = Box::new(AstArena::new());
+        let sources = self.parse_ref(&arena);
+        let sources =
+            unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
+        ParsedSourcesOwned { arena, sources }
+    }
+
+    /// Parses all the loaded sources, recursing into imports if specified.
+    ///
+    /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
+    #[instrument(level = "debug", skip_all)]
+    pub fn parse_ref<'ast>(mut self, arena: &'ast AstArena) -> ParsedSources<'ast> {
         // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the ASTs are
         // populated, so this is safe.
         let sources: ParsedSources<'static> = std::mem::take(&mut self.sources);
-        let mut sources: ParsedSources<'ast> =
-            unsafe { std::mem::transmute::<ParsedSources<'static>, ParsedSources<'ast>>(sources) };
+        let mut sources =
+            unsafe { std::mem::transmute::<ParsedSources<'static>, ParsedSources<'_>>(sources) };
         if !sources.is_empty() {
             if self.sess.is_sequential() {
-                self.parse_sequential(&mut sources, arenas.get_or_default());
+                self.parse_sequential(&mut sources, arena.get().get_or_default());
             } else {
-                self.parse_parallel(&mut sources, arenas);
+                self.parse_parallel(&mut sources, arena.get());
             }
             debug!(
                 num_sources = sources.len(),
@@ -262,6 +274,74 @@ fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
 #[cfg(not(unix))]
 fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
     std::str::from_utf8(bytes).ok().map(Path::new)
+}
+
+/// Wrapper around `ThreadLocal<ast::Arena>`.
+pub struct AstArena(ManuallyDrop<ThreadLocal<ast::Arena>>);
+
+impl Default for AstArena {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AstArena {
+    /// Creates a new AST arenas.
+    #[inline]
+    pub fn new() -> Self {
+        Self(ManuallyDrop::new(ThreadLocal::new()))
+    }
+
+    /// Returns a reference to the AST arena.
+    #[inline]
+    pub fn get(&self) -> &ThreadLocal<ast::Arena> {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the AST arena.
+    #[inline]
+    pub fn get_mut(&mut self) -> &mut ThreadLocal<ast::Arena> {
+        &mut self.0
+    }
+}
+
+impl Drop for AstArena {
+    fn drop(&mut self) {
+        let _guard = debug_span!("dropping_ast_arenas").entered();
+        debug!(asts_allocated = %crate::fmt_bytes(self.0.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
+        unsafe { ManuallyDrop::drop(&mut self.0) };
+    }
+}
+
+/// An owned [`ParsedSources`].
+pub struct ParsedSourcesOwned {
+    arena: Box<AstArena>,
+    sources: ParsedSources<'static>,
+}
+
+impl ParsedSourcesOwned {
+    /// Returns a reference to the parsed sources.
+    #[inline]
+    pub fn get(&self) -> &ParsedSources<'_> {
+        unsafe { std::mem::transmute::<&ParsedSources<'static>, &ParsedSources<'_>>(&self.sources) }
+    }
+
+    /// Returns a mutable reference to the parsed sources.
+    #[inline]
+    pub fn get_mut(&mut self) -> &mut ParsedSources<'_> {
+        unsafe {
+            std::mem::transmute::<&mut ParsedSources<'static>, &mut ParsedSources<'_>>(
+                &mut self.sources,
+            )
+        }
+    }
+
+    /// Returns a reference to the AST arena.
+    #[inline]
+    pub fn arena(&self) -> &ThreadLocal<ast::Arena> {
+        self.arena.get()
+    }
 }
 
 /// Parsed sources, returned by [`ParsingContext::parse`].

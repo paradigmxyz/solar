@@ -25,7 +25,7 @@ mod ast_lowering;
 mod ast_passes;
 
 mod parse;
-pub use parse::{ParsedSource, ParsedSources, ParsingContext};
+pub use parse::{AstArena, ParsedSource, ParsedSources, ParsedSourcesOwned, ParsingContext};
 
 pub mod builtins;
 pub mod eval;
@@ -88,21 +88,16 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
-    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        let _guard = debug_span!("dropping_ast_arenas").entered();
-        debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
-        drop(arenas);
-    });
-    let mut sources = pcx.parse(&ast_arenas);
+    let mut sources = pcx.parse();
 
     if let Some(dump) = &sess.opts.unstable.dump {
         if dump.kind.is_ast() {
-            dump_ast(sess, &sources, dump.paths.as_deref())?;
+            dump_ast(sess, sources.get(), dump.paths.as_deref())?;
         }
     }
 
     if sess.opts.unstable.ast_stats {
-        for source in sources.asts() {
+        for source in sources.get().asts() {
             stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
@@ -111,21 +106,12 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
         return Ok(None);
     }
 
-    sources.topo_sort();
+    sources.get_mut().topo_sort();
 
-    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
+    let (hir, symbol_resolver) = lower(sess, sources.get(), hir_arena.get_or_default())?;
 
-    // Drop the ASTs and AST arenas in a separate thread.
-    sess.spawn({
-        // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
-        // even though both are moved in the closure.
-        let sources =
-            unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
-        move || {
-            debug_span!("drop_asts").in_scope(|| drop(sources));
-            drop(ast_arenas);
-        }
-    });
+    // Drop the sources in a separate thread.
+    sess.spawn(|| debug_span!("drop_asts").in_scope(|| drop(sources)));
 
     Ok(Some(GcxWrapper::new(ty::GlobalCtxt::new(sess, hir_arena, hir, symbol_resolver))))
 }
