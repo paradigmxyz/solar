@@ -209,8 +209,7 @@ impl SourceMap {
         // the ID we generate for the SourceFile we just created.
         debug_assert_eq!(file.stable_id, stable_id);
 
-        trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to
-    source map");
+        trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 
         file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
             // Add one so there is some space between files. This lets us distinguish
@@ -220,7 +219,6 @@ impl SourceMap {
             0
         });
 
-        source_files.reserve(5);
         let file = Arc::new(file);
         source_files.push(file.clone());
 
