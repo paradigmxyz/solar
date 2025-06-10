@@ -138,7 +138,6 @@ impl<'a> Cursor<'a> {
             // Whitespace sequence.
             c if is_whitespace_byte(c) => self.whitespace(),
 
- 
             // Numeric literal.
             b'0'..=b'9' => {
                 let kind = self.number(first_char);
