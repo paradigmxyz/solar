@@ -244,9 +244,7 @@ impl SourceMap {
         } else {
             0
         });
-
-        let additional = std::cmp::max(source_files.capacity(), 8);
-        source_files.reserve(additional);
+        source_files.reserve(1);
 
         let file = Arc::new(file);
         source_files.push(file.clone());
