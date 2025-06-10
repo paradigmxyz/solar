@@ -200,6 +200,32 @@ impl SourceMap {
         }
     }
 
+    // fn append_source_file(
+    //     source_files: &mut Vec<Arc<SourceFile>>,
+    //     mut file: SourceFile,
+    //     stable_id: StableSourceFileId,
+    // ) -> io::Result<Arc<SourceFile>> {
+    //     // Let's make sure the file_id we generated above actually matches
+    //     // the ID we generate for the SourceFile we just created.
+    //     debug_assert_eq!(file.stable_id, stable_id);
+
+    //     trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to
+    // source map");
+
+    //     file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
+    //         // Add one so there is some space between files. This lets us distinguish
+    //         // positions in the `SourceMap`, even in the presence of zero-length files.
+    //         last_file.end_position().0.checked_add(1).ok_or(OffsetOverflowError(()))?
+    //     } else {
+    //         0
+    //     });
+
+    //     let file = Arc::new(file);
+    //     source_files.push(file.clone());
+
+    //     Ok(file)
+    // }
+
     fn append_source_file(
         source_files: &mut Vec<Arc<SourceFile>>,
         mut file: SourceFile,
@@ -218,6 +244,9 @@ impl SourceMap {
         } else {
             0
         });
+
+        let additional = std::cmp::max(source_files.capacity(), 8);
+        source_files.reserve(additional);
 
         let file = Arc::new(file);
         source_files.push(file.clone());

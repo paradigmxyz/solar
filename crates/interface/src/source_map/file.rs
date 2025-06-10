@@ -171,7 +171,7 @@ pub struct SourceFile {
 impl SourceFile {
     pub fn new(
         name: FileName,
-        src: String,
+        mut src: String,
         hash_kind: SourceFileHashAlgorithm,
     ) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
@@ -184,6 +184,7 @@ impl SourceFile {
 
         let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
 
+        src.shrink_to_fit();
         Ok(Self {
             name,
             src: Arc::new(src),
