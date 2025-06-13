@@ -12,5 +12,6 @@ pub use solar_interface as interface;
 mod ast;
 pub use ast::*;
 
+pub mod span_visitor;
 pub mod token;
 pub mod visit;

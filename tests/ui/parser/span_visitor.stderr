@@ -1,0 +1,131 @@
+note: visiting span #1
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL | / contract SpanVisitorTest {
+LL | |     uint256 x;
+...  |
+LL | |     }
+LL | | }
+   | |_-
+   |
+
+note: visiting span #2
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL | contract SpanVisitorTest {
+   |          ---------------
+   |
+
+note: visiting span #3
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     uint256 x;
+   |     ----------
+   |
+
+note: visiting span #4
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     uint256 x;
+   |     ----------
+   |
+
+note: visiting span #5
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     uint256 x;
+   |     -------
+   |
+
+note: visiting span #6
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     uint256 x;
+   |             -
+   |
+
+note: visiting span #7
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL | /     function foo() public {
+LL | |         x = 42;
+LL | |     }
+   | |_____-
+   |
+
+note: visiting span #8
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     function foo() public {
+   |     ---------------------
+   |
+
+note: visiting span #9
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |     function foo() public {
+   |              ---
+   |
+
+note: visiting span #10
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |       function foo() public {
+   |  ___________________________-
+LL | |         x = 42;
+LL | |     }
+   | |_____-
+   |
+
+note: visiting span #11
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |         -------
+   |
+
+note: visiting span #12
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |         ------
+   |
+
+note: visiting span #13
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |         -
+   |
+
+note: visiting span #14
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |         -
+   |
+
+note: visiting span #15
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |             --
+   |
+
+note: visiting span #16
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |             --
+   |
+
+note: visiting span #17
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |       function foo() public {
+   |  ___________________________-
+LL | |         x = 42;
+LL | |     }
+   | |_____-
+   |
+

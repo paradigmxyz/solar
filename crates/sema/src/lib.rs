@@ -107,6 +107,16 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
         }
     }
 
+    if sess.opts.unstable.span_visitor {
+        use ast::span_visitor::SpanVisitor;
+        use ast::visit::Visit;
+        for source in sources.asts() {
+            let mut visitor = SpanVisitor::new(sess);
+            let _ = visitor.visit_source_unit(source);
+            debug!(spans_visited = visitor.count(), "span visitor completed");
+        }
+    }
+
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
         return Ok(None);
     }
