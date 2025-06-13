@@ -41,6 +41,8 @@ mod emit;
 
 pub mod stats;
 
+mod span_visitor;
+
 /// Thin wrapper around the global context to ensure it is accessed and dropped correctly.
 pub struct GcxWrapper<'gcx>(std::mem::ManuallyDrop<ty::GlobalCtxt<'gcx>>);
 
@@ -108,7 +110,7 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
     }
 
     if sess.opts.unstable.span_visitor {
-        use ast::span_visitor::SpanVisitor;
+        use crate::span_visitor::SpanVisitor;
         use ast::visit::Visit;
         for source in sources.asts() {
             let mut visitor = SpanVisitor::new(sess);
