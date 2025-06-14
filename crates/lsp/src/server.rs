@@ -78,40 +78,31 @@ impl LanguageServer for SolarLanguageServer {
         let uri = params.text_document.uri;
         let version = params.text_document.version;
         let content = params.text_document.text;
+        let language_id = Some(params.text_document.language_id);
 
-        self.session_manager.open_document(uri.clone(), version, content);
-        self.log_info(format!("Opened document: {uri}")).await;
+        match self.session_manager.open_document(uri.clone(), version, content, language_id) {
+            Ok(()) => {
+                self.log_info(format!("Opened document: {uri}")).await;
+            }
+            Err(e) => {
+                self.log_error(format!("Failed to open document {uri}: {e}")).await;
+            }
+        }
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         let version = params.text_document.version;
 
-        // Apply content changes
-        let mut content = match self.session_manager.get_document(&uri) {
-            Some(doc) => doc.content,
-            None => {
-                self.log_error(format!("Document not open: {uri}")).await;
-                return;
+        // Use the new incremental update system
+        match self.session_manager.update_document(&uri, version, params.content_changes) {
+            Ok(()) => {
+                // Optionally log successful updates in debug mode
+                // self.log_info(format!("Updated document: {uri}")).await;
             }
-        };
-
-        for change in params.content_changes {
-            match change.range {
-                Some(_range) => {
-                    // Incremental update - not implemented yet
-                    self.log_error("Incremental updates not yet supported".to_string()).await;
-                    return;
-                }
-                None => {
-                    // Full document update
-                    content = change.text;
-                }
+            Err(e) => {
+                self.log_error(format!("Failed to update document {uri}: {e}")).await;
             }
-        }
-
-        if let Err(e) = self.session_manager.update_document(&uri, version, content) {
-            self.log_error(format!("Failed to update document: {e}")).await;
         }
     }
 

@@ -23,7 +23,6 @@ serde_json.workspace = true
 
 # Utilities
 thiserror.workspace = true
-dashmap = "6"
 parking_lot = "0.12"
 
 [dev-dependencies]

@@ -1,7 +1,10 @@
 //! Error handling and conversion for the LSP server.
 
 use thiserror::Error;
-use tower_lsp::{jsonrpc, lsp_types::error_codes};
+use tower_lsp::{
+    jsonrpc,
+    lsp_types::{error_codes, Position, Range, Url},
+};
 
 /// Result type for LSP operations.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -32,6 +35,26 @@ pub enum Error {
     /// Request was cancelled.
     #[error("request cancelled")]
     Cancelled,
+
+    /// Document not found.
+    #[error("document not found: {0}")]
+    DocumentNotFound(Url),
+
+    /// Invalid position in document.
+    #[error("invalid position: line {}, character {}", .0.line, .0.character)]
+    InvalidPosition(Position),
+
+    /// Invalid byte offset in document.
+    #[error("invalid offset: {0}")]
+    InvalidOffset(usize),
+
+    /// Invalid range in document.
+    #[error("invalid range: {}:{}-{}:{}", .0.start.line, .0.start.character, .0.end.line, .0.end.character)]
+    InvalidRange(Range),
+
+    /// Stale document version.
+    #[error("stale version: current {current}, received {received}")]
+    StaleVersion { current: i32, received: i32 },
 }
 
 impl From<Error> for jsonrpc::Error {
@@ -50,6 +73,15 @@ impl From<Error> for jsonrpc::Error {
             Error::Compilation(msg) => jsonrpc::Error {
                 code: jsonrpc::ErrorCode::from(-32001),
                 message: format!("Compilation error: {msg}").into(),
+                data: None,
+            },
+            Error::DocumentNotFound(_)
+            | Error::InvalidPosition(_)
+            | Error::InvalidOffset(_)
+            | Error::InvalidRange(_)
+            | Error::StaleVersion { .. } => jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InvalidParams,
+                message: err.to_string().into(),
                 data: None,
             },
             _ => jsonrpc::Error {

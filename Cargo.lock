@@ -3077,7 +3077,6 @@ dependencies = [
 name = "solar-lsp"
 version = "0.1.4"
 dependencies = [
- "dashmap 6.1.0",
  "parking_lot",
  "serde",
  "serde_json",
