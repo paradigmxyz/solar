@@ -1,0 +1,31 @@
+[package]
+name = "solar-lsp"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords = ["lsp", "solidity", "language-server"]
+categories = ["development-tools"]
+description = "Language Server Protocol implementation for Solar"
+
+[dependencies]
+# Solar dependencies
+solar-interface.workspace = true
+
+# LSP dependencies
+tower-lsp = "0.20"
+
+# Serialization
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+# Utilities
+thiserror.workspace = true
+dashmap = "6"
+parking_lot = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["test-util", "macros", "rt"] }

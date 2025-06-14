@@ -39,6 +39,11 @@ solar-parse.workspace = true
 solar-sema.workspace = true
 
 solar-cli = { workspace = true, optional = true }
+solar-lsp = { workspace = true, optional = true }
+
+# LSP dependencies (optional)
+tokio = { version = "1", features = ["full"], optional = true }
+tower-lsp = { version = "0.20", optional = true }
 
 alloy-primitives.workspace = true
 
@@ -48,7 +53,7 @@ solar-tester.workspace = true
 [features]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
-cli = ["dep:solar-cli"]
+cli = ["dep:solar-cli", "dep:solar-lsp", "dep:tokio", "dep:tower-lsp"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-cli?/nightly",

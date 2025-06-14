@@ -91,6 +91,10 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,
 
+    /// Run as a Language Server Protocol (LSP) server.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub lsp: bool,
+
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
     /// See `-Zhelp` for more details.

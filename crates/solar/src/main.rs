@@ -17,8 +17,38 @@ fn main() -> ExitCode {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
+
+    // If --lsp flag is provided, start the LSP server
+    if args.lsp {
+        #[cfg(feature = "cli")]
+        {
+            return run_lsp_server();
+        }
+        #[cfg(not(feature = "cli"))]
+        {
+            eprintln!("LSP server not available in this build");
+            return ExitCode::FAILURE;
+        }
+    }
+
     match run_compiler_args(args) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
+}
+
+#[cfg(feature = "cli")]
+fn run_lsp_server() -> ExitCode {
+    use solar_lsp::SolarLanguageServer;
+    use tower_lsp::{LspService, Server};
+
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let stdin = tokio::io::stdin();
+        let stdout = tokio::io::stdout();
+
+        let (service, socket) = LspService::new(SolarLanguageServer::new);
+        Server::new(stdin, stdout, socket).serve(service).await;
+    });
+
+    ExitCode::SUCCESS
 }
