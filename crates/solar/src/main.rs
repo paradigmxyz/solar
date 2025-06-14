@@ -19,16 +19,9 @@ fn main() -> ExitCode {
     };
 
     // If --lsp flag is provided, start the LSP server
+    #[cfg(feature = "cli")]
     if args.lsp {
-        #[cfg(feature = "cli")]
-        {
-            return run_lsp_server();
-        }
-        #[cfg(not(feature = "cli"))]
-        {
-            eprintln!("LSP server not available in this build");
-            return ExitCode::FAILURE;
-        }
+        return run_lsp_server();
     }
 
     match run_compiler_args(args) {

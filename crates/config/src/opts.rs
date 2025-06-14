@@ -92,6 +92,7 @@ pub struct Opts {
     pub no_warnings: bool,
 
     /// Run as a Language Server Protocol (LSP) server.
+    #[cfg(feature = "clap")]
     #[cfg_attr(feature = "clap", arg(long))]
     pub lsp: bool,
 
