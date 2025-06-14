@@ -234,13 +234,93 @@ impl super::LoweringContext<'_, '_, '_> {
             c.receive = receive;
         }
     }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_base_args(&mut self, next_id: &AtomicUsize) {
+        for c_id in self.hir.contract_ids() {
+            let contract = self.hir.contract(c_id);
+            let len = contract.linearized_bases.len() - 1;
+            let mut base_args: Vec<&[hir::Expr<'_>]> = vec![&[]; len]; // fill vec
+
+            let ast::ItemKind::Contract(ast_contract) =
+                &self.hir_to_ast[&hir::ItemId::Contract(c_id)].kind
+            else {
+                unreachable!()
+            };
+
+            let mut ctor_id_opt = None;
+            let ctor_mod: &[_] = if let Some(ctor_id) = contract.ctor {
+                ctor_id_opt = Some(ctor_id);
+                let ast::ItemKind::Function(ast_func) =
+                    &self.hir_to_ast[&hir::ItemId::Function(ctor_id)].kind
+                else {
+                    unreachable!()
+                };
+                ast_func.header.modifiers
+            } else {
+                &[]
+            };
+
+            let scopes = SymbolResolverScopes::new_in(contract.source, Some(c_id));
+            let mut cx = ResolveContext::new(self, scopes, next_id, None);
+            let bases_len = ast_contract.bases.len();
+
+            for (idx, modifier) in ast_contract.bases.iter().chain(ctor_mod.iter()).enumerate() {
+                if idx == bases_len {
+                    // we're now in ctor func modifiers
+                    if let Some(fid) = ctor_id_opt {
+                        cx.scopes.source = Some(cx.hir.function(fid).source);
+                        cx.function_id = Some(fid);
+                    }
+                }
+
+                let Ok(b) = cx.resolve_path_as::<hir::ItemId>(modifier.name, "base class") else {
+                    continue;
+                };
+                let Some(b) = b.as_contract() else {
+                    continue;
+                };
+
+                if let Some(base_idx) =
+                    cx.hir.contract(c_id).linearized_bases.iter().skip(1).position(|&l| l == b)
+                {
+                    let args = match &modifier.arguments.kind {
+                        ast::CallArgsKind::Unnamed(e) => e,
+                        ast::CallArgsKind::Named(_) => {
+                            cx.sess.dcx.err("expected unnamed args").span(modifier.span()).emit();
+                            continue;
+                        }
+                    };
+                    let args = cx.lower_exprs(&**args);
+                    if args.is_empty() && idx >= bases_len {
+                        cx.sess
+                            .dcx
+                            .err("modifier-style base constructor call without arguments")
+                            .span(modifier.span())
+                            .emit();
+                    }
+                    if !base_args[base_idx].is_empty() {
+                        let mut err = cx
+                            .sess
+                            .dcx
+                            .err("base constructor arguments given twice")
+                            .span(modifier.span());
+                        if let Some(prev) = base_args[base_idx].first() {
+                            err = err.span_help(prev.span, "previous declaration");
+                        }
+                        err.emit();
+                    }
+                    base_args[base_idx] = args;
+                }
+            }
+            cx.hir.contracts[c_id].base_args = cx.arena.alloc_vec(base_args);
+        }
+    }
 }
 
 impl<'hir> super::LoweringContext<'_, '_, 'hir> {
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_symbols(&mut self) {
-        let next_id = &AtomicUsize::new(0);
-
+    pub(super) fn resolve_symbols(&mut self, next_id: &AtomicUsize) {
         macro_rules! mk_resolver {
             ($e:expr) => {
                 mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)

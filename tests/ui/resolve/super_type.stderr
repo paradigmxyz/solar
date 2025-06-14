@@ -54,5 +54,19 @@ LL |         super.super.S2 memory x3;
    |         ^^^^^
    |
 
-error: aborting due to 8 previous errors
+error: `this` is a builtin, which cannot be indexed in type paths
+  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   |
+LL | contract D is this.C {}
+   |               ^^^^
+   |
+
+error: `super` is a builtin, which cannot be indexed in type paths
+  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   |
+LL | contract E is super.C {}
+   |               ^^^^^
+   |
+
+error: aborting due to 10 previous errors
 

@@ -61,6 +61,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             fallback: None,
             receive: None,
             items: &[],
+            base_args: &[],
         });
         let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);
