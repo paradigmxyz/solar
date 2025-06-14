@@ -7,9 +7,6 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerConfig {
-    /// Path to the Solar binary, if not in PATH.
-    pub solar_path: Option<PathBuf>,
-
     /// Root path of the workspace.
     pub workspace_root: Option<PathBuf>,
 
