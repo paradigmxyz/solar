@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// This test ensures that imports that are actually used do not trigger warnings
 import "./auxiliary/Library.sol";
 import "./auxiliary/Library2.sol" as Lib2;
 import {Helper, Utils as U} from "./auxiliary/Helpers.sol";

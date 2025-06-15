@@ -90,6 +90,34 @@ When adding new features or fixing bugs:
 2. Add UI tests for user-visible behavior
 3. Run `cargo uibless` if UI test output changes are expected
 
+### UI Test Annotations
+
+UI tests use special comment annotations to specify expected compiler output:
+
+```solidity
+//@ compile-flags: -Zwarn-unused  // Test directives at the top
+
+contract Test {
+    uint x; //~ ERROR: error message here
+    uint y; //~ WARN: warning message
+    
+    //~^ NOTE: note about the previous line
+    //~^^ HELP: help message two lines up
+    //~vvv ERROR: error three lines down
+    
+    function foo() {}
+}
+```
+
+Available annotations:
+- `//~ ERROR:` - Expected error message
+- `//~ WARN:` - Expected warning message  
+- `//~ NOTE:` - Expected note message
+- `//~ HELP:` - Expected help message
+- Use `^` or `v` to point to lines above or below
+
+The message after the colon can be a partial match. See `CONTRIBUTING.md` for more details.
+
 ### Test File Organization
 
 When creating test files that require auxiliary files (e.g., imports, helper contracts):

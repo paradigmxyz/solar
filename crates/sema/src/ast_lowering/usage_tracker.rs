@@ -150,10 +150,7 @@ impl UsageTracker {
                         };
 
                         if !namespace_used && !self.used_symbols.contains(&(source_id, *alias)) {
-                            sess.dcx
-                                .warn(format!("unused import: `{alias}`"))
-                                .span(import.span)
-                                .emit();
+                            sess.dcx.warn("unused import").span(import.span).emit();
                         }
                     }
                     ImportKind::Glob { alias } => {
@@ -165,10 +162,7 @@ impl UsageTracker {
                         };
 
                         if !namespace_used && !self.used_symbols.contains(&(source_id, *alias)) {
-                            sess.dcx
-                                .warn(format!("unused import: `* as {alias}`"))
-                                .span(import.span)
-                                .emit();
+                            sess.dcx.warn("unused import").span(import.span).emit();
                         }
                     }
                     ImportKind::Named { symbols } => {
@@ -178,27 +172,10 @@ impl UsageTracker {
                             .collect();
 
                         if !unused.is_empty() {
+                            // Only warn if all symbols are unused
+                            // TODO: Once we have individual spans, warn per symbol
                             if unused.len() == symbols.len() {
-                                // All symbols unused
-                                let names = unused
-                                    .iter()
-                                    .map(|s| format!("`{}`", s.local_name()))
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                let msg = if unused.len() == 1 {
-                                    format!("unused import: {names}")
-                                } else {
-                                    format!("unused imports: {names}")
-                                };
-                                sess.dcx.warn(msg).span(import.span).emit();
-                            } else {
-                                // Some symbols unused
-                                for symbol in unused {
-                                    sess.dcx
-                                        .warn(format!("unused import: `{}`", symbol.local_name()))
-                                        .span(import.span)
-                                        .emit();
-                                }
+                                sess.dcx.warn("unused import").span(import.span).emit();
                             }
                         }
                     }
@@ -242,52 +219,24 @@ impl UsageTracker {
             let item = hir.item(item_id);
 
             // Skip items that should not be warned about
-            match item {
-                // Public or external functions are part of the contract's interface
-                hir::Item::Function(f) if f.visibility >= ast::Visibility::Public => continue,
-                // Contract/library/interface declarations themselves are not "unused"
-                hir::Item::Contract(_) => continue,
-                // Events and errors are declaration-only
-                hir::Item::Event(_) | hir::Item::Error(_) => continue,
-                // Public state variables are part of the interface (they have implicit getters)
-                hir::Item::Variable(v) if v.visibility >= Some(ast::Visibility::Public) => continue,
-                // State variables with explicit getters are implicitly used
-                hir::Item::Variable(v) if v.getter.is_some() => continue,
-                _ => {}
+            // Public/external items are part of the contract's interface
+            if item.is_public() {
+                continue;
             }
 
-            // Check if this is the main contract (entry point)
-            if let hir::Item::Contract(c) = item {
-                // Don't warn about the contract being compiled
-                if Some(c.source) == hir.source_ids().next() {
+            // State variables with explicit getters are implicitly used
+            if let hir::Item::Variable(v) = item {
+                if v.getter.is_some() {
                     continue;
                 }
             }
 
             // Issue warning
             if let Some(name) = item.name() {
-                let kind = match item {
-                    hir::Item::Contract(_) => "contract",
-                    hir::Item::Function(f) => match f.kind {
-                        ast::FunctionKind::Constructor => "constructor",
-                        ast::FunctionKind::Receive => "receive function",
-                        ast::FunctionKind::Fallback => "fallback function",
-                        ast::FunctionKind::Modifier => "modifier",
-                        ast::FunctionKind::Function => "function",
-                    },
-                    hir::Item::Variable(v) => match v.kind {
-                        hir::VarKind::Global => "constant",
-                        hir::VarKind::State => "state variable",
-                        _ => "variable",
-                    },
-                    hir::Item::Struct(_) => "struct",
-                    hir::Item::Enum(_) => "enum",
-                    hir::Item::Udvt(_) => "user-defined value type",
-                    hir::Item::Event(_) => "event",
-                    hir::Item::Error(_) => "error",
-                };
-
-                sess.dcx.warn(format!("unused {}: `{}`", kind, name.name)).span(item.span()).emit();
+                sess.dcx
+                    .warn(format!("unused {}: `{}`", item.description(), name.name))
+                    .span(item.span())
+                    .emit();
             }
         }
     }
