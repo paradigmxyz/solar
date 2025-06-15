@@ -15,6 +15,8 @@ mod lower;
 mod linearize;
 
 pub(crate) mod resolve;
+
+mod usage_tracker;
 pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
@@ -42,6 +44,14 @@ pub(crate) fn lower<'sess, 'hir>(
 
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     lcx.resolve_symbols();
+
+    // Track usage of all symbols
+    lcx.track_symbol_usage();
+
+    // Check for unused items only if the warn-unused flag is enabled
+    if sess.opts.unstable.warn_unused {
+        lcx.check_unused_items();
+    }
 
     // Clean up.
     lcx.shrink_to_fit();

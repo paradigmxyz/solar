@@ -12,6 +12,8 @@ use solar_interface::{
 };
 use std::{fmt, sync::atomic::AtomicUsize};
 
+use super::usage_tracker::UsageTracker;
+
 pub(crate) use crate::hir::Res;
 
 impl super::LoweringContext<'_, '_, '_> {
@@ -38,9 +40,24 @@ impl super::LoweringContext<'_, '_, '_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn perform_imports(&mut self, sources: &ParsedSources<'_>) {
         for (source_id, source) in self.hir.sources_enumerated() {
+            self.resolver.usage_tracker.init_source(source_id);
+
             for &(item_id, import_id) in source.imports {
                 let import_item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
+
+                // Track this import
+                let namespace_target = match &import.items {
+                    ast::ImportItems::Plain(Some(_)) | ast::ImportItems::Glob(_) => Some(import_id),
+                    _ => None,
+                };
+                self.resolver.usage_tracker.track_import(
+                    source_id,
+                    item_id,
+                    import_item.span,
+                    &import.items,
+                    namespace_target,
+                );
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = super::get_two_mut_idx(
                         &mut self.resolver.source_scopes,
@@ -635,6 +652,192 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
     ) -> Result<(), ErrorGuaranteed> {
         scope.declare(self.sess, &self.hir, name, decl)
     }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn track_symbol_usage(&mut self) {
+        // Visit all items to track usage
+        use crate::hir::Visit;
+        struct UsageVisitor<'a> {
+            usage_tracker: &'a mut UsageTracker,
+            hir: &'a hir::Hir<'a>,
+            current_source: hir::SourceId,
+        }
+
+        impl<'a, 'hir> hir::Visit<'hir> for UsageVisitor<'a> {
+            type BreakValue = ();
+
+            fn hir(&self) -> &'hir hir::Hir<'hir> {
+                unsafe { std::mem::transmute(self.hir) }
+            }
+
+            fn visit_nested_source(
+                &mut self,
+                id: hir::SourceId,
+            ) -> std::ops::ControlFlow<Self::BreakValue> {
+                self.current_source = id;
+                // Visit items in this source
+                let source = self.hir().source(id);
+                for &item_id in source.items {
+                    self.visit_nested_item(item_id)?;
+                }
+                std::ops::ControlFlow::Continue(())
+            }
+
+            fn visit_expr(
+                &mut self,
+                expr: &'hir hir::Expr<'hir>,
+            ) -> std::ops::ControlFlow<Self::BreakValue> {
+                if let hir::ExprKind::Ident(resolutions) = &expr.kind {
+                    for &res in resolutions.iter() {
+                        if let hir::Res::Item(item_id) = res {
+                            // Mark the item as used
+                            self.usage_tracker.mark_item_used(item_id);
+
+                            // If it's from this source, check if it's an imported symbol
+                            let item = self.hir.item(item_id);
+                            if let Some(name) = item.name() {
+                                self.usage_tracker.mark_symbol_used(self.current_source, name.name);
+                            }
+                        } else if let hir::Res::Namespace(ns_source) = res {
+                            // This is a namespace being used (e.g., Lib2 in Lib2.func())
+                            self.usage_tracker.mark_namespace_used(self.current_source, ns_source);
+                        }
+                    }
+                }
+
+                // Continue visiting sub-expressions
+                match &expr.kind {
+                    hir::ExprKind::Call(callee, args, opts) => {
+                        self.visit_expr(callee)?;
+                        if let Some(opts) = opts {
+                            for opt in opts.iter() {
+                                self.visit_expr(&opt.value)?;
+                            }
+                        }
+                        for arg in args.exprs() {
+                            self.visit_expr(arg)?;
+                        }
+                    }
+                    hir::ExprKind::Member(expr, _member) => {
+                        // Handle member access like Lib2.func() or AllHelpers.Helper.func()
+                        if let hir::ExprKind::Ident(resolutions) = &expr.kind {
+                            for &res in resolutions.iter() {
+                                if let hir::Res::Namespace(_ns_source) = res {
+                                    // This is a namespace access - we need to track it
+                                    // The namespace corresponds to an import alias
+                                    // We'll mark this in a more sophisticated way
+                                    // For now, let's try to infer from context
+                                }
+                            }
+                        }
+                        self.visit_expr(expr)?
+                    }
+                    hir::ExprKind::Delete(expr)
+                    | hir::ExprKind::Payable(expr)
+                    | hir::ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
+                    hir::ExprKind::Assign(lhs, _, rhs) | hir::ExprKind::Binary(lhs, _, rhs) => {
+                        self.visit_expr(lhs)?;
+                        self.visit_expr(rhs)?;
+                    }
+                    hir::ExprKind::Index(expr, index) => {
+                        self.visit_expr(expr)?;
+                        if let Some(index) = index {
+                            self.visit_expr(index)?;
+                        }
+                    }
+                    hir::ExprKind::Slice(expr, start, end) => {
+                        self.visit_expr(expr)?;
+                        if let Some(start) = start {
+                            self.visit_expr(start)?;
+                        }
+                        if let Some(end) = end {
+                            self.visit_expr(end)?;
+                        }
+                    }
+                    hir::ExprKind::Ternary(cond, true_, false_) => {
+                        self.visit_expr(cond)?;
+                        self.visit_expr(true_)?;
+                        self.visit_expr(false_)?;
+                    }
+                    hir::ExprKind::Array(exprs) => {
+                        for expr in exprs.iter() {
+                            self.visit_expr(expr)?;
+                        }
+                    }
+                    hir::ExprKind::Tuple(exprs) => {
+                        for expr in exprs.iter().flatten() {
+                            self.visit_expr(expr)?;
+                        }
+                    }
+                    hir::ExprKind::New(ty)
+                    | hir::ExprKind::TypeCall(ty)
+                    | hir::ExprKind::Type(ty) => {
+                        self.visit_ty(ty)?;
+                    }
+                    _ => {}
+                }
+                std::ops::ControlFlow::Continue(())
+            }
+
+            fn visit_ty(
+                &mut self,
+                ty: &'hir hir::Type<'hir>,
+            ) -> std::ops::ControlFlow<Self::BreakValue> {
+                if let hir::TypeKind::Custom(item_id) = &ty.kind {
+                    // Mark the type as used
+                    self.usage_tracker.mark_item_used(*item_id);
+
+                    let item = self.hir.item(*item_id);
+                    if let Some(name) = item.name() {
+                        self.usage_tracker.mark_symbol_used(self.current_source, name.name);
+                    }
+                }
+
+                // Continue visiting nested types
+                match &ty.kind {
+                    hir::TypeKind::Array(arr) => {
+                        self.visit_ty(&arr.element)?;
+                        if let Some(size) = arr.size {
+                            self.visit_expr(size)?;
+                        }
+                    }
+                    hir::TypeKind::Function(func) => {
+                        for &param in func.parameters {
+                            self.visit_nested_var(param)?;
+                        }
+                        for &ret in func.returns {
+                            self.visit_nested_var(ret)?;
+                        }
+                    }
+                    hir::TypeKind::Mapping(map) => {
+                        self.visit_ty(&map.key)?;
+                        self.visit_ty(&map.value)?;
+                    }
+                    _ => {}
+                }
+                std::ops::ControlFlow::Continue(())
+            }
+        }
+
+        // Visit all sources
+        for source_id in self.hir.source_ids() {
+            let mut visitor = UsageVisitor {
+                usage_tracker: &mut self.resolver.usage_tracker,
+                hir: &self.hir,
+                current_source: source_id,
+            };
+            let _ = visitor.visit_nested_source(source_id);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn check_unused_items(&self) {
+        // Check for unused imports
+        self.resolver.usage_tracker.check_unused_imports(self.sess);
+
+        // Check for other unused items
+        self.resolver.usage_tracker.check_unused_items(self.sess, &self.hir);
+    }
 }
 
 /// Symbol resolution context.
@@ -1143,6 +1346,8 @@ pub(crate) struct SymbolResolver<'sess> {
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
     global_builtin_scope: Declarations,
     builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
+    /// Tracks usage of declarations.
+    pub(crate) usage_tracker: UsageTracker,
 }
 
 impl<'sess> SymbolResolver<'sess> {
@@ -1154,6 +1359,7 @@ impl<'sess> SymbolResolver<'sess> {
             contract_scopes: IndexVec::new(),
             global_builtin_scope,
             builtin_members_scopes,
+            usage_tracker: UsageTracker::new(),
         }
     }
 

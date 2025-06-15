@@ -1,0 +1,30 @@
+warning: unused import: `Lib2`
+  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+   |
+LL | import "./auxiliary/Library2.sol" as Lib2;
+   | ------------------------------------------
+   |
+
+warning: unused import: `U`
+  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+   |
+LL | import {Helper, Utils as U} from "./auxiliary/Helpers.sol";
+   | -----------------------------------------------------------
+   |
+
+warning: unused import: `* as AllHelpers`
+  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+   |
+LL | import * as AllHelpers from "./auxiliary/AllHelpers.sol";
+   | ---------------------------------------------------------
+   |
+
+warning: unused function: `test`
+  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+   |
+LL | /     function test() public {
+LL | |         Helper.doSomething();
+LL | |     }
+   | |_____-
+   |
+

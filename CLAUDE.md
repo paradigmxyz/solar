@@ -90,6 +90,23 @@ When adding new features or fixing bugs:
 2. Add UI tests for user-visible behavior
 3. Run `cargo uibless` if UI test output changes are expected
 
+### Test File Organization
+
+When creating test files that require auxiliary files (e.g., imports, helper contracts):
+- Place auxiliary test files in an `auxiliary/` directory within the current test directory
+- The test runner will automatically ignore files in `auxiliary/` directories
+- This keeps test organization clean and prevents auxiliary files from being run as tests themselves
+
+Example:
+```
+tests/ui/imports/
+├── unused_imports.sol      # Main test file
+└── auxiliary/             # Helper files for the test
+    ├── Library.sol
+    ├── Library2.sol
+    └── Helpers.sol
+```
+
 ## Performance Considerations
 
 Solar prioritizes performance through:
