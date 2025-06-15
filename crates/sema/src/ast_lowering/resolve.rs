@@ -2,7 +2,7 @@ use crate::{builtins::Builtin, hir, ParsedSources};
 use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
-    map::{FxIndexMap, IndexEntry},
+    map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
     BumpExt,
 };
@@ -193,6 +193,84 @@ impl super::LoweringContext<'_, '_, '_> {
                 bases.push(base_id);
             }
             self.hir.contracts[contract_id].bases = self.arena.alloc_slice_copy(&bases);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn check_base_ctor_args(&self) {
+        for main_contract in self.hir.contracts() {
+            let mut ctor_args: FxHashMap<hir::ContractId, Span> = Default::default();
+
+            for &lbc_id in main_contract.linearized_bases {
+                let item = self.hir_to_ast[&hir::ItemId::Contract(lbc_id)];
+
+                // AST
+                let ast::ItemKind::Contract(ast_lbc_contract) = &item.kind else { unreachable!() };
+
+                // HIR
+                let hir_lbc_contract = self.hir.contract(lbc_id);
+                let scopes = SymbolResolverScopes::new_in(hir_lbc_contract.source, None);
+
+                struct BCError<'a> {
+                    base_con_name: &'a str,
+                    first_call_span: Span,
+                    second_call_span: Span,
+                }
+
+                impl<'a> BCError<'a> {
+                    fn from(
+                        base_con_name: &'a str,
+                        first_call_span: Span,
+                        second_call_span: Span,
+                    ) -> Self {
+                        Self { base_con_name, first_call_span, second_call_span }
+                    }
+                }
+
+                let mut bc_errors = vec![];
+
+                // annotate calls from inheritance specifiers
+                for b in ast_lbc_contract.bases.iter().filter(|b| !b.arguments.is_empty()) {
+                    let Ok(base_id) = self
+                        .resolver
+                        .resolve_path_as::<hir::ContractId>(b.name, &scopes, "contract")
+                    else {
+                        continue;
+                    };
+                    if let Some(old_value) = ctor_args.insert(base_id, b.name.span()) {
+                        let base_con_name = self.hir.contract(base_id).name.as_str();
+                        bc_errors.push(BCError::from(base_con_name, old_value, b.name.span()));
+                    }
+                }
+
+                // annotate calls from constructor modifiers
+                if let Some(c) = ast_lbc_contract.constructor() {
+                    for m in c.header.modifiers.iter().filter(|m| !m.arguments.is_empty()) {
+                        let Ok(base_id) = self
+                            .resolver
+                            .resolve_path_as::<hir::ContractId>(m.name, &scopes, "contract")
+                        else {
+                            continue;
+                        };
+                        if let Some(old_value) = ctor_args.insert(base_id, m.name.span()) {
+                            let base_con_name = self.hir.contract(base_id).name.as_str();
+                            bc_errors.push(BCError::from(base_con_name, old_value, m.name.span()));
+                        }
+                    }
+                }
+
+                for bc_error in bc_errors {
+                    self.dcx()
+                        .err(format!(
+                            "contract makes multiple calls to base constructor {}",
+                            bc_error.base_con_name
+                        ))
+                        .span(main_contract.name.span)
+                        .emit();
+                    self.dcx().note("first call here").span(bc_error.first_call_span).emit();
+                    self.dcx().note("second call here").span(bc_error.second_call_span).emit();
+                }
+            }
         }
     }
 
