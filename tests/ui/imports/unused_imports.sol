@@ -12,4 +12,9 @@ contract Test {
     function test() public {
         Helper.doSomething();
     }
+    
+    // This private function is unused and should trigger a warning
+    function unusedPrivate() private {
+        // Never called
+    }
 }

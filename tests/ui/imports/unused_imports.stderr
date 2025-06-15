@@ -19,11 +19,11 @@ LL | import * as AllHelpers from "./auxiliary/AllHelpers.sol";
    | ---------------------------------------------------------
    |
 
-warning: unused function: `test`
+warning: unused function: `unusedPrivate`
   --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
    |
-LL | /     function test() public {
-LL | |         Helper.doSomething();
+LL | /     function unusedPrivate() private {
+LL | |         // Never called
 LL | |     }
    | |_____-
    |

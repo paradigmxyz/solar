@@ -693,10 +693,39 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                             // Mark the item as used
                             self.usage_tracker.mark_item_used(item_id);
 
-                            // If it's from this source, check if it's an imported symbol
+                            // Check if this item is from another source (i.e., imported)
                             let item = self.hir.item(item_id);
-                            if let Some(name) = item.name() {
-                                self.usage_tracker.mark_symbol_used(self.current_source, name.name);
+
+                            // Get the source of this item
+                            let item_source = match item {
+                                hir::Item::Contract(c) => c.source,
+                                hir::Item::Function(f) => f.source,
+                                hir::Item::Struct(s) => s.source,
+                                hir::Item::Enum(e) => e.source,
+                                hir::Item::Udvt(u) => u.source,
+                                hir::Item::Error(e) => e.source,
+                                hir::Item::Event(e) => e.source,
+                                hir::Item::Variable(v) => v.source,
+                            };
+
+                            // If the item is from another source, we need to find which import
+                            // brought it in
+                            if item_source != self.current_source {
+                                if let Some(name) = item.name() {
+                                    // Look up the import alias used for this item
+                                    if let Some(alias) = self
+                                        .usage_tracker
+                                        .find_import_alias(self.current_source, name.name)
+                                    {
+                                        // Mark the import alias as used
+                                        self.usage_tracker
+                                            .mark_symbol_used(self.current_source, alias);
+                                    } else {
+                                        // No alias found, mark the original name
+                                        self.usage_tracker
+                                            .mark_symbol_used(self.current_source, name.name);
+                                    }
+                                }
                             }
                         } else if let hir::Res::Namespace(ns_source) = res {
                             // This is a namespace being used (e.g., Lib2 in Lib2.func())
@@ -720,16 +749,6 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                     }
                     hir::ExprKind::Member(expr, _member) => {
                         // Handle member access like Lib2.func() or AllHelpers.Helper.func()
-                        if let hir::ExprKind::Ident(resolutions) = &expr.kind {
-                            for &res in resolutions.iter() {
-                                if let hir::Res::Namespace(_ns_source) = res {
-                                    // This is a namespace access - we need to track it
-                                    // The namespace corresponds to an import alias
-                                    // We'll mark this in a more sophisticated way
-                                    // For now, let's try to infer from context
-                                }
-                            }
-                        }
                         self.visit_expr(expr)?
                     }
                     hir::ExprKind::Delete(expr)

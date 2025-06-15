@@ -207,6 +207,30 @@ impl UsageTracker {
         }
     }
 
+    /// Find the import symbol that brought in an item from another source.
+    /// Returns the local name used to import the item, if any.
+    pub(crate) fn find_import_alias(
+        &self,
+        source_id: hir::SourceId,
+        item_name: Symbol,
+    ) -> Option<Symbol> {
+        if source_id.index() >= self.imports.len() {
+            return None;
+        }
+
+        for import in &self.imports[source_id] {
+            if let ImportKind::Named { symbols } = &import.kind {
+                // Check if any of the named imports match this item
+                for symbol in symbols {
+                    if symbol.name == item_name {
+                        return Some(symbol.local_name());
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Check for unused declarations (variables, functions, types, etc.).
     pub(crate) fn check_unused_items(&self, sess: &Session, hir: &hir::Hir<'_>) {
         // Check all items
@@ -219,23 +243,15 @@ impl UsageTracker {
 
             // Skip items that should not be warned about
             match item {
-                // Public items in libraries/interfaces are part of the API
-                hir::Item::Function(f) if f.visibility >= ast::Visibility::Public => {
-                    if let Some(contract_id) = f.contract {
-                        let contract = hir.contract(contract_id);
-                        if matches!(
-                            contract.kind,
-                            ast::ContractKind::Library | ast::ContractKind::Interface
-                        ) {
-                            continue;
-                        }
-                    }
-                }
+                // Public or external functions are part of the contract's interface
+                hir::Item::Function(f) if f.visibility >= ast::Visibility::Public => continue,
                 // Contract/library/interface declarations themselves are not "unused"
                 hir::Item::Contract(_) => continue,
                 // Events and errors are declaration-only
                 hir::Item::Event(_) | hir::Item::Error(_) => continue,
-                // State variables with getters are implicitly used
+                // Public state variables are part of the interface (they have implicit getters)
+                hir::Item::Variable(v) if v.visibility >= Some(ast::Visibility::Public) => continue,
+                // State variables with explicit getters are implicitly used
                 hir::Item::Variable(v) if v.getter.is_some() => continue,
                 _ => {}
             }

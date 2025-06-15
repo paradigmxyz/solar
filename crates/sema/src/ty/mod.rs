@@ -177,11 +177,6 @@ impl<'gcx> Gcx<'gcx> {
         &self.sess.dcx
     }
 
-    /// Returns the symbol resolver.
-    pub(crate) fn symbol_resolver(self) -> &'gcx SymbolResolver<'gcx> {
-        &self.symbol_resolver
-    }
-
     pub fn arena(self) -> &'gcx hir::Arena {
         self.interner.arena.get_or_default()
     }
