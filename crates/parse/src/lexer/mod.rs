@@ -357,37 +357,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     }
 
     fn cook_quoted(&self, kind: StrKind, start: BytePos, end: BytePos) -> Symbol {
-        let (mode, prefix_len) = match kind {
-            StrKind::Str => (unescape::Mode::Str, 0),
-            StrKind::Unicode => (unescape::Mode::UnicodeStr, 7),
-            StrKind::Hex => (unescape::Mode::HexStr, 3),
-        };
-
         // Account for quote (`"` or `'`) and prefix.
-        let content_start = start + 1 + BytePos(prefix_len);
+        let content_start = start + 1 + BytePos(kind.prefix().len() as u32);
         let content_end = end - 1;
         let lit_content = self.str_from_to(content_start, content_end);
-
-        let mut has_err = false;
-        unescape::unescape_literal(lit_content, mode, |range, result| {
-            // Here we only check for errors. The actual unescaping is done later.
-            if let Err(err) = result {
-                has_err = true;
-                let (start, end) = (range.start as u32, range.end as u32);
-                let lo = content_start + BytePos(start);
-                let hi = lo + BytePos(end - start);
-                let span = self.new_span(lo, hi);
-                unescape::emit_unescape_error(self.dcx(), lit_content, span, range, err);
-            }
-        });
-
-        // We normally exclude the quotes for the symbol, but for errors we
-        // include it because it results in clearer error messages.
-        if has_err {
-            self.symbol_from_to(start, end)
-        } else {
-            Symbol::intern(lit_content)
-        }
+        Symbol::intern(lit_content)
     }
 
     #[inline]
