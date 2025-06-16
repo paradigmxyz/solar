@@ -382,6 +382,21 @@ impl<'hir> Item<'_, 'hir> {
         }
     }
 
+    /// Returns the source ID where this item is defined.
+    #[inline]
+    pub fn source(self) -> SourceId {
+        match self {
+            Item::Contract(c) => c.source,
+            Item::Function(f) => f.source,
+            Item::Struct(s) => s.source,
+            Item::Enum(e) => e.source,
+            Item::Udvt(u) => u.source,
+            Item::Error(e) => e.source,
+            Item::Event(e) => e.source,
+            Item::Variable(v) => v.source,
+        }
+    }
+
     /// Returns the parameters of the item.
     #[inline]
     pub fn parameters(self) -> Option<&'hir [VariableId]> {

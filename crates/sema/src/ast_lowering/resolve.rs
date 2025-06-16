@@ -697,16 +697,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                             let item = self.hir.item(item_id);
 
                             // Get the source of this item
-                            let item_source = match item {
-                                hir::Item::Contract(c) => c.source,
-                                hir::Item::Function(f) => f.source,
-                                hir::Item::Struct(s) => s.source,
-                                hir::Item::Enum(e) => e.source,
-                                hir::Item::Udvt(u) => u.source,
-                                hir::Item::Error(e) => e.source,
-                                hir::Item::Event(e) => e.source,
-                                hir::Item::Variable(v) => v.source,
-                            };
+                            let item_source = item.source();
 
                             // If the item is from another source, we need to find which import
                             // brought it in

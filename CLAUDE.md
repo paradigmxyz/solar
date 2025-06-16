@@ -79,6 +79,63 @@ Solar is organized as a multi-crate workspace with clear separation of concerns:
 - **Diagnostic system**: Structured error reporting with source locations
 - **Session-based compilation**: All compilation state managed through `Session`
 
+### Visitor Pattern Usage
+
+When implementing AST/HIR visitors:
+
+1. **Set `type BreakValue = Never`** if your visitor never breaks traversal:
+   ```rust
+   use solar_data_structures::Never;
+   
+   impl<'ast> Visit<'ast> for MyVisitor {
+       type BreakValue = Never; // Use this when visit never breaks
+       // or
+       type BreakValue = MyError; // Use a specific type if you need to break early
+   }
+   ```
+
+2. **Override `visit_*` methods** for nodes you want to process:
+   ```rust
+   fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
+       // Process the expression
+       match expr.kind {
+           ExprKind::Binary(left, op, right) => {
+               // Custom logic here
+           }
+           _ => {}
+       }
+       
+       // Continue traversal using walk_*
+       walk_expr(self, expr)
+   }
+   ```
+
+3. **Use `walk_*` methods** to continue traversing child nodes:
+   - `walk_expr(self, expr)` - traverse expression children
+   - `walk_stmt(self, stmt)` - traverse statement children
+   - `walk_item(self, item)` - traverse item children
+   - etc.
+
+4. **Don't manually traverse** - always use `walk_*` to ensure complete traversal:
+   ```rust
+   // BAD - might miss nodes
+   fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
+       if let ExprKind::Binary(left, _, right) = &expr.kind {
+           self.visit_expr(left)?;
+           self.visit_expr(right)?;
+       }
+       ControlFlow::Continue(())
+   }
+   
+   // GOOD - uses walk to handle all cases
+   fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
+       // Your logic here
+       walk_expr(self, expr)  // Handles all expression types correctly
+   }
+   ```
+
+The `walk_*` methods contain the correct traversal logic for each node type and ensure no child nodes are missed.
+
 ## Testing Strategy
 
 - **Unit tests**: Standard Rust tests in source files
