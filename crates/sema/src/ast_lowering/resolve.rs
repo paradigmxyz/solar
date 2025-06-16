@@ -664,7 +664,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         }
 
         impl<'a, 'hir> hir::Visit<'hir> for UsageVisitor<'a> {
-            type BreakValue = ();
+            type BreakValue = solar_data_structures::Never;
 
             fn hir(&self) -> &'hir hir::Hir<'hir> {
                 unsafe { std::mem::transmute(self.hir) }
@@ -675,12 +675,8 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                 id: hir::SourceId,
             ) -> std::ops::ControlFlow<Self::BreakValue> {
                 self.current_source = id;
-                // Visit items in this source
-                let source = self.hir().source(id);
-                for &item_id in source.items {
-                    self.visit_nested_item(item_id)?;
-                }
-                std::ops::ControlFlow::Continue(())
+                // Use the default walk implementation to visit items
+                self.walk_nested_source(id)
             }
 
             fn visit_expr(
@@ -725,68 +721,8 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                     }
                 }
 
-                // Continue visiting sub-expressions
-                match &expr.kind {
-                    hir::ExprKind::Call(callee, args, opts) => {
-                        self.visit_expr(callee)?;
-                        if let Some(opts) = opts {
-                            for opt in opts.iter() {
-                                self.visit_expr(&opt.value)?;
-                            }
-                        }
-                        for arg in args.exprs() {
-                            self.visit_expr(arg)?;
-                        }
-                    }
-                    hir::ExprKind::Member(expr, _member) => {
-                        // Handle member access like Lib2.func() or AllHelpers.Helper.func()
-                        self.visit_expr(expr)?
-                    }
-                    hir::ExprKind::Delete(expr)
-                    | hir::ExprKind::Payable(expr)
-                    | hir::ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
-                    hir::ExprKind::Assign(lhs, _, rhs) | hir::ExprKind::Binary(lhs, _, rhs) => {
-                        self.visit_expr(lhs)?;
-                        self.visit_expr(rhs)?;
-                    }
-                    hir::ExprKind::Index(expr, index) => {
-                        self.visit_expr(expr)?;
-                        if let Some(index) = index {
-                            self.visit_expr(index)?;
-                        }
-                    }
-                    hir::ExprKind::Slice(expr, start, end) => {
-                        self.visit_expr(expr)?;
-                        if let Some(start) = start {
-                            self.visit_expr(start)?;
-                        }
-                        if let Some(end) = end {
-                            self.visit_expr(end)?;
-                        }
-                    }
-                    hir::ExprKind::Ternary(cond, true_, false_) => {
-                        self.visit_expr(cond)?;
-                        self.visit_expr(true_)?;
-                        self.visit_expr(false_)?;
-                    }
-                    hir::ExprKind::Array(exprs) => {
-                        for expr in exprs.iter() {
-                            self.visit_expr(expr)?;
-                        }
-                    }
-                    hir::ExprKind::Tuple(exprs) => {
-                        for expr in exprs.iter().flatten() {
-                            self.visit_expr(expr)?;
-                        }
-                    }
-                    hir::ExprKind::New(ty)
-                    | hir::ExprKind::TypeCall(ty)
-                    | hir::ExprKind::Type(ty) => {
-                        self.visit_ty(ty)?;
-                    }
-                    _ => {}
-                }
-                std::ops::ControlFlow::Continue(())
+                // Continue traversal using the generated walk method
+                self.walk_expr(expr)
             }
 
             fn visit_ty(
@@ -803,29 +739,8 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                     }
                 }
 
-                // Continue visiting nested types
-                match &ty.kind {
-                    hir::TypeKind::Array(arr) => {
-                        self.visit_ty(&arr.element)?;
-                        if let Some(size) = arr.size {
-                            self.visit_expr(size)?;
-                        }
-                    }
-                    hir::TypeKind::Function(func) => {
-                        for &param in func.parameters {
-                            self.visit_nested_var(param)?;
-                        }
-                        for &ret in func.returns {
-                            self.visit_nested_var(ret)?;
-                        }
-                    }
-                    hir::TypeKind::Mapping(map) => {
-                        self.visit_ty(&map.key)?;
-                        self.visit_ty(&map.value)?;
-                    }
-                    _ => {}
-                }
-                std::ops::ControlFlow::Continue(())
+                // Continue traversal using the generated walk method
+                self.walk_ty(ty)
             }
         }
 
