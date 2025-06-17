@@ -164,6 +164,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         flags: FunctionFlags,
     ) -> PResult<'sess, FunctionHeader<'ast>> {
+        let lo = self.prev_token.span; // the header span includes the "function" kw
+
         let mut header = FunctionHeader::default();
         let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
             VarFlags::FUNCTION_TY
@@ -214,24 +216,34 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
                 .then_some(());
             if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
-                if !flags.contains(FunctionFlags::from_visibility(visibility)) {
-                    let msg = visibility_error(visibility, flags.visibilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.visibility.is_some() {
+                if header.visibility.is_some() {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.visibility = Some(visibility);
+                    header.visibility =
+                        if !flags.contains(FunctionFlags::from_visibility(visibility)) {
+                            let msg = visibility_error(visibility, flags.visibilities());
+                            self.dcx().err(msg).span(self.prev_token.span).emit();
+                            flags.visibilities().into_iter().flatten().next()
+                        } else {
+                            Some(visibility)
+                        };
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
-                if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
-                    let msg = state_mutability_error(state_mutability, flags.state_mutabilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if !header.state_mutability.is_non_payable() {
+                if !header.state_mutability.is_non_payable() {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.state_mutability = state_mutability;
+                    header.state_mutability = if !flags
+                        .contains(FunctionFlags::from_state_mutability(state_mutability))
+                    {
+                        let msg =
+                            state_mutability_error(state_mutability, flags.state_mutabilities());
+                        self.dcx().err(msg).span(self.prev_token.span).emit();
+                        flags.state_mutabilities().into_iter().flatten().next().unwrap_or_default()
+                    } else {
+                        state_mutability
+                    }
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
@@ -268,6 +280,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
             header.returns = self.parse_parameter_list(false, var_flags)?;
         }
+
+        header.span = lo.to(self.prev_token.span);
 
         Ok(header)
     }
@@ -1557,5 +1571,60 @@ mod tests {
             ("0.8.1", "0.8 || 0.8.2", true),
             ("0.8.1", "0.8 || 0.9", true),
         ]);
+    }
+
+    #[test]
+    /// Test if the span of a function header is correct (should start at the function-like kw and
+    /// end at the last token)
+    fn function_header_span() {
+        let test_functions = [
+            "function foo(uint256 a) public view returns (uint256) {
+}",
+            "modifier foo() {
+    _;
+}",
+            "receive() external payable {
+}",
+            "fallback() external payable {
+}",
+            "constructor() {
+}",
+        ];
+
+        let test_function_headers = [
+            "function foo(uint256 a) public view returns (uint256)",
+            "modifier foo()",
+            "receive() external payable",
+            "fallback() external payable",
+            "constructor()",
+        ];
+
+        for (idx, src) in test_functions.iter().enumerate() {
+            let sess = Session::builder().with_test_emitter().build();
+            sess.enter(|| -> Result {
+                let arena = Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    FileName::Custom(String::from("test")),
+                    *src,
+                )?;
+
+                parser.in_contract = true; // Silence the wrong scope error
+
+                let header_span = parser.parse_function().unwrap().header.span;
+
+                assert_eq!(
+                    header_span,
+                    Span::new(
+                        solar_interface::BytePos(0),
+                        solar_interface::BytePos(test_function_headers[idx].len() as u32,),
+                    ),
+                );
+
+                Ok(())
+            })
+            .unwrap();
+        }
     }
 }

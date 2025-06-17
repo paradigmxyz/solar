@@ -6,7 +6,27 @@ use solar_interface::{Ident, Span};
 /// A block of Yul statements: `{ ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
-pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
+#[derive(Debug)]
+pub struct Block<'ast> {
+    /// The span of the block, including the `{` and `}`.
+    pub span: Span,
+    /// The statements in the block.
+    pub stmts: Box<'ast, [Stmt<'ast>]>,
+}
+
+impl<'ast> std::ops::Deref for Block<'ast> {
+    type Target = [Stmt<'ast>];
+
+    fn deref(&self) -> &Self::Target {
+        self.stmts
+    }
+}
+
+impl<'ast> std::ops::DerefMut for Block<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.stmts
+    }
+}
 
 /// A Yul object.
 ///

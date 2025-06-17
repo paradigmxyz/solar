@@ -433,6 +433,9 @@ impl ItemFunction<'_> {
 /// A function header: `function helloWorld() external pure returns(string memory)`.
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
+    /// The span of the function header.
+    pub span: Span,
+
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,

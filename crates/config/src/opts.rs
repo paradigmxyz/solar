@@ -169,6 +169,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Run the span visitor after parsing.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub span_visitor: bool,
+
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),

@@ -743,6 +743,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.prev_token = std::mem::replace(&mut self.token, next);
         self.expected_tokens.clear();
+        self.docs.clear();
     }
 
     /// Bumps comments and docs.

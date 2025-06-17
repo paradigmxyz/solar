@@ -14,7 +14,8 @@ root=$WORKSPACE_ROOT
 crate=$CRATE_ROOT
 crate_glob="${crate#"$root/"}/**"
 
-if [[ "$CRATE_ROOT" != *crates/* ]]; then
+if [[ "$crate" != *crates/* || "$crate" == *crates/solar ]]; then
+    echo "skipping $crate" >&2
     exit 0
 fi
 

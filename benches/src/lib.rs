@@ -24,6 +24,8 @@ pub fn get_srcs() -> &'static [Source] {
             include_source("../testdata/Vm.sol"),
             include_source("../testdata/safeconsole.sol"),
             include_source("../testdata/Seaport.sol"),
+            include_source("../testdata/Solady.sol"),
+            include_source("../testdata/Optimism.sol"),
         ]
     })
 }
@@ -192,7 +194,15 @@ impl Parser for Slang {
         let errors = output.errors();
         if !errors.is_empty() {
             for err in errors {
-                eprintln!("{err}");
+                let range = err.text_range();
+                let slice = src.get(range.start.utf8..range.end.utf8).unwrap_or("<invalid range>");
+                let line_col =
+                    |i: &slang_solidity::cst::TextIndex| format!("{}:{}", i.line + 1, i.column + 1);
+                eprintln!(
+                    "{}: {}: {err} @ {slice:?}",
+                    line_col(&range.start),
+                    line_col(&range.end),
+                );
             }
             panic!();
         }
@@ -242,10 +252,7 @@ impl Parser for TreeSitter {
         parser.set_language(&language.into()).expect("Error loading Solidity parser");
         let tree = parser.parse(src, None).unwrap();
         if tree.root_node().has_error() {
-            // TODO: https://github.com/JoranHonig/tree-sitter-solidity/issues/73
-            if !src.contains("seaport") {
-                on_error(src, &tree);
-            }
+            on_error(src, &tree);
         }
     }
 }

@@ -36,6 +36,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Function) {
             self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
                 let FunctionHeader {
+                    span: _,
                     name: _,
                     parameters,
                     visibility,

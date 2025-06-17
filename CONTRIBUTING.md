@@ -278,14 +278,6 @@ Fixes: #1337
 Refs: #453, #154
 ```
 
-### Opening the Pull Request
-
-From within GitHub, opening a new Pull Request will present you with a
-[template] that should be filled out. Please try to do your best at filling out
-the details, but feel free to skip parts if you're not sure what to put.
-
-[template]: .github/PULL_REQUEST_TEMPLATE.md
-
 ### Discuss and update
 
 You will probably get feedback or requests for changes to your Pull Request.

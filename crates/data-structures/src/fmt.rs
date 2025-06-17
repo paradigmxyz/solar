@@ -1,5 +1,7 @@
 use std::{cell::Cell, fmt};
 
+pub use fmt::*;
+
 /// Wrapper for [`fmt::from_fn`].
 #[cfg(feature = "nightly")]
 pub fn from_fn<F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result>(

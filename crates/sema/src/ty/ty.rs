@@ -1,10 +1,10 @@
-use super::{Gcx, Recursiveness};
+use super::{abi::TySolcPrinter, Gcx, Recursiveness};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use solar_data_structures::Interned;
+use solar_data_structures::{fmt, Interned};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
+use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -239,6 +239,11 @@ impl<'gcx> Ty<'gcx> {
                 v.visit(f)
             }
         }
+    }
+
+    /// Displays the type with the default format.
+    pub fn display(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
+        fmt::from_fn(move |f| TySolcPrinter::new(gcx, f).data_locations(true).print(self))
     }
 }
 

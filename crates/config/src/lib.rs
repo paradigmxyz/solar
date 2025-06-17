@@ -77,9 +77,10 @@ str_enum! {
         London,
         Paris,
         Shanghai,
-        #[default]
         Cancun,
+        #[default]
         Prague,
+        Osaka,
     }
 }
 

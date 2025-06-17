@@ -36,7 +36,7 @@ smallvec.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-expect-test.workspace = true
+snapbox.workspace = true
 
 [features]
 nightly = ["solar-ast/nightly", "solar-interface/nightly"]

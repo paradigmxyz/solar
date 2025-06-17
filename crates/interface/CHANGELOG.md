@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
+
+### Bug Fixes
+
+- Try absolute paths in file resolver too ([#323](https://github.com/paradigmxyz/solar/issues/323))
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Bug Fixes
+
+- [parser] Don't panic when parsing hex rationals ([#256](https://github.com/paradigmxyz/solar/issues/256))
+
+### Features
+
+- Allow constructing DiagId with a string ([#295](https://github.com/paradigmxyz/solar/issues/295))
+- Warn when payable fallback function found but no receive function ([#170](https://github.com/paradigmxyz/solar/issues/170))
+- Pretty printing utilities ([#264](https://github.com/paradigmxyz/solar/issues/264))
+
+### Miscellaneous Tasks
+
+- Rust 1.86 ([#290](https://github.com/paradigmxyz/solar/issues/290))
+- Update hint fns ([#289](https://github.com/paradigmxyz/solar/issues/289))
+- Misc map cleanups ([#277](https://github.com/paradigmxyz/solar/issues/277))
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Tweak tracing events ([#255](https://github.com/paradigmxyz/solar/issues/255))
+- Sync sourcemap from upstream ([#254](https://github.com/paradigmxyz/solar/issues/254))
+- Revert extra changelog
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes

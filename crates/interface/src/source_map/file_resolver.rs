@@ -96,24 +96,44 @@ impl<'a> FileResolver<'a> {
         self.source_map
     }
 
-    /// Returns the current directory.
+    /// Returns the current directory, or `.` if it could not be resolved.
     pub fn current_dir(&self) -> &Path {
-        self.custom_current_dir
-            .as_deref()
-            .or(self.env_current_dir.as_deref())
-            .unwrap_or(Path::new("."))
+        self.try_current_dir().unwrap_or(Path::new("."))
+    }
+
+    /// Returns the current directory, if resolved successfully.
+    pub fn try_current_dir(&self) -> Option<&Path> {
+        self.custom_current_dir.as_deref().or(self.env_current_dir.as_deref())
     }
 
     /// Canonicalizes a path using [`Self::current_dir`].
     pub fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        let path = if path.is_absolute() {
-            path
-        } else if let Some(current_dir) = &self.custom_current_dir {
-            &current_dir.join(path)
-        } else {
-            path
-        };
+        self.canonicalize_absolute(&self.make_absolute(path))
+    }
+
+    fn canonicalize_absolute(&self, path: &Path) -> io::Result<PathBuf> {
+        debug_assert!(path.is_absolute());
         crate::canonicalize(path)
+    }
+
+    /// Normalizes a path removing unnecessary components.
+    ///
+    /// Does not perform I/O.
+    pub fn normalize<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
+        Cow::Owned(path.normalize())
+    }
+
+    /// Makes the path absolute by joining it with the current directory.
+    ///
+    /// Does not perform I/O.
+    pub fn make_absolute<'b>(&self, path: &'b Path) -> Cow<'b, Path> {
+        if path.is_absolute() {
+            Cow::Borrowed(path)
+        } else if let Some(current_dir) = self.try_current_dir() {
+            Cow::Owned(current_dir.join(path))
+        } else {
+            Cow::Borrowed(path)
+        }
     }
 
     /// Resolves an import path.
@@ -188,8 +208,15 @@ impl<'a> FileResolver<'a> {
 
     /// Applies the import path mappings to `path`.
     // Reference: <https://github.com/ethereum/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolidity/interface/ImportRemapper.cpp#L32>
-    #[instrument(level = "trace", skip_all, ret)]
     pub fn remap_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
+        let remapped = self.remap_path_(path, parent);
+        if remapped != path {
+            trace!(remapped=%remapped.display());
+        }
+        remapped
+    }
+
+    fn remap_path_<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
         let _context = &*parent.map(|p| p.to_string_lossy()).unwrap_or_default();
 
         let mut longest_prefix = 0;
@@ -220,7 +247,7 @@ impl<'a> FileResolver<'a> {
         if let Some(best_match_target) = best_match_target {
             let mut out = PathBuf::from(&*best_match_target);
             out.push(unprefixed_path);
-            out.into()
+            Cow::Owned(out)
         } else {
             Cow::Borrowed(unprefixed_path)
         }
@@ -234,13 +261,26 @@ impl<'a> FileResolver<'a> {
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        let path = &*path.normalize();
-        if let Some(file) = self.source_map().get_file(path) {
-            trace!("loaded from cache");
+        // Normalize unnecessary components.
+        let rpath = &*self.normalize(path);
+        if let Some(file) = self.source_map().get_file(rpath) {
+            trace!("loaded from cache 1");
             return Ok(Some(file));
         }
 
-        if let Ok(path) = self.canonicalize(path) {
+        // Make the path absolute with the current directory.
+        // Normally this is only needed when paths are inserted manually outside of the resolver, as
+        // we always try to strip the prefix of the current directory (see below).
+        let apath = &*self.make_absolute(rpath);
+        if apath != rpath {
+            if let Some(file) = self.source_map().get_file(apath) {
+                trace!("loaded from cache 2");
+                return Ok(Some(file));
+            }
+        }
+
+        // Canonicalize, checking symlinks and if it exists.
+        if let Ok(path) = self.canonicalize_absolute(apath) {
             // Save the file name relative to the current directory.
             let mut relpath = path.as_path();
             if let Ok(p) = relpath.strip_prefix(self.current_dir()) {
