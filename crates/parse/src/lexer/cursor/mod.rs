@@ -151,7 +151,7 @@ impl<'a> Cursor<'a> {
                 let kind = self.number(first_char);
                 RawTokenKind::Literal { kind }
             }
-            b'.' if self.first().is_ascii_digit() => {
+            b'.' if (self.first().wrapping_sub(b'0')) < 10 => {
                 let kind = self.rational_number_after_dot(Base::Decimal);
                 RawTokenKind::Literal { kind }
             }
@@ -355,7 +355,7 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_digit())
+        self.eat_digits(|x| (x.wrapping_sub(b'0')) < 10)
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
