@@ -151,22 +151,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a string literal.
     fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind> {
         let mode = match lit.kind {
-            TokenLitKind::Str => unescape::Mode::Str,
-            TokenLitKind::UnicodeStr => unescape::Mode::UnicodeStr,
-            TokenLitKind::HexStr => unescape::Mode::HexStr,
+            TokenLitKind::Str => StrKind::Str,
+            TokenLitKind::UnicodeStr => StrKind::Unicode,
+            TokenLitKind::HexStr => StrKind::Hex,
             _ => unreachable!(),
         };
 
-        let mut value = unescape::parse_string_literal(lit.symbol.as_str(), mode);
+        let span = self.prev_token.span;
+        let (mut value, _) =
+            unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.sess);
         let mut extra = vec![];
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
             extra.push((self.token.span, symbol));
-            value
-                .to_mut()
-                .extend_from_slice(&unescape::parse_string_literal(symbol.as_str(), mode));
+            let (parsed, _) =
+                unescape::parse_string_literal(symbol.as_str(), mode, self.token.span, self.sess);
+            value.to_mut().extend_from_slice(&parsed);
             self.bump();
         }
 

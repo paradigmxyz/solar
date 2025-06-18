@@ -15,7 +15,7 @@ use solar_interface::{
     Result, Session,
 };
 use solar_parse::{unescape, Lexer, Parser};
-use std::{borrow::Cow, fmt, path::Path, sync::Arc};
+use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 pub struct ParsingContext<'sess> {
@@ -229,7 +229,16 @@ impl<'sess> ParsingContext<'sess> {
             })
             .filter_map(move |(id, import)| {
                 let span = import.path.span;
-                let path_bytes = escape_import_path(import.path.value.as_str())?;
+                let path_str = import.path.value.as_str();
+                let (path_bytes, any_error) = unescape::parse_string_literal(
+                    path_str,
+                    unescape::StrKind::Str,
+                    span,
+                    self.sess,
+                );
+                if any_error {
+                    return None;
+                }
                 let Some(path) = path_from_bytes(&path_bytes[..]) else {
                     self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
                     return None;
@@ -241,16 +250,6 @@ impl<'sess> ParsingContext<'sess> {
                     .map(|file| (id, file))
             })
     }
-}
-
-fn escape_import_path(path_str: &str) -> Option<Cow<'_, [u8]>> {
-    let mut any_error = false;
-    let path_str =
-        unescape::try_parse_string_literal(path_str, unescape::Mode::Str, |_, _| any_error = true);
-    if any_error {
-        return None;
-    }
-    Some(path_str)
 }
 
 #[cfg(unix)]
