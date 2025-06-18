@@ -179,6 +179,3 @@ thread_local = "1.1"
 typed-arena = "2.0"
 unicode-width = "0.2"
 vergen = "8"
-
-[patch.crates-io]
-mimalloc = { git = "https://github.com/purpleprotocol/mimalloc_rust", rev = "eff21096d5ee5337ec89e2b7174f1bbb11026c70" }
