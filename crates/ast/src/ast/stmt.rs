@@ -132,4 +132,6 @@ pub struct TryCatchClause<'ast> {
     pub name: Option<Ident>,
     pub args: ParameterList<'ast>,
     pub block: Block<'ast>,
+    /// The span of the clause, including the `{` and `}`.
+    pub span: Span,
 }
