@@ -132,4 +132,7 @@ pub struct TryCatchClause<'ast> {
     pub name: Option<Ident>,
     pub args: ParameterList<'ast>,
     pub block: Block<'ast>,
+    /// The span of the entire clause, from the `returns` and `catch`
+    /// keywords, to the closing brace of the block.
+    pub span: Span,
 }
