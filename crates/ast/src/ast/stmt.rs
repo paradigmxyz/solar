@@ -129,10 +129,13 @@ pub struct StmtTry<'ast> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
 pub struct TryCatchClause<'ast> {
-    pub name: Option<Ident>,
-    pub args: ParameterList<'ast>,
-    pub block: Block<'ast>,
     /// The span of the entire clause, from the `returns` and `catch`
     /// keywords, to the closing brace of the block.
     pub span: Span,
+    /// The catch clause name: `Error`, `Panic`, or custom.
+    pub name: Option<Ident>,
+    /// The parameter list for the clause.
+    pub args: ParameterList<'ast>,
+    /// A block of statements
+    pub block: Block<'ast>,
 }

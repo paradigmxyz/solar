@@ -780,9 +780,10 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
 
     fn lower_try_catch_clause(
         &mut self,
-        &ast::TryCatchClause { name, ref args, ref block, .. }: &ast::TryCatchClause<'_>,
+        &ast::TryCatchClause { span, name, ref args, ref block }: &ast::TryCatchClause<'_>,
     ) -> hir::TryCatchClause<'hir> {
         self.in_scope(|this| hir::TryCatchClause {
+            span,
             name,
             args: this.lower_variables(args, hir::VarKind::TryCatch),
             block: this.lower_block(block),
