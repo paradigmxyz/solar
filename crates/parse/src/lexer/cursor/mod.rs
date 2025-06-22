@@ -441,12 +441,6 @@ impl<'a> Cursor<'a> {
         self.as_bytes().get(index).copied().unwrap_or(EOF)
     }
 
-    /// Checks if there is nothing more to consume.
-    #[inline]
-    fn is_eof(&self) -> bool {
-        self.as_bytes().is_empty()
-    }
-
     /// Moves to the next character.
     fn bump(&mut self) {
         self.bytes.next();
