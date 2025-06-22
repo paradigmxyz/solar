@@ -499,7 +499,7 @@ impl<'a> Cursor<'a> {
     /// Eats symbols while predicate returns true or until the end of file is reached.
     #[inline]
     fn eat_while(&mut self, mut predicate: impl FnMut(u8) -> bool) {
-        while predicate(self.first()) && !self.is_eof() {
+        while predicate(self.first()){
             self.bump();
         }
     }
