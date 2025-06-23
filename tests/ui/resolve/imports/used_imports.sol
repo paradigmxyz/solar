@@ -13,6 +13,6 @@ contract Test {
         Lib2.lib2Func();
         Helper.doSomething();
         U.utilFunc();
-        AllHelpers.AllHelper1.help1();
+        AllHelpers.AllHelper1.Struct1 memory s;
     }
 }

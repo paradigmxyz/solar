@@ -1,19 +1,26 @@
 warning: unused import
-  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+  --> ROOT/tests/ui/resolve/imports/unused_imports.sol:LL:CC
    |
 LL | import "./auxiliary/Library2.sol" as Lib2;
    | ------------------------------------------
    |
 
 warning: unused import
-  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+  --> ROOT/tests/ui/resolve/imports/unused_imports.sol:LL:CC
+   |
+LL | import {Helper, Utils as U} from "./auxiliary/Helpers.sol";
+   |         ------
+   |
+
+warning: unused import
+  --> ROOT/tests/ui/resolve/imports/unused_imports.sol:LL:CC
    |
 LL | import {Helper, Utils as U} from "./auxiliary/Helpers.sol";
    |                 ----------
    |
 
 warning: unused import
-  --> ROOT/tests/ui/imports/unused_imports.sol:LL:CC
+  --> ROOT/tests/ui/resolve/imports/unused_imports.sol:LL:CC
    |
 LL | import * as AllHelpers from "./auxiliary/AllHelpers.sol";
    | ---------------------------------------------------------

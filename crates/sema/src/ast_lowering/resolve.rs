@@ -638,7 +638,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
 
     #[instrument(level = "debug", skip_all)]
     pub(super) fn check_unused(&self, sources: &ParsedSources<'_>) {
-        super::usage_tracker::check_unused(self.sess, sources, &self.hir);
+        super::unused::check_unused(self.sess, sources, &self.hir);
     }
 }
 

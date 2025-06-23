@@ -15,9 +15,9 @@ mod lower;
 mod linearize;
 
 pub(crate) mod resolve;
-
-mod usage_tracker;
 pub(crate) use resolve::{Res, SymbolResolver};
+
+mod unused;
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower<'sess, 'hir>(
