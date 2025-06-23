@@ -32,12 +32,11 @@ impl Arena {
 
     pub fn allocated_bytes(&self) -> usize {
         self.bump.allocated_bytes()
-            + (self.literals.len() + self.literals.uninitialized_array().len())
-                * std::mem::size_of::<Lit>()
+            + (self.literals.len() + self.literals.uninitialized_array().len()) * size_of::<Lit>()
     }
 
     pub fn used_bytes(&self) -> usize {
-        self.bump.used_bytes() + self.literals.len() * std::mem::size_of::<Lit>()
+        self.bump.used_bytes() + self.literals.len() * size_of::<Lit>()
     }
 }
 
@@ -382,6 +381,21 @@ impl<'hir> Item<'_, 'hir> {
         }
     }
 
+    /// Returns the source ID where this item is defined.
+    #[inline]
+    pub fn source(self) -> SourceId {
+        match self {
+            Item::Contract(c) => c.source,
+            Item::Function(f) => f.source,
+            Item::Struct(s) => s.source,
+            Item::Enum(e) => e.source,
+            Item::Udvt(u) => u.source,
+            Item::Error(e) => e.source,
+            Item::Event(e) => e.source,
+            Item::Variable(v) => v.source,
+        }
+    }
+
     /// Returns the parameters of the item.
     #[inline]
     pub fn parameters(self) -> Option<&'hir [VariableId]> {
@@ -710,14 +724,6 @@ pub struct Event<'hir> {
     /// Whether this event is anonymous.
     pub anonymous: bool,
     pub parameters: &'hir [VariableId],
-}
-
-/// An event parameter.
-#[derive(Debug)]
-pub struct EventParameter<'hir> {
-    pub ty: Type<'hir>,
-    pub indexed: bool,
-    pub name: Option<Ident>,
 }
 
 /// A custom error.

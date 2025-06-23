@@ -13,4 +13,6 @@ mod ast;
 pub use ast::*;
 
 pub mod token;
+
 pub mod visit;
+pub use visit::{Visit, VisitMut};
