@@ -1,42 +1,49 @@
 //! Utilities for validating string and char literals and turning them into values they represent.
 
 use alloy_primitives::hex;
+use solar_ast::Span;
 use solar_data_structures::trustme;
+use solar_interface::{BytePos, Session};
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
 
 mod errors;
 pub(crate) use errors::emit_unescape_error;
 pub use errors::EscapeError;
 
-/// What kind of literal do we parse.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Mode {
-    /// Normal string literal (e.g. `"a"`).
-    Str,
-    /// Unicode string literal (e.g. `unicode"😀"`).
-    UnicodeStr,
-    /// Hex string literal (e.g. `hex"1234"`).
-    HexStr,
-}
+pub use solar_ast::StrKind;
 
-/// Parses a string literal (without quotes) into a byte array.
-pub fn parse_string_literal(src: &str, mode: Mode) -> Cow<'_, [u8]> {
-    try_parse_string_literal(src, mode, |_, _| {})
+pub fn parse_string_literal<'a>(
+    src: &'a str,
+    kind: StrKind,
+    lit_span: Span,
+    sess: &Session,
+) -> (Cow<'a, [u8]>, bool) {
+    let mut has_error = false;
+    let content_start = lit_span.lo() + BytePos(1) + BytePos(kind.prefix().len() as u32);
+    let bytes = try_parse_string_literal(src, kind, |range, error| {
+        has_error = true;
+        let (start, end) = (range.start as u32, range.end as u32);
+        let lo = content_start + BytePos(start);
+        let hi = lo + BytePos(end - start);
+        let span = Span::new(lo, hi);
+        emit_unescape_error(&sess.dcx, src, span, range, error);
+    });
+    (bytes, has_error)
 }
 
 /// Parses a string literal (without quotes) into a byte array.
 /// `f` is called for each escape error.
 #[instrument(name = "parse_string_literal", level = "debug", skip_all)]
-pub fn try_parse_string_literal<F>(src: &str, mode: Mode, f: F) -> Cow<'_, [u8]>
+pub fn try_parse_string_literal<F>(src: &str, kind: StrKind, f: F) -> Cow<'_, [u8]>
 where
     F: FnMut(Range<usize>, EscapeError),
 {
-    let mut bytes = if needs_unescape(src, mode) {
-        Cow::Owned(parse_literal_unescape(src, mode, f))
+    let mut bytes = if needs_unescape(src, kind) {
+        Cow::Owned(parse_literal_unescape(src, kind, f))
     } else {
         Cow::Borrowed(src.as_bytes())
     };
-    if mode == Mode::HexStr {
+    if kind == StrKind::Hex {
         // Currently this should never fail, but it's a good idea to check anyway.
         if let Ok(decoded) = hex::decode(&bytes) {
             bytes = Cow::Owned(decoded);
@@ -46,16 +53,16 @@ where
 }
 
 #[cold]
-fn parse_literal_unescape<F>(src: &str, mode: Mode, f: F) -> Vec<u8>
+fn parse_literal_unescape<F>(src: &str, kind: StrKind, f: F) -> Vec<u8>
 where
     F: FnMut(Range<usize>, EscapeError),
 {
     let mut bytes = Vec::with_capacity(src.len());
-    parse_literal_unescape_into(src, mode, f, &mut bytes);
+    parse_literal_unescape_into(src, kind, f, &mut bytes);
     bytes
 }
 
-fn parse_literal_unescape_into<F>(src: &str, mode: Mode, mut f: F, dst_buf: &mut Vec<u8>)
+fn parse_literal_unescape_into<F>(src: &str, kind: StrKind, mut f: F, dst_buf: &mut Vec<u8>)
 where
     F: FnMut(Range<usize>, EscapeError),
 {
@@ -64,7 +71,7 @@ where
     debug_assert!(dst_buf.is_empty());
     debug_assert!(dst_buf.capacity() >= src.len());
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
-    unescape_literal_unchecked(src, mode, |range, res| match res {
+    unescape_literal_unchecked(src, kind, |range, res| match res {
         Ok(c) => {
             // NOTE: We can't use `char::encode_utf8` because `c` can be an invalid unicode code.
             let written = super::utf8::encode_utf8_raw(c, dst).len();
@@ -86,12 +93,12 @@ where
 ///
 /// The callback is invoked with a range and either a unicode code point or an error.
 #[instrument(level = "debug", skip_all)]
-pub fn unescape_literal<F>(src: &str, mode: Mode, mut callback: F)
+pub fn unescape_literal<F>(src: &str, kind: StrKind, mut callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
-    if needs_unescape(src, mode) {
-        unescape_literal_unchecked(src, mode, callback)
+    if needs_unescape(src, kind) {
+        unescape_literal_unchecked(src, kind, callback)
     } else {
         for (i, ch) in src.char_indices() {
             callback(i..i + ch.len_utf8(), Ok(ch as u32));
@@ -102,29 +109,29 @@ where
 /// Unescapes the contents of a string literal (without quotes).
 ///
 /// See [`unescape_literal`] for more details.
-fn unescape_literal_unchecked<F>(src: &str, mode: Mode, callback: F)
+fn unescape_literal_unchecked<F>(src: &str, kind: StrKind, callback: F)
 where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
-    match mode {
-        Mode::Str | Mode::UnicodeStr => {
-            unescape_str(src, matches!(mode, Mode::UnicodeStr), callback)
+    match kind {
+        StrKind::Str | StrKind::Unicode => {
+            unescape_str(src, matches!(kind, StrKind::Unicode), callback)
         }
-        Mode::HexStr => unescape_hex_str(src, callback),
+        StrKind::Hex => unescape_hex_str(src, callback),
     }
 }
 
 /// Fast-path check for whether a string literal needs to be unescaped or errors need to be
 /// reported.
-fn needs_unescape(src: &str, mode: Mode) -> bool {
+fn needs_unescape(src: &str, kind: StrKind) -> bool {
     fn needs_unescape_chars(src: &str) -> bool {
         memchr::memchr3(b'\\', b'\n', b'\r', src.as_bytes()).is_some()
     }
 
-    match mode {
-        Mode::Str => needs_unescape_chars(src) || !src.is_ascii(),
-        Mode::UnicodeStr => needs_unescape_chars(src),
-        Mode::HexStr => src.len() % 2 != 0 || !hex::check_raw(src),
+    match kind {
+        StrKind::Str => needs_unescape_chars(src) || !src.is_ascii(),
+        StrKind::Unicode => needs_unescape_chars(src),
+        StrKind::Hex => src.len() % 2 != 0 || !hex::check_raw(src),
     }
 }
 
@@ -303,12 +310,12 @@ mod tests {
 
     type ExErr = (Range<usize>, EscapeError);
 
-    fn check(mode: Mode, src: &str, expected_str: &str, expected_errs: &[ExErr]) {
-        let panic_str = format!("{mode:?}: {src:?}");
+    fn check(kind: StrKind, src: &str, expected_str: &str, expected_errs: &[ExErr]) {
+        let panic_str = format!("{kind:?}: {src:?}");
 
         let mut ok = String::with_capacity(src.len());
         let mut errs = Vec::with_capacity(expected_errs.len());
-        unescape_literal(src, mode, |range, c| match c {
+        unescape_literal(src, kind, |range, c| match c {
             Ok(c) => ok.push(char::try_from(c).unwrap()),
             Err(e) => errs.push((range, e)),
         });
@@ -316,11 +323,11 @@ mod tests {
         assert_eq!(ok, expected_str, "{panic_str}");
 
         let mut errs2 = Vec::with_capacity(errs.len());
-        let out = try_parse_string_literal(src, mode, |range, e| {
+        let out = try_parse_string_literal(src, kind, |range, e| {
             errs2.push((range, e));
         });
         assert_eq!(errs2, errs, "{panic_str}");
-        if mode == Mode::HexStr {
+        if kind == StrKind::Hex {
             assert_eq!(hex::encode(out), expected_str, "{panic_str}");
         } else {
             assert_eq!(hex::encode(out), hex::encode(expected_str), "{panic_str}");
@@ -395,8 +402,8 @@ mod tests {
             ),
         ];
         for &(src, expected_str, expected_errs) in cases {
-            check(Mode::Str, src, expected_str, expected_errs);
-            check(Mode::UnicodeStr, src, expected_str, expected_errs);
+            check(StrKind::Str, src, expected_str, expected_errs);
+            check(StrKind::Unicode, src, expected_str, expected_errs);
         }
     }
 
@@ -407,8 +414,8 @@ mod tests {
             ("😀", "😀", &[], &[(0..4, StrNonAsciiChar)]),
         ];
         for &(src, expected_str, e1, e2) in cases {
-            check(Mode::UnicodeStr, src, expected_str, e1);
-            check(Mode::Str, src, "", e2);
+            check(StrKind::Unicode, src, expected_str, e1);
+            check(StrKind::Str, src, "", e2);
         }
     }
 
@@ -437,7 +444,7 @@ mod tests {
             ("1_2", "12", &[(1..2, HexBadUnderscore)]),
         ];
         for &(src, expected_str, expected_errs) in cases {
-            check(Mode::HexStr, src, expected_str, expected_errs);
+            check(StrKind::Hex, src, expected_str, expected_errs);
         }
     }
 }
