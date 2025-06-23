@@ -46,12 +46,11 @@ impl Arena {
 
     pub fn allocated_bytes(&self) -> usize {
         self.bump.allocated_bytes()
-            + (self.literals.len() + self.literals.uninitialized_array().len())
-                * std::mem::size_of::<Lit>()
+            + (self.literals.len() + self.literals.uninitialized_array().len()) * size_of::<Lit>()
     }
 
     pub fn used_bytes(&self) -> usize {
-        self.bump.used_bytes() + self.literals.len() * std::mem::size_of::<Lit>()
+        self.bump.used_bytes() + self.literals.len() * size_of::<Lit>()
     }
 }
 
@@ -144,6 +143,14 @@ impl<'ast> SourceUnit<'ast> {
     /// Counts the number of contracts in the source unit.
     pub fn count_contracts(&self) -> usize {
         self.items.iter().filter(|item| matches!(item.kind, ItemKind::Contract(_))).count()
+    }
+
+    /// Returns an iterator over the source unit's imports.
+    pub fn imports(&self) -> impl Iterator<Item = (Span, &ImportDirective<'ast>)> {
+        self.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Import(import) => Some((item.span, import)),
+            _ => None,
+        })
     }
 }
 

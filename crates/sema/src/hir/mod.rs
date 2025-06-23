@@ -32,12 +32,11 @@ impl Arena {
 
     pub fn allocated_bytes(&self) -> usize {
         self.bump.allocated_bytes()
-            + (self.literals.len() + self.literals.uninitialized_array().len())
-                * std::mem::size_of::<Lit>()
+            + (self.literals.len() + self.literals.uninitialized_array().len()) * size_of::<Lit>()
     }
 
     pub fn used_bytes(&self) -> usize {
-        self.bump.used_bytes() + self.literals.len() * std::mem::size_of::<Lit>()
+        self.bump.used_bytes() + self.literals.len() * size_of::<Lit>()
     }
 }
 

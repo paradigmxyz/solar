@@ -1,4 +1,4 @@
-use crate::{hir, ParsedSource, ParsedSources};
+use crate::{hir, ParsedSources};
 use solar_ast::{self as ast, Span, Visit};
 use solar_data_structures::map::FxIndexSet;
 use solar_interface::{Session, Symbol};
@@ -10,27 +10,23 @@ pub(crate) fn check_unused(sess: &Session, sources: &ParsedSources<'_>, hir: &hi
         return;
     }
 
-    let mut checker = UnusedChecker::new(sources.first().unwrap());
-    for source in sources.iter() {
-        if let Some(ast) = &source.ast {
-            if !source.imports.is_empty() {
-                checker.clear();
-                checker.source = source;
-                let _ = checker.visit_source_unit(ast);
-                checker.check_unused_imports(sess);
-            }
+    let mut checker = UnusedChecker::new();
+    for ast in sources.asts() {
+        if has_imports_to_check(ast) {
+            checker.clear();
+            let _ = checker.visit_source_unit(ast);
+            checker.check_unused_imports(ast, sess);
         }
     }
 }
 
-struct UnusedChecker<'a, 'b> {
-    source: &'a ParsedSource<'b>,
+struct UnusedChecker {
     used_symbols: FxIndexSet<Symbol>,
 }
 
-impl<'a, 'b> UnusedChecker<'a, 'b> {
-    fn new(source: &'a ParsedSource<'b>) -> Self {
-        Self { source, used_symbols: Default::default() }
+impl UnusedChecker {
+    fn new() -> Self {
+        Self { used_symbols: Default::default() }
     }
 
     fn clear(&mut self) {
@@ -43,8 +39,8 @@ impl<'a, 'b> UnusedChecker<'a, 'b> {
     }
 
     /// Check for unused imports and emit warnings.
-    fn check_unused_imports(&self, sess: &Session) {
-        for (span, import) in self.imports() {
+    fn check_unused_imports(&self, ast: &ast::SourceUnit<'_>, sess: &Session) {
+        for (span, import) in ast.imports() {
             match &import.items {
                 ast::ImportItems::Plain(_) | ast::ImportItems::Glob(_) => {
                     if let Some(alias) = import.source_alias() {
@@ -68,21 +64,12 @@ impl<'a, 'b> UnusedChecker<'a, 'b> {
     fn unused_import(&self, sess: &Session, span: Span) {
         sess.dcx.warn("unused import").span(span).emit();
     }
-
-    fn imports(&self) -> impl Iterator<Item = (Span, &'a ast::ImportDirective<'b>)> {
-        let ast = self.source.ast.as_ref().map(|ast| &ast.items[..]).unwrap_or_default();
-        self.source.imports.iter().map(|(import_item_id, _import_source_id)| {
-            let import_item = &ast[*import_item_id];
-            let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
-            (import_item.span, import)
-        })
-    }
 }
 
-impl<'a> ast::Visit<'a> for UnusedChecker<'_, 'a> {
+impl<'ast> ast::Visit<'ast> for UnusedChecker {
     type BreakValue = solar_data_structures::Never;
 
-    fn visit_item(&mut self, item: &'a ast::Item<'a>) -> ControlFlow<Self::BreakValue> {
+    fn visit_item(&mut self, item: &'ast ast::Item<'ast>) -> ControlFlow<Self::BreakValue> {
         if let ast::ItemKind::Import(_) = &item.kind {
             return ControlFlow::Continue(());
         }
@@ -92,7 +79,7 @@ impl<'a> ast::Visit<'a> for UnusedChecker<'_, 'a> {
 
     fn visit_using_directive(
         &mut self,
-        using: &'a ast::UsingDirective<'a>,
+        using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         match &using.list {
             ast::UsingList::Single(path) => {
@@ -108,13 +95,16 @@ impl<'a> ast::Visit<'a> for UnusedChecker<'_, 'a> {
         self.walk_using_directive(using)
     }
 
-    fn visit_modifier(&mut self, modifier: &'a ast::Modifier<'a>) -> ControlFlow<Self::BreakValue> {
+    fn visit_modifier(
+        &mut self,
+        modifier: &'ast ast::Modifier<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
         self.mark_symbol_used(modifier.name.first().name);
 
         self.walk_modifier(modifier)
     }
 
-    fn visit_expr(&mut self, expr: &'a ast::Expr<'a>) -> ControlFlow<Self::BreakValue> {
+    fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
         if let ast::ExprKind::Ident(id) = expr.kind {
             self.mark_symbol_used(id.name);
         }
@@ -122,11 +112,18 @@ impl<'a> ast::Visit<'a> for UnusedChecker<'_, 'a> {
         self.walk_expr(expr)
     }
 
-    fn visit_ty(&mut self, ty: &'a ast::Type<'a>) -> ControlFlow<Self::BreakValue> {
+    fn visit_ty(&mut self, ty: &'ast ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
         if let ast::TypeKind::Custom(path) = &ty.kind {
             self.mark_symbol_used(path.first().name);
         }
 
         self.walk_ty(ty)
     }
+}
+
+fn has_imports_to_check(ast: &ast::SourceUnit<'_>) -> bool {
+    ast.imports().any(|(_, import)| {
+        import.items.source_alias().is_some()
+            || matches!(import.items, ast::ImportItems::Aliases(_))
+    })
 }
