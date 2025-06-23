@@ -38,13 +38,16 @@ RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets
 typos
 ```
 
-### Benchmarking
+### Running the Compiler
 ```bash
-# Run all benchmarks
-cargo bench
+# Get help
+cargo run -- --help
 
-# Run specific benchmark
-cargo bench benchmark_name
+# Get help for unstable flags
+cargo run -- -Zhelp
+
+# Run on a single file
+cargo run -- a.sol
 ```
 
 ## Architecture
