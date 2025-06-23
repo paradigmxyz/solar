@@ -45,12 +45,8 @@ pub(crate) fn lower<'sess, 'hir>(
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     lcx.resolve_symbols();
 
-    // Track usage of all symbols
-    lcx.track_symbol_usage();
-
-    // Check for unused items only if the warn-unused flag is enabled
-    if sess.opts.unstable.warn_unused {
-        lcx.check_unused_items();
+    if sess.opts.unstable.check_unused {
+        lcx.check_unused(sources);
     }
 
     // Clean up.
@@ -117,9 +113,5 @@ fn get_two_mut_idx<I: Idx, T>(sl: &mut IndexVec<I, T>, idx_1: I, idx_2: I) -> (&
 #[inline]
 #[track_caller]
 fn get_two_mut<T>(sl: &mut [T], idx_1: usize, idx_2: usize) -> (&mut T, &mut T) {
-    // TODO: `sl.get_disjoint_mut([idx_1, idx_2])` once stable.
-
-    assert!(idx_1 != idx_2 && idx_1 < sl.len() && idx_2 < sl.len());
-    let ptr = sl.as_mut_ptr();
-    unsafe { (&mut *ptr.add(idx_1), &mut *ptr.add(idx_2)) }
+    sl.get_disjoint_mut([idx_1, idx_2]).unwrap().into()
 }

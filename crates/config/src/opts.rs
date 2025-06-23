@@ -173,9 +173,9 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub span_visitor: bool,
 
-    /// Enable warnings for unused imports and declarations.
+    /// Enable warnings for unused imports.
     #[cfg_attr(feature = "clap", arg(long))]
-    pub warn_unused: bool,
+    pub check_unused: bool,
 
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]

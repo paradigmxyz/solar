@@ -727,14 +727,6 @@ pub struct Event<'hir> {
     pub parameters: &'hir [VariableId],
 }
 
-/// An event parameter.
-#[derive(Debug)]
-pub struct EventParameter<'hir> {
-    pub ty: Type<'hir>,
-    pub indexed: bool,
-    pub name: Option<Ident>,
-}
-
 /// A custom error.
 #[derive(Debug)]
 pub struct Error<'hir> {

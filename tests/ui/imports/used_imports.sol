@@ -1,6 +1,4 @@
-//@ compile-flags: -Zwarn-unused
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+//@ compile-flags: -Zcheck-unused
 
 // This test ensures that imports that are actually used do not trigger warnings
 import "./auxiliary/Library.sol";

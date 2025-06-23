@@ -152,7 +152,9 @@ When adding new features or fixing bugs:
 UI tests use special comment annotations to specify expected compiler output:
 
 ```solidity
-//@ compile-flags: -Zwarn-unused  // Test directives at the top
+// Test directives at the top
+//@ignore-host: windows
+//@compile-flags: --emit=abi,hashes --pretty-json
 
 contract Test {
     uint x; //~ ERROR: error message here
