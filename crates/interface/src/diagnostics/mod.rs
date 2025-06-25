@@ -315,7 +315,12 @@ pub struct SubDiagnostic {
 impl SubDiagnostic {
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages)
+        flatten_messages(&self.messages, false, self.level)
+    }
+
+    /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
+    pub fn label_with_style(&self, supports_color: bool) -> Cow<'_, str> {
+        flatten_messages(&self.messages, supports_color, self.level)
     }
 }
 
@@ -377,7 +382,12 @@ impl Diag {
 
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages)
+        flatten_messages(&self.messages, false, self.level)
+    }
+
+    /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
+    pub fn label_with_style(&self, supports_color: bool) -> Cow<'_, str> {
+        flatten_messages(&self.messages, supports_color, self.level)
     }
 
     /// Returns the messages of this diagnostic.
@@ -554,11 +564,76 @@ impl Diag {
     }
 }
 
-// TODO: Styles?
-fn flatten_messages(messages: &[(DiagMsg, Style)]) -> Cow<'_, str> {
+/// Flattens diagnostic messages, applying ANSI styles if requested.
+fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Level) -> Cow<'_, str> {
     match messages {
         [] => Cow::Borrowed(""),
+        [(message, Style::NoStyle)] => Cow::Borrowed(message.as_str()),
+        [(message, style)] if with_style && !matches!(style, Style::NoStyle) => {
+            let ansi_style = style.to_color_spec(level);
+            Cow::Owned(format!(
+                "{}{}{}",
+                ansi_style.render(),
+                message.as_str(),
+                ansi_style.render_reset()
+            ))
+        }
         [(message, _)] => Cow::Borrowed(message.as_str()),
-        messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
+        messages => {
+            if with_style && messages.iter().any(|(_, s)| !matches!(s, Style::NoStyle)) {
+                let mut result = String::new();
+                for (msg, style) in messages {
+                    match style {
+                        Style::NoStyle => result.push_str(msg.as_str()),
+                        _ => {
+                            let ansi_style = style.to_color_spec(level);
+                            use std::fmt::Write;
+                            write!(
+                                &mut result,
+                                "{}{}{}",
+                                ansi_style.render(),
+                                msg.as_str(),
+                                ansi_style.render_reset()
+                            )
+                            .unwrap();
+                        }
+                    }
+                }
+                Cow::Owned(result)
+            } else {
+                messages.iter().map(|(msg, _)| msg.as_str()).collect()
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_styled_messages() {
+        // Create a diagnostic with styled messages
+        let mut diag = Diag::new(Level::Note, "test");
+
+        diag.highlighted_note(vec![
+            ("plain text ", Style::NoStyle),
+            ("removed", Style::Removal),
+            (" middle ", Style::NoStyle),
+            ("added", Style::Addition),
+        ]);
+
+        let sub = &diag.children[0];
+
+        // Without styles - just concatenated text
+        let plain = sub.label();
+        assert_eq!(plain, "plain text removed middle added");
+
+        // With styles - includes ANSI escape codes
+        let styled = sub.label_with_style(true);
+        assert_eq!(
+            styled.to_string(),
+            "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
+        );
     }
 }
