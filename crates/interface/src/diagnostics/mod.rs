@@ -4,7 +4,11 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
-use std::{borrow::Cow, fmt, panic::Location};
+use std::{
+    borrow::Cow,
+    fmt::{self, Write},
+    panic::Location,
+};
 
 mod builder;
 pub use builder::{DiagBuilder, EmissionGuarantee};
@@ -566,45 +570,38 @@ impl Diag {
 
 /// Flattens diagnostic messages, applying ANSI styles if requested.
 fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Level) -> Cow<'_, str> {
-    match messages {
-        [] => Cow::Borrowed(""),
-        [(message, Style::NoStyle)] => Cow::Borrowed(message.as_str()),
-        [(message, style)] if with_style && !matches!(style, Style::NoStyle) => {
-            let ansi_style = style.to_color_spec(level);
-            Cow::Owned(format!(
-                "{}{}{}",
-                ansi_style.render(),
-                message.as_str(),
-                ansi_style.render_reset()
-            ))
-        }
-        [(message, _)] => Cow::Borrowed(message.as_str()),
-        messages => {
-            if with_style && messages.iter().any(|(_, s)| !matches!(s, Style::NoStyle)) {
-                let mut result = String::new();
+    if with_style {
+        match messages {
+            [] => Cow::Borrowed(""),
+            [(msg, Style::NoStyle)] => Cow::Borrowed(msg.as_str()),
+            [(msg, style)] => {
+                let mut res = String::new();
+                write_fmt(&mut res, msg, style, level);
+                Cow::Owned(res)
+            }
+            messages => {
+                let mut res = String::new();
                 for (msg, style) in messages {
                     match style {
-                        Style::NoStyle => result.push_str(msg.as_str()),
-                        _ => {
-                            let ansi_style = style.to_color_spec(level);
-                            use std::fmt::Write;
-                            write!(
-                                &mut result,
-                                "{}{}{}",
-                                ansi_style.render(),
-                                msg.as_str(),
-                                ansi_style.render_reset()
-                            )
-                            .unwrap();
-                        }
+                        Style::NoStyle => res.push_str(msg.as_str()),
+                        _ => write_fmt(&mut res, msg, style, level),
                     }
                 }
-                Cow::Owned(result)
-            } else {
-                messages.iter().map(|(msg, _)| msg.as_str()).collect()
+                Cow::Owned(res)
             }
         }
+    } else {
+        match messages {
+            [] => Cow::Borrowed(""),
+            [(message, _)] => Cow::Borrowed(message.as_str()),
+            messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
+        }
     }
+}
+
+fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
+    let ansi_style = style.to_color_spec(level);
+    write!(output, "{}{}{}", ansi_style.render(), msg.as_str(), ansi_style.render_reset()).unwrap();
 }
 
 #[cfg(test)]
