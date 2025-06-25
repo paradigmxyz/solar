@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased](https://github.com/paradigmxyz/solar/compare/v0.1.3...HEAD)
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Features
+
+- Update solidity to 0.8.30 ([#307](https://github.com/paradigmxyz/solar/issues/307))
+- `--no-warnings` ([#293](https://github.com/paradigmxyz/solar/issues/293))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+
+### Miscellaneous Tasks
+
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Revert extra changelog
+
+### Performance
+
+- Add and default to using mimalloc ([#276](https://github.com/paradigmxyz/solar/issues/276))
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes

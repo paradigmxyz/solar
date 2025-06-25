@@ -5,6 +5,8 @@ use solar_interface::{
     source_map::{FileName, SourceFile, SourceFileHashAlgorithm},
     Result, Session,
 };
+use std::sync::Arc;
+use thread_local::ThreadLocal;
 
 #[test]
 fn test_pretty_print() -> Result<(), EmittedDiagnostics> {
@@ -13,7 +15,8 @@ fn test_pretty_print() -> Result<(), EmittedDiagnostics> {
     let sess = Session::empty(dcx);
     let dcx = &sess.dcx;
 
-    let src = r#"
+    sess.enter(|| {
+        let src = r#"
 contract Test {
     uint public value;
 
@@ -31,20 +34,41 @@ contract Test {
 }
 "#;
 
-    // Create the source file
-    let _file = match SourceFile::new(
-        FileName::custom("test.sol"),
-        src.to_string(),
-        SourceFileHashAlgorithm::default(),
-    ) {
-        Ok(file) => file,
-        Err(e) => {
-            let _ = dcx.err(e.to_string()).emit();
-            return Err(dcx.emitted_diagnostics().unwrap());
-        }
-    };
+        // Create the source file
+        let file = match SourceFile::new(
+            FileName::custom("test.sol"),
+            src.to_string(),
+            SourceFileHashAlgorithm::default(),
+        ) {
+            Ok(file) => Arc::new(file),
+            Err(e) => {
+                let _ = dcx.err(format!("{:?}", e)).emit();
+                return Err(dcx.emitted_diagnostics().unwrap());
+            }
+        };
 
-    // TODO: Find a way to parse and lower the source code using public APIs.
-    // For now, just return Ok(())
-    Ok(())
+        // Parse and lower to HIR
+        let mut pcx = solar_sema::ParsingContext::new(&sess);
+        pcx.add_file(file);
+        let hir_arena = ThreadLocal::new();
+        let gcx = pcx.parse_and_lower(&hir_arena).map_err(|e| {
+            let _ = dcx.err(format!("{:?}", e)).emit();
+            dcx.emitted_diagnostics().unwrap()
+        })?;
+        let gcx = match gcx {
+            Some(gcx) => gcx,
+            None => return Err(dcx.emitted_diagnostics().unwrap()),
+        };
+        let hir = &gcx.get().hir;
+
+        // Pretty-print the HIR
+        let output = hir.pretty_print();
+
+        // Assert that the output contains expected elements
+        assert!(output.contains("contract Test"), "Pretty printer output: {output}");
+        assert!(output.contains("getValue()"), "Pretty printer output: {output}");
+        assert!(output.contains("setValue("), "Pretty printer output: {output}");
+
+        Ok(())
+    })
 }

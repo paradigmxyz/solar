@@ -4,7 +4,11 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
-use std::{borrow::Cow, fmt, panic::Location};
+use std::{
+    borrow::Cow,
+    fmt::{self, Write},
+    panic::Location,
+};
 
 mod builder;
 pub use builder::{DiagBuilder, EmissionGuarantee};
@@ -93,23 +97,31 @@ pub struct FatalAbort;
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagId {
-    id: u32,
+    s: Cow<'static, str>,
 }
 
 impl DiagId {
+    /// Creates a new diagnostic ID from a number.
+    ///
+    /// This should be used for custom lints. For solc-like error codes, use
+    /// the [`error_code!`](crate::error_code) macro.
+    pub fn new_str(s: impl Into<Cow<'static, str>>) -> Self {
+        Self { s: s.into() }
+    }
+
     /// Creates an error code diagnostic ID.
     ///
     /// Use [`error_code!`](crate::error_code) instead.
     #[doc(hidden)]
-    #[track_caller]
-    pub const fn new_from_macro(id: u32) -> Self {
-        assert!(id >= 1 && id <= 9999, "error code must be in range 0001-9999");
-        Self { id }
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn new_from_macro(id: u32) -> Self {
+        debug_assert!((1..=9999).contains(&id), "error code must be in range 0001-9999");
+        Self { s: Cow::Owned(format!("{id:04}")) }
     }
 
     /// Returns the string representation of the diagnostic ID.
     pub fn as_string(&self) -> String {
-        format!("{:04}", self.id)
+        self.s.to_string()
     }
 }
 
@@ -124,7 +136,7 @@ impl DiagId {
 #[macro_export]
 macro_rules! error_code {
     ($id:literal) => {
-        const { $crate::diagnostics::DiagId::new_from_macro($id) }
+        $crate::diagnostics::DiagId::new_from_macro($id)
     };
 }
 
@@ -307,7 +319,12 @@ pub struct SubDiagnostic {
 impl SubDiagnostic {
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages)
+        flatten_messages(&self.messages, false, self.level)
+    }
+
+    /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
+    pub fn label_with_style(&self, supports_color: bool) -> Cow<'_, str> {
+        flatten_messages(&self.messages, supports_color, self.level)
     }
 }
 
@@ -369,7 +386,12 @@ impl Diag {
 
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages)
+        flatten_messages(&self.messages, false, self.level)
+    }
+
+    /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
+    pub fn label_with_style(&self, supports_color: bool) -> Cow<'_, str> {
+        flatten_messages(&self.messages, supports_color, self.level)
     }
 
     /// Returns the messages of this diagnostic.
@@ -546,11 +568,69 @@ impl Diag {
     }
 }
 
-// TODO: Styles?
-fn flatten_messages(messages: &[(DiagMsg, Style)]) -> Cow<'_, str> {
-    match messages {
-        [] => Cow::Borrowed(""),
-        [(message, _)] => Cow::Borrowed(message.as_str()),
-        messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
+/// Flattens diagnostic messages, applying ANSI styles if requested.
+fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Level) -> Cow<'_, str> {
+    if with_style {
+        match messages {
+            [] => Cow::Borrowed(""),
+            [(msg, Style::NoStyle)] => Cow::Borrowed(msg.as_str()),
+            [(msg, style)] => {
+                let mut res = String::new();
+                write_fmt(&mut res, msg, style, level);
+                Cow::Owned(res)
+            }
+            messages => {
+                let mut res = String::new();
+                for (msg, style) in messages {
+                    match style {
+                        Style::NoStyle => res.push_str(msg.as_str()),
+                        _ => write_fmt(&mut res, msg, style, level),
+                    }
+                }
+                Cow::Owned(res)
+            }
+        }
+    } else {
+        match messages {
+            [] => Cow::Borrowed(""),
+            [(message, _)] => Cow::Borrowed(message.as_str()),
+            messages => messages.iter().map(|(msg, _)| msg.as_str()).collect(),
+        }
+    }
+}
+
+fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
+    let ansi_style = style.to_color_spec(level);
+    write!(output, "{}{}{}", ansi_style.render(), msg.as_str(), ansi_style.render_reset()).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_styled_messages() {
+        // Create a diagnostic with styled messages
+        let mut diag = Diag::new(Level::Note, "test");
+
+        diag.highlighted_note(vec![
+            ("plain text ", Style::NoStyle),
+            ("removed", Style::Removal),
+            (" middle ", Style::NoStyle),
+            ("added", Style::Addition),
+        ]);
+
+        let sub = &diag.children[0];
+
+        // Without styles - just concatenated text
+        let plain = sub.label();
+        assert_eq!(plain, "plain text removed middle added");
+
+        // With styles - includes ANSI escape codes
+        let styled = sub.label_with_style(true);
+        assert_eq!(
+            styled.to_string(),
+            "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
+        );
     }
 }

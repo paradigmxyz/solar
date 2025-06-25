@@ -156,7 +156,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
 
                 // expr{args}
-                let args = self.parse_named_args()?;
+                let args = self.parse_named_args(false)?;
                 ExprKind::CallOptions(expr, args)
             } else {
                 break;
@@ -226,7 +226,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_call_args_kind(&mut self) -> PResult<'sess, CallArgsKind<'ast>> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-            let args = self.parse_named_args().map(CallArgsKind::Named)?;
+            let args = self.parse_named_args(true).map(CallArgsKind::Named)?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             Ok(args)
         } else {
@@ -261,8 +261,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
-    fn parse_named_args(&mut self) -> PResult<'sess, NamedArgList<'ast>> {
-        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg)
+    fn parse_named_args(&mut self, allow_empty: bool) -> PResult<'sess, NamedArgList<'ast>> {
+        self.parse_delim_comma_seq(Delimiter::Brace, allow_empty, Self::parse_named_arg)
     }
 
     /// Parses a single named argument: `a: b`.

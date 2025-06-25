@@ -74,7 +74,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
     /// Parses an if statement.
@@ -131,16 +133,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
-
         let mut clauses = SmallVec::<[_; 4]>::new();
+
+        let mut lo = self.token.span;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
-        clauses.push(TryCatchClause { name: None, args: returns, block });
+        let span = lo.to(self.prev_token.span);
+        clauses.push(TryCatchClause { name: None, args: returns, block, span });
 
+        lo = self.token.span;
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
@@ -150,7 +155,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Default::default()
             };
             let block = self.parse_block()?;
-            clauses.push(TryCatchClause { name, args, block });
+            let span = lo.to(self.prev_token.span);
+            clauses.push(TryCatchClause { name, args, block, span });
+            lo = self.token.span;
             if !self.eat_keyword(kw::Catch) {
                 break;
             }

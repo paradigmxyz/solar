@@ -1,5 +1,6 @@
 //! AST-related passes.
 
+use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
 use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
@@ -12,7 +13,7 @@ pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
 
 /// Performs AST validation.
 #[instrument(name = "validate", level = "debug", skip_all)]
-pub fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
+fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
     let mut validator = AstValidator::new(sess);
     let _ = validator.visit_source_unit(ast);
 }
@@ -62,33 +63,83 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit) {
-        let ast::LitKind::Number(_) = lit.kind else {
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
             return;
         };
-        let literal_span = lit.span;
-        let literal_str = lit.symbol.as_str();
+        let value = lit.symbol.as_str();
 
-        let error_help_msg = {
-            if literal_str.ends_with('_') {
-                Some("remove trailing underscores")
-            } else if literal_str.contains("__") {
-                Some("only 1 consecutive underscore `_` is allowed between digits")
-            } else if literal_str.contains("._") || literal_str.contains("_.") {
-                Some("remove underscores in front of the fraction part")
-            } else if literal_str.contains("_e") {
-                Some("remove underscores at the end of the mantissa")
-            } else if literal_str.contains("e_") {
-                Some("remove underscores in front of the exponent")
-            } else {
-                None
-            }
+        let report = |help: &'static str| {
+            let _ = self
+                .dcx()
+                .err("invalid use of underscores in number literal")
+                .span(lit.span)
+                .help(help)
+                .emit();
         };
 
-        if let Some(error_help_msg) = error_help_msg {
+        if value.ends_with('_') {
+            report("remove trailing underscores");
+            return;
+        }
+        if value.contains("__") {
+            report("only 1 consecutive underscore `_` is allowed between digits");
+            return;
+        }
+
+        if value.starts_with("0x") {
+            return;
+        }
+        if value.contains("._") || value.contains("_.") {
+            report("remove underscores in front of the fraction part");
+        }
+        if value.contains("_e") || value.contains("_E") {
+            report("remove underscores at the end of the mantissa");
+        }
+        if value.contains("e_") || value.contains("E_") {
+            report("remove underscores in front of the exponent");
+        }
+    }
+
+    fn check_subdenominations_for_number_literals(
+        &self,
+        lit: &ast::Lit,
+        subdenomination: &Option<ast::SubDenomination>,
+    ) {
+        let Some(denom) = subdenomination else {
+            return;
+        };
+
+        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+            panic!("non-number literal with denomination {:?}", lit.kind)
+        };
+
+        if lit.symbol.as_str().starts_with("0x") {
             self.dcx()
-                .err("invalid use of underscores in number literal")
-                .span(literal_span)
-                .help(error_help_msg)
+                .err("hexadecimal numbers cannot be used with unit denominations")
+                .span(lit.span)
+                .help("you can use an expression of the form \"0x1234 * 1 days\" instead")
+                .emit();
+        }
+
+        if let ast::SubDenomination::Time(ast::TimeSubDenomination::Years) = denom {
+            self.dcx()
+                .err("using \"years\" as a unit denomination is deprecated")
+                .span(lit.span)
+                .emit();
+        }
+    }
+
+    fn check_address_checksums(&self, lit: &ast::Lit) {
+        let ast::LitKind::Address(addr) = lit.kind else {
+            return;
+        };
+
+        if Address::parse_checksummed(lit.symbol.as_str(), None).is_err() {
+            self.dcx()
+                .err("invalid checksummed address")
+                .span(lit.span)
+                .help(format!("correct checksummed address: \"{}\"", addr.to_checksum(None)))
+                .note("if this is not used as an address, please prepend \"00\"")
                 .emit();
         }
     }
@@ -386,8 +437,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_expr(&mut self, expr: &'ast ast::Expr<'ast>) -> ControlFlow<Self::BreakValue> {
         let ast::Expr { kind, .. } = expr;
-        if let ast::ExprKind::Lit(lit, _) = kind {
+        if let ast::ExprKind::Lit(lit, subdenomination) = kind {
             self.check_underscores_in_number_literals(lit);
+            self.check_subdenominations_for_number_literals(lit, subdenomination);
+            self.check_address_checksums(lit);
         }
         self.walk_expr(expr)
     }

@@ -11,13 +11,19 @@ fn parser_benches(c: &mut Criterion) {
     let mut g = c.benchmark_group("parser");
     g.warm_up_time(Duration::from_secs(3));
     g.measurement_time(Duration::from_secs(10));
-    g.sample_size(20);
+    g.sample_size(10);
     g.noise_threshold(0.05);
 
     solar_parse::interface::enter(|| {
         for &Source { name: sname, path: _, src } in get_srcs() {
             for &parser in PARSERS {
                 let pname = parser.name();
+
+                // TODO: https://github.com/JoranHonig/tree-sitter-solidity/issues/73
+                if pname == "tree-sitter" && matches!(sname, "Seaport" | "Optimism") {
+                    continue;
+                }
+
                 let mk_id = |id: &str| {
                     if PARSERS.len() == 1 {
                         format!("{sname}/{id}")

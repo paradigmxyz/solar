@@ -1,39 +1,39 @@
 use super::*;
-use expect_test::{expect, Expect};
+use snapbox::{str, IntoData};
 use std::fmt::Write;
 
-fn check(src: &str, expect: Expect) {
+fn check(src: &str, data: impl IntoData) {
     let mut actual = String::new();
     for token in Cursor::new(src) {
         writeln!(actual, "{token:?}").unwrap();
     }
-    expect.assert_eq(&actual);
+    snapbox::assert_data_eq!(actual.trim(), data);
 }
 
 #[test]
 fn smoke_test() {
     check(
         "/* my source file */ fn main() { print(\"zebra\"); }\n",
-        expect![[r#"
-            RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 20 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 2 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 4 }
-            RawToken { kind: OpenParen, len: 1 }
-            RawToken { kind: CloseParen, len: 1 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: OpenBrace, len: 1 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 5 }
-            RawToken { kind: OpenParen, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 7 }
-            RawToken { kind: CloseParen, len: 1 }
-            RawToken { kind: Semi, len: 1 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: CloseBrace, len: 1 }
-            RawToken { kind: Whitespace, len: 1 }
-        "#]],
+        str![[r#"
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 20 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 4 }
+RawToken { kind: OpenParen, len: 1 }
+RawToken { kind: CloseParen, len: 1 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: OpenBrace, len: 1 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 5 }
+RawToken { kind: OpenParen, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 7 }
+RawToken { kind: CloseParen, len: 1 }
+RawToken { kind: Semi, len: 1 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: CloseBrace, len: 1 }
+RawToken { kind: Whitespace, len: 1 }
+"#]],
     );
 }
 
@@ -49,23 +49,23 @@ fn comment_flavors() {
 /*** also block */
 /** doc block */
 ",
-        expect![[r#"
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: LineComment { is_doc: false }, len: 7 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: LineComment { is_doc: false }, len: 17 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: LineComment { is_doc: true }, len: 12 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 11 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 4 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 18 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: BlockComment { is_doc: true, terminated: true }, len: 16 }
-            RawToken { kind: Whitespace, len: 1 }
-        "#]],
+        str![[r#"
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: LineComment { is_doc: false }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: LineComment { is_doc: false }, len: 17 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: LineComment { is_doc: true }, len: 12 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 11 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 18 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: true, terminated: true }, len: 16 }
+RawToken { kind: Whitespace, len: 1 }
+"#]],
     )
 }
 
@@ -73,13 +73,13 @@ fn comment_flavors() {
 fn single_str() {
     check(
         "'a' ' ' '\\n'",
-        expect![[r#"
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 4 }
-        "#]],
+        str![[r#"
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+"#]],
     );
 }
 
@@ -87,13 +87,13 @@ fn single_str() {
 fn double_str() {
     check(
         r#""a" " " "\n""#,
-        expect![[r#"
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 4 }
-        "#]],
+        str![[r#"
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+"#]],
     );
 }
 
@@ -101,17 +101,17 @@ fn double_str() {
 fn hex_str() {
     check(
         r#"hex'' hex"ab" h"a" he"a"#,
-        expect![[r#"
-            RawToken { kind: Literal { kind: HexStr { terminated: true } }, len: 5 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: HexStr { terminated: true } }, len: 7 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 2 }
-            RawToken { kind: Literal { kind: Str { terminated: false, unicode: false } }, len: 2 }
-        "#]],
+        str![[r#"
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 5 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 2 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: false } }, len: 2 }
+"#]],
     );
 }
 
@@ -119,16 +119,105 @@ fn hex_str() {
 fn unicode_str() {
     check(
         r#"unicode'' unicode"ab" u"a" uni"a"#,
-        expect![[r#"
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: true } }, len: 9 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: true } }, len: 11 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 1 }
-            RawToken { kind: Literal { kind: Str { terminated: true, unicode: false } }, len: 3 }
-            RawToken { kind: Whitespace, len: 1 }
-            RawToken { kind: Ident, len: 3 }
-            RawToken { kind: Literal { kind: Str { terminated: false, unicode: false } }, len: 2 }
-        "#]],
+        str![[r#"
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 9 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 3 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 3 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: false } }, len: 2 }
+"#]],
+    );
+}
+
+#[test]
+fn random_unicode() {
+    check(
+        r#"
+è
+
+"è"
+hex"è"
+unicode"è"
+
+'è'
+hex'è'
+unicode'è'
+
+hex👀
+unicode👀
+
+//è
+/*è */
+
+///è
+/**è */
+
+.è
+0.è
+1.eè
+1.e1è
+"#,
+        str![[r#"
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Hex, terminated: true } }, len: 7 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Str { kind: Unicode, terminated: true } }, len: 11 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Ident, len: 3 }
+RawToken { kind: Unknown, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Ident, len: 7 }
+RawToken { kind: Unknown, len: 4 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: LineComment { is_doc: false }, len: 4 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: false, terminated: true }, len: 7 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: LineComment { is_doc: true }, len: 5 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: BlockComment { is_doc: true, terminated: true }, len: 8 }
+RawToken { kind: Whitespace, len: 2 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Rational { base: Decimal, empty_exponent: false } }, len: 2 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Int { base: Decimal, empty_int: false } }, len: 1 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Ident, len: 1 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+RawToken { kind: Literal { kind: Int { base: Decimal, empty_int: false } }, len: 1 }
+RawToken { kind: Dot, len: 1 }
+RawToken { kind: Ident, len: 2 }
+RawToken { kind: Unknown, len: 2 }
+RawToken { kind: Whitespace, len: 1 }
+"#]],
+    );
+}
+
+#[test]
+fn windows_line_ending() {
+    check(
+        "/// doc line\r\n",
+        str![[r#"
+RawToken { kind: LineComment { is_doc: true }, len: 12 }
+RawToken { kind: Whitespace, len: 2 }
+"#]],
     );
 }

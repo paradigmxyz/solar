@@ -226,7 +226,7 @@ def extract_timing_data(
     """Extract timing data from input lines."""
     time = r"(\s*[\d\.]+ \w+)"
     data_re = re.compile(
-        rf"parser/(\w+)/(\w+)/(\w+)\s*time:\s*\n?\s*\[{time}{time}{time}\]",
+        rf"parser/(.+?)/(.+?)/(.+?)\s*time:\s*\n?\s*\[{time}{time}{time}\]",
         flags=re.MULTILINE,
     )
 

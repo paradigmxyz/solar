@@ -215,6 +215,7 @@ declare_visitors! {
 
         fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) -> ControlFlow<Self::BreakValue> {
             let FunctionHeader {
+                span,
                 name,
                 parameters,
                 visibility: _,
@@ -224,6 +225,7 @@ declare_visitors! {
                 override_: _,
                 returns,
             } = header;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
@@ -358,7 +360,8 @@ declare_visitors! {
         }
 
         fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let TryCatchClause { name, args, block } = catch;
+            let TryCatchClause { span, name, args, block } = catch;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
@@ -368,7 +371,9 @@ declare_visitors! {
         }
 
         fn visit_block(&mut self, block: &'ast #mut Block<'ast>) -> ControlFlow<Self::BreakValue> {
-            for stmt in block.iter #_mut() {
+            let Block { span, stmts } = block;
+            self.visit_span #_mut(span)?;
+            for stmt in stmts.iter #_mut() {
                 self.visit_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())
@@ -525,7 +530,9 @@ declare_visitors! {
         }
 
         fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) -> ControlFlow<Self::BreakValue> {
-            for stmt in block.iter #_mut() {
+            let yul::Block { span, stmts } = block;
+            self.visit_span #_mut(span)?;
+            for stmt in stmts.iter #_mut() {
                 self.visit_yul_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())

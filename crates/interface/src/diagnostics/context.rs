@@ -345,7 +345,10 @@ impl DiagCtxtInner {
         match (self.deduplicated_err_count, self.deduplicated_warn_count) {
             (0, 0) => Ok(()),
             (0, w) => {
-                self.emitter.emit_diagnostic(&Diag::new(Level::Warning, warnings(w)));
+                // TODO: Don't emit in tests since it's not handled by `ui_test`.
+                if self.flags.track_diagnostics {
+                    self.emitter.emit_diagnostic(&Diag::new(Level::Warning, warnings(w)));
+                }
                 Ok(())
             }
             (e, 0) => self.emit_diagnostic(Diag::new(Level::Error, errors(e))),

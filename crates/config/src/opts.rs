@@ -87,6 +87,9 @@ pub struct Opts {
         arg(help_heading = "Display options", long, value_enum, default_value_t)
     )]
     pub error_format: ErrorFormat,
+    /// Whether to disable warnings.
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
+    pub no_warnings: bool,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
@@ -165,6 +168,10 @@ pub struct UnstableOpts {
     /// Print AST stats.
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
+
+    /// Run the span visitor after parsing.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub span_visitor: bool,
 
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]

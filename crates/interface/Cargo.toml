@@ -33,10 +33,9 @@ dunce = "1"
 hex.workspace = true
 itertools.workspace = true
 itoa.workspace = true
-lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
+inturn.workspace = true
 normalize-path = "0.2.1"
 rayon.workspace = true
-scc.workspace = true
 scoped-tls.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true

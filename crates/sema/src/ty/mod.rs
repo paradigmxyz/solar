@@ -16,11 +16,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session, Span,
 };
-use std::{
-    fmt,
-    hash::{BuildHasher, Hash},
-    ops::ControlFlow,
-};
+use std::{fmt, hash::Hash, ops::ControlFlow};
 use thread_local::ThreadLocal;
 
 mod abi;
@@ -583,7 +579,7 @@ pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
 }
 
-fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
+pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
@@ -811,17 +807,18 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
-fn cache_insert<K, V, S>(
-    map: &once_map::OnceMap<K, V, S>,
-    key: K,
-    make_val: impl FnOnce(&K) -> V,
-) -> V
+#[inline]
+fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
 where
     K: Copy + Eq + Hash,
     V: Copy,
-    S: BuildHasher,
 {
-    map.map_insert(key, make_val, |_k, v| *v)
+    map.map_insert(key, make_val, cache_insert_with_result)
+}
+
+#[inline]
+fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
+    *v
 }
 
 fn log_cache_query(name: &str, key: &dyn fmt::Debug) -> tracing::span::EnteredSpan {

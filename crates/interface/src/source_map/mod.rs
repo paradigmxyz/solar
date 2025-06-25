@@ -2,7 +2,7 @@
 
 use crate::{BytePos, CharPos, Span};
 use solar_data_structures::{
-    map::FxBuildHasher,
+    map::{FxHashMap, StdEntry},
     sync::{ReadGuard, RwLock},
 };
 use std::{
@@ -99,13 +99,18 @@ pub struct FileLines {
     pub lines: Vec<LineInfo>,
 }
 
-/// Stores all the sources of the current compilation session.
-#[derive(derive_more::Debug)]
-pub struct SourceMap {
+#[derive(Default, derive_more::Debug)]
+struct SourceMapFiles {
     // INVARIANT: The only operation allowed on `source_files` is `push`.
-    source_files: RwLock<Vec<Arc<SourceFile>>>,
+    source_files: Vec<Arc<SourceFile>>,
     #[debug(skip)]
-    stable_id_to_source_file: scc::HashIndex<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    stable_id_to_source_file: FxHashMap<StableSourceFileId, Arc<SourceFile>>,
+}
+
+/// Stores all the sources of the current compilation session.
+#[derive(Debug)]
+pub struct SourceMap {
+    files: RwLock<SourceMapFiles>,
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -118,11 +123,7 @@ impl Default for SourceMap {
 impl SourceMap {
     /// Creates a new empty source map with the given hash algorithm.
     pub fn new(hash_kind: SourceFileHashAlgorithm) -> Self {
-        Self {
-            source_files: RwLock::new(Vec::new()),
-            stable_id_to_source_file: Default::default(),
-            hash_kind,
-        }
+        Self { files: Default::default(), hash_kind }
     }
 
     /// Creates a new empty source map.
@@ -133,14 +134,14 @@ impl SourceMap {
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        self.get_file_by_name(&path.to_path_buf().into())
+        self.source_file_by_file_name(&path.to_path_buf().into())
     }
 
     /// Returns the source file with the given name, if it exists.
     /// Does not attempt to load the file.
+    #[deprecated = "use `source_file_by_file_name` instead"]
     pub fn get_file_by_name(&self, name: &FileName) -> Option<Arc<SourceFile>> {
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(name);
-        self.stable_id_to_source_file.get(&stable_id).map(|entry| entry.get().clone())
+        self.source_file_by_file_name(name)
     }
 
     /// Loads a file from the given path.
@@ -187,19 +188,20 @@ impl SourceMap {
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
-        match self.stable_id_to_source_file.entry(stable_id) {
-            scc::hash_index::Entry::Occupied(entry) => Ok(entry.get().clone()),
-            scc::hash_index::Entry::Vacant(entry) => {
+        let files = &mut *self.files.write();
+        match files.stable_id_to_source_file.entry(stable_id) {
+            StdEntry::Occupied(entry) => Ok(entry.get().clone()),
+            StdEntry::Vacant(entry) => {
                 let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-                let file = self.new_source_file_inner(file, stable_id)?;
-                entry.insert_entry(file.clone());
+                let file = Self::append_source_file(&mut files.source_files, file, stable_id)?;
+                entry.insert(file.clone());
                 Ok(file)
             }
         }
     }
 
-    fn new_source_file_inner(
-        &self,
+    fn append_source_file(
+        source_files: &mut Vec<Arc<SourceFile>>,
         mut file: SourceFile,
         stable_id: StableSourceFileId,
     ) -> io::Result<Arc<SourceFile>> {
@@ -208,8 +210,6 @@ impl SourceMap {
         debug_assert_eq!(file.stable_id, stable_id);
 
         trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
-
-        let mut source_files = self.source_files.write();
 
         file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
             // Add one so there is some space between files. This lets us distinguish
@@ -225,8 +225,9 @@ impl SourceMap {
         Ok(file)
     }
 
-    pub fn files(&self) -> ReadGuard<'_, Vec<Arc<SourceFile>>> {
-        self.source_files.read()
+    /// Returns a read guard to the source files in the source map.
+    pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
+        ReadGuard::map(self.files.read(), |f| f.source_files.as_slice())
     }
 
     pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
@@ -238,7 +239,7 @@ impl SourceMap {
         &self,
         stable_id: StableSourceFileId,
     ) -> Option<Arc<SourceFile>> {
-        self.stable_id_to_source_file.get(&stable_id).as_deref().cloned()
+        self.files.read().stable_id_to_source_file.get(&stable_id).cloned()
     }
 
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
@@ -272,8 +273,7 @@ impl SourceMap {
 
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
     pub fn lookup_byte_offset(&self, bpos: BytePos) -> SourceFileAndBytePos {
-        let idx = self.lookup_source_file_idx(bpos);
-        let sf = self.files()[idx].clone();
+        let sf = self.lookup_source_file(bpos);
         let offset = bpos - sf.start_pos;
         SourceFileAndBytePos { sf, pos: offset }
     }
@@ -282,14 +282,19 @@ impl SourceMap {
     ///
     /// This index is guaranteed to be valid for the lifetime of this `SourceMap`.
     pub fn lookup_source_file_idx(&self, pos: BytePos) -> usize {
-        assert!(!self.files().is_empty(), "attempted to lookup source file in empty `SourceMap`");
-        self.files().partition_point(|x| x.start_pos <= pos) - 1
+        Self::lookup_sf_idx(&self.files(), pos)
     }
 
     /// Return the SourceFile that contains the given `BytePos`.
     pub fn lookup_source_file(&self, pos: BytePos) -> Arc<SourceFile> {
-        let idx = self.lookup_source_file_idx(pos);
-        self.files()[idx].clone()
+        let files = &*self.files();
+        let idx = Self::lookup_sf_idx(files, pos);
+        files[idx].clone()
+    }
+
+    fn lookup_sf_idx(files: &[Arc<SourceFile>], pos: BytePos) -> usize {
+        assert!(!files.is_empty(), "attempted to lookup source file in empty `SourceMap`");
+        files.partition_point(|x| x.start_pos <= pos) - 1
     }
 
     /// Looks up source information about a `BytePos`.

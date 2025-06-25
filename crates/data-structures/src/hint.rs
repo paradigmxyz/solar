@@ -1,25 +1,16 @@
+#[cfg(not(feature = "nightly"))]
+pub use std::convert::{identity as likely, identity as unlikely};
+
+/// See [`std::hint::likely`].
 #[cfg(feature = "nightly")]
-pub use std::intrinsics::{likely, unlikely};
-
-#[cfg(not(feature = "nightly"))]
-#[inline(always)]
-#[cold]
-fn cold() {}
-
-#[cfg(not(feature = "nightly"))]
 #[inline(always)]
 pub fn likely(b: bool) -> bool {
-    if !b {
-        cold();
-    }
-    b
+    std::hint::likely(b)
 }
 
-#[cfg(not(feature = "nightly"))]
+/// See [`std::hint::unlikely`].
+#[cfg(feature = "nightly")]
 #[inline(always)]
 pub fn unlikely(b: bool) -> bool {
-    if b {
-        cold();
-    }
-    b
+    std::hint::unlikely(b)
 }

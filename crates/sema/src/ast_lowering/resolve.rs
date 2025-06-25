@@ -378,7 +378,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             cx.hir.functions[id].returns =
                 cx.lower_variables(ast_func.header.returns, hir::VarKind::FunctionReturn);
             if let Some(body) = &ast_func.body {
-                cx.hir.functions[id].body = Some(cx.lower_stmts(body));
+                cx.hir.functions[id].body = Some(cx.lower_block(body));
             }
         }
 
@@ -543,7 +543,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                 expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
             }
 
-            match returns[..] {
+            let stmts: Option<&[hir::Stmt<'_>]> = match returns[..] {
                 [] => {
                     let msg = "getter must return at least one value";
                     let note = "the struct has all its members omitted, therefore the getter cannot return any values";
@@ -587,7 +587,8 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                         Some(self.arena.alloc_array([decl_stmt, ret_stmt]))
                     }
                 }
-            }
+            };
+            stmts.map(|stmts| hir::Block { span, stmts })
         }
     }
 
@@ -701,12 +702,14 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     /// Lowers the given statements by first entering a new scope.
-    fn lower_block(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
-        self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block))
+    fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'hir> {
+        self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block.stmts, block.span))
     }
 
-    fn lower_stmts(&mut self, block: &[ast::Stmt<'_>]) -> hir::Block<'hir> {
-        self.arena.alloc_slice_fill_iter(block.iter().map(|stmt| self.lower_stmt_full(stmt)))
+    fn lower_stmts(&mut self, stmts: &[ast::Stmt<'_>], span: Span) -> hir::Block<'hir> {
+        let stmts =
+            self.arena.alloc_slice_fill_iter(stmts.iter().map(|stmt| self.lower_stmt_full(stmt)));
+        hir::Block { span, stmts }
     }
 
     fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'hir hir::Stmt<'hir> {
@@ -777,9 +780,10 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
 
     fn lower_try_catch_clause(
         &mut self,
-        &ast::TryCatchClause { name, ref args, ref block }: &ast::TryCatchClause<'_>,
+        &ast::TryCatchClause { span, name, ref args, ref block }: &ast::TryCatchClause<'_>,
     ) -> hir::TryCatchClause<'hir> {
         self.in_scope(|this| hir::TryCatchClause {
+            span,
             name,
             args: this.lower_variables(args, hir::VarKind::TryCatch),
             block: this.lower_block(block),
@@ -856,7 +860,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     span,
                     kind: hir::StmtKind::If(cond, stmt, Some(break_stmt)),
                 });
-                hir::StmtKind::Loop(body, hir::LoopSource::While)
+                hir::StmtKind::Loop(hir::Block { span, stmts: body }, hir::LoopSource::While)
             }),
 
             // loop {
@@ -872,7 +876,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     hir::Stmt { span, kind: hir::StmtKind::If(cond, cont_stmt, Some(break_stmt)) };
 
                 let body = this.arena.alloc_array([stmt, check]);
-                hir::StmtKind::Loop(body, hir::LoopSource::DoWhile)
+                hir::StmtKind::Loop(hir::Block { span, stmts: body }, hir::LoopSource::DoWhile)
             }),
 
             // {
@@ -897,7 +901,10 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                         let next = hir::Stmt { span: next.span, kind: hir::StmtKind::Expr(next) };
                         body = hir::Stmt {
                             span: body.span,
-                            kind: hir::StmtKind::Block(this.arena.alloc_array([body, next])),
+                            kind: hir::StmtKind::Block(hir::Block {
+                                span,
+                                stmts: this.arena.alloc_array([body, next]),
+                            }),
                         };
                     }
 
@@ -911,12 +918,17 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                         };
                     }
 
-                    let mut kind =
-                        hir::StmtKind::Loop(self.arena.alloc_as_slice(body), hir::LoopSource::For);
+                    let mut kind = hir::StmtKind::Loop(
+                        hir::Block { span, stmts: self.arena.alloc_as_slice(body) },
+                        hir::LoopSource::For,
+                    );
 
                     if let Some(init) = init {
                         let s = hir::Stmt { span, kind };
-                        kind = hir::StmtKind::Block(this.arena.alloc_array([init, s]));
+                        kind = hir::StmtKind::Block(hir::Block {
+                            span,
+                            stmts: this.arena.alloc_array([init, s]),
+                        });
                     }
 
                     kind
@@ -1294,7 +1306,7 @@ pub(crate) struct Declarations {
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declarations ")?;
+        f.write_str("Declarations")?;
         self.declarations.fmt(f)
     }
 }

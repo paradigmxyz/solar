@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
+
+### Dependencies
+
+- [lexer] Rewrite prefixed literal lexing ([#325](https://github.com/paradigmxyz/solar/issues/325))
+
+### Features
+
+- Add span in FunctionHeader ([#318](https://github.com/paradigmxyz/solar/issues/318))
+- [ast] Add spans to blocks ([#314](https://github.com/paradigmxyz/solar/issues/314))
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Bug Fixes
+
+- [parser] Named call arguments are allowed to be empty ([#283](https://github.com/paradigmxyz/solar/issues/283))
+- [ast] BinOpToken::Caret is BinOpKind::BitXor ([#262](https://github.com/paradigmxyz/solar/issues/262))
+
+### Features
+
+- [ast] Add helpers to Delimiter ([#296](https://github.com/paradigmxyz/solar/issues/296))
+- Allow constructing DiagId with a string ([#295](https://github.com/paradigmxyz/solar/issues/295))
+- [ast] Store concatenated string literals ([#266](https://github.com/paradigmxyz/solar/issues/266))
+- [ast] Add span to CallArgs ([#265](https://github.com/paradigmxyz/solar/issues/265))
+- Pretty printing utilities ([#264](https://github.com/paradigmxyz/solar/issues/264))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+
+### Miscellaneous Tasks
+
+- Shorter Debug impls ([#291](https://github.com/paradigmxyz/solar/issues/291))
+- Tweak tracing events ([#255](https://github.com/paradigmxyz/solar/issues/255))
+- Revert extra changelog
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes

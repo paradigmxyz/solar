@@ -1,5 +1,4 @@
 use crate::{unescape, PResult, Parser};
-use alloy_primitives::Address;
 use num_bigint::{BigInt, BigUint};
 use num_rational::BigRational;
 use num_traits::{Num, Signed, Zero};
@@ -152,22 +151,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a string literal.
     fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind> {
         let mode = match lit.kind {
-            TokenLitKind::Str => unescape::Mode::Str,
-            TokenLitKind::UnicodeStr => unescape::Mode::UnicodeStr,
-            TokenLitKind::HexStr => unescape::Mode::HexStr,
+            TokenLitKind::Str => StrKind::Str,
+            TokenLitKind::UnicodeStr => StrKind::Unicode,
+            TokenLitKind::HexStr => StrKind::Hex,
             _ => unreachable!(),
         };
 
-        let mut value = unescape::parse_string_literal(lit.symbol.as_str(), mode);
+        let span = self.prev_token.span;
+        let (mut value, _) =
+            unescape::parse_string_literal(lit.symbol.as_str(), mode, span, self.sess);
         let mut extra = vec![];
         while let Some(TokenLit { symbol, kind }) = self.token.lit() {
             if kind != lit.kind {
                 break;
             }
             extra.push((self.token.span, symbol));
-            value
-                .to_mut()
-                .extend_from_slice(&unescape::parse_string_literal(symbol.as_str(), mode));
+            let (parsed, _) =
+                unescape::parse_string_literal(symbol.as_str(), mode, self.token.span, self.sess);
+            value.to_mut().extend_from_slice(&parsed);
             self.bump();
         }
 
@@ -232,11 +233,8 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
 
     // Address literal.
     if base == Base::Hexadecimal && s.len() == 42 {
-        match Address::parse_checksummed(s, None) {
-            Ok(address) => return Ok(LitKind::Address(address)),
-            // Continue parsing as a number to emit better errors.
-            Err(alloy_primitives::AddressError::InvalidChecksum) => {}
-            Err(alloy_primitives::AddressError::Hex(_)) => {}
+        if let Ok(address) = s.parse() {
+            return Ok(LitKind::Address(address));
         }
     }
 
@@ -459,7 +457,7 @@ fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
 mod tests {
     use super::*;
     use crate::Lexer;
-    use alloy_primitives::address;
+    use alloy_primitives::{address, Address};
     use solar_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.
@@ -542,7 +540,7 @@ mod tests {
             );
             check_address(
                 "0x52908400098527886E0F7030069857D2E4169Ee7",
-                Err("471360049350540672339372329809862569580528312039"),
+                Ok(address!("52908400098527886E0F7030069857D2E4169EE7")),
             );
 
             check_address(

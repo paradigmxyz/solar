@@ -8,7 +8,7 @@ use std::{
 
 #[allow(unexpected_cfgs)]
 pub const PARSERS: &[&dyn Parser] =
-    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang] };
+    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang, &TreeSitter] };
 
 pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
@@ -23,6 +23,9 @@ pub fn get_srcs() -> &'static [Source] {
             include_source("../testdata/console.sol"),
             include_source("../testdata/Vm.sol"),
             include_source("../testdata/safeconsole.sol"),
+            include_source("../testdata/Seaport.sol"),
+            include_source("../testdata/Solady.sol"),
+            include_source("../testdata/Optimism.sol"),
         ]
     })
 }
@@ -191,12 +194,65 @@ impl Parser for Slang {
         let errors = output.errors();
         if !errors.is_empty() {
             for err in errors {
-                eprintln!("{err}");
+                let range = err.text_range();
+                let slice = src.get(range.start.utf8..range.end.utf8).unwrap_or("<invalid range>");
+                let line_col =
+                    |i: &slang_solidity::cst::TextIndex| format!("{}:{}", i.line + 1, i.column + 1);
+                eprintln!(
+                    "{}: {}: {err} @ {slice:?}",
+                    line_col(&range.start),
+                    line_col(&range.end),
+                );
             }
             panic!();
         }
 
         let res = output.tree();
         black_box(res);
+    }
+}
+
+pub struct TreeSitter;
+impl Parser for TreeSitter {
+    fn name(&self) -> &'static str {
+        "tree-sitter"
+    }
+
+    fn lex(&self, src: &str) {
+        let _ = src;
+    }
+
+    fn can_lex(&self) -> bool {
+        false
+    }
+
+    fn parse(&self, src: &str) {
+        #[cold]
+        #[inline(never)]
+        fn on_error(src: &str, tree: &tree_sitter::Tree) -> ! {
+            tree.print_dot_graph(&std::fs::File::create("tree.dot").unwrap());
+
+            let mut msg = String::new();
+            let mut cursor = tree.walk();
+            let root = tree.root_node();
+            let mut q = vec![root];
+            while let Some(node) = q.pop() {
+                if node != root && node.is_error() {
+                    let src = &src[node.byte_range()];
+                    msg.push_str(&format!("  - {node:?} -> {src:?}\n"));
+                }
+                q.extend(node.children(&mut cursor));
+            }
+
+            panic!("tree-sitter parser failed; dumped to tree.dot\n{msg}");
+        }
+
+        let mut parser = tree_sitter::Parser::new();
+        let language = tree_sitter_solidity::LANGUAGE;
+        parser.set_language(&language.into()).expect("Error loading Solidity parser");
+        let tree = parser.parse(src, None).unwrap();
+        if tree.root_node().has_error() {
+            on_error(src, &tree);
+        }
     }
 }
