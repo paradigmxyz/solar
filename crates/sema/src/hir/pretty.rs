@@ -49,7 +49,6 @@ impl fmt::Display for Type<'_> {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    // Print parameter type - we need access to HIR to get the variable type
                     write!(f, "param_{}", param.index())?;
                 }
                 write!(f, ") {} {}", func.visibility, func.state_mutability)?;
@@ -59,7 +58,6 @@ impl fmt::Display for Type<'_> {
                         if i > 0 {
                             write!(f, ", ")?;
                         }
-                        // Print return type - we need access to HIR to get the variable type
                         write!(f, "ret_{}", ret.index())?;
                     }
                     write!(f, ")")?;
@@ -70,24 +68,8 @@ impl fmt::Display for Type<'_> {
                 write!(f, "mapping({} => {})", map.key, map.value)
             }
             TypeKind::Custom(id) => {
-                // Print actual type name if available
-                match id {
-                    ItemId::Contract(contract_id) => {
-                        // We need access to the HIR to get the contract name
-                        // For now, use a placeholder that indicates it's a contract
-                        write!(f, "contract_type_{}", contract_id.index())
-                    }
-                    ItemId::Struct(struct_id) => {
-                        write!(f, "struct_type_{}", struct_id.index())
-                    }
-                    ItemId::Enum(enum_id) => {
-                        write!(f, "enum_type_{}", enum_id.index())
-                    }
-                    ItemId::Udvt(udvt_id) => {
-                        write!(f, "udvt_type_{}", udvt_id.index())
-                    }
-                    _ => write!(f, "{:?}", id),
-                }
+                // Only print a placeholder here; actual name printing is done in the pretty printer
+                write!(f, "<custom_type:{id:?}>")
             }
             TypeKind::Err(_) => write!(f, "<error>"),
         }
@@ -226,13 +208,41 @@ impl<'hir> HirPrettyPrinter<'hir> {
         Ok(())
     }
 
+    /// Prints a type, using HIR context for user-defined types
+    fn print_type(&mut self, ty: &Type<'hir>) -> fmt::Result {
+        match &ty.kind {
+            TypeKind::Custom(id) => match id {
+                ItemId::Contract(contract_id) => write!(self.buffer, "{}", self.hir.contract(*contract_id).name),
+                ItemId::Struct(struct_id) => write!(self.buffer, "{}", self.hir.strukt(*struct_id).name),
+                ItemId::Enum(enum_id) => write!(self.buffer, "{}", self.hir.enumm(*enum_id).name),
+                ItemId::Udvt(udvt_id) => write!(self.buffer, "{}", self.hir.udvt(*udvt_id).name),
+                _ => write!(self.buffer, "{:?}", id),
+            },
+            TypeKind::Mapping(map) => {
+                write!(self.buffer, "mapping(")?;
+                self.print_type(&map.key)?;
+                if let Some(key_name) = map.key_name {
+                    write!(self.buffer, " {}", key_name)?;
+                }
+                write!(self.buffer, " => ")?;
+                self.print_type(&map.value)?;
+                if let Some(value_name) = map.value_name {
+                    write!(self.buffer, " {}", value_name)?;
+                }
+                write!(self.buffer, ")")
+            }
+            _ => write!(self.buffer, "{}", ty),
+        }
+    }
+
     /// Pretty-prints a variable
     pub fn print_variable(&mut self, var_id: VariableId) -> fmt::Result {
         let var = &self.hir.variable(var_id);
         if let Some(name) = var.name {
-            write!(self.buffer, "{} {}", var.ty, name)?;
+            self.print_type(&var.ty)?;
+            write!(self.buffer, " {}", name)?;
         } else {
-            write!(self.buffer, "{}", var.ty)?;
+            self.print_type(&var.ty)?;
         }
         Ok(())
     }
@@ -405,15 +415,34 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     ItemId::Function(id) => {
                         write!(self.buffer, "{}", self.hir.function(*id).name.unwrap())?
                     }
-                    _ => write!(
-                        self.buffer,
-                        "// TODO: Implement pretty-printing for this item kind"
-                    )?,
+                    ItemId::Contract(id) => {
+                        write!(self.buffer, "{}", self.hir.contract(*id).name)?
+                    }
+                    ItemId::Struct(id) => {
+                        write!(self.buffer, "{}", self.hir.strukt(*id).name)?
+                    }
+                    ItemId::Enum(id) => {
+                        write!(self.buffer, "{}", self.hir.enumm(*id).name)?
+                    }
+                    ItemId::Udvt(id) => {
+                        write!(self.buffer, "{}", self.hir.udvt(*id).name)?
+                    }
+                    ItemId::Event(id) => {
+                        write!(self.buffer, "{}", self.hir.event(*id).name)?
+                    }
+                    ItemId::Error(id) => {
+                        write!(self.buffer, "{}", self.hir.error(*id).name)?
+                    }
                 },
-                _ => write!(
-                    self.buffer,
-                    "// TODO: Implement pretty-printing for this resolution kind"
-                )?,
+                Res::Namespace(id) => {
+                    write!(self.buffer, "namespace_{}", id.index())?
+                }
+                Res::Builtin(builtin) => {
+                    write!(self.buffer, "{:?}", builtin)?
+                }
+                Res::Err(_) => {
+                    write!(self.buffer, "<error>")?
+                }
             },
             ExprKind::Binary(lhs, op, rhs) => {
                 write!(self.buffer, "(")?;
@@ -540,35 +569,94 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 let var = self.hir.variable(id);
                 self.write_indent()?;
                 if let Some(name) = var.name {
-                    writeln!(self.buffer, "{} {};", var.ty, name)?;
+                    self.print_type(&var.ty)?;
+                    writeln!(self.buffer, " {};", name)?;
                 } else {
-                    writeln!(self.buffer, "{};", var.ty)?;
+                    self.print_type(&var.ty)?;
+                    writeln!(self.buffer, ";")?;
                 }
             }
             ItemId::Struct(id) => {
                 let strukt = self.hir.strukt(id);
                 self.write_indent()?;
-                writeln!(self.buffer, "struct {} {{ ... }}", strukt.name)?;
+                writeln!(self.buffer, "struct {} {{", strukt.name)?;
+                self.indent();
+                for &field_id in strukt.fields {
+                    let field = self.hir.variable(field_id);
+                    self.write_indent()?;
+                    self.print_type(&field.ty)?;
+                    if let Some(name) = field.name {
+                        writeln!(self.buffer, " {};", name)?;
+                    } else {
+                        writeln!(self.buffer, ";")?;
+                    }
+                }
+                self.dedent();
+                self.write_indent()?;
+                writeln!(self.buffer, "}}")?;
             }
             ItemId::Enum(id) => {
                 let enumm = self.hir.enumm(id);
                 self.write_indent()?;
-                writeln!(self.buffer, "enum {} {{ ... }}", enumm.name)?;
+                writeln!(self.buffer, "enum {} {{", enumm.name)?;
+                self.indent();
+                for (i, variant) in enumm.variants.iter().enumerate() {
+                    self.write_indent()?;
+                    if i < enumm.variants.len() - 1 {
+                        writeln!(self.buffer, "{},", variant)?;
+                    } else {
+                        writeln!(self.buffer, "{}", variant)?;
+                    }
+                }
+                self.dedent();
+                self.write_indent()?;
+                writeln!(self.buffer, "}}")?;
             }
             ItemId::Udvt(id) => {
                 let udvt = self.hir.udvt(id);
                 self.write_indent()?;
-                writeln!(self.buffer, "type {} = {};", udvt.name, udvt.ty)?;
+                write!(self.buffer, "type {} = ", udvt.name)?;
+                self.print_type(&udvt.ty)?;
+                writeln!(self.buffer, ";")?;
             }
             ItemId::Event(id) => {
                 let event = self.hir.event(id);
                 self.write_indent()?;
-                writeln!(self.buffer, "event {}(...);", event.name)?;
+                write!(self.buffer, "event {}(", event.name)?;
+                for (i, &param_id) in event.parameters.iter().enumerate() {
+                    if i > 0 {
+                        write!(self.buffer, ", ")?;
+                    }
+                    let param = self.hir.variable(param_id);
+                    if param.indexed {
+                        write!(self.buffer, "indexed ")?;
+                    }
+                    self.print_type(&param.ty)?;
+                    if let Some(name) = param.name {
+                        write!(self.buffer, " {}", name)?;
+                    }
+                }
+                write!(self.buffer, ")")?;
+                if event.anonymous {
+                    write!(self.buffer, " anonymous")?;
+                }
+                writeln!(self.buffer, ";")?;
             }
             ItemId::Error(id) => {
                 let error = self.hir.error(id);
                 self.write_indent()?;
-                writeln!(self.buffer, "error {}(...);", error.name)?;
+                write!(self.buffer, "error {}(", error.name)?;
+                for (i, &param_id) in error.parameters.iter().enumerate() {
+                    if i > 0 {
+                        write!(self.buffer, ", ")?;
+                    }
+                    let param = self.hir.variable(param_id);
+                    self.print_type(&param.ty)?;
+                    if let Some(name) = param.name {
+                        write!(self.buffer, " {}", name)?;
+                    }
+                }
+                writeln!(self.buffer, ");")?;
             }
         }
         Ok(())
