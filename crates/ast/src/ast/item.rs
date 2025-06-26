@@ -447,7 +447,7 @@ pub struct FunctionHeader<'ast> {
     pub visibility: Option<Visibility>,
 
     /// The span of the visibility keyword.
-    pub state_mutability_span: Option<Span>,
+    pub state_mutability_span: Span,
     pub state_mutability: StateMutability,
 
     pub modifiers: Box<'ast, [Modifier<'ast>]>,

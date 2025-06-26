@@ -235,9 +235,7 @@ declare_visitors! {
             if let Some(span) = visibility_span {
                 self.visit_span #_mut(span)?;
             }
-            if let Some(span) = state_mutability_span {
-                self.visit_span #_mut(span)?;
-            }
+            self.visit_span #_mut(state_mutability_span)?;
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }

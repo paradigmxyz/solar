@@ -220,6 +220,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
+                    header.visibility_span = Some(self.token.span);
                     header.visibility =
                         if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                             let msg = visibility_error(visibility, flags.visibilities());
@@ -234,6 +235,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
+                    header.state_mutability_span = self.token.span;
                     header.state_mutability = if !flags
                         .contains(FunctionFlags::from_state_mutability(state_mutability))
                     {
