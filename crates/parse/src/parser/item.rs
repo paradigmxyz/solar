@@ -204,7 +204,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Omitted parens.
         } else {
             header.parameters = self.parse_parameter_list(true, var_flags)?;
-            header.parameters_span = self.token.span;
+            header.parameters_span = self.prev_token.span;
         }
 
         let mut modifiers = Vec::new();
@@ -221,7 +221,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.visibility_span = Some(self.token.span);
+                    header.visibility_span = Some(self.prev_token.span);
                     header.visibility =
                         if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                             let msg = visibility_error(visibility, flags.visibilities());
@@ -236,7 +236,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.state_mutability_span = self.token.span;
+                    header.state_mutability_span = self.prev_token.span;
                     header.state_mutability = if !flags
                         .contains(FunctionFlags::from_state_mutability(state_mutability))
                     {
@@ -256,7 +256,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "virtual already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.virtual_ = Some(self.token.span);
+                    header.virtual_ = Some(self.prev_token.span);
                 }
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;
@@ -282,7 +282,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
             header.returns = self.parse_parameter_list(false, var_flags)?;
-            header.returns_span = self.token.span;
+            header.returns_span = self.prev_token.span;
         }
 
         header.span = lo.to(self.prev_token.span);
