@@ -203,8 +203,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         {
             // Omitted parens.
         } else {
+            let params_lo = self.token.span;
             header.parameters = self.parse_parameter_list(true, var_flags)?;
-            header.parameters_span = self.prev_token.span;
+            header.parameters_span = params_lo.to(self.prev_token.span);
         }
 
         let mut modifiers = Vec::new();
@@ -281,8 +282,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         header.modifiers = self.alloc_vec(modifiers);
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
+            let returns_lo = self.token.span;
             header.returns = self.parse_parameter_list(false, var_flags)?;
-            header.returns_span = self.prev_token.span;
+            header.returns_span = returns_lo.to(self.prev_token.span);
         }
 
         header.span = lo.to(self.prev_token.span);
@@ -1630,5 +1632,89 @@ mod tests {
             })
             .unwrap();
         }
+    }
+
+    #[test]
+    /// Test if the individual spans in function headers are correct
+    fn function_header_field_spans() {
+        let test_cases = vec![
+            ("function foo() public {}", Some("public"), None, "()", None),
+            ("function foo() private view {}", Some("private"), Some("view"), "()", None),
+            (
+                "function foo() internal pure returns (uint) {}",
+                Some("internal"),
+                Some("pure"),
+                "()",
+                Some("(uint)"),
+            ),
+            ("function foo() external payable {}", Some("external"), Some("payable"), "()", None),
+            ("function foo() pure {}", None, Some("pure"), "()", None),
+            ("function foo() view {}", None, Some("view"), "()", None),
+            ("function foo() payable {}", None, Some("payable"), "()", None),
+            ("function foo() {}", None, None, "()", None),
+            ("function foo(uint a) {}", None, None, "(uint a)", None),
+            ("function foo(uint a, string b) {}", None, None, "(uint a, string b)", None),
+            ("function foo() returns (uint) {}", None, None, "()", Some("(uint)")),
+            ("function foo() returns (uint, bool) {}", None, None, "()", Some("(uint, bool)")),
+            (
+                "function foo(uint x) public view returns (bool) {}",
+                Some("public"),
+                Some("view"),
+                "(uint x)",
+                Some("(bool)"),
+            ),
+        ];
+
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter(|| -> Result {
+            for (idx, (src, vis, sm, params, returns)) in test_cases.iter().enumerate() {
+                let arena = Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    FileName::Custom(format!("test_{}", idx)),
+                    *src,
+                )?;
+                parser.in_contract = true;
+
+                let func = parser.parse_function().unwrap();
+                let header = &func.header;
+
+                if let Some(expected) = vis {
+                    let vis_span = header.visibility_span.expect("Expected visibility span");
+                    let vis_text = sess.source_map().span_to_snippet(vis_span).unwrap();
+                    assert_eq!(vis_text, *expected, "Test {}: visibility span mismatch", idx);
+                }
+                if let Some(expected) = sm {
+                    if !header.state_mutability.is_non_payable() {
+                        let span = header.state_mutability_span;
+                        assert_eq!(
+                            *expected,
+                            sess.source_map().span_to_snippet(span).unwrap(),
+                            "Test {}: state mutability span mismatch",
+                            idx
+                        );
+                    }
+                }
+                let span = header.parameters_span;
+                assert_eq!(
+                    *params,
+                    sess.source_map().span_to_snippet(span).unwrap(),
+                    "Test {}: state mutability span mismatch",
+                    idx
+                );
+                if let Some(expected) = returns {
+                    let span = header.returns_span;
+                    assert_eq!(
+                        *expected,
+                        sess.source_map().span_to_snippet(span).unwrap(),
+                        "Test {}: returns span mismatch",
+                        idx
+                    );
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
     }
 }
