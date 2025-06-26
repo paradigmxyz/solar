@@ -218,7 +218,9 @@ declare_visitors! {
                 span,
                 name,
                 parameters,
+                visibility_span,
                 visibility: _,
+                state_mutability_span,
                 state_mutability: _,
                 modifiers,
                 virtual_: _,
@@ -230,6 +232,12 @@ declare_visitors! {
                 self.visit_ident #_mut(name)?;
             }
             self.visit_parameter_list #_mut(parameters)?;
+            if let Some(span) = visibility_span {
+                self.visit_span #_mut(span)?;
+            }
+            if let Some(span) = state_mutability_span {
+                self.visit_span #_mut(span)?;
+            }
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }

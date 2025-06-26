@@ -442,14 +442,28 @@ pub struct FunctionHeader<'ast> {
     /// The parameters of the function.
     pub parameters: ParameterList<'ast>,
 
+    /// The span of the visibility keyword.
+    pub visibility_span: Option<Span>,
     pub visibility: Option<Visibility>,
+
+    /// The span of the visibility keyword.
+    pub state_mutability_span: Option<Span>,
     pub state_mutability: StateMutability,
+
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
-    pub virtual_: bool,
+
+    /// The span of the `virtual` keyword.
+    pub virtual_: Option<Span>,
     pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
     pub returns: ParameterList<'ast>,
+}
+
+impl<'ast> FunctionHeader<'ast> {
+    pub fn virtual_(&self) -> bool {
+        self.virtual_.is_some()
+    }
 }
 
 /// A kind of function.

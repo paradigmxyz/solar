@@ -249,11 +249,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.virtual_ {
+                } else if header.virtual_() {
                     let msg = "virtual already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.virtual_ = true;
+                    header.virtual_ = Some(self.token.span);
                 }
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;

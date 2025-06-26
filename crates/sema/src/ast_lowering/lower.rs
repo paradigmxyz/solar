@@ -132,7 +132,9 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             span: _,
             name,
             parameters: _,
+            visibility_span: _,
             visibility,
+            state_mutability_span: _,
             state_mutability,
             modifiers: _,
             virtual_,
@@ -147,8 +149,8 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind,
             gettee: None,
             modifiers: &[],
-            marked_virtual: virtual_,
-            virtual_: virtual_
+            marked_virtual: virtual_.is_some(),
+            virtual_: virtual_.is_some()
                 || self
                     .current_contract_id
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
