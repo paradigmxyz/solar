@@ -132,6 +132,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             span: _,
             name,
             parameters: _,
+            parameters_span: _,
             visibility_span: _,
             visibility,
             state_mutability_span: _,
@@ -140,6 +141,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             virtual_,
             ref override_,
             returns: _,
+            returns_span: _,
         } = *header;
         self.hir.functions.push(hir::Function {
             source: self.current_source_id,

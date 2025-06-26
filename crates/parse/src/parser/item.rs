@@ -204,6 +204,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // Omitted parens.
         } else {
             header.parameters = self.parse_parameter_list(true, var_flags)?;
+            header.parameters_span = self.token.span;
         }
 
         let mut modifiers = Vec::new();
@@ -281,6 +282,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
             header.returns = self.parse_parameter_list(false, var_flags)?;
+            header.returns_span = self.token.span;
         }
 
         header.span = lo.to(self.prev_token.span);

@@ -39,6 +39,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     span: _,
                     name: _,
                     parameters,
+                    parameters_span: _,
                     visibility_span: _,
                     visibility,
                     state_mutability_span: _,
@@ -47,6 +48,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     virtual_: _,
                     override_: _,
                     returns,
+                    returns_span: _,
                 } = f;
                 TypeKind::Function(self.alloc(TypeFunction {
                     parameters,

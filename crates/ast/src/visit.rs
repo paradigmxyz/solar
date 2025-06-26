@@ -218,6 +218,7 @@ declare_visitors! {
                 span,
                 name,
                 parameters,
+                parameters_span,
                 visibility_span,
                 visibility: _,
                 state_mutability_span,
@@ -226,12 +227,14 @@ declare_visitors! {
                 virtual_: _,
                 override_: _,
                 returns,
+                returns_span,
             } = header;
             self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
             self.visit_parameter_list #_mut(parameters)?;
+            self.visit_span #_mut(parameters_span)?;
             if let Some(span) = visibility_span {
                 self.visit_span #_mut(span)?;
             }
@@ -240,6 +243,7 @@ declare_visitors! {
                 self.visit_modifier #_mut(modifier)?;
             }
             self.visit_parameter_list #_mut(returns)?;
+            self.visit_span #_mut(returns_span)?;
             ControlFlow::Continue(())
         }
 
