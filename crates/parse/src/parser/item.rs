@@ -1708,7 +1708,7 @@ mod tests {
                 let mut parser = Parser::from_source_code(
                     &sess,
                     &arena,
-                    FileName::Custom(format!("test_{}", idx)),
+                    FileName::Custom(format!("test_{idx}")),
                     *src,
                 )?;
                 parser.in_contract = true;
@@ -1719,7 +1719,7 @@ mod tests {
                 if let Some(expected) = vis {
                     let vis_span = header.visibility_span.expect("Expected visibility span");
                     let vis_text = sess.source_map().span_to_snippet(vis_span).unwrap();
-                    assert_eq!(vis_text, *expected, "Test {}: visibility span mismatch", idx);
+                    assert_eq!(vis_text, *expected, "Test {idx}: visibility span mismatch");
                 }
                 if let Some(expected) = sm {
                     if !header.state_mutability.is_non_payable() {
@@ -1727,30 +1727,27 @@ mod tests {
                         assert_eq!(
                             *expected,
                             sess.source_map().span_to_snippet(span).unwrap(),
-                            "Test {}: state mutability span mismatch",
-                            idx
+                            "Test {idx}: state mutability span mismatch",
                         );
                     }
                 }
                 if let Some(expected) = virt {
                     let virtual_span = header.virtual_.expect("Expected virtual span");
                     let virtual_text = sess.source_map().span_to_snippet(virtual_span).unwrap();
-                    assert_eq!(virtual_text, *expected, "Test {}: virtual span mismatch", idx);
+                    assert_eq!(virtual_text, *expected, "Test {idx}: virtual span mismatch");
                 }
                 let span = header.parameters_span;
                 assert_eq!(
                     *params,
                     sess.source_map().span_to_snippet(span).unwrap(),
-                    "Test {}: params span mismatch",
-                    idx
+                    "Test {idx}: params span mismatch"
                 );
                 if let Some(expected) = returns {
                     let span = header.returns_span;
                     assert_eq!(
                         *expected,
                         sess.source_map().span_to_snippet(span).unwrap(),
-                        "Test {}: returns span mismatch",
-                        idx
+                        "Test {idx}: returns span mismatch",
                     );
                 }
             }
