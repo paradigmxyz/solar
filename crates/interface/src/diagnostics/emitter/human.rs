@@ -189,7 +189,7 @@ impl HumanEmitter {
             .children
             .iter()
             .filter(|sub| sub.span.is_dummy())
-            .map(OwnedMessage::from_subdiagnostic)
+            .map(|sub| OwnedMessage::from_subdiagnostic(sub, self.supports_color()))
             .collect();
 
         let snippet = title
@@ -282,8 +282,12 @@ impl OwnedMessage {
         Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
     }
 
-    fn from_subdiagnostic(sub: &SubDiagnostic) -> Self {
-        Self { id: None, label: sub.label().into_owned(), level: to_as_level(sub.level) }
+    fn from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Self {
+        Self {
+            id: None,
+            label: sub.label_with_style(supports_color).into_owned(),
+            level: to_as_level(sub.level),
+        }
     }
 
     fn as_ref(&self) -> Message<'_> {
