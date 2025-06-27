@@ -1638,36 +1638,72 @@ mod tests {
     /// Test if the individual spans in function headers are correct
     fn function_header_field_spans() {
         let test_cases = vec![
-            ("function foo() public {}", Some("public"), None, "()", None),
-            ("function foo() private view {}", Some("private"), Some("view"), "()", None),
+            ("function foo() public {}", Some("public"), None, None, "()", None),
+            ("function foo() private view {}", Some("private"), Some("view"), None, "()", None),
             (
                 "function foo() internal pure returns (uint) {}",
                 Some("internal"),
                 Some("pure"),
+                None,
                 "()",
                 Some("(uint)"),
             ),
-            ("function foo() external payable {}", Some("external"), Some("payable"), "()", None),
-            ("function foo() pure {}", None, Some("pure"), "()", None),
-            ("function foo() view {}", None, Some("view"), "()", None),
-            ("function foo() payable {}", None, Some("payable"), "()", None),
-            ("function foo() {}", None, None, "()", None),
-            ("function foo(uint a) {}", None, None, "(uint a)", None),
-            ("function foo(uint a, string b) {}", None, None, "(uint a, string b)", None),
-            ("function foo() returns (uint) {}", None, None, "()", Some("(uint)")),
-            ("function foo() returns (uint, bool) {}", None, None, "()", Some("(uint, bool)")),
+            (
+                "function foo() external payable {}",
+                Some("external"),
+                Some("payable"),
+                None,
+                "()",
+                None,
+            ),
+            ("function foo() pure {}", None, Some("pure"), None, "()", None),
+            ("function foo() view {}", None, Some("view"), None, "()", None),
+            ("function foo() payable {}", None, Some("payable"), None, "()", None),
+            ("function foo() {}", None, None, None, "()", None),
+            ("function foo(uint a) {}", None, None, None, "(uint a)", None),
+            ("function foo(uint a, string b) {}", None, None, None, "(uint a, string b)", None),
+            ("function foo() returns (uint) {}", None, None, None, "()", Some("(uint)")),
+            (
+                "function foo() returns (uint, bool) {}",
+                None,
+                None,
+                None,
+                "()",
+                Some("(uint, bool)"),
+            ),
             (
                 "function foo(uint x) public view returns (bool) {}",
                 Some("public"),
                 Some("view"),
+                None,
                 "(uint x)",
                 Some("(bool)"),
+            ),
+            ("function foo() public virtual {}", Some("public"), None, Some("virtual"), "()", None),
+            ("function foo() virtual public {}", Some("public"), None, Some("virtual"), "()", None),
+            (
+                "function foo() public virtual view {}",
+                Some("public"),
+                Some("view"),
+                Some("virtual"),
+                "()",
+                None,
+            ),
+            ("function foo() virtual override {}", None, None, Some("virtual"), "()", None),
+            ("modifier bar() virtual {}", None, None, Some("virtual"), "()", None),
+            (
+                "function foo() public virtual returns (uint) {}",
+                Some("public"),
+                None,
+                Some("virtual"),
+                "()",
+                Some("(uint)"),
             ),
         ];
 
         let sess = Session::builder().with_test_emitter().build();
         sess.enter(|| -> Result {
-            for (idx, (src, vis, sm, params, returns)) in test_cases.iter().enumerate() {
+            for (idx, (src, vis, sm, virt, params, returns)) in test_cases.iter().enumerate() {
                 let arena = Arena::new();
                 let mut parser = Parser::from_source_code(
                     &sess,
@@ -1696,11 +1732,16 @@ mod tests {
                         );
                     }
                 }
+                if let Some(expected) = virt {
+                    let virtual_span = header.virtual_.expect("Expected virtual span");
+                    let virtual_text = sess.source_map().span_to_snippet(virtual_span).unwrap();
+                    assert_eq!(virtual_text, *expected, "Test {}: virtual span mismatch", idx);
+                }
                 let span = header.parameters_span;
                 assert_eq!(
                     *params,
                     sess.source_map().span_to_snippet(span).unwrap(),
-                    "Test {}: state mutability span mismatch",
+                    "Test {}: params span mismatch",
                     idx
                 );
                 if let Some(expected) = returns {
