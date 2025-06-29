@@ -14,7 +14,11 @@ abstract contract F is C {
 
 contract J is C(1337, false) { //~HELP: previous declaration
     constructor() C(1337, false) {} //~ERROR: base constructor arguments given twice
-} 
+}
+
+contract G is C {
+    constructor(uint x) C(x, false) {}
+}
 
 // ok
 contract K is C(1337, false) {

@@ -9,7 +9,6 @@ use solar_data_structures::{
     trustme,
 };
 use solar_interface::{diagnostics::DiagCtxt, Session};
-use std::sync::atomic::AtomicUsize;
 
 mod lower;
 
@@ -41,7 +40,7 @@ pub(crate) fn lower<'sess, 'hir>(
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
-    let next_id = &AtomicUsize::new(0);
+    let next_id = &std::sync::atomic::AtomicUsize::new(0);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     lcx.resolve_symbols(next_id);
     // Resolve constructor base args.
