@@ -131,7 +131,7 @@ fn needs_unescape(src: &str, kind: StrKind) -> bool {
     match kind {
         StrKind::Str => needs_unescape_chars(src) || !src.is_ascii(),
         StrKind::Unicode => needs_unescape_chars(src),
-        StrKind::Hex => src.len() % 2 != 0 || !hex::check_raw(src),
+        StrKind::Hex => !src.len().is_multiple_of(2) || !hex::check_raw(src),
     }
 }
 
@@ -265,7 +265,7 @@ where
     }
 
     let count = chars.clone().filter(|(_, c)| c.is_ascii_hexdigit()).count();
-    if count % 2 != 0 {
+    if !count.is_multiple_of(2) {
         callback(0..src.len(), Err(EscapeError::HexOddDigits));
         return;
     }
