@@ -299,12 +299,10 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
 
     let symbol_digits_base = entries.map["0"].idx;
     let preinterned_symbols_count = entries.len();
-    let preinterned_symbols_bytes = entries.map.keys().map(String::len).sum::<usize>() as u64;
     let output = quote! {
         const PREINTERNED: &[&str] = &[#prefill_stream];
         const SYMBOL_DIGITS_BASE: u32 = #symbol_digits_base;
         const PREINTERNED_SYMBOLS_COUNT: u32 = #preinterned_symbols_count;
-        const PREINTERNED_SYMBOLS_BYTES: u64 = #preinterned_symbols_bytes;
 
         #[allow(non_upper_case_globals)]
         #[doc(hidden)]

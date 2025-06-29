@@ -360,7 +360,8 @@ declare_visitors! {
         }
 
         fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let TryCatchClause { name, args, block } = catch;
+            let TryCatchClause { span, name, args, block } = catch;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
