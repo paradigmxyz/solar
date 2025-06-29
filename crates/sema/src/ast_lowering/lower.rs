@@ -54,14 +54,15 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind: contract.kind,
 
             // Set later.
-            bases: &[],
+            bases: &mut [],
+            bases_args: &[],
             linearized_bases: &[],
+            linearized_bases_args: &[],
 
             ctor: None,
             fallback: None,
             receive: None,
             items: &[],
-            base_args: &[],
         });
         let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);
