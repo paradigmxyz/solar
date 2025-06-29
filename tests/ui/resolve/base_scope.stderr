@@ -1,0 +1,9 @@
+error: unresolved symbol `x`
+  --> ROOT/tests/ui/resolve/base_scope.sol:LL:CC
+   |
+LL | contract D is C(x) {
+   |                 ^
+   |
+
+error: aborting due to 1 previous error
+

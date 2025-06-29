@@ -1,15 +1,15 @@
 error: modifier-style base constructor call without arguments
   --> ROOT/tests/ui/resolve/base_constructor.sol:LL:CC
    |
-LL | abstract contract F is C { constructor() C {} }
-   |                                          ^
+LL |     constructor() C {}
+   |                   ^
    |
 
 error: base constructor arguments given twice
   --> ROOT/tests/ui/resolve/base_constructor.sol:LL:CC
    |
 LL | contract J is C(1337, false) {
-   |                 ---- help: previous declaration
+   |               -------------- help: previous declaration
 LL |     constructor() C(1337, false) {}
    |                   ^^^^^^^^^^^^^^
    |
