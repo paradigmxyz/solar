@@ -283,9 +283,7 @@ newtype_index! {
 
     /// A [`Variable`] ID.
     pub struct VariableId;
-}
 
-newtype_index! {
     /// An [`Expr`] ID.
     pub struct ExprId;
 }
@@ -551,6 +549,10 @@ pub struct Contract<'hir> {
     /// Note that this only includes items defined in the contract itself, not inherited items.
     /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
+    /// The constructor base arguments (if any).
+    ///
+    /// The index maps to the position in `linearized_bases` - 1.
+    pub base_args: &'hir [CallArgs<'hir>],
 }
 
 impl Contract<'_> {
@@ -1235,9 +1237,15 @@ pub struct NamedArg<'hir> {
 pub struct CallArgs<'hir> {
     /// The span of the arguments. This points to the parenthesized list of arguments.
     ///
-    /// If the list is empty, this points to the empty `()` or to where the `(` would be.
+    /// If the list is empty, this points to the empty `()`/`({})` or to where the `(` would be.
     pub span: Span,
     pub kind: CallArgsKind<'hir>,
+}
+
+impl<'hir> Default for CallArgs<'hir> {
+    fn default() -> Self {
+        Self::empty(Span::DUMMY)
+    }
 }
 
 impl<'hir> CallArgs<'hir> {

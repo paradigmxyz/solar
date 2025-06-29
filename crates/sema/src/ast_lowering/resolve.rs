@@ -236,11 +236,10 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 }
 
-impl<'hir> super::LoweringContext<'_, '_, 'hir> {
-    #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_symbols(&mut self) {
-        let next_id = &AtomicUsize::new(0);
-
+// Macro that creates a macro to create a resolver from `LoweringContext`, to avoid borrowing all
+// of it.
+macro_rules! mk_mk_resolver {
+    ($self:expr, $next_id:expr) => {
         macro_rules! mk_resolver {
             ($e:expr) => {
                 mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)
@@ -250,14 +249,21 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                 ResolveContext {
                     scopes: $scopes,
                     function_id: $f,
-                    sess: self.sess,
-                    arena: self.arena,
-                    hir: &mut self.hir,
-                    resolver: &self.resolver,
-                    next_id,
+                    sess: $self.sess,
+                    arena: $self.arena,
+                    hir: &mut $self.hir,
+                    resolver: &$self.resolver,
+                    next_id: $next_id,
                 }
             };
         }
+    }
+}
+
+impl<'hir> super::LoweringContext<'_, '_, 'hir> {
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_symbols(&mut self, next_id: &AtomicUsize) {
+        mk_mk_resolver!(self, next_id);
 
         for id in self.hir.udvt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
@@ -385,6 +391,80 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         // Resolve function parameters and local variables, created while resolving functions.
         for id in self.hir.variable_ids().skip(normal_vars) {
             self.resolve_var(id, next_id);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_base_args(&mut self, next_id: &AtomicUsize) {
+        mk_mk_resolver!(self, next_id);
+        for c_id in self.hir.contract_ids() {
+            let contract = self.hir.contract(c_id);
+            let len = contract.linearized_bases.len() - 1;
+            let base_args = self
+                .arena
+                .alloc_from_iter(std::iter::repeat_with(hir::CallArgs::default).take(len));
+
+            let ast::ItemKind::Contract(ast_contract) =
+                &self.hir_to_ast[&hir::ItemId::Contract(c_id)].kind
+            else {
+                unreachable!()
+            };
+
+            // Zip the AST base call with the resolved base contract.
+            let contract_bases = &*ast_contract.bases;
+            let contract_resolved_bases = contract.bases.iter().copied().map(hir::ItemId::from);
+
+            // Zip the AST ctor modifier call with the resolved modifier.
+            let (ctor_mod, ctor_mod_resolved) = if let Some(ctor_id) = contract.ctor {
+                let ast_ctor = &self.hir_to_ast[&hir::ItemId::Function(ctor_id)].kind;
+                let ast::ItemKind::Function(ast_ctor) = ast_ctor else { unreachable!() };
+                (&*ast_ctor.header.modifiers, self.hir.function(ctor_id).modifiers.iter().copied())
+            } else {
+                Default::default()
+            };
+
+            let mut resolve = |call: &ast::Modifier<'_>, b: hir::ItemId, is_ctor: bool| {
+                let Some(b) = b.as_contract() else { return };
+                let contract = self.hir.contract(c_id);
+                let base_idx = contract
+                    .linearized_bases
+                    .iter()
+                    .skip(1)
+                    .position(|&l| l == b)
+                    .expect("base contract not found");
+
+                let c_id = (is_ctor).then_some(c_id);
+                let mut cx =
+                    mk_resolver!(@scopes SymbolResolverScopes::new_in(contract.source, c_id), None);
+                let mut args = cx.lower_call_args(&call.arguments);
+                args.span = call.span();
+                if is_ctor && args.is_empty() {
+                    self.sess
+                        .dcx
+                        .err("modifier-style base constructor call without arguments")
+                        .span(args.span)
+                        .emit();
+                }
+                let prev = &mut base_args[base_idx];
+                if !prev.is_empty() {
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given twice")
+                        .span(args.span)
+                        .span_help(prev.span, "previous declaration")
+                        .emit();
+                }
+                *prev = args;
+            };
+
+            for (call, b) in std::iter::zip(contract_bases, contract_resolved_bases) {
+                resolve(call, b, false);
+            }
+            for (call, b) in std::iter::zip(ctor_mod, ctor_mod_resolved) {
+                resolve(call, b, true);
+            }
+
+            self.hir.contracts[c_id].base_args = base_args;
         }
     }
 

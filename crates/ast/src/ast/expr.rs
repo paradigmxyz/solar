@@ -275,7 +275,7 @@ impl UnOpKind {
 pub struct CallArgs<'ast> {
     /// The span of the arguments. This points to the parenthesized list of arguments.
     ///
-    /// If the list is empty, this points to the empty `()` or to where the `(` would be.
+    /// If the list is empty, this points to the empty `()`/`({})` or to where the `(` would be.
     pub span: Span,
     pub kind: CallArgsKind<'ast>,
 }
