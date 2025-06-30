@@ -134,7 +134,6 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             parameters: _,
             visibility,
             state_mutability,
-            state_mutability_span: _,
             modifiers: _,
             virtual_,
             ref override_,
@@ -163,7 +162,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     ast::Visibility::Public
                 }
             }),
-            state_mutability,
+            state_mutability: *state_mutability,
             parameters: &[],
             returns: &[],
             body: None,

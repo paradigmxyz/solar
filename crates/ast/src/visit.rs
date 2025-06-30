@@ -219,8 +219,7 @@ declare_visitors! {
                 name,
                 parameters,
                 visibility,
-                state_mutability: _,
-                state_mutability_span,
+                state_mutability,
                 modifiers,
                 virtual_: _,
                 override_: _,
@@ -235,7 +234,8 @@ declare_visitors! {
                 let Spanned { span: vis_span, .. } = vis;
                 self.visit_span #_mut(vis_span)?;
             }
-            self.visit_span #_mut(state_mutability_span)?;
+            let Spanned { span: state_mut_span, .. } = state_mutability;
+            self.visit_span #_mut(state_mut_span)?;
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }

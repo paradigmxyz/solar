@@ -239,17 +239,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "state mutability already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.state_mutability_span = self.prev_token.span;
-                    header.state_mutability = if !flags
-                        .contains(FunctionFlags::from_state_mutability(state_mutability))
-                    {
-                        let msg =
-                            state_mutability_error(state_mutability, flags.state_mutabilities());
-                        self.dcx().err(msg).span(self.prev_token.span).emit();
-                        flags.state_mutabilities().into_iter().flatten().next().unwrap_or_default()
-                    } else {
-                        state_mutability
-                    }
+                    header.state_mutability = Spanned {
+                        span: self.prev_token.span,
+                        data: if !flags
+                            .contains(FunctionFlags::from_state_mutability(state_mutability))
+                        {
+                            let msg = state_mutability_error(
+                                state_mutability,
+                                flags.state_mutabilities(),
+                            );
+                            self.dcx().err(msg).span(self.prev_token.span).emit();
+                            flags
+                                .state_mutabilities()
+                                .into_iter()
+                                .flatten()
+                                .next()
+                                .unwrap_or_default()
+                        } else {
+                            state_mutability
+                        },
+                    };
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 if !flags.contains(FunctionFlags::VIRTUAL) {
@@ -1726,10 +1735,11 @@ mod tests {
                 }
                 if let Some(expected) = sm {
                     if !header.state_mutability.is_non_payable() {
-                        let span = header.state_mutability_span;
                         assert_eq!(
                             *expected,
-                            sess.source_map().span_to_snippet(span).unwrap(),
+                            sess.source_map()
+                                .span_to_snippet(header.state_mutability.span)
+                                .unwrap(),
                             "Test {idx}: state mutability span mismatch",
                         );
                     }

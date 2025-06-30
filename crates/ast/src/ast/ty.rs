@@ -364,7 +364,7 @@ pub struct TypeArray<'ast> {
 pub struct TypeFunction<'ast> {
     pub parameters: ParameterList<'ast>,
     pub visibility: Option<Spanned<Visibility>>,
-    pub state_mutability: StateMutability,
+    pub state_mutability: Spanned<StateMutability>,
     pub returns: ParameterList<'ast>,
 }
 

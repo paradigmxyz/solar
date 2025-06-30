@@ -41,7 +41,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     parameters,
                     visibility,
                     state_mutability,
-                    state_mutability_span: _,
                     modifiers: _,
                     virtual_: _,
                     override_: _,

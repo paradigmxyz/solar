@@ -1073,7 +1073,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                     parameters:
                         self.lower_variables(f.parameters.vars, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.map(|v| v.data).unwrap_or(ast::Visibility::Public),
-                    state_mutability: f.state_mutability,
+                    state_mutability: *f.state_mutability,
                     returns: self.lower_variables(f.returns.vars, hir::VarKind::FunctionTyReturn),
                 }))
             }

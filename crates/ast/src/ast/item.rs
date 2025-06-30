@@ -4,7 +4,10 @@ use super::{
 use crate::token::Token;
 use either::Either;
 use solar_interface::{Ident, Span, Spanned};
-use std::{fmt, slice};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 use strum::EnumIs;
 
 /// A list of variable declarations and its span, which includes the brackets.
@@ -14,14 +17,17 @@ pub struct ParameterList<'ast> {
     pub vars: Box<'ast, [VariableDefinition<'ast>]>,
 }
 
-/// Convenience methods to easily iterate over the underlying variable definitions.
-impl<'ast> ParameterList<'ast> {
-    pub fn iter(&self) -> slice::Iter<'_, VariableDefinition<'ast>> {
-        self.vars.iter()
-    }
+impl<'ast> Deref for ParameterList<'ast> {
+    type Target = Box<'ast, [VariableDefinition<'ast>]>;
 
-    pub fn iter_mut(&mut self) -> slice::IterMut<'_, VariableDefinition<'ast>> {
-        self.vars.iter_mut()
+    fn deref(&self) -> &Self::Target {
+        &self.vars
+    }
+}
+
+impl<'ast> DerefMut for ParameterList<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vars
     }
 }
 
@@ -446,7 +452,7 @@ impl ItemFunction<'_> {
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FunctionHeader<'ast> {
     /// The span of the function header.
     pub span: Span,
@@ -462,8 +468,7 @@ pub struct FunctionHeader<'ast> {
     pub visibility: Option<Spanned<Visibility>>,
 
     /// The state mutability.
-    pub state_mutability: StateMutability,
-    pub state_mutability_span: Span,
+    pub state_mutability: Spanned<StateMutability>,
 
     /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
@@ -476,6 +481,22 @@ pub struct FunctionHeader<'ast> {
 
     /// The returns parameter list.
     pub returns: ParameterList<'ast>,
+}
+
+impl<'ast> Default for FunctionHeader<'ast> {
+    fn default() -> Self {
+        Self {
+            span: Default::default(),
+            name: Default::default(),
+            parameters: Default::default(),
+            visibility: Default::default(),
+            state_mutability: Spanned { span: Span::DUMMY, data: StateMutability::default() },
+            modifiers: Default::default(),
+            virtual_: Default::default(),
+            override_: Default::default(),
+            returns: Default::default(),
+        }
+    }
 }
 
 impl<'ast> FunctionHeader<'ast> {
