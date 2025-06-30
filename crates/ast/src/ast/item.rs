@@ -439,17 +439,37 @@ pub struct FunctionHeader<'ast> {
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
-    /// The parameters of the function.
-    pub parameters: ParameterList<'ast>,
 
+    /// The parameters of the function and its span, which includes the brackets.
+    pub parameters: ParameterList<'ast>,
+    pub parameters_span: Span,
+
+    /// The visibility keyword and its span.
+    pub visibility_span: Option<Span>,
     pub visibility: Option<Visibility>,
+
+    /// The state mutability and its span.
+    pub state_mutability_span: Span,
     pub state_mutability: StateMutability,
+
+    /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
-    pub virtual_: bool,
+
+    /// The span of the `virtual` keyword.
+    pub virtual_: Option<Span>,
+
+    /// The `override` keyword.
     pub override_: Option<Override<'ast>>,
 
-    /// The returns parameter list.
+    /// The returns parameter list and its span, which includes the brackets.
     pub returns: ParameterList<'ast>,
+    pub returns_span: Span,
+}
+
+impl<'ast> FunctionHeader<'ast> {
+    pub fn virtual_(&self) -> bool {
+        self.virtual_.is_some()
+    }
 }
 
 /// A kind of function.
