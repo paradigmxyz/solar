@@ -132,16 +132,13 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             span: _,
             name,
             parameters: _,
-            parameters_span: _,
-            visibility_span: _,
             visibility,
-            state_mutability_span: _,
             state_mutability,
+            state_mutability_span: _,
             modifiers: _,
             virtual_,
             ref override_,
             returns: _,
-            returns_span: _,
         } = *header;
         self.hir.functions.push(hir::Function {
             source: self.current_source_id,
@@ -158,7 +155,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.unwrap_or_else(|| {
+            visibility: visibility.map(|vis| vis.data).unwrap_or_else(|| {
                 let is_free = self.current_contract_id.is_none();
                 if kind.is_modifier() || is_free {
                     ast::Visibility::Internal

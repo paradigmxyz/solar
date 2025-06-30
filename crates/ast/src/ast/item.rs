@@ -3,12 +3,27 @@ use super::{
 };
 use crate::token::Token;
 use either::Either;
-use solar_interface::{Ident, Span};
-use std::fmt;
+use solar_interface::{Ident, Span, Spanned};
+use std::{fmt, slice};
 use strum::EnumIs;
 
-/// A list of variable declarations.
-pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
+/// A list of variable declarations and its span, which includes the brackets.
+#[derive(Debug, Default)]
+pub struct ParameterList<'ast> {
+    pub span: Span,
+    pub vars: Box<'ast, [VariableDefinition<'ast>]>,
+}
+
+/// Convenience methods to easily iterate over the underlying variable definitions.
+impl<'ast> ParameterList<'ast> {
+    pub fn iter(&self) -> slice::Iter<'_, VariableDefinition<'ast>> {
+        self.vars.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> slice::IterMut<'_, VariableDefinition<'ast>> {
+        self.vars.iter_mut()
+    }
+}
 
 /// A top-level item in a Solidity source file.
 #[derive(Debug)]
@@ -440,17 +455,15 @@ pub struct FunctionHeader<'ast> {
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
 
-    /// The parameters of the function and its span, which includes the brackets.
+    /// The parameters of the function.
     pub parameters: ParameterList<'ast>,
-    pub parameters_span: Span,
 
-    /// The visibility keyword and its span.
-    pub visibility_span: Option<Span>,
-    pub visibility: Option<Visibility>,
+    /// The visibility keyword.
+    pub visibility: Option<Spanned<Visibility>>,
 
-    /// The state mutability and its span.
-    pub state_mutability_span: Span,
+    /// The state mutability.
     pub state_mutability: StateMutability,
+    pub state_mutability_span: Span,
 
     /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
@@ -461,9 +474,8 @@ pub struct FunctionHeader<'ast> {
     /// The `override` keyword.
     pub override_: Option<Override<'ast>>,
 
-    /// The returns parameter list and its span, which includes the brackets.
+    /// The returns parameter list.
     pub returns: ParameterList<'ast>,
-    pub returns_span: Span,
 }
 
 impl<'ast> FunctionHeader<'ast> {

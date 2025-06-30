@@ -1,5 +1,8 @@
 use crate::{BytePos, SessionGlobals};
-use std::{cmp, fmt, ops::Range};
+use std::{
+    cmp, fmt,
+    ops::{Deref, DerefMut, Range},
+};
 
 /// A source code location.
 ///
@@ -225,5 +228,25 @@ impl Span {
         } else {
             first
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Spanned<T> {
+    pub span: Span,
+    pub data: T,
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for Spanned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
     }
 }

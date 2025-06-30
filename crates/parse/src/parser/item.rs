@@ -3,7 +3,7 @@ use crate::{PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span};
+use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span, Spanned};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -203,9 +203,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         {
             // Omitted parens.
         } else {
-            let params_lo = self.token.span;
             header.parameters = self.parse_parameter_list(true, var_flags)?;
-            header.parameters_span = params_lo.to(self.prev_token.span);
         }
 
         let mut modifiers = Vec::new();
@@ -222,14 +220,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let msg = "visibility already specified";
                     self.dcx().err(msg).span(self.prev_token.span).emit();
                 } else {
-                    header.visibility_span = Some(self.prev_token.span);
                     header.visibility =
                         if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                             let msg = visibility_error(visibility, flags.visibilities());
                             self.dcx().err(msg).span(self.prev_token.span).emit();
-                            flags.visibilities().into_iter().flatten().next()
+                            flags
+                                .visibilities()
+                                .into_iter()
+                                .flatten()
+                                .next()
+                                .map(|vis| Spanned { span: self.prev_token.span, data: vis })
                         } else {
-                            Some(visibility)
+                            Some(Spanned { span: self.prev_token.span, data: visibility })
                         };
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
@@ -282,9 +284,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         header.modifiers = self.alloc_vec(modifiers);
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            let returns_lo = self.token.span;
             header.returns = self.parse_parameter_list(false, var_flags)?;
-            header.returns_span = returns_lo.to(self.prev_token.span);
         }
 
         header.span = lo.to(self.prev_token.span);
@@ -855,7 +855,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         allow_empty: bool,
         flags: VarFlags,
     ) -> PResult<'sess, ParameterList<'ast>> {
-        self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
+        let lo = self.token.span;
+        let vars =
+            self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))?;
+        Ok(ParameterList { vars, span: lo.to(self.prev_token.span) })
     }
 
     /// Parses a list of inheritance specifiers.
@@ -1717,7 +1720,7 @@ mod tests {
                 let header = &func.header;
 
                 if let Some(expected) = vis {
-                    let vis_span = header.visibility_span.expect("Expected visibility span");
+                    let vis_span = header.visibility.as_ref().expect("Expected visibility").span;
                     let vis_text = sess.source_map().span_to_snippet(vis_span).unwrap();
                     assert_eq!(vis_text, *expected, "Test {idx}: visibility span mismatch");
                 }
@@ -1736,14 +1739,14 @@ mod tests {
                     let virtual_text = sess.source_map().span_to_snippet(virtual_span).unwrap();
                     assert_eq!(virtual_text, *expected, "Test {idx}: virtual span mismatch");
                 }
-                let span = header.parameters_span;
+                let span = header.parameters.span;
                 assert_eq!(
                     *params,
                     sess.source_map().span_to_snippet(span).unwrap(),
                     "Test {idx}: params span mismatch"
                 );
                 if let Some(expected) = returns {
-                    let span = header.returns_span;
+                    let span = header.returns.span;
                     assert_eq!(
                         *expected,
                         sess.source_map().span_to_snippet(span).unwrap(),
