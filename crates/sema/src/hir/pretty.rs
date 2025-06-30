@@ -212,8 +212,12 @@ impl<'hir> HirPrettyPrinter<'hir> {
     fn print_type(&mut self, ty: &Type<'hir>) -> fmt::Result {
         match &ty.kind {
             TypeKind::Custom(id) => match id {
-                ItemId::Contract(contract_id) => write!(self.buffer, "{}", self.hir.contract(*contract_id).name),
-                ItemId::Struct(struct_id) => write!(self.buffer, "{}", self.hir.strukt(*struct_id).name),
+                ItemId::Contract(contract_id) => {
+                    write!(self.buffer, "{}", self.hir.contract(*contract_id).name)
+                }
+                ItemId::Struct(struct_id) => {
+                    write!(self.buffer, "{}", self.hir.strukt(*struct_id).name)
+                }
                 ItemId::Enum(enum_id) => write!(self.buffer, "{}", self.hir.enumm(*enum_id).name),
                 ItemId::Udvt(udvt_id) => write!(self.buffer, "{}", self.hir.udvt(*udvt_id).name),
                 _ => write!(self.buffer, "{:?}", id),
@@ -318,7 +322,10 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     }
                     if let Some(var_id) = var_opt {
                         let var = &self.hir.variable(*var_id);
-                        let name = var.name.map(|n| n.to_string()).unwrap_or_else(|| "unnamed".to_string());
+                        let name = var
+                            .name
+                            .map(|n| n.to_string())
+                            .unwrap_or_else(|| "unnamed".to_string());
                         write!(self.buffer, "{} {}", var.ty, name)?;
                     } else {
                         write!(self.buffer, "_")?;
@@ -415,34 +422,16 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     ItemId::Function(id) => {
                         write!(self.buffer, "{}", self.hir.function(*id).name.unwrap())?
                     }
-                    ItemId::Contract(id) => {
-                        write!(self.buffer, "{}", self.hir.contract(*id).name)?
-                    }
-                    ItemId::Struct(id) => {
-                        write!(self.buffer, "{}", self.hir.strukt(*id).name)?
-                    }
-                    ItemId::Enum(id) => {
-                        write!(self.buffer, "{}", self.hir.enumm(*id).name)?
-                    }
-                    ItemId::Udvt(id) => {
-                        write!(self.buffer, "{}", self.hir.udvt(*id).name)?
-                    }
-                    ItemId::Event(id) => {
-                        write!(self.buffer, "{}", self.hir.event(*id).name)?
-                    }
-                    ItemId::Error(id) => {
-                        write!(self.buffer, "{}", self.hir.error(*id).name)?
-                    }
+                    ItemId::Contract(id) => write!(self.buffer, "{}", self.hir.contract(*id).name)?,
+                    ItemId::Struct(id) => write!(self.buffer, "{}", self.hir.strukt(*id).name)?,
+                    ItemId::Enum(id) => write!(self.buffer, "{}", self.hir.enumm(*id).name)?,
+                    ItemId::Udvt(id) => write!(self.buffer, "{}", self.hir.udvt(*id).name)?,
+                    ItemId::Event(id) => write!(self.buffer, "{}", self.hir.event(*id).name)?,
+                    ItemId::Error(id) => write!(self.buffer, "{}", self.hir.error(*id).name)?,
                 },
-                Res::Namespace(id) => {
-                    write!(self.buffer, "namespace_{}", id.index())?
-                }
-                Res::Builtin(builtin) => {
-                    write!(self.buffer, "{:?}", builtin)?
-                }
-                Res::Err(_) => {
-                    write!(self.buffer, "<error>")?
-                }
+                Res::Namespace(id) => write!(self.buffer, "namespace_{}", id.index())?,
+                Res::Builtin(builtin) => write!(self.buffer, "{:?}", builtin)?,
+                Res::Err(_) => write!(self.buffer, "<error>")?,
             },
             ExprKind::Binary(lhs, op, rhs) => {
                 write!(self.buffer, "(")?;

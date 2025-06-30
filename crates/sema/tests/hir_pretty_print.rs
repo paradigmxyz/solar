@@ -63,7 +63,7 @@ contract Test {
 
         // Pretty-print the HIR
         let output = hir.pretty_print();
-        
+
         // Print the output for inspection
         println!("=== HIR Pretty Printer Output ===");
         println!("{}", output);
@@ -154,7 +154,7 @@ contract ComplexTest {
 
         // Pretty-print the HIR
         let output = hir.pretty_print();
-        
+
         // Print the output for inspection
         println!("=== Complex HIR Pretty Printer Output ===");
         println!("{}", output);
