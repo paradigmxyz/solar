@@ -11,6 +11,8 @@ use std::{
 use strum::EnumIs;
 
 /// A list of variable declarations and its span, which includes the brackets.
+///
+/// Implements `Deref` and `DerefMut` for transparent access to the parameter list.
 #[derive(Debug, Default)]
 pub struct ParameterList<'ast> {
     pub span: Span,
