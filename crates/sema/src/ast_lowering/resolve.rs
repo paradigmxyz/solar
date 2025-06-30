@@ -236,11 +236,10 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 }
 
-impl<'hir> super::LoweringContext<'_, '_, 'hir> {
-    #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_symbols(&mut self) {
-        let next_id = &AtomicUsize::new(0);
-
+// Macro that creates a macro to create a resolver from `LoweringContext`, to avoid borrowing all
+// of it.
+macro_rules! mk_mk_resolver {
+    ($self:expr, $next_id:expr) => {
         macro_rules! mk_resolver {
             ($e:expr) => {
                 mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)
@@ -250,14 +249,21 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                 ResolveContext {
                     scopes: $scopes,
                     function_id: $f,
-                    sess: self.sess,
-                    arena: self.arena,
-                    hir: &mut self.hir,
-                    resolver: &self.resolver,
-                    next_id,
+                    sess: $self.sess,
+                    arena: $self.arena,
+                    hir: &mut $self.hir,
+                    resolver: &$self.resolver,
+                    next_id: $next_id,
                 }
             };
         }
+    }
+}
+
+impl<'hir> super::LoweringContext<'_, '_, 'hir> {
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_symbols(&mut self, next_id: &AtomicUsize) {
+        mk_mk_resolver!(self, next_id);
 
         for id in self.hir.udvt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
@@ -315,39 +321,6 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
 
             let scopes = SymbolResolverScopes::new_in(func.source, func.contract);
 
-            self.hir.functions[id].modifiers = {
-                let mut modifiers = SmallVec::<[_; 8]>::new();
-                for modifier in ast_func.header.modifiers.iter() {
-                    let expected = if func.kind.is_constructor() {
-                        "base class or modifier"
-                    } else {
-                        "modifier"
-                    };
-                    let Ok(id) = self.resolver.resolve_path_as(modifier.name, &scopes, expected)
-                    else {
-                        continue;
-                    };
-                    match id {
-                        hir::ItemId::Contract(base)
-                            if func.kind.is_constructor()
-                                && func.contract.is_some_and(|c| {
-                                    self.hir.contract(c).linearized_bases[1..].contains(&base)
-                                }) => {}
-                        hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {}
-                        _ => {
-                            self.resolver.report_expected(
-                                expected,
-                                self.hir.item(id).description(),
-                                modifier.name.span(),
-                            );
-                            continue;
-                        }
-                    }
-                    modifiers.push(id);
-                }
-                self.arena.alloc_smallvec(modifiers)
-            };
-
             let func = self.hir.function(id);
             self.hir.functions[id].overrides = {
                 let mut overrides = SmallVec::<[_; 8]>::new();
@@ -373,10 +346,47 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             };
 
             let mut cx = ResolveContext::new(self, scopes, next_id, Some(id));
+
             cx.hir.functions[id].parameters =
-                cx.lower_variables(ast_func.header.parameters.vars, hir::VarKind::FunctionParam);
+                cx.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
+
+            cx.hir.functions[id].modifiers = {
+                let mut modifiers = SmallVec::<[_; 8]>::new();
+                for modifier in ast_func.header.modifiers.iter() {
+                    let func = cx.hir.function(id);
+                    let expected = if func.kind.is_constructor() {
+                        "base class or modifier"
+                    } else {
+                        "modifier"
+                    };
+                    let Ok(id) = cx.resolve_path_as(modifier.name, expected) else {
+                        continue;
+                    };
+                    match id {
+                        hir::ItemId::Contract(base)
+                            if func.kind.is_constructor()
+                                && func.contract.is_some_and(|c| {
+                                    cx.hir.contract(c).linearized_bases[1..].contains(&base)
+                                }) => {}
+                        hir::ItemId::Function(f) if cx.hir.function(f).kind.is_modifier() => {}
+                        _ => {
+                            cx.resolver.report_expected(
+                                expected,
+                                cx.hir.item(id).description(),
+                                modifier.name.span(),
+                            );
+                            continue;
+                        }
+                    }
+                    let args = cx.lower_call_args(&modifier.arguments);
+                    modifiers.push(hir::Modifier { span: modifier.span(), id, args });
+                }
+                cx.arena.alloc_smallvec(modifiers)
+            };
+
             cx.hir.functions[id].returns =
-                cx.lower_variables(ast_func.header.returns.vars, hir::VarKind::FunctionReturn);
+                cx.lower_variables(*ast_func.header.returns, hir::VarKind::FunctionReturn);
+
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_block(body));
             }
@@ -385,6 +395,71 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         // Resolve function parameters and local variables, created while resolving functions.
         for id in self.hir.variable_ids().skip(normal_vars) {
             self.resolve_var(id, next_id);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_base_args(&mut self, next_id: &AtomicUsize) {
+        mk_mk_resolver!(self, next_id);
+
+        for c_id in self.hir.contract_ids() {
+            // Lower the base modifiers.
+            let contract = self.hir.contract(c_id);
+            let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
+            let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
+            let mut cx =
+                mk_resolver!(@scopes SymbolResolverScopes::new_in(contract.source, None), None);
+            cx.hir.contracts[c_id].bases_args = cx.arena.alloc_from_iter(
+                std::iter::zip(&*ast_contract.bases, cx.hir.contract(c_id).bases).map(
+                    |(ast_base, &base_id)| hir::Modifier {
+                        span: ast_base.span(),
+                        id: base_id.into(),
+                        args: cx.lower_call_args(&ast_base.arguments),
+                    },
+                ),
+            );
+            let contract = self.hir.contract(c_id);
+
+            let len = contract.linearized_bases.len() - 1;
+            let base_args: &mut [Option<&'hir hir::Modifier<'hir>>] =
+                self.arena.alloc_from_iter(std::iter::repeat_n(None, len));
+            let mut resolve = |base: &'hir hir::Modifier<'hir>, is_ctor: bool| {
+                let Some(base_id) = base.id.as_contract() else { return };
+                let base_idx = contract
+                    .linearized_bases
+                    .iter()
+                    .skip(1)
+                    .position(|&l| l == base_id)
+                    .expect("base contract not found");
+
+                if is_ctor && base.args.is_empty() {
+                    self.sess
+                        .dcx
+                        .err("modifier-style base constructor call without arguments")
+                        .span(base.span)
+                        .emit();
+                }
+                let prev = &mut base_args[base_idx];
+                if let Some(prev) = prev {
+                    if !prev.args.is_empty() {
+                        self.sess
+                            .dcx
+                            .err("base constructor arguments given twice")
+                            .span(base.span)
+                            .span_help(prev.span, "previous declaration")
+                            .emit();
+                    }
+                }
+                *prev = Some(base);
+            };
+            for base in contract.bases_args {
+                resolve(base, false);
+            }
+            for base in contract.ctor.map_or(&[][..], |c| self.hir.function(c).modifiers) {
+                resolve(base, true);
+            }
+
+            self.hir.contracts[c_id].linearized_bases_args = base_args;
         }
     }
 

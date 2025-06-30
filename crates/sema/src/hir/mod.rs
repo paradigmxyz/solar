@@ -283,9 +283,7 @@ newtype_index! {
 
     /// A [`Variable`] ID.
     pub struct VariableId;
-}
 
-newtype_index! {
     /// An [`Expr`] ID.
     pub struct ExprId;
 }
@@ -536,10 +534,19 @@ pub struct Contract<'hir> {
     pub kind: ContractKind,
     /// The contract bases, as declared in the source code.
     pub bases: &'hir [ContractId],
+    /// The base arguments, as declared in the source code.
+    pub bases_args: &'hir [Modifier<'hir>],
     /// The linearized contract bases.
     ///
     /// The first element is the contract itself, followed by its bases in order of inheritance.
     pub linearized_bases: &'hir [ContractId],
+    /// The constructor base arguments (if any).
+    ///
+    /// The index maps to the position in `linearized_bases[1..]`.
+    ///
+    /// The reference points to either `bases_args` in the original contract, or `modifiers` in the
+    /// constructor.
+    pub linearized_bases_args: &'hir [Option<&'hir Modifier<'hir>>],
     /// The resolved constructor function.
     pub ctor: Option<FunctionId>,
     /// The resolved `fallback` function.
@@ -588,6 +595,17 @@ impl Contract<'_> {
     }
 }
 
+/// A modifier or base class call.
+#[derive(Clone, Copy, Debug)]
+pub struct Modifier<'hir> {
+    /// The span of the modifier or base class call.
+    pub span: Span,
+    /// The modifier or base class ID.
+    pub id: ItemId,
+    /// The arguments to the modifier or base class call.
+    pub args: CallArgs<'hir>,
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
@@ -607,7 +625,7 @@ pub struct Function<'hir> {
     /// The state mutability of the function.
     pub state_mutability: StateMutability,
     /// Modifiers, or base classes if this is a constructor.
-    pub modifiers: &'hir [ItemId],
+    pub modifiers: &'hir [Modifier<'hir>],
     /// Whether this function is marked with the `virtual` keyword.
     pub marked_virtual: bool,
     /// Whether this function is marked with the `virtual` keyword or is defined in an interface.
@@ -1231,13 +1249,19 @@ pub struct NamedArg<'hir> {
 }
 
 /// A list of function call arguments.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct CallArgs<'hir> {
     /// The span of the arguments. This points to the parenthesized list of arguments.
     ///
-    /// If the list is empty, this points to the empty `()` or to where the `(` would be.
+    /// If the list is empty, this points to the empty `()`/`({})` or to where the `(` would be.
     pub span: Span,
     pub kind: CallArgsKind<'hir>,
+}
+
+impl<'hir> Default for CallArgs<'hir> {
+    fn default() -> Self {
+        Self::empty(Span::DUMMY)
+    }
 }
 
 impl<'hir> CallArgs<'hir> {
@@ -1276,7 +1300,7 @@ impl<'hir> CallArgs<'hir> {
 }
 
 /// A list of function call argument expressions.
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum CallArgsKind<'hir> {
     /// A list of unnamed arguments: `(1, 2, 3)`.
     Unnamed(&'hir [Expr<'hir>]),

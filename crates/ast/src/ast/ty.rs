@@ -237,7 +237,7 @@ impl TypeSize {
     /// Returns None if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
     pub fn try_new_int_bits(bits: u16) -> Option<Self> {
-        if bits % 8 == 0 {
+        if bits.is_multiple_of(8) {
             Self::new((bits / 8).try_into().ok()?)
         } else {
             None

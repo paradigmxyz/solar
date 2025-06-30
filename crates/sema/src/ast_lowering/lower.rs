@@ -54,8 +54,10 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind: contract.kind,
 
             // Set later.
-            bases: &[],
+            bases: &mut [],
+            bases_args: &[],
             linearized_bases: &[],
+            linearized_bases_args: &[],
 
             ctor: None,
             fallback: None,
