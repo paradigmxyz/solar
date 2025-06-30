@@ -346,7 +346,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     .emit();
             }
 
-            if !func.header.parameters.vars.is_empty() {
+            if !func.header.parameters.is_empty() {
                 self.dcx()
                     .err("receive ether function cannot take parameters")
                     .span(self.item_span)

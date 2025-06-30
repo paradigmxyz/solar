@@ -288,7 +288,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             let error = self.hir.error(id);
             let mut cx = mk_resolver!(error);
             self.hir.errors[id].parameters =
-                cx.lower_variables(ast_error.parameters.vars, hir::VarKind::Error);
+                cx.lower_variables(*ast_error.parameters, hir::VarKind::Error);
         }
 
         for id in self.hir.event_ids() {
@@ -297,7 +297,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             let event = self.hir.event(id);
             let mut cx = mk_resolver!(event);
             self.hir.events[id].parameters =
-                cx.lower_variables(ast_event.parameters.vars, hir::VarKind::Event);
+                cx.lower_variables(*ast_event.parameters, hir::VarKind::Event);
         }
 
         // Resolve constants and state variables.
@@ -1145,8 +1145,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             })),
             ast::TypeKind::Function(f) => {
                 hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
-                    parameters:
-                        self.lower_variables(f.parameters.vars, hir::VarKind::FunctionTyParam),
+                    parameters: self.lower_variables(*f.parameters, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.map(|v| v.data).unwrap_or(ast::Visibility::Public),
                     state_mutability: *f.state_mutability,
                     returns: self.lower_variables(f.returns.vars, hir::VarKind::FunctionTyReturn),
