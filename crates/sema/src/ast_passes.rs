@@ -380,7 +380,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.dcx()
                     .err("free functions cannot have visibility")
                     .span(self.item_span)
-                    .help(format!("remove `{}` from the declaration", visibility.data))
+                    .help(format!("remove `{}` from the declaration", *visibility))
                     .emit();
             }
         }
