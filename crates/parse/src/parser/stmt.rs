@@ -3,7 +3,7 @@ use crate::{parser::SeqSep, PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::BumpExt;
-use solar_interface::{kw, sym, Ident, Span};
+use solar_interface::{kw, sym, Ident, Span, Spanned};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
@@ -82,31 +82,58 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an if statement.
     fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        let expr = self.parse_expr()?;
-        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        let true_stmt = self.parse_stmt()?;
-        let else_stmt =
-            if self.eat_keyword(kw::Else) { Some(self.parse_stmt_boxed()?) } else { None };
-        Ok(StmtKind::If(expr, self.alloc(true_stmt), else_stmt))
+        let expr_lo = self.prev_token.span;
+        let expr = {
+            let expr = self.parse_expr()?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+            Spanned { span: expr_lo.to(self.prev_token.span), data: expr }
+        };
+        let cond_lo = self.prev_token.span;
+        let cond_stmt = {
+            let true_stmt = self.parse_stmt()?;
+            Spanned { span: cond_lo.to(self.prev_token.span), data: self.alloc(true_stmt) }
+        };
+        let else_stmt = if self.eat_keyword(kw::Else) {
+            let else_lo = self.prev_token.span;
+            Some(Spanned { span: else_lo.to(self.prev_token.span), data: self.parse_stmt_boxed()? })
+        } else {
+            None
+        };
+        Ok(StmtKind::If(expr, cond_stmt, else_stmt))
     }
 
     /// Parses a while statement.
     fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        let expr = self.parse_expr()?;
-        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
-        let stmt = self.parse_stmt()?;
-        Ok(StmtKind::While(expr, self.alloc(stmt)))
+        let expr_lo = self.prev_token.span;
+        let expr = {
+            let expr = self.parse_expr()?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+            Spanned { span: expr_lo.to(self.prev_token.span), data: expr }
+        };
+        let stmt_lo = self.prev_token.span;
+        let stmt = {
+            let stmt = self.parse_stmt()?;
+            Spanned { span: stmt_lo.to(self.prev_token.span), data: self.alloc(stmt) }
+        };
+        Ok(StmtKind::While(expr, stmt))
     }
 
     /// Parses a do-while statement.
     fn parse_stmt_do_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        let stmt = self.parse_stmt()?;
-        let stmt = self.alloc(stmt);
+        let stmt_lo = self.prev_token.span;
+        let stmt = {
+            let stmt = self.parse_stmt()?;
+            Spanned { span: stmt_lo.to(self.prev_token.span), data: self.alloc(stmt) }
+        };
         self.expect_keyword(kw::While)?;
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-        let expr = self.parse_expr()?;
-        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        let expr_lo = self.prev_token.span;
+        let expr = {
+            let expr = self.parse_expr()?;
+            self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+            Spanned { span: expr_lo.to(self.prev_token.span), data: expr }
+        };
         Ok(StmtKind::DoWhile(stmt, expr))
     }
 
