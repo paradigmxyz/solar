@@ -254,3 +254,24 @@ impl<T> DerefMut for Spanned<T> {
         &mut self.data
     }
 }
+
+impl<T> Spanned<T> {
+    pub fn map<U, F>(self, f: F) -> Spanned<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Spanned { span: self.span, data: f(self.data) }
+    }
+
+    pub fn as_ref(&self) -> Spanned<&T> {
+        Spanned { span: self.span, data: &self.data }
+    }
+
+    pub fn as_mut(&mut self) -> Spanned<&mut T> {
+        Spanned { span: self.span, data: &mut self.data }
+    }
+
+    pub fn into_inner(self) -> T {
+        self.data
+    }
+}

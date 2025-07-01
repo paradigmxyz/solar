@@ -338,7 +338,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     .emit();
             }
 
-            if func.header.state_mutability.as_deref() != Some(&ast::StateMutability::Payable) {
+            if !func.header.state_mutability().is_payable() {
                 self.dcx()
                     .err("receive ether function must be payable")
                     .span(self.item_span)
@@ -447,12 +447,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
     fn visit_ty(&mut self, ty: &'ast solar_ast::Type<'ast>) -> ControlFlow<Self::BreakValue> {
         if let ast::TypeKind::Function(f) = &ty.kind {
-            for param in f.returns.iter() {
-                if let Some(param_name) = param.name {
+            for ret in f.returns().iter() {
+                if let Some(ret_name) = ret.name {
                     self.dcx()
                         .err("return parameters in function types may not be named")
-                        .span(param.span)
-                        .span_help(param_name.span, format!("remove `{param_name}`"))
+                        .span(ret.span)
+                        .span_help(ret_name.span, format!("remove `{ret_name}`"))
                         .emit();
                 }
             }

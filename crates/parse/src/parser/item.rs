@@ -293,7 +293,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         header.modifiers = self.alloc_vec(modifiers);
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = self.parse_parameter_list(false, var_flags)?;
+            header.returns = Some(self.parse_parameter_list(false, var_flags)?);
         }
 
         header.span = lo.to(self.prev_token.span);
@@ -1754,7 +1754,7 @@ mod tests {
                     "Test {idx}: params span mismatch"
                 );
                 if let Some(expected) = returns {
-                    let span = header.returns.span;
+                    let span = header.returns.as_ref().expect("Expected returns").span;
                     assert_eq!(
                         *expected,
                         sess.source_map().span_to_snippet(span).unwrap(),

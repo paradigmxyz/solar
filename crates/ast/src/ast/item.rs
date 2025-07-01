@@ -482,12 +482,26 @@ pub struct FunctionHeader<'ast> {
     pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
-    pub returns: ParameterList<'ast>,
+    ///
+    /// If `Some`, it's always non-empty.
+    pub returns: Option<ParameterList<'ast>>,
 }
 
 impl<'ast> FunctionHeader<'ast> {
+    pub fn visibility(&self) -> Option<Visibility> {
+        self.visibility.map(Spanned::into_inner)
+    }
+
+    pub fn state_mutability(&self) -> StateMutability {
+        self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
+    }
+
     pub fn virtual_(&self) -> bool {
         self.virtual_.is_some()
+    }
+
+    pub fn returns(&self) -> &[VariableDefinition<'ast>] {
+        self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
     }
 }
 

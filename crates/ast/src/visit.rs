@@ -193,7 +193,9 @@ declare_visitors! {
                 TypeKind::Function(function) => {
                     let TypeFunction { parameters, visibility: _, state_mutability: _, returns } = &#mut **function;
                     self.visit_parameter_list #_mut(parameters)?;
-                    self.visit_parameter_list #_mut(returns)?;
+                    if let Some(returns) = returns {
+                        self.visit_parameter_list #_mut(returns)?;
+                    }
                 }
                 TypeKind::Mapping(mapping) => {
                     let TypeMapping { key, key_name, value, value_name } = &#mut **mapping;
@@ -241,7 +243,9 @@ declare_visitors! {
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }
-            self.visit_parameter_list #_mut(returns)?;
+            if let Some(returns) = returns {
+                self.visit_parameter_list #_mut(returns)?;
+            }
             ControlFlow::Continue(())
         }
 

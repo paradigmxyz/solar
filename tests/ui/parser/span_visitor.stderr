@@ -84,13 +84,6 @@ LL |     function foo() public {
 note: span #12
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
-LL | //@compile-flags: -Zspan-visitor
-   | -
-   |
-
-note: span #13
-  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
-   |
 LL |       function foo() public {
    |  ___________________________-
 LL | |         x = 42;
@@ -98,18 +91,25 @@ LL | |     }
    | |_____-
    |
 
-note: span #14
+note: span #13
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
    |         -------
    |
 
-note: span #15
+note: span #14
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
    |         ------
+   |
+
+note: span #15
+  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
+   |
+LL |         x = 42;
+   |         -
    |
 
 note: span #16
@@ -123,7 +123,7 @@ note: span #17
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |         -
+   |             --
    |
 
 note: span #18
@@ -134,13 +134,6 @@ LL |         x = 42;
    |
 
 note: span #19
-  --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
-   |
-LL |         x = 42;
-   |             --
-   |
-
-note: span #20
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |       function foo() public {
