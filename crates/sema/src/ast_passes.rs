@@ -338,7 +338,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     .emit();
             }
 
-            if !func.header.state_mutability.is_payable() {
+            if func.header.state_mutability.as_deref() != Some(&ast::StateMutability::Payable) {
                 self.dcx()
                     .err("receive ether function must be payable")
                     .span(self.item_span)

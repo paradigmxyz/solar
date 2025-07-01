@@ -470,7 +470,7 @@ pub struct FunctionHeader<'ast> {
     pub visibility: Option<Spanned<Visibility>>,
 
     /// The state mutability.
-    pub state_mutability: Spanned<StateMutability>,
+    pub state_mutability: Option<Spanned<StateMutability>>,
 
     /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,

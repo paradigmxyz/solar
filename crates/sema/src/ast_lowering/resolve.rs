@@ -1143,14 +1143,17 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => {
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+            ast::TypeKind::Function(f) => hir::TypeKind::Function(
+                self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables(*f.parameters, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
-                    state_mutability: *f.state_mutability,
+                    state_mutability: f
+                        .state_mutability
+                        .map(|s| s.data)
+                        .unwrap_or(ast::StateMutability::NonPayable),
                     returns: self.lower_variables(*f.returns, hir::VarKind::FunctionTyReturn),
-                }))
-            }
+                }),
+            ),
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),

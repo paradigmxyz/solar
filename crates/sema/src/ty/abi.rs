@@ -137,8 +137,8 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
     match s {
         hir::StateMutability::Pure => json::StateMutability::Pure,
         hir::StateMutability::View => json::StateMutability::View,
-        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
         hir::StateMutability::Payable => json::StateMutability::Payable,
+        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
     }
 }
 
@@ -344,7 +344,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             Some(id),
             parameters,
             &[],
-            Default::default(),
+            hir::StateMutability::NonPayable,
             solar_ast::Visibility::Internal,
         )
     }

@@ -216,68 +216,68 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
                 .then_some(());
             if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
-                if header.visibility.is_some() {
+                let span = self.prev_token.span;
+                if let Some(prev) = header.visibility {
                     let msg = "visibility already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_note(prev.span, "previous definition")
+                        .emit();
                 } else {
-                    header.visibility =
-                        if !flags.contains(FunctionFlags::from_visibility(visibility)) {
-                            let msg = visibility_error(visibility, flags.visibilities());
-                            self.dcx().err(msg).span(self.prev_token.span).emit();
-                            flags
-                                .visibilities()
-                                .into_iter()
-                                .flatten()
-                                .next()
-                                .map(|vis| Spanned { span: self.prev_token.span, data: vis })
-                        } else {
-                            Some(Spanned { span: self.prev_token.span, data: visibility })
-                        };
+                    let mut v = Some(visibility);
+                    if !flags.contains(FunctionFlags::from_visibility(visibility)) {
+                        let msg = visibility_error(visibility, flags.visibilities());
+                        self.dcx().err(msg).span(span).emit();
+                        // Set to the first valid visibility, if any.
+                        v = flags.visibilities().into_iter().flatten().next();
+                    }
+                    header.visibility = v.map(|v| Spanned { span, data: v });
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
-                if !header.state_mutability.is_non_payable() {
+                let span = self.prev_token.span;
+                if let Some(prev) = header.state_mutability {
                     let msg = "state mutability already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_note(prev.span, "previous definition")
+                        .emit();
                 } else {
-                    header.state_mutability = Spanned {
-                        span: self.prev_token.span,
-                        data: if !flags
-                            .contains(FunctionFlags::from_state_mutability(state_mutability))
-                        {
-                            let msg = state_mutability_error(
-                                state_mutability,
-                                flags.state_mutabilities(),
-                            );
-                            self.dcx().err(msg).span(self.prev_token.span).emit();
-                            flags
-                                .state_mutabilities()
-                                .into_iter()
-                                .flatten()
-                                .next()
-                                .unwrap_or_default()
-                        } else {
-                            state_mutability
-                        },
-                    };
+                    let mut sm = Some(state_mutability);
+                    if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
+                        let msg =
+                            state_mutability_error(state_mutability, flags.state_mutabilities());
+                        self.dcx().err(msg).span(span).emit();
+                        // Set to the first valid state mutability, if any.
+                        sm = flags.state_mutabilities().into_iter().flatten().next();
+                    }
+                    header.state_mutability = sm.map(|sm| Spanned { span, data: sm });
                 }
             } else if self.eat_keyword(kw::Virtual) {
+                let span = self.prev_token.span;
                 if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.virtual_() {
+                    self.dcx().err(msg).span(span).emit();
+                } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err(msg).span(span).span_note(prev, "previous definition").emit();
                 } else {
-                    header.virtual_ = Some(self.prev_token.span);
+                    header.virtual_ = Some(span);
                 }
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;
+                let span = o.span;
                 if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.override_.is_some() {
+                    self.dcx().err(msg).span(span).emit();
+                } else if let Some(prev) = &header.override_ {
                     let msg = "override already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_note(prev.span, "previous definition")
+                        .emit();
                 } else {
                     header.override_ = Some(o);
                 }
@@ -1336,7 +1336,7 @@ impl FunctionFlags {
             StateMutability::Pure => Self::PURE,
             StateMutability::View => Self::VIEW,
             StateMutability::Payable => Self::PAYABLE,
-            StateMutability::NonPayable => unreachable!(),
+            StateMutability::NonPayable => unreachable!("NonPayable should not be parsed"),
         }
     }
 
@@ -1734,12 +1734,10 @@ mod tests {
                     assert_eq!(vis_text, *expected, "Test {idx}: visibility span mismatch");
                 }
                 if let Some(expected) = sm {
-                    if !header.state_mutability.is_non_payable() {
+                    if let Some(state_mutability) = header.state_mutability {
                         assert_eq!(
                             *expected,
-                            sess.source_map()
-                                .span_to_snippet(header.state_mutability.span)
-                                .unwrap(),
+                            sess.source_map().span_to_snippet(state_mutability.span).unwrap(),
                             "Test {idx}: state mutability span mismatch",
                         );
                     }

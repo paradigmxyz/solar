@@ -23,7 +23,7 @@ impl<'sess> SpanVisitor<'sess> {
 }
 
 impl<'ast, 'sess> Visit<'ast> for SpanVisitor<'sess> {
-    type BreakValue = ();
+    type BreakValue = solar_data_structures::Never;
 
     fn visit_span(&mut self, span: &'ast Span) -> ControlFlow<Self::BreakValue> {
         self.count += 1;

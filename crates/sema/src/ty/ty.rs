@@ -83,7 +83,7 @@ impl<'gcx> Ty<'gcx> {
             } else {
                 returns
             },
-            state_mutability: self.state_mutability().unwrap_or_default(),
+            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
         })
     }

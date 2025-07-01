@@ -234,8 +234,10 @@ declare_visitors! {
                 let Spanned { span: vis_span, .. } = vis;
                 self.visit_span #_mut(vis_span)?;
             }
-            let Spanned { span: state_mut_span, .. } = state_mutability;
-            self.visit_span #_mut(state_mut_span)?;
+            if let Some(state_mut) = state_mutability {
+                let Spanned { span: state_mut_span, .. } = state_mut;
+                self.visit_span #_mut(state_mut_span)?;
+            }
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }
