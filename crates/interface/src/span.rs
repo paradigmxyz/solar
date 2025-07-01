@@ -235,7 +235,7 @@ impl Span {
 ///
 /// Wraps any value with a [`Span`] to track its location in the source code.
 /// Implements `Deref` and `DerefMut` for transparent access to the inner value.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Spanned<T> {
     pub span: Span,
     pub data: T,

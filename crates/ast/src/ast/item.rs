@@ -454,7 +454,7 @@ impl ItemFunction<'_> {
 }
 
 /// A function header: `function helloWorld() external pure returns(string memory)`.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
     /// The span of the function header.
     pub span: Span,
@@ -483,22 +483,6 @@ pub struct FunctionHeader<'ast> {
 
     /// The returns parameter list.
     pub returns: ParameterList<'ast>,
-}
-
-impl<'ast> Default for FunctionHeader<'ast> {
-    fn default() -> Self {
-        Self {
-            span: Default::default(),
-            name: Default::default(),
-            parameters: Default::default(),
-            visibility: Default::default(),
-            state_mutability: Spanned { span: Span::DUMMY, data: StateMutability::default() },
-            modifiers: Default::default(),
-            virtual_: Default::default(),
-            override_: Default::default(),
-            returns: Default::default(),
-        }
-    }
 }
 
 impl<'ast> FunctionHeader<'ast> {
