@@ -2,7 +2,7 @@
 
 use crate::ast::*;
 use solar_data_structures::trustme;
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Spanned};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -218,8 +218,8 @@ declare_visitors! {
                 span,
                 name,
                 parameters,
-                visibility: _,
-                state_mutability: _,
+                visibility,
+                state_mutability,
                 modifiers,
                 virtual_: _,
                 override_: _,
@@ -230,6 +230,12 @@ declare_visitors! {
                 self.visit_ident #_mut(name)?;
             }
             self.visit_parameter_list #_mut(parameters)?;
+            if let Some(vis) = visibility {
+                let Spanned { span: vis_span, .. } = vis;
+                self.visit_span #_mut(vis_span)?;
+            }
+            let Spanned { span: state_mut_span, .. } = state_mutability;
+            self.visit_span #_mut(state_mut_span)?;
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }
@@ -465,9 +471,11 @@ declare_visitors! {
         }
 
         fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<Self::BreakValue> {
-            for param in list.iter #_mut() {
+            let ParameterList { span, vars } = list;
+            for param in vars.iter #_mut() {
                 self.visit_variable_definition #_mut(param)?;
             }
+            self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 

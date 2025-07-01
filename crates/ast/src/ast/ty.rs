@@ -1,5 +1,5 @@
 use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
-use solar_interface::{kw, Ident, Span, Symbol};
+use solar_interface::{kw, Ident, Span, Spanned, Symbol};
 use std::{borrow::Cow, fmt};
 
 /// A type name.
@@ -363,8 +363,8 @@ pub struct TypeArray<'ast> {
 #[derive(Debug)]
 pub struct TypeFunction<'ast> {
     pub parameters: ParameterList<'ast>,
-    pub visibility: Option<Visibility>,
-    pub state_mutability: StateMutability,
+    pub visibility: Option<Spanned<Visibility>>,
+    pub state_mutability: Spanned<StateMutability>,
     pub returns: ParameterList<'ast>,
 }
 
