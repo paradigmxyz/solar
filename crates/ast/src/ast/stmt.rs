@@ -2,7 +2,7 @@ use super::{
     yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
     VariableDefinition,
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Spanned};
 
 /// A block of statements.
 #[derive(Debug)]
@@ -61,7 +61,7 @@ pub enum StmtKind<'ast> {
     Continue,
 
     /// A do-while statement: `do { ... } while (condition);`.
-    DoWhile(Box<'ast, Stmt<'ast>>, Box<'ast, Expr<'ast>>),
+    DoWhile(Spanned<Box<'ast, Stmt<'ast>>>, Spanned<Box<'ast, Expr<'ast>>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
     Emit(Box<'ast, PathSlice>, CallArgs<'ast>),
@@ -78,7 +78,11 @@ pub enum StmtKind<'ast> {
     },
 
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
-    If(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>, Option<Box<'ast, Stmt<'ast>>>),
+    If(
+        Spanned<Box<'ast, Expr<'ast>>>,
+        Spanned<Box<'ast, Stmt<'ast>>>,
+        Option<Spanned<Box<'ast, Stmt<'ast>>>>,
+    ),
 
     /// A return statement: `return 42;`.
     Return(Option<Box<'ast, Expr<'ast>>>),
@@ -93,7 +97,7 @@ pub enum StmtKind<'ast> {
     UncheckedBlock(Block<'ast>),
 
     /// A while statement: `while (i < 42) { ... }`.
-    While(Box<'ast, Expr<'ast>>, Box<'ast, Stmt<'ast>>),
+    While(Spanned<Box<'ast, Expr<'ast>>>, Spanned<Box<'ast, Stmt<'ast>>>),
 
     /// A modifier placeholder statement: `_;`.
     Placeholder,
