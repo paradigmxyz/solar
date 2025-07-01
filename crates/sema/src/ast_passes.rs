@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span, Spanned};
+use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -213,23 +213,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
     }
 
     fn visit_stmt(&mut self, stmt: &'ast ast::Stmt<'ast>) -> ControlFlow<Self::BreakValue> {
-        // common logic for both `Spanned<Stmt>` and `Stmt`
-        macro_rules! handle_loop {
-            ($body:expr) => {{
+        match &stmt.kind {
+            ast::StmtKind::While(_, body)
+            | ast::StmtKind::DoWhile(body, _)
+            | ast::StmtKind::For { body, .. } => {
                 self.loop_depth += 1;
-                self.check_single_statement_variable_declaration($body);
+                self.check_single_statement_variable_declaration(body);
                 let r = self.walk_stmt(stmt);
                 self.loop_depth -= 1;
                 return r;
-            }};
-        }
-
-        match &stmt.kind {
-            ast::StmtKind::For { body, .. } => handle_loop!(body),
-            ast::StmtKind::While(_, Spanned { data, span })
-            | ast::StmtKind::DoWhile(Spanned { data, span }, _) => {
-                self.visit_span(span)?;
-                handle_loop!(data);
             }
             ast::StmtKind::If(_cond, then, else_) => {
                 self.check_single_statement_variable_declaration(then);
