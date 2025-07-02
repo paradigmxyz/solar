@@ -42,7 +42,7 @@ contract Test {
         ) {
             Ok(file) => Arc::new(file),
             Err(e) => {
-                let _ = dcx.err(format!("{:?}", e)).emit();
+                let _ = dcx.err(format!("{e:?}")).emit();
                 return Err(dcx.emitted_diagnostics().unwrap());
             }
         };
@@ -52,7 +52,7 @@ contract Test {
         pcx.add_file(file);
         let hir_arena = ThreadLocal::new();
         let gcx = pcx.parse_and_lower(&hir_arena).map_err(|e| {
-            let _ = dcx.err(format!("{:?}", e)).emit();
+            let _ = dcx.err(format!("{e:?}")).emit();
             dcx.emitted_diagnostics().unwrap()
         })?;
         let gcx = match gcx {
@@ -66,7 +66,7 @@ contract Test {
 
         // Print the output for inspection
         println!("=== HIR Pretty Printer Output ===");
-        println!("{}", output);
+        println!("{output}");
         println!("=== End Output ===");
 
         // Assert that the output contains expected elements
@@ -133,7 +133,7 @@ contract ComplexTest {
         ) {
             Ok(file) => Arc::new(file),
             Err(e) => {
-                let _ = dcx.err(format!("{:?}", e)).emit();
+                let _ = dcx.err(format!("{e:?}")).emit();
                 return Err(dcx.emitted_diagnostics().unwrap());
             }
         };
@@ -143,7 +143,7 @@ contract ComplexTest {
         pcx.add_file(file);
         let hir_arena = ThreadLocal::new();
         let gcx = pcx.parse_and_lower(&hir_arena).map_err(|e| {
-            let _ = dcx.err(format!("{:?}", e)).emit();
+            let _ = dcx.err(format!("{e:?}")).emit();
             dcx.emitted_diagnostics().unwrap()
         })?;
         let gcx = match gcx {
@@ -157,7 +157,7 @@ contract ComplexTest {
 
         // Print the output for inspection
         println!("=== Complex HIR Pretty Printer Output ===");
-        println!("{}", output);
+        println!("{output}");
         println!("=== End Complex Output ===");
 
         // Assert that the output contains expected elements

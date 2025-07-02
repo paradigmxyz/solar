@@ -220,22 +220,22 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 }
                 ItemId::Enum(enum_id) => write!(self.buffer, "{}", self.hir.enumm(*enum_id).name),
                 ItemId::Udvt(udvt_id) => write!(self.buffer, "{}", self.hir.udvt(*udvt_id).name),
-                _ => write!(self.buffer, "{:?}", id),
+                _ => write!(self.buffer, "{id:?}"),
             },
             TypeKind::Mapping(map) => {
                 write!(self.buffer, "mapping(")?;
                 self.print_type(&map.key)?;
                 if let Some(key_name) = map.key_name {
-                    write!(self.buffer, " {}", key_name)?;
+                    write!(self.buffer, " {key_name}")?;
                 }
                 write!(self.buffer, " => ")?;
                 self.print_type(&map.value)?;
                 if let Some(value_name) = map.value_name {
-                    write!(self.buffer, " {}", value_name)?;
+                    write!(self.buffer, " {value_name}")?;
                 }
                 write!(self.buffer, ")")
             }
-            _ => write!(self.buffer, "{}", ty),
+            _ => write!(self.buffer, "{ty}"),
         }
     }
 
@@ -244,7 +244,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
         let var = &self.hir.variable(var_id);
         if let Some(name) = var.name {
             self.print_type(&var.ty)?;
-            write!(self.buffer, " {}", name)?;
+            write!(self.buffer, " {name}")?;
         } else {
             self.print_type(&var.ty)?;
         }
@@ -430,7 +430,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     ItemId::Error(id) => write!(self.buffer, "{}", self.hir.error(*id).name)?,
                 },
                 Res::Namespace(id) => write!(self.buffer, "namespace_{}", id.index())?,
-                Res::Builtin(builtin) => write!(self.buffer, "{:?}", builtin)?,
+                Res::Builtin(builtin) => write!(self.buffer, "{builtin:?}")?,
                 Res::Err(_) => write!(self.buffer, "<error>")?,
             },
             ExprKind::Binary(lhs, op, rhs) => {
@@ -489,7 +489,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 write!(self.buffer, ")")?;
             }
             ExprKind::New(ty) => {
-                write!(self.buffer, "new {}", ty)?;
+                write!(self.buffer, "new {ty}")?;
             }
             ExprKind::Delete(expr) => {
                 write!(self.buffer, "delete ")?;
@@ -537,10 +537,10 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 write!(self.buffer, ")")?;
             }
             ExprKind::TypeCall(ty) => {
-                write!(self.buffer, "type({})", ty)?;
+                write!(self.buffer, "type({ty})")?;
             }
             ExprKind::Type(ty) => {
-                write!(self.buffer, "{}", ty)?;
+                write!(self.buffer, "{ty}")?;
             }
             ExprKind::Err(_) => {
                 write!(self.buffer, "// <error>")?;
@@ -559,7 +559,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 self.write_indent()?;
                 if let Some(name) = var.name {
                     self.print_type(&var.ty)?;
-                    writeln!(self.buffer, " {};", name)?;
+                    writeln!(self.buffer, " {name};")?;
                 } else {
                     self.print_type(&var.ty)?;
                     writeln!(self.buffer, ";")?;
@@ -575,7 +575,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     self.write_indent()?;
                     self.print_type(&field.ty)?;
                     if let Some(name) = field.name {
-                        writeln!(self.buffer, " {};", name)?;
+                        writeln!(self.buffer, " {name};")?;
                     } else {
                         writeln!(self.buffer, ";")?;
                     }
@@ -592,9 +592,9 @@ impl<'hir> HirPrettyPrinter<'hir> {
                 for (i, variant) in enumm.variants.iter().enumerate() {
                     self.write_indent()?;
                     if i < enumm.variants.len() - 1 {
-                        writeln!(self.buffer, "{},", variant)?;
+                        writeln!(self.buffer, "{variant},")?;
                     } else {
-                        writeln!(self.buffer, "{}", variant)?;
+                        writeln!(self.buffer, "{variant}")?;
                     }
                 }
                 self.dedent();
@@ -622,7 +622,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     }
                     self.print_type(&param.ty)?;
                     if let Some(name) = param.name {
-                        write!(self.buffer, " {}", name)?;
+                        write!(self.buffer, " {name}")?;
                     }
                 }
                 write!(self.buffer, ")")?;
@@ -642,7 +642,7 @@ impl<'hir> HirPrettyPrinter<'hir> {
                     let param = self.hir.variable(param_id);
                     self.print_type(&param.ty)?;
                     if let Some(name) = param.name {
-                        write!(self.buffer, " {}", name)?;
+                        write!(self.buffer, " {name}")?;
                     }
                 }
                 writeln!(self.buffer, ");")?;
