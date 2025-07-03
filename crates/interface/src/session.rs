@@ -1,8 +1,8 @@
 use crate::{
-    diagnostics::{DiagCtxt, EmittedDiagnostics},
     ColorChoice, SessionGlobals, SourceMap,
+    diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
-use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts, SINGLE_THREADED_TARGET};
+use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
 use std::{path::Path, sync::Arc};
 
 /// Information about the current compiler session.
@@ -246,11 +246,7 @@ impl Session {
         RA: Send,
         RB: Send,
     {
-        if self.is_sequential() {
-            (oper_a(), oper_b())
-        } else {
-            rayon::join(oper_a, oper_b)
-        }
+        if self.is_sequential() { (oper_a(), oper_b()) } else { rayon::join(oper_a, oper_b) }
     }
 
     /// Executes the given closure in a fork-join scope.

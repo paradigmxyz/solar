@@ -1,9 +1,9 @@
 //! Annotation collector for displaying diagnostics vendored from Rustc.
 
 use crate::{
+    SourceMap,
     diagnostics::{Level, MultiSpan, SpanLabel},
     source_map::{Loc, SourceFile},
-    SourceMap,
 };
 use std::{
     cmp::{max, min},

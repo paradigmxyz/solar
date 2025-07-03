@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
+use solar_interface::{Session, Span, diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
@@ -283,13 +283,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 self.dcx().err("library is not allowed to inherit").span(contract.name.span).emit();
             }
             for item in contract.body.iter() {
-                if let ast::ItemKind::Variable(var) = &item.kind {
-                    if !var.mutability.is_some_and(|m| m.is_constant()) {
-                        self.dcx()
-                            .err("library cannot have non-constant state variable")
-                            .span(var.span)
-                            .emit();
-                    }
+                if let ast::ItemKind::Variable(var) = &item.kind
+                    && !var.mutability.is_some_and(|m| m.is_constant())
+                {
+                    self.dcx()
+                        .err("library cannot have non-constant state variable")
+                        .span(var.span)
+                        .emit();
                 }
             }
         }
@@ -306,16 +306,15 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         self.function_kind = Some(func.kind);
 
         if let Some(contract) = self.contract {
-            if func.kind.is_function() {
-                if let Some(func_name) = func.header.name {
-                    if func_name == contract.name {
-                        self.dcx()
+            if func.kind.is_function()
+                && let Some(func_name) = func.header.name
+                && func_name == contract.name
+            {
+                self.dcx()
                             .err("functions are not allowed to have the same name as the contract")
                             .note("if you intend this to be a constructor, use `constructor(...) { ... }` to define it")
                             .span(func_name.span)
                             .emit();
-                    }
-                }
             }
             if contract.kind.is_interface() && !func.header.modifiers.is_empty() {
                 self.dcx()
@@ -354,22 +353,21 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
 
-        if func.header.visibility.is_none() {
-            if let Some(contract) = self.contract {
-                if let Some(suggested_visibility) = if func.kind.is_function() {
-                    Some(if contract.kind.is_interface() { "external" } else { "public" })
-                } else if func.kind.is_fallback() || func.kind.is_receive() {
-                    Some("external")
-                } else {
-                    None
-                } {
-                    self.dcx()
-                        .err("no visibility specified")
-                        .span(self.item_span)
-                        .help(format!("add `{suggested_visibility}` to the declaration"))
-                        .emit();
-                }
+        if func.header.visibility.is_none()
+            && let Some(contract) = self.contract
+            && let Some(suggested_visibility) = if func.kind.is_function() {
+                Some(if contract.kind.is_interface() { "external" } else { "public" })
+            } else if func.kind.is_fallback() || func.kind.is_receive() {
+                Some("external")
+            } else {
+                None
             }
+        {
+            self.dcx()
+                .err("no visibility specified")
+                .span(self.item_span)
+                .help(format!("add `{suggested_visibility}` to the declaration"))
+                .emit();
         }
 
         if self.contract.is_none() && func.kind.is_function() {
@@ -391,13 +389,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
 
         if func.kind.is_modifier() && func.is_implemented() {
             let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
-            if num_placeholders_increased == 0 {
-                if let Some(func_name) = func.header.name {
-                    self.dcx()
-                        .err("modifier must have a `_;` placeholder statement")
-                        .span(func_name.span)
-                        .emit();
-                }
+            if num_placeholders_increased == 0
+                && let Some(func_name) = func.header.name
+            {
+                self.dcx()
+                    .err("modifier must have a `_;` placeholder statement")
+                    .span(func_name.span)
+                    .emit();
             }
         }
         r
@@ -424,13 +422,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if *global && self.contract.is_some() {
             self.dcx().err("`global` can only be used at file level").span(self.item_span).emit();
         }
-        if let Some(contract) = self.contract {
-            if contract.kind.is_interface() {
-                self.dcx()
-                    .err("the `using for` directive is not allowed inside interfaces")
-                    .span(self.item_span)
-                    .emit();
-            }
+        if let Some(contract) = self.contract
+            && contract.kind.is_interface()
+        {
+            self.dcx()
+                .err("the `using for` directive is not allowed inside interfaces")
+                .span(self.item_span)
+                .emit();
         }
         self.walk_using_directive(using)
     }

@@ -1,10 +1,10 @@
 //! Solidity source code token.
 
 use crate::{
-    ast::{BinOp, BinOpKind, UnOp, UnOpKind},
     DocComment, StrKind,
+    ast::{BinOp, BinOpKind, UnOp, UnOpKind},
 };
-use solar_interface::{diagnostics::ErrorGuaranteed, Ident, Span, Symbol};
+use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
 use std::{borrow::Cow, fmt};
 
 /// The type of a comment.
@@ -488,7 +488,7 @@ impl TokenKind {
             Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
             | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
             | OpenDelim(_) | CloseDelim(_) | Literal(..) | Ident(_) | Comment(..) | Eof => {
-                return None
+                return None;
             }
         })
     }

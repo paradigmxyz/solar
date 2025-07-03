@@ -4,7 +4,7 @@
 
 use super::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
 use crate::hir::{self};
-use solar_data_structures::{map::FxBuildHasher, Interned};
+use solar_data_structures::{Interned, map::FxBuildHasher};
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},

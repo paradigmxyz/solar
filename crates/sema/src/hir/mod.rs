@@ -5,8 +5,8 @@ use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
-use solar_data_structures::{index::IndexVec, newtype_index, BumpExt};
-use solar_interface::{diagnostics::ErrorGuaranteed, source_map::SourceFile, Ident, Span};
+use solar_data_structures::{BumpExt, index::IndexVec, newtype_index};
+use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
@@ -96,7 +96,7 @@ macro_rules! indexvec_methods {
 
             #[doc = "Returns an iterator over all of the " $singular " IDs."]
             #[inline]
-            pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone {
+            pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
                 (0..self.$plural.len()).map(|id| unsafe { $id::from_usize_unchecked(id) })
@@ -104,7 +104,7 @@ macro_rules! indexvec_methods {
 
             #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
             #[inline]
-            pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> {
+            pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
                 (0..self.$plural.len()).into_par_iter().map(|id| unsafe { $id::from_usize_unchecked(id) })
@@ -495,29 +495,17 @@ impl ItemId {
 
     /// Returns the contract ID if this is a contract.
     pub fn as_contract(&self) -> Option<ContractId> {
-        if let Self::Contract(v) = *self {
-            Some(v)
-        } else {
-            None
-        }
+        if let Self::Contract(v) = *self { Some(v) } else { None }
     }
 
     /// Returns the function ID if this is a function.
     pub fn as_function(&self) -> Option<FunctionId> {
-        if let Self::Function(v) = *self {
-            Some(v)
-        } else {
-            None
-        }
+        if let Self::Function(v) = *self { Some(v) } else { None }
     }
 
     /// Returns the variable ID if this is a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
-        if let Self::Variable(v) = *self {
-            Some(v)
-        } else {
-            None
-        }
+        if let Self::Variable(v) = *self { Some(v) } else { None }
     }
 }
 
@@ -676,11 +664,7 @@ impl Function<'_> {
 
     /// Returns the description of the function.
     pub fn description(&self) -> &'static str {
-        if self.is_getter() {
-            "getter function"
-        } else {
-            self.kind.to_str()
-        }
+        if self.is_getter() { "getter function" } else { self.kind.to_str() }
     }
 }
 
@@ -1153,11 +1137,7 @@ impl Res {
     }
 
     pub fn as_variable(&self) -> Option<VariableId> {
-        if let Self::Item(id) = self {
-            id.as_variable()
-        } else {
-            None
-        }
+        if let Self::Item(id) = self { id.as_variable() } else { None }
     }
 }
 

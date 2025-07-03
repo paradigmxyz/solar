@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
 use iai_callgrind::{library_benchmark, library_benchmark_group};
-use solar_bench::{get_srcs, Parser, Slang, Solang, Solar, Source};
+use solar_bench::{Parser, Slang, Solang, Solar, Source, get_srcs};
 use std::hint::black_box;
 
 #[library_benchmark]

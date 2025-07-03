@@ -49,8 +49,8 @@ impl super::LoweringContext<'_, '_, '_> {
 
                             if let Err(conflict) = contract_scope.try_declare(&self.hir, name, decl)
                             {
-                                use hir::ItemId::*;
                                 use Res::*;
+                                use hir::ItemId::*;
 
                                 let Item(conflict_id) = conflict.res else { continue };
                                 match (decl_item_id, conflict_id) {

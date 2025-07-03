@@ -19,21 +19,21 @@ impl<T, F: FnOnce(T)> OnDrop<T, F> {
     /// Returns a reference to the inner value.
     #[inline(always)]
     pub fn inner(&self) -> &T {
-        &self.0 .0
+        &self.0.0
     }
 
     /// Returns a mutable reference to the inner value.
     #[inline(always)]
     pub fn inner_mut(&mut self) -> &mut T {
-        &mut self.0 .0
+        &mut self.0.0
     }
 
     /// Consumes the instance and returns the inner value.
     #[inline(always)]
     pub fn into_inner(mut self) -> T {
         unsafe {
-            std::ptr::drop_in_place(&mut self.0 .1);
-            std::ptr::read(&self.0 .0)
+            std::ptr::drop_in_place(&mut self.0.1);
+            std::ptr::read(&self.0.0)
         }
     }
 
@@ -49,14 +49,14 @@ impl<T, F: FnOnce(T)> std::ops::Deref for OnDrop<T, F> {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        &self.0 .0
+        &self.0.0
     }
 }
 
 impl<T, F: FnOnce(T)> std::ops::DerefMut for OnDrop<T, F> {
     #[inline(always)]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0 .0
+        &mut self.0.0
     }
 }
 
@@ -64,8 +64,8 @@ impl<T, F: FnOnce(T)> Drop for OnDrop<T, F> {
     #[inline(always)]
     fn drop(&mut self) {
         unsafe {
-            if let Some(f) = self.0 .1.take() {
-                f(std::ptr::read(&self.0 .0));
+            if let Some(f) = self.0.1.take() {
+                f(std::ptr::read(&self.0.0));
             } else {
                 ManuallyDrop::drop(&mut self.0);
             }

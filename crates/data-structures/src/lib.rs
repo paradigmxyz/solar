@@ -29,7 +29,7 @@ mod never;
 pub use never::Never;
 
 mod on_drop;
-pub use on_drop::{defer, OnDrop};
+pub use on_drop::{OnDrop, defer};
 
 mod interned;
 pub use interned::Interned;

@@ -1,6 +1,6 @@
 use solar::{
     ast,
-    interface::{diagnostics::EmittedDiagnostics, Session},
+    interface::{Session, diagnostics::EmittedDiagnostics},
     parse::Parser,
 };
 use std::path::Path;

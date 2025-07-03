@@ -1,6 +1,6 @@
 use crate::{
-    hir::{Arena, SourceId},
     GcxWrapper,
+    hir::{Arena, SourceId},
 };
 use rayon::prelude::*;
 use solar_ast as ast;
@@ -9,12 +9,12 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_interface::{
+    Result, Session,
     diagnostics::DiagCtxt,
     pluralize,
     source_map::{FileName, FileResolver, SourceFile},
-    Result, Session,
 };
-use solar_parse::{unescape, Lexer, Parser};
+use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 

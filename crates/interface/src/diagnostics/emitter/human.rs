@@ -1,8 +1,8 @@
-use super::{io_panic, rustc::FileWithAnnotatedLines, Diag, Emitter};
+use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
+    SourceMap,
     diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
     source_map::SourceFile,
-    SourceMap,
 };
 use annotate_snippets::{Annotation, Level as ASLevel, Message, Renderer, Snippet};
 use anstream::{AutoStream, ColorChoice};
@@ -358,14 +358,15 @@ impl OwnedSnippet {
 
     fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines> {
         let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
-        if let Some(primary_span) = msp.primary_span() {
-            if !primary_span.is_dummy() && annotated_files.len() > 1 {
-                let primary_lo = sm.lookup_char_pos(primary_span.lo());
-                if let Ok(pos) =
-                    annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
-                {
-                    annotated_files.swap(0, pos);
-                }
+        if let Some(primary_span) = msp.primary_span()
+            && !primary_span.is_dummy()
+            && annotated_files.len() > 1
+        {
+            let primary_lo = sm.lookup_char_pos(primary_span.lo());
+            if let Ok(pos) =
+                annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
+            {
+                annotated_files.swap(0, pos);
             }
         }
         annotated_files

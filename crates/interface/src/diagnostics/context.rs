@@ -1,6 +1,6 @@
 use super::{
-    emitter::HumanEmitter, BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee,
-    EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter,
+    BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
+    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter, emitter::HumanEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -184,11 +184,7 @@ impl DiagCtxt {
 
     /// Returns `Err` if any errors have been emitted.
     pub fn has_errors(&self) -> Result<(), ErrorGuaranteed> {
-        if self.inner.lock().has_errors() {
-            Err(ErrorGuaranteed::new_unchecked())
-        } else {
-            Ok(())
-        }
+        if self.inner.lock().has_errors() { Err(ErrorGuaranteed::new_unchecked()) } else { Ok(()) }
     }
 
     /// Returns the emitted diagnostics. Can be empty.

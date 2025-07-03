@@ -1,6 +1,6 @@
 use crate::{
-    hir::{self, Hir},
     ParsedSources,
+    hir::{self, Hir},
 };
 use solar_ast as ast;
 use solar_data_structures::{
@@ -8,7 +8,7 @@ use solar_data_structures::{
     map::FxHashMap,
     trustme,
 };
-use solar_interface::{diagnostics::DiagCtxt, Session};
+use solar_interface::{Session, diagnostics::DiagCtxt};
 
 mod lower;
 

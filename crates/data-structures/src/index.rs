@@ -3,7 +3,7 @@
 use std::fmt;
 
 pub use index_vec::{
-    index_box, index_vec, Idx, IdxRangeBounds, IdxSliceIndex, IndexBox, IndexSlice, IndexVec,
+    Idx, IdxRangeBounds, IdxSliceIndex, IndexBox, IndexSlice, IndexVec, index_box, index_vec,
 };
 
 /// Creates a new index to use with [`::index_vec`].
@@ -280,7 +280,7 @@ macro_rules! base_index {
             #[must_use]
             pub const unsafe fn from_usize_unchecked(value: usize) -> Self {
                 debug_assert!(value <= Self::MAX_AS as usize);
-                Self::new_unchecked(value as $primitive)
+                unsafe { Self::new_unchecked(value as $primitive) }
             }
 
             /// Returns the underlying index value.

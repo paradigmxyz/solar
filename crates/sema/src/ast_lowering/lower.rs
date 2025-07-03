@@ -1,6 +1,6 @@
 use crate::{
-    hir::{self, ContractId, SourceId},
     ParsedSource,
+    hir::{self, ContractId, SourceId},
 };
 use solar_ast as ast;
 use solar_data_structures::{index::IndexVec, smallvec::SmallVec};

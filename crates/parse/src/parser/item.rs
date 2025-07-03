@@ -3,7 +3,7 @@ use crate::{PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -27,7 +27,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             let msg =
                 format!("expected {prefix} item ({list}), found {}", this.token.full_description());
-            let note = format!("for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>");
+            let note = format!(
+                "for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>"
+            );
             (msg, note)
         };
 
@@ -184,7 +186,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let msg = format!("function named `{ident}`");
                 let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
                 if self.in_contract {
-                    let help = format!("remove the `function` keyword if you intend this to be a contract's {ident} function");
+                    let help = format!(
+                        "remove the `function` keyword if you intend this to be a contract's {ident} function"
+                    );
                     warn = warn.span_help(kw_span, help);
                 }
                 warn.emit();
@@ -211,11 +215,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // This is needed to skip parsing surrounding variable's visibility in function types.
             // E.g. in `function(uint) external internal e;` the `internal` is the surrounding
             // variable's visibility, not the function's.
-            // HACK: Ugly way to add an extra guard to `if let` without the unstable `let-chains`.
-            // Ideally this would be `if let Some(_) = _ && guard { ... }`.
-            let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
-                .then_some(());
-            if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
+            if !(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some())
+                && let Some(visibility) = self.parse_visibility()
+            {
                 let span = self.prev_token.span;
                 if let Some(prev) = header.visibility {
                     let msg = "visibility already specified";
@@ -386,11 +388,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        if let Some(layout) = &layout {
-            if !kind.is_contract() {
-                let msg = "storage layout is only allowed for contracts";
-                self.dcx().err(msg).span(layout.span).emit();
-            }
+        if let Some(layout) = &layout
+            && !kind.is_contract()
+        {
+            let msg = "storage layout is only allowed for contracts";
+            self.dcx().err(msg).span(layout.span).emit();
         }
 
         self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
@@ -606,11 +608,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses an optional `as` alias identifier.
     fn parse_as_alias_opt(&mut self) -> PResult<'sess, Option<Ident>> {
-        if self.eat_keyword(kw::As) {
-            self.parse_ident().map(Some)
-        } else {
-            Ok(None)
-        }
+        if self.eat_keyword(kw::As) { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
     /// Parses an `as` alias identifier.
@@ -805,12 +803,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             self.parse_ident_opt()
         }?;
-        if let Some(name) = &name {
-            if flags.contains(VarFlags::NAME_WARN) {
-                debug_assert!(!flags.contains(VarFlags::NAME));
-                let msg = "named function type parameters are deprecated";
-                self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
-            }
+        if let Some(name) = &name
+            && flags.contains(VarFlags::NAME_WARN)
+        {
+            debug_assert!(!flags.contains(VarFlags::NAME));
+            let msg = "named function type parameters are deprecated";
+            self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
         }
 
         let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
@@ -1289,11 +1287,7 @@ impl VarFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1356,11 +1350,7 @@ impl FunctionFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1393,7 +1383,7 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
         let sess = Session::builder().with_test_emitter().build();
@@ -1733,14 +1723,14 @@ mod tests {
                     let vis_text = sess.source_map().span_to_snippet(vis_span).unwrap();
                     assert_eq!(vis_text, *expected, "Test {idx}: visibility span mismatch");
                 }
-                if let Some(expected) = sm {
-                    if let Some(state_mutability) = header.state_mutability {
-                        assert_eq!(
-                            *expected,
-                            sess.source_map().span_to_snippet(state_mutability.span).unwrap(),
-                            "Test {idx}: state mutability span mismatch",
-                        );
-                    }
+                if let Some(expected) = sm
+                    && let Some(state_mutability) = header.state_mutability
+                {
+                    assert_eq!(
+                        *expected,
+                        sess.source_map().span_to_snippet(state_mutability.span).unwrap(),
+                        "Test {idx}: state mutability span mismatch",
+                    );
                 }
                 if let Some(expected) = virt {
                     let virtual_span = header.virtual_.expect("Expected virtual span");

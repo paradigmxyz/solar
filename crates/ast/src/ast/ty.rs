@@ -1,5 +1,5 @@
 use super::{AstPath, Box, Expr, ParameterList, StateMutability, Visibility};
-use solar_interface::{kw, Ident, Span, Spanned, Symbol};
+use solar_interface::{Ident, Span, Spanned, Symbol, kw};
 use std::{borrow::Cow, fmt};
 
 /// A type name.
@@ -216,11 +216,7 @@ impl TypeSize {
     /// Creates a new `TypeSize` from a `u8` number of **bytes**.
     #[inline]
     pub const fn new(bytes: u8) -> Option<Self> {
-        if bytes > Self::MAX {
-            None
-        } else {
-            Some(Self(bytes))
-        }
+        if bytes > Self::MAX { None } else { Some(Self(bytes)) }
     }
 
     /// Creates a new `TypeSize` from a `u8` number of **bits**.
@@ -237,11 +233,7 @@ impl TypeSize {
     /// Returns None if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
     pub fn try_new_int_bits(bits: u16) -> Option<Self> {
-        if bits.is_multiple_of(8) {
-            Self::new((bits / 8).try_into().ok()?)
-        } else {
-            None
-        }
+        if bits.is_multiple_of(8) { Self::new((bits / 8).try_into().ok()?) } else { None }
     }
 
     /// Creates a new `TypeSize` for a fixed-bytes type.
@@ -267,11 +259,7 @@ impl TypeSize {
     /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
     #[inline]
     pub const fn bytes(self) -> u8 {
-        if self.0 == 0 {
-            Self::MAX
-        } else {
-            self.0
-        }
+        if self.0 == 0 { Self::MAX } else { self.0 }
     }
 
     /// Returns the number of **bytes**.
@@ -336,11 +324,7 @@ impl TypeFixedSize {
     /// Creates a new `TypeFixedSize` from a `u8`.
     #[inline]
     pub const fn new(value: u8) -> Option<Self> {
-        if value > Self::MAX {
-            None
-        } else {
-            Some(Self(value))
-        }
+        if value > Self::MAX { None } else { Some(Self(value)) }
     }
 
     /// Returns the value.

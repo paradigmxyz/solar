@@ -1,7 +1,7 @@
 use crate::{hir, ty::Gcx};
 use alloy_primitives::U256;
 use solar_ast::LitKind;
-use solar_interface::{diagnostics::ErrorGuaranteed, Span};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
@@ -39,10 +39,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
         }
         let mut res = self.eval_expr(expr);
-        if let Err(e) = &mut res {
-            if e.span.is_dummy() {
-                e.span = expr.span;
-            }
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res

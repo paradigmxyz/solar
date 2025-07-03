@@ -20,7 +20,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.87" # MSRV
+            rust: "1.88" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
