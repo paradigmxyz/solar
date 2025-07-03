@@ -331,10 +331,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 // Filter out suggestions that suggest the same token
                 // which was found and deemed incorrect.
                 fn is_ident_eq_keyword(found: TokenKind, expected: &ExpectedToken) -> bool {
-                    if let TokenKind::Ident(current_sym) = found {
-                        if let ExpectedToken::Keyword(suggested_sym) = expected {
-                            return current_sym == *suggested_sym;
-                        }
+                    if let TokenKind::Ident(current_sym) = found
+                        && let ExpectedToken::Keyword(suggested_sym) = expected
+                    {
+                        return current_sym == *suggested_sym;
                     }
                     false
                 }
@@ -348,10 +348,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     // If this isn't the case however, and the suggestion is a token the
                     // content of which is the same as the found token's, we remove it as well.
                     if !eq {
-                        if let ExpectedToken::Token(kind) = token {
-                            if *kind == self.token.kind {
-                                return false;
-                            }
+                        if let ExpectedToken::Token(kind) = token
+                            && *kind == self.token.kind
+                        {
+                            return false;
                         }
                         return true;
                     }
@@ -697,10 +697,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if let Some(sep_kind) = sep.sep {
             let open_close_delim = first && allow_empty;
-            if !open_close_delim && sep.trailing_sep_required && !trailing {
-                if let Err(e) = self.expect(sep_kind) {
-                    e.emit();
-                }
+            if !open_close_delim
+                && sep.trailing_sep_required
+                && !trailing
+                && let Err(e) = self.expect(sep_kind)
+            {
+                e.emit();
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
@@ -969,11 +971,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             err = err.span_help(span, "remove this comma");
         }
 
-        if recover {
-            if let Some(ident) = recovered_ident {
-                err.emit();
-                return Ok(ident);
-            }
+        if recover && let Some(ident) = recovered_ident {
+            err.emit();
+            return Ok(ident);
         }
         Err(err)
     }

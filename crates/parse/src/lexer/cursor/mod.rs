@@ -251,15 +251,13 @@ impl<'a> Cursor<'a> {
                 std::slice::from_raw_parts(start, self.as_ptr().offset_from_unsigned(start))
             };
             let is_hex = id == b"hex";
-            if is_hex || id == b"unicode" {
-                if let quote @ (b'\'' | b'"') = self.first() {
-                    self.bump();
-                    let terminated = self.eat_string(quote);
-                    let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
-                    return RawTokenKind::Literal {
-                        kind: RawLiteralKind::Str { kind, terminated },
-                    };
-                }
+            if (is_hex || id == b"unicode")
+                && let quote @ (b'\'' | b'"') = self.first()
+            {
+                self.bump();
+                let terminated = self.eat_string(quote);
+                let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
+                return RawTokenKind::Literal { kind: RawLiteralKind::Str { kind, terminated } };
             }
         }
 

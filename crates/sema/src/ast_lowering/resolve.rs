@@ -441,15 +441,15 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                         .emit();
                 }
                 let prev = &mut base_args[base_idx];
-                if let Some(prev) = prev {
-                    if !prev.args.is_empty() {
-                        self.sess
-                            .dcx
-                            .err("base constructor arguments given twice")
-                            .span(base.span)
-                            .span_help(prev.span, "previous declaration")
-                            .emit();
-                    }
+                if let Some(prev) = prev
+                    && !prev.args.is_empty()
+                {
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given twice")
+                        .span(base.span)
+                        .span_help(prev.span, "previous declaration")
+                        .emit();
                 }
                 *prev = Some(base);
             };
@@ -1089,10 +1089,10 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             }
             ast::ExprKind::New(ty) => hir::ExprKind::New(self.lower_type(ty)),
             ast::ExprKind::Payable(args) => 'b: {
-                if let ast::CallArgsKind::Unnamed(args) = &args.kind {
-                    if let [arg] = &args[..] {
-                        break 'b hir::ExprKind::Payable(self.lower_expr(arg));
-                    }
+                if let ast::CallArgsKind::Unnamed(args) = &args.kind
+                    && let [arg] = &args[..]
+                {
+                    break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                 }
                 let msg = "expected exactly one unnamed argument";
                 let guar = self.sess.dcx.err(msg).span(expr.span).emit();
@@ -1524,14 +1524,13 @@ pub(super) fn report_conflict(
     let mut err = sess.dcx.err(format!("identifier `{name}` already declared")).span(decl.span);
 
     // If `previous` is coming from an import, show both the import and the real span.
-    if let Res::Item(item_id) = previous.res {
-        if let Ok(snippet) = sess.source_map().span_to_snippet(previous.span) {
-            if snippet.starts_with("import") {
-                err = err.span_note(previous.span, "previous declaration imported here");
-                let real_span = hir.item(item_id).span();
-                previous.span = real_span;
-            }
-        }
+    if let Res::Item(item_id) = previous.res
+        && let Ok(snippet) = sess.source_map().span_to_snippet(previous.span)
+        && snippet.starts_with("import")
+    {
+        err = err.span_note(previous.span, "previous declaration imported here");
+        let real_span = hir.item(item_id).span();
+        previous.span = real_span;
     }
 
     if !previous.span.is_dummy() {

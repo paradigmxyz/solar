@@ -39,10 +39,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
         }
         let mut res = self.eval_expr(expr);
-        if let Err(e) = &mut res {
-            if e.span.is_dummy() {
-                e.span = expr.span;
-            }
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res

@@ -232,10 +232,11 @@ fn parse_integer(symbol: Symbol) -> Result<LitKind, LitError> {
     }
 
     // Address literal.
-    if base == Base::Hexadecimal && s.len() == 42 {
-        if let Ok(address) = s.parse() {
-            return Ok(LitKind::Address(address));
-        }
+    if base == Base::Hexadecimal
+        && s.len() == 42
+        && let Ok(address) = s.parse()
+    {
+        return Ok(LitKind::Address(address));
     }
 
     let start = if base == Base::Decimal { 0 } else { 2 };
@@ -399,10 +400,10 @@ fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitE
     if s.len() > max_digits::<MAX_BITS>(base) {
         return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
     }
-    if s.len() <= max_digits::<{ Primitive::BITS }>(base) {
-        if let Ok(n) = Primitive::from_str_radix(s, base as u32) {
-            return Ok(BigInt::from(n));
-        }
+    if s.len() <= max_digits::<{ Primitive::BITS }>(base)
+        && let Ok(n) = Primitive::from_str_radix(s, base as u32)
+    {
+        return Ok(BigInt::from(n));
     }
     BigInt::from_str_radix(s, base as u32)
         .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })

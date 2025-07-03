@@ -24,11 +24,11 @@ impl<'gcx> Gcx<'gcx> {
         let mut items = Vec::<json::AbiItem<'a>>::new();
 
         let c = self.hir.contract(id);
-        if let Some(ctor) = c.ctor {
-            if !c.is_abstract() {
-                let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
-                items.push(json::Constructor { inputs, state_mutability }.into());
-            }
+        if let Some(ctor) = c.ctor
+            && !c.is_abstract()
+        {
+            let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
+            items.push(json::Constructor { inputs, state_mutability }.into());
         }
         if let Some(fallback) = c.fallback {
             let json::Function { state_mutability, .. } = self.function_abi(fallback);
