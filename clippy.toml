@@ -1,2 +1,2 @@
-msrv = "1.87"
+msrv = "1.88"
 allow-dbg-in-tests = true
