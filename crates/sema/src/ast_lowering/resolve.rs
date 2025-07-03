@@ -385,7 +385,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             };
 
             cx.hir.functions[id].returns =
-                cx.lower_variables(*ast_func.header.returns, hir::VarKind::FunctionReturn);
+                cx.lower_variables(ast_func.header.returns(), hir::VarKind::FunctionReturn);
 
             if let Some(body) = &ast_func.body {
                 cx.hir.functions[id].body = Some(cx.lower_block(body));
@@ -1143,14 +1143,17 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
             })),
-            ast::TypeKind::Function(f) => {
-                hir::TypeKind::Function(self.arena.alloc(hir::TypeFunction {
+            ast::TypeKind::Function(f) => hir::TypeKind::Function(
+                self.arena.alloc(hir::TypeFunction {
                     parameters: self.lower_variables(*f.parameters, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
-                    state_mutability: *f.state_mutability,
-                    returns: self.lower_variables(*f.returns, hir::VarKind::FunctionTyReturn),
-                }))
-            }
+                    state_mutability: f
+                        .state_mutability
+                        .map(|s| s.data)
+                        .unwrap_or(ast::StateMutability::NonPayable),
+                    returns: self.lower_variables(f.returns(), hir::VarKind::FunctionTyReturn),
+                }),
+            ),
             ast::TypeKind::Mapping(mapping) => {
                 hir::TypeKind::Mapping(self.arena.alloc(hir::TypeMapping {
                     key: self.lower_type(&mapping.key),

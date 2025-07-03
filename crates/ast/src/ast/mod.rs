@@ -5,7 +5,7 @@ use std::fmt;
 
 pub use crate::token::CommentKind;
 pub use either::{self, Either};
-pub use solar_interface::{Ident, Span, Symbol};
+pub use solar_interface::{Ident, Span, Spanned, Symbol};
 
 mod expr;
 pub use expr::*;

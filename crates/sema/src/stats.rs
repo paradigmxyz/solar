@@ -315,7 +315,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         for modifier in header.modifiers.iter() {
             self.visit_modifier(modifier)?;
         }
-        self.visit_parameter_list(&header.returns)?;
+        if let Some(returns) = &header.returns {
+            self.visit_parameter_list(returns)?;
+        }
         // Don't visit ident field since it isn't boxed
         ControlFlow::Continue(())
     }

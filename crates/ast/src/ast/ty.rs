@@ -364,8 +364,22 @@ pub struct TypeArray<'ast> {
 pub struct TypeFunction<'ast> {
     pub parameters: ParameterList<'ast>,
     pub visibility: Option<Spanned<Visibility>>,
-    pub state_mutability: Spanned<StateMutability>,
-    pub returns: ParameterList<'ast>,
+    pub state_mutability: Option<Spanned<StateMutability>>,
+    pub returns: Option<ParameterList<'ast>>,
+}
+
+impl<'ast> TypeFunction<'ast> {
+    pub fn visibility(&self) -> Option<Visibility> {
+        self.visibility.map(Spanned::into_inner)
+    }
+
+    pub fn state_mutability(&self) -> StateMutability {
+        self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
+    }
+
+    pub fn returns(&self) -> &[crate::VariableDefinition<'ast>] {
+        self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
+    }
 }
 
 /// A mapping type.

@@ -164,7 +164,9 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     ast::Visibility::Public
                 }
             }),
-            state_mutability: *state_mutability,
+            state_mutability: state_mutability
+                .map(|s| s.data)
+                .unwrap_or(ast::StateMutability::NonPayable),
             parameters: &[],
             returns: &[],
             body: None,
