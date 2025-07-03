@@ -1,8 +1,8 @@
-use super::{human::HumanBufferEmitter, io_panic, Emitter};
+use super::{Emitter, human::HumanBufferEmitter, io_panic};
 use crate::{
+    SourceMap, Span,
     diagnostics::{Level, MultiSpan, SpanLabel},
     source_map::{LineInfo, SourceFile},
-    SourceMap, Span,
 };
 use anstream::ColorChoice;
 use serde::Serialize;

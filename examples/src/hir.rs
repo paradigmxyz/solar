@@ -1,6 +1,6 @@
 use solar::{
-    interface::{diagnostics::EmittedDiagnostics, Session},
-    sema::{thread_local::ThreadLocal, ParsingContext},
+    interface::{Session, diagnostics::EmittedDiagnostics},
+    sema::{ParsingContext, thread_local::ThreadLocal},
 };
 use std::path::Path;
 

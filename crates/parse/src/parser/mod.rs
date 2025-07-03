@@ -1,15 +1,14 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    self as ast,
+    self as ast, AstPath, Box, DocComment, DocComments, PathSlice,
     token::{Delimiter, Token, TokenKind},
-    AstPath, Box, DocComment, DocComments, PathSlice,
 };
-use solar_data_structures::{fmt::or_list, BumpExt};
+use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
+    Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
-    Ident, Result, Session, Span, Symbol,
 };
 use std::{fmt, path::Path};
 
@@ -480,11 +479,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Otherwise, eats it.
     #[track_caller]
     fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
-        if !self.eat_keyword(kw) {
-            self.unexpected()
-        } else {
-            Ok(())
-        }
+        if !self.eat_keyword(kw) { self.unexpected() } else { Ok(()) }
     }
 
     #[must_use]
@@ -845,11 +840,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses contiguous doc comments. Can be empty.
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
-        if !self.docs.is_empty() {
-            self.parse_doc_comments_inner()
-        } else {
-            Default::default()
-        }
+        if !self.docs.is_empty() { self.parse_doc_comments_inner() } else { Default::default() }
     }
 
     #[cold]
@@ -929,11 +920,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an optional identifier.
     #[track_caller]
     pub fn parse_ident_opt(&mut self) -> PResult<'sess, Option<Ident>> {
-        if self.check_ident() {
-            self.parse_ident().map(Some)
-        } else {
-            Ok(None)
-        }
+        if self.check_ident() { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
     #[track_caller]

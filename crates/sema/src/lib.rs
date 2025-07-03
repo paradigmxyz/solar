@@ -10,8 +10,8 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use solar_data_structures::{trustme, OnDrop};
-use solar_interface::{config::CompilerStage, Result, Session};
+use solar_data_structures::{OnDrop, trustme};
+use solar_interface::{Result, Session, config::CompilerStage};
 use thread_local::ThreadLocal;
 use ty::Gcx;
 

@@ -1,20 +1,20 @@
 use crate::{
     ast_lowering::SymbolResolver,
-    builtins::{members, Builtin},
+    builtins::{Builtin, members},
     hir::{self, Hir},
 };
-use alloy_primitives::{keccak256, Selector, B256, U256};
+use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
+    BumpExt,
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
-    BumpExt,
 };
 use solar_interface::{
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session, Span,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
 };
 use std::{fmt, hash::Hash, ops::ControlFlow};
 use thread_local::ThreadLocal;
@@ -799,11 +799,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         }
     };
 
-    if ty.is_reference_type() {
-        ty.with_loc(gcx, ty_loc)
-    } else {
-        ty
-    }
+    if ty.is_reference_type() { ty.with_loc(gcx, ty_loc) } else { ty }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.

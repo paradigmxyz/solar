@@ -1,5 +1,5 @@
 use alloy_primitives::Address;
-use solar_interface::{diagnostics::ErrorGuaranteed, kw, Span, Symbol};
+use solar_interface::{Span, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{fmt, sync::Arc};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
@@ -371,7 +371,7 @@ impl Base {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{enter, BytePos};
+    use solar_interface::{BytePos, enter};
 
     #[test]
     fn literal_fmt() {

@@ -29,10 +29,9 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 use syn::{
-    braced,
+    Expr, Ident, Lit, LitStr, Macro, Token, braced,
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
-    Expr, Ident, Lit, LitStr, Macro, Token,
 };
 
 #[cfg(test)]

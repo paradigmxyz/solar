@@ -223,11 +223,7 @@ impl Span {
     ) -> Self {
         let mut spans = spans.into_iter();
         let first = spans.next().unwrap_or_default();
-        if let Some(last) = spans.next_back() {
-            first.to(last)
-        } else {
-            first
-        }
+        if let Some(last) = spans.next_back() { first.to(last) } else { first }
     }
 }
 

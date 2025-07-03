@@ -1,7 +1,7 @@
-use solar_ast::{self as ast, visit::Visit, yul, ItemId};
+use solar_ast::{self as ast, ItemId, visit::Visit, yul};
 use solar_data_structures::{
-    map::{FxHashMap, FxHashSet},
     Never,
+    map::{FxHashMap, FxHashSet},
 };
 use std::ops::ControlFlow;
 

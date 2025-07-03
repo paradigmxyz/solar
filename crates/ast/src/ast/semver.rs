@@ -1,6 +1,6 @@
 use super::Box;
 use semver::Op;
-use solar_data_structures::smallvec::{smallvec, SmallVec};
+use solar_data_structures::smallvec::{SmallVec, smallvec};
 use solar_interface::Span;
 use std::{cmp::Ordering, fmt};
 

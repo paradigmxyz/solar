@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use solar_bench::{get_srcs, Source, PARSERS};
+use criterion::{Criterion, criterion_group, criterion_main};
+use solar_bench::{PARSERS, Source, get_srcs};
 use std::time::Duration;
 
 fn parser_benches(c: &mut Criterion) {

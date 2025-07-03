@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty},
 };
 use solar_ast::StateMutability as SM;
-use solar_interface::{kw, sym, Span, Symbol};
+use solar_interface::{Span, Symbol, kw, sym};
 
 pub(crate) mod members;
 pub use members::{Member, MemberList};

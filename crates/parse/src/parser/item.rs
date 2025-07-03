@@ -3,7 +3,7 @@ use crate::{PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -27,7 +27,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             let msg =
                 format!("expected {prefix} item ({list}), found {}", this.token.full_description());
-            let note = format!("for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>");
+            let note = format!(
+                "for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>"
+            );
             (msg, note)
         };
 
@@ -184,7 +186,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let msg = format!("function named `{ident}`");
                 let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
                 if self.in_contract {
-                    let help = format!("remove the `function` keyword if you intend this to be a contract's {ident} function");
+                    let help = format!(
+                        "remove the `function` keyword if you intend this to be a contract's {ident} function"
+                    );
                     warn = warn.span_help(kw_span, help);
                 }
                 warn.emit();
@@ -606,11 +610,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses an optional `as` alias identifier.
     fn parse_as_alias_opt(&mut self) -> PResult<'sess, Option<Ident>> {
-        if self.eat_keyword(kw::As) {
-            self.parse_ident().map(Some)
-        } else {
-            Ok(None)
-        }
+        if self.eat_keyword(kw::As) { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
     /// Parses an `as` alias identifier.
@@ -1289,11 +1289,7 @@ impl VarFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1356,11 +1352,7 @@ impl FunctionFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1393,7 +1385,7 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
         let sess = Session::builder().with_test_emitter().build();

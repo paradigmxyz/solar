@@ -505,11 +505,7 @@ impl Iterator for Cursor<'_> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        if token.kind == RawTokenKind::Eof {
-            None
-        } else {
-            Some(token)
-        }
+        if token.kind == RawTokenKind::Eof { None } else { Some(token) }
     }
 }
 

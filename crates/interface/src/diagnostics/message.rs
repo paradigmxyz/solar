@@ -178,11 +178,7 @@ impl From<Span> for MultiSpan {
 
 impl From<Option<Span>> for MultiSpan {
     fn from(span: Option<Span>) -> Self {
-        if let Some(span) = span {
-            Self::from_span(span)
-        } else {
-            Self::new()
-        }
+        if let Some(span) = span { Self::from_span(span) } else { Self::new() }
     }
 }
 

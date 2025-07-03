@@ -1,7 +1,7 @@
 use crate::{hir, ty::Gcx};
 use alloy_primitives::U256;
 use solar_ast::LitKind;
-use solar_interface::{diagnostics::ErrorGuaranteed, Span};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;

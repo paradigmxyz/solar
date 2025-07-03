@@ -169,6 +169,6 @@ mod tests {
         assert_eq!(v3a.partial_cmp(&v2), Some(Ordering::Greater));
         assert_eq!(v1.partial_cmp(&v1), Some(Ordering::Equal)); // only uses Interned::eq, not S::cmp
         assert_eq!(v3a.partial_cmp(&v3b), Some(Ordering::Equal)); // only uses Interned::eq, not
-                                                                  // S::cmp
+        // S::cmp
     }
 }

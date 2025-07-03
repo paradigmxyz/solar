@@ -77,11 +77,7 @@ impl SessionGlobals {
     /// creates a new instance, sets it, and calls the closure with it.
     #[inline]
     pub fn with_or_default<R>(f: impl FnOnce(&Self) -> R) -> R {
-        if Self::is_set() {
-            Self::with(f)
-        } else {
-            Self::new().set(|| Self::with(f))
-        }
+        if Self::is_set() { Self::with(f) } else { Self::new().set(|| Self::with(f)) }
     }
 
     /// Returns `true` if the session globals have been set.

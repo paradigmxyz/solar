@@ -1,4 +1,4 @@
-use crate::{pos::RelativeBytePos, BytePos, CharPos};
+use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
     fmt, io,
     ops::RangeInclusive,

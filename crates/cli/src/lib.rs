@@ -8,12 +8,12 @@
 use clap::Parser as _;
 use solar_config::{CompilerStage, ErrorFormat, ImportRemapping};
 use solar_interface::{
-    diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
     Result, Session, SourceMap,
+    diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
 };
 use std::sync::Arc;
 
-pub use solar_config::{self as config, version, Opts, UnstableOpts};
+pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 pub mod utils;
 

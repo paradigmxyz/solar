@@ -1,14 +1,15 @@
-use crate::{builtins::Builtin, hir, ParsedSources};
+use crate::{ParsedSources, builtins::Builtin, hir};
 use solar_ast as ast;
 use solar_data_structures::{
+    BumpExt,
     index::{Idx, IndexVec},
     map::{FxIndexMap, IndexEntry},
     smallvec::SmallVec,
-    BumpExt,
 };
 use solar_interface::{
+    Ident, Session, Span, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    sym, Ident, Session, Span, Symbol,
+    sym,
 };
 use std::{fmt, sync::atomic::AtomicUsize};
 
@@ -749,11 +750,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     }
 
     fn in_scope_if<T>(&mut self, cond: bool, f: impl FnOnce(&mut Self) -> T) -> T {
-        if cond {
-            self.in_scope(f)
-        } else {
-            f(self)
-        }
+        if cond { self.in_scope(f) } else { f(self) }
     }
 
     fn resolve_paths(
@@ -1460,8 +1457,8 @@ impl Declarations {
         decl: Declaration,
         declarations: &[Declaration],
     ) -> Option<Declaration> {
-        use hir::ItemId::*;
         use Res::*;
+        use hir::ItemId::*;
 
         if declarations.is_empty() {
             return None;

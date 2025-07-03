@@ -32,9 +32,9 @@ impl<'gcx> CommonTypes<'gcx> {
     #[instrument(name = "new_common_types", level = "debug", skip_all)]
     #[inline]
     pub(super) fn new(interner: &Interner<'gcx>) -> Self {
-        use std::array::from_fn;
         use ElementaryType::*;
         use TyKind::*;
+        use std::array::from_fn;
 
         // NOTE: We need to skip calculating flags here because it would require `Gcx` when we
         // haven't built one yet. This is fine since elementary types don't have any flags.

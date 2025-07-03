@@ -7,8 +7,8 @@ use solar_interface::{BytePos, Session};
 use std::{borrow::Cow, ops::Range, slice, str::Chars};
 
 mod errors;
-pub(crate) use errors::emit_unescape_error;
 pub use errors::EscapeError;
+pub(crate) use errors::emit_unescape_error;
 
 pub use solar_ast::StrKind;
 

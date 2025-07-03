@@ -1,9 +1,9 @@
-use crate::{unescape, PResult, Parser};
+use crate::{PResult, Parser, unescape};
 use num_bigint::{BigInt, BigUint};
 use num_rational::BigRational;
 use num_traits::{Num, Signed, Zero};
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::ErrorGuaranteed, kw, Symbol};
+use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -404,13 +404,8 @@ fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitE
             return Ok(BigInt::from(n));
         }
     }
-    BigInt::from_str_radix(s, base as u32).map_err(|e| {
-        if rat {
-            LitError::ParseRational(e)
-        } else {
-            LitError::ParseInteger(e)
-        }
-    })
+    BigInt::from_str_radix(s, base as u32)
+        .map_err(|e| if rat { LitError::ParseRational(e) } else { LitError::ParseInteger(e) })
 }
 
 /// Checks whether mantissa * (10 ** exp) fits into [`MAX_BITS`] bits.
@@ -457,7 +452,7 @@ fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
 mod tests {
     use super::*;
     use crate::Lexer;
-    use alloy_primitives::{address, Address};
+    use alloy_primitives::{Address, address};
     use solar_interface::Session;
 
     // String literal parsing is tested in ../lexer/mod.rs.

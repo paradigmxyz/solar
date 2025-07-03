@@ -1,8 +1,8 @@
 use proc_macro2::{Group, TokenStream, TokenTree};
-use quote::{quote, TokenStreamExt};
+use quote::{TokenStreamExt, quote};
 use syn::{
-    braced, parse::Parse, Attribute, Block, FnArg, Generics, Ident, Pat, Stmt, Token, TraitItem,
-    Visibility,
+    Attribute, Block, FnArg, Generics, Ident, Pat, Stmt, Token, TraitItem, Visibility, braced,
+    parse::Parse,
 };
 
 pub struct Input {

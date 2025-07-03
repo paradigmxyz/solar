@@ -51,9 +51,5 @@ where
     OP: FnOnce(Scope<'_, 'scope>) -> R + Send,
     R: Send,
 {
-    if enabled {
-        rayon::scope(|scope| op(Scope::new(Some(scope))))
-    } else {
-        op(Scope::new(None))
-    }
+    if enabled { rayon::scope(|scope| op(Scope::new(Some(scope)))) } else { op(Scope::new(None)) }
 }

@@ -1,8 +1,8 @@
-use super::{io_panic, rustc::FileWithAnnotatedLines, Diag, Emitter};
+use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
+    SourceMap,
     diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
     source_map::SourceFile,
-    SourceMap,
 };
 use annotate_snippets::{Annotation, Level as ASLevel, Message, Renderer, Snippet};
 use anstream::{AutoStream, ColorChoice};

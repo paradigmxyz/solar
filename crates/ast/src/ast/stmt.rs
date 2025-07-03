@@ -1,6 +1,6 @@
 use super::{
-    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
-    VariableDefinition,
+    AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
+    VariableDefinition, yul,
 };
 use solar_interface::{Ident, Span};
 

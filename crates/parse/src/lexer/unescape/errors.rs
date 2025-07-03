@@ -1,4 +1,4 @@
-use solar_interface::{diagnostics::DiagCtxt, BytePos, Span};
+use solar_interface::{BytePos, Span, diagnostics::DiagCtxt};
 use std::ops::Range;
 
 /// Errors and warnings that can occur during string unescaping.
@@ -63,7 +63,9 @@ impl EscapeError {
             Self::UnicodeEscapeTooShort => "unicode escape must be followed by 4 hex digits",
             Self::InvalidUnicodeEscape => "invalid character in unicode escape",
             Self::StrNewline => "unescaped newline",
-            Self::StrNonAsciiChar => "unicode characters are not allowed in string literals; use a `unicode\"...\"` literal instead",
+            Self::StrNonAsciiChar => {
+                "unicode characters are not allowed in string literals; use a `unicode\"...\"` literal instead"
+            }
             Self::HexNotHexDigit => "invalid hex digit",
             Self::HexBadUnderscore => "invalid underscore in hex literal",
             Self::HexOddDigits => "odd number of hex nibbles",

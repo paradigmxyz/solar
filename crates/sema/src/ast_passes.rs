@@ -3,7 +3,7 @@
 use alloy_primitives::Address;
 use solar_ast::{self as ast, visit::Visit};
 use solar_data_structures::Never;
-use solar_interface::{diagnostics::DiagCtxt, sym, Session, Span};
+use solar_interface::{Session, Span, diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]

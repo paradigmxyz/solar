@@ -443,11 +443,7 @@ pub mod kw {
     /// Returns the boolean keyword for the given value.
     #[inline]
     pub const fn boolean(b: bool) -> Symbol {
-        if b {
-            True
-        } else {
-            False
-        }
+        if b { True } else { False }
     }
 
     /// Returns the `int` keyword for the given byte (**not bit**) size.
