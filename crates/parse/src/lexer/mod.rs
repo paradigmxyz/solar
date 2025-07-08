@@ -265,11 +265,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         err = err.help(help);
                     }
                     if repeats > 0 {
-                        let note = match repeats {
-                            1 => "once more".to_string(),
-                            _ => format!("{repeats} more times"),
+                        err = if repeats == 1 {
+                            err.note("character repeats once more")
+                        } else {
+                            err.note(format!("character repeats {repeats} more times"))
                         };
-                        err = err.note(format!("character repeats {note}"));
                     }
                     err.emit();
 
@@ -686,4 +686,5 @@ mod tests {
             ("- -", &[(0..1, BinOp(Minus)), (2..3, BinOp(Minus))]),
         ]);
     }
+
 }
