@@ -2,6 +2,7 @@
 
 use crate::{BytePos, CharPos, Span};
 use solar_data_structures::{
+    fmt,
     map::{FxHashMap, StdEntry},
     sync::{ReadGuard, RwLock},
 };
@@ -129,6 +130,11 @@ impl SourceMap {
     /// Creates a new empty source map.
     pub fn empty() -> Self {
         Self::new(SourceFileHashAlgorithm::default())
+    }
+
+    /// Returns `true` if the source map is empty.
+    pub fn is_empty(&self) -> bool {
+        self.files.read().source_files.is_empty()
     }
 
     /// Returns the source file with the given path, if it exists.
@@ -403,19 +409,19 @@ impl SourceMap {
     /// Format the span location to be printed in diagnostics. Must not be emitted
     /// to build artifacts as this may leak local file paths. Use span_to_embeddable_string
     /// for string suitable for embedding.
-    pub fn span_to_diagnostic_string(&self, sp: Span) -> String {
+    pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display + use<> {
         self.span_to_string(sp)
     }
 
-    pub fn span_to_string(&self, sp: Span) -> String {
+    pub fn span_to_string(&self, sp: Span) -> impl fmt::Display + use<> {
         let (source_file, lo_line, lo_col, hi_line, hi_col) = self.span_to_location_info(sp);
-
-        let file_name = match source_file {
-            Some(sf) => sf.name.display().to_string(),
-            None => return "no-location".to_string(),
-        };
-
-        format!("{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
+        fmt::from_fn(move |f| {
+            let file_name = match &source_file {
+                Some(sf) => sf.name.display(),
+                None => return f.write_str("no-location"),
+            };
+            write!(f, "{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
+        })
     }
 
     pub fn span_to_location_info(

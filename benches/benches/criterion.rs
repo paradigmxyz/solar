@@ -11,7 +11,12 @@ fn micro_benches(c: &mut Criterion) {
     g.bench_function("session/enter", |b| {
         let sess =
             &black_box(solar_parse::interface::Session::builder().with_stderr_emitter().build());
-        b.iter(|| sess.enter(|| black_box(sess)));
+        let n: usize = black_box(10_000);
+        b.iter(|| {
+            for _ in 0..n {
+                black_box(sess).enter(|| black_box(sess));
+            }
+        });
     });
 
     g.bench_function("source_map/new_source_file", |b| {
@@ -38,32 +43,30 @@ fn parser_benches(c: &mut Criterion) {
 
     let mut g = make_group(c, "parser");
 
-    solar_parse::interface::enter(|| {
-        for &Source { name: sname, path: _, src } in get_srcs() {
-            for &parser in PARSERS {
-                let pname = parser.name();
+    for &Source { name: sname, path: _, src } in get_srcs() {
+        for &parser in PARSERS {
+            let pname = parser.name();
 
-                // TODO: https://github.com/JoranHonig/tree-sitter-solidity/issues/73
-                if pname == "tree-sitter" && matches!(sname, "Seaport" | "Optimism") {
-                    continue;
-                }
-
-                let mk_id = |id: &str| {
-                    if PARSERS.len() == 1 {
-                        format!("{sname}/{id}")
-                    } else {
-                        format!("{sname}/{pname}/{id}")
-                    }
-                };
-                let setup = &mut *parser.setup(src);
-                if parser.can_lex() {
-                    g.bench_function(mk_id("lex"), |b| b.iter(|| parser.lex(src, setup)));
-                }
-                g.bench_function(mk_id("parse"), |b| b.iter(|| parser.parse(src, setup)));
+            // TODO: https://github.com/JoranHonig/tree-sitter-solidity/issues/73
+            if pname == "tree-sitter" && matches!(sname, "Seaport" | "Optimism") {
+                continue;
             }
-            eprintln!();
+
+            let mk_id = |id: &str| {
+                if PARSERS.len() == 1 {
+                    format!("{sname}/{id}")
+                } else {
+                    format!("{sname}/{pname}/{id}")
+                }
+            };
+            let setup = &mut *parser.setup(src);
+            if parser.can_lex() {
+                g.bench_function(mk_id("lex"), |b| b.iter(|| parser.lex(src, setup)));
+            }
+            g.bench_function(mk_id("parse"), |b| b.iter(|| parser.parse(src, setup)));
         }
-    });
+        eprintln!();
+    }
 
     g.finish();
 }
