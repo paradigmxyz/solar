@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn literals() {
         use TokenLitKind::*;
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("\"\"", &[(0..2, lit(Str, ""))]),
                 ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn idents() {
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("$", &[(0..1, id("$"))]),
                 ("a$", &[(0..2, id("a$"))]),
@@ -558,7 +558,7 @@ mod tests {
             Comment(true, kind, sym(symbol))
         }
 
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("// line comment", &[]),
                 ("// / line comment", &[]),
