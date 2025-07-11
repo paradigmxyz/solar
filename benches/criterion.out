@@ -9,7 +9,7 @@ Vm: 1763 LoC, 91405 bytes
 safeconsole: 13248 LoC, 397898 bytes
 Seaport: 19935 LoC, 770547 bytes
 Solady: 31047 LoC, 1381235 bytes
-Optimism: 124413 LoC, 5383876 bytes
+Optimism: 124413 LoC, 5383882 bytes
 
 Benchmarking parser/empty/solc/parse
 Benchmarking parser/empty/solc/parse: Warming up for 3.0000 s
