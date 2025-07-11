@@ -1,5 +1,6 @@
 use solar_parse::interface::Session;
 use std::{
+    any::Any,
     hint::black_box,
     io::Write,
     path::{Path, PathBuf},
@@ -11,6 +12,7 @@ pub const PARSERS: &[&dyn Parser] =
     if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang, &TreeSitter] };
 
 pub fn get_srcs() -> &'static [Source] {
+    // Please do not modify the order of the sources and only add new sources at the end.
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         vec![
@@ -30,6 +32,11 @@ pub fn get_srcs() -> &'static [Source] {
     })
 }
 
+pub fn get_src(name: &str) -> &'static Source {
+    get_srcs().iter().find(|s| s.name == name).unwrap()
+}
+
+/// `include!` at runtime, since the submodule may not be initialized.
 fn include_source(path: &'static str) -> Source {
     let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
         Ok(source) => source,
@@ -54,11 +61,14 @@ pub struct Source {
 
 pub trait Parser {
     fn name(&self) -> &'static str;
-    fn lex(&self, src: &str);
+    fn setup(&self, _src: &str) -> Box<dyn Any> {
+        Box::new(())
+    }
+    fn lex(&self, src: &str, setup: &mut dyn Any);
     fn can_lex(&self) -> bool {
         true
     }
-    fn parse(&self, src: &str);
+    fn parse(&self, src: &str, setup: &mut dyn Any);
 }
 
 pub struct Solc;
@@ -71,9 +81,9 @@ impl Parser for Solc {
         false
     }
 
-    fn lex(&self, _: &str) {}
+    fn lex(&self, _: &str, _: &mut dyn Any) {}
 
-    fn parse(&self, src: &str) {
+    fn parse(&self, src: &str, _: &mut dyn Any) {
         let solc = std::env::var_os("SOLC");
         let solc = solc.as_deref().unwrap_or_else(|| "solc".as_ref());
         let mut cmd = std::process::Command::new(solc);
@@ -99,21 +109,27 @@ impl Parser for Solar {
         "solar"
     }
 
-    fn lex(&self, src: &str) {
-        let sess = session();
-        for token in solar_parse::Lexer::new(&sess, src) {
-            black_box(token);
-        }
-        sess.dcx.has_errors().unwrap();
+    fn setup(&self, _src: &str) -> Box<dyn Any> {
+        Box::new(session())
     }
 
-    fn parse(&self, src: &str) {
-        let sess = session();
+    fn lex(&self, src: &str, sess_any: &mut dyn Any) {
+        let sess = sess_any.downcast_ref::<Session>().unwrap();
+        sess.enter(|| {
+            for token in solar_parse::Lexer::new(sess, src) {
+                black_box(token);
+            }
+            sess.dcx.has_errors().unwrap();
+        });
+    }
+
+    fn parse(&self, src: &str, sess_any: &mut dyn Any) {
+        let sess = sess_any.downcast_ref::<Session>().unwrap();
         sess.enter(|| -> solar_parse::interface::Result {
             let arena = solar_parse::ast::Arena::new();
             let filename = PathBuf::from("test.sol");
             let mut parser =
-                solar_parse::Parser::from_source_code(&sess, &arena, filename.into(), src)?;
+                solar_parse::Parser::from_source_code(sess, &arena, filename.into(), src)?;
             let result = parser.parse_file().map_err(|e| e.emit())?;
             sess.dcx.has_errors()?;
             black_box(result);
@@ -136,7 +152,7 @@ impl Parser for Solang {
         "solang"
     }
 
-    fn lex(&self, src: &str) {
+    fn lex(&self, src: &str, _: &mut dyn Any) {
         let mut comments = vec![];
         let mut errors = vec![];
         for token in solang_parser::lexer::Lexer::new(src, 0, &mut comments, &mut errors) {
@@ -154,7 +170,7 @@ impl Parser for Solang {
         black_box(errors);
     }
 
-    fn parse(&self, src: &str) {
+    fn parse(&self, src: &str, _: &mut dyn Any) {
         match solang_parser::parse(src, 0) {
             Ok(result) => {
                 black_box(result);
@@ -177,7 +193,7 @@ impl Parser for Slang {
         "slang"
     }
 
-    fn lex(&self, src: &str) {
+    fn lex(&self, src: &str, _: &mut dyn Any) {
         let _ = src;
     }
 
@@ -185,7 +201,7 @@ impl Parser for Slang {
         false
     }
 
-    fn parse(&self, src: &str) {
+    fn parse(&self, src: &str, _: &mut dyn Any) {
         let version = semver::Version::new(0, 8, 22);
         let parser = slang_solidity::parser::Parser::create(version).unwrap();
         let rule = slang_solidity::cst::NonterminalKind::SourceUnit;
@@ -218,7 +234,7 @@ impl Parser for TreeSitter {
         "tree-sitter"
     }
 
-    fn lex(&self, src: &str) {
+    fn lex(&self, src: &str, _: &mut dyn Any) {
         let _ = src;
     }
 
@@ -226,7 +242,7 @@ impl Parser for TreeSitter {
         false
     }
 
-    fn parse(&self, src: &str) {
+    fn parse(&self, src: &str, _: &mut dyn Any) {
         #[cold]
         #[inline(never)]
         fn on_error(src: &str, tree: &tree_sitter::Tree) -> ! {
