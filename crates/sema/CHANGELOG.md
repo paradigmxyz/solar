@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Bug Fixes
+
+- Visit modifiers in hir visitor ([#373](https://github.com/paradigmxyz/solar/issues/373))
+
+### Dependencies
+
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+- [deps] Weekly `cargo update` ([#351](https://github.com/paradigmxyz/solar/issues/351))
+
+### Features
+
+- Resolve ctor base args ([#322](https://github.com/paradigmxyz/solar/issues/322))
+- Add span visitor debug tool ([#355](https://github.com/paradigmxyz/solar/issues/355))
+
+### Miscellaneous Tasks
+
+- Use Option<StateMutability> in the AST ([#374](https://github.com/paradigmxyz/solar/issues/374))
+- Fn header spans ([#371](https://github.com/paradigmxyz/solar/issues/371))
+- Misc cleanup, util methods ([#367](https://github.com/paradigmxyz/solar/issues/367))
+- Add span to `TryCatchClause` ([#364](https://github.com/paradigmxyz/solar/issues/364))
+- [parser] Move unescaping from lexer to parser ([#360](https://github.com/paradigmxyz/solar/issues/360))
+
 ## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
 
 ### Bug Fixes
