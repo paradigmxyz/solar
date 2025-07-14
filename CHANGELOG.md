@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Bug Fixes
+
+- Visit modifiers in hir visitor ([#373](https://github.com/paradigmxyz/solar/issues/373))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#381](https://github.com/paradigmxyz/solar/issues/381))
+- [deps] Weekly `cargo update` ([#376](https://github.com/paradigmxyz/solar/issues/376))
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+- [deps] Weekly `cargo update` ([#372](https://github.com/paradigmxyz/solar/issues/372))
+- [deps] Weekly `cargo update` ([#365](https://github.com/paradigmxyz/solar/issues/365))
+- Bump & remove mimalloc patch ([#361](https://github.com/paradigmxyz/solar/issues/361))
+- [deps] Weekly `cargo update` ([#358](https://github.com/paradigmxyz/solar/issues/358))
+- [deps] Weekly `cargo update` ([#351](https://github.com/paradigmxyz/solar/issues/351))
+- [deps] Weekly `cargo update` ([#345](https://github.com/paradigmxyz/solar/issues/345))
+
+### Documentation
+
+- Add CLAUDE.md for Claude Code guidance ([#357](https://github.com/paradigmxyz/solar/issues/357))
+- Recommend default-features=false in README.md
+
+### Features
+
+- Resolve ctor base args ([#322](https://github.com/paradigmxyz/solar/issues/322))
+- Flatten diag msg with style ([#368](https://github.com/paradigmxyz/solar/issues/368))
+- Add span visitor debug tool ([#355](https://github.com/paradigmxyz/solar/issues/355))
+- [lexer] Add Cursor::with_position ([#348](https://github.com/paradigmxyz/solar/issues/348))
+
+### Miscellaneous Tasks
+
+- Store SessionGlobals inside of Session ([#379](https://github.com/paradigmxyz/solar/issues/379))
+- [benches] Extract Session initialization to its own benchmark ([#380](https://github.com/paradigmxyz/solar/issues/380))
+- [meta] Add .git-blame-ignore-revs
+- Use Option<StateMutability> in the AST ([#374](https://github.com/paradigmxyz/solar/issues/374))
+- Fn header spans ([#371](https://github.com/paradigmxyz/solar/issues/371))
+- Clippy
+- Misc cleanup, util methods ([#367](https://github.com/paradigmxyz/solar/issues/367))
+- Add span to `TryCatchClause` ([#364](https://github.com/paradigmxyz/solar/issues/364))
+- [parser] Move unescaping from lexer to parser ([#360](https://github.com/paradigmxyz/solar/issues/360))
+
+### Other
+
+- Add ds store ([#362](https://github.com/paradigmxyz/solar/issues/362))
+- Rm bench concurrency
+
+### Performance
+
+- Use `inturn` as the interner ([#349](https://github.com/paradigmxyz/solar/issues/349))
+- [lexer] Optimize `is_id_continue_byte` using bitwise operations ([#347](https://github.com/paradigmxyz/solar/issues/347))
+
+### Refactor
+
+- Remove redundant EoF check ([#366](https://github.com/paradigmxyz/solar/issues/366))
+
 ## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
 
 ### Bug Fixes
