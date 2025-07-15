@@ -10,8 +10,8 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use solar_data_structures::{trustme, OnDrop};
-use solar_interface::{config::CompilerStage, Result, Session};
+use solar_data_structures::{OnDrop, trustme};
+use solar_interface::{Result, Session, config::CompilerStage};
 use thread_local::ThreadLocal;
 use ty::Gcx;
 
@@ -97,10 +97,10 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
     });
     let mut sources = pcx.parse(&ast_arenas);
 
-    if let Some(dump) = &sess.opts.unstable.dump {
-        if dump.kind.is_ast() {
-            dump_ast(sess, &sources, dump.paths.as_deref())?;
-        }
+    if let Some(dump) = &sess.opts.unstable.dump
+        && dump.kind.is_ast()
+    {
+        dump_ast(sess, &sources, dump.paths.as_deref())?;
     }
 
     if sess.opts.unstable.ast_stats {
@@ -164,10 +164,10 @@ fn lower<'sess, 'hir>(
 /// This is not yet exposed publicly as it is not yet fully implemented.
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<()> {
-    if let Some(dump) = &gcx.sess.opts.unstable.dump {
-        if dump.kind.is_hir() {
-            dump_hir(gcx, dump.paths.as_deref())?;
-        }
+    if let Some(dump) = &gcx.sess.opts.unstable.dump
+        && dump.kind.is_hir()
+    {
+        dump_hir(gcx, dump.paths.as_deref())?;
     }
 
     // Lower HIR types.

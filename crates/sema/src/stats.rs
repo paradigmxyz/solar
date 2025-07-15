@@ -1,7 +1,7 @@
-use solar_ast::{self as ast, visit::Visit, yul, ItemId};
+use solar_ast::{self as ast, ItemId, visit::Visit, yul};
 use solar_data_structures::{
-    map::{FxHashMap, FxHashSet},
     Never,
+    map::{FxHashMap, FxHashSet},
 };
 use std::ops::ControlFlow;
 
@@ -315,7 +315,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         for modifier in header.modifiers.iter() {
             self.visit_modifier(modifier)?;
         }
-        self.visit_parameter_list(&header.returns)?;
+        if let Some(returns) = &header.returns {
+            self.visit_parameter_list(returns)?;
+        }
         // Don't visit ident field since it isn't boxed
         ControlFlow::Continue(())
     }

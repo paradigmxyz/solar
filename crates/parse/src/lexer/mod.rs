@@ -1,11 +1,11 @@
 //! Solidity and Yul lexer.
 
 use solar_ast::{
-    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
     Base, StrKind,
+    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{
-    diagnostics::DiagCtxt, source_map::SourceFile, BytePos, Session, Span, Symbol,
+    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
 };
 
 mod cursor;
@@ -240,7 +240,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                                 ascii_str,
                                 ascii_name,
                             } => {
-                                let msg = format!("Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not");
+                                let msg = format!(
+                                    "Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not"
+                                );
                                 err = err.span_help(span, msg);
                             }
                             unicode_chars::TokenSubstitution::Other {
@@ -251,7 +253,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                                 ascii_str,
                                 ascii_name,
                             } => {
-                                let msg = format!("Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not");
+                                let msg = format!(
+                                    "Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not"
+                                );
                                 err = err.span_help(span, msg);
                             }
                         }
@@ -409,11 +413,7 @@ impl Iterator for Lexer<'_, '_> {
     #[inline]
     fn next(&mut self) -> Option<Token> {
         let token = self.next_token();
-        if token.is_eof() {
-            None
-        } else {
-            Some(token)
-        }
+        if token.is_eof() { None } else { Some(token) }
     }
 }
 
@@ -433,9 +433,9 @@ fn escaped_char(c: char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ops::Range;
     use BinOpToken::*;
     use TokenKind::*;
+    use std::ops::Range;
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn literals() {
         use TokenLitKind::*;
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("\"\"", &[(0..2, lit(Str, ""))]),
                 ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
@@ -536,7 +536,7 @@ mod tests {
 
     #[test]
     fn idents() {
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("$", &[(0..1, id("$"))]),
                 ("a$", &[(0..2, id("a$"))]),
@@ -558,7 +558,7 @@ mod tests {
             Comment(true, kind, sym(symbol))
         }
 
-        solar_interface::SessionGlobals::new().set(|| {
+        solar_interface::SessionGlobals::default().set(|| {
             checks(&[
                 ("// line comment", &[]),
                 ("// / line comment", &[]),

@@ -251,15 +251,13 @@ impl<'a> Cursor<'a> {
                 std::slice::from_raw_parts(start, self.as_ptr().offset_from_unsigned(start))
             };
             let is_hex = id == b"hex";
-            if is_hex || id == b"unicode" {
-                if let quote @ (b'\'' | b'"') = self.first() {
-                    self.bump();
-                    let terminated = self.eat_string(quote);
-                    let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
-                    return RawTokenKind::Literal {
-                        kind: RawLiteralKind::Str { kind, terminated },
-                    };
-                }
+            if (is_hex || id == b"unicode")
+                && let quote @ (b'\'' | b'"') = self.first()
+            {
+                self.bump();
+                let terminated = self.eat_string(quote);
+                let kind = if is_hex { StrKind::Hex } else { StrKind::Unicode };
+                return RawTokenKind::Literal { kind: RawLiteralKind::Str { kind, terminated } };
             }
         }
 
@@ -441,12 +439,6 @@ impl<'a> Cursor<'a> {
         self.as_bytes().get(index).copied().unwrap_or(EOF)
     }
 
-    /// Checks if there is nothing more to consume.
-    #[inline]
-    fn is_eof(&self) -> bool {
-        self.as_bytes().is_empty()
-    }
-
     /// Moves to the next character.
     fn bump(&mut self) {
         self.bytes.next();
@@ -499,7 +491,7 @@ impl<'a> Cursor<'a> {
     /// Eats symbols while predicate returns true or until the end of file is reached.
     #[inline]
     fn eat_while(&mut self, mut predicate: impl FnMut(u8) -> bool) {
-        while predicate(self.first()) && !self.is_eof() {
+        while predicate(self.first()) {
             self.bump();
         }
     }
@@ -511,11 +503,7 @@ impl Iterator for Cursor<'_> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let token = self.advance_token();
-        if token.kind == RawTokenKind::Eof {
-            None
-        } else {
-            Some(token)
-        }
+        if token.kind == RawTokenKind::Eof { None } else { Some(token) }
     }
 }
 

@@ -3,12 +3,35 @@ use super::{
 };
 use crate::token::Token;
 use either::Either;
-use solar_interface::{Ident, Span};
-use std::fmt;
+use solar_interface::{Ident, Span, Spanned};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 use strum::EnumIs;
 
-/// A list of variable declarations.
-pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
+/// A list of variable declarations and its span, which includes the brackets.
+///
+/// Implements `Deref` and `DerefMut` for transparent access to the parameter list.
+#[derive(Debug, Default)]
+pub struct ParameterList<'ast> {
+    pub span: Span,
+    pub vars: Box<'ast, [VariableDefinition<'ast>]>,
+}
+
+impl<'ast> Deref for ParameterList<'ast> {
+    type Target = Box<'ast, [VariableDefinition<'ast>]>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vars
+    }
+}
+
+impl<'ast> DerefMut for ParameterList<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vars
+    }
+}
 
 /// A top-level item in a Solidity source file.
 #[derive(Debug)]
@@ -439,17 +462,47 @@ pub struct FunctionHeader<'ast> {
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
+
     /// The parameters of the function.
     pub parameters: ParameterList<'ast>,
 
-    pub visibility: Option<Visibility>,
-    pub state_mutability: StateMutability,
+    /// The visibility keyword.
+    pub visibility: Option<Spanned<Visibility>>,
+
+    /// The state mutability.
+    pub state_mutability: Option<Spanned<StateMutability>>,
+
+    /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
-    pub virtual_: bool,
+
+    /// The span of the `virtual` keyword.
+    pub virtual_: Option<Span>,
+
+    /// The `override` keyword.
     pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
-    pub returns: ParameterList<'ast>,
+    ///
+    /// If `Some`, it's always non-empty.
+    pub returns: Option<ParameterList<'ast>>,
+}
+
+impl<'ast> FunctionHeader<'ast> {
+    pub fn visibility(&self) -> Option<Visibility> {
+        self.visibility.map(Spanned::into_inner)
+    }
+
+    pub fn state_mutability(&self) -> StateMutability {
+        self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
+    }
+
+    pub fn virtual_(&self) -> bool {
+        self.virtual_.is_some()
+    }
+
+    pub fn returns(&self) -> &[VariableDefinition<'ast>] {
+        self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
+    }
 }
 
 /// A kind of function.

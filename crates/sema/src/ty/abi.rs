@@ -24,11 +24,11 @@ impl<'gcx> Gcx<'gcx> {
         let mut items = Vec::<json::AbiItem<'a>>::new();
 
         let c = self.hir.contract(id);
-        if let Some(ctor) = c.ctor {
-            if !c.is_abstract() {
-                let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
-                items.push(json::Constructor { inputs, state_mutability }.into());
-            }
+        if let Some(ctor) = c.ctor
+            && !c.is_abstract()
+        {
+            let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
+            items.push(json::Constructor { inputs, state_mutability }.into());
         }
         if let Some(fallback) = c.fallback {
             let json::Function { state_mutability, .. } = self.function_abi(fallback);
@@ -137,8 +137,8 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
     match s {
         hir::StateMutability::Pure => json::StateMutability::Pure,
         hir::StateMutability::View => json::StateMutability::View,
-        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
         hir::StateMutability::Payable => json::StateMutability::Payable,
+        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
     }
 }
 
@@ -344,7 +344,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             Some(id),
             parameters,
             &[],
-            Default::default(),
+            hir::StateMutability::NonPayable,
             solar_ast::Visibility::Internal,
         )
     }

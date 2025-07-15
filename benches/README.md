@@ -8,7 +8,7 @@ Run with:
 
 ```bash
 # Criterion
-cargo criterion -p solar-bench --bench criterion -- --quiet --format terse |& tee benches/criterion.out
+cargo bench -p solar-bench --bench criterion -- --quiet --format terse parser |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 
 # iai - requires `valgrind` and `iai-callgrind-runner`

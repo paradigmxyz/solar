@@ -1,5 +1,8 @@
 use crate::{BytePos, SessionGlobals};
-use std::{cmp, fmt, ops::Range};
+use std::{
+    cmp, fmt,
+    ops::{Deref, DerefMut, Range},
+};
 
 /// A source code location.
 ///
@@ -42,12 +45,11 @@ impl fmt::Debug for Span {
         }
 
         if SessionGlobals::is_set() {
-            SessionGlobals::with(|g: &SessionGlobals| {
-                let sm = g.source_map.lock();
-                if let Some(source_map) = &*sm {
-                    f.write_str(&source_map.span_to_diagnostic_string(*self))
+            SessionGlobals::with(|g| {
+                let sm = &g.source_map;
+                if !sm.is_empty() {
+                    write!(f, "{}", sm.span_to_diagnostic_string(*self))
                 } else {
-                    drop(sm);
                     fallback(*self, f)
                 }
             })
@@ -220,10 +222,51 @@ impl Span {
     ) -> Self {
         let mut spans = spans.into_iter();
         let first = spans.next().unwrap_or_default();
-        if let Some(last) = spans.next_back() {
-            first.to(last)
-        } else {
-            first
-        }
+        if let Some(last) = spans.next_back() { first.to(last) } else { first }
+    }
+}
+
+/// A value paired with a source code location.
+///
+/// Wraps any value with a [`Span`] to track its location in the source code.
+/// Implements `Deref` and `DerefMut` for transparent access to the inner value.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Spanned<T> {
+    pub span: Span,
+    pub data: T,
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for Spanned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl<T> Spanned<T> {
+    pub fn map<U, F>(self, f: F) -> Spanned<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Spanned { span: self.span, data: f(self.data) }
+    }
+
+    pub fn as_ref(&self) -> Spanned<&T> {
+        Spanned { span: self.span, data: &self.data }
+    }
+
+    pub fn as_mut(&mut self) -> Spanned<&mut T> {
+        Spanned { span: self.span, data: &mut self.data }
+    }
+
+    pub fn into_inner(self) -> T {
+        self.data
     }
 }

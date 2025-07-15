@@ -1,6 +1,6 @@
 use crate::{
-    hir::{self, Hir},
     ParsedSources,
+    hir::{self, Hir},
 };
 use solar_ast as ast;
 use solar_data_structures::{
@@ -8,7 +8,7 @@ use solar_data_structures::{
     map::FxHashMap,
     trustme,
 };
-use solar_interface::{diagnostics::DiagCtxt, Session};
+use solar_interface::{Session, diagnostics::DiagCtxt};
 
 mod lower;
 
@@ -40,8 +40,11 @@ pub(crate) fn lower<'sess, 'hir>(
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
+    let next_id = &std::sync::atomic::AtomicUsize::new(0);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
-    lcx.resolve_symbols();
+    lcx.resolve_symbols(next_id);
+    // Resolve constructor base args.
+    lcx.resolve_base_args(next_id);
 
     // Clean up.
     lcx.shrink_to_fit();

@@ -2,7 +2,7 @@
 
 use crate::ast::*;
 use solar_data_structures::trustme;
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Spanned};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -193,7 +193,9 @@ declare_visitors! {
                 TypeKind::Function(function) => {
                     let TypeFunction { parameters, visibility: _, state_mutability: _, returns } = &#mut **function;
                     self.visit_parameter_list #_mut(parameters)?;
-                    self.visit_parameter_list #_mut(returns)?;
+                    if let Some(returns) = returns {
+                        self.visit_parameter_list #_mut(returns)?;
+                    }
                 }
                 TypeKind::Mapping(mapping) => {
                     let TypeMapping { key, key_name, value, value_name } = &#mut **mapping;
@@ -218,8 +220,8 @@ declare_visitors! {
                 span,
                 name,
                 parameters,
-                visibility: _,
-                state_mutability: _,
+                visibility,
+                state_mutability,
                 modifiers,
                 virtual_: _,
                 override_: _,
@@ -230,10 +232,20 @@ declare_visitors! {
                 self.visit_ident #_mut(name)?;
             }
             self.visit_parameter_list #_mut(parameters)?;
+            if let Some(vis) = visibility {
+                let Spanned { span: vis_span, .. } = vis;
+                self.visit_span #_mut(vis_span)?;
+            }
+            if let Some(state_mut) = state_mutability {
+                let Spanned { span: state_mut_span, .. } = state_mut;
+                self.visit_span #_mut(state_mut_span)?;
+            }
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }
-            self.visit_parameter_list #_mut(returns)?;
+            if let Some(returns) = returns {
+                self.visit_parameter_list #_mut(returns)?;
+            }
             ControlFlow::Continue(())
         }
 
@@ -465,9 +477,11 @@ declare_visitors! {
         }
 
         fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<Self::BreakValue> {
-            for param in list.iter #_mut() {
+            let ParameterList { span, vars } = list;
+            for param in vars.iter #_mut() {
                 self.visit_variable_definition #_mut(param)?;
             }
+            self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 

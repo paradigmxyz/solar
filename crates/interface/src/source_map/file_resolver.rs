@@ -272,11 +272,11 @@ impl<'a> FileResolver<'a> {
         // Normally this is only needed when paths are inserted manually outside of the resolver, as
         // we always try to strip the prefix of the current directory (see below).
         let apath = &*self.make_absolute(rpath);
-        if apath != rpath {
-            if let Some(file) = self.source_map().get_file(apath) {
-                trace!("loaded from cache 2");
-                return Ok(Some(file));
-            }
+        if apath != rpath
+            && let Some(file) = self.source_map().get_file(apath)
+        {
+            trace!("loaded from cache 2");
+            return Ok(Some(file));
         }
 
         // Canonicalize, checking symlinks and if it exists.

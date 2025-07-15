@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Dependencies
+
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+
+### Features
+
+- [lexer] Add Cursor::with_position ([#348](https://github.com/paradigmxyz/solar/issues/348))
+
+### Miscellaneous Tasks
+
+- Store SessionGlobals inside of Session ([#379](https://github.com/paradigmxyz/solar/issues/379))
+- Use Option<StateMutability> in the AST ([#374](https://github.com/paradigmxyz/solar/issues/374))
+- Fn header spans ([#371](https://github.com/paradigmxyz/solar/issues/371))
+- Clippy
+- Add span to `TryCatchClause` ([#364](https://github.com/paradigmxyz/solar/issues/364))
+- [parser] Move unescaping from lexer to parser ([#360](https://github.com/paradigmxyz/solar/issues/360))
+
+### Performance
+
+- [lexer] Optimize `is_id_continue_byte` using bitwise operations ([#347](https://github.com/paradigmxyz/solar/issues/347))
+
+### Refactor
+
+- Remove redundant EoF check ([#366](https://github.com/paradigmxyz/solar/issues/366))
+
 ## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
 
 ### Bug Fixes

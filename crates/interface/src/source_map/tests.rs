@@ -189,7 +189,7 @@ fn t9() {
     let span = Span::new(BytePos(12), BytePos(23));
     let sstr = sm.span_to_diagnostic_string(span);
 
-    assert_eq!(sstr, "blork.rs:2:1: 2:12");
+    assert_eq!(sstr.to_string(), "blork.rs:2:1: 2:12");
 }
 
 /// Tests failing to merge two spans on different lines.

@@ -1,5 +1,5 @@
 use super::*;
-use snapbox::{str, IntoData};
+use snapbox::{IntoData, str};
 use std::fmt::Write;
 
 fn check(src: &str, data: impl IntoData) {

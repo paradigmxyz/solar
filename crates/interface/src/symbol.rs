@@ -401,7 +401,7 @@ impl Interner {
             bytes,
             max=lengths.last().copied().unwrap_or(0),
             mean=%format!("{:.2}", (bytes as f64 / len as f64)),
-            median=%format!("{:.2}", if len % 2 == 0 {
+            median=%format!("{:.2}", if len.is_multiple_of(2) {
                 (lengths[len / 2 - 1] + lengths[len / 2]) as f64 / 2.0
             } else {
                 lengths[len / 2] as f64
@@ -443,11 +443,7 @@ pub mod kw {
     /// Returns the boolean keyword for the given value.
     #[inline]
     pub const fn boolean(b: bool) -> Symbol {
-        if b {
-            True
-        } else {
-            False
-        }
+        if b { True } else { False }
     }
 
     /// Returns the `int` keyword for the given byte (**not bit**) size.

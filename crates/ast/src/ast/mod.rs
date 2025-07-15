@@ -1,11 +1,11 @@
 //! Solidity AST.
 
-use solar_data_structures::{index::IndexSlice, newtype_index, BumpExt};
+use solar_data_structures::{BumpExt, index::IndexSlice, newtype_index};
 use std::fmt;
 
 pub use crate::token::CommentKind;
 pub use either::{self, Either};
-pub use solar_interface::{Ident, Span, Symbol};
+pub use solar_interface::{Ident, Span, Spanned, Symbol};
 
 mod expr;
 pub use expr::*;

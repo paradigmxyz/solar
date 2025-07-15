@@ -1,5 +1,5 @@
 use alloy_primitives::Address;
-use solar_interface::{diagnostics::ErrorGuaranteed, kw, Span, Symbol};
+use solar_interface::{Span, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{fmt, sync::Arc};
 
 /// A literal: `hex"1234"`, `5.6 ether`.
@@ -43,11 +43,11 @@ impl fmt::Display for Lit {
 impl Lit {
     /// Returns the span of the first string literal in this literal.
     pub fn first_span(&self) -> Span {
-        if let LitKind::Str(kind, _, extra) = &self.kind {
-            if !extra.is_empty() {
-                let str_len = kind.prefix().len() + 1 + self.symbol.as_str().len() + 1;
-                return self.span.with_hi(self.span.lo() + str_len as u32);
-            }
+        if let LitKind::Str(kind, _, extra) = &self.kind
+            && !extra.is_empty()
+        {
+            let str_len = kind.prefix().len() + 1 + self.symbol.as_str().len() + 1;
+            return self.span.with_hi(self.span.lo() + str_len as u32);
         }
         self.span
     }
@@ -371,7 +371,7 @@ impl Base {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{enter, BytePos};
+    use solar_interface::{BytePos, enter};
 
     #[test]
     fn literal_fmt() {

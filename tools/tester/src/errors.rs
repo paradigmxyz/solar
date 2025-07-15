@@ -62,24 +62,23 @@ impl Error {
         if let Some(idx) = file.rfind(DELIM) {
             let re = &*ERROR_RE;
             for line in file[idx..].lines().skip(1) {
-                if let Some(caps) = re.captures(line) {
-                    if let Ok(solc_kind) = caps.get(1).unwrap().as_str().parse::<SolcErrorKind>() {
-                        let error_kind = match solc_kind {
-                            SolcErrorKind::Info => ErrorKind::Note,
-                            SolcErrorKind::Warning => ErrorKind::Warning,
-                            _ => ErrorKind::Error,
-                        };
-                        let start =
-                            caps.get(2).map(|cap| cap.as_str().parse().unwrap()).unwrap_or(0);
-                        let line_num = file[..start].lines().count();
-                        let msg = caps.get(4).unwrap().as_str().trim().to_owned();
-                        errors.push(Self {
-                            line_num,
-                            kind: Some(error_kind),
-                            msg,
-                            solc_kind: Some(solc_kind),
-                        });
-                    }
+                if let Some(caps) = re.captures(line)
+                    && let Ok(solc_kind) = caps.get(1).unwrap().as_str().parse::<SolcErrorKind>()
+                {
+                    let error_kind = match solc_kind {
+                        SolcErrorKind::Info => ErrorKind::Note,
+                        SolcErrorKind::Warning => ErrorKind::Warning,
+                        _ => ErrorKind::Error,
+                    };
+                    let start = caps.get(2).map(|cap| cap.as_str().parse().unwrap()).unwrap_or(0);
+                    let line_num = file[..start].lines().count();
+                    let msg = caps.get(4).unwrap().as_str().trim().to_owned();
+                    errors.push(Self {
+                        line_num,
+                        kind: Some(error_kind),
+                        msg,
+                        solc_kind: Some(solc_kind),
+                    });
                 }
             }
         }

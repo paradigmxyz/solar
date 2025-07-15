@@ -11,7 +11,7 @@ extern crate tracing;
 use solar_interface::diagnostics::{DiagBuilder, ErrorGuaranteed};
 
 pub mod lexer;
-pub use lexer::{unescape, Cursor, Lexer};
+pub use lexer::{Cursor, Lexer, unescape};
 
 mod parser;
 pub use parser::Parser;

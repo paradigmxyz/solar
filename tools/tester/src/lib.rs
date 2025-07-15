@@ -4,7 +4,7 @@
 
 #![allow(unreachable_pub)]
 
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use std::path::Path;
 use ui_test::{color_eyre::eyre, spanned::Spanned};
 

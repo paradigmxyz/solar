@@ -1,26 +1,51 @@
 use crate::{
-    diagnostics::{DiagCtxt, EmittedDiagnostics},
     ColorChoice, SessionGlobals, SourceMap,
+    diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
-use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts, SINGLE_THREADED_TARGET};
+use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
 use std::{path::Path, sync::Arc};
 
 /// Information about the current compiler session.
-#[derive(derive_builder::Builder)]
-#[builder(pattern = "owned", build_fn(name = "try_build", private), setter(strip_option))]
 pub struct Session {
+    /// The compiler options.
+    pub opts: Opts,
+
     /// The diagnostics context.
     pub dcx: DiagCtxt,
-    /// The source map.
-    #[builder(default)]
-    source_map: Arc<SourceMap>,
+    /// The globals.
+    globals: SessionGlobals,
+}
 
-    /// The compiler options.
-    #[builder(default)]
-    pub opts: Opts,
+/// [`Session`] builder.
+#[derive(Default)]
+#[must_use = "builders don't do anything unless you call `build`"]
+pub struct SessionBuilder {
+    dcx: Option<DiagCtxt>,
+    globals: Option<SessionGlobals>,
+    opts: Option<Opts>,
 }
 
 impl SessionBuilder {
+    /// Sets the diagnostic context. This is required.
+    ///
+    /// See also the `with_*_emitter*` methods.
+    pub fn dcx(mut self, dcx: DiagCtxt) -> Self {
+        self.dcx = Some(dcx);
+        self
+    }
+
+    /// Sets the source map.
+    pub fn source_map(mut self, source_map: Arc<SourceMap>) -> Self {
+        self.get_globals().source_map = source_map;
+        self
+    }
+
+    /// Sets the compiler options.
+    pub fn opts(mut self, opts: Opts) -> Self {
+        self.opts = Some(opts);
+        self
+    }
+
     /// Sets the diagnostic context to a test emitter.
     #[inline]
     pub fn with_test_emitter(mut self) -> Self {
@@ -70,7 +95,11 @@ impl SessionBuilder {
 
     /// Gets the source map from the diagnostics context.
     fn get_source_map(&mut self) -> Arc<SourceMap> {
-        self.source_map.get_or_insert_default().clone()
+        self.get_globals().source_map.clone()
+    }
+
+    fn get_globals(&mut self) -> &mut SessionGlobals {
+        self.globals.get_or_insert_default()
     }
 
     /// Returns a mutable reference to the options.
@@ -91,20 +120,28 @@ impl SessionBuilder {
     /// - the source map in the diagnostics context does not match the one set in the builder
     #[track_caller]
     pub fn build(mut self) -> Session {
-        // Set the source map from the diagnostics context if it's not set.
-        let dcx = self.dcx.as_mut().unwrap_or_else(|| panic!("diagnostics context not set"));
-        if self.source_map.is_none() {
-            self.source_map = dcx.source_map_mut().cloned();
+        let mut dcx = self.dcx.take().unwrap_or_else(|| panic!("diagnostics context not set"));
+        Session {
+            globals: match self.globals.take() {
+                Some(globals) => {
+                    // Check that the source map matches the one in the diagnostics context.
+                    if let Some(sm) = dcx.source_map_mut() {
+                        assert!(
+                            Arc::ptr_eq(&globals.source_map, sm),
+                            "session source map does not match the one in the diagnostics context"
+                        );
+                    }
+                    globals
+                }
+                None => {
+                    // Set the source map from the diagnostics context.
+                    let sm = dcx.source_map_mut().cloned().unwrap_or_default();
+                    SessionGlobals::new(sm)
+                }
+            },
+            dcx,
+            opts: self.opts.take().unwrap_or_default(),
         }
-
-        let mut sess = self.try_build().unwrap();
-        if let Some(sm) = sess.dcx.source_map_mut() {
-            assert!(
-                Arc::ptr_eq(&sess.source_map, sm),
-                "session source map does not match the one in the diagnostics context"
-            );
-        }
-        sess
     }
 }
 
@@ -184,13 +221,13 @@ impl Session {
     /// Returns a reference to the source map.
     #[inline]
     pub fn source_map(&self) -> &SourceMap {
-        &self.source_map
+        &self.globals.source_map
     }
 
     /// Clones the source map.
     #[inline]
     pub fn clone_source_map(&self) -> Arc<SourceMap> {
-        self.source_map.clone()
+        self.globals.source_map.clone()
     }
 
     /// Returns `true` if compilation should stop after the given stage.
@@ -246,11 +283,7 @@ impl Session {
         RA: Send,
         RB: Send,
     {
-        if self.is_sequential() {
-            (oper_a(), oper_b())
-        } else {
-            rayon::join(oper_a, oper_b)
-        }
+        if self.is_sequential() { (oper_a(), oper_b()) } else { rayon::join(oper_a, oper_b) }
     }
 
     /// Executes the given closure in a fork-join scope.
@@ -265,40 +298,33 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up the session globals if they doesn't exist already and then executes the given
-    /// closure.
+    /// Sets up the session globals in the current thread, then executes the given closure.
+    ///
+    /// The globals are stored in this [`Session`] itself, meaning multiple consecutive calls to
+    /// [`enter`](Self::enter) will share the same globals.
     ///
     /// Note that this does not set up the rayon thread pool. This is only useful when parsing
     /// sequentially, like manually using `Parser`.
-    ///
-    /// This also calls [`SessionGlobals::with_source_map`].
     #[inline]
+    #[track_caller]
     pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
-        SessionGlobals::with_or_default(|_| {
-            SessionGlobals::with_source_map(self.clone_source_map(), f)
-        })
+        self.globals.set(f)
     }
 
-    /// Sets up the thread pool and session globals if they doesn't exist already and then executes
-    /// the given closure.
+    /// Sets up a thread pool if parallelism is enabled, setting up the session globals on every
+    /// thread.
     ///
-    /// This also calls [`SessionGlobals::with_source_map`].
+    /// See [`enter`](Self::enter) for more details.
     #[inline]
+    #[track_caller]
     pub fn enter_parallel<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
-        SessionGlobals::with_or_default(|session_globals| {
-            SessionGlobals::with_source_map(self.clone_source_map(), || {
-                run_in_thread_pool_with_globals(self, session_globals, f)
-            })
-        })
+        self.enter(|| enter_thread_pool(self, f))
     }
 }
 
 /// Runs the given closure in a thread pool with the given number of threads.
-fn run_in_thread_pool_with_globals<R: Send>(
-    sess: &Session,
-    session_globals: &SessionGlobals,
-    f: impl FnOnce() -> R + Send,
-) -> R {
+#[track_caller]
+fn enter_thread_pool<R: Send>(sess: &Session, f: impl FnOnce() -> R + Send) -> R {
     // Avoid panicking below if this is a recursive call.
     if rayon::current_thread_index().is_some() {
         debug!(
@@ -319,8 +345,9 @@ fn run_in_thread_pool_with_globals<R: Send>(
     }
     match builder.build_scoped(
         // Initialize each new worker thread when created.
-        // Note that this is not called on the current thread, so `set` can't panic.
-        move |thread| session_globals.set(|| thread.run()),
+        // Note that this is not called on the current thread, so `SessionGlobals::set` can't
+        // panic.
+        move |thread| sess.enter(|| thread.run()),
         // Run `f` on the first thread in the thread pool.
         move |pool| pool.install(f),
     ) {
@@ -341,6 +368,7 @@ fn run_in_thread_pool_with_globals<R: Send>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     #[should_panic = "diagnostics context not set"]
@@ -406,16 +434,15 @@ mod tests {
             use_globals_no_sm();
 
             let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
-            let s = format!("{span:?}");
-            assert!(!s.contains("Span("), "{s}");
-            let s = format!("{span:#?}");
-            assert!(!s.contains("Span("), "{s}");
+            assert_eq!(format!("{span:?}"), "test:1:1: 1:2");
+            assert_eq!(format!("{span:#?}"), "test:1:1: 1:2");
 
             assert!(rayon::current_thread_index().is_some());
         }
 
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter_parallel(use_globals);
+        sess.source_map().new_source_file(PathBuf::from("test"), "abcd").unwrap();
+        sess.enter_parallel(|| use_globals());
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
         sess.enter_parallel(|| {
@@ -426,11 +453,11 @@ mod tests {
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
 
-        SessionGlobals::new().set(|| {
+        sess.enter(|| {
             use_globals_no_sm();
             sess.enter_parallel(|| {
                 use_globals();
-                sess.enter_parallel(use_globals);
+                sess.enter_parallel(|| use_globals());
                 use_globals();
             });
             use_globals_no_sm();

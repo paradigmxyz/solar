@@ -1,6 +1,6 @@
 use crate::{
-    hir::{self, ContractId, SourceId},
     ParsedSource,
+    hir::{self, ContractId, SourceId},
 };
 use solar_ast as ast;
 use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
@@ -54,8 +54,10 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind: contract.kind,
 
             // Set later.
-            bases: &[],
+            bases: &mut [],
+            bases_args: &[],
             linearized_bases: &[],
+            linearized_bases_args: &[],
 
             ctor: None,
             fallback: None,
@@ -147,14 +149,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind,
             gettee: None,
             modifiers: &[],
-            marked_virtual: virtual_,
-            virtual_: virtual_
+            marked_virtual: virtual_.is_some(),
+            virtual_: virtual_.is_some()
                 || self
                     .current_contract_id
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.unwrap_or_else(|| {
+            visibility: visibility.map(|vis| vis.data).unwrap_or_else(|| {
                 let is_free = self.current_contract_id.is_none();
                 if kind.is_modifier() || is_free {
                     ast::Visibility::Internal
@@ -162,7 +164,9 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     ast::Visibility::Public
                 }
             }),
-            state_mutability,
+            state_mutability: state_mutability
+                .map(|s| s.data)
+                .unwrap_or(ast::StateMutability::NonPayable),
             parameters: &[],
             returns: &[],
             body: None,
