@@ -224,7 +224,7 @@ declare_visitors! {
                 state_mutability,
                 modifiers,
                 virtual_: _,
-                override_: _,
+                override_,
                 returns,
             } = header;
             self.visit_span #_mut(span)?;
@@ -246,6 +246,9 @@ declare_visitors! {
             if let Some(returns) = returns {
                 self.visit_parameter_list #_mut(returns)?;
             }
+            if let Some(override_) = override_ {
+                self.visit_override #_mut(override_)?;
+            }
             ControlFlow::Continue(())
         }
 
@@ -253,6 +256,15 @@ declare_visitors! {
             let Modifier { name, arguments } = modifier;
             self.visit_path #_mut(name)?;
             self.visit_call_args #_mut(arguments)?;
+            ControlFlow::Continue(())
+        }
+
+        fn visit_override(&mut self, override_: &'ast #mut Override<'ast>) -> ControlFlow<Self::BreakValue> {
+            let Override { span, paths } = override_;
+            self.visit_span #_mut(span)?;
+            for path in paths.iter #_mut() {
+                self.visit_path #_mut(path)?;
+            }
             ControlFlow::Continue(())
         }
 
