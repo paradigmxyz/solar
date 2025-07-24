@@ -657,6 +657,22 @@ impl Function<'_> {
         self.is_ordinary() && self.visibility >= Visibility::Public
     }
 
+    /// Returns `true` if this is a receive or fallback function
+    pub fn is_special(&self) -> bool {
+        // https://docs.soliditylang.org/en/latest/contracts.html#special-functions
+        matches!(self.kind, FunctionKind::Receive | FunctionKind::Fallback)
+    }
+
+    /// Returns `true` if this is a constructor
+    pub fn is_constructor(&self) -> bool {
+        matches!(self.kind, FunctionKind::Constructor)
+    }
+
+    /// Returns `true` if this function mutates state
+    pub fn mutates_state(&self) -> bool {
+        self.state_mutability >= StateMutability::Payable
+    }
+
     /// Returns an iterator over all variables in the function.
     pub fn variables(&self) -> impl DoubleEndedIterator<Item = VariableId> + Clone + use<'_> {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
