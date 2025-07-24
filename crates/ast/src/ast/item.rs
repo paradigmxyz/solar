@@ -613,7 +613,7 @@ impl DataLocation {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs, PartialOrd)]
 pub enum StateMutability {
     /// `pure`
     Pure,
