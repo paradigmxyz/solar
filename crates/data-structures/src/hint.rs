@@ -1,16 +1,34 @@
-#[cfg(not(feature = "nightly"))]
-pub use std::convert::{identity as likely, identity as unlikely};
-
-/// See [`std::hint::likely`].
-#[cfg(feature = "nightly")]
 #[inline(always)]
-pub fn likely(b: bool) -> bool {
-    std::hint::likely(b)
+#[cfg_attr(not(feature = "nightly"), cold)]
+pub const fn cold_path() {
+    #[cfg(feature = "nightly")]
+    core::intrinsics::cold_path();
 }
 
-/// See [`std::hint::unlikely`].
-#[cfg(feature = "nightly")]
 #[inline(always)]
-pub fn unlikely(b: bool) -> bool {
-    std::hint::unlikely(b)
+pub const fn likely(b: bool) -> bool {
+    #[cfg(feature = "nightly")]
+    return core::intrinsics::likely(b);
+
+    #[cfg(not(feature = "nightly"))]
+    if b {
+        true
+    } else {
+        cold_path();
+        false
+    }
+}
+
+#[inline(always)]
+pub const fn unlikely(b: bool) -> bool {
+    #[cfg(feature = "nightly")]
+    return core::intrinsics::unlikely(b);
+
+    #[cfg(not(feature = "nightly"))]
+    if b {
+        cold_path();
+        true
+    } else {
+        false
+    }
 }
