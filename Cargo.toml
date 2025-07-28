@@ -140,7 +140,7 @@ tracing-subscriber = "0.3"
 tracing = "0.1"
 
 # testing
-criterion = { package = "codspeed-criterion-compat", version = "2.7", default-features = false, features = [
+criterion = { package = "codspeed-criterion-compat", version = "3", default-features = false, features = [
     "cargo_bench_support",
 ] }
 rand = "0.9"
