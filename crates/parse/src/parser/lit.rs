@@ -22,7 +22,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Returns None if no subdenomination was parsed or if the literal is not a number or rational.
     pub fn parse_lit_with_subdenomination(
         &mut self,
-    ) -> PResult<'sess, (&'ast mut Lit, Option<SubDenomination>)> {
+    ) -> PResult<'sess, (&'ast mut Lit, Option<Spanned<SubDenomination>>)> {
         let lit = self.parse_lit()?;
         let mut sub = self.parse_subdenomination();
         if let opt @ Some(_) = &mut sub {
@@ -47,12 +47,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a subdenomination.
-    pub fn parse_subdenomination(&mut self) -> Option<SubDenomination> {
+    pub fn parse_subdenomination(&mut self) -> Option<Spanned<SubDenomination>> {
+        let lo = self.token.span;
         let sub = self.subdenomination();
         if sub.is_some() {
             self.bump();
         }
-        sub
+        sub.map(|data| Spanned { span: lo.to(self.prev_token.span), data })
     }
 
     fn subdenomination(&self) -> Option<SubDenomination> {

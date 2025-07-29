@@ -281,7 +281,7 @@ pub(super) fn lower_variable_partial(
         name,
         visibility,
         mutability,
-        data_location,
+        data_location: data_location.map(|loc| *loc),
         override_: override_.is_some(),
         overrides: &[],
         indexed,

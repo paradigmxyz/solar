@@ -437,7 +437,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         let ast::Expr { kind, .. } = expr;
         if let ast::ExprKind::Lit(lit, subdenomination) = kind {
             self.check_underscores_in_number_literals(lit);
-            self.check_subdenominations_for_number_literals(lit, subdenomination);
+            self.check_subdenominations_for_number_literals(lit, &subdenomination.map(|sub| *sub));
             self.check_address_checksums(lit);
         }
         self.walk_expr(expr)

@@ -4,23 +4,23 @@ ast-stats ----------------------------------------------------------------
 ast-stats SourceUnit                16 ( 0.7%)             1            16
 ast-stats Ident                     36 ( 1.5%)             3            12
 ast-stats PragmaDirective           40 ( 1.7%)             1            40
-ast-stats Block                     48 ( 2.1%)             2            24
+ast-stats Block                     48 ( 2.0%)             2            24
 ast-stats ItemContract              64 ( 2.7%)             1            64
-ast-stats VariableDefinition        88 ( 3.8%)             1            88
+ast-stats VariableDefinition       104 ( 4.4%)             1           104
 ast-stats DocComments              112 ( 4.8%)             7            16
 ast-stats Span                     112 ( 4.8%)            14             8
 ast-stats Stmt                     176 ( 7.5%)             2            88
 ast-stats - Expr                   176 ( 7.5%)             2
-ast-stats Expr                     240 (10.3%)             5            48
-ast-stats - Assign                  48 ( 2.1%)             1
-ast-stats - Unary                   48 ( 2.1%)             1
-ast-stats - Ident                  144 ( 6.2%)             3
-ast-stats ItemFunction             368 (15.7%)             2           184
-ast-stats Item                   1_040 (44.4%)             5           208
-ast-stats - Contract               208 ( 8.9%)             1
-ast-stats - Pragma                 208 ( 8.9%)             1
-ast-stats - Variable               208 ( 8.9%)             1
-ast-stats - Function               416 (17.8%)             2
+ast-stats Expr                     240 (10.2%)             5            48
+ast-stats - Assign                  48 ( 2.0%)             1
+ast-stats - Unary                   48 ( 2.0%)             1
+ast-stats - Ident                  144 ( 6.1%)             3
+ast-stats ItemFunction             368 (15.6%)             2           184
+ast-stats Item                   1_040 (44.1%)             5           208
+ast-stats - Contract               208 ( 8.8%)             1
+ast-stats - Pragma                 208 ( 8.8%)             1
+ast-stats - Variable               208 ( 8.8%)             1
+ast-stats - Function               416 (17.7%)             2
 ast-stats ----------------------------------------------------------------
-ast-stats Total                  2_340
+ast-stats Total                  2_356
 ast-stats

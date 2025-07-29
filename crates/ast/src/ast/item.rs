@@ -684,7 +684,7 @@ pub struct VariableDefinition<'ast> {
     pub ty: Type<'ast>,
     pub visibility: Option<Visibility>,
     pub mutability: Option<VarMut>,
-    pub data_location: Option<DataLocation>,
+    pub data_location: Option<Spanned<DataLocation>>,
     pub override_: Option<Override<'ast>>,
     pub indexed: bool,
     pub name: Option<Ident>,

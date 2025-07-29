@@ -1,6 +1,6 @@
 use super::{Box, Lit, SubDenomination, Type};
 use either::Either;
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Spanned};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
@@ -66,7 +66,7 @@ pub enum ExprKind<'ast> {
     ///
     /// Note that the `SubDenomination` is only present for numeric literals, and it's already
     /// applied to `Lit`'s value. It is only present for error reporting/formatting purposes.
-    Lit(&'ast mut Lit, Option<SubDenomination>),
+    Lit(&'ast mut Lit, Option<Spanned<SubDenomination>>),
 
     /// Access of a named member: `obj.k`.
     Member(Box<'ast, Expr<'ast>>, Ident),

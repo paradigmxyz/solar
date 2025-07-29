@@ -938,13 +938,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a storage location: `storage | memory | calldata | transient`.
-    fn parse_data_location(&mut self) -> Option<DataLocation> {
-        if self.eat_keyword(kw::Storage) {
-            Some(DataLocation::Storage)
+    fn parse_data_location(&mut self) -> Option<Spanned<DataLocation>> {
+        let lo = self.token.span;
+        let location = if self.eat_keyword(kw::Storage) {
+            DataLocation::Storage
         } else if self.eat_keyword(kw::Memory) {
-            Some(DataLocation::Memory)
+            DataLocation::Memory
         } else if self.eat_keyword(kw::Calldata) {
-            Some(DataLocation::Calldata)
+            DataLocation::Calldata
         } else if self.check_keyword(sym::transient)
             && !matches!(
                 self.look_ahead(1).kind,
@@ -952,10 +953,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             )
         {
             self.bump(); // `transient`
-            Some(DataLocation::Transient)
+            DataLocation::Transient
         } else {
-            None
-        }
+            return None;
+        };
+
+        Some(Spanned { span: lo.to(self.prev_token.span), data: location })
     }
 
     /// Parses a visibility: `public | private | internal | external`.
