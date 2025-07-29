@@ -9,9 +9,11 @@
 #[macro_use]
 extern crate tracing;
 
+use crate::{ast_lowering::SymbolResolver, ty::GlobalCtxt};
 use rayon::prelude::*;
 use solar_data_structures::{OnDrop, trustme};
 use solar_interface::{Result, Session, config::CompilerStage};
+use std::{marker::PhantomPinned, mem::MaybeUninit, pin::Pin};
 use thread_local::ThreadLocal;
 use ty::Gcx;
 
@@ -42,6 +44,86 @@ mod emit;
 pub mod stats;
 
 mod span_visitor;
+
+pub struct Compiler(Pin<Box<CompilerInner>>);
+
+struct CompilerInner {
+    sess: Session,
+    gcx: GlobalCtxt<'static>,
+    ast_arenas: ThreadLocal<ast::Arena>,
+    hir_arena: ThreadLocal<hir::Arena>,
+    /// Lifetimes in this struct are self-referential.
+    _pinned: PhantomPinned,
+}
+
+/// `$x->$y`
+macro_rules! project_ptr {
+    ($x:ident -> $y:ident : $xty:ty => $ty:ty) => {
+        $x.byte_add(std::mem::offset_of!($xty, $y)).cast::<$ty>()
+    };
+}
+
+impl Compiler {
+    /// Creates a new compiler.
+    pub fn new(sess: Session) -> Self {
+        let mut inner = Box::pin(MaybeUninit::<CompilerInner>::uninit());
+
+        // SAFETY: Valid pointer, `init` initializes all fields.
+        unsafe {
+            let inner = Pin::get_unchecked_mut(Pin::as_mut(&mut inner));
+            let inner = inner.as_mut_ptr();
+            CompilerInner::init(inner, sess);
+        }
+
+        // SAFETY: `inner` has been initialized.
+        Self(unsafe { std::mem::transmute(inner) })
+    }
+
+    pub fn enter<T: Send>(&self, f: impl FnOnce(CompilerRef<'_>) -> T + Send) -> T {
+        self.0.gcx().sess.enter_parallel(|| f(CompilerRef { inner: &self.0 }))
+    }
+}
+
+impl CompilerInner {
+    #[inline]
+    unsafe fn init(this: *mut Self, sess: Session) {
+        type C = CompilerInner;
+
+        unsafe {
+            let sess_p = project_ptr!(this->sess: C=>Session);
+            sess_p.write(sess);
+
+            project_ptr!(this->ast_arenas: C=>ThreadLocal<ast::Arena>).write(ThreadLocal::new());
+
+            let hir_arena_p = project_ptr!(this->hir_arena: C=>ThreadLocal<hir::Arena>);
+            hir_arena_p.write(ThreadLocal::new());
+
+            let sess = &*sess_p;
+            project_ptr!(this->gcx: C=>GlobalCtxt<'static>).write(GlobalCtxt::new(
+                sess,
+                &*hir_arena_p,
+                Hir::new(),
+                SymbolResolver::new(&sess.dcx),
+            ));
+        }
+    }
+
+    fn gcx(&self) -> &GlobalCtxt<'_> {
+        unsafe { &*std::ptr::from_ref(&self.gcx).cast::<_>() }
+    }
+}
+
+pub struct CompilerRef<'c> {
+    inner: &'c CompilerInner,
+}
+
+impl<'c> CompilerRef<'c> {
+    /// Returns a reference to the global context.
+    #[inline]
+    pub fn gcx(&self) -> &GlobalCtxt<'_> {
+        self.inner.gcx()
+    }
+}
 
 /// Thin wrapper around the global context to ensure it is accessed and dropped correctly.
 pub struct GcxWrapper<'gcx>(std::mem::ManuallyDrop<ty::GlobalCtxt<'gcx>>);
