@@ -8,8 +8,19 @@ use std::{
 };
 
 #[allow(unexpected_cfgs)]
-pub const PARSERS: &[&dyn Parser] =
-    if cfg!(codspeed) { &[&Solar] } else { &[&Solc, &Solar, &Solang, &Slang, &TreeSitter] };
+pub const PARSERS: &[&dyn Parser] = if cfg!(codspeed) {
+    // Only benchmark our own code in CI.
+    &[&Solar]
+} else {
+    &[
+        // fmt
+        &Solc,
+        &Solar,
+        &Solang,
+        &Slang,
+        &TreeSitter,
+    ]
+};
 
 pub fn get_srcs() -> &'static [Source] {
     // Please do not modify the order of the sources and only add new sources at the end.

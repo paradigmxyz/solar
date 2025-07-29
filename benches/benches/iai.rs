@@ -101,6 +101,9 @@ mk_groups!(
     "console",
     "Vm",
     "safeconsole",
+    "Seaport",
+    "Solady",
+    "Optimism",
 );
 
 #[inline]

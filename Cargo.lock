@@ -1241,9 +1241,9 @@ dependencies = [
 
 [[package]]
 name = "iai-callgrind"
-version = "0.14.2"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c9e864ad001cbbf35a64f7b574998823b8622bb483a25246fa1b0e2b3888686"
+checksum = "6c358f67cf086a3a890a72c390dadc371e9151129b1e9b75acc705d30a77197f"
 dependencies = [
  "bincode",
  "derive_more",
@@ -1253,9 +1253,9 @@ dependencies = [
 
 [[package]]
 name = "iai-callgrind-macros"
-version = "0.5.1"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9cee6c3bc32b63ff40e5e56190b1276d2bd0e0b319aa6f998864c27865d3b4e"
+checksum = "4d03775318d3f9f01b39ac6612b01464006dc397a654a89dd57df2fd34fb68c3"
 dependencies = [
  "derive_more",
  "proc-macro-error2",
@@ -1268,9 +1268,9 @@ dependencies = [
 
 [[package]]
 name = "iai-callgrind-runner"
-version = "0.14.2"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a82491521e6505b06a824274712a1307904e7cdfdf047735f7dfdb28b5f7a337"
+checksum = "6248b44a281f0c22ba57fe41b56f718a8c2cc682a99f270f667503819d758004"
 dependencies = [
  "serde",
 ]
@@ -3178,9 +3178,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter"
-version = "0.25.4"
+version = "0.25.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69aff09fea9a41fb061ae6b206cb87cac1b8db07df31be3ba271fbc26760f213"
+checksum = "6d7b8994f367f16e6fa14b5aebbcb350de5d7cbea82dc5b00ae997dd71680dd2"
 dependencies = [
  "cc",
  "regex",
@@ -3198,9 +3198,9 @@ checksum = "c4013970217383f67b18aef68f6fb2e8d409bc5755227092d32efb0422ba24b8"
 
 [[package]]
 name = "tree-sitter-solidity"
-version = "1.2.11"
+version = "1.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "316bcbf903cd09a781734f4127ef21341e810cf85f89b0b96fffab48d55fd672"
+checksum = "92f0b44ef36f0779873ec118f2cbad31cfc18d6ae7ba48ce75d5ce09870884d1"
 dependencies = [
  "cc",
  "tree-sitter-language",

@@ -47,11 +47,6 @@ fn parser_benches(c: &mut Criterion) {
         for &parser in PARSERS {
             let pname = parser.name();
 
-            // TODO: https://github.com/JoranHonig/tree-sitter-solidity/issues/73
-            if pname == "tree-sitter" && matches!(sname, "Seaport" | "Optimism") {
-                continue;
-            }
-
             let mk_id = |id: &str| {
                 if PARSERS.len() == 1 {
                     format!("{sname}/{id}")
