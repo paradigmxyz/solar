@@ -262,8 +262,9 @@ impl Session {
 
     /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
     /// enabled.
-    // NOTE: This only exists because on a `use_current_thread` thread pool `rayon::spawn` will
-    // never execute.
+    ///
+    /// NOTE: on a `use_current_thread` thread pool `rayon::spawn` will never execute without
+    /// yielding to rayon, so prefer using this method over `rayon::spawn`.
     #[inline]
     pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
         if self.is_sequential() {
@@ -275,6 +276,9 @@ impl Session {
 
     /// Takes two closures and potentially runs them in parallel. It returns a pair of the results
     /// from those closures.
+    ///
+    /// NOTE: on a `use_current_thread` thread pool `rayon::join` will never execute without
+    /// yielding to rayon, so prefer using this method over `rayon::join`.
     #[inline]
     pub fn join<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
     where
@@ -298,42 +302,70 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up the session globals in the current thread, then executes the given closure.
+    /// Sets up a thread pool and the session globals in the current thread, then executes the given
+    /// closure.
     ///
     /// The globals are stored in this [`Session`] itself, meaning multiple consecutive calls to
     /// [`enter`](Self::enter) will share the same globals.
-    ///
-    /// Note that this does not set up the rayon thread pool. This is only useful when parsing
-    /// sequentially, like manually using `Parser`.
     #[inline]
     #[track_caller]
-    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
-        self.globals.set(f)
+    pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+        self.enter_sequential(|| enter_thread_pool(self, f))
     }
 
-    /// Sets up a thread pool if parallelism is enabled, setting up the session globals on every
-    /// thread.
+    /// Sets up the session globals in the current thread, then executes the given closure.
+    ///
+    /// Note that this does not set up the rayon thread pool. This is only useful when parsing
+    /// sequentially, like manually using `Parser`. Otherwise, it might cause panics later on if a
+    /// thread pool is expected to be set up correctly.
     ///
     /// See [`enter`](Self::enter) for more details.
     #[inline]
     #[track_caller]
-    pub fn enter_parallel<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
-        self.enter(|| enter_thread_pool(self, f))
+    pub fn enter_sequential<R>(&self, f: impl FnOnce() -> R) -> R {
+        self.globals.set(f)
     }
+}
+
+#[unsafe(no_mangle)]
+fn enter_thread_pool_mono(
+    sess: &Session,
+    f: Box<dyn FnOnce() -> Box<dyn std::any::Any + Send> + Send>,
+) -> Box<dyn std::any::Any + Send> {
+    sess.enter(f)
 }
 
 /// Runs the given closure in a thread pool with the given number of threads.
 #[track_caller]
 fn enter_thread_pool<R: Send>(sess: &Session, f: impl FnOnce() -> R + Send) -> R {
-    // Avoid panicking below if this is a recursive call.
+    // Avoid panicking below if this is a reentrant call when threads == 1,
+    // and avoid creating a new thread pool otherwise.
     if rayon::current_thread_index().is_some() {
-        debug!(
-            "running in the current thread's rayon thread pool; \
-             this could cause panics later on if it was created without setting the session globals!"
-        );
+        reentrant_log();
         return f();
     }
 
+    match thread_pool_builder(sess).build_scoped(
+        // Initialize each new worker thread when created.
+        // Note that this is not called on the current thread, so `SessionGlobals::set` can't
+        // panic.
+        thread_wrapper(sess),
+        // Run `f` on the first thread in the thread pool.
+        move |pool| pool.install(f),
+    ) {
+        Ok(r) => r,
+        Err(e) => handle_thread_pool_build_error(sess, e),
+    }
+}
+
+fn reentrant_log() {
+    debug!(
+        "running in the current thread's rayon thread pool; \
+         this could cause panics later on if it was created without setting the session globals!"
+    );
+}
+
+fn thread_pool_builder(sess: &Session) -> rayon::ThreadPoolBuilder {
     let threads = sess.threads();
     debug_assert!(threads > 0, "number of threads must already be resolved");
     let mut builder =
@@ -343,26 +375,23 @@ fn enter_thread_pool<R: Send>(sess: &Session, f: impl FnOnce() -> R + Send) -> R
     if threads == 1 {
         builder = builder.use_current_thread();
     }
-    match builder.build_scoped(
-        // Initialize each new worker thread when created.
-        // Note that this is not called on the current thread, so `SessionGlobals::set` can't
-        // panic.
-        move |thread| sess.enter(|| thread.run()),
-        // Run `f` on the first thread in the thread pool.
-        move |pool| pool.install(f),
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            let mut err = sess.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
-            if threads > 1 {
-                if SINGLE_THREADED_TARGET {
-                    err = err.note("the current target might not support multi-threaded execution");
-                }
-                err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
-            }
-            err.emit();
+    builder
+}
+
+fn thread_wrapper(sess: &Session) -> impl Fn(rayon::ThreadBuilder) {
+    move |thread| sess.enter_sequential(|| thread.run())
+}
+
+#[cold]
+fn handle_thread_pool_build_error(sess: &Session, e: rayon::ThreadPoolBuildError) -> ! {
+    let mut err = sess.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
+    if sess.threads() > 1 {
+        if SINGLE_THREADED_TARGET {
+            err = err.note("the current target might not support multi-threaded execution");
         }
+        err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
     }
+    err.emit()
 }
 
 #[cfg(test)]
@@ -442,22 +471,22 @@ mod tests {
 
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.source_map().new_source_file(PathBuf::from("test"), "abcd").unwrap();
-        sess.enter_parallel(|| use_globals());
+        sess.enter(|| use_globals());
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             use_globals();
-            sess.enter_parallel(use_globals);
+            sess.enter(use_globals);
             use_globals();
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
 
-        sess.enter(|| {
+        sess.enter_sequential(|| {
             use_globals_no_sm();
-            sess.enter_parallel(|| {
+            sess.enter(|| {
                 use_globals();
-                sess.enter_parallel(|| use_globals());
+                sess.enter(|| use_globals());
                 use_globals();
             });
             use_globals_no_sm();
@@ -470,12 +499,12 @@ mod tests {
     fn enter_diags() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             sess.dcx.err("test1").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             sess.dcx.err("test2").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
