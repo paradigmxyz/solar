@@ -75,7 +75,11 @@ impl SessionGlobals {
         SESSION_GLOBALS.is_set()
     }
 
-    fn maybe_eq(&self, other: &Self) -> bool {
+    pub(crate) fn try_with<R>(f: impl FnOnce(Option<&Self>) -> R) -> R {
+        if SESSION_GLOBALS.is_set() { SESSION_GLOBALS.with(|g| f(Some(g))) } else { f(None) }
+    }
+
+    pub(crate) fn maybe_eq(&self, other: &Self) -> bool {
         // Extra check for test usage of `enter`:
         // we allow replacing empty source maps with eachother.
         std::ptr::eq(self, other) || (self.is_default() && other.is_default())
