@@ -140,7 +140,7 @@ fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> 
     sess.validate()?;
 
     let compiler = Compiler { sess };
-    compiler.sess.enter_parallel(|| {
+    compiler.sess.enter(|| {
         let mut r = f(&compiler);
         r = compiler.finish_diagnostics().and(r);
         r
