@@ -11,9 +11,13 @@ extern crate tracing;
 
 use crate::{ast_lowering::SymbolResolver, ty::GlobalCtxt};
 use rayon::prelude::*;
-use solar_data_structures::{OnDrop, trustme};
+use solar_data_structures::trustme;
 use solar_interface::{Result, Session, config::CompilerStage};
-use std::{marker::PhantomPinned, mem::MaybeUninit, pin::Pin};
+use std::{
+    marker::PhantomPinned,
+    mem::{ManuallyDrop, MaybeUninit},
+    pin::Pin,
+};
 use thread_local::ThreadLocal;
 use ty::Gcx;
 
@@ -27,7 +31,7 @@ mod ast_lowering;
 mod ast_passes;
 
 mod parse;
-pub use parse::{ParsedSource, ParsedSources, ParsingContext};
+pub use parse::{ParsingContext, Source, Sources};
 
 pub mod builtins;
 pub mod eval;
@@ -45,11 +49,11 @@ pub mod stats;
 
 mod span_visitor;
 
-pub struct Compiler(Pin<Box<CompilerInner>>);
+pub struct Compiler(ManuallyDrop<Pin<Box<CompilerInner<'static>>>>);
 
-struct CompilerInner {
+struct CompilerInner<'a> {
     sess: Session,
-    gcx: GlobalCtxt<'static>,
+    gcx: GlobalCtxt<'a>,
     ast_arenas: ThreadLocal<ast::Arena>,
     hir_arena: ThreadLocal<hir::Arena>,
     /// Lifetimes in this struct are self-referential.
@@ -66,7 +70,7 @@ macro_rules! project_ptr {
 impl Compiler {
     /// Creates a new compiler.
     pub fn new(sess: Session) -> Self {
-        let mut inner = Box::pin(MaybeUninit::<CompilerInner>::uninit());
+        let mut inner = Box::pin(MaybeUninit::<CompilerInner<'_>>::uninit());
 
         // SAFETY: Valid pointer, `init` initializes all fields.
         unsafe {
@@ -75,19 +79,30 @@ impl Compiler {
             CompilerInner::init(inner, sess);
         }
 
-        // SAFETY: `inner` has been initialized.
-        Self(unsafe { std::mem::transmute(inner) })
+        // SAFETY: `inner` has been initialized, MaybeUninit<T> is transmuted to T.
+        Self(ManuallyDrop::new(unsafe { std::mem::transmute(inner) }))
     }
 
-    pub fn enter<T: Send>(&self, f: impl FnOnce(CompilerRef<'_>) -> T + Send) -> T {
-        self.0.gcx().sess.enter_parallel(|| f(CompilerRef { inner: &self.0 }))
+    pub fn enter<T: Send>(&mut self, f: impl FnOnce(CompilerRef<'_>) -> T + Send) -> T {
+        let sess = unsafe { &*std::ptr::from_ref(&self.0.sess) };
+        sess.enter_parallel(|| f(&mut self.as_ref()))
+    }
+
+    fn as_ref(&mut self) -> CompilerRef<'_> {
+        // SAFETY: CompilerRef does not invalidate the Pin.
+        let inner = unsafe { Pin::get_unchecked_mut(Pin::as_mut(&mut self.0)) };
+        let inner = unsafe {
+            std::mem::transmute::<&mut CompilerInner<'static>, &mut CompilerInner<'_>>(inner)
+        };
+        CompilerRef2::new(inner)
     }
 }
 
-impl CompilerInner {
+impl CompilerInner<'_> {
     #[inline]
+    #[allow(elided_lifetimes_in_paths)]
     unsafe fn init(this: *mut Self, sess: Session) {
-        type C = CompilerInner;
+        use CompilerInner as C;
 
         unsafe {
             let sess_p = project_ptr!(this->sess: C=>Session);
@@ -107,86 +122,100 @@ impl CompilerInner {
             ));
         }
     }
+}
 
-    fn gcx(&self) -> &GlobalCtxt<'_> {
-        unsafe { &*std::ptr::from_ref(&self.gcx).cast::<_>() }
+impl Drop for CompilerInner<'_> {
+    fn drop(&mut self) {
+        log_ast_arenas_stats(&mut self.ast_arenas);
+        debug!(hir_allocated = %fmt_bytes(self.hir_arena.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
     }
 }
 
-pub struct CompilerRef<'c> {
-    inner: &'c CompilerInner,
+impl Drop for Compiler {
+    fn drop(&mut self) {
+        let _guard = debug_span!("Compiler::drop").entered();
+        unsafe { std::mem::ManuallyDrop::drop(&mut self.0) };
+    }
 }
 
-impl<'c> CompilerRef<'c> {
+pub type CompilerRef<'c> = &'c mut CompilerRef2<'c>;
+
+#[repr(transparent)]
+pub struct CompilerRef2<'c> {
+    pub(crate) inner: CompilerInner<'c>,
+}
+
+impl<'c> CompilerRef2<'c> {
+    fn new(inner: &'c mut CompilerInner<'c>) -> &'c mut Self {
+        unsafe { std::mem::transmute(inner) }
+    }
+
     /// Returns a reference to the global context.
     #[inline]
-    pub fn gcx(&self) -> &GlobalCtxt<'_> {
-        self.inner.gcx()
+    pub fn gcx(&self) -> Gcx<'c> {
+        Gcx::new(unsafe { trustme::decouple_lt(&self.inner.gcx) })
+    }
+
+    #[inline]
+    pub(crate) fn gcx_mut(&mut self) -> &mut GlobalCtxt<'c> {
+        &mut self.inner.gcx
+    }
+
+    /// Drops the ASTs and AST arenas in a separate thread.
+    pub fn drop_asts(&mut self) {
+        let sources = std::mem::take(&mut self.inner.gcx.sources);
+        let sources = unsafe { std::mem::transmute::<Sources<'_>, Sources<'static>>(sources) };
+        let mut ast_arenas = std::mem::take(&mut self.inner.ast_arenas);
+        self.inner.gcx.sess.spawn(move || {
+            let _guard = debug_span!("drop_asts").entered();
+            log_ast_arenas_stats(&mut ast_arenas);
+            drop(sources);
+            drop(ast_arenas);
+        });
+    }
+
+    /// Returns a mutable reference to the sources.
+    pub fn sources(&mut self) -> &mut Sources<'c> {
+        &mut self.gcx_mut().sources
+    }
+
+    pub fn parse(&'c mut self) -> ParsingContext<'c> {
+        ParsingContext::new(self)
+    }
+
+    pub fn lower_to_hir(&'c mut self) -> Result<()> {
+        parse_and_lower(self)
+    }
+
+    pub fn analysis(&'c mut self) -> Result<()> {
+        analysis(self.gcx())
     }
 }
 
-/// Thin wrapper around the global context to ensure it is accessed and dropped correctly.
-pub struct GcxWrapper<'gcx>(std::mem::ManuallyDrop<ty::GlobalCtxt<'gcx>>);
-
-impl<'gcx> GcxWrapper<'gcx> {
-    fn new(gcx: ty::GlobalCtxt<'gcx>) -> Self {
-        Self(std::mem::ManuallyDrop::new(gcx))
-    }
-
-    /// Get a reference to the global context.
-    pub fn get(&self) -> Gcx<'gcx> {
-        Gcx::new(unsafe { trustme::decouple_lt(&self.0) })
-    }
-}
-
-impl Drop for GcxWrapper<'_> {
-    fn drop(&mut self) {
-        debug_span!("drop_gcx").in_scope(|| unsafe { std::mem::ManuallyDrop::drop(&mut self.0) });
-    }
-}
-
-/// Parses and semantically analyzes all the loaded sources, recursing into imports.
-pub(crate) fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        let _guard = debug_span!("dropping_hir_arena").entered();
-        debug!(hir_allocated = %fmt_bytes(hir_arena.get_or_default().allocated_bytes()));
-        drop(hir_arena);
-    });
-    if let Some(gcx) = parse_and_lower(pcx, &hir_arena)? {
-        analysis(gcx.get())?;
-    }
-    Ok(())
+fn log_ast_arenas_stats(arenas: &mut ThreadLocal<ast::Arena>) {
+    debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
 }
 
 /// Parses and lowers the entire program to HIR.
 /// Returns the global context if successful and if lowering was requested (default).
-pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
-    pcx: ParsingContext<'sess>,
-    hir_arena: &'hir ThreadLocal<hir::Arena>,
-) -> Result<Option<GcxWrapper<'hir>>> {
-    let sess = pcx.sess;
+pub(crate) fn parse_and_lower(compiler: CompilerRef<'_>) -> Result<()> {
+    let gcx = compiler.gcx();
+    let sess = gcx.sess;
 
-    if pcx.sources.is_empty() {
+    if gcx.sources.is_empty() {
         let msg = "no files found";
         let note = "if you wish to use the standard input, please specify `-` explicitly";
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
-    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        let _guard = debug_span!("dropping_ast_arenas").entered();
-        debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
-        drop(arenas);
-    });
-    let mut sources = pcx.parse(&ast_arenas);
-
     if let Some(dump) = &sess.opts.unstable.dump
         && dump.kind.is_ast()
     {
-        dump_ast(sess, &sources, dump.paths.as_deref())?;
+        dump_ast(sess, &gcx.sources, dump.paths.as_deref())?;
     }
 
     if sess.opts.unstable.ast_stats {
-        for source in sources.asts() {
+        for source in gcx.sources.asts() {
             stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
@@ -194,7 +223,7 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
     if sess.opts.unstable.span_visitor {
         use crate::span_visitor::SpanVisitor;
         use ast::visit::Visit;
-        for source in sources.asts() {
+        for source in gcx.sources.asts() {
             let mut visitor = SpanVisitor::new(sess);
             let _ = visitor.visit_source_unit(source);
             debug!(spans_visited = visitor.count(), "span visitor completed");
@@ -202,43 +231,31 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
     }
 
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(None);
+        return Ok(());
     }
 
-    sources.topo_sort();
+    compiler.inner.gcx.sources.topo_sort();
 
-    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
+    lower(&mut compiler.inner.gcx, compiler.inner.hir_arena.get_or_default())?;
 
-    // Drop the ASTs and AST arenas in a separate thread.
-    sess.spawn({
-        // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
-        // even though both are moved in the closure.
-        let sources =
-            unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
-        move || {
-            debug_span!("drop_asts").in_scope(|| drop(sources));
-            drop(ast_arenas);
-        }
-    });
+    compiler.drop_asts();
 
-    Ok(Some(GcxWrapper::new(ty::GlobalCtxt::new(sess, hir_arena, hir, symbol_resolver))))
+    Ok(())
 }
 
 /// Lowers the parsed ASTs into the HIR.
-fn lower<'sess, 'hir>(
-    sess: &'sess Session,
-    sources: &ParsedSources<'_>,
-    arena: &'hir hir::Arena,
-) -> Result<(hir::Hir<'hir>, ast_lowering::SymbolResolver<'sess>)> {
+fn lower<'gcx>(gcx: &mut GlobalCtxt<'gcx>, hir_arena: &'gcx hir::Arena) -> Result<()> {
     debug_span!("all_ast_passes").in_scope(|| {
-        sources.par_asts().for_each(|ast| {
-            ast_passes::run(sess, ast);
+        gcx.sources.par_asts().for_each(|ast| {
+            ast_passes::run(gcx.sess, ast);
         });
     });
 
-    sess.dcx.has_errors()?;
+    gcx.sess.dcx.has_errors()?;
 
-    Ok(ast_lowering::lower(sess, sources, arena))
+    ast_lowering::lower(gcx, hir_arena);
+
+    Ok(())
 }
 
 /// Performs the analysis phase.
@@ -274,7 +291,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
     Ok(())
 }
 
-fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
+fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
         for path in paths {
             if let Some(source) = sources.iter().find(|&s| match_file_name(&s.file.name, path)) {

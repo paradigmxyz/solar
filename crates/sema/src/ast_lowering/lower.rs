@@ -1,5 +1,5 @@
 use crate::{
-    ParsedSource,
+    Source,
     hir::{self, ContractId, SourceId},
 };
 use solar_ast as ast;
@@ -9,7 +9,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn lower_sources(
         &mut self,
-        parsed_sources: &'ast IndexVec<hir::SourceId, ParsedSource<'ast>>,
+        parsed_sources: &'ast IndexVec<hir::SourceId, Source<'ast>>,
     ) {
         let hir_sources = parsed_sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {

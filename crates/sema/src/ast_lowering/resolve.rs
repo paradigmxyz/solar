@@ -1,4 +1,4 @@
-use crate::{ParsedSources, builtins::Builtin, hir};
+use crate::{Sources, builtins::Builtin, hir};
 use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
@@ -37,7 +37,7 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn perform_imports(&mut self, sources: &ParsedSources<'_>) {
+    pub(super) fn perform_imports(&mut self, sources: &Sources<'_>) {
         for (source_id, source) in self.hir.sources_enumerated() {
             for &(item_id, import_id) in source.imports {
                 let import_item = &sources[source_id].ast.as_ref().unwrap().items[item_id];

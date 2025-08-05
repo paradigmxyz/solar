@@ -1,5 +1,5 @@
 use crate::{
-    ParsedSources,
+    Sources,
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir},
@@ -141,7 +141,7 @@ fn _gcx_traits() {
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
     pub sess: &'gcx Session,
-    pub sources: ParsedSources<'gcx>,
+    pub sources: Sources<'gcx>,
     pub(crate) symbol_resolver: SymbolResolver<'gcx>,
     pub hir: Hir<'gcx>,
 
@@ -161,7 +161,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
         let interner = Interner::new(arena);
         Self {
             sess,
-            sources: ParsedSources::new(),
+            sources: Sources::new(),
             symbol_resolver,
             hir,
             types: CommonTypes::new(&interner),
