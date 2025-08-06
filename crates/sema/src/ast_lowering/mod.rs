@@ -6,7 +6,6 @@ use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashMap,
-    trustme,
 };
 use solar_interface::{Session, diagnostics::DiagCtxt};
 
@@ -18,12 +17,11 @@ pub(crate) mod resolve;
 pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower<'gcx>(gcx: &mut GlobalCtxt<'gcx>, hir_arena: &'gcx hir::Arena) {
-    let mut lcx = LoweringContext::new(gcx.sess, hir_arena, &mut gcx.hir);
+pub(crate) fn lower(gcx: &mut GlobalCtxt<'_>) {
+    let mut lcx = LoweringContext::new(gcx.sess, gcx.hir_arena.get_or_default());
     let sources = &gcx.sources;
 
     // Lower AST to HIR.
-    let sources = unsafe { trustme::decouple_lt(sources) };
     lcx.lower_sources(sources);
 
     // Resolve source scopes.
@@ -45,13 +43,13 @@ pub(crate) fn lower<'gcx>(gcx: &mut GlobalCtxt<'gcx>, hir_arena: &'gcx hir::Aren
     // Clean up.
     lcx.shrink_to_fit();
 
-    lcx.finish()
+    (gcx.hir, gcx.symbol_resolver) = lcx.finish();
 }
 
 struct LoweringContext<'sess, 'ast, 'hir> {
     sess: &'sess Session,
     arena: &'hir hir::Arena,
-    hir: &'hir mut Hir<'hir>,
+    hir: Hir<'hir>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
     hir_to_ast: FxHashMap<hir::ItemId, &'ast ast::Item<'ast>>,
 
@@ -64,11 +62,11 @@ struct LoweringContext<'sess, 'ast, 'hir> {
 }
 
 impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
-    fn new(sess: &'sess Session, arena: &'hir hir::Arena, hir: &'hir mut Hir<'hir>) -> Self {
+    fn new(sess: &'sess Session, arena: &'hir hir::Arena) -> Self {
         Self {
             sess,
             arena,
-            hir,
+            hir: Hir::new(),
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
@@ -88,8 +86,12 @@ impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
     }
 
     #[instrument(name = "drop_lcx", level = "debug", skip_all)]
-    fn finish(self) {
-        drop(self);
+    fn finish(self) -> (Hir<'hir>, SymbolResolver<'sess>) {
+        // NOTE: Explicit scope to drop `self` before the span.
+        {
+            let this = self;
+            (this.hir, this.resolver)
+        }
     }
 }
 

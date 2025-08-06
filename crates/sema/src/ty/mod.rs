@@ -1,5 +1,5 @@
 use crate::{
-    Sources,
+    Sources, ast,
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir},
@@ -12,6 +12,7 @@ use solar_data_structures::{
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
+    trustme,
 };
 use solar_interface::{
     Ident, Session, Span,
@@ -147,24 +148,28 @@ pub struct GlobalCtxt<'gcx> {
 
     pub types: CommonTypes<'gcx>,
 
+    ast_arenas: ThreadLocal<ast::Arena>,
+    pub(crate) hir_arena: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {
-    pub(crate) fn new(
-        sess: &'gcx Session,
-        arena: &'gcx ThreadLocal<hir::Arena>,
-        hir: Hir<'gcx>,
-        symbol_resolver: SymbolResolver<'gcx>,
-    ) -> Self {
-        let interner = Interner::new(arena);
+    pub(crate) fn new(sess: &'gcx Session) -> Self {
+        let interner = Interner::new();
+        let hir_arena = ThreadLocal::<hir::Arena>::new();
         Self {
             sess,
             sources: Sources::new(),
-            symbol_resolver,
-            hir,
-            types: CommonTypes::new(&interner),
+            symbol_resolver: SymbolResolver::new(&sess.dcx),
+            hir: Hir::new(),
+            // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
+            types: CommonTypes::new(
+                &interner,
+                &unsafe { trustme::decouple_lt(&hir_arena) }.get_or_default().bump,
+            ),
+            ast_arenas: ThreadLocal::new(),
+            hir_arena,
             interner,
             cache: Cache::default(),
         }
@@ -182,7 +187,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn arena(self) -> &'gcx hir::Arena {
-        self.interner.arena.get_or_default()
+        self.hir_arena.get_or_default()
     }
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
@@ -194,15 +199,15 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty(self, kind: TyKind<'gcx>) -> Ty<'gcx> {
-        self.interner.intern_ty_with_flags(kind, |kind| TyFlags::calculate(self, kind))
+        self.interner.intern_ty_with_flags(self.bump(), kind, |kind| TyFlags::calculate(self, kind))
     }
 
     pub fn mk_tys(self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_tys(tys)
+        self.interner.intern_tys(self.bump(), tys)
     }
 
     pub fn mk_ty_iter(self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_ty_iter(tys)
+        self.interner.intern_ty_iter(self.bump(), tys)
     }
 
     fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
@@ -221,7 +226,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
-        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(ptr)))
+        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(self.bump(), ptr)))
     }
 
     pub fn mk_ty_fn(
@@ -412,12 +417,14 @@ impl<'gcx> Gcx<'gcx> {
                     None => TyKind::DynArray(ty),
                 }
             }
-            hir::TypeKind::Function(f) => TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
-                parameters: self.mk_item_tys(f.parameters),
-                returns: self.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
-            })),
+            hir::TypeKind::Function(f) => {
+                return self.mk_ty_fn_ptr(TyFnPtr {
+                    parameters: self.mk_item_tys(f.parameters),
+                    returns: self.mk_item_tys(f.returns),
+                    state_mutability: f.state_mutability,
+                    visibility: f.visibility,
+                });
+            }
             hir::TypeKind::Mapping(mapping) => {
                 let key = self.type_of_hir_ty(&mapping.key);
                 let value = self.type_of_hir_ty(&mapping.value);
@@ -593,7 +600,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(TyFnPtr {
+            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
                 parameters: gcx.mk_item_tys(f.parameters),
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,

@@ -9,7 +9,7 @@
 #[macro_use]
 extern crate tracing;
 
-use crate::{ast_lowering::SymbolResolver, ty::GlobalCtxt};
+use crate::ty::GlobalCtxt;
 use rayon::prelude::*;
 use solar_data_structures::trustme;
 use solar_interface::{Result, Session, config::CompilerStage};
@@ -114,12 +114,7 @@ impl CompilerInner<'_> {
             hir_arena_p.write(ThreadLocal::new());
 
             let sess = &*sess_p;
-            project_ptr!(this->gcx: C=>GlobalCtxt<'static>).write(GlobalCtxt::new(
-                sess,
-                &*hir_arena_p,
-                Hir::new(),
-                SymbolResolver::new(&sess.dcx),
-            ));
+            project_ptr!(this->gcx: C=>GlobalCtxt<'static>).write(GlobalCtxt::new(sess));
         }
     }
 }
@@ -236,7 +231,7 @@ pub(crate) fn parse_and_lower(compiler: CompilerRef<'_>) -> Result<()> {
 
     compiler.inner.gcx.sources.topo_sort();
 
-    lower(&mut compiler.inner.gcx, compiler.inner.hir_arena.get_or_default())?;
+    lower(compiler.gcx_mut())?;
 
     compiler.drop_asts();
 
@@ -244,7 +239,7 @@ pub(crate) fn parse_and_lower(compiler: CompilerRef<'_>) -> Result<()> {
 }
 
 /// Lowers the parsed ASTs into the HIR.
-fn lower<'gcx>(gcx: &mut GlobalCtxt<'gcx>, hir_arena: &'gcx hir::Arena) -> Result<()> {
+fn lower<'gcx>(gcx: &'gcx mut GlobalCtxt<'gcx>) -> Result<()> {
     debug_span!("all_ast_passes").in_scope(|| {
         gcx.sources.par_asts().for_each(|ast| {
             ast_passes::run(gcx.sess, ast);
@@ -253,7 +248,7 @@ fn lower<'gcx>(gcx: &mut GlobalCtxt<'gcx>, hir_arena: &'gcx hir::Arena) -> Resul
 
     gcx.sess.dcx.has_errors()?;
 
-    ast_lowering::lower(gcx, hir_arena);
+    ast_lowering::lower(gcx);
 
     Ok(())
 }
