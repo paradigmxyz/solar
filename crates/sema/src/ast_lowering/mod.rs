@@ -1,6 +1,7 @@
 use crate::{
     hir::{self, Hir},
-    ty::GlobalCtxt,
+    parse::Sources,
+    ty::{Gcx, GlobalCtxt},
 };
 use solar_ast as ast;
 use solar_data_structures::{
@@ -18,15 +19,14 @@ pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
 pub(crate) fn lower(gcx: &mut GlobalCtxt<'_>) {
-    let mut lcx = LoweringContext::new(gcx.sess, gcx.hir_arena.get_or_default());
-    let sources = &gcx.sources;
+    let mut lcx = LoweringContext::new(gcx);
 
     // Lower AST to HIR.
-    lcx.lower_sources(sources);
+    lcx.lower_sources();
 
     // Resolve source scopes.
     lcx.collect_exports();
-    lcx.perform_imports(sources);
+    lcx.perform_imports();
 
     // Resolve contract scopes.
     lcx.collect_contract_declarations();
@@ -46,37 +46,40 @@ pub(crate) fn lower(gcx: &mut GlobalCtxt<'_>) {
     (gcx.hir, gcx.symbol_resolver) = lcx.finish();
 }
 
-struct LoweringContext<'sess, 'ast, 'hir> {
-    sess: &'sess Session,
-    arena: &'hir hir::Arena,
-    hir: Hir<'hir>,
+struct LoweringContext<'gcx> {
+    sess: &'gcx Session,
+    arena: &'gcx hir::Arena,
+    hir: Hir<'gcx>,
+
+    sources: &'gcx Sources<'gcx>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
-    hir_to_ast: FxHashMap<hir::ItemId, &'ast ast::Item<'ast>>,
+    hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
     /// Current contract being lowered.
     current_contract_id: Option<hir::ContractId>,
 
-    resolver: SymbolResolver<'sess>,
+    resolver: SymbolResolver<'gcx>,
 }
 
-impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
-    fn new(sess: &'sess Session, arena: &'hir hir::Arena) -> Self {
+impl<'gcx> LoweringContext<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
-            sess,
-            arena,
+            sess: gcx.sess,
+            arena: gcx.hir_arena.get_or_default(),
+            sources: &gcx.sources,
             hir: Hir::new(),
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
-            resolver: SymbolResolver::new(&sess.dcx),
+            resolver: SymbolResolver::new(&gcx.sess.dcx),
         }
     }
 
     /// Returns the diagnostic context.
     #[inline]
-    fn dcx(&self) -> &'sess DiagCtxt {
+    fn dcx(&self) -> &'gcx DiagCtxt {
         &self.sess.dcx
     }
 
@@ -86,7 +89,7 @@ impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
     }
 
     #[instrument(name = "drop_lcx", level = "debug", skip_all)]
-    fn finish(self) -> (Hir<'hir>, SymbolResolver<'sess>) {
+    fn finish(self) -> (Hir<'gcx>, SymbolResolver<'gcx>) {
         // NOTE: Explicit scope to drop `self` before the span.
         {
             let this = self;
