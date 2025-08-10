@@ -14,7 +14,7 @@ fn main() -> Result<(), EmittedDiagnostics> {
 
     // Enter the context and parse the file.
     // Counter will be parsed, even if not explicitly provided, since it is a dependency.
-    let _ = sess.enter_parallel(|| -> solar::interface::Result<()> {
+    let _ = sess.enter(|| -> solar::interface::Result<()> {
         // Set up the parser.
         let hir_arena = ThreadLocal::new();
         let mut parsing_context = ParsingContext::new(&sess);
