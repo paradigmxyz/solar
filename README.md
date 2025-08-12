@@ -123,7 +123,7 @@ You can find a more detailed list in the [pinned GitHub issue](https://github.co
   - [x] Lexing
   - [x] Parsing
   - [ ] Semantic analysis
-    - [x] Symbol resolution 
+    - [x] Symbol resolution
     - [ ] Type checker
     - [ ] Static analysis
 - [ ] Middle-end

@@ -12,6 +12,10 @@ repository.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[package.metadata.binstall]
+pkg-url = "{repo}/releases/download/v{version}/solar-{target}{archive-suffix}"
+bin-dir = "solar-{target}/{bin}{binary-ext}"
+
 [lints]
 workspace = true
 
