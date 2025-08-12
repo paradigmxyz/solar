@@ -133,6 +133,47 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+/// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
+///
+/// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
+/// is too annoying/impossible to deal with.
+/// Since it's only used internally (`pub(crate)`), this is fine.
+#[repr(transparent)]
+pub(crate) struct GcxMut<'gcx>(*mut GlobalCtxt<'gcx>);
+
+impl<'gcx> GcxMut<'gcx> {
+    #[inline(always)]
+    pub(crate) fn new(gcx: &mut GlobalCtxt<'gcx>) -> Self {
+        Self(gcx)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get(&self) -> Gcx<'gcx> {
+        unsafe { Gcx(&*self.0) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut(&mut self) -> &'gcx mut GlobalCtxt<'gcx> {
+        unsafe { &mut *self.0 }
+    }
+}
+
+impl<'gcx> std::ops::Deref for GcxMut<'gcx> {
+    type Target = &'gcx mut GlobalCtxt<'gcx>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<'gcx> std::ops::DerefMut for GcxMut<'gcx> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
 #[cfg(test)]
 fn _gcx_traits() {
     fn assert_send_sync<T: Send + Sync>() {}
@@ -148,8 +189,8 @@ pub struct GlobalCtxt<'gcx> {
 
     pub types: CommonTypes<'gcx>,
 
-    ast_arenas: ThreadLocal<ast::Arena>,
-    pub(crate) hir_arena: ThreadLocal<hir::Arena>,
+    pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
+    pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
 }
@@ -157,7 +198,7 @@ pub struct GlobalCtxt<'gcx> {
 impl<'gcx> GlobalCtxt<'gcx> {
     pub(crate) fn new(sess: &'gcx Session) -> Self {
         let interner = Interner::new();
-        let hir_arena = ThreadLocal::<hir::Arena>::new();
+        let hir_arenas = ThreadLocal::<hir::Arena>::new();
         Self {
             sess,
             sources: Sources::new(),
@@ -166,10 +207,10 @@ impl<'gcx> GlobalCtxt<'gcx> {
             // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
             types: CommonTypes::new(
                 &interner,
-                &unsafe { trustme::decouple_lt(&hir_arena) }.get_or_default().bump,
+                &unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump,
             ),
             ast_arenas: ThreadLocal::new(),
-            hir_arena,
+            hir_arenas,
             interner,
             cache: Cache::default(),
         }
@@ -187,7 +228,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn arena(self) -> &'gcx hir::Arena {
-        self.hir_arena.get_or_default()
+        self.hir_arenas.get_or_default()
     }
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {

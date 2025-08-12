@@ -1,4 +1,4 @@
-use crate::{CompilerRef, hir::SourceId};
+use crate::{hir::SourceId, ty::GcxMut};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -15,6 +15,7 @@ use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
+#[must_use]
 pub struct ParsingContext<'gcx> {
     /// The compiler session.
     pub sess: &'gcx Session,
@@ -30,13 +31,14 @@ pub struct ParsingContext<'gcx> {
 
 impl<'gcx> ParsingContext<'gcx> {
     /// Creates a new parser context.
-    pub(crate) fn new(compiler: CompilerRef<'gcx>) -> Self {
-        let sess = compiler.inner.gcx.sess;
+    pub(crate) fn new(mut gcx: GcxMut<'gcx>) -> Self {
+        let gcx = gcx.get_mut();
+        let sess = gcx.sess;
         Self {
             sess,
             file_resolver: FileResolver::new(sess.source_map()),
-            sources: &mut compiler.inner.gcx.sources,
-            arenas: &compiler.inner.ast_arenas,
+            sources: &mut gcx.sources,
+            arenas: &gcx.ast_arenas,
             resolve_imports: true,
         }
     }

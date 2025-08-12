@@ -1,7 +1,7 @@
 use crate::{
     hir::{self, Hir},
     parse::Sources,
-    ty::{Gcx, GlobalCtxt},
+    ty::{Gcx, GcxMut},
 };
 use solar_ast as ast;
 use solar_data_structures::{
@@ -18,8 +18,8 @@ pub(crate) mod resolve;
 pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower(gcx: &mut GlobalCtxt<'_>) {
-    let mut lcx = LoweringContext::new(gcx);
+pub(crate) fn lower(mut gcx: GcxMut<'_>) {
+    let mut lcx = LoweringContext::new(gcx.get());
 
     // Lower AST to HIR.
     lcx.lower_sources();
@@ -43,6 +43,7 @@ pub(crate) fn lower(gcx: &mut GlobalCtxt<'_>) {
     // Clean up.
     lcx.shrink_to_fit();
 
+    let gcx = gcx.get_mut();
     (gcx.hir, gcx.symbol_resolver) = lcx.finish();
 }
 
@@ -67,7 +68,7 @@ impl<'gcx> LoweringContext<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
             sess: gcx.sess,
-            arena: gcx.hir_arena.get_or_default(),
+            arena: gcx.arena(),
             sources: &gcx.sources,
             hir: Hir::new(),
             current_source_id: hir::SourceId::MAX,
