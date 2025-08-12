@@ -73,6 +73,12 @@ and can be installed with the following commands:
     powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
     ```
 
+You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
+
+```bash
+cargo binstall solar-compiler
+```
+
 You can also build Solar from source:
 - From crates.io:
     ```bash
