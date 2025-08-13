@@ -28,8 +28,11 @@ pub use collect::CollectAndApply;
 mod never;
 pub use never::Never;
 
-mod on_drop;
-pub use on_drop::{OnDrop, defer};
+mod drop_guard;
+#[doc(hidden)]
+#[allow(deprecated)]
+pub use drop_guard::OnDrop;
+pub use drop_guard::{DropGuard, defer};
 
 mod interned;
 pub use interned::Interned;
