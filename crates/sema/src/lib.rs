@@ -138,7 +138,7 @@ impl Drop for CompilerInner<'_> {
 impl Drop for Compiler {
     fn drop(&mut self) {
         let _guard = debug_span!("Compiler::drop").entered();
-        unsafe { std::mem::ManuallyDrop::drop(&mut self.0) };
+        unsafe { ManuallyDrop::drop(&mut self.0) };
     }
 }
 
