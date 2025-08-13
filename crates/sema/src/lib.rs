@@ -10,7 +10,7 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use solar_data_structures::{OnDrop, trustme};
+use solar_data_structures::{DropGuard, trustme};
 use solar_interface::{Result, Session, config::CompilerStage};
 use thread_local::ThreadLocal;
 use ty::Gcx;
@@ -65,7 +65,7 @@ impl Drop for GcxWrapper<'_> {
 
 /// Parses and semantically analyzes all the loaded sources, recursing into imports.
 pub(crate) fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
+    let hir_arena = DropGuard::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
         let _guard = debug_span!("dropping_hir_arena").entered();
         debug!(hir_allocated = %fmt_bytes(hir_arena.get_or_default().allocated_bytes()));
         drop(hir_arena);
@@ -90,7 +90,7 @@ pub(crate) fn parse_and_lower<'hir, 'sess: 'hir>(
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
-    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
+    let ast_arenas = DropGuard::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
         let _guard = debug_span!("dropping_ast_arenas").entered();
         debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
         drop(arenas);
