@@ -74,10 +74,14 @@ and can be installed with the following commands:
     ```
 
 You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
-
-```bash
-cargo binstall solar-compiler
-```
+- Latest version:
+    ```bash
+    cargo binstall solar-compiler
+    ```
+- For a specific version:
+    ```bash
+    cargo binstall solar-compiler@0.1.0
+    ```
 
 You can also build Solar from source:
 - From crates.io:
