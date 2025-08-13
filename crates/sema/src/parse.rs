@@ -27,6 +27,8 @@ pub struct ParsingContext<'gcx> {
     pub(crate) arenas: &'gcx ThreadLocal<ast::Arena>,
     /// Whether to recursively resolve and parse imports.
     resolve_imports: bool,
+    /// Whether the context has been parsed.
+    parsed: bool,
 }
 
 impl<'gcx> ParsingContext<'gcx> {
@@ -40,6 +42,7 @@ impl<'gcx> ParsingContext<'gcx> {
             sources: &mut gcx.sources,
             arenas: &gcx.ast_arenas,
             resolve_imports: true,
+            parsed: false,
         }
     }
 
@@ -94,7 +97,8 @@ impl<'gcx> ParsingContext<'gcx> {
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse(self) {
+    pub fn parse(mut self) {
+        self.parsed = true;
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
             let arenas = self.arenas;
@@ -230,6 +234,15 @@ impl<'gcx> ParsingContext<'gcx> {
                     .ok()
                     .map(|file| (id, file))
             })
+    }
+}
+
+impl Drop for ParsingContext<'_> {
+    fn drop(&mut self) {
+        if self.parsed {
+            return;
+        }
+        self.sess.dcx.bug("must call `ParsingContext::parse`").emit();
     }
 }
 

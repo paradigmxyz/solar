@@ -12,7 +12,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
 };
 use solar_sema::CompilerRef;
-use std::sync::Arc;
+use std::{ops::ControlFlow, sync::Arc};
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
@@ -48,11 +48,11 @@ where
     Ok(opts)
 }
 
-pub fn run_compiler_args(opts: Opts) -> Result<()> {
+pub fn run_compiler_args(opts: Opts) -> Result {
     run_compiler_with(opts, run_default)
 }
 
-fn run_default(compiler: &mut CompilerRef<'_>) -> Result<()> {
+fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     let sess = compiler.gcx().sess;
     if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
         return Err(sess.dcx.err("Yul is not supported yet").emit());
@@ -87,8 +87,9 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result<()> {
         pcx.load_file(arg.as_ref())?;
     }
 
-    compiler.lower_asts()?;
-    compiler.analysis()?;
+    pcx.parse();
+    let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
 
     Ok(())
 }
@@ -138,6 +139,6 @@ fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result 
     })
 }
 
-fn finish_diagnostics(sess: &Session) -> Result<()> {
+fn finish_diagnostics(sess: &Session) -> Result {
     sess.dcx.print_error_count()
 }

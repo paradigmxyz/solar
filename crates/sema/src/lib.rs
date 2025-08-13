@@ -16,6 +16,7 @@ use solar_interface::{Result, Session, config::CompilerStage};
 use std::{
     marker::PhantomPinned,
     mem::{ManuallyDrop, MaybeUninit},
+    ops::ControlFlow,
     pin::Pin,
 };
 use thread_local::ThreadLocal;
@@ -192,11 +193,11 @@ impl<'c> CompilerRef<'c> {
         ParsingContext::new(self.gcx_mut())
     }
 
-    pub fn lower_asts(&mut self) -> Result<()> {
+    pub fn lower_asts(&mut self) -> Result<ControlFlow<()>> {
         lower(self)
     }
 
-    pub fn analysis(&self) -> Result<()> {
+    pub fn analysis(&self) -> Result<ControlFlow<()>> {
         analysis(self.gcx())
     }
 }
@@ -210,7 +211,7 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<ast::Arena>) {
 
 /// Parses and lowers the entire program to HIR.
 /// Returns the global context if successful and if lowering was requested (default).
-pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<()> {
+pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let gcx = compiler.gcx();
     let sess = gcx.sess;
 
@@ -243,7 +244,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<()> {
     }
 
     if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(());
+        return Ok(ControlFlow::Break(()));
     }
 
     compiler.inner.gcx.sources.topo_sort();
@@ -260,14 +261,14 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<()> {
 
     compiler.drop_asts();
 
-    Ok(())
+    Ok(ControlFlow::Continue(()))
 }
 
 /// Performs the analysis phase.
 ///
 /// This is not yet exposed publicly as it is not yet fully implemented.
 #[instrument(level = "debug", skip_all)]
-fn analysis(gcx: Gcx<'_>) -> Result<()> {
+fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     if let Some(dump) = &gcx.sess.opts.unstable.dump
         && dump.kind.is_hir()
     {
@@ -293,7 +294,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
         gcx.sess.dcx.has_errors()?;
     }
 
-    Ok(())
+    Ok(ControlFlow::Continue(()))
 }
 
 fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {

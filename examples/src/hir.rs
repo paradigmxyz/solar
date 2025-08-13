@@ -2,7 +2,7 @@ use solar::{
     interface::{Session, diagnostics::EmittedDiagnostics},
     sema::Compiler,
 };
-use std::path::Path;
+use std::{ops::ControlFlow, path::Path};
 
 #[test]
 fn main() -> Result<(), EmittedDiagnostics> {
@@ -24,7 +24,11 @@ fn main() -> Result<(), EmittedDiagnostics> {
         parsing_context.parse();
 
         // Perform AST lowering to populate the HIR.
-        compiler.lower_asts()?;
+        let ControlFlow::Continue(()) = compiler.lower_asts()? else {
+            // Can't continue because HIR was not populated,
+            // possibly because it was requested in `Session` with `stop_after`.
+            return Ok(());
+        };
 
         // Inspect the HIR.
         let gcx = compiler.gcx();
