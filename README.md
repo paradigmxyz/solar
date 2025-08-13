@@ -22,7 +22,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 > Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
 
-- ⚡ Instant compiles and low memory usage
+- ⚡ Instant compiles and low memory usage ([benchmarks](./benches))
 - 🔍 Expressive and useful diagnostics
 - 🧩 Modular, library-based architecture
 - 💻 Simple and hackable code base
@@ -73,7 +73,13 @@ and can be installed with the following commands:
     powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
     ```
 
-You can also build Solar from source:
+You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
+
+```bash
+cargo binstall solar-compiler
+```
+
+Or build Solar from source:
 - From crates.io:
     ```bash
     cargo install solar-compiler --locked
@@ -123,7 +129,7 @@ You can find a more detailed list in the [pinned GitHub issue](https://github.co
   - [x] Lexing
   - [x] Parsing
   - [ ] Semantic analysis
-    - [x] Symbol resolution 
+    - [x] Symbol resolution
     - [ ] Type checker
     - [ ] Static analysis
 - [ ] Middle-end

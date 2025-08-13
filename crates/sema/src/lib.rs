@@ -90,7 +90,7 @@ impl Compiler {
 
     /// Enters the compiler context.
     pub fn enter<T: Send>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T + Send) -> T {
-        self.0.sess.enter_parallel(|| f(CompilerRef::new(&self.0)))
+        self.0.sess.enter(|| f(CompilerRef::new(&self.0)))
     }
 
     /// Enters the compiler context with mutable access.
@@ -99,11 +99,11 @@ impl Compiler {
     pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
         // SAFETY: `sess` is not modified.
         let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
-        sess.enter_parallel(|| f(self.as_mut()))
+        sess.enter(|| f(self.as_mut()))
     }
 
     fn as_mut(&mut self) -> &mut CompilerRef<'_> {
-        // SAFETY: CompilerRef does not invalidate the Pin.
+        // SAFETY: `CompilerRef` does not allow invalidating the `Pin`.
         let inner = unsafe { Pin::get_unchecked_mut(Pin::as_mut(&mut self.0)) };
         let inner = unsafe {
             std::mem::transmute::<&mut CompilerInner<'static>, &mut CompilerInner<'_>>(inner)
