@@ -22,7 +22,7 @@ Blazingly fast, modular and contributor friendly Solidity compiler, written in R
 > Use it to speed up your development workflows and tooling.
 > Please do not use it in production environments.
 
-- ⚡ Instant compiles and low memory usage
+- ⚡ Instant compiles and low memory usage ([benchmarks](./benches))
 - 🔍 Expressive and useful diagnostics
 - 🧩 Modular, library-based architecture
 - 💻 Simple and hackable code base
