@@ -168,17 +168,20 @@ impl<'c> CompilerRef<'c> {
     /// Returns a reference to the global context.
     #[inline]
     pub fn gcx(&self) -> Gcx<'c> {
+        // SAFETY: `CompilerRef` is only accessible in the `Compiler::enter` closure.
         Gcx::new(unsafe { trustme::decouple_lt(&self.inner.gcx) })
     }
 
     #[inline]
     pub(crate) fn gcx_mut(&mut self) -> GcxMut<'c> {
+        // SAFETY: `CompilerRef` is only accessible in the `Compiler::enter` closure.
         GcxMut::new(&mut self.inner.gcx)
     }
 
     /// Drops the ASTs and AST arenas in a separate thread.
     pub fn drop_asts(&mut self) {
         let sources = std::mem::take(&mut self.inner.gcx.sources);
+        // SAFETY: `sources` points into `ast_arenas`, which we move together into the closure.
         let sources = unsafe { std::mem::transmute::<Sources<'_>, Sources<'static>>(sources) };
         let mut ast_arenas = std::mem::take(&mut self.inner.gcx.ast_arenas);
         self.inner.gcx.sess.spawn(move || {
