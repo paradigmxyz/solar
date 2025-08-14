@@ -31,7 +31,7 @@ pub struct CommonTypes<'gcx> {
 impl<'gcx> CommonTypes<'gcx> {
     #[instrument(name = "new_common_types", level = "debug", skip_all)]
     #[inline]
-    pub(super) fn new(interner: &Interner<'gcx>) -> Self {
+    pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx bumpalo::Bump) -> Self {
         use ElementaryType::*;
         use TyKind::*;
         use std::array::from_fn;
@@ -39,7 +39,7 @@ impl<'gcx> CommonTypes<'gcx> {
         // NOTE: We need to skip calculating flags here because it would require `Gcx` when we
         // haven't built one yet. This is fine since elementary types don't have any flags.
         // If that ever changes, then this closure should also reflect that.
-        let mk = |kind| interner.intern_ty_with_flags(kind, |_| TyFlags::empty());
+        let mk = |kind| interner.intern_ty_with_flags(bump, kind, |_| TyFlags::empty());
         let mk_refs = |ty| EachDataLoc {
             storage: mk(Ref(ty, DataLocation::Storage)),
             transient: mk(Ref(ty, DataLocation::Transient)),

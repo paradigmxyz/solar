@@ -1,4 +1,5 @@
 use crate::{
+    Sources, ast,
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir},
@@ -11,6 +12,7 @@ use solar_data_structures::{
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
+    trustme,
 };
 use solar_interface::{
     Ident, Session, Span,
@@ -131,6 +133,47 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+/// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
+///
+/// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
+/// is too annoying/impossible to deal with.
+/// Since it's only used internally (`pub(crate)`), this is fine.
+#[repr(transparent)]
+pub(crate) struct GcxMut<'gcx>(*mut GlobalCtxt<'gcx>);
+
+impl<'gcx> GcxMut<'gcx> {
+    #[inline(always)]
+    pub(crate) fn new(gcx: &mut GlobalCtxt<'gcx>) -> Self {
+        Self(gcx)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get(&self) -> Gcx<'gcx> {
+        unsafe { Gcx(&*self.0) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut(&mut self) -> &'gcx mut GlobalCtxt<'gcx> {
+        unsafe { &mut *self.0 }
+    }
+}
+
+impl<'gcx> std::ops::Deref for GcxMut<'gcx> {
+    type Target = &'gcx mut GlobalCtxt<'gcx>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<'gcx> std::ops::DerefMut for GcxMut<'gcx> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
 #[cfg(test)]
 fn _gcx_traits() {
     fn assert_send_sync<T: Send + Sync>() {}
@@ -140,27 +183,34 @@ fn _gcx_traits() {
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
     pub sess: &'gcx Session,
-    pub types: CommonTypes<'gcx>,
-    pub hir: Hir<'gcx>,
+    pub sources: Sources<'gcx>,
     pub(crate) symbol_resolver: SymbolResolver<'gcx>,
+    pub hir: Hir<'gcx>,
 
+    pub types: CommonTypes<'gcx>,
+
+    pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
+    pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {
-    pub(crate) fn new(
-        sess: &'gcx Session,
-        arena: &'gcx ThreadLocal<hir::Arena>,
-        hir: Hir<'gcx>,
-        symbol_resolver: SymbolResolver<'gcx>,
-    ) -> Self {
-        let interner = Interner::new(arena);
+    pub(crate) fn new(sess: &'gcx Session) -> Self {
+        let interner = Interner::new();
+        let hir_arenas = ThreadLocal::<hir::Arena>::new();
         Self {
             sess,
-            types: CommonTypes::new(&interner),
-            hir,
-            symbol_resolver,
+            sources: Sources::new(),
+            symbol_resolver: SymbolResolver::new(&sess.dcx),
+            hir: Hir::new(),
+            // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
+            types: CommonTypes::new(
+                &interner,
+                &unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump,
+            ),
+            ast_arenas: ThreadLocal::new(),
+            hir_arenas,
             interner,
             cache: Cache::default(),
         }
@@ -178,7 +228,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn arena(self) -> &'gcx hir::Arena {
-        self.interner.arena.get_or_default()
+        self.hir_arenas.get_or_default()
     }
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
@@ -190,15 +240,15 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty(self, kind: TyKind<'gcx>) -> Ty<'gcx> {
-        self.interner.intern_ty_with_flags(kind, |kind| TyFlags::calculate(self, kind))
+        self.interner.intern_ty_with_flags(self.bump(), kind, |kind| TyFlags::calculate(self, kind))
     }
 
     pub fn mk_tys(self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_tys(tys)
+        self.interner.intern_tys(self.bump(), tys)
     }
 
     pub fn mk_ty_iter(self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_ty_iter(tys)
+        self.interner.intern_ty_iter(self.bump(), tys)
     }
 
     fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
@@ -217,7 +267,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
-        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(ptr)))
+        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(self.bump(), ptr)))
     }
 
     pub fn mk_ty_fn(
@@ -408,12 +458,14 @@ impl<'gcx> Gcx<'gcx> {
                     None => TyKind::DynArray(ty),
                 }
             }
-            hir::TypeKind::Function(f) => TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
-                parameters: self.mk_item_tys(f.parameters),
-                returns: self.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
-            })),
+            hir::TypeKind::Function(f) => {
+                return self.mk_ty_fn_ptr(TyFnPtr {
+                    parameters: self.mk_item_tys(f.parameters),
+                    returns: self.mk_item_tys(f.returns),
+                    state_mutability: f.state_mutability,
+                    visibility: f.visibility,
+                });
+            }
             hir::TypeKind::Mapping(mapping) => {
                 let key = self.type_of_hir_ty(&mapping.key);
                 let value = self.type_of_hir_ty(&mapping.value);
@@ -589,7 +641,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(TyFnPtr {
+            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
                 parameters: gcx.mk_item_tys(f.parameters),
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,

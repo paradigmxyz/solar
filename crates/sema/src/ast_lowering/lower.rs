@@ -1,17 +1,11 @@
-use crate::{
-    ParsedSource,
-    hir::{self, ContractId, SourceId},
-};
+use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
-use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
+use solar_data_structures::smallvec::SmallVec;
 
-impl<'ast> super::LoweringContext<'_, 'ast, '_> {
+impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn lower_sources(
-        &mut self,
-        parsed_sources: &'ast IndexVec<hir::SourceId, ParsedSource<'ast>>,
-    ) {
-        let hir_sources = parsed_sources.iter_enumerated().map(|(id, source)| {
+    pub(super) fn lower_sources(&mut self) {
+        let hir_sources = self.sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
@@ -45,7 +39,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     fn lower_contract(
         &mut self,
         item: &ast::Item<'_>,
-        contract: &'ast ast::ItemContract<'ast>,
+        contract: &'gcx ast::ItemContract<'gcx>,
     ) -> hir::ContractId {
         let id = self.hir.contracts.push(hir::Contract {
             source: self.current_source_id,
@@ -98,7 +92,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         id
     }
 
-    fn lower_item(&mut self, item: &'ast ast::Item<'ast>) -> hir::ItemId {
+    fn lower_item(&mut self, item: &'gcx ast::Item<'gcx>) -> hir::ItemId {
         let item_id = match &item.kind {
             ast::ItemKind::Pragma(_) | ast::ItemKind::Import(_) | ast::ItemKind::Using(_) => {
                 unreachable!()

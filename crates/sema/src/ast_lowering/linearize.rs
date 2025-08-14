@@ -10,7 +10,7 @@
 use super::Res;
 use crate::hir;
 
-impl super::LoweringContext<'_, '_, '_> {
+impl super::LoweringContext<'_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn linearize_contracts(&mut self) {
         // Must iterate in source order.
