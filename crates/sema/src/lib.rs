@@ -9,17 +9,9 @@
 #[macro_use]
 extern crate tracing;
 
-use crate::ty::{GcxMut, GlobalCtxt};
 use rayon::prelude::*;
-use solar_data_structures::trustme;
 use solar_interface::{Result, Session, config::CompilerStage};
-use std::{
-    marker::PhantomPinned,
-    mem::{ManuallyDrop, MaybeUninit},
-    ops::ControlFlow,
-    pin::Pin,
-};
-use thread_local::ThreadLocal;
+use std::ops::ControlFlow;
 use ty::Gcx;
 
 // Convenience re-exports.
@@ -30,6 +22,9 @@ pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;
+
+mod compiler;
+pub use compiler::{Compiler, CompilerRef};
 
 mod parse;
 pub use parse::{ParsingContext, Source, Sources};
@@ -49,168 +44,6 @@ mod emit;
 pub mod stats;
 
 mod span_visitor;
-
-pub struct Compiler(ManuallyDrop<Pin<Box<CompilerInner<'static>>>>);
-
-struct CompilerInner<'a> {
-    sess: Session,
-    gcx: GlobalCtxt<'a>,
-    /// Lifetimes in this struct are self-referential.
-    _pinned: PhantomPinned,
-}
-
-/// `$x->$y`
-macro_rules! project_ptr {
-    ($x:ident -> $y:ident : $xty:ty => $ty:ty) => {
-        $x.byte_add(std::mem::offset_of!($xty, $y)).cast::<$ty>()
-    };
-}
-
-impl Compiler {
-    /// Creates a new compiler.
-    #[expect(clippy::missing_transmute_annotations)]
-    pub fn new(sess: Session) -> Self {
-        let mut inner = Box::pin(MaybeUninit::<CompilerInner<'_>>::uninit());
-
-        // SAFETY: Valid pointer, `init` initializes all fields.
-        unsafe {
-            let inner = Pin::get_unchecked_mut(Pin::as_mut(&mut inner));
-            let inner = inner.as_mut_ptr();
-            CompilerInner::init(inner, sess);
-        }
-
-        // SAFETY: `inner` has been initialized, `MaybeUninit<T>` is transmuted to `T`.
-        Self(ManuallyDrop::new(unsafe { std::mem::transmute(inner) }))
-    }
-
-    /// Returns a reference to the compiler session.
-    #[inline]
-    pub fn sess(&self) -> &Session {
-        &self.0.sess
-    }
-
-    /// Enters the compiler context.
-    pub fn enter<T: Send>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T + Send) -> T {
-        self.0.sess.enter(|| f(CompilerRef::new(&self.0)))
-    }
-
-    /// Enters the compiler context with mutable access.
-    ///
-    /// This is only necessary on the first access to parse sources.
-    pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
-        // SAFETY: `sess` is not modified.
-        let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
-        sess.enter(|| f(self.as_mut()))
-    }
-
-    fn as_mut(&mut self) -> &mut CompilerRef<'_> {
-        // SAFETY: `CompilerRef` does not allow invalidating the `Pin`.
-        let inner = unsafe { Pin::get_unchecked_mut(Pin::as_mut(&mut self.0)) };
-        let inner = unsafe {
-            std::mem::transmute::<&mut CompilerInner<'static>, &mut CompilerInner<'_>>(inner)
-        };
-        CompilerRef::new_mut(inner)
-    }
-}
-
-impl CompilerInner<'_> {
-    #[inline]
-    #[allow(elided_lifetimes_in_paths)]
-    unsafe fn init(this: *mut Self, sess: Session) {
-        use CompilerInner as C;
-
-        unsafe {
-            let sess_p = project_ptr!(this->sess: C=>Session);
-            sess_p.write(sess);
-
-            let sess = &*sess_p;
-            project_ptr!(this->gcx: C=>GlobalCtxt<'static>).write(GlobalCtxt::new(sess));
-        }
-    }
-}
-
-impl Drop for CompilerInner<'_> {
-    fn drop(&mut self) {
-        log_ast_arenas_stats(&mut self.gcx.ast_arenas);
-        debug!(hir_allocated = %fmt_bytes(self.gcx.hir_arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
-    }
-}
-
-impl Drop for Compiler {
-    fn drop(&mut self) {
-        let _guard = debug_span!("Compiler::drop").entered();
-        unsafe { ManuallyDrop::drop(&mut self.0) };
-    }
-}
-
-/// A reference to the compiler.
-///
-/// This is only available inside the [`Compiler::enter`] closure, and has access to the global
-/// context.
-#[repr(transparent)]
-pub struct CompilerRef<'c> {
-    pub(crate) inner: CompilerInner<'c>,
-}
-
-impl<'c> CompilerRef<'c> {
-    #[inline]
-    fn new<'a>(inner: &'a CompilerInner<'c>) -> &'a Self {
-        // SAFETY: `repr(transparent)`
-        unsafe { std::mem::transmute(inner) }
-    }
-
-    #[inline]
-    fn new_mut<'a>(inner: &'a mut CompilerInner<'c>) -> &'a mut Self {
-        // SAFETY: `repr(transparent)`
-        unsafe { std::mem::transmute(inner) }
-    }
-
-    /// Returns a reference to the global context.
-    #[inline]
-    pub fn gcx(&self) -> Gcx<'c> {
-        // SAFETY: `CompilerRef` is only accessible in the `Compiler::enter` closure.
-        Gcx::new(unsafe { trustme::decouple_lt(&self.inner.gcx) })
-    }
-
-    #[inline]
-    pub(crate) fn gcx_mut(&mut self) -> GcxMut<'c> {
-        // SAFETY: `CompilerRef` is only accessible in the `Compiler::enter` closure.
-        GcxMut::new(&mut self.inner.gcx)
-    }
-
-    /// Drops the ASTs and AST arenas in a separate thread.
-    pub fn drop_asts(&mut self) {
-        let sources = std::mem::take(&mut self.inner.gcx.sources);
-        // SAFETY: `sources` points into `ast_arenas`, which we move together into the closure.
-        let sources = unsafe { std::mem::transmute::<Sources<'_>, Sources<'static>>(sources) };
-        let mut ast_arenas = std::mem::take(&mut self.inner.gcx.ast_arenas);
-        self.inner.gcx.sess.spawn(move || {
-            let _guard = debug_span!("drop_asts").entered();
-            log_ast_arenas_stats(&mut ast_arenas);
-            drop(sources);
-            drop(ast_arenas);
-        });
-    }
-
-    pub fn parse(&mut self) -> ParsingContext<'c> {
-        ParsingContext::new(self.gcx_mut())
-    }
-
-    pub fn lower_asts(&mut self) -> Result<ControlFlow<()>> {
-        lower(self)
-    }
-
-    pub fn analysis(&self) -> Result<ControlFlow<()>> {
-        analysis(self.gcx())
-    }
-}
-
-fn log_ast_arenas_stats(arenas: &mut ThreadLocal<ast::Arena>) {
-    if arenas.iter_mut().len() == 0 {
-        return;
-    }
-    debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
-}
 
 /// Parses and lowers the entire program to HIR.
 /// Returns the global context if successful and if lowering was requested (default).
@@ -250,7 +83,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
         return Ok(ControlFlow::Break(()));
     }
 
-    compiler.inner.gcx.sources.topo_sort();
+    compiler.gcx_mut().sources.topo_sort();
 
     debug_span!("all_ast_passes").in_scope(|| {
         gcx.sources.par_asts().for_each(|ast| {
