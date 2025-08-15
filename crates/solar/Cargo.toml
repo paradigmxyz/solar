@@ -49,6 +49,10 @@ alloy-primitives.workspace = true
 [dev-dependencies]
 solar-tester.workspace = true
 
+# Pinned dependencies. See /Cargo.toml.
+[target.'cfg(any())'.dependencies]
+idna_adapter.workspace = true
+
 [features]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
