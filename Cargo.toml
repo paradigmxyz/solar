@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.7"
 edition = "2024"
-rust-version = "1.88" # MSRV
+rust-version = "1.88"                                                        # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -151,6 +151,16 @@ snapbox = "0.6"
 tempfile = "3.9"
 tester = "0.9"
 
+# lsp
+async-lsp = { version = "0.2", default-features = false, features = [
+    "client-monitor",
+    "stdio",
+    "tokio",
+] }
+# See <https://github.com/gluon-lang/lsp-types/issues/284>
+lsp-types = "0.95.0"
+tower = "0.5"
+
 # misc
 arrayvec = "0.7"
 bitflags = "2.4"
@@ -177,8 +187,17 @@ scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
 thread_local = "1.1"
+tokio = { version = "1.47", default-features = false }
+tokio-util = { version = "0.7", default-features = false }
 typed-arena = "2.0"
 unicode-width = "0.2"
 vergen = "8"
+
+## Pinned dependencies. Enabled for the workspace in crates/solar.
+
+# Use unicode-rs which has a smaller binary size than the default ICU4X as the IDNA backend, used
+# by the `url` crate.
+# See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
+idna_adapter = "=1.1.0"
 
 [patch.crates-io]
