@@ -1,0 +1,33 @@
+[package]
+name = "solar-lsp"
+description = "Solidity LSP"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/lsp"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-config = { workspace = true, features = ["version"] }
+solar-interface.workspace = true
+
+async-lsp.workspace = true
+lsp-types.workspace = true
+tower.workspace = true
+
+# This is needed because Windows does not support truly asynchronous pipes.
+[target.'cfg(not(unix))'.dependencies]
+tokio-util = { version = "0.7", features = ["compat"] }
+tokio = { version = "1.47", default-features = false, features = ["io-std"] }
+
+[features]
+nightly = ["solar-config/nightly"]
+version = ["solar-config/version"]
