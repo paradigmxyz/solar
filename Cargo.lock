@@ -345,6 +345,7 @@ dependencies = [
  "tokio",
  "tower-layer",
  "tower-service",
+ "tracing",
  "waitpid-any",
 ]
 
@@ -812,6 +813,15 @@ checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
  "itertools 0.10.5",
+]
+
+[[package]]
+name = "crop"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fa28d21af9044d49bcfb1eceddeeb9fadc6a17207c6a1bf0d841ef0bd9ad36e"
+dependencies = [
+ "str_indices",
 ]
 
 [[package]]
@@ -2916,12 +2926,15 @@ name = "solar-lsp"
 version = "0.1.7"
 dependencies = [
  "async-lsp",
+ "crop",
  "lsp-types",
+ "normalize-path",
  "solar-config",
  "solar-interface",
  "tokio",
  "tokio-util",
  "tower",
+ "tracing",
 ]
 
 [[package]]
@@ -3031,6 +3044,12 @@ dependencies = [
  "approx",
  "num-traits",
 ]
+
+[[package]]
+name = "str_indices"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d08889ec5408683408db66ad89e0e1f93dff55c73a4ccc71c427d5b277ee47e6"
 
 [[package]]
 name = "streaming-iterator"

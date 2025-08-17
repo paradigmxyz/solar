@@ -156,7 +156,9 @@ async-lsp = { version = "0.2", default-features = false, features = [
     "client-monitor",
     "stdio",
     "tokio",
+    "tracing",
 ] }
+crop = "0.4"
 # See <https://github.com/gluon-lang/lsp-types/issues/284>
 lsp-types = "0.95.0"
 tower = "0.5"
@@ -178,6 +180,7 @@ inturn = "0.1.0"
 libc = "0.2"
 md-5 = "0.10"
 memchr = "2.7"
+normalize-path = "0.2.1"
 once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
 petgraph = "0.8"
