@@ -3,13 +3,12 @@ use std::{ops::ControlFlow, sync::Arc};
 use async_lsp::{ClientSocket, ResponseError};
 use lsp_types::{
     InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, notification as notif,
+    ServerInfo, notification as notif,
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::data_structures::sync::RwLock;
 
-use crate::{NotifyResult, vfs::Vfs};
+use crate::{NotifyResult, config::negotiate_capabilities, vfs::Vfs};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
@@ -23,21 +22,12 @@ impl GlobalState {
 
     pub(crate) fn on_initialize(
         &mut self,
-        _: InitializeParams,
+        params: InitializeParams,
     ) -> impl Future<Output = Result<InitializeResult, ResponseError>> + use<> {
+        let (capabilities, _config) = negotiate_capabilities(params);
+
         std::future::ready(Ok(InitializeResult {
-            capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Options(
-                    TextDocumentSyncOptions {
-                        open_close: Some(true),
-                        change: Some(TextDocumentSyncKind::INCREMENTAL),
-                        will_save: None,
-                        will_save_wait_until: None,
-                        ..Default::default()
-                    },
-                )),
-                ..Default::default()
-            },
+            capabilities,
             server_info: Some(ServerInfo {
                 name: "solar".into(),
                 version: Some(SHORT_VERSION.into()),

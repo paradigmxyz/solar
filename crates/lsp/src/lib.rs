@@ -16,6 +16,7 @@ use tower::ServiceBuilder;
 
 use crate::global_state::GlobalState;
 
+mod config;
 mod global_state;
 mod handlers;
 mod proto;
