@@ -92,6 +92,7 @@ solar-cli = { version = "=0.1.7", path = "crates/cli", default-features = false 
 solar-config = { version = "=0.1.7", path = "crates/config", default-features = false }
 solar-data-structures = { version = "=0.1.7", path = "crates/data-structures", default-features = false }
 solar-interface = { version = "=0.1.7", path = "crates/interface", default-features = false }
+solar-lsp = { version = "=0.1.7", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.1.7", path = "crates/macros", default-features = false }
 solar-parse = { version = "=0.1.7", path = "crates/parse", default-features = false }
 solar-sema = { version = "=0.1.7", path = "crates/sema", default-features = false }

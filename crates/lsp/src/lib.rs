@@ -16,6 +16,7 @@ use tower::ServiceBuilder;
 
 use crate::global_state::GlobalState;
 
+mod config;
 mod global_state;
 mod handlers;
 mod proto;
@@ -39,7 +40,8 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
     router
         .notification::<notif::DidOpenTextDocument>(handlers::did_open_text_document)
         .notification::<notif::DidCloseTextDocument>(handlers::did_close_text_document)
-        .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document);
+        .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document)
+        .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration);
 
     router
 }

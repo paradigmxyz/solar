@@ -26,18 +26,20 @@ workspace = true
 [dependencies]
 solar-config = { workspace = true, features = ["version"] }
 solar-interface.workspace = true
+solar-sema.workspace = true
 
-async-lsp.workspace = true
+async-lsp = { workspace = true, features = ["omni-trait"] }
 crop = { workspace = true, features = ["utf16-metric"] }
 lsp-types.workspace = true
 normalize-path.workspace = true
 tower.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 
 # This is needed because Windows does not support truly asynchronous pipes.
 [target.'cfg(not(unix))'.dependencies]
 tokio-util = { workspace = true, features = ["compat"] }
-tokio = { workspace = true, features = ["io-std"] }
+tokio = { workspace = true, features = ["rt", "io-std"] }
 
 [features]
 nightly = ["solar-config/nightly"]

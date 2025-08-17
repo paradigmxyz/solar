@@ -42,9 +42,11 @@ solar-macros.workspace = true
 solar-parse.workspace = true
 solar-sema.workspace = true
 
+solar-lsp = { workspace = true, optional = true }
 solar-cli = { workspace = true, optional = true }
 
 alloy-primitives.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
 
 [dev-dependencies]
 solar-tester.workspace = true
@@ -56,7 +58,7 @@ idna_adapter.workspace = true
 [features]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
-cli = ["dep:solar-cli", "clap"]
+cli = ["dep:solar-cli", "dep:solar-lsp", "clap"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-cli?/nightly",

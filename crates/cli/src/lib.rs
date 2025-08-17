@@ -17,6 +17,9 @@ pub mod utils;
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod signal_handler;
 
+mod args;
+pub use args::{Args, Subcommands};
+
 /// Signal handler to extract a backtrace from stack overflow.
 ///
 /// This is a no-op because this platform doesn't support our signal handler's requirements.
@@ -34,13 +37,14 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut opts = Opts::try_parse_from(itr)?;
-    opts.finish()?;
+    let mut opts = Args::try_parse_from(itr)?;
+    opts.default_compile.finish()?;
+
     Ok(opts)
 }
 

@@ -2857,10 +2857,12 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-lsp",
  "solar-macros",
  "solar-parse",
  "solar-sema",
  "solar-tester",
+ "tokio",
 ]
 
 [[package]]
@@ -2931,6 +2933,7 @@ dependencies = [
  "normalize-path",
  "solar-config",
  "solar-interface",
+ "solar-sema",
  "tokio",
  "tokio-util",
  "tower",

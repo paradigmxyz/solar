@@ -2,7 +2,8 @@ use std::ops::ControlFlow;
 
 use crop::Rope;
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams,
 };
 use tracing::error;
 
@@ -18,7 +19,12 @@ pub(crate) fn did_open_text_document(
             error!(?path, "duplicate DidOpenTextDocument");
         }
 
-        state.vfs.write().set_file_contents(path, Some(Rope::from(params.text_document.text)));
+        let mut vfs = state.vfs.write();
+        vfs.set_file_contents(path, Some(Rope::from(params.text_document.text)));
+        if vfs.mark_clean() {
+            drop(vfs);
+            state.recompute();
+        }
     }
 
     ControlFlow::Continue(())
@@ -42,6 +48,7 @@ pub(crate) fn did_change_text_document(
 
         if changed {
             state.vfs.write().set_file_contents(path, Some(new_contents));
+            state.recompute();
         }
     }
 
@@ -58,7 +65,19 @@ pub(crate) fn did_close_text_document(
         }
 
         state.vfs.write().set_file_contents(path, None);
+        state.recompute();
     }
 
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_change_configuration(
+    _: &mut GlobalState,
+    _: DidChangeConfigurationParams,
+) -> NotifyResult {
+    // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
+    // this notification's parameters should be ignored and the actual config queried separately.
+    //
+    // For now this is just a stub.
     ControlFlow::Continue(())
 }
