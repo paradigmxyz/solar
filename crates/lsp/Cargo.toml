@@ -28,8 +28,11 @@ solar-config = { workspace = true, features = ["version"] }
 solar-interface.workspace = true
 
 async-lsp.workspace = true
+crop = { workspace = true, features = ["utf16-metric"] }
 lsp-types.workspace = true
+normalize-path.workspace = true
 tower.workspace = true
+tracing.workspace = true
 
 # This is needed because Windows does not support truly asynchronous pipes.
 [target.'cfg(not(unix))'.dependencies]
