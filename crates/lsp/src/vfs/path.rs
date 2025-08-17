@@ -118,7 +118,6 @@ impl VfsPath {
 enum VfsPathRepr {
     /// This is guaranteed to be absolute.
     PathBuf(PathBuf),
-    #[expect(unused, reason = "We do not use virtual paths yet.")]
     VirtualPath(VirtualPath),
 }
 
