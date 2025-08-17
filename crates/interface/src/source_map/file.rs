@@ -74,6 +74,15 @@ impl FileName {
     pub fn display(&self) -> FileNameDisplay<'_> {
         FileNameDisplay { inner: self }
     }
+
+    /// Returns the path if the file name is a real file.
+    #[inline]
+    pub fn as_real(&self) -> Option<&Path> {
+        match self {
+            Self::Real(path) => Some(path),
+            _ => None,
+        }
+    }
 }
 
 pub struct FileNameDisplay<'a> {
