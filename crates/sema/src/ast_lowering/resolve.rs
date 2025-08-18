@@ -1,4 +1,4 @@
-use crate::{ParsedSources, builtins::Builtin, hir};
+use crate::{ParsedSources, ast_lowering::IdCounter, builtins::Builtin, hir};
 use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
@@ -11,7 +11,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     sym,
 };
-use std::{fmt, sync::atomic::AtomicUsize};
+use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
@@ -240,7 +240,7 @@ impl super::LoweringContext<'_, '_, '_> {
 // Macro that creates a macro to create a resolver from `LoweringContext`, to avoid borrowing all
 // of it.
 macro_rules! mk_mk_resolver {
-    ($self:expr, $next_id:expr) => {
+    ($self:expr) => {
         macro_rules! mk_resolver {
             ($e:expr) => {
                 mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)
@@ -254,7 +254,7 @@ macro_rules! mk_mk_resolver {
                     arena: $self.arena,
                     hir: &mut $self.hir,
                     resolver: &$self.resolver,
-                    next_id: $next_id,
+                    next_id: &$self.next_id,
                 }
             };
         }
@@ -263,8 +263,8 @@ macro_rules! mk_mk_resolver {
 
 impl<'hir> super::LoweringContext<'_, '_, 'hir> {
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_symbols(&mut self, next_id: &AtomicUsize) {
-        mk_mk_resolver!(self, next_id);
+    pub(super) fn resolve_symbols(&mut self) {
+        mk_mk_resolver!(self);
 
         for id in self.hir.udvt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
@@ -304,7 +304,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         // Resolve constants and state variables.
         let normal_vars = self.hir.variables.len();
         for id in self.hir.variable_ids() {
-            self.resolve_var(id, next_id);
+            self.resolve_var(id);
         }
 
         for id in self.hir.function_ids() {
@@ -313,7 +313,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
             // Getters don't have an AST function, so they must be special cased to be resolved from
             // the AST variable instead.
             if func.is_getter() {
-                self.resolve_getter(id, next_id);
+                self.resolve_getter(id);
                 continue;
             }
 
@@ -346,7 +346,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            let mut cx = ResolveContext::new(self, scopes, next_id, Some(id));
+            let mut cx = ResolveContext::new(self, scopes, Some(id));
 
             cx.hir.functions[id].parameters =
                 cx.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
@@ -395,13 +395,13 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
 
         // Resolve function parameters and local variables, created while resolving functions.
         for id in self.hir.variable_ids().skip(normal_vars) {
-            self.resolve_var(id, next_id);
+            self.resolve_var(id);
         }
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_base_args(&mut self, next_id: &AtomicUsize) {
-        mk_mk_resolver!(self, next_id);
+    pub(super) fn resolve_base_args(&mut self) {
+        mk_mk_resolver!(self);
 
         for c_id in self.hir.contract_ids() {
             // Lower the base modifiers.
@@ -467,7 +467,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         }
     }
 
-    fn resolve_var(&mut self, id: hir::VariableId, next_id: &AtomicUsize) {
+    fn resolve_var(&mut self, id: hir::VariableId) {
         let var = self.hir.variable(id);
 
         let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
@@ -477,7 +477,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
 
         let scopes = SymbolResolverScopes::new_in(var.source, var.contract);
-        let mut cx = ResolveContext::new(self, scopes, next_id, None);
+        let mut cx = ResolveContext::new(self, scopes, None);
         let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
         let ty = cx.lower_type(&ast_var.ty);
         self.hir.variables[id].initializer = init;
@@ -518,7 +518,7 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
     ///     return (tmp.field1, tmp.field3);
     /// }
     /// ```
-    fn resolve_getter(&mut self, id: hir::FunctionId, next_id: &AtomicUsize) {
+    fn resolve_getter(&mut self, id: hir::FunctionId) {
         let func = self.hir.function(id);
         let Some(gettee) = func.gettee else { unreachable!() };
         let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
@@ -602,15 +602,8 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
         self.hir.functions[id].parameters = self.arena.alloc_slice_copy(&parameters);
         self.hir.functions[id].returns = self.arena.alloc_slice_copy(&returns);
         self.hir.functions[id].body = {
-            let mk_expr = |kind| {
-                &*self.arena.alloc(hir::Expr {
-                    id: hir::ExprId::from_usize(
-                        next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                    ),
-                    kind,
-                    span,
-                })
-            };
+            let mk_expr =
+                |kind| &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span });
             let mk_stmt = |kind| hir::Stmt { span, kind };
 
             // `<gettee><"[" param "]" for param in params>`
@@ -646,6 +639,10 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                         let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
+                        // Re-declare `mk_expr` because we need to re-borrow `self`.
+                        let mk_expr = |kind| {
+                            &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span })
+                        };
                         let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
 
                         // `return (<name "." ret.name "," for ret in returns>);`
@@ -724,14 +721,13 @@ struct ResolveContext<'sess, 'hir, 'a> {
     resolver: &'a SymbolResolver<'sess>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
-    next_id: &'a AtomicUsize,
+    next_id: &'a IdCounter,
 }
 
 impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
     fn new(
         lcx: &'a mut super::LoweringContext<'sess, '_, 'hir>,
         scopes: SymbolResolverScopes,
-        next_id: &'a AtomicUsize,
         function_id: Option<hir::FunctionId>,
     ) -> Self {
         Self {
@@ -741,7 +737,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             resolver: &lcx.resolver,
             scopes,
             function_id,
-            next_id,
+            next_id: &lcx.next_id,
         }
     }
 
@@ -1170,8 +1166,9 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         hir::Type { kind, span: ty.span }
     }
 
+    #[inline]
     fn next_id<I: Idx>(&self) -> I {
-        I::from_usize(self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        self.next_id.next()
     }
 }
 
