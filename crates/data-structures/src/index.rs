@@ -47,6 +47,7 @@ macro_rules! newtype_index {
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
             $vis const fn new(value: u32) -> Self {
                 Self($crate::index::BaseIndex32::new(value))
             }
@@ -87,6 +88,7 @@ macro_rules! newtype_index {
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
             $vis const fn from_usize(value: usize) -> Self {
                 Self($crate::index::BaseIndex32::from_usize(value))
             }
@@ -314,6 +316,7 @@ base_index!(BaseIndex32(u32 <= 0xFFFF_FF00));
 
 #[inline(never)]
 #[cold]
+#[cfg_attr(debug_assertions, track_caller)]
 const fn index_overflow() -> ! {
     panic!("index overflowed")
 }
