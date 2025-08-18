@@ -433,7 +433,10 @@ impl<'hir> super::LoweringContext<'_, '_, 'hir> {
                     .position(|&l| l == base_id)
                     .expect("base contract not found");
 
-                if is_ctor && base.args.is_empty() {
+                if is_ctor && base.args.is_dummy() {
+                    // bad: `contract is C` ... `constructor() C`
+                    //  ok: `contract is C` ... `constructor() C()`
+                    // So we use `is_dummy` here instead of `is_empty`.
                     self.sess
                         .dcx
                         .err("modifier-style base constructor call without arguments")
