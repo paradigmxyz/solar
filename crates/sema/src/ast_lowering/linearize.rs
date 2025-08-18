@@ -36,6 +36,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         base_id,
                         contract_id,
                     );
+                    contract_scope.reserve(base_scope.len());
                     for (name, decls) in base_scope.iter() {
                         for &decl in decls {
                             // Import if it was declared in the base, is not the constructor and is

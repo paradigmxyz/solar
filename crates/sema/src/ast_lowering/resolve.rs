@@ -1394,7 +1394,13 @@ impl fmt::Debug for Declarations {
     }
 }
 
-type DeclarationsInner = SmallVec<[Declaration; 1]>;
+// Based on benchmarks:
+// - 80th percentile: 1 declaration per symbol
+// - 95th percentile: 4 declarations per symbol
+const INNER_INLINE_CAPACITY: usize = 1;
+const INNER_FIRST_RESERVE: usize = 4 - INNER_INLINE_CAPACITY;
+
+type DeclarationsInner = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
 
 impl Declarations {
     pub(crate) fn new() -> Self {
@@ -1403,6 +1409,14 @@ impl Declarations {
 
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
+    }
+
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        self.declarations.reserve(additional);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.declarations.len()
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &[Declaration])> {
@@ -1459,6 +1473,9 @@ impl Declarations {
                     return Err(conflict);
                 }
                 if !declarations.contains(&decl) {
+                    if declarations.capacity() == INNER_INLINE_CAPACITY {
+                        declarations.reserve(INNER_FIRST_RESERVE);
+                    }
                     declarations.push(decl);
                 }
             }
