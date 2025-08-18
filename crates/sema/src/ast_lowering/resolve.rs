@@ -1213,11 +1213,15 @@ impl ResolverError {
     }
 }
 
+#[derive(derive_more::Debug)]
 pub(crate) struct SymbolResolver<'sess> {
+    #[debug(ignore)]
     dcx: &'sess DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    #[debug(ignore)]
     global_builtin_scope: Declarations,
+    #[debug(ignore)]
     builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
@@ -1381,8 +1385,12 @@ pub(crate) struct Declarations {
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declarations")?;
-        self.declarations.fmt(f)
+        f.write_str("Declarations ")?;
+        let mut map = f.debug_map();
+        for (key, values) in self.declarations.iter() {
+            map.entry(key, if let [value] = &values[..] { value } else { values });
+        }
+        map.finish()
     }
 }
 

@@ -17,6 +17,7 @@ impl super::LoweringContext<'_, '_, '_> {
         let mut linearizer = C3Linearizer::new();
         for source in &self.hir.sources {
             for contract_id in source.items.iter().filter_map(hir::ItemId::as_contract) {
+                let _guard = debug_span!("linearize_contract", ?contract_id).entered();
                 self.linearize_contract(contract_id, &mut linearizer);
                 if linearizer.result.is_empty() {
                     let msg = "linearization of inheritance graph impossible";
@@ -28,6 +29,7 @@ impl super::LoweringContext<'_, '_, '_> {
 
                 // Import inherited scopes.
                 // https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L352
+                let _guard = debug_span!("import_inherited_scopes").entered();
                 for &base_id in &linearized_bases[1..] {
                     let (base_scope, contract_scope) = super::get_two_mut_idx(
                         &mut self.resolver.contract_scopes,
