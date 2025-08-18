@@ -1380,15 +1380,15 @@ impl SymbolResolverScopes {
 }
 
 pub(crate) struct Declarations {
-    pub(crate) declarations: FxIndexMap<Symbol, DeclarationsInner>,
+    declarations: FxIndexMap<Symbol, DeclarationsInner>,
 }
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("Declarations ")?;
         let mut map = f.debug_map();
-        for (key, values) in self.declarations.iter() {
-            map.entry(key, if let [value] = &values[..] { value } else { values });
+        for (key, values) in self.iter() {
+            map.entry(&key, if let [value] = values { value } else { &values });
         }
         map.finish()
     }
@@ -1405,12 +1405,21 @@ impl Declarations {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &[Declaration])> {
+        self.declarations.iter().map(|(key, values)| (*key, values.as_slice()))
+    }
+
     pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
         self.declarations.get(&name.name).map(std::ops::Deref::deref)
     }
 
     pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
         self.declarations.get(&name.name).cloned()
+    }
+
+    /// Declares `name => decl` without checking for conflicts.
+    pub(crate) fn declare_unchecked(&mut self, name: Symbol, decl: Declaration) {
+        self.declarations.entry(name).or_default().push(decl);
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to

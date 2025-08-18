@@ -36,7 +36,7 @@ impl super::LoweringContext<'_, '_, '_> {
                         base_id,
                         contract_id,
                     );
-                    for (&name, decls) in &base_scope.declarations {
+                    for (name, decls) in base_scope.iter() {
                         for &decl in decls {
                             // Import if it was declared in the base, is not the constructor and is
                             // visible in derived classes.
