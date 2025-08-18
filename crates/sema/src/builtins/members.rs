@@ -39,9 +39,8 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
         TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::ErrorSelector]),
         TyKind::Event(_tys, _id) => Member::of_builtins(gcx, [Builtin::EventSelector]),
         TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
-            .declarations
             .iter()
-            .flat_map(|(&name, decls)| {
+            .flat_map(|(name, decls)| {
                 decls.iter().map(move |decl| Member::new(name, gcx.type_of_res(decl.res)))
             })
             .collect(),
