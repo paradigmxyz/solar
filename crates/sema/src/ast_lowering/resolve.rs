@@ -787,7 +787,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         self.arena.alloc(self.lower_stmt_full(stmt))
     }
 
-    #[instrument(name = "lower_stmt", level = "debug", skip_all)]
+    #[instrument(name = "lower_stmt", level = "trace", skip_all)]
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
@@ -1028,7 +1028,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
             .alloc_slice_fill_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
-    #[instrument(name = "lower_expr", level = "debug", skip_all)]
+    #[instrument(name = "lower_expr", level = "trace", skip_all)]
     fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'hir> {
         let kind = match &expr.kind {
             ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
@@ -1131,7 +1131,7 @@ impl<'sess, 'hir, 'a> ResolveContext<'sess, 'hir, 'a> {
         hir::CallArgs { kind, span: args.span }
     }
 
-    #[instrument(name = "lower_stmt", level = "debug", skip_all)]
+    #[instrument(name = "lower_type", level = "trace", skip_all)]
     fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'hir> {
         let kind = match &ty.kind {
             ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),

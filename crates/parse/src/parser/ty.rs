@@ -6,7 +6,7 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
