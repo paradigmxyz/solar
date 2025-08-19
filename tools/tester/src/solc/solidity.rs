@@ -61,7 +61,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     #[rustfmt::skip]
     if matches!(
         stem,
-        // Exponent is too large, but apparently it's fine in Solc because the result is 0 or it get evaluated at compile time.
+        // Exponent is too large, but apparently it's fine in Solc because the result is 0 or it gets evaluated at compile time.
         | "rational_number_exp_limit_fine"
         | "exponent_fine"
         | "rational_large_1"
