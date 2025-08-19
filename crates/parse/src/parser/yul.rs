@@ -71,13 +71,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let lo = self.token.span;
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
-        let data = self.parse_lit()?;
+        let data = self.parse_yul_lit()?;
         if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
             return Err(self.dcx().err(msg).span(data.span));
         }
         let span = lo.to(self.prev_token.span);
         Ok(Data { span, name, data })
+    }
+
+    fn parse_yul_lit(&mut self) -> PResult<'sess, &'ast mut solar_ast::Lit> {
+        let (lit, subdenomination) = self.parse_lit(false)?;
+        assert!(subdenomination.is_none());
+        Ok(lit)
     }
 
     /// Parses a Yul statement.
@@ -202,7 +208,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let selector = self.parse_yul_expr()?;
         let mut branches = Vec::new();
         while self.eat_keyword(kw::Case) {
-            let constant = self.parse_lit()?;
+            let constant = self.parse_yul_lit()?;
             self.expect_no_subdenomination();
             let body = self.parse_yul_block_unchecked()?;
             branches.push(StmtSwitchCase { constant, body });
@@ -246,7 +252,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_expr_kind(&mut self) -> PResult<'sess, ExprKind<'ast>> {
         if self.check_lit() {
             // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
-            self.parse_lit().map(ExprKind::Lit)
+            self.parse_yul_lit().map(ExprKind::Lit)
         } else if self.check_path() {
             let path = self.parse_path_any()?;
             if self.token.is_open_delim(Delimiter::Parenthesis) {

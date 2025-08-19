@@ -102,6 +102,7 @@ solar-tester = { path = "tools/tester" }
 # Ethereum
 alloy-primitives = "1"
 alloy-json-abi = "1"
+ruint = { version = "1", features = ["num-integer"] }
 
 num-bigint = "0.4"
 num-integer = "0.1"

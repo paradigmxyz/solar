@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use solar_interface::{Span, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{fmt, sync::Arc};
 
@@ -28,9 +28,7 @@ impl fmt::Display for Lit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { ref kind, symbol, span: _ } = *self;
         match kind {
-            LitKind::Str(StrKind::Str, ..) => write!(f, "\"{symbol}\""),
-            LitKind::Str(StrKind::Unicode, ..) => write!(f, "unicode\"{symbol}\""),
-            LitKind::Str(StrKind::Hex, ..) => write!(f, "hex\"{symbol}\""),
+            LitKind::Str(s, ..) => write!(f, "{}\"{symbol}\"", s.prefix()),
             LitKind::Number(_)
             | LitKind::Rational(_)
             | LitKind::Err(_)
@@ -81,12 +79,12 @@ pub enum LitKind {
     /// ```
     Str(StrKind, Arc<[u8]>, Vec<(Span, Symbol)>),
     /// A decimal or hexadecimal number literal.
-    Number(num_bigint::BigInt),
+    Number(U256),
     /// A rational number literal.
     ///
     /// Note that rational literals that evaluate to integers are represented as
     /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
-    Rational(num_rational::BigRational),
+    Rational(num_rational::Ratio<U256>),
     /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
     Address(Address),
     /// A boolean literal.

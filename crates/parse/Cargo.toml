@@ -36,6 +36,7 @@ memchr.workspace = true
 num-bigint.workspace = true
 num-rational.workspace = true
 num-traits.workspace = true
+ruint.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
