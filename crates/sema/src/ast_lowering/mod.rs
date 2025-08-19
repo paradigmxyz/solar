@@ -40,10 +40,12 @@ pub(crate) fn lower<'sess, 'hir>(
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
+    let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
-    lcx.resolve_symbols();
+    rcx.resolve_symbols();
     // Resolve constructor base args.
-    lcx.resolve_base_args();
+    rcx.resolve_base_args();
+    let mut lcx = rcx.lcx;
 
     // Clean up.
     lcx.shrink_to_fit();
