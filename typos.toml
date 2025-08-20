@@ -1,13 +1,20 @@
 [files]
 extend-exclude = [
-    "tests",
+    ".git",
+    "target",
     "testdata",
+    "Cargo.toml",
+    "Cargo.lock",
+    "CHANGELOG.md",
+    "*.json",
+    "**/tests/**",
+    "**/test/**",
+    "**/*_test.*",
+    "**/*_tests.*",
+    "crates/parse/src/lexer/unicode_chars.rs", # Weird words.
     "dist-workspace.toml",
-    "crates/parse/src/lexer/unicode_chars.rs",
 ]
 
 [default.extend-words]
 ket = "ket"
-
-[default]
-extend-ignore-identifiers-re = ["[0-9A-fa-f]{20,}"]
+numer = "numer"
