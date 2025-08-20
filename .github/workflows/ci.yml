@@ -58,6 +58,13 @@ jobs:
       - name: cargo hack
         run: cargo hack check --feature-powerset --depth 1
 
+  typos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: crate-ci/typos@v1
+
   clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -105,6 +112,7 @@ jobs:
     needs:
       - test
       - feature-checks
+      - typos
       - clippy
       - docs
       - fmt
