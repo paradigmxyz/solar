@@ -95,8 +95,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
     ast_lowering::lower(compiler.gcx_mut());
 
-    compiler.drop_asts();
-
     Ok(ControlFlow::Continue(()))
 }
 

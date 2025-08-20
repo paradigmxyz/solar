@@ -89,6 +89,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
 
     pcx.parse();
     let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
 
     Ok(())

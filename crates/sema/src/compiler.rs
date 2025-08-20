@@ -148,6 +148,9 @@ impl<'c> CompilerRef<'c> {
     }
 
     /// Drops the sources, ASTs, and AST arenas in a separate thread.
+    ///
+    /// This is not done by default in the pipeline, but it can be called after `lower_asts` to
+    /// free up memory.
     pub fn drop_asts(&mut self) {
         // TODO: Do we want to drop all the sources instead of just the ASTs?
         let sources = std::mem::take(&mut self.inner.gcx.sources);
