@@ -147,8 +147,9 @@ impl<'c> CompilerRef<'c> {
         GcxMut::new(&mut self.inner.gcx)
     }
 
-    /// Drops the ASTs and AST arenas in a separate thread.
+    /// Drops the sources, ASTs, and AST arenas in a separate thread.
     pub fn drop_asts(&mut self) {
+        // TODO: Do we want to drop all the sources instead of just the ASTs?
         let sources = std::mem::take(&mut self.inner.gcx.sources);
         // SAFETY: `sources` points into `ast_arenas`, which we move together into the closure.
         let sources = unsafe { std::mem::transmute::<Sources<'_>, Sources<'static>>(sources) };
@@ -216,5 +217,9 @@ mod tests {
         });
         assert_eq!(compiler.enter(|c| c.gcx().sources.len()), 2);
         assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 2);
+
+        compiler.enter_mut(|c| c.drop_asts());
+        assert_eq!(compiler.enter(|c| c.gcx().sources.len()), 0);
+        assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 0);
     }
 }

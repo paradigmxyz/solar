@@ -398,12 +398,11 @@ pub struct Source<'ast> {
 
 impl fmt::Debug for Source<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut dbg = f.debug_struct("ParsedSource");
-        dbg.field("file", &self.file.name).field("imports", &self.imports);
-        if let Some(ast) = &self.ast {
-            dbg.field("ast", &ast);
-        }
-        dbg.finish()
+        f.debug_struct("Source")
+            .field("file", &self.file.name)
+            .field("imports", &self.imports)
+            .field("ast", &self.ast.as_ref().map(|ast| format!("{} items", ast.items.len())))
+            .finish()
     }
 }
 
