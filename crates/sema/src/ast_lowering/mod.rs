@@ -34,11 +34,12 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
-    let next_id = &std::sync::atomic::AtomicUsize::new(0);
+    let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
-    lcx.resolve_symbols(next_id);
+    rcx.resolve_symbols();
     // Resolve constructor base args.
-    lcx.resolve_base_args(next_id);
+    rcx.resolve_base_args();
+    let mut lcx = rcx.lcx;
 
     // Clean up.
     lcx.shrink_to_fit();
@@ -62,6 +63,7 @@ struct LoweringContext<'gcx> {
     current_contract_id: Option<hir::ContractId>,
 
     resolver: SymbolResolver<'gcx>,
+    next_id: IdCounter,
 }
 
 impl<'gcx> LoweringContext<'gcx> {
@@ -75,6 +77,7 @@ impl<'gcx> LoweringContext<'gcx> {
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),
+            next_id: IdCounter::new(),
         }
     }
 
@@ -96,6 +99,28 @@ impl<'gcx> LoweringContext<'gcx> {
             let this = self;
             (this.hir, this.resolver)
         }
+    }
+}
+
+struct IdCounter {
+    counter: std::cell::Cell<usize>,
+}
+
+impl IdCounter {
+    fn new() -> Self {
+        Self { counter: std::cell::Cell::new(0) }
+    }
+
+    #[inline]
+    fn next<I: Idx>(&self) -> I {
+        I::from_usize(self.next_usize())
+    }
+
+    #[inline]
+    fn next_usize(&self) -> usize {
+        let x = self.counter.get();
+        self.counter.set(x + 1);
+        x
     }
 }
 

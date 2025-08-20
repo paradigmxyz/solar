@@ -105,8 +105,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
     };
 
     let mut reported = FxHashSet::default();
-    for (_name, decls) in &scope.declarations {
-        let decls = &decls[..];
+    for (_name, decls) in scope.iter() {
         if decls.len() <= 1 {
             continue;
         }

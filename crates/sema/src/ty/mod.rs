@@ -514,13 +514,19 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
+                    #[cfg(false)]
                     let _guard = log_cache_query(stringify!($name), &$key);
+                    #[cfg(false)]
                     let mut hit = true;
                     let r = cache_insert(&self.cache.$name, $key, |&$key| {
-                        hit = false;
+                        #[cfg(false)]
+                        {
+                            hit = false;
+                        }
                         let $gcx = self;
                         $imp
                     });
+                    #[cfg(false)]
                     log_cache_query_result(&r, hit);
                     r
                 }
@@ -657,12 +663,10 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Enum(id) => TyKind::Enum(id),
         hir::ItemId::Udvt(id) => {
             let udvt = gcx.hir.udvt(id);
-            // TODO: let-chains plz
-            let ty;
-            if udvt.ty.kind.is_elementary() && {
-                ty = gcx.type_of_hir_ty(&udvt.ty);
-                ty.is_value_type()
-            } {
+            if udvt.ty.kind.is_elementary()
+                && let ty = gcx.type_of_hir_ty(&udvt.ty)
+                && ty.is_value_type()
+            {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
@@ -869,12 +873,14 @@ fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
     *v
 }
 
+#[cfg(false)]
 fn log_cache_query(name: &str, key: &dyn fmt::Debug) -> tracing::span::EnteredSpan {
     let guard = trace_span!("query", %name, ?key).entered();
     trace!("entered");
     guard
 }
 
+#[cfg(false)]
 fn log_cache_query_result(result: &dyn fmt::Debug, hit: bool) {
     trace!(?result, hit);
 }

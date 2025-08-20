@@ -8,7 +8,7 @@ use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a literal.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_lit(&mut self) -> PResult<'sess, &'ast mut Lit> {
         self.parse_spanned(Self::parse_lit_inner)
             .map(|(span, (symbol, kind))| self.arena.literals.alloc(Lit { span, symbol, kind }))

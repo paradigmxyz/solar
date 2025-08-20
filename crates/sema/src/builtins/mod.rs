@@ -21,7 +21,7 @@ fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
     let mut declarations = Declarations::new();
     for builtin in builtins {
         let decl = Declaration { res: hir::Res::Builtin(builtin), span: Span::DUMMY };
-        declarations.declarations.entry(builtin.name()).or_default().push(decl);
+        declarations.declare_unchecked(builtin.name(), decl);
     }
     declarations
 }

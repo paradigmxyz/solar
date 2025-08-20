@@ -11,7 +11,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     sym,
 };
-use std::{fmt, sync::atomic::AtomicUsize};
+use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
@@ -237,74 +237,101 @@ impl super::LoweringContext<'_> {
     }
 }
 
-// Macro that creates a macro to create a resolver from `LoweringContext`, to avoid borrowing all
-// of it.
-macro_rules! mk_mk_resolver {
-    ($self:expr, $next_id:expr) => {
-        macro_rules! mk_resolver {
+#[rustfmt::skip]
+macro_rules! mk_init_cx {
+    ($cx:expr) => {
+        macro_rules! init_cx {
             ($e:expr) => {
-                mk_resolver!(@scopes SymbolResolverScopes::new_in($e.source, $e.contract), None)
+                init_cx!(@scopes $e.source, $e.contract, None)
             };
 
-            (@scopes $scopes:expr, $f:expr) => {
-                ResolveContext {
-                    scopes: $scopes,
-                    function_id: $f,
-                    sess: $self.sess,
-                    arena: $self.arena,
-                    hir: &mut $self.hir,
-                    resolver: &$self.resolver,
-                    next_id: $next_id,
-                }
+            (@scopes $source:expr, $contract:expr, $f:expr) => {
+                $cx.init($source, $contract, $f);
             };
         }
+    };
+}
+
+/// Symbol resolution context.
+pub(super) struct ResolveContext<'gcx> {
+    pub(super) lcx: super::LoweringContext<'gcx>,
+    scopes: SymbolResolverScopes,
+    function_id: Option<hir::FunctionId>,
+}
+
+impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
+    type Target = super::LoweringContext<'gcx>;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.lcx
     }
 }
 
-impl<'gcx> super::LoweringContext<'gcx> {
+impl std::ops::DerefMut for ResolveContext<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.lcx
+    }
+}
+
+impl<'gcx> ResolveContext<'gcx> {
+    pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
+        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
+    }
+
+    fn init(
+        &mut self,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        function: Option<hir::FunctionId>,
+    ) {
+        self.scopes.init(source, contract);
+        self.function_id = function;
+    }
+
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_symbols(&mut self, next_id: &AtomicUsize) {
-        mk_mk_resolver!(self, next_id);
+    pub(super) fn resolve_symbols(&mut self) {
+        mk_init_cx!(self);
 
         for id in self.hir.udvt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Udvt(id)];
             let ast::ItemKind::Udvt(ast_udvt) = &ast_item.kind else { unreachable!() };
             let udvt = self.hir.udvt(id);
-            let mut cx = mk_resolver!(udvt);
-            self.hir.udvts[id].ty = cx.lower_type(&ast_udvt.ty);
+            init_cx!(udvt);
+            self.hir.udvts[id].ty = self.lower_type(&ast_udvt.ty);
         }
 
         for id in self.hir.strukt_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Struct(id)];
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
-            let mut cx = mk_resolver!(strukt);
+            init_cx!(strukt);
             self.hir.structs[id].fields =
-                cx.lower_variables(ast_struct.fields, hir::VarKind::Struct);
+                self.lower_variables(ast_struct.fields, hir::VarKind::Struct);
         }
 
         for id in self.hir.error_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Error(id)];
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
             let error = self.hir.error(id);
-            let mut cx = mk_resolver!(error);
+            init_cx!(error);
             self.hir.errors[id].parameters =
-                cx.lower_variables(*ast_error.parameters, hir::VarKind::Error);
+                self.lower_variables(*ast_error.parameters, hir::VarKind::Error);
         }
 
         for id in self.hir.event_ids() {
             let ast_item = self.hir_to_ast[&hir::ItemId::Event(id)];
             let ast::ItemKind::Event(ast_event) = &ast_item.kind else { unreachable!() };
             let event = self.hir.event(id);
-            let mut cx = mk_resolver!(event);
+            init_cx!(event);
             self.hir.events[id].parameters =
-                cx.lower_variables(*ast_event.parameters, hir::VarKind::Event);
+                self.lower_variables(*ast_event.parameters, hir::VarKind::Event);
         }
 
         // Resolve constants and state variables.
         let normal_vars = self.hir.variables.len();
         for id in self.hir.variable_ids() {
-            self.resolve_var(id, next_id);
+            self.resolve_var(id);
         }
 
         for id in self.hir.function_ids() {
@@ -313,21 +340,21 @@ impl<'gcx> super::LoweringContext<'gcx> {
             // Getters don't have an AST function, so they must be special cased to be resolved from
             // the AST variable instead.
             if func.is_getter() {
-                self.resolve_getter(id, next_id);
+                self.resolve_getter(id);
                 continue;
             }
 
             let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
 
-            let scopes = SymbolResolverScopes::new_in(func.source, func.contract);
+            self.init(func.source, func.contract, Some(id));
 
             let func = self.hir.function(id);
             self.hir.functions[id].overrides = {
                 let mut overrides = SmallVec::<[_; 8]>::new();
                 if let Some(ov) = &ast_func.header.override_ {
                     for path in ov.paths.iter() {
-                        let Ok(id) = self.resolver.resolve_path_as(path, &scopes, "contract")
+                        let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract")
                         else {
                             continue;
                         };
@@ -346,76 +373,71 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            let mut cx = ResolveContext::new(self, scopes, next_id, Some(id));
+            self.hir.functions[id].parameters =
+                self.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
 
-            cx.hir.functions[id].parameters =
-                cx.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
-
-            cx.hir.functions[id].modifiers = {
+            self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
                 for modifier in ast_func.header.modifiers.iter() {
-                    let func = cx.hir.function(id);
+                    let func = self.hir.function(id);
                     let expected = if func.kind.is_constructor() {
                         "base class or modifier"
                     } else {
                         "modifier"
                     };
-                    let Ok(id) = cx.resolve_path_as(modifier.name, expected) else {
+                    let Ok(id) = self.resolve_path_as(modifier.name, expected) else {
                         continue;
                     };
                     match id {
                         hir::ItemId::Contract(base)
                             if func.kind.is_constructor()
                                 && func.contract.is_some_and(|c| {
-                                    cx.hir.contract(c).linearized_bases[1..].contains(&base)
+                                    self.hir.contract(c).linearized_bases[1..].contains(&base)
                                 }) => {}
-                        hir::ItemId::Function(f) if cx.hir.function(f).kind.is_modifier() => {}
+                        hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {}
                         _ => {
-                            cx.resolver.report_expected(
+                            self.resolver.report_expected(
                                 expected,
-                                cx.hir.item(id).description(),
+                                self.hir.item(id).description(),
                                 modifier.name.span(),
                             );
                             continue;
                         }
                     }
-                    let args = cx.lower_call_args(&modifier.arguments);
+                    let args = self.lower_call_args(&modifier.arguments);
                     modifiers.push(hir::Modifier { span: modifier.span(), id, args });
                 }
-                cx.arena.alloc_smallvec(modifiers)
+                self.arena.alloc_smallvec(modifiers)
             };
 
-            cx.hir.functions[id].returns =
-                cx.lower_variables(ast_func.header.returns(), hir::VarKind::FunctionReturn);
+            self.hir.functions[id].returns =
+                self.lower_variables(ast_func.header.returns(), hir::VarKind::FunctionReturn);
 
             if let Some(body) = &ast_func.body {
-                cx.hir.functions[id].body = Some(cx.lower_block(body));
+                self.hir.functions[id].body = Some(self.lower_block(body));
             }
         }
 
         // Resolve function parameters and local variables, created while resolving functions.
         for id in self.hir.variable_ids().skip(normal_vars) {
-            self.resolve_var(id, next_id);
+            self.resolve_var(id);
         }
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn resolve_base_args(&mut self, next_id: &AtomicUsize) {
-        mk_mk_resolver!(self, next_id);
-
+    pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
             // Lower the base modifiers.
             let contract = self.hir.contract(c_id);
             let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
             let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
-            let mut cx =
-                mk_resolver!(@scopes SymbolResolverScopes::new_in(contract.source, None), None);
-            cx.hir.contracts[c_id].bases_args = cx.arena.alloc_from_iter(
-                std::iter::zip(&*ast_contract.bases, cx.hir.contract(c_id).bases).map(
+            self.init(contract.source, None, None);
+            self.hir.contracts[c_id].bases_args = self.arena.alloc_from_iter(
+                std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
                     |(ast_base, &base_id)| hir::Modifier {
                         span: ast_base.span(),
                         id: base_id.into(),
-                        args: cx.lower_call_args(&ast_base.arguments),
+                        args: self.lower_call_args(&ast_base.arguments),
                     },
                 ),
             );
@@ -433,7 +455,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     .position(|&l| l == base_id)
                     .expect("base contract not found");
 
-                if is_ctor && base.args.is_empty() {
+                if is_ctor && base.args.is_dummy() {
+                    // bad: `contract is C` ... `constructor() C`
+                    //  ok: `contract is C` ... `constructor() C()`
+                    // So we use `is_dummy` here instead of `is_empty`.
                     self.sess
                         .dcx
                         .err("modifier-style base constructor call without arguments")
@@ -464,19 +489,18 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    fn resolve_var(&mut self, id: hir::VariableId, next_id: &AtomicUsize) {
+    fn resolve_var(&mut self, id: hir::VariableId) {
         let var = self.hir.variable(id);
-
         let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
             assert!(!var.ty.is_dummy(), "{var:#?}");
             return;
         };
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
 
-        let scopes = SymbolResolverScopes::new_in(var.source, var.contract);
-        let mut cx = ResolveContext::new(self, scopes, next_id, None);
-        let init = ast_var.initializer.as_deref().map(|init| cx.lower_expr(init));
-        let ty = cx.lower_type(&ast_var.ty);
+        self.init(var.source, var.contract, None);
+
+        let init = ast_var.initializer.as_deref().map(|init| self.lower_expr(init));
+        let ty = self.lower_type(&ast_var.ty);
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
     }
@@ -515,7 +539,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     ///     return (tmp.field1, tmp.field3);
     /// }
     /// ```
-    fn resolve_getter(&mut self, id: hir::FunctionId, next_id: &AtomicUsize) {
+    fn resolve_getter(&mut self, id: hir::FunctionId) {
         let func = self.hir.function(id);
         let Some(gettee) = func.gettee else { unreachable!() };
         let ast_item = self.hir_to_ast[&hir::ItemId::Variable(gettee)];
@@ -599,15 +623,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
         self.hir.functions[id].parameters = self.arena.alloc_slice_copy(&parameters);
         self.hir.functions[id].returns = self.arena.alloc_slice_copy(&returns);
         self.hir.functions[id].body = {
-            let mk_expr = |kind| {
-                &*self.arena.alloc(hir::Expr {
-                    id: hir::ExprId::from_usize(
-                        next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-                    ),
-                    kind,
-                    span,
-                })
-            };
+            let mk_expr =
+                |kind| &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span });
             let mk_stmt = |kind| hir::Stmt { span, kind };
 
             // `<gettee><"[" param "]" for param in params>`
@@ -643,6 +660,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
+                        // Re-declare `mk_expr` because we need to re-borrow `self`.
+                        let mk_expr = |kind| {
+                            &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span })
+                        };
                         let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
 
                         // `return (<name "." ret.name "," for ret in returns>);`
@@ -694,54 +715,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         self.mk_var(Some(function), span, ty, Some(name), hir::VarKind::Statement)
     }
 
-    fn declare_kind_in(
-        &self,
-        scope: &mut Declarations,
-        name: Ident,
-        decl: Res,
-    ) -> Result<(), ErrorGuaranteed> {
-        scope.declare_res(self.sess, &self.hir, name, decl)
-    }
-
-    fn declare_in(
-        &self,
-        scope: &mut Declarations,
-        name: Symbol,
-        decl: Declaration,
-    ) -> Result<(), ErrorGuaranteed> {
-        scope.declare(self.sess, &self.hir, name, decl)
-    }
-}
-
-/// Symbol resolution context.
-struct ResolveContext<'gcx, 'a> {
-    sess: &'gcx Session,
-    arena: &'gcx hir::Arena,
-    hir: &'a mut hir::Hir<'gcx>,
-    resolver: &'a SymbolResolver<'gcx>,
-    scopes: SymbolResolverScopes,
-    function_id: Option<hir::FunctionId>,
-    next_id: &'a AtomicUsize,
-}
-
-impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
-    fn new(
-        lcx: &'a mut super::LoweringContext<'gcx>,
-        scopes: SymbolResolverScopes,
-        next_id: &'a AtomicUsize,
-        function_id: Option<hir::FunctionId>,
-    ) -> Self {
-        Self {
-            sess: lcx.sess,
-            arena: lcx.arena,
-            hir: &mut lcx.hir,
-            resolver: &lcx.resolver,
-            scopes,
-            function_id,
-            next_id,
-        }
-    }
-
     fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
         self.scopes.enter();
         let t = f(self);
@@ -753,7 +726,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         if cond { self.in_scope(f) } else { f(self) }
     }
 
-    fn resolve_paths(
+    fn resolve_paths<'a>(
         &'a self,
         path: &ast::PathSlice,
     ) -> Result<&'a [Declaration], ErrorGuaranteed> {
@@ -788,7 +761,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         self.arena.alloc(self.lower_stmt_full(stmt))
     }
 
-    #[instrument(name = "lower_stmt", level = "debug", skip_all)]
+    #[instrument(name = "lower_stmt", level = "trace", skip_all)]
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
@@ -900,7 +873,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
         let id = super::lower::lower_variable_partial(
-            self.hir,
+            &mut self.lcx.hir,
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
@@ -912,7 +885,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         let mut guar = Ok(());
         if let Some(name) = var.name {
             let res = Res::Item(hir::ItemId::Variable(id));
-            guar = self.scopes.current_scope().declare_res(self.sess, self.hir, name, res);
+            guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         }
         (id, guar)
     }
@@ -986,12 +959,12 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
                             this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
                         body = hir::Stmt {
                             span: body.span,
-                            kind: hir::StmtKind::If(cond, self.arena.alloc(body), Some(break_stmt)),
+                            kind: hir::StmtKind::If(cond, this.arena.alloc(body), Some(break_stmt)),
                         };
                     }
 
                     let mut kind = hir::StmtKind::Loop(
-                        hir::Block { span, stmts: self.arena.alloc_as_slice(body) },
+                        hir::Block { span, stmts: this.arena.alloc_as_slice(body) },
                         hir::LoopSource::For,
                     );
 
@@ -1029,7 +1002,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
             .alloc_slice_fill_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
-    #[instrument(name = "lower_expr", level = "debug", skip_all)]
+    #[instrument(name = "lower_expr", level = "trace", skip_all)]
     fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
@@ -1132,7 +1105,7 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         hir::CallArgs { kind, span: args.span }
     }
 
-    #[instrument(name = "lower_stmt", level = "debug", skip_all)]
+    #[instrument(name = "lower_type", level = "trace", skip_all)]
     fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
         let kind = match &ty.kind {
             ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
@@ -1167,8 +1140,29 @@ impl<'gcx, 'a> ResolveContext<'gcx, 'a> {
         hir::Type { kind, span: ty.span }
     }
 
+    #[inline]
     fn next_id<I: Idx>(&self) -> I {
-        I::from_usize(self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        self.next_id.next()
+    }
+}
+
+impl super::LoweringContext<'_> {
+    fn declare_kind_in(
+        &self,
+        scope: &mut Declarations,
+        name: Ident,
+        decl: Res,
+    ) -> Result<(), ErrorGuaranteed> {
+        scope.declare_res(self.sess, &self.hir, name, decl)
+    }
+
+    fn declare_in(
+        &self,
+        scope: &mut Declarations,
+        name: Symbol,
+        decl: Declaration,
+    ) -> Result<(), ErrorGuaranteed> {
+        scope.declare(self.sess, &self.hir, name, decl)
     }
 }
 
@@ -1213,11 +1207,15 @@ impl ResolverError {
     }
 }
 
+#[derive(derive_more::Debug)]
 pub(crate) struct SymbolResolver<'gcx> {
+    #[debug(ignore)]
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    #[debug(ignore)]
     global_builtin_scope: Declarations,
+    #[debug(ignore)]
     builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
@@ -1323,22 +1321,24 @@ struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
     scopes: Vec<Declarations>,
+    /// Pool of declarations that can be reused.
+    pool: Vec<Declarations>,
 }
 
 impl SymbolResolverScopes {
     #[inline]
     fn new() -> Self {
-        Self { source: None, contract: None, scopes: Vec::new() }
+        Self { source: None, contract: None, scopes: Vec::new(), pool: Vec::new() }
     }
 
-    #[inline]
-    fn new_in(source: hir::SourceId, contract: Option<hir::ContractId>) -> Self {
-        Self { source: Some(source), contract, scopes: Vec::new() }
+    fn init(&mut self, source: hir::SourceId, contract: Option<hir::ContractId>) {
+        self.clear();
+        self.source = Some(source);
+        self.contract = contract;
     }
 
-    #[inline]
     fn clear(&mut self) {
-        self.scopes.clear();
+        self.pool.append(&mut self.scopes);
         self.source = None;
         self.contract = None;
     }
@@ -1358,7 +1358,9 @@ impl SymbolResolverScopes {
     }
 
     fn enter(&mut self) {
-        self.scopes.push(Declarations::new());
+        let mut scope = self.pool.pop().unwrap_or_else(Declarations::new);
+        scope.clear();
+        self.scopes.push(scope);
     }
 
     #[inline]
@@ -1371,22 +1373,33 @@ impl SymbolResolverScopes {
 
     #[track_caller]
     fn exit(&mut self) {
-        self.scopes.pop().expect("unbalanced enter/exit");
+        let scope = self.scopes.pop().expect("unbalanced enter/exit");
+        self.pool.push(scope);
     }
 }
 
 pub(crate) struct Declarations {
-    pub(crate) declarations: FxIndexMap<Symbol, DeclarationsInner>,
+    declarations: FxIndexMap<Symbol, DeclarationsInner>,
 }
 
 impl fmt::Debug for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Declarations")?;
-        self.declarations.fmt(f)
+        f.write_str("Declarations ")?;
+        let mut map = f.debug_map();
+        for (key, values) in self.iter() {
+            map.entry(&key, if let [value] = values { value } else { &values });
+        }
+        map.finish()
     }
 }
 
-type DeclarationsInner = SmallVec<[Declaration; 1]>;
+// Based on benchmarks:
+// - 80th percentile: 1 declaration per symbol
+// - 95th percentile: 4 declarations per symbol
+const INNER_INLINE_CAPACITY: usize = 1;
+const INNER_FIRST_RESERVE: usize = 4 - INNER_INLINE_CAPACITY;
+
+type DeclarationsInner = SmallVec<[Declaration; INNER_INLINE_CAPACITY]>;
 
 impl Declarations {
     pub(crate) fn new() -> Self {
@@ -1397,12 +1410,33 @@ impl Declarations {
         Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
     }
 
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        self.declarations.reserve(additional);
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.declarations.clear();
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.declarations.len()
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Symbol, &[Declaration])> {
+        self.declarations.iter().map(|(key, values)| (*key, values.as_slice()))
+    }
+
     pub(crate) fn resolve(&self, name: Ident) -> Option<&[Declaration]> {
         self.declarations.get(&name.name).map(std::ops::Deref::deref)
     }
 
     pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
         self.declarations.get(&name.name).cloned()
+    }
+
+    /// Declares `name => decl` without checking for conflicts.
+    pub(crate) fn declare_unchecked(&mut self, name: Symbol, decl: Declaration) {
+        self.declarations.entry(name).or_default().push(decl);
     }
 
     /// Declares `Ident { name, span } => kind` by converting it to
@@ -1442,6 +1476,9 @@ impl Declarations {
                     return Err(conflict);
                 }
                 if !declarations.contains(&decl) {
+                    if declarations.capacity() == INNER_INLINE_CAPACITY {
+                        declarations.reserve(INNER_FIRST_RESERVE);
+                    }
                     declarations.push(decl);
                 }
             }

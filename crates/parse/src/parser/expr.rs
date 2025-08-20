@@ -9,7 +9,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.parse_expr_with(None)
     }
 
-    #[instrument(name = "parse_expr", level = "debug", skip_all)]
+    #[instrument(name = "parse_expr", level = "trace", skip_all)]
     pub(super) fn parse_expr_with(
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
