@@ -17,7 +17,7 @@ fn main() -> Result<(), EmittedDiagnostics> {
 
     // Enter the context and parse the file.
     // Counter will be parsed, even if not explicitly provided, since it is a dependency.
-    let _ = compiler.enter_mut(|compiler| -> solar::interface::Result<()> {
+    let contracts = compiler.enter_mut(|compiler| -> solar::interface::Result<_> {
         // Parse the files.
         let mut parsing_context = compiler.parse();
         parsing_context.load_files(paths)?;
@@ -27,19 +27,22 @@ fn main() -> Result<(), EmittedDiagnostics> {
         let ControlFlow::Continue(()) = compiler.lower_asts()? else {
             // Can't continue because HIR was not populated,
             // possibly because it was requested in `Session` with `stop_after`.
-            return Ok(());
+            return Ok(vec![]);
         };
 
         // Inspect the HIR.
         let gcx = compiler.gcx();
-        let mut contracts = gcx.hir.contracts().map(|c| c.name.to_string()).collect::<Vec<_>>();
-        contracts.sort(); // No order is guaranteed.
-        assert_eq!(contracts, ["AnotherCounter".to_string(), "Counter".to_string()]);
-
-        Ok(())
+        let contracts = gcx.hir.contracts().map(|c| c.name.to_string()).collect::<Vec<_>>();
+        Ok(contracts)
     });
+    if let Ok(mut contracts) = contracts {
+        // No order is guaranteed.
+        contracts.sort();
+        assert_eq!(contracts, ["AnotherCounter".to_string(), "Counter".to_string()]);
+    }
 
     // Return the emitted diagnostics as a `Result<(), _>`.
     // If any errors were emitted, this returns `Err(_)`, otherwise `Ok(())`.
+    // Note that this discards warnings and other non-error diagnostics.
     compiler.sess().emitted_errors().unwrap()
 }
