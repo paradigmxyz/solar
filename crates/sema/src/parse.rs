@@ -244,6 +244,8 @@ impl Drop for ParsingContext<'_> {
         if self.parsed {
             return;
         }
+        // This used to be a call to `bug` but it can be hit legitimately for example when there is
+        // an error returned with `?` in between calls to `parse`.
         warn!("`ParsingContext::parse` not called");
     }
 }
