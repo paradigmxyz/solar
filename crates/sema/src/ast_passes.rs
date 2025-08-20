@@ -406,14 +406,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         let ast::UsingDirective { list: _, ty, global } = using;
-        let with_typ = ty.is_some();
-        if self.contract.is_none() && !with_typ {
+        let with_ty = ty.is_some();
+        if self.contract.is_none() && !with_ty {
             self.dcx()
                 .err("the type has to be specified explicitly at file level (cannot use `*`)")
                 .span(self.item_span)
                 .emit();
         }
-        if *global && !with_typ {
+        if *global && !with_ty {
             self.dcx()
                 .err("can only globally attach functions to specific types")
                 .span(self.item_span)
