@@ -58,7 +58,8 @@ impl Compiler {
 
     /// Enters the compiler context with mutable access.
     ///
-    /// This is only necessary on the first access to parse sources.
+    /// This is currently only necessary when parsing sources and lowering the ASTs.
+    /// All accesses after can make use of `gcx`, passed by immutable reference.
     pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
         // SAFETY: `sess` is not modified.
         let sess = unsafe { trustme::decouple_lt(&self.0.sess) };

@@ -17,12 +17,18 @@ fn main() -> Result<(), EmittedDiagnostics> {
 
     // Enter the context and parse the file.
     // Counter will be parsed, even if not explicitly provided, since it is a dependency.
-    let contracts = compiler.enter_mut(|compiler| -> solar::interface::Result<_> {
+    let _ = compiler.enter_mut(|compiler| -> solar::interface::Result<_> {
         // Parse the files.
         let mut parsing_context = compiler.parse();
         parsing_context.load_files(paths)?;
         parsing_context.parse();
+        Ok(())
+    });
 
+    // Do some other stuff, store the compiler in a struct...
+
+    // Enter the context again and lower the ASTs to inspect the HIR.
+    let contracts = compiler.enter_mut(|compiler| -> solar::interface::Result<_> {
         // Perform AST lowering to populate the HIR.
         let ControlFlow::Continue(()) = compiler.lower_asts()? else {
             // Can't continue because HIR was not populated,
@@ -40,6 +46,9 @@ fn main() -> Result<(), EmittedDiagnostics> {
         contracts.sort();
         assert_eq!(contracts, ["AnotherCounter".to_string(), "Counter".to_string()]);
     }
+
+    // `compiler` can be entered again to perform analysis, type checking, etc, without needing
+    // mutable access, since `gcx` is the main context that is passed by immutable reference.
 
     // Return the emitted diagnostics as a `Result<(), _>`.
     // If any errors were emitted, this returns `Err(_)`, otherwise `Ok(())`.
