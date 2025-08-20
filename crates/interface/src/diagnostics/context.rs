@@ -123,7 +123,13 @@ impl DiagCtxt {
         });
     }
 
-    fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
+    /// Sets the inner emitter.
+    pub fn set_emitter(&self, emitter: Box<DynEmitter>) {
+        self.inner.lock().emitter = emitter;
+    }
+
+    /// Wraps the current emitter with the given closure.
+    pub fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
         struct FakeEmitter;
         impl crate::diagnostics::Emitter for FakeEmitter {
             fn emit_diagnostic(&mut self, _diagnostic: &Diag) {}
@@ -144,10 +150,15 @@ impl DiagCtxt {
         self.inner.get_mut().emitter.source_map()
     }
 
-    /// Sets whether to include created and emitted locations in diagnostics.
+    /// Sets flags.
     pub fn set_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
-        f(&mut self.inner.get_mut().flags);
+        self.set_flags_mut(f);
         self
+    }
+
+    /// Sets flags.
+    pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
+        f(&mut self.inner.get_mut().flags);
     }
 
     /// Disables emitting warnings.

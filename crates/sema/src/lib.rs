@@ -12,7 +12,6 @@ extern crate tracing;
 use rayon::prelude::*;
 use solar_interface::{Result, Session, config::CompilerStage};
 use std::ops::ControlFlow;
-use ty::Gcx;
 
 // Convenience re-exports.
 pub use ::thread_local;
@@ -36,6 +35,7 @@ pub mod hir;
 pub use hir::Hir;
 
 pub mod ty;
+pub use ty::{Gcx, Ty};
 
 mod typeck;
 

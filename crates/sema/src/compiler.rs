@@ -3,7 +3,7 @@ use crate::{
     ty::{Gcx, GcxMut, GlobalCtxt},
 };
 use solar_data_structures::trustme;
-use solar_interface::{Result, Session};
+use solar_interface::{Result, Session, diagnostics::DiagCtxt};
 use std::{
     marker::PhantomPinned,
     mem::{ManuallyDrop, MaybeUninit},
@@ -49,6 +49,18 @@ impl Compiler {
     #[inline]
     pub fn sess(&self) -> &Session {
         &self.0.sess
+    }
+
+    /// Returns a reference to the diagnostics context.
+    #[inline]
+    pub fn dcx(&self) -> &DiagCtxt {
+        &self.sess().dcx
+    }
+
+    /// Returns a mutable reference to the diagnostics context.
+    #[inline]
+    pub fn dcx_mut(&mut self) -> &mut DiagCtxt {
+        self.as_mut().dcx_mut()
     }
 
     /// Enters the compiler context.
@@ -132,6 +144,18 @@ impl<'c> CompilerRef<'c> {
     #[inline]
     pub fn sess(&self) -> &'c Session {
         self.gcx().sess
+    }
+
+    /// Returns a reference to the diagnostics context.
+    #[inline]
+    pub fn dcx(&self) -> &DiagCtxt {
+        &self.sess().dcx
+    }
+
+    /// Returns a mutable reference to the diagnostics context.
+    #[inline]
+    pub fn dcx_mut(&mut self) -> &mut DiagCtxt {
+        &mut self.inner.sess.dcx
     }
 
     /// Returns a reference to the global context.
