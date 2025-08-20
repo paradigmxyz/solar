@@ -128,6 +128,12 @@ impl<'c> CompilerRef<'c> {
         unsafe { std::mem::transmute(inner) }
     }
 
+    /// Returns a reference to the compiler session.
+    #[inline]
+    pub fn sess(&self) -> &'c Session {
+        self.gcx().sess
+    }
+
     /// Returns a reference to the global context.
     #[inline]
     pub fn gcx(&self) -> Gcx<'c> {
@@ -173,4 +179,42 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
         return;
     }
     debug!(asts_allocated = %fmt_bytes(arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_multiple_times() {
+        let sess = Session::builder().with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+
+        assert!(compiler.enter(|c| c.gcx().sources.is_empty()));
+        compiler.enter_mut(|c| {
+            let pcx = c.parse();
+            pcx.parse();
+        });
+        assert!(compiler.enter(|c| c.gcx().sources.is_empty()));
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            pcx.add_file(
+                c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap(),
+            );
+            pcx.parse();
+        });
+        assert_eq!(compiler.enter(|c| c.gcx().sources.len()), 1);
+        assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 1);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            pcx.add_file(
+                c.sess().source_map().new_source_file(String::from("test2.sol"), "").unwrap(),
+            );
+            pcx.parse();
+        });
+        assert_eq!(compiler.enter(|c| c.gcx().sources.len()), 2);
+        assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 2);
+    }
 }

@@ -123,7 +123,9 @@ impl<'gcx> ParsingContext<'gcx> {
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
             let Some(source) = sources.get(current_file) else { break };
-            debug_assert!(source.ast.is_none(), "source already parsed");
+            if source.ast.is_some() {
+                continue;
+            }
 
             let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
@@ -155,8 +157,8 @@ impl<'gcx> ParsingContext<'gcx> {
             let imports = to_parse
                 .par_iter_mut()
                 .enumerate()
+                .filter(|(_, source)| source.ast.is_none())
                 .flat_map_iter(|(i, source)| {
-                    debug_assert!(source.ast.is_none(), "source already parsed");
                     source.ast = self.parse_one(&source.file, arenas.get_or_default());
                     self.resolve_imports(&source.file, source.ast.as_ref())
                         .map(move |import| (i, import))

@@ -58,6 +58,12 @@ impl From<PathBuf> for FileName {
     }
 }
 
+impl From<String> for FileName {
+    fn from(s: String) -> Self {
+        Self::Custom(s)
+    }
+}
+
 impl FileName {
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
