@@ -244,7 +244,7 @@ impl Drop for ParsingContext<'_> {
         if self.parsed {
             return;
         }
-        self.sess.dcx.bug("must call `ParsingContext::parse`").emit();
+        warn!("`ParsingContext::parse` not called");
     }
 }
 
