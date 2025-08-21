@@ -16,9 +16,15 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Ident, Session, Span,
+    config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
 };
-use std::{fmt, hash::Hash, ops::ControlFlow};
+use std::{
+    fmt,
+    hash::Hash,
+    ops::ControlFlow,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 use thread_local::ThreadLocal;
 
 mod abi;
@@ -180,12 +186,34 @@ fn _gcx_traits() {
     assert_send_sync::<Gcx<'static>>();
 }
 
+struct AtomicCompilerStage(AtomicUsize);
+
+impl AtomicCompilerStage {
+    fn new() -> Self {
+        Self(AtomicUsize::new(usize::MAX))
+    }
+
+    fn set(&self, stage: CompilerStage) {
+        self.0.store(stage as usize, Ordering::Relaxed);
+    }
+
+    fn get(&self) -> Option<CompilerStage> {
+        let stage = self.0.load(Ordering::Relaxed);
+        if stage == usize::MAX {
+            None
+        } else {
+            Some(unsafe { std::mem::transmute::<u8, CompilerStage>(stage as u8) })
+        }
+    }
+}
+
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
     pub sess: &'gcx Session,
     pub sources: Sources<'gcx>,
     pub(crate) symbol_resolver: SymbolResolver<'gcx>,
     pub hir: Hir<'gcx>,
+    stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
 
@@ -204,11 +232,14 @@ impl<'gcx> GlobalCtxt<'gcx> {
             sources: Sources::new(),
             symbol_resolver: SymbolResolver::new(&sess.dcx),
             hir: Hir::new(),
+            stage: AtomicCompilerStage::new(),
+
             // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
             types: CommonTypes::new(
                 &interner,
                 &unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump,
             ),
+
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
             interner,
@@ -220,6 +251,23 @@ impl<'gcx> GlobalCtxt<'gcx> {
 impl<'gcx> Gcx<'gcx> {
     pub(crate) fn new(gcx: &'gcx GlobalCtxt<'gcx>) -> Self {
         Self(gcx)
+    }
+
+    pub(crate) fn advance_stage(&self, stage: CompilerStage) -> solar_interface::Result<()> {
+        let current = self.stage.get();
+        if stage == CompilerStage::Parsed && current == Some(stage) {
+            // Allow parsing multiple times.
+            return Ok(());
+        }
+        if current >= Some(stage) {
+            let current = match current {
+                Some(s) => s.to_str(),
+                None => "none",
+            };
+            self.dcx().bug(format!("attempted to advance from `{current}` to `{stage}`")).emit();
+        }
+        self.stage.set(stage);
+        Ok(())
     }
 
     /// Returns the diagnostics context.

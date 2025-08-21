@@ -49,6 +49,8 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let gcx = compiler.gcx();
     let sess = gcx.sess;
 
+    gcx.advance_stage(CompilerStage::Lowered)?;
+
     if gcx.sources.is_empty() {
         let msg = "no files found";
         let note = "if you wish to use the standard input, please specify `-` explicitly";
@@ -98,6 +100,8 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
+    gcx.advance_stage(CompilerStage::Analyzed)?;
+
     if let Some(dump) = &gcx.sess.opts.unstable.dump
         && dump.kind.is_hir()
     {

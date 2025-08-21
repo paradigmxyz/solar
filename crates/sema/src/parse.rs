@@ -1,4 +1,4 @@
-use crate::{hir::SourceId, ty::GcxMut};
+use crate::{Gcx, hir::SourceId, ty::GcxMut};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -7,6 +7,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Result, Session,
+    config::CompilerStage,
     diagnostics::DiagCtxt,
     pluralize,
     source_map::{FileName, FileResolver, SourceFile},
@@ -30,12 +31,13 @@ pub struct ParsingContext<'gcx> {
     resolve_imports: bool,
     /// Whether the context has been parsed.
     parsed: bool,
+    gcx: Gcx<'gcx>,
 }
 
 impl<'gcx> ParsingContext<'gcx> {
     /// Creates a new parser context.
-    pub(crate) fn new(mut gcx: GcxMut<'gcx>) -> Self {
-        let gcx = gcx.get_mut();
+    pub(crate) fn new(mut gcx_: GcxMut<'gcx>) -> Self {
+        let gcx = gcx_.get_mut();
         let sess = gcx.sess;
         Self {
             sess,
@@ -44,6 +46,7 @@ impl<'gcx> ParsingContext<'gcx> {
             arenas: &gcx.ast_arenas,
             resolve_imports: true,
             parsed: false,
+            gcx: gcx_.get(),
         }
     }
 
@@ -100,6 +103,7 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub fn parse(mut self) {
         self.parsed = true;
+        let _ = self.gcx.advance_stage(CompilerStage::Parsed);
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
             let arenas = self.arenas;

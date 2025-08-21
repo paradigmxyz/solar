@@ -12,6 +12,17 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
+/// The compiler.
+///
+/// This is the main entry point and driver for the compiler.
+///
+/// It must be [`enter`ed](Self::enter) to perform most operations, as it makes use of thread-local
+/// storage, which is only available inside of a closure.
+/// [`enter_mut`](Self::enter_mut) is only necessary when parsing sources and lowering the ASTs. All
+/// accesses after can make use of `gcx`, passed by immutable reference.
+///
+/// Once a stage-advancing operation is performed, such as `parse`, `lower`, etc., the compiler may
+/// not perform the same or a previous operation again, with the exception of `parse`.
 pub struct Compiler(ManuallyDrop<Pin<Box<CompilerInner<'static>>>>);
 
 struct CompilerInner<'a> {
@@ -255,5 +266,30 @@ mod tests {
         compiler.enter_mut(|c| c.drop_asts());
         assert_eq!(compiler.enter(|c| c.gcx().sources.len()), 0);
         assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 0);
+    }
+
+    #[test]
+    fn analyze_multiple_times() {
+        let sess =
+            Session::builder().with_buffer_emitter(solar_interface::ColorChoice::Never).build();
+        let mut compiler = Compiler::new(sess);
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            compiler.enter_mut(|c| {
+                let mut pcx = c.parse();
+                pcx.add_file(
+                    c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap(),
+                );
+                pcx.parse();
+                let _ = c.lower_asts();
+                let _ = c.analysis();
+                let _ = c.analysis();
+            });
+        }));
+        assert!(r.is_err(), "didn't panic");
+        let errs = compiler.sess().dcx.emitted_errors().unwrap().unwrap_err();
+        assert!(
+            errs.to_string().contains("attempted to advance from `analysis` to `analysis`"),
+            "{errs}"
+        );
     }
 }

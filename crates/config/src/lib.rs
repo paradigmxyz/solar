@@ -40,7 +40,12 @@ str_enum! {
         /// Source code was parsed, and all imports were recursively resolved and parsed.
         #[strum(serialize = "parsed-and-imported")]
         ParsedAndImported,
-        // TODO: More
+        /// ASTs were lowered to HIR.
+        #[strum(serialize = "lowered", serialize = "lowering")]
+        Lowered,
+        /// HIR was analyzed.
+        #[strum(serialize = "analyzed", serialize = "analysis")]
+        Analyzed,
     }
 }
 
