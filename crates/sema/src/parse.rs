@@ -15,7 +15,8 @@ use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
-#[must_use]
+/// Builder for parsing sources into a [`Compiler`](crate::Compiler).
+#[must_use = "`ParsingContext::parse` must be called to parse the sources"]
 pub struct ParsingContext<'gcx> {
     /// The compiler session.
     pub sess: &'gcx Session,

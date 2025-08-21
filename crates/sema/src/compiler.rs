@@ -189,10 +189,17 @@ impl<'c> CompilerRef<'c> {
         });
     }
 
+    /// Returns a builder for parsing sources.
+    ///
+    /// [`ParsingContext::parse`](ParsingContext::parse) must be called at the end to actually parse
+    /// the sources.
     pub fn parse(&mut self) -> ParsingContext<'c> {
         ParsingContext::new(self.gcx_mut())
     }
 
+    /// Performs AST lowering.
+    ///
+    /// Lowers the entire program to HIR, populating `gcx.hir`.
     pub fn lower_asts(&mut self) -> Result<ControlFlow<()>> {
         crate::lower(self)
     }

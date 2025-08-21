@@ -45,8 +45,6 @@ pub mod stats;
 
 mod span_visitor;
 
-/// Parses and lowers the entire program to HIR.
-/// Returns the global context if successful and if lowering was requested (default).
 pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let gcx = compiler.gcx();
     let sess = gcx.sess;
@@ -98,9 +96,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     Ok(ControlFlow::Continue(()))
 }
 
-/// Performs the analysis phase.
-///
-/// This is not yet exposed publicly as it is not yet fully implemented.
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     if let Some(dump) = &gcx.sess.opts.unstable.dump
