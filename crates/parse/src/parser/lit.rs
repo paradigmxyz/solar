@@ -467,12 +467,15 @@ fn split_at_exclusive(s: &str, idx: usize) -> (&str, &str) {
 fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
     // Do not allocate a new string unless necessary.
     let s = symbol.as_str();
-    if s.contains('_') {
-        let mut s = s.to_string();
-        s.retain(|c| c != '_');
-        return Cow::Owned(s);
-    }
-    Cow::Borrowed(s)
+    if s.contains('_') { Cow::Owned(strip_underscores_slow(s)) } else { Cow::Borrowed(s) }
+}
+
+#[inline(never)]
+#[cold]
+fn strip_underscores_slow(s: &str) -> String {
+    let mut s = s.to_string();
+    s.retain(|c| c != '_');
+    s
 }
 
 #[cfg(test)]
