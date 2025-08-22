@@ -1,7 +1,9 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
-use solar_ast::{AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit, token::*, yul::*};
+use solar_ast::{
+    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, token::*, yul::*,
+};
 use solar_interface::{Ident, error_code, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -80,7 +82,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(Data { span, name, data })
     }
 
-    fn parse_yul_lit(&mut self) -> PResult<'sess, &'ast mut solar_ast::Lit> {
+    fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
         let (lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
         Ok(lit)
@@ -252,7 +254,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_expr_kind(&mut self) -> PResult<'sess, ExprKind<'ast>> {
         if self.check_lit() {
             // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
-            self.parse_yul_lit().map(ExprKind::Lit)
+            self.parse_yul_lit().map(|lit| ExprKind::Lit(self.alloc(lit)))
         } else if self.check_path() {
             let path = self.parse_path_any()?;
             if self.token.is_open_delim(Delimiter::Parenthesis) {

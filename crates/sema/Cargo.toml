@@ -34,7 +34,6 @@ once_map.workspace = true
 rayon.workspace = true
 thread_local.workspace = true
 tracing.workspace = true
-typed-arena.workspace = true
 
 alloy-json-abi.workspace = true
 serde.workspace = true

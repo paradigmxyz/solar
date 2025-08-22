@@ -18,11 +18,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn parse_lit(
         &mut self,
         with_subdenomination: bool,
-    ) -> PResult<'sess, (&'ast mut Lit, Option<SubDenomination>)> {
+    ) -> PResult<'sess, (Lit<'ast>, Option<SubDenomination>)> {
         self.parse_spanned(|this| this.parse_lit_inner(with_subdenomination)).map(
-            |(span, (symbol, kind, subdenomination))| {
-                (self.arena.literals.alloc(Lit { span, symbol, kind }), subdenomination)
-            },
+            |(span, (symbol, kind, subdenomination))| (Lit { span, symbol, kind }, subdenomination),
         )
     }
 
@@ -63,7 +61,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_lit_inner(
         &mut self,
         with_subdenomination: bool,
-    ) -> PResult<'sess, (Symbol, LitKind, Option<SubDenomination>)> {
+    ) -> PResult<'sess, (Symbol, LitKind<'ast>, Option<SubDenomination>)> {
         let lo = self.token.span;
         if let TokenKind::Ident(symbol @ (kw::True | kw::False)) = self.token.kind {
             self.bump();
@@ -110,7 +108,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         symbol: Symbol,
         subdenomination: Option<SubDenomination>,
-    ) -> PResult<'sess, LitKind> {
+    ) -> PResult<'sess, LitKind<'ast>> {
         use LitError::*;
         match parse_integer(symbol, subdenomination) {
             Ok(l) => Ok(l),
@@ -133,7 +131,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         symbol: Symbol,
         subdenomination: Option<SubDenomination>,
-    ) -> PResult<'sess, LitKind> {
+    ) -> PResult<'sess, LitKind<'ast>> {
         use LitError::*;
         match parse_rational(symbol, subdenomination) {
             Ok(l) => Ok(l),
@@ -154,7 +152,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a string literal.
-    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind> {
+    fn parse_lit_str(&mut self, lit: TokenLit) -> PResult<'sess, LitKind<'ast>> {
         let mode = match lit.kind {
             TokenLitKind::Str => StrKind::Str,
             TokenLitKind::UnicodeStr => StrKind::Unicode,
@@ -183,6 +181,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             TokenLitKind::HexStr => StrKind::Hex,
             _ => unreachable!(),
         };
+        let extra = self.alloc_vec(extra);
         Ok(LitKind::Str(kind, ByteSymbol::intern(&value), extra))
     }
 }
@@ -223,10 +222,10 @@ impl fmt::Display for LitError {
     }
 }
 
-fn parse_integer(
+fn parse_integer<'ast>(
     symbol: Symbol,
     subdenomination: Option<SubDenomination>,
-) -> Result<LitKind, LitError> {
+) -> Result<LitKind<'ast>, LitError> {
     let s = &strip_underscores(&symbol)[..];
     let base = match s.as_bytes() {
         [b'0', b'x', ..] => Base::Hexadecimal,
@@ -260,10 +259,10 @@ fn parse_integer(
     big_to_u256(n, false).map(LitKind::Number)
 }
 
-fn parse_rational(
+fn parse_rational<'ast>(
     symbol: Symbol,
     subdenomination: Option<SubDenomination>,
-) -> Result<LitKind, LitError> {
+) -> Result<LitKind<'ast>, LitError> {
     let s = &strip_underscores(&symbol)[..];
     debug_assert!(!s.is_empty());
 

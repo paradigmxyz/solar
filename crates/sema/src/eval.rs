@@ -106,7 +106,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_lit(&mut self, lit: &hir::Lit) -> EvalResult<'gcx> {
+    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
             LitKind::Number(n) => Ok(IntScalar::new(n)),

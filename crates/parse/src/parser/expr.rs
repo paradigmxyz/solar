@@ -172,7 +172,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
             let (lit, sub) = self.parse_lit(true)?;
-            ExprKind::Lit(lit, sub)
+            ExprKind::Lit(self.alloc(lit), sub)
         } else if self.eat_keyword(kw::Type) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;

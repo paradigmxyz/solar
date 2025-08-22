@@ -1054,9 +1054,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     self.lower_expr_opt(end.as_deref()),
                 ),
             },
-            ast::ExprKind::Lit(lit, _) => {
-                hir::ExprKind::Lit(self.arena.literals.alloc(ast::Lit::clone(lit)))
-            }
+            ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
             ast::ExprKind::Member(expr, member) => {
                 hir::ExprKind::Member(self.lower_expr(expr), *member)
             }
@@ -1084,6 +1082,10 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
         };
         hir::Expr { id: self.next_id(), kind, span: expr.span }
+    }
+
+    fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
+        self.arena.alloc(lit.copy_without_data())
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {

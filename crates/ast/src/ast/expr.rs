@@ -66,7 +66,7 @@ pub enum ExprKind<'ast> {
     ///
     /// Note that the `SubDenomination` is only present for numeric literals, and it's already
     /// applied to `Lit`'s value. It is only present for error reporting/formatting purposes.
-    Lit(&'ast mut Lit, Option<SubDenomination>),
+    Lit(Box<'ast, Lit<'ast>>, Option<SubDenomination>),
 
     /// Access of a named member: `obj.k`.
     Member(Box<'ast, Expr<'ast>>, Ident),
