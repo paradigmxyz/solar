@@ -28,7 +28,7 @@ mod span;
 pub use span::{Span, Spanned};
 
 mod symbol;
-pub use symbol::{Ident, Symbol, kw, sym};
+pub use symbol::{ByteSymbol, Ident, Symbol, kw, sym};
 
 pub mod panic_hook;
 
