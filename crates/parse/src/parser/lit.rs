@@ -251,12 +251,11 @@ fn parse_integer<'ast>(
     if s.is_empty() {
         return Err(LitError::EmptyInteger);
     }
-    // TODO: Parse directly into U256.
-    let mut n = big_int_from_str_radix(s, base, false)?;
+    let mut n = u256_from_str_radix(s, base)?;
     if let Some(subdenomination) = subdenomination {
-        n *= subdenomination.value();
+        n = n.checked_mul(U256::from(subdenomination.value())).ok_or(LitError::IntegerTooLarge)?;
     }
-    big_to_u256(n, false).map(LitKind::Number)
+    Ok(LitKind::Number(n))
 }
 
 fn parse_rational<'ast>(
@@ -334,7 +333,7 @@ fn parse_rational<'ast>(
 
     let fract_len = rat.map_or(0, str::len);
     let fract_len = u16::try_from(fract_len).map_err(|_| LitError::RationalTooLarge)?;
-    let denominator = BigInt::from(10u64).pow(fract_len as u32);
+    let denominator = pow10(fract_len as u32);
     let mut number = Ratio::new(int, denominator);
 
     // 0E... is always zero.
@@ -350,7 +349,7 @@ fn parse_rational<'ast>(
             _ => LitError::ParseExponent(e),
         })?;
         let exp_abs = exp.unsigned_abs();
-        let power = || BigInt::from(10u64).pow(exp_abs);
+        let power = || pow10(exp_abs);
         if exp.is_negative() {
             if !fits_precision_base_10(&number.denom().abs().into_parts().1, exp_abs) {
                 return Err(LitError::ExponentTooLarge);
@@ -413,6 +412,15 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
     }
 }
 
+fn u256_from_str_radix(s: &str, base: Base) -> Result<U256, LitError> {
+    if s.len() <= max_digits::<{ Primitive::BITS }>(base)
+        && let Ok(n) = Primitive::from_str_radix(s, base as u32)
+    {
+        return Ok(U256::from(n));
+    }
+    U256::from_str_radix(s, base as u64).map_err(|_| LitError::IntegerTooLarge)
+}
+
 fn big_int_from_str_radix(s: &str, base: Base, rat: bool) -> Result<BigInt, LitError> {
     if s.len() > max_digits::<MAX_BITS>(base) {
         return Err(if rat { LitError::RationalTooLarge } else { LitError::IntegerTooLarge });
@@ -433,6 +441,14 @@ fn big_to_u256(big: BigInt, rat: bool) -> Result<U256, LitError> {
     } else {
         LitError::IntegerTooLarge
     })
+}
+
+fn pow10(exp: u32) -> BigInt {
+    if let Some(n) = 10usize.checked_pow(exp) {
+        BigInt::from(n)
+    } else {
+        BigInt::from(10u64).pow(exp)
+    }
 }
 
 /// Checks whether mantissa * (10 ** exp) fits into [`MAX_BITS`] bits.
