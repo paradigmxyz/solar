@@ -30,17 +30,35 @@ pub const SINGLE_THREADED_TARGET: bool =
 
 str_enum! {
     /// Compiler stage.
-    #[derive(strum::EnumIs)]
-    #[strum(serialize_all = "lowercase")]
+    #[derive(strum::EnumIs, strum::FromRepr)]
+    #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum CompilerStage {
-        /// Source code was parsed into an AST.
-        #[strum(serialize = "parsed", serialize = "parsing")]
-        Parsed,
-        /// Source code was parsed, and all imports were recursively resolved and parsed.
-        #[strum(serialize = "parsed-and-imported")]
-        ParsedAndImported,
-        // TODO: More
+        /// Source code parsing.
+        ///
+        /// Includes lexing, parsing to ASTs, import resolution which recursively parses imported files.
+        Parsing,
+        /// ASTs lowering to HIR.
+        ///
+        /// Includes lowering all ASTs to a single HIR, inheritance resolution, name resolution, basic type checking.
+        Lowering,
+        /// Analysis.
+        ///
+        /// Includes type checking, computing ABI, static analysis.
+        Analysis,
+    }
+}
+
+impl CompilerStage {
+    /// Returns the next stage, or `None` if this is the last stage.
+    pub fn next(self) -> Option<Self> {
+        Self::from_repr(self as usize + 1)
+    }
+
+    /// Returns the next stage, `None` if this is the last stage or the first stage if `None` is
+    /// passed.
+    pub fn next_opt(this: Option<Self>) -> Option<Self> {
+        Self::from_repr(this.map(|s| s as usize + 1).unwrap_or(0))
     }
 }
 

@@ -7,13 +7,13 @@ use solar_interface::{Session, Span, diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 #[instrument(name = "ast_passes", level = "debug", skip_all)]
-pub(crate) fn run(sess: &Session, ast: &ast::SourceUnit<'_>) {
+pub(crate) fn run<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) {
     validate(sess, ast);
 }
 
 /// Performs AST validation.
 #[instrument(name = "validate", level = "debug", skip_all)]
-fn validate(sess: &Session, ast: &ast::SourceUnit<'_>) {
+fn validate<'ast>(sess: &Session, ast: &'ast ast::SourceUnit<'ast>) {
     let mut validator = AstValidator::new(sess);
     let _ = validator.visit_source_unit(ast);
 }
@@ -406,14 +406,14 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         let ast::UsingDirective { list: _, ty, global } = using;
-        let with_typ = ty.is_some();
-        if self.contract.is_none() && !with_typ {
+        let with_ty = ty.is_some();
+        if self.contract.is_none() && !with_ty {
             self.dcx()
                 .err("the type has to be specified explicitly at file level (cannot use `*`)")
                 .span(self.item_span)
                 .emit();
         }
-        if *global && !with_typ {
+        if *global && !with_ty {
             self.dcx()
                 .err("can only globally attach functions to specific types")
                 .span(self.item_span)

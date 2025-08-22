@@ -559,40 +559,40 @@ mod tests {
 
             check_address(
                 "0x52908400098527886E0F7030069857D2E4169EE7",
-                Ok(address!("52908400098527886E0F7030069857D2E4169EE7")),
+                Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
             );
             check_address(
                 "0x52908400098527886E0F7030069857D2E4169Ee7",
-                Ok(address!("52908400098527886E0F7030069857D2E4169EE7")),
+                Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
             );
 
             check_address(
                 "0x8617E340B3D01FA5F11F306F4090FD50E238070D",
-                Ok(address!("8617E340B3D01FA5F11F306F4090FD50E238070D")),
+                Ok(address!("0x8617E340B3D01FA5F11F306F4090FD50E238070D")),
             );
             check_address(
                 "0xde709f2102306220921060314715629080e2fb77",
-                Ok(address!("de709f2102306220921060314715629080e2fb77")),
+                Ok(address!("0xde709f2102306220921060314715629080e2fb77")),
             );
             check_address(
                 "0x27b1fdb04752bbc536007a920d24acb045561c26",
-                Ok(address!("27b1fdb04752bbc536007a920d24acb045561c26")),
+                Ok(address!("0x27b1fdb04752bbc536007a920d24acb045561c26")),
             );
             check_address(
                 "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
-                Ok(address!("5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed")),
+                Ok(address!("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed")),
             );
             check_address(
                 "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
-                Ok(address!("fB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")),
+                Ok(address!("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")),
             );
             check_address(
                 "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
-                Ok(address!("dbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB")),
+                Ok(address!("0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB")),
             );
             check_address(
                 "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
-                Ok(address!("D1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb")),
+                Ok(address!("0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb")),
             );
         });
     }

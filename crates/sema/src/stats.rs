@@ -37,7 +37,7 @@ struct StatCollector {
     seen: FxHashSet<ItemId>,
 }
 
-pub fn print_ast_stats(ast: &ast::SourceUnit<'_>, title: &str, prefix: &str) {
+pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, prefix: &str) {
     let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
     let _ = collector.visit_source_unit(ast);
     collector.print(title, prefix)
@@ -154,7 +154,7 @@ impl<'ast> Visit<'ast> for StatCollector {
 
     fn visit_source_unit(
         &mut self,
-        source_unit: &ast::SourceUnit<'ast>,
+        source_unit: &'ast ast::SourceUnit<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("SourceUnit", None, source_unit);
         self.walk_source_unit(source_unit)

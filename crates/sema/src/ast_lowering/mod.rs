@@ -1,12 +1,12 @@
 use crate::{
-    ParsedSources,
     hir::{self, Hir},
+    parse::Sources,
+    ty::{Gcx, GcxMut},
 };
 use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashMap,
-    trustme,
 };
 use solar_interface::{Session, diagnostics::DiagCtxt};
 
@@ -18,21 +18,15 @@ pub(crate) mod resolve;
 pub(crate) use resolve::{Res, SymbolResolver};
 
 #[instrument(name = "ast_lowering", level = "debug", skip_all)]
-pub(crate) fn lower<'sess, 'hir>(
-    sess: &'sess Session,
-    sources: &ParsedSources<'_>,
-    hir_arena: &'hir hir::Arena,
-) -> (Hir<'hir>, SymbolResolver<'sess>) {
-    let mut lcx = LoweringContext::new(sess, hir_arena);
+pub(crate) fn lower(mut gcx: GcxMut<'_>) {
+    let mut lcx = LoweringContext::new(gcx.get());
 
     // Lower AST to HIR.
-    // SAFETY: `sources` outlives `lcx`, which does not outlive this function.
-    let sources = unsafe { trustme::decouple_lt(sources) };
-    lcx.lower_sources(sources);
+    lcx.lower_sources();
 
     // Resolve source scopes.
     lcx.collect_exports();
-    lcx.perform_imports(sources);
+    lcx.perform_imports();
 
     // Resolve contract scopes.
     lcx.collect_contract_declarations();
@@ -40,50 +34,56 @@ pub(crate) fn lower<'sess, 'hir>(
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
+    let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
-    lcx.resolve_symbols();
+    rcx.resolve_symbols();
     // Resolve constructor base args.
-    lcx.resolve_base_args();
+    rcx.resolve_base_args();
+    let mut lcx = rcx.lcx;
 
     // Clean up.
     lcx.shrink_to_fit();
 
-    lcx.finish()
+    let gcx = gcx.get_mut();
+    (gcx.hir, gcx.symbol_resolver) = lcx.finish();
 }
 
-struct LoweringContext<'sess, 'ast, 'hir> {
-    sess: &'sess Session,
-    arena: &'hir hir::Arena,
-    hir: Hir<'hir>,
+struct LoweringContext<'gcx> {
+    sess: &'gcx Session,
+    arena: &'gcx hir::Arena,
+    hir: Hir<'gcx>,
+
+    sources: &'gcx Sources<'gcx>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
-    hir_to_ast: FxHashMap<hir::ItemId, &'ast ast::Item<'ast>>,
+    hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
     /// Current contract being lowered.
     current_contract_id: Option<hir::ContractId>,
 
-    resolver: SymbolResolver<'sess>,
+    resolver: SymbolResolver<'gcx>,
     next_id: IdCounter,
 }
 
-impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
-    fn new(sess: &'sess Session, arena: &'hir hir::Arena) -> Self {
+impl<'gcx> LoweringContext<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
         Self {
-            sess,
-            arena,
+            sess: gcx.sess,
+            arena: gcx.arena(),
+            sources: &gcx.sources,
             hir: Hir::new(),
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
-            resolver: SymbolResolver::new(&sess.dcx),
+            resolver: SymbolResolver::new(&gcx.sess.dcx),
             next_id: IdCounter::new(),
         }
     }
 
     /// Returns the diagnostic context.
     #[inline]
-    fn dcx(&self) -> &'sess DiagCtxt {
+    fn dcx(&self) -> &'gcx DiagCtxt {
         &self.sess.dcx
     }
 
@@ -93,7 +93,7 @@ impl<'sess, 'hir> LoweringContext<'sess, '_, 'hir> {
     }
 
     #[instrument(name = "drop_lcx", level = "debug", skip_all)]
-    fn finish(self) -> (Hir<'hir>, SymbolResolver<'sess>) {
+    fn finish(self) -> (Hir<'gcx>, SymbolResolver<'gcx>) {
         // NOTE: Explicit scope to drop `self` before the span.
         {
             let this = self;

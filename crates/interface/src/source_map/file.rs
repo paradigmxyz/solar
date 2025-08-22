@@ -58,6 +58,12 @@ impl From<PathBuf> for FileName {
     }
 }
 
+impl From<String> for FileName {
+    fn from(s: String) -> Self {
+        Self::Custom(s)
+    }
+}
+
 impl FileName {
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
@@ -73,6 +79,15 @@ impl FileName {
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
         FileNameDisplay { inner: self }
+    }
+
+    /// Returns the path if the file name is a real file.
+    #[inline]
+    pub fn as_real(&self) -> Option<&Path> {
+        match self {
+            Self::Real(path) => Some(path),
+            _ => None,
+        }
     }
 }
 
