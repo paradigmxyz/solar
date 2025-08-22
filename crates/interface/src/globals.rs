@@ -30,14 +30,18 @@ impl SessionGlobals {
 
     /// Sets this instance as the global instance for the duration of the closure.
     pub fn set<R>(&self, f: impl FnOnce() -> R) -> R {
-        Self::try_with(|g| {
-            if let Some(prev) = g
+        self.check_overwrite();
+        SESSION_GLOBALS.set(self, f)
+    }
+
+    fn check_overwrite(&self) {
+        Self::try_with(|prev| {
+            if let Some(prev) = prev
                 && !prev.maybe_eq(self)
             {
                 overwrite_log();
             }
         });
-        SESSION_GLOBALS.set(self, f)
     }
 
     /// Insert `source_map` into the session globals for the duration of the closure's execution.
@@ -82,13 +86,7 @@ impl SessionGlobals {
     }
 
     pub(crate) fn maybe_eq(&self, other: &Self) -> bool {
-        // Extra check for test usage of `enter`:
-        // we allow replacing empty source maps with eachother.
-        std::ptr::eq(self, other) || (self.is_default() && other.is_default())
-    }
-
-    fn is_default(&self) -> bool {
-        self.source_map.is_empty()
+        std::ptr::eq(self, other)
     }
 }
 
