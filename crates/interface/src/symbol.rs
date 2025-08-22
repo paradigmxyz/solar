@@ -353,11 +353,45 @@ impl fmt::Display for Symbol {
     }
 }
 
+/// Like [`Symbol`], but for byte strings.
+///
+/// [`ByteSymbol`] is used less widely, so it has fewer operations defined than [`Symbol`].
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteSymbol(BaseIndex32);
+
+impl ByteSymbol {
+    /// Maps a string to its interned representation.
+    pub fn intern(byte_str: &[u8]) -> Self {
+        SessionGlobals::with(|g| g.symbol_interner.intern_byte_str(byte_str))
+    }
+
+    /// Access the underlying byte string.
+    ///
+    /// See [`Symbol::as_str`] for more information.
+    pub fn as_byte_str(&self) -> &[u8] {
+        SessionGlobals::with(|g| unsafe {
+            trustme::decouple_lt(g.symbol_interner.get_byte_str(*self))
+        })
+    }
+
+    /// Returns the internal representation of the symbol.
+    #[inline(always)]
+    pub fn as_u32(self) -> u32 {
+        self.0.get()
+    }
+}
+
+impl fmt::Debug for ByteSymbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_byte_str(), f)
+    }
+}
+
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
 pub(crate) struct Interner {
-    inner: inturn::Interner<Symbol, solar_data_structures::map::FxBuildHasher>,
+    inner: inturn::BytesInterner<ByteSymbol, solar_data_structures::map::FxBuildHasher>,
 }
 
 impl Interner {
@@ -367,18 +401,31 @@ impl Interner {
 
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
         let mut inner =
-            inturn::Interner::with_capacity_and_hasher(init.len() * 4, Default::default());
-        inner.intern_many_mut_static(init.iter().copied());
+            inturn::BytesInterner::with_capacity_and_hasher(init.len() * 4, Default::default());
+        inner.intern_many_mut_static(init.iter().map(|s| s.as_bytes()));
         Self { inner }
     }
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        self.inner.intern(string)
+        let s = self.inner.intern(string.as_bytes());
+        Symbol::new(s.as_u32())
     }
 
     #[inline]
     fn get(&self, symbol: Symbol) -> &str {
+        let s = self.inner.resolve(ByteSymbol(symbol.0));
+        // SAFETY: `Symbol` can only be constructed from UTF-8 strings in `intern`.
+        unsafe { std::str::from_utf8_unchecked(s) }
+    }
+
+    #[inline]
+    fn intern_byte_str(&self, byte_str: &[u8]) -> ByteSymbol {
+        self.inner.intern(byte_str)
+    }
+
+    #[inline]
+    fn get_byte_str(&self, symbol: ByteSymbol) -> &[u8] {
         self.inner.resolve(symbol)
     }
 
@@ -411,7 +458,7 @@ impl Interner {
     }
 }
 
-impl inturn::InternerSymbol for Symbol {
+impl inturn::InternerSymbol for ByteSymbol {
     #[inline]
     fn try_from_usize(n: usize) -> Option<Self> {
         BaseIndex32::try_from_usize(n).map(Self)
