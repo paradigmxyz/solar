@@ -1,6 +1,6 @@
 use alloy_primitives::Address;
-use solar_interface::{Span, Symbol, diagnostics::ErrorGuaranteed, kw};
-use std::{fmt, sync::Arc};
+use solar_interface::{ByteSymbol, Span, Symbol, diagnostics::ErrorGuaranteed, kw};
+use std::fmt;
 
 /// A literal: `hex"1234"`, `5.6 ether`.
 ///
@@ -79,7 +79,7 @@ pub enum LitKind {
     ///     kind: Str("foobar", [(6..11, "bar")]),
     /// }
     /// ```
-    Str(StrKind, Arc<[u8]>, Vec<(Span, Symbol)>),
+    Str(StrKind, ByteSymbol, Vec<(Span, Symbol)>),
     /// A decimal or hexadecimal number literal.
     Number(num_bigint::BigInt),
     /// A rational number literal.
@@ -100,6 +100,7 @@ impl fmt::Debug for LitKind {
         match self {
             Self::Str(kind, value, extra) => {
                 write!(f, "{kind:?}(")?;
+                let value = value.as_byte_str();
                 if let Ok(utf8) = std::str::from_utf8(value) {
                     write!(f, "{utf8:?}")?;
                 } else {
@@ -373,24 +374,28 @@ mod tests {
     use super::*;
     use solar_interface::{BytePos, enter};
 
+    fn bs(s: &[u8]) -> ByteSymbol {
+        ByteSymbol::intern(s)
+    }
+
     #[test]
     fn literal_fmt() {
         enter(|| {
-            let lit = LitKind::Str(StrKind::Str, Arc::from(b"hello world" as &[u8]), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello world"), vec![]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello world\")");
 
-            let lit = LitKind::Str(StrKind::Str, Arc::from(b"hello\0world" as &[u8]), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello\0world"), vec![]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello\\0world\")");
 
-            let lit = LitKind::Str(StrKind::Str, Arc::from(&[255u8][..]), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(&[255u8][..]), vec![]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(0xff)");
 
             let lit = LitKind::Str(
                 StrKind::Str,
-                Arc::from(b"hello world" as &[u8]),
+                bs(b"hello world"),
                 vec![(Span::new(BytePos(69), BytePos(420)), Symbol::intern("world"))],
             );
             assert_eq!(lit.description(), "string");

@@ -3,7 +3,7 @@ use num_bigint::{BigInt, BigUint};
 use num_rational::BigRational;
 use num_traits::{Num, Signed, Zero};
 use solar_ast::{token::*, *};
-use solar_interface::{Symbol, diagnostics::ErrorGuaranteed, kw};
+use solar_interface::{ByteSymbol, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -178,7 +178,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             TokenLitKind::HexStr => StrKind::Hex,
             _ => unreachable!(),
         };
-        Ok(LitKind::Str(kind, value.into(), extra))
+        Ok(LitKind::Str(kind, ByteSymbol::intern(&value), extra))
     }
 }
 
