@@ -408,8 +408,7 @@ impl Interner {
 
     #[inline]
     fn intern(&self, string: &str) -> Symbol {
-        let s = self.inner.intern(string.as_bytes());
-        Symbol::new(s.as_u32())
+        Symbol(self.inner.intern(string.as_bytes()).0)
     }
 
     #[inline]

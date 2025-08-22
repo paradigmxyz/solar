@@ -233,7 +233,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
             types: CommonTypes::new(
                 &interner,
-                &unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump,
+                unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
 
             ast_arenas: ThreadLocal::new(),
@@ -302,7 +302,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
-        &self.arena().bump
+        self.arena().bump()
     }
 
     pub fn alloc<T>(self, value: T) -> &'gcx T {

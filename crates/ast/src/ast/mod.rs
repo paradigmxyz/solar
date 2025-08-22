@@ -34,23 +34,33 @@ pub type Box<'ast, T> = &'ast mut T;
 
 /// AST arena allocator.
 pub struct Arena {
-    pub bump: bumpalo::Bump,
-    pub literals: typed_arena::Arena<Lit>,
+    bump: bumpalo::Bump,
 }
 
 impl Arena {
     /// Creates a new AST arena.
     pub fn new() -> Self {
-        Self { bump: bumpalo::Bump::new(), literals: typed_arena::Arena::new() }
+        Self { bump: bumpalo::Bump::new() }
     }
 
+    /// Returns a reference to the arena's bump allocator.
+    pub fn bump(&self) -> &bumpalo::Bump {
+        &self.bump
+    }
+
+    /// Returns a mutable reference to the arena's bump allocator.
+    pub fn bump_mut(&mut self) -> &mut bumpalo::Bump {
+        &mut self.bump
+    }
+
+    /// Calculates the number of bytes currently allocated in the entire arena.
     pub fn allocated_bytes(&self) -> usize {
         self.bump.allocated_bytes()
-            + (self.literals.len() + self.literals.uninitialized_array().len()) * size_of::<Lit>()
     }
 
+    /// Returns the number of bytes currently in use.
     pub fn used_bytes(&self) -> usize {
-        self.bump.used_bytes() + self.literals.len() * size_of::<Lit>()
+        self.bump.used_bytes()
     }
 }
 

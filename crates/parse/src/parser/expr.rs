@@ -171,8 +171,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
-            let (lit, sub) = self.parse_lit_with_subdenomination()?;
-            ExprKind::Lit(lit, sub)
+            let (lit, sub) = self.parse_lit(true)?;
+            ExprKind::Lit(self.alloc(lit), sub)
         } else if self.eat_keyword(kw::Type) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;

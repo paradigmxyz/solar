@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy_primitives::{Address, U256};
 use solar_interface::{ByteSymbol, Span, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::fmt;
 
@@ -9,8 +9,8 @@ use std::fmt;
 /// the `symbol` will be the concatenated string.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.literal>
-#[derive(Clone, Debug)]
-pub struct Lit {
+#[derive(Clone, Copy, Debug)]
+pub struct Lit<'ast> {
     /// The concatenated span of the literal.
     pub span: Span,
     /// The original contents of the literal as written in the source code, excluding any quotes.
@@ -21,16 +21,14 @@ pub struct Lit {
     pub symbol: Symbol,
     /// The "semantic" representation of the literal lowered from the original tokens.
     /// Strings are unescaped and concatenated, hexadecimal forms are eliminated, etc.
-    pub kind: LitKind,
+    pub kind: LitKind<'ast>,
 }
 
-impl fmt::Display for Lit {
+impl fmt::Display for Lit<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { ref kind, symbol, span: _ } = *self;
         match kind {
-            LitKind::Str(StrKind::Str, ..) => write!(f, "\"{symbol}\""),
-            LitKind::Str(StrKind::Unicode, ..) => write!(f, "unicode\"{symbol}\""),
-            LitKind::Str(StrKind::Hex, ..) => write!(f, "hex\"{symbol}\""),
+            LitKind::Str(s, ..) => write!(f, "{}\"{symbol}\"", s.prefix()),
             LitKind::Number(_)
             | LitKind::Rational(_)
             | LitKind::Err(_)
@@ -40,7 +38,7 @@ impl fmt::Display for Lit {
     }
 }
 
-impl Lit {
+impl Lit<'_> {
     /// Returns the span of the first string literal in this literal.
     pub fn first_span(&self) -> Span {
         if let LitKind::Str(kind, _, extra) = &self.kind
@@ -54,21 +52,37 @@ impl Lit {
 
     /// Returns an iterator over all the literals that were concatenated to form this literal.
     pub fn literals(&self) -> impl Iterator<Item = (Span, Symbol)> + '_ {
-        let extra = if let LitKind::Str(_, _, extra) = &self.kind { extra.as_slice() } else { &[] };
+        let extra = if let LitKind::Str(_, _, extra) = self.kind { extra } else { &[] };
         std::iter::once((self.first_span(), self.symbol)).chain(extra.iter().copied())
+    }
+
+    /// Returns a copy of this literal with any allocated data discarded.
+    pub fn copy_without_data<'a>(&self) -> Lit<'a> {
+        if let LitKind::Str(str_kind, byte_symbol, items) = self.kind
+            && !items.is_empty()
+        {
+            return Lit {
+                span: self.span,
+                symbol: self.symbol,
+                kind: LitKind::Str(str_kind, byte_symbol, &[]),
+            };
+        }
+
+        // SAFETY: We just handled the case with data, this is a POD copy.
+        unsafe { std::mem::transmute::<Lit<'_>, Lit<'a>>(*self) }
     }
 }
 
 /// A kind of literal.
-#[derive(Clone)]
-pub enum LitKind {
+#[derive(Clone, Copy)]
+pub enum LitKind<'ast> {
     /// A string, unicode string, or hex string literal. Contains the kind and the unescaped
     /// contents of the string.
     ///
     /// Note that even if this is a string or unicode string literal, invalid UTF-8 sequences
     /// are allowed, and as such this cannot be a `str` or `Symbol`.
     ///
-    /// The `Vec<(Span, Symbol)>` contains the extra string literals of the same kind that were
+    /// The `[(Span, Symbol)]` contains the extra string literals of the same kind that were
     /// concatenated together to form this literal.
     /// For example, `"foo" "bar"` would be parsed as:
     /// ```ignore (illustrative-debug-format)
@@ -79,14 +93,16 @@ pub enum LitKind {
     ///     kind: Str("foobar", [(6..11, "bar")]),
     /// }
     /// ```
-    Str(StrKind, ByteSymbol, Vec<(Span, Symbol)>),
+    ///
+    /// This list is only present in the AST, and is discarded after.
+    Str(StrKind, ByteSymbol, &'ast [(Span, Symbol)]),
     /// A decimal or hexadecimal number literal.
-    Number(num_bigint::BigInt),
+    Number(U256),
     /// A rational number literal.
     ///
     /// Note that rational literals that evaluate to integers are represented as
     /// [`Number`](Self::Number) (e.g. `1.2e3` is represented as `Number(1200)`).
-    Rational(num_rational::BigRational),
+    Rational(num_rational::Ratio<U256>),
     /// An address literal. This is a special case of a 40 digit hexadecimal number literal.
     Address(Address),
     /// A boolean literal.
@@ -95,7 +111,7 @@ pub enum LitKind {
     Err(ErrorGuaranteed),
 }
 
-impl fmt::Debug for LitKind {
+impl fmt::Debug for LitKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Str(kind, value, extra) => {
@@ -120,7 +136,7 @@ impl fmt::Debug for LitKind {
     }
 }
 
-impl LitKind {
+impl LitKind<'_> {
     /// Returns the description of this literal kind.
     pub fn description(&self) -> &'static str {
         match self {
@@ -381,23 +397,20 @@ mod tests {
     #[test]
     fn literal_fmt() {
         enter(|| {
-            let lit = LitKind::Str(StrKind::Str, bs(b"hello world"), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello world"), &[]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello world\")");
 
-            let lit = LitKind::Str(StrKind::Str, bs(b"hello\0world"), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello\0world"), &[]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello\\0world\")");
 
-            let lit = LitKind::Str(StrKind::Str, bs(&[255u8][..]), vec![]);
+            let lit = LitKind::Str(StrKind::Str, bs(&[255u8][..]), &[]);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(0xff)");
 
-            let lit = LitKind::Str(
-                StrKind::Str,
-                bs(b"hello world"),
-                vec![(Span::new(BytePos(69), BytePos(420)), Symbol::intern("world"))],
-            );
+            let extra = [(Span::new(BytePos(69), BytePos(420)), Symbol::intern("world"))];
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello world"), &extra);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello world\", [(Span(69..420), \"world\")])");
         })

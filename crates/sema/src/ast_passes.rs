@@ -62,7 +62,7 @@ impl<'sess> AstValidator<'sess, '_> {
         }
     }
 
-    fn check_underscores_in_number_literals(&self, lit: &ast::Lit) {
+    fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
         let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
             return;
         };
@@ -102,7 +102,7 @@ impl<'sess> AstValidator<'sess, '_> {
 
     fn check_subdenominations_for_number_literals(
         &self,
-        lit: &ast::Lit,
+        lit: &ast::Lit<'_>,
         subdenomination: &Option<ast::SubDenomination>,
     ) {
         let Some(denom) = subdenomination else {
@@ -129,7 +129,7 @@ impl<'sess> AstValidator<'sess, '_> {
         }
     }
 
-    fn check_address_checksums(&self, lit: &ast::Lit) {
+    fn check_address_checksums(&self, lit: &ast::Lit<'_>) {
         let ast::LitKind::Address(addr) = lit.kind else {
             return;
         };

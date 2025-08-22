@@ -106,16 +106,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_lit(&mut self, lit: &hir::Lit) -> EvalResult<'gcx> {
+    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
-            LitKind::Number(ref big_int) => {
-                let (_, bytes) = big_int.to_bytes_be();
-                if bytes.len() > 32 {
-                    return Err(EE::IntTooBig.into());
-                }
-                Ok(IntScalar::from_be_bytes(&bytes))
-            }
+            LitKind::Number(n) => Ok(IntScalar::new(n)),
             // LitKind::Rational(ratio) => todo!(),
             LitKind::Address(address) => Ok(IntScalar::from_be_bytes(address.as_slice())),
             LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),

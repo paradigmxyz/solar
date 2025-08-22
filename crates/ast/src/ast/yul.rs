@@ -67,7 +67,7 @@ pub struct Data<'ast> {
     /// The name of the data segment.
     pub name: StrLit,
     /// The data. Can only be a `Str` or `HexStr` literal.
-    pub data: &'ast mut Lit,
+    pub data: Lit<'ast>,
 }
 
 /// A Yul statement.
@@ -166,7 +166,7 @@ pub struct StmtSwitch<'ast> {
 /// See [`StmtSwitch`] for more information.
 #[derive(Debug)]
 pub struct StmtSwitchCase<'ast> {
-    pub constant: &'ast mut Lit,
+    pub constant: Lit<'ast>,
     pub body: Block<'ast>,
 }
 
@@ -198,7 +198,7 @@ pub enum ExprKind<'ast> {
     /// A function call: `foo(a, b)`.
     Call(ExprCall<'ast>),
     /// A literal.
-    Lit(&'ast mut Lit),
+    Lit(Box<'ast, Lit<'ast>>),
 }
 
 /// A Yul function call expression: `foo(a, b)`.

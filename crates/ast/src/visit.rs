@@ -494,7 +494,7 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_lit(&mut self, lit: &'ast #mut Lit) -> ControlFlow<Self::BreakValue> {
+        fn visit_lit(&mut self, lit: &'ast #mut Lit<'_>) -> ControlFlow<Self::BreakValue> {
             let Lit { span, symbol: _, kind: _ } = lit;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())

@@ -436,7 +436,7 @@ impl<'ast> Visit<'ast> for StatCollector {
         self.walk_parameter_list(list)
     }
 
-    fn visit_lit(&mut self, lit: &'ast ast::Lit) -> ControlFlow<Self::BreakValue> {
+    fn visit_lit(&mut self, lit: &'ast ast::Lit<'_>) -> ControlFlow<Self::BreakValue> {
         self.record("Lit", None, lit);
         // Don't visit span field since it isn't boxed
         ControlFlow::Continue(())
