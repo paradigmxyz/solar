@@ -813,6 +813,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Runs `f` with the parser in a contract context.
+    #[inline]
     fn in_contract<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let old = std::mem::replace(&mut self.in_contract, true);
         let res = f(self);
@@ -821,6 +822,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Runs `f` with the parser in a Yul context.
+    #[inline]
     fn in_yul<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let old = std::mem::replace(&mut self.in_yul, true);
         let res = f(self);
