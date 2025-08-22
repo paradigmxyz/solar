@@ -12,6 +12,9 @@ use std::{
     panic::Location,
 };
 
+// Since diagnostics are usually at the cold path, methods in this file are marked with
+// `#[inline(never)]` to prevent code bloat at callsites.
+
 /// Trait for types that `DiagBuilder::emit` can return as a "guarantee" (or "proof") token
 /// that the emission happened.
 pub trait EmissionGuarantee: Sized {
@@ -135,6 +138,7 @@ impl<G: EmissionGuarantee> Drop for DiagBuilder<'_, G> {
 
 impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
     /// Creates a new `DiagBuilder`.
+    #[inline(never)]
     #[track_caller]
     pub fn new<M: Into<DiagMsg>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
         Self { dcx, diagnostic: Box::new(Diag::new(level, msg)), _marker: PhantomData }
@@ -148,6 +152,7 @@ impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
 
     /// Emits the diagnostic.
     #[track_caller]
+    #[inline(never)]
     pub fn emit(mut self) -> G::EmitResult {
         if self.dcx.track_diagnostics() {
             self.diagnostic.locations_note(Location::caller());
@@ -189,6 +194,7 @@ macro_rules! forward {
         $(
             $(#[$attrs])*
             #[doc = concat!("See [`Diag::", stringify!($n), "()`].")]
+            #[inline(never)]
             $vis fn $n(mut self, $($name: $ty),*) -> Self {
                 self.diagnostic.$n($($name),*);
                 self
