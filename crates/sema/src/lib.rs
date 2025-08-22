@@ -49,8 +49,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let gcx = compiler.gcx();
     let sess = gcx.sess;
 
-    gcx.advance_stage(CompilerStage::Lowered)?;
-
     if gcx.sources.is_empty() {
         let msg = "no files found";
         let note = "if you wish to use the standard input, please specify `-` explicitly";
@@ -79,7 +77,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
         }
     }
 
-    if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
+    if sess.opts.language.is_yul() || gcx.advance_stage(CompilerStage::Lowering).is_break() {
         return Ok(ControlFlow::Break(()));
     }
 
@@ -100,7 +98,9 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
 #[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
-    gcx.advance_stage(CompilerStage::Analyzed)?;
+    if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
+        return Ok(ControlFlow::Break(()));
+    }
 
     if let Some(dump) = &gcx.sess.opts.unstable.dump
         && dump.kind.is_hir()

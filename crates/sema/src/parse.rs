@@ -29,7 +29,7 @@ pub struct ParsingContext<'gcx> {
     pub(crate) arenas: &'gcx ThreadLocal<ast::Arena>,
     /// Whether to recursively resolve and parse imports.
     resolve_imports: bool,
-    /// Whether the context has been parsed.
+    /// Whether `parse` has been called.
     parsed: bool,
     gcx: Gcx<'gcx>,
 }
@@ -44,7 +44,7 @@ impl<'gcx> ParsingContext<'gcx> {
             file_resolver: FileResolver::new(sess.source_map()),
             sources: &mut gcx.sources,
             arenas: &gcx.ast_arenas,
-            resolve_imports: true,
+            resolve_imports: !sess.opts.unstable.no_resolve_imports,
             parsed: false,
             gcx: gcx_.get(),
         }
@@ -58,7 +58,7 @@ impl<'gcx> ParsingContext<'gcx> {
 
     /// Sets whether to recursively resolve and parse imports.
     ///
-    /// Default: `true`.
+    /// Default: `!sess.opts.unstable.no_resolve_imports`, `true`.
     pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
         self.resolve_imports = resolve_imports;
     }
@@ -103,7 +103,7 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub fn parse(mut self) {
         self.parsed = true;
-        let _ = self.gcx.advance_stage(CompilerStage::Parsed);
+        let _ = self.gcx.advance_stage(CompilerStage::Parsing);
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
             let arenas = self.arenas;

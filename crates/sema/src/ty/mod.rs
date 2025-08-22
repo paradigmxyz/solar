@@ -199,11 +199,7 @@ impl AtomicCompilerStage {
 
     fn get(&self) -> Option<CompilerStage> {
         let stage = self.0.load(Ordering::Relaxed);
-        if stage == usize::MAX {
-            None
-        } else {
-            Some(unsafe { std::mem::transmute::<u8, CompilerStage>(stage as u8) })
-        }
+        if stage == usize::MAX { None } else { Some(CompilerStage::from_repr(stage).unwrap()) }
     }
 }
 
@@ -253,21 +249,47 @@ impl<'gcx> Gcx<'gcx> {
         Self(gcx)
     }
 
-    pub(crate) fn advance_stage(&self, stage: CompilerStage) -> solar_interface::Result<()> {
+    pub(crate) fn advance_stage(&self, to: CompilerStage) -> ControlFlow<()> {
+        let result = self.advance_stage_(to);
+        trace!(from=?self.stage.get(), ?to, ?result, "advance stage");
+        result
+    }
+
+    fn advance_stage_(&self, to: CompilerStage) -> ControlFlow<()> {
         let current = self.stage.get();
-        if stage == CompilerStage::Parsed && current == Some(stage) {
-            // Allow parsing multiple times.
-            return Ok(());
+
+        // Special case: allow calling `parse` multiple times while currently parsing.
+        if to == CompilerStage::Parsing && current == Some(to) {
+            return ControlFlow::Continue(());
         }
-        if current >= Some(stage) {
-            let current = match current {
+
+        let next = CompilerStage::next_opt(current);
+        if next.is_none_or(|next| to != next) {
+            let current_s = match current {
                 Some(s) => s.to_str(),
                 None => "none",
             };
-            self.dcx().bug(format!("attempted to advance from `{current}` to `{stage}`")).emit();
+            let next_s = match next {
+                Some(s) => &format!("`{s}`"),
+                None => "none (current stage is the last)",
+            };
+            self.dcx()
+                .bug(format!(
+                    "invalid compiler stage transition: cannot advance from `{current_s}` to `{to}`"
+                ))
+                .note(format!("expected next stage: {next_s}"))
+                .note("stages must be advanced sequentially")
+                .emit();
         }
-        self.stage.set(stage);
-        Ok(())
+
+        if let Some(current) = current
+            && self.sess.stop_after(current)
+        {
+            return ControlFlow::Break(());
+        }
+
+        self.stage.set(to);
+        ControlFlow::Continue(())
     }
 
     /// Returns the diagnostics context.

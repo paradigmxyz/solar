@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use solar_config::{CompilerStage, ErrorFormat, ImportRemapping};
+use solar_config::{ErrorFormat, ImportRemapping};
 use solar_interface::{
     Result, Session, SourceMap,
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
@@ -59,7 +59,6 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     }
 
     let mut pcx = compiler.parse();
-    pcx.set_resolve_imports(sess.opts.stop_after != Some(CompilerStage::Parsed));
     pcx.file_resolver.add_include_paths(sess.opts.include_path.iter().cloned());
 
     // Partition arguments into three categories:

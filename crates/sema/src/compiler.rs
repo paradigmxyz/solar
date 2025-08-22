@@ -268,28 +268,62 @@ mod tests {
         assert_eq!(compiler.enter(|c| c.gcx().sources.asts().count()), 0);
     }
 
-    #[test]
-    fn analyze_multiple_times() {
+    fn stage_test(expected: Result<(), &str>, f: fn(&mut CompilerRef<'_>)) {
         let sess =
             Session::builder().with_buffer_emitter(solar_interface::ColorChoice::Never).build();
         let mut compiler = Compiler::new(sess);
-        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            compiler.enter_mut(|c| {
-                let mut pcx = c.parse();
-                pcx.add_file(
-                    c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap(),
-                );
-                pcx.parse();
-                let _ = c.lower_asts();
-                let _ = c.analysis();
-                let _ = c.analysis();
-            });
-        }));
-        assert!(r.is_err(), "didn't panic");
-        let errs = compiler.sess().dcx.emitted_errors().unwrap().unwrap_err();
-        assert!(
-            errs.to_string().contains("attempted to advance from `analysis` to `analysis`"),
-            "{errs}"
-        );
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| compiler.enter_mut(f)));
+        let errs = compiler.sess().dcx.emitted_errors().unwrap();
+        match expected {
+            Ok(()) => assert!(r.is_ok(), "panicked: {errs:#?}"),
+            Err(e) => {
+                assert!(r.is_err(), "didn't panic: {errs:#?}");
+                let errs = errs.unwrap_err();
+                let d = errs.to_string();
+                assert!(d.contains("invalid compiler stage transition:"), "{d}");
+                assert!(d.contains(e), "{d}");
+                assert!(d.contains("stages must be advanced sequentially"), "{d}");
+            }
+        }
+    }
+
+    fn parse_dummy_file(c: &mut CompilerRef<'_>) {
+        let mut pcx = c.parse();
+        pcx.add_file(c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap());
+        pcx.parse();
+    }
+
+    #[test]
+    fn stage_tests() {
+        // Backwards.
+        stage_test(Err("from `lowering` to `parsing`"), |c| {
+            parse_dummy_file(c);
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            parse_dummy_file(c);
+        });
+
+        // Too far ahead.
+        stage_test(Err("from `none` to `analysis`"), |c| {
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        // Same stage.
+        stage_test(Err("from `lowering` to `lowering`"), |c| {
+            parse_dummy_file(c);
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+        stage_test(Err("from `analysis` to `analysis`"), |c| {
+            parse_dummy_file(c);
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+        // Parsing is special cased.
+        stage_test(Ok(()), |c| {
+            parse_dummy_file(c);
+            parse_dummy_file(c);
+        });
     }
 }

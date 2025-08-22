@@ -159,6 +159,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub parse_yul: bool,
 
+    /// Disables import resolution.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_resolve_imports: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
