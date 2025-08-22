@@ -409,11 +409,8 @@ mod tests {
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(0xff)");
 
-            let lit = LitKind::Str(
-                StrKind::Str,
-                bs(b"hello world"),
-                &[(Span::new(BytePos(69), BytePos(420)), Symbol::intern("world"))],
-            );
+            let extra = [(Span::new(BytePos(69), BytePos(420)), Symbol::intern("world"))];
+            let lit = LitKind::Str(StrKind::Str, bs(b"hello world"), &extra);
             assert_eq!(lit.description(), "string");
             assert_eq!(format!("{lit:?}"), "Str(\"hello world\", [(Span(69..420), \"world\")])");
         })
