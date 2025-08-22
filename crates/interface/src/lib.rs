@@ -43,11 +43,6 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 
-#[unsafe(no_mangle)]
-pub fn __mono(s: &Session, f: fn()) {
-    s.enter_sequential(f)
-}
-
 /// Pluralize a word based on a count.
 #[macro_export]
 #[rustfmt::skip]
