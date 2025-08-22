@@ -1,4 +1,4 @@
-use crate::{ParsedSources, builtins::Builtin, hir};
+use crate::{builtins::Builtin, hir};
 use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
@@ -15,7 +15,7 @@ use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
-impl super::LoweringContext<'_, '_, '_> {
+impl super::LoweringContext<'_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn collect_exports(&mut self) {
         assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
@@ -37,10 +37,10 @@ impl super::LoweringContext<'_, '_, '_> {
     }
 
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn perform_imports(&mut self, sources: &ParsedSources<'_>) {
+    pub(super) fn perform_imports(&mut self) {
         for (source_id, source) in self.hir.sources_enumerated() {
             for &(item_id, import_id) in source.imports {
-                let import_item = &sources[source_id].ast.as_ref().unwrap().items[item_id];
+                let import_item = &self.sources[source_id].ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = super::get_two_mut_idx(
@@ -253,29 +253,29 @@ macro_rules! mk_init_cx {
 }
 
 /// Symbol resolution context.
-pub(super) struct ResolveContext<'sess, 'ast, 'hir> {
-    pub(super) lcx: super::LoweringContext<'sess, 'ast, 'hir>,
+pub(super) struct ResolveContext<'gcx> {
+    pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
 }
 
-impl<'sess, 'ast, 'hir> std::ops::Deref for ResolveContext<'sess, 'ast, 'hir> {
-    type Target = super::LoweringContext<'sess, 'ast, 'hir>;
+impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
+    type Target = super::LoweringContext<'gcx>;
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.lcx
     }
 }
 
-impl std::ops::DerefMut for ResolveContext<'_, '_, '_> {
+impl std::ops::DerefMut for ResolveContext<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.lcx
     }
 }
 
-impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
-    pub(super) fn new(lcx: super::LoweringContext<'sess, 'ast, 'hir>) -> Self {
+impl<'gcx> ResolveContext<'gcx> {
+    pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
         Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
     }
 
@@ -444,9 +444,9 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
             let contract = self.hir.contract(c_id);
 
             let len = contract.linearized_bases.len() - 1;
-            let base_args: &mut [Option<&'hir hir::Modifier<'hir>>] =
+            let base_args: &mut [Option<&'gcx hir::Modifier<'gcx>>] =
                 self.arena.alloc_from_iter(std::iter::repeat_n(None, len));
-            let mut resolve = |base: &'hir hir::Modifier<'hir>, is_ctor: bool| {
+            let mut resolve = |base: &'gcx hir::Modifier<'gcx>, is_ctor: bool| {
                 let Some(base_id) = base.id.as_contract() else { return };
                 let base_idx = contract
                     .linearized_bases
@@ -550,7 +550,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         let mut ret_ty = &self.hir.variable(gettee).ty;
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
-        let new_param = |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+        let new_param = |this: &mut Self, mut ty: hir::Type<'gcx>, mut name: Option<Ident>| {
             ty.span = span;
             if let Some(name) = &mut name {
                 name.span = span;
@@ -595,7 +595,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
 
         let mut returns = SmallVec::<[_; 8]>::new();
         let mut push_return =
-            |this: &mut Self, mut ty: hir::Type<'hir>, mut name: Option<Ident>| {
+            |this: &mut Self, mut ty: hir::Type<'gcx>, mut name: Option<Ident>| {
                 ty.span = ret_ty.span;
                 if let Some(name) = &mut name {
                     name.span = span;
@@ -693,10 +693,10 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         &mut self,
         function: Option<hir::FunctionId>,
         span: Span,
-        ty: hir::Type<'hir>,
+        ty: hir::Type<'gcx>,
         name: Option<Ident>,
         kind: hir::VarKind,
-    ) -> hir::Variable<'hir> {
+    ) -> hir::Variable<'gcx> {
         hir::Variable {
             contract: self.current_contract_id,
             function,
@@ -709,9 +709,9 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         &mut self,
         function: hir::FunctionId,
         span: Span,
-        ty: hir::Type<'hir>,
+        ty: hir::Type<'gcx>,
         name: Ident,
-    ) -> hir::Variable<'hir> {
+    ) -> hir::Variable<'gcx> {
         self.mk_var(Some(function), span, ty, Some(name), hir::VarKind::Statement)
     }
 
@@ -733,7 +733,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         self.resolver.resolve_paths(path, &self.scopes).map_err(self.resolver.emit_resolver_error())
     }
 
-    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'hir [Res], ErrorGuaranteed> {
+    fn resolve_path(&self, path: &ast::PathSlice) -> Result<&'gcx [Res], ErrorGuaranteed> {
         self.resolve_paths(path)
             .map(|decls| &*self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)))
     }
@@ -747,22 +747,22 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     }
 
     /// Lowers the given statements by first entering a new scope.
-    fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'hir> {
+    fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'gcx> {
         self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block.stmts, block.span))
     }
 
-    fn lower_stmts(&mut self, stmts: &[ast::Stmt<'_>], span: Span) -> hir::Block<'hir> {
+    fn lower_stmts(&mut self, stmts: &[ast::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let stmts =
             self.arena.alloc_slice_fill_iter(stmts.iter().map(|stmt| self.lower_stmt_full(stmt)));
         hir::Block { span, stmts }
     }
 
-    fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'hir hir::Stmt<'hir> {
+    fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'gcx hir::Stmt<'gcx> {
         self.arena.alloc(self.lower_stmt_full(stmt))
     }
 
     #[instrument(name = "lower_stmt", level = "trace", skip_all)]
-    fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'hir> {
+    fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
                 match self.lower_variable(var, hir::VarKind::Statement) {
@@ -826,7 +826,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     fn lower_try_catch_clause(
         &mut self,
         &ast::TryCatchClause { span, name, ref args, ref block }: &ast::TryCatchClause<'_>,
-    ) -> hir::TryCatchClause<'hir> {
+    ) -> hir::TryCatchClause<'gcx> {
         self.in_scope(|this| hir::TryCatchClause {
             span,
             name,
@@ -839,10 +839,10 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     fn make_call_expr_for_emit(
         &mut self,
         path: &ast::PathSlice,
-        res: &'hir [Res],
+        res: &'gcx [Res],
         args: &ast::CallArgs<'_>,
         span: Span,
-    ) -> &'hir hir::Expr<'hir> {
+    ) -> &'gcx hir::Expr<'gcx> {
         self.arena.alloc(hir::Expr {
             kind: hir::ExprKind::Call(
                 self.arena.alloc(hir::Expr {
@@ -862,7 +862,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
         kind: hir::VarKind,
-    ) -> &'hir [hir::VariableId] {
+    ) -> &'gcx [hir::VariableId] {
         self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, kind).0))
     }
 
@@ -891,7 +891,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.
-    fn lower_loop_stmt(&mut self, stmt: &ast::Stmt<'_>) -> hir::StmtKind<'hir> {
+    fn lower_loop_stmt(&mut self, stmt: &ast::Stmt<'_>) -> hir::StmtKind<'gcx> {
         let span = stmt.span;
         match &stmt.kind {
             // loop {
@@ -984,15 +984,15 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         }
     }
 
-    fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'hir hir::Expr<'hir> {
+    fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
         self.arena.alloc(self.lower_expr_full(expr))
     }
 
-    fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'hir hir::Expr<'hir>> {
+    fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'gcx hir::Expr<'gcx>> {
         expr.map(|expr| self.lower_expr(expr))
     }
 
-    fn lower_exprs<'b, I, T>(&mut self, exprs: I) -> &'hir [hir::Expr<'hir>]
+    fn lower_exprs<'b, I, T>(&mut self, exprs: I) -> &'gcx [hir::Expr<'gcx>]
     where
         I: IntoIterator<Item = T>,
         I::IntoIter: ExactSizeIterator,
@@ -1003,7 +1003,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     }
 
     #[instrument(name = "lower_expr", level = "trace", skip_all)]
-    fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'hir> {
+    fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
             ast::ExprKind::Assign(lhs, op, rhs) => {
@@ -1086,7 +1086,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         hir::Expr { id: self.next_id(), kind, span: expr.span }
     }
 
-    fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'hir [hir::NamedArg<'hir>] {
+    fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {
         self.arena.alloc_slice_fill_iter(
             options.iter().map(|arg| hir::NamedArg {
                 name: arg.name,
@@ -1095,7 +1095,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
         )
     }
 
-    fn lower_call_args(&mut self, args: &ast::CallArgs<'_>) -> hir::CallArgs<'hir> {
+    fn lower_call_args(&mut self, args: &ast::CallArgs<'_>) -> hir::CallArgs<'gcx> {
         let kind = match &args.kind {
             ast::CallArgsKind::Unnamed(args) => {
                 hir::CallArgsKind::Unnamed(self.lower_exprs(&**args))
@@ -1106,7 +1106,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     }
 
     #[instrument(name = "lower_type", level = "trace", skip_all)]
-    fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'hir> {
+    fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
         let kind = match &ty.kind {
             ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
@@ -1146,7 +1146,7 @@ impl<'sess, 'ast, 'hir> ResolveContext<'sess, 'ast, 'hir> {
     }
 }
 
-impl super::LoweringContext<'_, '_, '_> {
+impl super::LoweringContext<'_> {
     fn declare_kind_in(
         &self,
         scope: &mut Declarations,
@@ -1208,9 +1208,9 @@ impl ResolverError {
 }
 
 #[derive(derive_more::Debug)]
-pub(crate) struct SymbolResolver<'sess> {
+pub(crate) struct SymbolResolver<'gcx> {
     #[debug(ignore)]
-    dcx: &'sess DiagCtxt,
+    dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
     #[debug(ignore)]
@@ -1219,8 +1219,8 @@ pub(crate) struct SymbolResolver<'sess> {
     builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
 }
 
-impl<'sess> SymbolResolver<'sess> {
-    pub(crate) fn new(dcx: &'sess DiagCtxt) -> Self {
+impl<'gcx> SymbolResolver<'gcx> {
+    pub(crate) fn new(dcx: &'gcx DiagCtxt) -> Self {
         let (global_builtin_scope, builtin_members_scopes) = crate::builtins::scopes();
         Self {
             dcx,

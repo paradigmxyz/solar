@@ -62,7 +62,7 @@ macro_rules! newtype_index {
             #[inline(always)]
             #[must_use]
             $vis const unsafe fn new_unchecked(value: u32) -> Self {
-                Self($crate::index::BaseIndex32::new_unchecked(value))
+                Self(unsafe { $crate::index::BaseIndex32::new_unchecked(value) })
             }
 
             #[doc = "Creates a new `"]
@@ -103,7 +103,7 @@ macro_rules! newtype_index {
             #[inline(always)]
             #[must_use]
             $vis const unsafe fn from_usize_unchecked(value: usize) -> Self {
-                Self($crate::index::BaseIndex32::from_usize_unchecked(value))
+                Self(unsafe { $crate::index::BaseIndex32::from_usize_unchecked(value) })
             }
 
             #[doc = "Creates a new `"]

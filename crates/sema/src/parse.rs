@@ -1,7 +1,4 @@
-use crate::{
-    GcxWrapper,
-    hir::{Arena, SourceId},
-};
+use crate::{Gcx, hir::SourceId, ty::GcxMut};
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
@@ -10,6 +7,7 @@ use solar_data_structures::{
 };
 use solar_interface::{
     Result, Session,
+    config::CompilerStage,
     diagnostics::DiagCtxt,
     pluralize,
     source_map::{FileName, FileResolver, SourceFile},
@@ -18,38 +16,63 @@ use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
-pub struct ParsingContext<'sess> {
+/// Builder for parsing sources into a [`Compiler`](crate::Compiler).
+///
+/// Created from [`CompilerRef::parse`](crate::CompilerRef::parse).
+///
+/// # Examples
+///
+/// ```
+/// # let mut compiler = solar_sema::Compiler::new(solar_interface::Session::builder().with_stderr_emitter().build());
+/// compiler.enter_mut(|compiler| {
+///     let mut pcx = compiler.parse();
+///     pcx.set_resolve_imports(false);
+///     pcx.load_stdin();
+///     pcx.parse();
+/// });
+/// ```
+#[must_use = "`ParsingContext::parse` must be called to parse the sources"]
+pub struct ParsingContext<'gcx> {
     /// The compiler session.
-    pub sess: &'sess Session,
+    pub sess: &'gcx Session,
     /// The file resolver.
-    pub file_resolver: FileResolver<'sess>,
+    pub file_resolver: FileResolver<'gcx>,
     /// The loaded sources. Consumed once `parse` is called.
-    /// The `'static` lifetime is a lie, as nothing borrowed is ever stored in this field.
-    pub(crate) sources: ParsedSources<'static>,
+    pub(crate) sources: &'gcx mut Sources<'gcx>,
+    /// The AST arenas.
+    pub(crate) arenas: &'gcx ThreadLocal<ast::Arena>,
     /// Whether to recursively resolve and parse imports.
     resolve_imports: bool,
+    /// Whether `parse` has been called.
+    parsed: bool,
+    gcx: Gcx<'gcx>,
 }
 
-impl<'sess> ParsingContext<'sess> {
+impl<'gcx> ParsingContext<'gcx> {
     /// Creates a new parser context.
-    pub fn new(sess: &'sess Session) -> Self {
+    pub(crate) fn new(mut gcx_: GcxMut<'gcx>) -> Self {
+        let gcx = gcx_.get_mut();
+        let sess = gcx.sess;
         Self {
             sess,
             file_resolver: FileResolver::new(sess.source_map()),
-            sources: ParsedSources::new(),
-            resolve_imports: true,
+            sources: &mut gcx.sources,
+            arenas: &gcx.ast_arenas,
+            resolve_imports: !sess.opts.unstable.no_resolve_imports,
+            parsed: false,
+            gcx: gcx_.get(),
         }
     }
 
     /// Returns the diagnostics context.
     #[inline]
-    pub fn dcx(&self) -> &'sess DiagCtxt {
+    pub fn dcx(&self) -> &'gcx DiagCtxt {
         &self.sess.dcx
     }
 
     /// Sets whether to recursively resolve and parse imports.
     ///
-    /// Default: `true`.
+    /// Default: `!sess.opts.unstable.no_resolve_imports`, `true`.
     pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
         self.resolve_imports = resolve_imports;
     }
@@ -88,35 +111,16 @@ impl<'sess> ParsingContext<'sess> {
         self.sources.add_file(file);
     }
 
-    /// Parses and semantically analyzes all the loaded sources, recursing into imports if
-    /// specified.
-    pub fn parse_and_resolve(self) -> Result<()> {
-        crate::parse_and_resolve(self)
-    }
-
-    /// Parses and lowers the entire program to HIR.
-    /// Returns the global context if successful and if lowering was requested (default).
-    pub fn parse_and_lower<'hir>(
-        self,
-        hir_arena: &'hir ThreadLocal<Arena>,
-    ) -> Result<Option<GcxWrapper<'hir>>>
-    where
-        'sess: 'hir,
-    {
-        crate::parse_and_lower(self, hir_arena)
-    }
-
     /// Parses all the loaded sources, recursing into imports if specified.
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
     #[instrument(level = "debug", skip_all)]
-    pub fn parse<'ast>(mut self, arenas: &'ast ThreadLocal<ast::Arena>) -> ParsedSources<'ast> {
-        // SAFETY: The `'static` lifetime on `self.sources` is a lie since none of the ASTs are
-        // populated, so this is safe.
-        let sources: ParsedSources<'static> = std::mem::take(&mut self.sources);
-        let mut sources: ParsedSources<'ast> =
-            unsafe { std::mem::transmute::<ParsedSources<'static>, ParsedSources<'ast>>(sources) };
+    pub fn parse(mut self) {
+        self.parsed = true;
+        let _ = self.gcx.advance_stage(CompilerStage::Parsing);
+        let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
+            let arenas = self.arenas;
             if self.sess.is_sequential() {
                 self.parse_sequential(&mut sources, arenas.get_or_default());
             } else {
@@ -131,14 +135,16 @@ impl<'sess> ParsingContext<'sess> {
             );
         }
         sources.assert_unique();
-        sources
+        *self.sources = sources;
     }
 
-    fn parse_sequential<'ast>(&self, sources: &mut ParsedSources<'ast>, arena: &'ast ast::Arena) {
+    fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast ast::Arena) {
         for i in 0.. {
             let current_file = SourceId::from_usize(i);
             let Some(source) = sources.get(current_file) else { break };
-            debug_assert!(source.ast.is_none(), "source already parsed");
+            if source.ast.is_some() {
+                continue;
+            }
 
             let ast = self.parse_one(&source.file, arena);
             let n_sources = sources.len();
@@ -155,7 +161,7 @@ impl<'sess> ParsingContext<'sess> {
 
     fn parse_parallel<'ast>(
         &self,
-        sources: &mut ParsedSources<'ast>,
+        sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
         let mut start = 0;
@@ -170,8 +176,8 @@ impl<'sess> ParsingContext<'sess> {
             let imports = to_parse
                 .par_iter_mut()
                 .enumerate()
+                .filter(|(_, source)| source.ast.is_none())
                 .flat_map_iter(|(i, source)| {
-                    debug_assert!(source.ast.is_none(), "source already parsed");
                     source.ast = self.parse_one(&source.file, arenas.get_or_default());
                     self.resolve_imports(&source.file, source.ast.as_ref())
                         .map(move |import| (i, import))
@@ -211,7 +217,7 @@ impl<'sess> ParsingContext<'sess> {
         &'a self,
         file: &SourceFile,
         ast: Option<&'b ast::SourceUnit<'c>>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + use<'a, 'b, 'c> {
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + use<'a, 'b, 'c, 'gcx> {
         let parent = match &file.name {
             FileName::Real(path) => Some(path.to_path_buf()),
             FileName::Stdin | FileName::Custom(_) => None,
@@ -252,6 +258,17 @@ impl<'sess> ParsingContext<'sess> {
     }
 }
 
+impl Drop for ParsingContext<'_> {
+    fn drop(&mut self) {
+        if self.parsed {
+            return;
+        }
+        // This used to be a call to `bug` but it can be hit legitimately for example when there is
+        // an error returned with `?` in between calls to `parse`.
+        warn!("`ParsingContext::parse` not called");
+    }
+}
+
 #[cfg(unix)]
 fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
     use std::os::unix::ffi::OsStrExt;
@@ -263,21 +280,20 @@ fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
     std::str::from_utf8(bytes).ok().map(Path::new)
 }
 
-/// Parsed sources, returned by [`ParsingContext::parse`].
+/// Sources.
 #[derive(Default)]
-pub struct ParsedSources<'ast> {
-    /// The list of parsed sources.
-    pub sources: IndexVec<SourceId, ParsedSource<'ast>>,
+pub struct Sources<'ast> {
+    pub sources: IndexVec<SourceId, Source<'ast>>,
 }
 
-impl fmt::Debug for ParsedSources<'_> {
+impl fmt::Debug for Sources<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ParsedSources")?;
         self.sources.fmt(f)
     }
 }
 
-impl ParsedSources<'_> {
+impl Sources<'_> {
     /// Creates a new empty list of parsed sources.
     pub fn new() -> Self {
         Self { sources: IndexVec::new() }
@@ -300,7 +316,7 @@ impl ParsedSources<'_> {
         {
             return id;
         }
-        self.sources.push(ParsedSource::new(file))
+        self.sources.push(Source::new(file))
     }
 
     /// Asserts that all sources are unique.
@@ -317,7 +333,7 @@ impl ParsedSources<'_> {
     }
 }
 
-impl<'ast> ParsedSources<'ast> {
+impl<'ast> Sources<'ast> {
     /// Returns an iterator over all the ASTs.
     pub fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit<'ast>> {
         self.sources.iter().filter_map(|source| source.ast.as_ref())
@@ -369,8 +385,8 @@ impl<'ast> ParsedSources<'ast> {
     }
 }
 
-impl<'ast> std::ops::Deref for ParsedSources<'ast> {
-    type Target = IndexVec<SourceId, ParsedSource<'ast>>;
+impl<'ast> std::ops::Deref for Sources<'ast> {
+    type Target = IndexVec<SourceId, Source<'ast>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -378,35 +394,40 @@ impl<'ast> std::ops::Deref for ParsedSources<'ast> {
     }
 }
 
-impl std::ops::DerefMut for ParsedSources<'_> {
+impl std::ops::DerefMut for Sources<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.sources
     }
 }
 
-/// A single parsed source.
-pub struct ParsedSource<'ast> {
+/// A single source.
+pub struct Source<'ast> {
     /// The source file.
     pub file: Arc<SourceFile>,
     /// The AST IDs and source IDs of all the imports.
     pub imports: Vec<(ast::ItemId, SourceId)>,
-    /// The AST. `None` if an error occurred during parsing, or if the source is a Yul file.
+    /// The AST.
+    ///
+    /// `None` if:
+    /// - not yet parsed
+    /// - an error occurred during parsing
+    /// - the source is a Yul file
+    /// - manually dropped to free memory
     pub ast: Option<ast::SourceUnit<'ast>>,
 }
 
-impl fmt::Debug for ParsedSource<'_> {
+impl fmt::Debug for Source<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut dbg = f.debug_struct("ParsedSource");
-        dbg.field("file", &self.file.name).field("imports", &self.imports);
-        if let Some(ast) = &self.ast {
-            dbg.field("ast", &ast);
-        }
-        dbg.finish()
+        f.debug_struct("Source")
+            .field("file", &self.file.name)
+            .field("imports", &self.imports)
+            .field("ast", &self.ast.as_ref().map(|ast| format!("{} items", ast.items.len())))
+            .finish()
     }
 }
 
-impl ParsedSource<'_> {
+impl Source<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
         Self { file, ast: None, imports: Vec::new() }

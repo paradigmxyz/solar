@@ -6,12 +6,13 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use solar_config::{CompilerStage, ErrorFormat, ImportRemapping};
+use solar_config::{ErrorFormat, ImportRemapping};
 use solar_interface::{
     Result, Session, SourceMap,
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
 };
-use std::sync::Arc;
+use solar_sema::CompilerRef;
+use std::{ops::ControlFlow, sync::Arc};
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
@@ -47,62 +48,53 @@ where
     Ok(opts)
 }
 
-pub fn run_compiler_args(opts: Opts) -> Result<()> {
-    run_compiler_with(opts, Compiler::run_default)
+pub fn run_compiler_args(opts: Opts) -> Result {
+    run_compiler_with(opts, run_default)
 }
 
-pub struct Compiler {
-    pub sess: Session,
-}
-
-impl Compiler {
-    pub fn run_default(&self) -> Result<()> {
-        let Self { sess } = self;
-
-        if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
-            return Err(sess.dcx.err("Yul is not supported yet").emit());
-        }
-
-        let mut pcx = solar_sema::ParsingContext::new(sess);
-        pcx.set_resolve_imports(sess.opts.stop_after != Some(CompilerStage::Parsed));
-        pcx.file_resolver.add_include_paths(sess.opts.include_path.iter().cloned());
-
-        // Partition arguments into three categories:
-        // - `stdin`: `-`, occurrences after the first are ignored
-        // - remappings: `[context:]prefix=path`
-        // - paths: everything else
-        let mut seen_stdin = false;
-        for arg in sess.opts.input.iter().map(String::as_str) {
-            if arg == "-" {
-                if !seen_stdin {
-                    pcx.load_stdin()?;
-                }
-                seen_stdin = true;
-                continue;
-            }
-
-            if arg.contains('=') {
-                let remapping = arg.parse::<ImportRemapping>().map_err(|e| {
-                    self.sess.dcx.err(format!("invalid remapping {arg:?}: {e}")).emit()
-                })?;
-                pcx.file_resolver.add_import_remapping(remapping);
-                continue;
-            }
-
-            pcx.load_file(arg.as_ref())?;
-        }
-
-        pcx.parse_and_resolve()?;
-
-        Ok(())
+fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
+    let sess = compiler.gcx().sess;
+    if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
+        return Err(sess.dcx.err("Yul is not supported yet").emit());
     }
 
-    fn finish_diagnostics(&self) -> Result {
-        self.sess.dcx.print_error_count()
+    let mut pcx = compiler.parse();
+    pcx.file_resolver.add_include_paths(sess.opts.include_path.iter().cloned());
+
+    // Partition arguments into three categories:
+    // - `stdin`: `-`, occurrences after the first are ignored
+    // - remappings: `[context:]prefix=path`
+    // - paths: everything else
+    let mut seen_stdin = false;
+    for arg in sess.opts.input.iter().map(String::as_str) {
+        if arg == "-" {
+            if !seen_stdin {
+                pcx.load_stdin()?;
+            }
+            seen_stdin = true;
+            continue;
+        }
+
+        if arg.contains('=') {
+            let remapping = arg
+                .parse::<ImportRemapping>()
+                .map_err(|e| sess.dcx.err(format!("invalid remapping {arg:?}: {e}")).emit())?;
+            pcx.file_resolver.add_import_remapping(remapping);
+            continue;
+        }
+
+        pcx.load_file(arg.as_ref())?;
     }
+
+    pcx.parse();
+    let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    compiler.drop_asts();
+    let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+
+    Ok(())
 }
 
-fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> Result {
+fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send) -> Result {
     let ui_testing = opts.unstable.ui_testing;
     let source_map = Arc::new(SourceMap::empty());
     let emitter: Box<DynEmitter> = match opts.error_format {
@@ -139,10 +131,14 @@ fn run_compiler_with(opts: Opts, f: impl FnOnce(&Compiler) -> Result + Send) -> 
     sess.infer_language();
     sess.validate()?;
 
-    let compiler = Compiler { sess };
-    compiler.sess.enter(|| {
-        let mut r = f(&compiler);
-        r = compiler.finish_diagnostics().and(r);
+    let mut compiler = solar_sema::Compiler::new(sess);
+    compiler.enter_mut(|compiler| {
+        let mut r = f(compiler);
+        r = r.and(finish_diagnostics(compiler.gcx().sess));
         r
     })
+}
+
+fn finish_diagnostics(sess: &Session) -> Result {
+    sess.dcx.print_error_count()
 }

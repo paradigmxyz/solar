@@ -87,7 +87,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 let mut args =
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
                 if mode.is_solc() {
-                    args.push("--stop-after=parsed-and-imported");
+                    args.push("--stop-after=parsing");
                 }
                 args.into_iter().map(Into::into).collect()
             },

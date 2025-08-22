@@ -29,13 +29,19 @@ impl SessionGlobals {
     }
 
     /// Sets this instance as the global instance for the duration of the closure.
-    #[inline]
-    #[track_caller]
     pub fn set<R>(&self, f: impl FnOnce() -> R) -> R {
-        if cfg!(debug_assertions) && SESSION_GLOBALS.is_set() {
-            check_overwrite(self);
-        }
+        self.check_overwrite();
         SESSION_GLOBALS.set(self, f)
+    }
+
+    fn check_overwrite(&self) {
+        Self::try_with(|prev| {
+            if let Some(prev) = prev
+                && !prev.maybe_eq(self)
+            {
+                overwrite_log();
+            }
+        });
     }
 
     /// Insert `source_map` into the session globals for the duration of the closure's execution.
@@ -80,27 +86,16 @@ impl SessionGlobals {
     }
 
     pub(crate) fn maybe_eq(&self, other: &Self) -> bool {
-        // Extra check for test usage of `enter`:
-        // we allow replacing empty source maps with eachother.
-        std::ptr::eq(self, other) || (self.is_default() && other.is_default())
-    }
-
-    fn is_default(&self) -> bool {
-        self.source_map.is_empty()
+        std::ptr::eq(self, other)
     }
 }
 
-#[cold]
 #[inline(never)]
-#[cfg_attr(debug_assertions, track_caller)]
-fn check_overwrite(new: &SessionGlobals) {
-    SessionGlobals::with(|old| {
-        if !old.maybe_eq(new) {
-            panic!(
-                "SESSION_GLOBALS should never be overwritten!\n\
-                 This is likely either due to manual incorrect usage of `SessionGlobals`, \
-                 or entering multiple different nested `Session`s, which is not supported"
-            );
-        }
-    })
+#[cold]
+fn overwrite_log() {
+    debug!(
+        "overwriting SESSION_GLOBALS; \
+         this might be due to manual incorrect usage of `SessionGlobals`, \
+         or entering multiple different nested `Session`s, which may cause unexpected behavior"
+    );
 }

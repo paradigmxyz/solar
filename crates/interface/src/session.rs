@@ -577,6 +577,22 @@ mod tests {
     }
 
     #[test]
+    fn enter_different_nested_sessions() {
+        let sess1 = enter_tests_session();
+        let sess2 = enter_tests_session();
+        assert!(!sess1.globals.maybe_eq(&sess2.globals));
+        sess1.enter(|| {
+            SessionGlobals::with(|g| assert!(g.maybe_eq(&sess1.globals)));
+            use_globals();
+            sess2.enter(|| {
+                SessionGlobals::with(|g| assert!(g.maybe_eq(&sess2.globals)));
+                use_globals();
+            });
+            use_globals();
+        });
+    }
+
+    #[test]
     fn set_opts() {
         let _ = Session::builder()
             .with_test_emitter()
