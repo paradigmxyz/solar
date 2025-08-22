@@ -29,12 +29,14 @@ impl SessionGlobals {
     }
 
     /// Sets this instance as the global instance for the duration of the closure.
-    #[inline]
-    #[track_caller]
     pub fn set<R>(&self, f: impl FnOnce() -> R) -> R {
-        if cfg!(debug_assertions) && SESSION_GLOBALS.is_set() {
-            check_overwrite(self);
-        }
+        Self::try_with(|g| {
+            if let Some(prev) = g
+                && !prev.maybe_eq(self)
+            {
+                overwrite_log();
+            }
+        });
         SESSION_GLOBALS.set(self, f)
     }
 
@@ -90,17 +92,12 @@ impl SessionGlobals {
     }
 }
 
-#[cold]
 #[inline(never)]
-#[cfg_attr(debug_assertions, track_caller)]
-fn check_overwrite(new: &SessionGlobals) {
-    SessionGlobals::with(|old| {
-        if !old.maybe_eq(new) {
-            panic!(
-                "SESSION_GLOBALS should never be overwritten!\n\
-                 This is likely either due to manual incorrect usage of `SessionGlobals`, \
-                 or entering multiple different nested `Session`s, which is not supported"
-            );
-        }
-    })
+#[cold]
+fn overwrite_log() {
+    debug!(
+        "overwriting SESSION_GLOBALS; \
+         this might be due to manual incorrect usage of `SessionGlobals`, \
+         or entering multiple different nested `Session`s, which may cause unexpected behavior"
+    );
 }
