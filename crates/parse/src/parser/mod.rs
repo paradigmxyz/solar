@@ -20,6 +20,14 @@ mod ty;
 mod yul;
 
 /// Solidity and Yul parser.
+///
+/// # Examples
+///
+/// ```
+/// # mod solar { pub use {solar_ast as ast, solar_interface as interface, solar_parse as parse}; }
+/// # fn main() {}
+#[doc = include_str!("../../doc-examples/parser.rs")]
+/// ```
 pub struct Parser<'sess, 'ast> {
     /// The parser session.
     pub sess: &'sess Session,

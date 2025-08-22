@@ -17,6 +17,20 @@ use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
+///
+/// Created from [`CompilerRef::parse`](crate::CompilerRef::parse).
+///
+/// # Examples
+///
+/// ```
+/// # let mut compiler = solar_sema::Compiler::new(solar_interface::Session::builder().with_stderr_emitter().build());
+/// compiler.enter_mut(|compiler| {
+///     let mut pcx = compiler.parse();
+///     pcx.set_resolve_imports(false);
+///     pcx.load_stdin();
+///     pcx.parse();
+/// });
+/// ```
 #[must_use = "`ParsingContext::parse` must be called to parse the sources"]
 pub struct ParsingContext<'gcx> {
     /// The compiler session.

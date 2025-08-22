@@ -23,6 +23,14 @@ use thread_local::ThreadLocal;
 ///
 /// Once a stage-advancing operation is performed, such as `parse`, `lower`, etc., the compiler may
 /// not perform the same or a previous operation again, with the exception of `parse`.
+///
+/// # Examples
+///
+/// ```
+/// # mod solar { pub use {solar_interface as interface, solar_sema as sema}; }
+/// # fn main() {}
+#[doc = include_str!("../doc-examples/hir.rs")]
+/// ```
 pub struct Compiler(ManuallyDrop<Pin<Box<CompilerInner<'static>>>>);
 
 struct CompilerInner<'a> {

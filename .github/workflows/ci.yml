@@ -43,6 +43,8 @@ jobs:
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --workspace --features nightly
+      - name: doctest
+        run: cargo test --doc --workspace
 
   feature-checks:
     name: features
