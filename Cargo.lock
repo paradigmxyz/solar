@@ -2677,6 +2677,7 @@ dependencies = [
  "itoa",
  "match_cfg",
  "normalize-path",
+ "once_map",
  "rayon",
  "scoped-tls",
  "serde",

@@ -34,10 +34,11 @@ thiserror.workspace = true
 
 dunce = "1"
 hex.workspace = true
+inturn.workspace = true
 itertools.workspace = true
 itoa.workspace = true
-inturn.workspace = true
 normalize-path = "0.2.1"
+once_map.workspace = true
 rayon.workspace = true
 scoped-tls.workspace = true
 tracing.workspace = true

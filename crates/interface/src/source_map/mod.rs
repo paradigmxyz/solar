@@ -1,9 +1,10 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Span};
+use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
-    map::{FxHashMap, StdEntry},
+    map::FxBuildHasher,
     sync::{ReadGuard, RwLock},
 };
 use std::{
@@ -100,18 +101,14 @@ pub struct FileLines {
     pub lines: Vec<LineInfo>,
 }
 
-#[derive(Default, derive_more::Debug)]
-struct SourceMapFiles {
-    // INVARIANT: The only operation allowed on `source_files` is `push`.
-    source_files: Vec<Arc<SourceFile>>,
-    #[debug(skip)]
-    stable_id_to_source_file: FxHashMap<StableSourceFileId, Arc<SourceFile>>,
-}
-
 /// Stores all the sources of the current compilation session.
-#[derive(Debug)]
+#[derive(derive_more::Debug)]
 pub struct SourceMap {
-    files: RwLock<SourceMapFiles>,
+    // INVARIANT: The only operation allowed on `source_files` is `push`.
+    source_files: RwLock<Vec<Arc<SourceFile>>>,
+    #[debug(skip)]
+    stable_id_to_source_file: OnceMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
+
     hash_kind: SourceFileHashAlgorithm,
 }
 
@@ -124,7 +121,11 @@ impl Default for SourceMap {
 impl SourceMap {
     /// Creates a new empty source map with the given hash algorithm.
     pub fn new(hash_kind: SourceFileHashAlgorithm) -> Self {
-        Self { files: Default::default(), hash_kind }
+        Self {
+            source_files: Default::default(),
+            stable_id_to_source_file: Default::default(),
+            hash_kind,
+        }
     }
 
     /// Creates a new empty source map.
@@ -134,7 +135,7 @@ impl SourceMap {
 
     /// Returns `true` if the source map is empty.
     pub fn is_empty(&self) -> bool {
-        self.files.read().source_files.is_empty()
+        self.files().is_empty()
     }
 
     /// Returns the source file with the given path, if it exists.
@@ -194,20 +195,14 @@ impl SourceMap {
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
-        let files = &mut *self.files.write();
-        match files.stable_id_to_source_file.entry(stable_id) {
-            StdEntry::Occupied(entry) => Ok(entry.get().clone()),
-            StdEntry::Vacant(entry) => {
-                let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-                let file = Self::append_source_file(&mut files.source_files, file, stable_id)?;
-                entry.insert(file.clone());
-                Ok(file)
-            }
-        }
+        self.stable_id_to_source_file.try_insert_cloned(stable_id, |&stable_id| {
+            let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
+            self.append_source_file(file, stable_id)
+        })
     }
 
     fn append_source_file(
-        source_files: &mut Vec<Arc<SourceFile>>,
+        &self,
         mut file: SourceFile,
         stable_id: StableSourceFileId,
     ) -> io::Result<Arc<SourceFile>> {
@@ -217,6 +212,7 @@ impl SourceMap {
 
         trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 
+        let source_files = &mut *self.source_files.write();
         file.start_pos = BytePos(if let Some(last_file) = source_files.last() {
             // Add one so there is some space between files. This lets us distinguish
             // positions in the `SourceMap`, even in the presence of zero-length files.
@@ -233,7 +229,7 @@ impl SourceMap {
 
     /// Returns a read guard to the source files in the source map.
     pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
-        ReadGuard::map(self.files.read(), |f| f.source_files.as_slice())
+        ReadGuard::map(self.source_files.read(), |f| f.as_slice())
     }
 
     pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
@@ -245,7 +241,7 @@ impl SourceMap {
         &self,
         stable_id: StableSourceFileId,
     ) -> Option<Arc<SourceFile>> {
-        self.files.read().stable_id_to_source_file.get(&stable_id).cloned()
+        self.stable_id_to_source_file.get_cloned(&stable_id)
     }
 
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
