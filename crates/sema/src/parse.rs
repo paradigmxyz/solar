@@ -140,17 +140,18 @@ impl<'gcx> ParsingContext<'gcx> {
 
     fn parse_sequential<'ast>(&self, sources: &mut Sources<'ast>, arena: &'ast ast::Arena) {
         for i in 0.. {
-            let current_file = SourceId::from_usize(i);
-            let Some(source) = sources.get(current_file) else { break };
+            let id = SourceId::from_usize(i);
+            let Some(source) = sources.get(id) else { break };
             if source.ast.is_some() {
                 continue;
             }
 
             let ast = self.parse_one(&source.file, arena);
-            for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
-                sources.add_import(current_file, import_item_id, import);
+            for (import_item_id, import) in self.resolve_imports(&source.file.clone(), ast.as_ref())
+            {
+                sources.add_import(id, import_item_id, import);
             }
-            sources[current_file].ast = ast;
+            sources[id].ast = ast;
         }
     }
 
@@ -196,7 +197,7 @@ impl<'gcx> ParsingContext<'gcx> {
         let ast = self.parse_one(&file, arenas.get_or_default());
         let imports = self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>();
 
-        // Add imports and recursively spawn jobs for parsing them.
+        // Set AST, add imports and recursively spawn jobs for parsing them.
         let sources = &mut *lock.lock();
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
@@ -227,20 +228,20 @@ impl<'gcx> ParsingContext<'gcx> {
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files
     /// that were successfully resolved.
-    fn resolve_imports<'a, 'b, 'c>(
-        &'a self,
+    fn resolve_imports(
+        &self,
         file: &SourceFile,
-        ast: Option<&'b ast::SourceUnit<'c>>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> + use<'a, 'b, 'c, 'gcx> {
+        ast: Option<&ast::SourceUnit<'_>>,
+    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
         let parent = match &file.name {
-            FileName::Real(path) => Some(path.to_path_buf()),
+            FileName::Real(path) => Some(path.as_path()),
             FileName::Stdin | FileName::Custom(_) => None,
         };
         let items =
             ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
-        items.iter_enumerated().filter_map(move |(id, item)| {
-            self.resolve_import(item, parent.as_deref()).map(|file| (id, file))
-        })
+        items
+            .iter_enumerated()
+            .filter_map(move |(id, item)| self.resolve_import(item, parent).map(|file| (id, file)))
     }
 
     fn resolve_import(
