@@ -268,7 +268,7 @@ impl<'gcx> ParsingContext<'gcx> {
             return None;
         };
         self.file_resolver
-            .resolve_file(path, parent.as_deref())
+            .resolve_file(path, parent)
             .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
             .ok()
     }
