@@ -66,6 +66,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     // - remappings: `[context:]prefix=path`
     // - paths: everything else
     let mut seen_stdin = false;
+    let mut paths = Vec::new();
     for arg in sess.opts.input.iter().map(String::as_str) {
         if arg == "-" {
             if !seen_stdin {
@@ -83,8 +84,10 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
             continue;
         }
 
-        pcx.load_file(arg.as_ref())?;
+        paths.push(arg);
     }
+
+    pcx.par_load_files(paths)?;
 
     pcx.parse();
     let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };

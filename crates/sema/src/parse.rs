@@ -1,6 +1,6 @@
 use crate::{Gcx, hir::SourceId, ty::GcxMut};
 use rayon::prelude::*;
-use solar_ast as ast;
+use solar_ast::{self as ast, Span};
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
@@ -9,8 +9,8 @@ use solar_data_structures::{
 use solar_interface::{
     Result, Session,
     config::CompilerStage,
-    diagnostics::DiagCtxt,
-    source_map::{FileName, FileResolver, SourceFile},
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    source_map::{FileName, FileResolver, ResolveError, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
@@ -77,11 +77,31 @@ impl<'gcx> ParsingContext<'gcx> {
         self.resolve_imports = resolve_imports;
     }
 
+    /// Resolves a file.
+    pub fn resolve_file(&self, path: impl AsRef<Path>) -> Result<Arc<SourceFile>> {
+        self.file_resolver.resolve_file(path.as_ref(), None).map_err(self.map_resolve_error())
+    }
+
+    /// Resolves a list of files.
+    pub fn resolve_files(
+        &self,
+        paths: impl IntoIterator<Item = impl AsRef<Path>>,
+    ) -> impl Iterator<Item = Result<Arc<SourceFile>>> {
+        paths.into_iter().map(|path| self.resolve_file(path))
+    }
+
+    /// Resolves a list of files in parallel.
+    pub fn par_resolve_files(
+        &self,
+        paths: impl IntoParallelIterator<Item = impl AsRef<Path>>,
+    ) -> impl ParallelIterator<Item = Result<Arc<SourceFile>>> {
+        paths.into_par_iter().map(|path| self.resolve_file(path))
+    }
+
     /// Loads `stdin` into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_stdin(&mut self) -> Result<()> {
-        let file =
-            self.file_resolver.load_stdin().map_err(|e| self.dcx().err(e.to_string()).emit())?;
+        let file = self.file_resolver.load_stdin().map_err(self.map_resolve_error())?;
         self.add_file(file);
         Ok(())
     }
@@ -95,15 +115,29 @@ impl<'gcx> ParsingContext<'gcx> {
         Ok(())
     }
 
+    /// Loads files into the context in parallel.
+    pub fn par_load_files(
+        &mut self,
+        paths: impl IntoParallelIterator<Item = impl AsRef<Path>>,
+    ) -> Result<()> {
+        let resolved = self.par_resolve_files(paths).collect::<Result<Vec<_>>>()?;
+        self.add_files(resolved);
+        Ok(())
+    }
+
     /// Loads a file into the context.
     #[instrument(level = "debug", skip_all)]
     pub fn load_file(&mut self, path: &Path) -> Result<()> {
-        let file = self
-            .file_resolver
-            .resolve_file(path, None)
-            .map_err(|e| self.dcx().err(e.to_string()).emit())?;
+        let file = self.resolve_file(path)?;
         self.add_file(file);
         Ok(())
+    }
+
+    /// Adds a preloaded file to the resolver.
+    pub fn add_files(&mut self, files: impl IntoIterator<Item = Arc<SourceFile>>) {
+        for file in files {
+            self.add_file(file);
+        }
     }
 
     /// Adds a preloaded file to the resolver.
@@ -270,8 +304,25 @@ impl<'gcx> ParsingContext<'gcx> {
         };
         self.file_resolver
             .resolve_file(path, parent)
-            .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
+            .map_err(self.map_resolve_error_with(Some(span)))
             .ok()
+    }
+
+    fn map_resolve_error(&self) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {
+        self.map_resolve_error_with(None)
+    }
+
+    fn map_resolve_error_with(
+        &self,
+        span: Option<Span>,
+    ) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {
+        move |e| {
+            let mut err = self.dcx().err(e.to_string());
+            if let Some(span) = span {
+                err = err.span(span);
+            }
+            err.emit()
+        }
     }
 }
 
@@ -310,7 +361,7 @@ impl fmt::Debug for Sources<'_> {
     }
 }
 
-impl Sources<'_> {
+impl<'ast> Sources<'ast> {
     /// Creates a new empty list of parsed sources.
     pub fn new() -> Self {
         Self { sources: IndexVec::new() }
@@ -355,9 +406,7 @@ impl Sources<'_> {
             "parsing produced duplicate source files"
         );
     }
-}
 
-impl<'ast> Sources<'ast> {
     /// Returns an iterator over all the ASTs.
     pub fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit<'ast>> {
         self.sources.iter().filter_map(|source| source.ast.as_ref())
