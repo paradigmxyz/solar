@@ -5,7 +5,6 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
     sync::Lock,
-    trustme,
 };
 use solar_interface::{
     Result, Session,
@@ -109,7 +108,7 @@ impl<'gcx> ParsingContext<'gcx> {
 
     /// Adds a preloaded file to the resolver.
     pub fn add_file(&mut self, file: Arc<SourceFile>) {
-        self.sources.add_file(file);
+        self.sources.get_or_insert_file(file);
     }
 
     /// Parses all the loaded sources, recursing into imports if specified.
@@ -160,57 +159,42 @@ impl<'gcx> ParsingContext<'gcx> {
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
-        let lock = Lock::new(());
+        let lock = Lock::new(std::mem::take(sources));
         rayon::scope(|scope| {
-            for id in sources.indices() {
-                if sources[id].ast.is_some() {
+            let sources = &mut *lock.lock();
+            for (id, source) in sources.iter_enumerated() {
+                if source.ast.is_some() {
                     continue;
                 }
-                self.spawn_parse_job(&lock, sources, id, arenas, scope);
+                let file = source.file.clone();
+                let lock = &lock;
+                scope.spawn(move |scope| self.parse_job(lock, id, file, arenas, scope));
             }
         });
-    }
-
-    fn spawn_parse_job<'ast: 'scope, 'scope>(
-        &'scope self,
-        lock: &'scope Lock<()>,
-        sources: &mut Sources<'ast>,
-        id: SourceId,
-        arenas: &'ast ThreadLocal<ast::Arena>,
-        scope: &rayon::Scope<'scope>,
-    ) {
-        // SAFETY: `sources` is only accessed:
-        // - with `id` which is unique, and does not modify the `Sources` list itself
-        // - with `add_import` which does modify `Sources`, but uses `lock` to synchronize
-        // We could put `sources` inside of the lock to avoid `unsafe` here, however this would
-        // require locking unnecessarily when parsing the source.
-        let sources = unsafe { trustme::decouple_lt_mut(sources) };
-        scope.spawn(move |scope| self.parse_job(lock, sources, id, arenas, scope));
+        *sources = lock.into_inner();
     }
 
     /// Parse a single file, spawning recursive jobs for imports.
-    ///
-    /// This has unique access to `sources[id]`, and synchronizes with `lock` to mutate `sources`
-    /// for adding imports.
     fn parse_job<'ast, 'scope>(
         &'scope self,
-        lock: &'scope Lock<()>,
-        sources: &'scope mut Sources<'ast>,
+        lock: &'scope Lock<Sources<'ast>>,
         id: SourceId,
+        file: Arc<SourceFile>,
         arenas: &'ast ThreadLocal<ast::Arena>,
         scope: &rayon::Scope<'scope>,
     ) {
-        let source = &mut sources[id];
-        assert!(source.ast.is_none());
-        source.ast = self.parse_one(&source.file, arenas.get_or_default());
-        let imports = self.resolve_imports(&source.file, source.ast.as_ref()).collect::<Vec<_>>();
-        if !imports.is_empty() {
-            let _guard = lock.lock();
-            for (import_item_id, import) in imports {
-                let (import_id, new) = sources.add_import(id, import_item_id, import);
-                if new {
-                    self.spawn_parse_job(lock, sources, import_id, arenas, scope);
-                }
+        // Parse and resolve imports.
+        let ast = self.parse_one(&file, arenas.get_or_default());
+        let imports = self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>();
+
+        // Add imports and recursively spawn jobs for parsing them.
+        let sources = &mut *lock.lock();
+        assert!(sources[id].ast.is_none());
+        sources[id].ast = ast;
+        for (import_item_id, import) in imports {
+            let (import_id, new) = sources.add_import(id, import_item_id, import.clone());
+            if new {
+                scope.spawn(move |scope| self.parse_job(lock, import_id, import, arenas, scope));
             }
         }
     }
@@ -322,19 +306,24 @@ impl Sources<'_> {
         import_item_id: ast::ItemId,
         import: Arc<SourceFile>,
     ) -> (SourceId, bool) {
-        let (import_id, new) = self.add_file(import);
+        let (import_id, new) = self.get_or_insert_file(import);
         self.sources[current].imports.push((import_item_id, import_id));
         (import_id, new)
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn add_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
-        if let Some((id, _)) =
-            self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
-        {
+    fn get_or_insert_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
+        if let Some(id) = self.get_file(&file) {
             return (id, false);
         }
         (self.sources.push(Source::new(file)), true)
+    }
+
+    fn get_file(&self, file: &Arc<SourceFile>) -> Option<SourceId> {
+        self.sources
+            .iter_enumerated()
+            .find(|(_, source)| Arc::ptr_eq(&source.file, &file))
+            .map(|(id, _)| id)
     }
 
     /// Asserts that all sources are unique.
