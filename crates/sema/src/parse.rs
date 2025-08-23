@@ -167,14 +167,23 @@ impl<'gcx> ParsingContext<'gcx> {
                     continue;
                 }
                 let file = source.file.clone();
-                let lock = &lock;
-                scope.spawn(move |scope| self.parse_job(lock, id, file, arenas, scope));
+                self.spawn_parse_job(&lock, id, file, arenas, scope);
             }
         });
         *sources = lock.into_inner();
     }
 
-    /// Parse a single file, spawning recursive jobs for imports.
+    fn spawn_parse_job<'ast, 'scope>(
+        &'scope self,
+        lock: &'scope Lock<Sources<'ast>>,
+        id: SourceId,
+        file: Arc<SourceFile>,
+        arenas: &'ast ThreadLocal<ast::Arena>,
+        scope: &rayon::Scope<'scope>,
+    ) {
+        scope.spawn(move |scope| self.parse_job(lock, id, file, arenas, scope));
+    }
+
     fn parse_job<'ast, 'scope>(
         &'scope self,
         lock: &'scope Lock<Sources<'ast>>,
@@ -194,7 +203,7 @@ impl<'gcx> ParsingContext<'gcx> {
         for (import_item_id, import) in imports {
             let (import_id, new) = sources.add_import(id, import_item_id, import.clone());
             if new {
-                scope.spawn(move |scope| self.parse_job(lock, import_id, import, arenas, scope));
+                self.spawn_parse_job(lock, import_id, import, arenas, scope);
             }
         }
     }
