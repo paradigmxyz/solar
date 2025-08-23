@@ -161,7 +161,7 @@ impl<'gcx> ParsingContext<'gcx> {
     ) {
         let lock = Lock::new(std::mem::take(sources));
         rayon::scope(|scope| {
-            let sources = &mut *lock.lock();
+            let sources = &*lock.lock();
             for (id, source) in sources.iter_enumerated() {
                 if source.ast.is_some() {
                     continue;
