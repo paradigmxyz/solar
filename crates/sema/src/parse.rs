@@ -147,6 +147,7 @@ impl<'gcx> ParsingContext<'gcx> {
             }
 
             let ast = self.parse_one(&source.file, arena);
+            let _guard = debug_span!("resolve_imports").entered();
             for (import_item_id, import) in self.resolve_imports(&source.file.clone(), ast.as_ref())
             {
                 sources.add_import(id, import_item_id, import);
@@ -196,9 +197,13 @@ impl<'gcx> ParsingContext<'gcx> {
     ) {
         // Parse and resolve imports.
         let ast = self.parse_one(&file, arenas.get_or_default());
-        let imports = self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>();
+        let imports = {
+            let _guard = debug_span!("resolve_imports").entered();
+            self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>()
+        };
 
         // Set AST, add imports and recursively spawn jobs for parsing them.
+        let _guard = debug_span!("add_imports").entered();
         let sources = &mut *lock.lock();
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
