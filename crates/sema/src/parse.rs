@@ -148,9 +148,10 @@ impl<'gcx> ParsingContext<'gcx> {
 
             let ast = self.parse_one(&source.file, arena);
             let _guard = debug_span!("resolve_imports").entered();
-            for (import_item_id, import) in self.resolve_imports(&source.file.clone(), ast.as_ref())
+            for (import_item_id, import_file) in
+                self.resolve_imports(&source.file.clone(), ast.as_ref())
             {
-                sources.add_import(id, import_item_id, import);
+                sources.add_import(id, import_item_id, import_file);
             }
             sources[id].ast = ast;
         }
