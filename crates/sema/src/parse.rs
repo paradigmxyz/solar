@@ -4,16 +4,24 @@ use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
+    trustme,
 };
 use solar_interface::{
     Result, Session,
     config::CompilerStage,
     diagnostics::DiagCtxt,
-    pluralize,
     source_map::{FileName, FileResolver, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
-use std::{fmt, path::Path, sync::Arc};
+use std::{
+    fmt,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+        mpsc,
+    },
+};
 use thread_local::ThreadLocal;
 
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
@@ -121,7 +129,7 @@ impl<'gcx> ParsingContext<'gcx> {
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
             let arenas = self.arenas;
-            if self.sess.is_sequential() {
+            if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
                 self.parse_sequential(&mut sources, arenas.get_or_default());
             } else {
                 self.parse_parallel(&mut sources, arenas);
@@ -147,13 +155,8 @@ impl<'gcx> ParsingContext<'gcx> {
             }
 
             let ast = self.parse_one(&source.file, arena);
-            let n_sources = sources.len();
             for (import_item_id, import) in self.resolve_imports(&source.file, ast.as_ref()) {
                 sources.add_import(current_file, import_item_id, import);
-            }
-            let new_files = sources.len() - n_sources;
-            if new_files > 0 {
-                trace!(new_files);
             }
             sources[current_file].ast = ast;
         }
@@ -164,34 +167,67 @@ impl<'gcx> ParsingContext<'gcx> {
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
-        let mut start = 0;
-        loop {
-            let base = start;
-            let to_parse = &mut sources.raw[start..];
-            if to_parse.is_empty() {
-                break;
+        rayon::scope(|s| {
+            let (tx, rx) = mpsc::channel();
+            let active = Arc::new(AtomicUsize::new(0));
+
+            // Initial batch.
+            let sources2 = unsafe { trustme::decouple_lt_mut(sources) };
+            for (id, source) in sources2.iter_mut_enumerated() {
+                if source.ast.is_some() {
+                    continue;
+                }
+                let tx = tx.clone();
+                let active = active.clone();
+                active.fetch_add(1, Ordering::Relaxed);
+                s.spawn(move |_| self.parse_one_parallel(id, tx, active, source, arenas));
             }
-            debug!(start, "parsing {} file{}", to_parse.len(), pluralize!(to_parse.len()));
-            start += to_parse.len();
-            let imports = to_parse
-                .par_iter_mut()
-                .enumerate()
-                .filter(|(_, source)| source.ast.is_none())
-                .flat_map_iter(|(i, source)| {
-                    source.ast = self.parse_one(&source.file, arenas.get_or_default());
-                    self.resolve_imports(&source.file, source.ast.as_ref())
-                        .map(move |import| (i, import))
-                })
-                .collect_vec_list();
-            let n_sources = sources.len();
-            for (i, (import_item_id, import)) in imports.into_iter().flatten() {
-                sources.add_import(SourceId::from_usize(base + i), import_item_id, import);
+
+            while active.load(Ordering::Relaxed) > 0 {
+                while let Ok((id, imports)) = rx.try_recv() {
+                    for (import_item_id, import) in imports {
+                        let new = sources.add_import(id, import_item_id, import);
+                        if new {
+                            let source =
+                                unsafe { trustme::decouple_lt_mut(sources.last_mut().unwrap()) };
+
+                            let tx = tx.clone();
+                            let active = active.clone();
+                            active.fetch_add(1, Ordering::Relaxed);
+                            s.spawn(move |_| {
+                                self.parse_one_parallel(id, tx, active, source, arenas)
+                            });
+                        }
+                    }
+                }
+                if active.load(Ordering::Relaxed) == 0 {
+                    break;
+                }
+                if rayon::yield_now().is_none_or(|x| x == rayon::Yield::Idle) {
+                    std::thread::yield_now();
+                }
             }
-            let new_files = sources.len() - n_sources;
-            if new_files > 0 {
-                trace!(new_files);
-            }
+        });
+    }
+
+    fn parse_one_parallel<'ast>(
+        &self,
+        id: SourceId,
+        tx: mpsc::Sender<(SourceId, Vec<(ast::ItemId, Arc<SourceFile>)>)>,
+        active: Arc<AtomicUsize>,
+        source: &mut Source<'ast>,
+        arenas: &'ast ThreadLocal<ast::Arena>,
+    ) {
+        // `active.fetch_add` is done in the caller, before spawning the thread to avoid a race
+        // condition.
+
+        source.ast = self.parse_one(&source.file, arenas.get_or_default());
+        let imports = self.resolve_imports(&source.file, source.ast.as_ref()).collect::<Vec<_>>();
+        if !imports.is_empty() {
+            let _ = tx.send((id, imports));
         }
+
+        active.fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Parses a single file.
@@ -224,37 +260,32 @@ impl<'gcx> ParsingContext<'gcx> {
         };
         let items =
             ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
-        items
-            .iter_enumerated()
-            .filter_map(|(id, item)| {
-                if let ast::ItemKind::Import(import) = &item.kind {
-                    Some((id, import))
-                } else {
-                    None
-                }
-            })
-            .filter_map(move |(id, import)| {
-                let span = import.path.span;
-                let path_str = import.path.value.as_str();
-                let (path_bytes, any_error) = unescape::parse_string_literal(
-                    path_str,
-                    unescape::StrKind::Str,
-                    span,
-                    self.sess,
-                );
-                if any_error {
-                    return None;
-                }
-                let Some(path) = path_from_bytes(&path_bytes[..]) else {
-                    self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
-                    return None;
-                };
-                self.file_resolver
-                    .resolve_file(path, parent.as_deref())
-                    .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
-                    .ok()
-                    .map(|file| (id, file))
-            })
+        items.iter_enumerated().filter_map(move |(id, item)| {
+            self.resolve_import(item, parent.as_deref()).map(|file| (id, file))
+        })
+    }
+
+    fn resolve_import(
+        &self,
+        item: &ast::Item<'_>,
+        parent: Option<&Path>,
+    ) -> Option<Arc<SourceFile>> {
+        let ast::ItemKind::Import(import) = &item.kind else { return None };
+        let span = import.path.span;
+        let path_str = import.path.value.as_str();
+        let (path_bytes, any_error) =
+            unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
+        if any_error {
+            return None;
+        }
+        let Some(path) = path_from_bytes(&path_bytes[..]) else {
+            self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+            return None;
+        };
+        self.file_resolver
+            .resolve_file(path, parent.as_deref())
+            .map_err(|e| self.dcx().err(e.to_string()).span(span).emit())
+            .ok()
     }
 }
 
@@ -304,19 +335,20 @@ impl Sources<'_> {
         current: SourceId,
         import_item_id: ast::ItemId,
         import: Arc<SourceFile>,
-    ) {
-        let import_id = self.add_file(import);
+    ) -> bool {
+        let (import_id, new) = self.add_file(import);
         self.sources[current].imports.push((import_item_id, import_id));
+        new
     }
 
     #[instrument(level = "debug", skip_all)]
-    fn add_file(&mut self, file: Arc<SourceFile>) -> SourceId {
+    fn add_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
         if let Some((id, _)) =
             self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
         {
-            return id;
+            return (id, false);
         }
-        self.sources.push(Source::new(file))
+        (self.sources.push(Source::new(file)), true)
     }
 
     /// Asserts that all sources are unique.
