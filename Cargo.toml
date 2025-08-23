@@ -179,3 +179,5 @@ thread_local = "1.1"
 typed-arena = "2.0"
 unicode-width = "0.2"
 vergen = "8"
+
+[patch.crates-io]
