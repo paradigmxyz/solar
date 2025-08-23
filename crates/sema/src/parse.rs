@@ -185,6 +185,7 @@ impl<'gcx> ParsingContext<'gcx> {
         scope.spawn(move |scope| self.parse_job(lock, id, file, arenas, scope));
     }
 
+    #[instrument(level = "debug", skip_all)]
     fn parse_job<'ast, 'scope>(
         &'scope self,
         lock: &'scope Lock<Sources<'ast>>,
