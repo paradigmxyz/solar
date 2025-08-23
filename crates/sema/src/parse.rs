@@ -4,6 +4,7 @@ use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
+    sync::Lock,
     trustme,
 };
 use solar_interface::{
@@ -13,15 +14,7 @@ use solar_interface::{
     source_map::{FileName, FileResolver, SourceFile},
 };
 use solar_parse::{Lexer, Parser, unescape};
-use std::{
-    fmt,
-    path::Path,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-        mpsc,
-    },
-};
+use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
@@ -167,67 +160,60 @@ impl<'gcx> ParsingContext<'gcx> {
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
-        rayon::scope(|s| {
-            let (tx, rx) = mpsc::channel();
-            let active = Arc::new(AtomicUsize::new(0));
-
-            // Initial batch.
-            let sources2 = unsafe { trustme::decouple_lt_mut(sources) };
-            for (id, source) in sources2.iter_mut_enumerated() {
-                if source.ast.is_some() {
+        let lock = Lock::new(());
+        rayon::scope(|scope| {
+            for id in sources.indices() {
+                if sources[id].ast.is_some() {
                     continue;
                 }
-                let tx = tx.clone();
-                let active = active.clone();
-                active.fetch_add(1, Ordering::Relaxed);
-                s.spawn(move |_| self.parse_one_parallel(id, tx, active, source, arenas));
-            }
-
-            while active.load(Ordering::Relaxed) > 0 {
-                while let Ok((id, imports)) = rx.try_recv() {
-                    for (import_item_id, import) in imports {
-                        let new = sources.add_import(id, import_item_id, import);
-                        if new {
-                            let source =
-                                unsafe { trustme::decouple_lt_mut(sources.last_mut().unwrap()) };
-
-                            let tx = tx.clone();
-                            let active = active.clone();
-                            active.fetch_add(1, Ordering::Relaxed);
-                            s.spawn(move |_| {
-                                self.parse_one_parallel(id, tx, active, source, arenas)
-                            });
-                        }
-                    }
-                }
-                if active.load(Ordering::Relaxed) == 0 {
-                    break;
-                }
-                if rayon::yield_now().is_none_or(|x| x == rayon::Yield::Idle) {
-                    std::thread::yield_now();
-                }
+                self.spawn_parse_job(&lock, sources, id, arenas, scope);
             }
         });
     }
 
-    fn parse_one_parallel<'ast>(
-        &self,
+    fn spawn_parse_job<'ast: 'scope, 'scope>(
+        &'scope self,
+        lock: &'scope Lock<()>,
+        sources: &mut Sources<'ast>,
         id: SourceId,
-        tx: mpsc::Sender<(SourceId, Vec<(ast::ItemId, Arc<SourceFile>)>)>,
-        active: Arc<AtomicUsize>,
-        source: &mut Source<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
+        scope: &rayon::Scope<'scope>,
     ) {
-        // `active.fetch_add` is done in the caller, before spawning the thread to avoid a race
-        // condition.
+        // SAFETY: `sources` is only accessed:
+        // - with `id` which is unique, and does not modify the `Sources` list itself
+        // - with `add_import` which does modify `Sources`, but uses `lock` to synchronize
+        // We could put `sources` inside of the lock to avoid `unsafe` here, however this would
+        // require locking unnecessarily when parsing the source.
+        let sources = unsafe { trustme::decouple_lt_mut(sources) };
+        scope.spawn(move |scope| self.parse_job(lock, sources, id, arenas, scope));
+    }
 
+    /// Parse a single file, spawning recursive jobs for imports.
+    ///
+    /// This has unique access to `sources[id]`, and synchronizes with `lock` to mutate `sources`
+    /// for adding imports.
+    fn parse_job<'ast, 'scope>(
+        &'scope self,
+        lock: &'scope Lock<()>,
+        sources: &'scope mut Sources<'ast>,
+        id: SourceId,
+        arenas: &'ast ThreadLocal<ast::Arena>,
+        scope: &rayon::Scope<'scope>,
+    ) {
+        let source = &mut sources[id];
+        assert!(source.ast.is_none());
         source.ast = self.parse_one(&source.file, arenas.get_or_default());
         let imports = self.resolve_imports(&source.file, source.ast.as_ref()).collect::<Vec<_>>();
         if !imports.is_empty() {
-            let _ = tx.send((id, imports));
+            let _guard = lock.lock();
+            for (import_item_id, import) in imports {
+                let new = sources.add_import(id, import_item_id, import);
+                if new {
+                    let import_id = SourceId::from_usize(sources.len() - 1);
+                    self.spawn_parse_job(lock, sources, import_id, arenas, scope);
+                }
+            }
         }
-
-        active.fetch_sub(1, Ordering::Relaxed);
     }
 
     /// Parses a single file.
