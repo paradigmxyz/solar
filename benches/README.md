@@ -22,7 +22,7 @@ invoking other commands such as `cargo test`.
 
 ## Results
 
-You view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
+You can view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
 
 The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu`
