@@ -207,9 +207,8 @@ impl<'gcx> ParsingContext<'gcx> {
         if !imports.is_empty() {
             let _guard = lock.lock();
             for (import_item_id, import) in imports {
-                let new = sources.add_import(id, import_item_id, import);
+                let (import_id, new) = sources.add_import(id, import_item_id, import);
                 if new {
-                    let import_id = SourceId::from_usize(sources.len() - 1);
                     self.spawn_parse_job(lock, sources, import_id, arenas, scope);
                 }
             }
@@ -316,15 +315,16 @@ impl Sources<'_> {
         Self { sources: IndexVec::new() }
     }
 
+    /// Returns the ID of the imported file, and whether it was newly added.
     fn add_import(
         &mut self,
         current: SourceId,
         import_item_id: ast::ItemId,
         import: Arc<SourceFile>,
-    ) -> bool {
+    ) -> (SourceId, bool) {
         let (import_id, new) = self.add_file(import);
         self.sources[current].imports.push((import_item_id, import_id));
-        new
+        (import_id, new)
     }
 
     #[instrument(level = "debug", skip_all)]
