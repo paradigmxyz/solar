@@ -33,7 +33,7 @@ pub fn parse_string_literal<'a>(
 
 /// Parses a string literal (without quotes) into a byte array.
 /// `f` is called for each escape error.
-#[instrument(name = "parse_string_literal", level = "debug", skip_all)]
+#[instrument(name = "parse_string_literal", level = "trace", skip_all)]
 pub fn try_parse_string_literal<F>(src: &str, kind: StrKind, f: F) -> Cow<'_, [u8]>
 where
     F: FnMut(Range<usize>, EscapeError),
