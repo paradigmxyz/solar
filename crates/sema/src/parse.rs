@@ -202,15 +202,15 @@ impl<'gcx> ParsingContext<'gcx> {
             self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>()
         };
 
-        // Set AST, add imports and recursively spawn jobs for parsing them.
+        // Set AST, add imports and recursively spawn jobs for parsing them if necessary.
         let _guard = debug_span!("add_imports").entered();
         let sources = &mut *lock.lock();
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
-        for (import_item_id, import) in imports {
-            let (import_id, new) = sources.add_import(id, import_item_id, import.clone());
-            if new {
-                self.spawn_parse_job(lock, import_id, import, arenas, scope);
+        for (import_item_id, import_file) in imports {
+            let (import_id, is_new) = sources.add_import(id, import_item_id, import_file.clone());
+            if is_new {
+                self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
             }
         }
     }
