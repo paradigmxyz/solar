@@ -331,7 +331,7 @@ impl Sources<'_> {
     fn get_file(&self, file: &Arc<SourceFile>) -> Option<SourceId> {
         self.sources
             .iter_enumerated()
-            .find(|(_, source)| Arc::ptr_eq(&source.file, &file))
+            .find(|(_, source)| Arc::ptr_eq(&source.file, file))
             .map(|(id, _)| id)
     }
 
