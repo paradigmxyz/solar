@@ -1552,12 +1552,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "match_cfg"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbee8634e0d45d258acb448e7eaab3fce7a0a467395d4d9f228e3c1f01fb2e4"
-
-[[package]]
 name = "matchers"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2675,7 +2669,6 @@ dependencies = [
  "inturn",
  "itertools 0.14.0",
  "itoa",
- "match_cfg",
  "normalize-path",
  "once_map",
  "rayon",
