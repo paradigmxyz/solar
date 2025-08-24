@@ -70,6 +70,12 @@ impl Compiler {
         &self.0.sess
     }
 
+    /// Returns a mutable reference to the compiler session.
+    #[inline]
+    pub fn sess_mut(&mut self) -> &mut Session {
+        self.as_mut().sess_mut()
+    }
+
     /// Returns a reference to the diagnostics context.
     #[inline]
     pub fn dcx(&self) -> &DiagCtxt {
@@ -79,7 +85,7 @@ impl Compiler {
     /// Returns a mutable reference to the diagnostics context.
     #[inline]
     pub fn dcx_mut(&mut self) -> &mut DiagCtxt {
-        self.as_mut().dcx_mut()
+        &mut self.sess_mut().dcx
     }
 
     /// Enters the compiler context.
@@ -163,6 +169,12 @@ impl<'c> CompilerRef<'c> {
     #[inline]
     pub fn sess(&self) -> &'c Session {
         self.gcx().sess
+    }
+
+    /// Returns a mutable reference to the compiler session.
+    #[inline]
+    pub fn sess_mut(&mut self) -> &mut Session {
+        &mut self.inner.sess
     }
 
     /// Returns a reference to the diagnostics context.
