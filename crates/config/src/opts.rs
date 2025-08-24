@@ -1,10 +1,15 @@
 //! Solar CLI arguments.
 
-use crate::{CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, Language, Threads};
+use crate::{
+    CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportRemapping, Language,
+    Threads,
+};
 use std::{num::NonZeroUsize, path::PathBuf};
 
 #[cfg(feature = "clap")]
 use clap::{ColorChoice, Parser, ValueHint};
+
+// TODO: implement `allow_paths`.
 
 /// Blazingly fast Solidity compiler.
 #[derive(Clone, Debug, Default)]
@@ -23,8 +28,27 @@ pub struct Opts {
     ///
     /// Import remappings are specified as `[context:]prefix=path`.
     /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
+    // NOTE: Remappings are parsed away into the `import_remappings` field. Use that instead.
     #[cfg_attr(feature = "clap", arg(value_hint = ValueHint::FilePath))]
     pub input: Vec<String>,
+    /// Import remappings.
+    ///
+    /// This is either added manually when constructing the session or parsed from `input` into
+    /// this field.
+    ///
+    /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub import_remappings: Vec<ImportRemapping>,
+    /// Use the given path as the root of the source tree.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Input options",
+            long,
+            value_hint = ValueHint::DirPath,
+        )
+    )]
+    pub base_path: Option<PathBuf>,
     /// Directory to search for files.
     ///
     /// Can be used multiple times.
@@ -32,13 +56,26 @@ pub struct Opts {
         feature = "clap",
         arg(
             help_heading = "Input options",
+            name = "include-path",
+            value_name = "INCLUDE_PATH",
             long,
             short = 'I',
             alias = "import-path",
             value_hint = ValueHint::DirPath,
         )
     )]
-    pub include_path: Vec<PathBuf>,
+    pub include_paths: Vec<PathBuf>,
+    /// Allow a given path for imports.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Input options",
+            long,
+            value_delimiter = ',',
+            value_hint = ValueHint::DirPath,
+        )
+    )]
+    pub allow_paths: Vec<PathBuf>,
     /// Source code language. Only Solidity is currently implemented.
     #[cfg_attr(
         feature = "clap",
@@ -116,18 +153,48 @@ impl Opts {
     }
 
     /// Finishes argument parsing.
-    ///
-    /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
-    /// in the future.
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
+        self.import_remappings = self
+            .input
+            .iter()
+            .filter(|s| s.contains('='))
+            .map(|s| {
+                s.parse::<ImportRemapping>().map_err(|e| {
+                    make_clap_error(
+                        clap::error::ErrorKind::InvalidValue,
+                        format!("invalid remapping {s:?}: {e}"),
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        self.input.retain(|s| !s.contains('='));
+
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
-            self.unstable =
-                UnstableOpts::try_parse_from(std::iter::once(String::new()).chain(hack))?;
+            let args = std::iter::once(String::new()).chain(hack);
+            self.unstable = UnstableOpts::try_parse_from(args).map_err(|e| {
+                override_clap_message(e, |s| {
+                    s.replace("solar-config", "solar").replace("error:", "").replace("--", "-Z")
+                })
+            })?;
         }
+
         Ok(())
     }
+}
+
+// Ideally would be clap::Error::raw but it never prints styled text.
+#[cfg(feature = "clap")]
+fn override_clap_message(e: clap::Error, f: impl FnOnce(String) -> String) -> clap::Error {
+    let msg = f(e.render().ansi().to_string());
+    let msg = msg.trim();
+    make_clap_error(e.kind(), msg)
+}
+
+#[cfg(feature = "clap")]
+fn make_clap_error(kind: clap::error::ErrorKind, message: impl std::fmt::Display) -> clap::Error {
+    <Opts as clap::CommandFactory>::command().error(kind, message)
 }
 
 /// Internal options.

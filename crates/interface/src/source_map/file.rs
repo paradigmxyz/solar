@@ -1,4 +1,4 @@
-use crate::{BytePos, CharPos, pos::RelativeBytePos};
+use crate::{BytePos, CharPos, SourceMap, pos::RelativeBytePos};
 use std::{
     fmt, io,
     ops::RangeInclusive,
@@ -78,7 +78,8 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self }
+        let sm = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.clone()));
+        FileNameDisplay { inner: self, sm }
     }
 
     /// Returns the path if the file name is a real file.
@@ -93,12 +94,23 @@ impl FileName {
 
 pub struct FileNameDisplay<'a> {
     inner: &'a FileName,
+    sm: Option<Arc<SourceMap>>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
-            FileName::Real(path) => path.display().fmt(f),
+            FileName::Real(path) => {
+                let path = if let Some(sm) = &self.sm
+                    && let Some(base_path) = sm.base_path.get()
+                    && let Ok(rpath) = path.strip_prefix(base_path)
+                {
+                    rpath
+                } else {
+                    path.as_path()
+                };
+                path.display().fmt(f)
+            }
             FileName::Stdin => f.write_str("<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
         }
