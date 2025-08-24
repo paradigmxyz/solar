@@ -1,5 +1,6 @@
 use super::MultiByteChar;
 use crate::pos::RelativeBytePos;
+use solar_data_structures::hint::cold_path;
 
 /// Finds all newlines, multi-byte characters, and non-narrow characters in a
 /// SourceFile.
@@ -32,9 +33,16 @@ fn analyze_source_file_dispatch(
     lines: &mut Vec<RelativeBytePos>,
     multi_byte_chars: &mut Vec<MultiByteChar>,
 ) {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    if is_x86_feature_detected!("sse2") {
-        unsafe { analyze_source_file_sse2(src, lines, multi_byte_chars) };
+    #[cfg(any(feature = "nightly", target_arch = "x86", target_arch = "x86_64"))]
+    'b: {
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        let enabled = is_x86_feature_detected!("sse2");
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+        let enabled = true;
+        if !enabled {
+            break 'b;
+        }
+        unsafe { analyze_source_file_vectorized(src, lines, multi_byte_chars) };
         return;
     }
     analyze_source_file_generic(
@@ -46,23 +54,70 @@ fn analyze_source_file_dispatch(
     );
 }
 
-/// Checks 16 byte chunks of text at a time. If the chunk contains
-/// something other than printable ASCII characters and newlines, the
-/// function falls back to the generic implementation. Otherwise it uses
-/// SSE2 intrinsics to quickly find all newlines.
-#[target_feature(enable = "sse2")]
-#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-unsafe fn analyze_source_file_sse2(
+#[cfg(any(feature = "nightly", target_arch = "x86", target_arch = "x86_64"))]
+#[cfg_attr(not(feature = "nightly"), target_feature(enable = "sse2"))]
+unsafe fn analyze_source_file_vectorized(
     src: &str,
     lines: &mut Vec<RelativeBytePos>,
     multi_byte_chars: &mut Vec<MultiByteChar>,
 ) {
-    #[cfg(target_arch = "x86")]
-    use std::arch::x86::*;
-    #[cfg(target_arch = "x86_64")]
-    use std::arch::x86_64::*;
+    #[cfg(feature = "nightly")]
+    mod imp {
+        use std::simd::prelude::*;
 
-    const CHUNK_SIZE: usize = 16;
+        pub(super) const CHUNK_SIZE: usize = if cfg!(target_feature = "avx512f") {
+            64
+        } else if cfg!(target_feature = "avx2") {
+            32
+        } else {
+            16
+        };
+        pub(super) type Chunk = std::simd::Simd<u8, CHUNK_SIZE>;
+
+        pub(super) fn load_chunk(chunk_bytes: &[u8; CHUNK_SIZE]) -> Chunk {
+            Chunk::from_array(*chunk_bytes)
+        }
+
+        pub(super) fn is_ascii(chunk: Chunk) -> bool {
+            chunk.simd_lt(Chunk::splat(128)).all()
+        }
+
+        pub(super) fn new_line_mask(chunk: Chunk) -> u64 {
+            chunk.simd_eq(Chunk::splat(b'\n')).to_bitmask()
+        }
+    }
+
+    #[cfg(not(feature = "nightly"))]
+    mod imp {
+        #[cfg(target_arch = "x86")]
+        use std::arch::x86::*;
+        #[cfg(target_arch = "x86_64")]
+        use std::arch::x86_64::*;
+
+        pub(super) const CHUNK_SIZE: usize = 16;
+        pub(super) type Chunk = __m128i;
+
+        pub(super) fn load_chunk(chunk_bytes: &[u8; CHUNK_SIZE]) -> Chunk {
+            unsafe { _mm_loadu_si128(chunk_bytes.as_ptr() as *const __m128i) }
+        }
+
+        pub(super) fn is_ascii(chunk: Chunk) -> bool {
+            unsafe {
+                let test = _mm_cmplt_epi8(chunk, _mm_set1_epi8(0));
+                let mask = _mm_movemask_epi8(test);
+                mask == 0
+            }
+        }
+
+        pub(super) fn new_line_mask(chunk: Chunk) -> u64 {
+            unsafe {
+                let test = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(b'\n' as i8));
+                _mm_movemask_epi8(test) as u64
+            }
+        }
+    }
+
+    use imp::*;
 
     let (chunks, tail) = src.as_bytes().as_chunks::<CHUNK_SIZE>();
 
@@ -73,35 +128,18 @@ unsafe fn analyze_source_file_sse2(
     let mut intra_chunk_offset = 0;
 
     for (chunk_index, chunk) in chunks.iter().enumerate() {
-        // We don't know if the pointer is aligned to 16 bytes, so we
-        // use `loadu`, which supports unaligned loading.
-        let chunk = unsafe { _mm_loadu_si128(chunk.as_ptr() as *const __m128i) };
-
-        // For character in the chunk, see if its byte value is < 0, which
-        // indicates that it's part of a UTF-8 char.
-        let multibyte_test = _mm_cmplt_epi8(chunk, _mm_set1_epi8(0));
-        // Create a bit mask from the comparison results.
-        let multibyte_mask = _mm_movemask_epi8(multibyte_test);
-
-        // If the bit mask is all zero, we only have ASCII chars here:
-        if multibyte_mask == 0 {
-            assert!(intra_chunk_offset == 0);
-
-            // Check for newlines in the chunk
-            let newlines_test = _mm_cmpeq_epi8(chunk, _mm_set1_epi8(b'\n' as i8));
-            let mut newlines_mask = _mm_movemask_epi8(newlines_test);
-
+        let chunk = load_chunk(chunk);
+        if is_ascii(chunk) {
+            debug_assert_eq!(intra_chunk_offset, 0);
             let output_offset = RelativeBytePos::from_usize(chunk_index * CHUNK_SIZE + 1);
-
-            while newlines_mask != 0 {
-                let index = newlines_mask.trailing_zeros();
-
-                lines.push(RelativeBytePos(index) + output_offset);
-
-                // Clear the bit, so we can find the next one.
-                newlines_mask &= newlines_mask - 1;
+            let mut mask = new_line_mask(chunk);
+            while mask != 0 {
+                let i = mask.trailing_zeros() as usize;
+                lines.push(output_offset + RelativeBytePos::from_usize(i));
+                mask &= mask - 1;
             }
         } else {
+            cold_path();
             // The slow path.
             // There are multibyte chars in here, fallback to generic decoding.
             let scan_start = chunk_index * CHUNK_SIZE + intra_chunk_offset;
