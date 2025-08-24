@@ -32,11 +32,11 @@ fn analyze_source_file_dispatch(
     lines: &mut Vec<RelativeBytePos>,
     multi_byte_chars: &mut Vec<MultiByteChar>,
 ) {
-    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    if is_x86_feature_detected!("sse2") {
-        unsafe { analyze_source_file_sse2(src, lines, multi_byte_chars) };
-        return;
-    }
+    // #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    // if is_x86_feature_detected!("sse2") {
+    //     unsafe { analyze_source_file_sse2(src, lines, multi_byte_chars) };
+    //     return;
+    // }
     analyze_source_file_generic(
         src,
         src.len(),
