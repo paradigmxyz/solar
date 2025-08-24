@@ -71,6 +71,7 @@ pub struct Opts {
         arg(
             help_heading = "Input options",
             long,
+            value_delimiter = ',',
             value_hint = ValueHint::DirPath,
         )
     )]
