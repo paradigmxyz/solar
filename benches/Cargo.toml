@@ -31,6 +31,7 @@ paste.workspace = true
 
 [features]
 ci = []
+nightly = ["solar-parse/nightly"]
 
 [[bench]]
 name = "criterion"
