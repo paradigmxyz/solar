@@ -162,7 +162,7 @@ impl Opts {
                 s.parse::<ImportRemapping>().map_err(|e| {
                     make_clap_error(
                         clap::error::ErrorKind::InvalidValue,
-                        &format!("invalid remapping {s:?}: {e}"),
+                        format!("invalid remapping {s:?}: {e}"),
                     )
                 })
             })
