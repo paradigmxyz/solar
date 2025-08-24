@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
 use clap::Parser as _;
-use solar_config::{ErrorFormat, ImportRemapping};
+use solar_config::ErrorFormat;
 use solar_interface::{
     Result, Session, SourceMap,
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
@@ -59,11 +59,10 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     }
 
     let mut pcx = compiler.parse();
-    pcx.file_resolver.add_include_paths(sess.opts.include_path.iter().cloned());
 
     // Partition arguments into three categories:
     // - `stdin`: `-`, occurrences after the first are ignored
-    // - remappings: `[context:]prefix=path`
+    // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
     // - paths: everything else
     let mut seen_stdin = false;
     let mut paths = Vec::new();
@@ -77,10 +76,6 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         }
 
         if arg.contains('=') {
-            let remapping = arg
-                .parse::<ImportRemapping>()
-                .map_err(|e| sess.dcx.err(format!("invalid remapping {arg:?}: {e}")).emit())?;
-            pcx.file_resolver.add_import_remapping(remapping);
             continue;
         }
 

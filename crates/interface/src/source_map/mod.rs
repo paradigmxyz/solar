@@ -9,8 +9,8 @@ use solar_data_structures::{
 };
 use std::{
     io::{self, Read},
-    path::Path,
-    sync::Arc,
+    path::{Path, PathBuf},
+    sync::{Arc, OnceLock},
 };
 
 mod analyze;
@@ -110,6 +110,7 @@ pub struct SourceMap {
     stable_id_to_source_file: OnceMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
     hash_kind: SourceFileHashAlgorithm,
+    base_path: OnceLock<PathBuf>,
 }
 
 impl Default for SourceMap {
@@ -125,12 +126,18 @@ impl SourceMap {
             source_files: Default::default(),
             stable_id_to_source_file: Default::default(),
             hash_kind,
+            base_path: OnceLock::new(),
         }
     }
 
     /// Creates a new empty source map.
     pub fn empty() -> Self {
         Self::new(SourceFileHashAlgorithm::default())
+    }
+
+    /// Sets the base path for the source map.
+    pub(crate) fn set_base_path(&self, base_path: PathBuf) {
+        let _ = self.base_path.set(base_path);
     }
 
     /// Returns `true` if the source map is empty.
@@ -405,15 +412,15 @@ impl SourceMap {
     /// Format the span location to be printed in diagnostics. Must not be emitted
     /// to build artifacts as this may leak local file paths. Use span_to_embeddable_string
     /// for string suitable for embedding.
-    pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display + use<> {
+    pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display {
         self.span_to_string(sp)
     }
 
-    pub fn span_to_string(&self, sp: Span) -> impl fmt::Display + use<> {
+    pub fn span_to_string(&self, sp: Span) -> impl fmt::Display {
         let (source_file, lo_line, lo_col, hi_line, hi_col) = self.span_to_location_info(sp);
         fmt::from_fn(move |f| {
             let file_name = match &source_file {
-                Some(sf) => sf.name.display(),
+                Some(sf) => self.filename_for_diagnostics(&sf.name),
                 None => return f.write_str("no-location"),
             };
             write!(f, "{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")

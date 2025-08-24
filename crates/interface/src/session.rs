@@ -121,7 +121,7 @@ impl SessionBuilder {
     #[track_caller]
     pub fn build(mut self) -> Session {
         let mut dcx = self.dcx.take().unwrap_or_else(|| panic!("diagnostics context not set"));
-        Session {
+        let sess = Session {
             globals: match self.globals.take() {
                 Some(globals) => {
                     // Check that the source map matches the one in the diagnostics context.
@@ -141,7 +141,16 @@ impl SessionBuilder {
             },
             dcx,
             opts: self.opts.take().unwrap_or_default(),
+        };
+
+        if let Some(base_path) =
+            sess.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
+            && let Ok(base_path) = crate::canonicalize(base_path)
+        {
+            sess.source_map().set_base_path(base_path);
         }
+
+        sess
     }
 }
 

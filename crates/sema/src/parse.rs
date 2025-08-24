@@ -53,9 +53,11 @@ impl<'gcx> ParsingContext<'gcx> {
     pub(crate) fn new(mut gcx_: GcxMut<'gcx>) -> Self {
         let gcx = gcx_.get_mut();
         let sess = gcx.sess;
+        let mut file_resolver = FileResolver::new(sess.source_map());
+        file_resolver.configure_from_sess(sess);
         Self {
             sess,
-            file_resolver: FileResolver::new(sess.source_map()),
+            file_resolver,
             sources: &mut gcx.sources,
             arenas: &gcx.ast_arenas,
             resolve_imports: !sess.opts.unstable.no_resolve_imports,
@@ -381,17 +383,24 @@ impl<'ast> Sources<'ast> {
 
     #[instrument(level = "debug", skip_all)]
     fn get_or_insert_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
-        if let Some(id) = self.get_file(&file) {
+        if let Some((id, _)) = self.get_file(&file) {
             return (id, false);
         }
         (self.sources.push(Source::new(file)), true)
     }
 
-    fn get_file(&self, file: &Arc<SourceFile>) -> Option<SourceId> {
-        self.sources
-            .iter_enumerated()
-            .find(|(_, source)| Arc::ptr_eq(&source.file, file))
-            .map(|(id, _)| id)
+    /// Returns the ID of the source file, if it exists.
+    pub fn get_file(&self, file: &Arc<SourceFile>) -> Option<(SourceId, &Source<'ast>)> {
+        self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, file))
+    }
+
+    /// Returns the ID of the source file, if it exists.
+    pub fn get_file_mut(
+        &mut self,
+        file: &Arc<SourceFile>,
+    ) -> Option<(SourceId, &mut Source<'ast>)> {
+        let (id, _) = self.get_file(file)?;
+        Some((id, &mut self.sources[id]))
     }
 
     /// Asserts that all sources are unique.
