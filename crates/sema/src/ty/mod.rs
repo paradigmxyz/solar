@@ -1,8 +1,8 @@
 use crate::{
-    Sources, ast,
+    Source, Sources, ast,
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
-    hir::{self, Hir},
+    hir::{self, Hir, SourceId},
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
@@ -18,12 +18,16 @@ use solar_interface::{
     Ident, Session, Span,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
+    source_map::{FileName, SourceFile},
 };
 use std::{
     fmt,
     hash::Hash,
     ops::ControlFlow,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 use thread_local::ThreadLocal;
 
@@ -370,6 +374,29 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
         Ty::new(self, TyKind::Err(guar))
+    }
+
+    /// Returns the source file with the given path, if it exists.
+    pub fn get_file(self, name: impl Into<FileName>) -> Option<Arc<SourceFile>> {
+        self.sess.source_map().get_file(name)
+    }
+
+    /// Returns the AST source at the given path, if it exists.
+    pub fn get_ast_source(
+        self,
+        name: impl Into<FileName>,
+    ) -> Option<(SourceId, &'gcx Source<'gcx>)> {
+        let file = self.get_file(name)?;
+        self.sources.get_file(&file)
+    }
+
+    /// Returns the HIR source at the given path, if it exists.
+    pub fn get_hir_source(
+        self,
+        name: impl Into<FileName>,
+    ) -> Option<(SourceId, &'gcx hir::Source<'gcx>)> {
+        let file = self.get_file(name)?;
+        self.hir.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
     }
 
     /// Returns the name of the given item.
