@@ -207,56 +207,18 @@ fn span_merging_fail() {
 }
 
 /// Tests loading an external source file that requires normalization.
-#[cfg(any())]
 #[test]
 fn t10() {
     let sm = SourceMap::empty();
     let unnormalized = "first line.\r\nsecond line";
     let normalized = "first line.\nsecond line";
 
-    let src_file =
-        sm.new_dummy_source_file(PathBuf::from("blork.rs").into(), unnormalized.to_string());
+    let src_file = sm.new_source_file(PathBuf::from("blork.rs"), unnormalized).unwrap();
 
-    assert_eq!(src_file.src.as_ref().unwrap().as_ref(), normalized);
+    assert_eq!(src_file.src.as_ref(), normalized);
     assert!(
         src_file.src_hash.matches(unnormalized),
         "src_hash should use the source before normalization"
-    );
-
-    let SourceFile {
-        name,
-        src_hash,
-        source_len,
-        lines,
-        multibyte_chars,
-        non_narrow_chars,
-        normalized_pos,
-        stable_id,
-        ..
-    } = (*src_file).clone();
-
-    let imported_src_file = sm.new_imported_source_file(
-        name,
-        src_hash,
-        stable_id,
-        source_len.to_u32(),
-        CrateNum::new(0),
-        FreezeLock::new(lines.read().clone()),
-        multibyte_chars,
-        non_narrow_chars,
-        normalized_pos,
-        0,
-    );
-
-    assert!(
-        imported_src_file.external_src.borrow().get_source().is_none(),
-        "imported source file should not have source yet"
-    );
-    imported_src_file.add_external_src(|| Some(unnormalized.to_string()));
-    assert_eq!(
-        imported_src_file.external_src.borrow().get_source().unwrap().as_ref(),
-        normalized,
-        "imported source file should be normalized"
     );
 }
 
