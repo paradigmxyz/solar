@@ -184,8 +184,11 @@ declare_visitors! {
             match kind {
                 TypeKind::Elementary(_) => {}
                 TypeKind::Array(array) => {
-                    let TypeArray { element, size: _ } = &#mut **array;
+                    let TypeArray { element, size } = &#mut **array;
                     self.visit_ty #_mut(element)?;
+                    if let Some(size) = size {
+                        self.visit_expr #_mut(size)?;
+                    }
                 }
                 TypeKind::Function(function) => {
                     let TypeFunction { parameters, visibility: _, state_mutability: _, returns } = &#mut **function;
