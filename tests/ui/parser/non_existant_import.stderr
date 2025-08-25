@@ -1,0 +1,9 @@
+error: file doesnotexist not found
+  --> ROOT/tests/ui/parser/non_existant_import.sol:LL:CC
+   |
+LL | import "doesnotexist";
+   |        ^^^^^^^^^^^^^^
+   |
+
+error: aborting due to 1 previous error
+
