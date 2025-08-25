@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Bug Fixes
+
+- Error on dummy instead of empty args ([#407](https://github.com/paradigmxyz/solar/issues/407))
+- OnDrop drops, rename to DropGuard ([#399](https://github.com/paradigmxyz/solar/issues/399))
+
+### Features
+
+- Add getters for source by file name (path) ([#442](https://github.com/paradigmxyz/solar/issues/442))
+- [interface] Add FileLoader abstraction for fs/io ([#438](https://github.com/paradigmxyz/solar/issues/438))
+- Implement base_path, streamline creating pcx ([#436](https://github.com/paradigmxyz/solar/issues/436))
+- Allow session mutable access ([#435](https://github.com/paradigmxyz/solar/issues/435))
+- Make `Lit`erals implement `Copy` ([#414](https://github.com/paradigmxyz/solar/issues/414))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+- [sema] Add helper methods to Function ([#385](https://github.com/paradigmxyz/solar/issues/385))
+
+### Miscellaneous Tasks
+
+- Downgrade some debug spans to trace ([#412](https://github.com/paradigmxyz/solar/issues/412))
+- Abstract implementation of Declarations ([#410](https://github.com/paradigmxyz/solar/issues/410))
+- Remove query tracing ([#406](https://github.com/paradigmxyz/solar/issues/406))
+- Clean up contract inheritance linearization ([#405](https://github.com/paradigmxyz/solar/issues/405))
+
+### Other
+
+- Enforce typos ([#423](https://github.com/paradigmxyz/solar/issues/423))
+
+### Performance
+
+- Load input source files in parallel ([#429](https://github.com/paradigmxyz/solar/issues/429))
+- [sema] Better parallel parser scheduling ([#428](https://github.com/paradigmxyz/solar/issues/428))
+- Pool symbol resolver scopes, refactor ([#413](https://github.com/paradigmxyz/solar/issues/413))
+- [sema] Add some reserve calls ([#411](https://github.com/paradigmxyz/solar/issues/411))
+- [sema] Use `Cell<usize>` in lowering ([#408](https://github.com/paradigmxyz/solar/issues/408))
+
 ## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
 
 ### Bug Fixes

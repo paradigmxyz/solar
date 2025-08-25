@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Bug Fixes
+
+- Don't print fs errors twice ([#440](https://github.com/paradigmxyz/solar/issues/440))
+
+### Features
+
+- Add getters for source by file name (path) ([#442](https://github.com/paradigmxyz/solar/issues/442))
+- [interface] Add FileLoader abstraction for fs/io ([#438](https://github.com/paradigmxyz/solar/issues/438))
+- Implement base_path, streamline creating pcx ([#436](https://github.com/paradigmxyz/solar/issues/436))
+- Make `Lit`erals implement `Copy` ([#414](https://github.com/paradigmxyz/solar/issues/414))
+- Add ByteSymbol, use in LitKind::Str ([#425](https://github.com/paradigmxyz/solar/issues/425))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+### Miscellaneous Tasks
+
+- Update analyze_source_file ([#430](https://github.com/paradigmxyz/solar/issues/430))
+- Update docs, fix ci ([#403](https://github.com/paradigmxyz/solar/issues/403))
+- Rename enter to enter_sequential ([#392](https://github.com/paradigmxyz/solar/issues/392))
+
+### Performance
+
+- Load input source files in parallel ([#429](https://github.com/paradigmxyz/solar/issues/429))
+- Tweak inlining ([#426](https://github.com/paradigmxyz/solar/issues/426))
+
 ## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
 
 ### Dependencies
