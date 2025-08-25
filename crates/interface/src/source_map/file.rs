@@ -203,7 +203,7 @@ impl SourceFile {
     ) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
         let src_hash = SourceFileHash::new(hash_kind, &src);
-        // let normalized_pos = normalize_src(&mut src);
+        normalize_newlines(&mut src);
 
         let stable_id = StableSourceFileId::from_filename_in_current_crate(&name);
         let source_len = src.len();
@@ -489,5 +489,60 @@ impl SourceFileHash {
     #[inline]
     pub const fn hash_len(&self) -> usize {
         self.kind.hash_len()
+    }
+}
+
+/// Replaces `\r\n` with `\n` in-place in `src`.
+///
+/// Leaves any occurrences of lone `\r` unchanged.
+// Taken from: https://github.com/rust-lang/rust/blob/ee361e8fca1c30e13e7a31cc82b64c045339d3a8/compiler/rustc_span/src/lib.rs#L2353C1-L2412C2
+fn normalize_newlines(src: &mut String) {
+    if !src.as_bytes().contains(&b'\r') {
+        return;
+    }
+
+    // We replace `\r\n` with `\n` in-place, which doesn't break utf-8 encoding.
+    // While we *can* call `as_mut_vec` and do surgery on the live string
+    // directly, let's rather steal the contents of `src`. This makes the code
+    // safe even if a panic occurs.
+
+    let mut buf = std::mem::replace(src, String::new()).into_bytes();
+    let mut gap_len = 0;
+    let mut tail = buf.as_mut_slice();
+    loop {
+        let idx = match find_crlf(&tail[gap_len..]) {
+            None => tail.len(),
+            Some(idx) => idx + gap_len,
+        };
+        tail.copy_within(gap_len..idx, 0);
+        tail = &mut tail[idx - gap_len..];
+        if tail.len() == gap_len {
+            break;
+        }
+        gap_len += 1;
+    }
+
+    // Account for removed `\r`.
+    // After `set_len`, `buf` is guaranteed to contain utf-8 again.
+    let new_len = buf.len() - gap_len;
+    unsafe {
+        buf.set_len(new_len);
+        *src = String::from_utf8_unchecked(buf);
+    }
+
+    fn find_crlf(src: &[u8]) -> Option<usize> {
+        let mut search_idx = 0;
+        while let Some(idx) = find_cr(&src[search_idx..]) {
+            if src[search_idx..].get(idx + 1) != Some(&b'\n') {
+                search_idx += idx + 1;
+                continue;
+            }
+            return Some(search_idx + idx);
+        }
+        None
+    }
+
+    fn find_cr(src: &[u8]) -> Option<usize> {
+        src.iter().position(|&b| b == b'\r')
     }
 }
