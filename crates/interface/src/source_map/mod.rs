@@ -130,12 +130,10 @@ impl FileLoader for RealFileLoader {
 
     fn load_file(&self, path: &Path) -> io::Result<String> {
         std::fs::read_to_string(path)
-            .map_err(|e| io::Error::new(e.kind(), ResolveError::ReadFile(path.to_path_buf(), e)))
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
         std::fs::read(path)
-            .map_err(|e| io::Error::new(e.kind(), ResolveError::ReadFile(path.to_path_buf(), e)))
     }
 }
 
