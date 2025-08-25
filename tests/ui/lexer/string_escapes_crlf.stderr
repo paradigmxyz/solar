@@ -12,13 +12,6 @@ LL | bytes constant s = hex"\
    |                         ^
    |
 
-error: invalid hex digit
-  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
-   |
-LL | bytes constant s = hex"\
-   |                         ^
-   |
-
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
    |
@@ -45,20 +38,6 @@ error: invalid hex digit
    |
 LL | bytes constant s = hex"\
    |                         ^
-   |
-
-error: invalid hex digit
-  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
-   |
-LL | bytes constant s = hex"\
-   |                         ^
-   |
-
-error: invalid hex digit
-  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
-   |
-LL | ...
-   |^
    |
 
 error: invalid hex digit
@@ -89,12 +68,5 @@ LL | bytes constant s = hex"
    |                        ^
    |
 
-error: invalid hex digit
-  --> ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
-   |
-LL | bytes constant s = hex"
-   |                        ^
-   |
-
-error: aborting due to 14 previous errors
+error: aborting due to 10 previous errors
 
