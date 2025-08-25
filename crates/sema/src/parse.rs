@@ -156,11 +156,10 @@ impl<'gcx> ParsingContext<'gcx> {
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
-            let arenas = self.arenas;
             if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
-                self.parse_sequential(&mut sources, arenas.get_or_default());
+                self.parse_sequential(&mut sources, self.arenas.get_or_default());
             } else {
-                self.parse_parallel(&mut sources, arenas);
+                self.parse_parallel(&mut sources, self.arenas);
             }
             debug!(
                 num_sources = sources.len(),
