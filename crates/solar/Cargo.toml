@@ -52,7 +52,7 @@ solar-tester.workspace = true
 [features]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
-cli = ["dep:solar-cli"]
+cli = ["dep:solar-cli", "clap"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-cli?/nightly",
@@ -68,6 +68,9 @@ asm = ["solar-cli?/asm", "alloy-primitives/asm-keccak"]
 # Faster but less portable allocator.
 jemalloc = ["solar-cli?/jemalloc"]
 mimalloc = ["solar-cli?/mimalloc"]
+
+# Clap support.
+clap = ["solar-config/clap"]
 
 # Debugging and profiling.
 tracing = ["solar-cli?/tracing"]
