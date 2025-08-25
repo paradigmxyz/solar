@@ -158,12 +158,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// The file will not be read if it has already been added into the source map.
     pub fn from_file(sess: &'sess Session, arena: &'ast ast::Arena, path: &Path) -> Result<Self> {
         Self::from_lazy_source_code(sess, arena, FileName::Real(path.to_path_buf()), || {
-            std::fs::read_to_string(path).map_err(|e| {
-                std::io::Error::new(
-                    e.kind(),
-                    solar_interface::source_map::ResolveError::ReadFile(path.to_path_buf(), e),
-                )
-            })
+            sess.source_map().file_loader().load_file(path)
         })
     }
 

@@ -66,7 +66,11 @@ impl<'a> FileResolver<'a> {
                 let base_path = if base_path.is_absolute() {
                     base_path.as_path()
                 } else {
-                    &if let Ok(path) = crate::canonicalize(base_path) { path } else { break 'b }
+                    &if let Ok(path) = self.canonicalize_unchecked(base_path) {
+                        path
+                    } else {
+                        break 'b;
+                    }
                 };
                 self.set_current_dir(base_path);
             }
@@ -144,12 +148,11 @@ impl<'a> FileResolver<'a> {
 
     /// Canonicalizes a path using [`Self::current_dir`].
     pub fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        self.canonicalize_absolute(&self.make_absolute(path))
+        self.canonicalize_unchecked(&self.make_absolute(path))
     }
 
-    fn canonicalize_absolute(&self, path: &Path) -> io::Result<PathBuf> {
-        debug_assert!(path.is_absolute());
-        crate::canonicalize(path)
+    fn canonicalize_unchecked(&self, path: &Path) -> io::Result<PathBuf> {
+        self.source_map.file_loader().canonicalize_path(path)
     }
 
     /// Normalizes a path removing unnecessary components.
@@ -318,7 +321,7 @@ impl<'a> FileResolver<'a> {
         }
 
         // Canonicalize, checking symlinks and if it exists.
-        if let Ok(path) = self.canonicalize_absolute(apath) {
+        if let Ok(path) = self.canonicalize_unchecked(apath) {
             return self
                 .source_map()
                 // Store the file with `apath` as the name instead of `path`.

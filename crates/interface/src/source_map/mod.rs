@@ -101,6 +101,44 @@ pub struct FileLines {
     pub lines: Vec<LineInfo>,
 }
 
+/// Abstraction over IO operations.
+///
+/// This is called by the file resolver and source map to access the file system.
+///
+/// The [default implementation][RealFileLoader] uses [`std::fs`].
+pub trait FileLoader: Send + Sync + 'static {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf>;
+    fn load_stdin(&self) -> io::Result<String>;
+    fn load_file(&self, path: &Path) -> io::Result<String>;
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>>;
+}
+
+/// Default file loader that uses [`std::fs`].
+pub struct RealFileLoader;
+
+#[allow(clippy::disallowed_methods)] // Only place that's allowed.
+impl FileLoader for RealFileLoader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        crate::canonicalize(path)
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        let mut src = String::new();
+        io::stdin().read_to_string(&mut src)?;
+        Ok(src)
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        std::fs::read_to_string(path)
+            .map_err(|e| io::Error::new(e.kind(), ResolveError::ReadFile(path.to_path_buf(), e)))
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        std::fs::read(path)
+            .map_err(|e| io::Error::new(e.kind(), ResolveError::ReadFile(path.to_path_buf(), e)))
+    }
+}
+
 /// Stores all the sources of the current compilation session.
 #[derive(derive_more::Debug)]
 pub struct SourceMap {
@@ -111,6 +149,8 @@ pub struct SourceMap {
 
     hash_kind: SourceFileHashAlgorithm,
     base_path: OnceLock<PathBuf>,
+    #[debug(skip)]
+    file_loader: OnceLock<Box<dyn FileLoader>>,
 }
 
 impl Default for SourceMap {
@@ -127,12 +167,27 @@ impl SourceMap {
             stable_id_to_source_file: Default::default(),
             hash_kind,
             base_path: OnceLock::new(),
+            file_loader: OnceLock::new(),
         }
     }
 
     /// Creates a new empty source map.
     pub fn empty() -> Self {
         Self::new(SourceFileHashAlgorithm::default())
+    }
+
+    /// Sets the file loader for the source map.
+    ///
+    /// See [its documentation][FileLoader] for more details.
+    pub fn set_file_loader(&self, file_loader: impl FileLoader) {
+        let _ = self.file_loader.set(Box::new(file_loader));
+    }
+
+    /// Returns the file loader for the source map.
+    ///
+    /// See [its documentation][FileLoader] for more details.
+    pub fn file_loader(&self) -> &dyn FileLoader {
+        self.file_loader.get().map(std::ops::Deref::deref).unwrap_or(&RealFileLoader)
     }
 
     /// Sets the base path for the source map.
@@ -165,16 +220,12 @@ impl SourceMap {
 
     /// Loads a file with the given name from the given path.
     pub fn load_file_with_name(&self, name: FileName, path: &Path) -> io::Result<Arc<SourceFile>> {
-        self.new_source_file_with(name, || std::fs::read_to_string(path))
+        self.new_source_file_with(name, || self.file_loader().load_file(path))
     }
 
     /// Loads `stdin`.
     pub fn load_stdin(&self) -> io::Result<Arc<SourceFile>> {
-        self.new_source_file_with(FileName::Stdin, || {
-            let mut src = String::new();
-            io::stdin().read_to_string(&mut src)?;
-            Ok(src)
-        })
+        self.new_source_file_with(FileName::Stdin, || self.file_loader().load_stdin())
     }
 
     /// Creates a new `SourceFile` with the given name and source string.
@@ -195,6 +246,8 @@ impl SourceMap {
     ///
     /// Returns an error if the file is larger than 4GiB or other errors occur while creating the
     /// `SourceFile`.
+    ///
+    /// Note that the `FileLoader` is not used when calling this function.
     #[instrument(level = "debug", skip_all, fields(filename = %filename.display()))]
     pub fn new_source_file_with(
         &self,
