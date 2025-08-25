@@ -200,15 +200,8 @@ impl SourceMap {
 
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
-    pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
-        self.source_file_by_file_name(&path.to_path_buf().into())
-    }
-
-    /// Returns the source file with the given name, if it exists.
-    /// Does not attempt to load the file.
-    #[deprecated = "use `source_file_by_file_name` instead"]
-    pub fn get_file_by_name(&self, name: &FileName) -> Option<Arc<SourceFile>> {
-        self.source_file_by_file_name(name)
+    pub fn get_file(&self, path: impl Into<FileName>) -> Option<Arc<SourceFile>> {
+        self.source_file_by_file_name(&path.into())
     }
 
     /// Loads a file from the given path.

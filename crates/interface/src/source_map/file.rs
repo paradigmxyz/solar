@@ -15,6 +15,9 @@ pub struct MultiByteChar {
     pub bytes: u8,
 }
 
+/// The name of a source file.
+///
+/// This is used as the key in the source map. See [`SourceMap::get_file`].
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -58,9 +61,27 @@ impl From<PathBuf> for FileName {
     }
 }
 
+impl From<&PathBuf> for FileName {
+    fn from(p: &PathBuf) -> Self {
+        Self::Real(p.clone())
+    }
+}
+
+impl From<&Path> for FileName {
+    fn from(p: &Path) -> Self {
+        Self::Real(p.to_path_buf())
+    }
+}
+
 impl From<String> for FileName {
     fn from(s: String) -> Self {
         Self::Custom(s)
+    }
+}
+
+impl From<&FileName> for FileName {
+    fn from(s: &FileName) -> Self {
+        s.clone()
     }
 }
 

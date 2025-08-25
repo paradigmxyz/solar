@@ -249,6 +249,8 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
 
     #[test]
@@ -266,7 +268,7 @@ mod tests {
         compiler.enter_mut(|c| {
             let mut pcx = c.parse();
             pcx.add_file(
-                c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap(),
+                c.sess().source_map().new_source_file(PathBuf::from("test.sol"), "").unwrap(),
             );
             pcx.parse();
         });
@@ -276,7 +278,7 @@ mod tests {
         compiler.enter_mut(|c| {
             let mut pcx = c.parse();
             pcx.add_file(
-                c.sess().source_map().new_source_file(String::from("test2.sol"), "").unwrap(),
+                c.sess().source_map().new_source_file(PathBuf::from("test2.sol"), "").unwrap(),
             );
             pcx.parse();
         });
@@ -309,7 +311,7 @@ mod tests {
 
     fn parse_dummy_file(c: &mut CompilerRef<'_>) {
         let mut pcx = c.parse();
-        pcx.add_file(c.sess().source_map().new_source_file(String::from("test.sol"), "").unwrap());
+        pcx.add_file(c.sess().source_map().new_source_file(PathBuf::from("test.sol"), "").unwrap());
         pcx.parse();
     }
 
