@@ -79,8 +79,8 @@ impl From<String> for FileName {
     }
 }
 
-impl From<&FileName> for FileName {
-    fn from(s: &FileName) -> Self {
+impl From<&Self> for FileName {
+    fn from(s: &Self) -> Self {
         s.clone()
     }
 }
