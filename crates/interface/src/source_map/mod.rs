@@ -116,6 +116,7 @@ pub trait FileLoader: Send + Sync + 'static {
 /// Default file loader that uses [`std::fs`].
 pub struct RealFileLoader;
 
+#[allow(clippy::disallowed_methods)] // Only place that's allowed.
 impl FileLoader for RealFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
         crate::canonicalize(path)

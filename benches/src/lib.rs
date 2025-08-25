@@ -1,3 +1,5 @@
+#![allow(clippy::disallowed_methods)]
+
 use solar_parse::interface::Session;
 use std::{
     any::Any,
