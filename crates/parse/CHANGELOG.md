@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Features
+
+- [interface] Add FileLoader abstraction for fs/io ([#438](https://github.com/paradigmxyz/solar/issues/438))
+- Make `Lit`erals implement `Copy` ([#414](https://github.com/paradigmxyz/solar/issues/414))
+- Add ByteSymbol, use in LitKind::Str ([#425](https://github.com/paradigmxyz/solar/issues/425))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+### Miscellaneous Tasks
+
+- Downgrade some debug spans to trace ([#412](https://github.com/paradigmxyz/solar/issues/412))
+- Update docs, fix ci ([#403](https://github.com/paradigmxyz/solar/issues/403))
+
+### Other
+
+- Enforce typos ([#423](https://github.com/paradigmxyz/solar/issues/423))
+
+### Performance
+
+- [sema] Better parallel parser scheduling ([#428](https://github.com/paradigmxyz/solar/issues/428))
+- [parser] Improve parse_lit for integers ([#427](https://github.com/paradigmxyz/solar/issues/427))
+- Tweak inlining ([#426](https://github.com/paradigmxyz/solar/issues/426))
+
 ## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
 
 ### Dependencies
