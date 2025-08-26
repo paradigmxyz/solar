@@ -5,7 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 
-use std::{fmt, num::NonZeroUsize};
+use std::{fmt, num::NonZeroUsize, sync::OnceLock};
 use strum::EnumIs;
 
 #[macro_use]
@@ -273,7 +273,7 @@ impl From<usize> for Threads {
 
 impl Default for Threads {
     fn default() -> Self {
-        Self::resolve(if SINGLE_THREADED_TARGET { 1 } else { 8 })
+        Self::resolve(if SINGLE_THREADED_TARGET { 1 } else { 8.min(get_threads().get()) })
     }
 }
 
@@ -300,12 +300,13 @@ impl std::fmt::Debug for Threads {
 impl Threads {
     /// Resolves the number of threads to use.
     pub fn resolve(n: usize) -> Self {
-        Self(
-            NonZeroUsize::new(n)
-                .or_else(|| std::thread::available_parallelism().ok())
-                .unwrap_or(NonZeroUsize::MIN),
-        )
+        Self(NonZeroUsize::new(n).unwrap_or_else(get_threads))
     }
+}
+
+fn get_threads() -> NonZeroUsize {
+    static THREADS: OnceLock<NonZeroUsize> = OnceLock::new();
+    *THREADS.get_or_init(|| std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN))
 }
 
 #[cfg(test)]
