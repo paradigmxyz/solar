@@ -10,6 +10,9 @@ mod json;
 #[cfg(feature = "json")]
 pub use json::JsonEmitter;
 
+mod mem;
+pub use mem::InMemoryEmitter;
+
 mod rustc;
 
 /// Dynamic diagnostic emitter. See [`Emitter`].
