@@ -334,8 +334,7 @@ impl DiagCtxtInner {
                 self.deduplicated_err_count += 1;
             } else if diagnostic.level == Level::Warning {
                 self.deduplicated_warn_count += 1;
-            } else if matches!(diagnostic.level, Level::Note | Level::OnceNote | Level::FailureNote)
-            {
+            } else if matches!(diagnostic.level, Level::Note | Level::OnceNote) {
                 self.deduplicated_note_count += 1;
             }
         }
@@ -346,8 +345,7 @@ impl DiagCtxtInner {
         } else {
             if diagnostic.level == Level::Warning {
                 self.bump_warn_count();
-            } else if matches!(diagnostic.level, Level::Note | Level::OnceNote | Level::FailureNote)
-            {
+            } else if matches!(diagnostic.level, Level::Note | Level::OnceNote) {
                 self.bump_note_count();
             }
             // Don't bump any counters for `Help`, `OnceHelp`, or `Allow`
