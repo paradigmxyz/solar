@@ -1,6 +1,6 @@
-use std::sync::{Arc, RwLock};
-
 use crate::diagnostics::{Diag, Emitter};
+use solar_data_structures::sync::RwLock;
+use std::sync::Arc;
 
 /// An in-memory diagnostics emitter.
 ///
@@ -24,6 +24,6 @@ impl InMemoryEmitter {
 
 impl Emitter for InMemoryEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) {
-        self.buffer.write().unwrap().push(diagnostic.clone());
+        self.buffer.write().push(diagnostic.clone());
     }
 }
