@@ -283,7 +283,7 @@ impl EtherSubDenomination {
 
     /// Returns the number of wei in this sub-denomination.
     pub const fn wei(self) -> u64 {
-        // https://github.com/ethereum/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
+        // https://github.com/argotorg/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
         match self {
             Self::Wei => 1,
             Self::Gwei => 1_000_000_000,
@@ -342,7 +342,7 @@ impl TimeSubDenomination {
 
     /// Returns the number of seconds in this sub-denomination.
     pub const fn seconds(self) -> u64 {
-        // https://github.com/ethereum/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
+        // https://github.com/argotorg/solidity/blob/2a2a9d37ee69ca77ef530fe18524a3dc8b053104/libsolidity/ast/Types.cpp#L973
         match self {
             Self::Seconds => 1,
             Self::Minutes => 60,

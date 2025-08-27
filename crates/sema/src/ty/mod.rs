@@ -637,7 +637,7 @@ cached! {
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
 ///
-/// The solc implementation excludes inheritance: <https://github.com/ethereum/solidity/blob/ad2644c52b3afbe80801322c5fe44edb59383500/libsolidity/ast/AST.cpp#L310-L316>
+/// The solc implementation excludes inheritance: <https://github.com/argotorg/solidity/blob/ad2644c52b3afbe80801322c5fe44edb59383500/libsolidity/ast/AST.cpp#L310-L316>
 ///
 /// See [ERC-165] for more details.
 ///
@@ -846,7 +846,7 @@ pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;
 
-    // https://github.com/ethereum/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
+    // https://github.com/argotorg/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
     let has_reference_or_mapping_type = ty.is_reference_type() || ty.has_mapping();
     let mut func_vis = None;
     let mut locs;

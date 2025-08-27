@@ -257,7 +257,7 @@ impl Symbol {
     /// Returns `true` if the symbol is a keyword in a Yul context. Excludes EVM builtins.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
         matches!(
             self,
             kw::Function
@@ -559,7 +559,7 @@ pub mod sym {
 symbols! {
     // Solidity keywords.
     // When modifying this, also update all the `is_keyword` functions in this file.
-    // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
+    // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
     Keywords {
         // Special symbols used internally.
         Empty:       "",

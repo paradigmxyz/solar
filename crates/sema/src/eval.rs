@@ -6,7 +6,7 @@ use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
 
-// TODO: `convertType` for truncating and extending correctly: https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
+// TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
 /// Evaluates simple constants.
 ///

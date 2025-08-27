@@ -587,7 +587,7 @@ mod tests {
     #[test]
     fn operators() {
         use Delimiter::*;
-        // From Solc `TOKEN_LIST`: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
+        // From Solc `TOKEN_LIST`: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
         checks(&[
             (")", &[(0..1, CloseDelim(Parenthesis))]),
             ("(", &[(0..1, OpenDelim(Parenthesis))]),

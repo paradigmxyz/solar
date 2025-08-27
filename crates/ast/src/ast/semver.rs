@@ -10,9 +10,9 @@ pub use semver::Op as SemverOp;
 // See [`SemverReq::dis`] field docs for more details on how the requirements are treated.
 
 // Solc implementation notes:
-// - uses `unsigned` (`u32`) for version integers: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L258
-// - version numbers can be `*/x/X`, which are represented as `u32::MAX`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L263
-// - ranges are parsed as `>=start, <=end`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
+// - uses `unsigned` (`u32`) for version integers: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L258
+// - version numbers can be `*/x/X`, which are represented as `u32::MAX`: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L263
+// - ranges are parsed as `>=start, <=end`: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
 //   we however dedicate a separate node for this: [`SemverReqComponentKind::Range`]
 
 /// A SemVer version number.
@@ -382,7 +382,7 @@ fn matches_op(op: Op, a: &SemverVersion, b: &SemverVersion) -> bool {
 }
 
 fn matches_tilde(a: &SemverVersion, b: &SemverVersion) -> bool {
-    // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L80
+    // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L80
     if !matches_op(Op::GreaterEq, a, b) {
         return false;
     }
@@ -393,7 +393,7 @@ fn matches_tilde(a: &SemverVersion, b: &SemverVersion) -> bool {
 }
 
 fn matches_caret(a: &SemverVersion, b: &SemverVersion) -> bool {
-    // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L95
+    // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L95
     if !matches_op(Op::GreaterEq, a, b) {
         return false;
     }

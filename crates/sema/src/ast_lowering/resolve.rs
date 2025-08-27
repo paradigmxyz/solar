@@ -546,7 +546,7 @@ impl<'gcx> ResolveContext<'gcx> {
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
         let span = ast_var.span;
 
-        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2852
+        // https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2852
         let mut ret_ty = &self.hir.variable(gettee).ty;
         let mut ret_name = None;
         let mut parameters = SmallVec::<[_; 8]>::new();
@@ -1503,7 +1503,7 @@ impl Declarations {
             return None;
         }
 
-        // https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
+        // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.res, Item(Function(_) | Event(_))) {
             let mut getter = None;
             if let Item(Function(id)) = decl.res {

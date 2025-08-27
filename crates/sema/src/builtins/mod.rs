@@ -67,7 +67,7 @@ macro_rules! declare_builtins {
 }
 
 // https://docs.soliditylang.org/en/latest/units-and-global-variables.html
-// https://github.com/ethereum/solidity/blob/b136829e4998a9f0ebc6ca87b7ba45362fe83ba0/libsolidity/analysis/GlobalContext.cpp#L73
+// https://github.com/argotorg/solidity/blob/b136829e4998a9f0ebc6ca87b7ba45362fe83ba0/libsolidity/analysis/GlobalContext.cpp#L73
 // NOTE: Order matters, see functions below.
 declare_builtins! {
     |gcx|

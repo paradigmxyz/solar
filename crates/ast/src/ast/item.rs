@@ -218,9 +218,9 @@ impl PragmaTokens<'_> {
 /// This is used in `pragma` declaration because Solc for some reason accepts and treats both as
 /// identical.
 ///
-/// Parsed in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
+/// Parsed in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
 ///
-/// Syntax-checked in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
+/// Syntax-checked in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
 #[derive(Clone, Debug)]
 pub enum IdentOrStrLit {
     /// An identifier.

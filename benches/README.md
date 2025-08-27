@@ -28,7 +28,7 @@ The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu`
 - CPU: AMD Ryzen 9 7950X
 - Versions:
-  - [`solc 0.8.28`](https://github.com/ethereum/solidity)
+  - [`solc 0.8.28`](https://github.com/argotorg/solidity)
   - [`solar 0.1.2`](../README.md)
   - [`solang-parser 0.3.4`](https://crates.io/crates/solang-parser)
   - [`slang 0.18.3`](https://crates.io/crates/slang)
