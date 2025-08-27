@@ -296,7 +296,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
         {
@@ -316,7 +316,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn peek_statement_type(&mut self) -> LookAheadInfo {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
         if self.token.is_keyword_any(&[kw::Mapping, kw::Function]) {
             return LookAheadInfo::VariableDeclaration;
         }
@@ -342,7 +342,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
@@ -398,7 +398,7 @@ struct IndexAccessedPath<'ast> {
 
 impl<'ast> IndexAccessedPath<'ast> {
     fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
@@ -438,7 +438,7 @@ impl<'ast> IndexAccessedPath<'ast> {
     }
 
     fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
         let mut expr = parser.alloc(match path.next()? {

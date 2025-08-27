@@ -111,7 +111,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Returns `true` if the current token is the start of a variable declaration.
     pub(super) fn is_variable_declaration(&self) -> bool {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
         self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
 
@@ -486,7 +486,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_semver_req_components_dis(
         &mut self,
     ) -> PResult<'sess, Box<'ast, [SemverReqCon<'ast>]>> {
-        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
+        // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
             dis.push(self.parse_semver_req_components_con()?);
@@ -524,7 +524,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (op, v) = self.parse_semver_component()?;
         if self.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             // range
-            // Ops are parsed and overwritten: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
+            // Ops are parsed and overwritten: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
             let _ = op;
             let (_second_op, right) = self.parse_semver_component()?;
             let kind = SemverReqComponentKind::Range(v, right);
@@ -554,7 +554,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_semver_op(&mut self) -> Option<SemverOp> {
-        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
+        // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
         let op = match self.token.kind {
             TokenKind::Eq => SemverOp::Exact,
             TokenKind::Gt => SemverOp::Greater,

@@ -453,14 +453,14 @@ fn pow10(exp: u32) -> BigInt {
 
 /// Checks whether mantissa * (10 ** exp) fits into [`MAX_BITS`] bits.
 fn fits_precision_base_10(mantissa: &BigUint, exp: u32) -> bool {
-    // https://github.com/ethereum/solidity/blob/14232980e4b39dee72972f3e142db584f0848a16/libsolidity/ast/Types.cpp#L66
+    // https://github.com/argotorg/solidity/blob/14232980e4b39dee72972f3e142db584f0848a16/libsolidity/ast/Types.cpp#L66
     fits_precision_base_x(mantissa, std::f64::consts::LOG2_10, exp)
 }
 
 /// Checks whether `mantissa * (X ** exp)` fits into [`MAX_BITS`] bits,
 /// where `X` is given indirectly via `log_2_of_base = log2(X)`.
 fn fits_precision_base_x(mantissa: &BigUint, log_2_of_base: f64, exp: u32) -> bool {
-    // https://github.com/ethereum/solidity/blob/53c4facf4e01d603c21a8544fc3b016229628a16/libsolutil/Numeric.cpp#L25
+    // https://github.com/argotorg/solidity/blob/53c4facf4e01d603c21a8544fc3b016229628a16/libsolutil/Numeric.cpp#L25
     if mantissa.is_zero() {
         return true;
     }

@@ -5,7 +5,7 @@
 //! See also: <https://docs.soliditylang.org/en/latest/contracts.html#multiple-inheritance-and-linearization>
 //!
 //! [C3 linearization algorithm]: https://en.wikipedia.org/wiki/C3_linearization
-//! [`solc`]: https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
+//! [`solc`]: https://github.com/argotorg/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
 
 use super::Res;
 use crate::hir;
@@ -28,7 +28,7 @@ impl super::LoweringContext<'_> {
                 self.hir.contracts[contract_id].linearized_bases = linearized_bases;
 
                 // Import inherited scopes.
-                // https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L352
+                // https://github.com/argotorg/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L352
                 let _guard = debug_span!("import_inherited_scopes").entered();
                 for &base_id in &linearized_bases[1..] {
                     let (base_scope, contract_scope) = super::get_two_mut_idx(
@@ -86,7 +86,7 @@ impl super::LoweringContext<'_> {
         }
     }
 
-    // https://github.com/ethereum/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
+    // https://github.com/argotorg/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L403
     fn linearize_contract(&self, contract_id: hir::ContractId, linearizer: &mut C3Linearizer) {
         let contract = self.hir.contract(contract_id);
         if contract.bases.is_empty() {

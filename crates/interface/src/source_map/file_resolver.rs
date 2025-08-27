@@ -250,7 +250,7 @@ impl<'a> FileResolver<'a> {
     }
 
     /// Applies the import path mappings to `path`.
-    // Reference: <https://github.com/ethereum/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolidity/interface/ImportRemapper.cpp#L32>
+    // Reference: <https://github.com/argotorg/solidity/blob/e202d30db8e7e4211ee973237ecbe485048aae97/libsolidity/interface/ImportRemapper.cpp#L32>
     pub fn remap_path<'b>(&self, path: &'b Path, parent: Option<&Path>) -> Cow<'b, Path> {
         let remapped = self.remap_path_(path, parent);
         if remapped != path {

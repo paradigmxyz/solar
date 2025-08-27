@@ -10,7 +10,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul object or plain block.
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.
-    /// See: <https://github.com/ethereum/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
+    /// See: <https://github.com/argotorg/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
         let docs = self.parse_doc_comments();
@@ -298,7 +298,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn check_valid_path(&mut self, path: &PathSlice) {
         // We allow EVM builtins in any position if multiple segments are present:
-        // https://github.com/ethereum/solidity/issues/16054
+        // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
         if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_yul_evm_builtin()) {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
