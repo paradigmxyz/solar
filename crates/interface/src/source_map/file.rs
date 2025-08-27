@@ -17,7 +17,8 @@ pub struct MultiByteChar {
 
 /// The name of a source file.
 ///
-/// This is used as the key in the source map. See [`SourceMap::get_file`].
+/// This is used as the key in the source map. See
+/// [`SourceMap::get_file`](crate::SourceMap::get_file).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -213,7 +214,7 @@ impl std::hash::Hash for SourceFile {
 }
 
 impl SourceFile {
-    /// Creates a new `SourceFile`. Use the [`SourceMap`] methods instead.
+    /// Creates a new `SourceFile`. Use the [`SourceMap`](crate::SourceMap) methods instead.
     pub(crate) fn new(
         name: FileName,
         id: SourceFileId,
