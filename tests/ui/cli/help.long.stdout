@@ -14,7 +14,7 @@ Options:
   -j, --threads <THREADS>
           Number of threads to use. Zero specifies the number of logical cores
           
-          [default: 8]
+          [default: <DEFAULT>]
           [aliases: --jobs]
 
       --evm-version <EVM_VERSION>

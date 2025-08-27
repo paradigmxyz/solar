@@ -140,8 +140,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         config.filter(pattern, replacement);
     }
     let stdout_filters: &[(&str, &str)] = &[
-        //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
+        (r"\[default: \d+\]", "[default: <DEFAULT>]"),
     ];
     for &(pattern, replacement) in stdout_filters {
         config.stdout_filter(pattern, replacement);
