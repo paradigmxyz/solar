@@ -230,6 +230,23 @@ impl Level {
         }
     }
 
+    /// Returns `true` if this level is a note.
+    #[inline]
+    pub fn is_note(self) -> bool {
+        match self {
+            Self::Note | Self::OnceNote => true,
+
+            Self::Bug
+            | Self::Fatal
+            | Self::Error
+            | Self::FailureNote
+            | Self::Warning
+            | Self::Help
+            | Self::OnceHelp
+            | Self::Allow => false,
+        }
+    }
+
     /// Returns the style of this level.
     #[inline]
     pub const fn style(self) -> anstyle::Style {
@@ -383,6 +400,12 @@ impl Diag {
     #[inline]
     pub fn is_error(&self) -> bool {
         self.level.is_error()
+    }
+
+    /// Returns `true` if this diagnostic is a note.
+    #[inline]
+    pub fn is_note(&self) -> bool {
+        self.level.is_note()
     }
 
     /// Formats the diagnostic messages into a single string.

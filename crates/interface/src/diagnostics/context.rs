@@ -50,9 +50,12 @@ struct DiagCtxtInner {
     /// compilation ends.
     err_count: usize,
     deduplicated_err_count: usize,
-    warn_count: usize,
     /// The warning count, used for a recap upon finishing
+    warn_count: usize,
     deduplicated_warn_count: usize,
+    /// The note count, used for a recap upon finishing
+    note_count: usize,
+    deduplicated_note_count: usize,
 
     /// This set contains a hash of every diagnostic that has been emitted by this `DiagCtxt`.
     /// These hashes are used to avoid emitting the same error twice.
@@ -70,6 +73,8 @@ impl DiagCtxt {
                 deduplicated_err_count: 0,
                 warn_count: 0,
                 deduplicated_warn_count: 0,
+                note_count: 0,
+                deduplicated_note_count: 0,
                 emitted_diagnostics: FxHashSet::default(),
             }),
         }
@@ -198,6 +203,16 @@ impl DiagCtxt {
         if self.inner.lock().has_errors() { Err(ErrorGuaranteed::new_unchecked()) } else { Ok(()) }
     }
 
+    /// Returns the number of warnings that have been emitted, including duplicates.
+    pub fn warn_count(&self) -> usize {
+        self.inner.lock().warn_count
+    }
+
+    /// Returns the number of notes that have been emitted, including duplicates.
+    pub fn note_count(&self) -> usize {
+        self.inner.lock().note_count
+    }
+
     /// Returns the emitted diagnostics. Can be empty.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
@@ -319,6 +334,8 @@ impl DiagCtxtInner {
                 self.deduplicated_err_count += 1;
             } else if diagnostic.level == Level::Warning {
                 self.deduplicated_warn_count += 1;
+            } else if diagnostic.is_note() {
+                self.deduplicated_note_count += 1;
             }
         }
 
@@ -326,7 +343,12 @@ impl DiagCtxtInner {
             self.bump_err_count();
             Err(ErrorGuaranteed::new_unchecked())
         } else {
-            self.bump_warn_count();
+            if diagnostic.level == Level::Warning {
+                self.bump_warn_count();
+            } else if diagnostic.is_note() {
+                self.bump_note_count();
+            }
+            // Don't bump any counters for `Help`, `OnceHelp`, or `Allow`
             Ok(())
         }
     }
@@ -338,31 +360,37 @@ impl DiagCtxtInner {
             return Ok(());
         }
 
-        let warnings = |count| match count {
-            0 => unreachable!(),
-            1 => Cow::from("1 warning emitted"),
-            count => Cow::from(format!("{count} warnings emitted")),
-        };
-        let errors = |count| match count {
-            0 => unreachable!(),
-            1 => Cow::from("aborting due to 1 previous error"),
-            count => Cow::from(format!("aborting due to {count} previous errors")),
+        let errors = match self.deduplicated_err_count {
+            0 => None,
+            1 => Some(Cow::from("aborting due to 1 previous error")),
+            count => Some(Cow::from(format!("aborting due to {count} previous errors"))),
         };
 
-        match (self.deduplicated_err_count, self.deduplicated_warn_count) {
-            (0, 0) => Ok(()),
-            (0, w) => {
+        let mut others = Vec::with_capacity(2);
+        match self.deduplicated_warn_count {
+            1 => others.push(Cow::from("1 warning emitted")),
+            count if count > 1 => others.push(Cow::from(format!("{count} warnings emitted"))),
+            _ => {}
+        }
+        match self.deduplicated_note_count {
+            1 => others.push(Cow::from("1 note emitted")),
+            count if count > 1 => others.push(Cow::from(format!("{count} notes emitted"))),
+            _ => {}
+        }
+
+        match (errors, others.is_empty()) {
+            (None, true) => Ok(()),
+            (None, false) => {
                 // TODO: Don't emit in tests since it's not handled by `ui_test`.
                 if self.flags.track_diagnostics {
-                    self.emitter.emit_diagnostic(&Diag::new(Level::Warning, warnings(w)));
+                    let msg = others.join(", ");
+                    self.emitter.emit_diagnostic(&Diag::new(Level::Warning, msg));
                 }
                 Ok(())
             }
-            (e, 0) => self.emit_diagnostic(Diag::new(Level::Error, errors(e))),
-            (e, w) => self.emit_diagnostic(Diag::new(
-                Level::Error,
-                format!("{}; {}", errors(e), warnings(w)),
-            )),
+            (Some(e), true) => self.emit_diagnostic(Diag::new(Level::Error, e)),
+            (Some(e), false) => self
+                .emit_diagnostic(Diag::new(Level::Error, format!("{}; {}", e, others.join(", ")))),
         }
     }
 
@@ -384,6 +412,10 @@ impl DiagCtxtInner {
 
     fn bump_warn_count(&mut self) {
         self.warn_count += 1;
+    }
+
+    fn bump_note_count(&mut self) {
+        self.note_count += 1;
     }
 
     fn has_errors(&self) -> bool {
