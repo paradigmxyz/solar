@@ -158,18 +158,13 @@ impl Default for SourceMap {
 
 impl SourceMap {
     /// Creates a new empty source map.
-    pub fn new() -> Self {
+    pub fn empty() -> Self {
         Self {
             source_files: Default::default(),
             id_to_file: Default::default(),
             base_path: Default::default(),
             file_loader: Default::default(),
         }
-    }
-
-    /// Creates a new empty source map.
-    pub fn empty() -> Self {
-        Self::new()
     }
 
     /// Clears the source map.
