@@ -6,7 +6,7 @@ Arguments:
   [INPUT]...  Files to compile, or import remappings
 
 Options:
-  -j, --threads <THREADS>          Number of threads to use. Zero specifies the number of logical cores [default: <DEFAULT>] [aliases: --jobs]
+  -j, --threads <THREADS>          Number of threads to use. Zero specifies the number of logical cores [default: 8] [aliases: --jobs]
       --evm-version <EVM_VERSION>  EVM version [default: prague] [possible values: homestead, tangerineWhistle, spuriousDragon, byzantium, constantinople, petersburg, istanbul, berlin, london, paris, shanghai, cancun, prague, osaka]
       --stop-after <STOP_AFTER>    Stop execution after the given compiler stage [possible values: parsing, lowering, analysis]
       --out-dir <OUT_DIR>          Directory to write output files
