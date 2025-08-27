@@ -29,9 +29,6 @@ mod never;
 pub use never::Never;
 
 mod drop_guard;
-#[doc(hidden)]
-#[allow(deprecated)]
-pub use drop_guard::OnDrop;
 pub use drop_guard::{DropGuard, defer};
 
 mod interned;

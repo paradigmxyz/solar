@@ -5,7 +5,7 @@ use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
     map::FxBuildHasher,
-    sync::{ReadGuard, RwLock},
+    sync::{RwLock, RwLockReadGuard},
 };
 use std::{
     io::{self, Read},
@@ -283,7 +283,7 @@ impl SourceMap {
 
     /// Returns a read guard to the source files in the source map.
     pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
-        ReadGuard::map(self.source_files.read(), std::ops::Deref::deref)
+        RwLockReadGuard::map(self.source_files.read(), std::ops::Deref::deref)
     }
 
     /// Display the filename for diagnostics.

@@ -20,7 +20,8 @@ mod emitter;
 #[cfg(feature = "json")]
 pub use emitter::JsonEmitter;
 pub use emitter::{
-    DynEmitter, Emitter, HumanBufferEmitter, HumanEmitter, LocalEmitter, SilentEmitter,
+    DynEmitter, Emitter, HumanBufferEmitter, HumanEmitter, InMemoryEmitter, LocalEmitter,
+    SilentEmitter,
 };
 
 mod message;

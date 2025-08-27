@@ -44,13 +44,6 @@ impl SessionGlobals {
         });
     }
 
-    /// Insert `source_map` into the session globals for the duration of the closure's execution.
-    #[deprecated(note = "does nothing")]
-    #[track_caller]
-    pub fn with_source_map<R>(_source_map: Arc<SourceMap>, f: impl FnOnce() -> R) -> R {
-        f()
-    }
-
     /// Calls the given closure with the current session globals.
     ///
     /// # Panics

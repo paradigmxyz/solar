@@ -4,7 +4,7 @@ use solar_ast::{self as ast, Span};
 use solar_data_structures::{
     index::{Idx, IndexVec},
     map::FxHashSet,
-    sync::Lock,
+    sync::Mutex,
 };
 use solar_interface::{
     Result, Session,
@@ -197,7 +197,7 @@ impl<'gcx> ParsingContext<'gcx> {
         sources: &mut Sources<'ast>,
         arenas: &'ast ThreadLocal<ast::Arena>,
     ) {
-        let lock = Lock::new(std::mem::take(sources));
+        let lock = Mutex::new(std::mem::take(sources));
         rayon::scope(|scope| {
             let sources = &*lock.lock();
             for (id, source) in sources.iter_enumerated() {
@@ -213,7 +213,7 @@ impl<'gcx> ParsingContext<'gcx> {
 
     fn spawn_parse_job<'ast, 'scope>(
         &'scope self,
-        lock: &'scope Lock<Sources<'ast>>,
+        lock: &'scope Mutex<Sources<'ast>>,
         id: SourceId,
         file: Arc<SourceFile>,
         arenas: &'ast ThreadLocal<ast::Arena>,
@@ -225,7 +225,7 @@ impl<'gcx> ParsingContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     fn parse_job<'ast, 'scope>(
         &'scope self,
-        lock: &'scope Lock<Sources<'ast>>,
+        lock: &'scope Mutex<Sources<'ast>>,
         id: SourceId,
         file: Arc<SourceFile>,
         arenas: &'ast ThreadLocal<ast::Arena>,
