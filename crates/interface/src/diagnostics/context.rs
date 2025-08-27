@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
-use solar_data_structures::{map::FxHashSet, sync::Lock};
+use solar_data_structures::{map::FxHashSet, sync::Mutex};
 use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
@@ -36,7 +36,7 @@ impl Default for DiagCtxtFlags {
 /// Certain errors (fatal, bug, unimpl) may cause immediate exit,
 /// others log errors for later reporting.
 pub struct DiagCtxt {
-    inner: Lock<DiagCtxtInner>,
+    inner: Mutex<DiagCtxtInner>,
 }
 
 struct DiagCtxtInner {
@@ -63,7 +63,7 @@ impl DiagCtxt {
     /// Creates a new `DiagCtxt` with the given diagnostics emitter.
     pub fn new(emitter: Box<DynEmitter>) -> Self {
         Self {
-            inner: Lock::new(DiagCtxtInner {
+            inner: Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
                 err_count: 0,
