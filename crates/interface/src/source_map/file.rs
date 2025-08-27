@@ -1,4 +1,4 @@
-use crate::{BytePos, CharPos, SourceMap, pos::RelativeBytePos};
+use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
     fmt, io,
     ops::RangeInclusive,
@@ -17,7 +17,8 @@ pub struct MultiByteChar {
 
 /// The name of a source file.
 ///
-/// This is used as the key in the source map. See [`SourceMap::get_file`].
+/// This is used as the key in the source map. See
+/// [`SourceMap::get_file`](crate::SourceMap::get_file).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -99,8 +100,10 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        let sm = crate::SessionGlobals::try_with(|g| g.map(|g| g.source_map.clone()));
-        FileNameDisplay { inner: self, sm }
+        let base_path = crate::SessionGlobals::try_with(|g| {
+            g.and_then(|g| g.source_map.base_path.get().cloned())
+        });
+        FileNameDisplay { inner: self, base_path }
     }
 
     /// Returns the path if the file name is a real file.
@@ -113,17 +116,19 @@ impl FileName {
     }
 }
 
+/// A display wrapper for `FileName`.
+///
+/// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
-    inner: &'a FileName,
-    sm: Option<Arc<SourceMap>>,
+    pub(crate) inner: &'a FileName,
+    pub(crate) base_path: Option<PathBuf>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             FileName::Real(path) => {
-                let path = if let Some(sm) = &self.sm
-                    && let Some(base_path) = sm.base_path.get()
+                let path = if let Some(base_path) = &self.base_path
                     && let Ok(rpath) = path.strip_prefix(base_path)
                 {
                     rpath
@@ -139,31 +144,13 @@ impl fmt::Display for FileNameDisplay<'_> {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StableSourceFileId(u64);
+pub(crate) struct SourceFileId(u64);
 
-impl StableSourceFileId {
-    pub(super) fn from_filename_in_current_crate(filename: &FileName) -> Self {
-        Self::new(
-            filename,
-            // None
-        )
-    }
-
-    // pub fn from_filename_for_export(
-    //     filename: &FileName,
-    //     local_crate_stable_crate_id: StableCrateId,
-    // ) -> Self {
-    //     Self::new(filename, Some(local_crate_stable_crate_id))
-    // }
-
-    fn new(
-        filename: &FileName,
-        // stable_crate_id: Option<StableCrateId>,
-    ) -> Self {
+impl SourceFileId {
+    pub(crate) fn new(filename: &FileName) -> Self {
         use std::hash::{Hash, Hasher};
-        let mut hasher = solar_data_structures::map::FxHasher::default();
+        let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
         filename.hash(&mut hasher);
-        // stable_crate_id.hash(&mut hasher);
         Self(hasher.finish())
     }
 }
@@ -188,6 +175,7 @@ impl From<OffsetOverflowError> for io::Error {
 
 /// A single source in the `SourceMap`.
 #[derive(Clone, derive_more::Debug)]
+#[non_exhaustive]
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
@@ -196,9 +184,6 @@ pub struct SourceFile {
     /// The complete source code.
     #[debug(skip)]
     pub src: Arc<String>,
-    /// The source code's hash.
-    #[debug(skip)]
-    pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
     pub start_pos: BytePos,
     /// The byte length of this source.
@@ -209,24 +194,38 @@ pub struct SourceFile {
     /// Locations of multi-byte characters in the source code.
     #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
-    /// A hash of the filename & crate-id, used for uniquely identifying source
-    /// files within the crate graph and for speeding up hashing in incremental
-    /// compilation.
+    /// A hash of the filename for faster equality checks.
     #[debug(skip)]
-    pub stable_id: StableSourceFileId,
+    pub(crate) id: SourceFileId,
+}
+
+impl PartialEq for SourceFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for SourceFile {}
+
+impl std::hash::Hash for SourceFile {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl SourceFile {
-    pub fn new(
+    /// Creates a new `SourceFile`. Use the [`SourceMap`](crate::SourceMap) methods instead.
+    pub(crate) fn new(
         name: FileName,
+        id: SourceFileId,
         mut src: String,
-        hash_kind: SourceFileHashAlgorithm,
     ) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
-        let src_hash = SourceFileHash::new(hash_kind, &src);
+        // let src_hash = SourceFileHash::new(hash_kind, &src);
+
         // let normalized_pos = normalize_src(&mut src);
 
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(&name);
+        debug_assert_eq!(id, SourceFileId::new(&name));
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
@@ -236,12 +235,11 @@ impl SourceFile {
         Ok(Self {
             name,
             src: Arc::new(src),
-            src_hash,
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
-            stable_id,
+            id,
         })
     }
 
@@ -407,108 +405,5 @@ pub fn char_width(ch: char) -> usize {
     match ch {
         '\t' => 4,
         _ => unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1),
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum SourceFileHashAlgorithm {
-    #[default]
-    None,
-    // Md5,
-    // Sha1,
-    // Sha256,
-}
-
-impl std::str::FromStr for SourceFileHashAlgorithm {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // match s {
-        //     "md5" => Ok(Self::Md5),
-        //     "sha1" => Ok(Self::Sha1),
-        //     "sha256" => Ok(Self::Sha256),
-        //     _ => Err(()),
-        // }
-        let _ = s;
-        Err(())
-    }
-}
-
-impl SourceFileHashAlgorithm {
-    /// The length of the hash in bytes.
-    #[inline]
-    pub const fn hash_len(self) -> usize {
-        match self {
-            Self::None => 0,
-            // Self::Md5 => 16,
-            // Self::Sha1 => 20,
-            // Self::Sha256 => 32,
-        }
-    }
-}
-
-const MAX_HASH_SIZE: usize = 32;
-
-/// The hash of the on-disk source file used for debug info.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SourceFileHash {
-    kind: SourceFileHashAlgorithm,
-    value: [u8; MAX_HASH_SIZE],
-}
-
-impl fmt::Debug for SourceFileHash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut dbg = f.debug_struct("SourceFileHash");
-        dbg.field("kind", &self.kind);
-        if self.kind != SourceFileHashAlgorithm::None {
-            dbg.field("value", &format_args!("{}", hex::encode(self.hash_bytes())));
-        }
-        dbg.finish()
-    }
-}
-
-impl SourceFileHash {
-    pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> Self {
-        // use md5::digest::{typenum::Unsigned, Digest, OutputSizeUser};
-
-        // fn digest_into<D: Digest>(data: &[u8], out: &mut [u8; MAX_HASH_SIZE]) {
-        //     let mut hasher = D::new();
-        //     hasher.update(data);
-        //     hasher.finalize_into((&mut out[..<D as OutputSizeUser>::OutputSize::USIZE]).into());
-        // }
-
-        // let mut hash = Self { kind, value: Default::default() };
-        // let value = &mut hash.value;
-        // let data = src.as_bytes();
-        // match kind {
-        //     SourceFileHashAlgorithm::None => (),
-        //     SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
-        //     SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
-        //     SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
-        // }
-        // hash
-        let _ = src;
-        Self { kind, value: Default::default() }
-    }
-
-    /// Check if the stored hash matches the hash of the string.
-    pub fn matches(&self, src: &str) -> bool {
-        Self::new(self.kind, src).hash_bytes() == self.hash_bytes()
-    }
-
-    /// The bytes of the hash.
-    pub fn hash_bytes(&self) -> &[u8] {
-        &self.value[..self.hash_len()]
-    }
-
-    /// The hash algorithm used.
-    pub const fn kind(&self) -> SourceFileHashAlgorithm {
-        self.kind
-    }
-
-    /// Returns the length of the hash in bytes.
-    #[inline]
-    pub const fn hash_len(&self) -> usize {
-        self.kind.hash_len()
     }
 }

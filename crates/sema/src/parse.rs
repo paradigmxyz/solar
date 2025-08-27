@@ -409,7 +409,7 @@ impl<'ast> Sources<'ast> {
         }
 
         debug_assert_eq!(
-            self.sources.iter().map(|s| s.file.stable_id).collect::<FxHashSet<_>>().len(),
+            self.sources.iter().map(|s| &*s.file).collect::<FxHashSet<_>>().len(),
             self.sources.len(),
             "parsing produced duplicate source files"
         );
