@@ -1,9 +1,5 @@
 use std::mem::ManuallyDrop;
 
-#[doc(hidden)]
-#[deprecated(note = "use `DropGuard` instead")]
-pub type OnDrop<T, F> = DropGuard<T, F>;
-
 /// Returns a structure that calls `f` when dropped.
 #[inline]
 pub const fn defer<F: FnOnce()>(f: F) -> DropGuard<(), impl FnOnce(())> {
