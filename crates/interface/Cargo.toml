@@ -32,7 +32,6 @@ derive_more.workspace = true
 thiserror.workspace = true
 
 dunce = "1"
-hex.workspace = true
 inturn.workspace = true
 itertools.workspace = true
 itoa.workspace = true

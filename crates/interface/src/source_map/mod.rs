@@ -140,12 +140,11 @@ impl FileLoader for RealFileLoader {
 /// Stores all the sources of the current compilation session.
 #[derive(derive_more::Debug)]
 pub struct SourceMap {
-    // INVARIANT: The only operation allowed on `source_files` is `push`.
+    // INVARIANT: `source_files` is monotonic.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
     #[debug(skip)]
-    stable_id_to_source_file: OnceMap<StableSourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    hash_kind: SourceFileHashAlgorithm,
     base_path: OnceLock<PathBuf>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
@@ -158,20 +157,31 @@ impl Default for SourceMap {
 }
 
 impl SourceMap {
-    /// Creates a new empty source map with the given hash algorithm.
-    pub fn new(hash_kind: SourceFileHashAlgorithm) -> Self {
+    /// Creates a new empty source map.
+    pub fn new() -> Self {
         Self {
             source_files: Default::default(),
-            stable_id_to_source_file: Default::default(),
-            hash_kind,
-            base_path: OnceLock::new(),
-            file_loader: OnceLock::new(),
+            id_to_file: Default::default(),
+            base_path: Default::default(),
+            file_loader: Default::default(),
         }
     }
 
     /// Creates a new empty source map.
     pub fn empty() -> Self {
-        Self::new(SourceFileHashAlgorithm::default())
+        Self::new()
+    }
+
+    /// Clears the source map.
+    pub fn clear(&mut self) {
+        let _ = self.take();
+    }
+
+    /// Clears the source map, returning all the contained `SourceFile`s.
+    #[must_use]
+    pub fn take(&mut self) -> Vec<Arc<SourceFile>> {
+        self.id_to_file.clear();
+        std::mem::take(self.source_files.get_mut())
     }
 
     /// Sets the file loader for the source map.
@@ -201,12 +211,18 @@ impl SourceMap {
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file(&self, path: impl Into<FileName>) -> Option<Arc<SourceFile>> {
-        self.source_file_by_file_name(&path.into())
+        self.get_file_ref(&path.into())
+    }
+
+    /// Returns the source file with the given path, if it exists.
+    /// Does not attempt to load the file.
+    pub fn get_file_ref(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
+        self.id_to_file.get_cloned(&SourceFileId::new(filename))
     }
 
     /// Loads a file from the given path.
     pub fn load_file(&self, path: &Path) -> io::Result<Arc<SourceFile>> {
-        self.load_file_with_name(path.to_owned().into(), path)
+        self.load_file_with_name(path.into(), path)
     }
 
     /// Loads a file with the given name from the given path.
@@ -245,22 +261,14 @@ impl SourceMap {
         filename: FileName,
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(&filename);
-        self.stable_id_to_source_file.try_insert_cloned(stable_id, |&stable_id| {
-            let file = SourceFile::new(filename, get_src()?, self.hash_kind)?;
-            self.append_source_file(file, stable_id)
+        let id = SourceFileId::new(&filename);
+        self.id_to_file.try_insert_cloned(id, |&id| {
+            let file = SourceFile::new(filename, id, get_src()?)?;
+            self.append_source_file(file)
         })
     }
 
-    fn append_source_file(
-        &self,
-        mut file: SourceFile,
-        stable_id: StableSourceFileId,
-    ) -> io::Result<Arc<SourceFile>> {
-        // Let's make sure the file_id we generated above actually matches
-        // the ID we generate for the SourceFile we just created.
-        debug_assert_eq!(file.stable_id, stable_id);
-
+    fn append_source_file(&self, mut file: SourceFile) -> io::Result<Arc<SourceFile>> {
         trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
 
         let source_files = &mut *self.source_files.write();
@@ -280,23 +288,12 @@ impl SourceMap {
 
     /// Returns a read guard to the source files in the source map.
     pub fn files(&self) -> impl std::ops::Deref<Target = [Arc<SourceFile>]> + '_ {
-        ReadGuard::map(self.source_files.read(), |f| f.as_slice())
+        ReadGuard::map(self.source_files.read(), std::ops::Deref::deref)
     }
 
-    pub fn source_file_by_file_name(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(filename);
-        self.source_file_by_stable_id(stable_id)
-    }
-
-    pub fn source_file_by_stable_id(
-        &self,
-        stable_id: StableSourceFileId,
-    ) -> Option<Arc<SourceFile>> {
-        self.stable_id_to_source_file.get_cloned(&stable_id)
-    }
-
+    /// Display the filename for diagnostics.
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        filename.display()
+        FileNameDisplay { inner: filename, base_path: self.base_path.get().cloned() }
     }
 
     /// Returns `true` if the given span is multi-line.
@@ -421,6 +418,13 @@ impl SourceMap {
     }
 
     /// Returns the source file and the range of text corresponding to the given span.
+    ///
+    /// See [`span_to_source`](Self::span_to_source).
+    pub fn span_to_range(&self, sp: Span) -> Result<std::ops::Range<usize>, SpanSnippetError> {
+        self.span_to_source(sp).map(|(_, range)| range)
+    }
+
+    /// Returns the source file and the range of text corresponding to the given span.
     pub fn span_to_source(
         &self,
         sp: Span,
@@ -434,8 +438,6 @@ impl SourceMap {
                 end: (local_end.sf.name.clone(), local_end.sf.start_pos),
             })));
         }
-
-        // self.ensure_source_file_source_present(&local_begin.sf);
 
         let start_index = local_begin.pos.to_usize();
         let end_index = local_end.pos.to_usize();
@@ -453,14 +455,10 @@ impl SourceMap {
         Ok((local_begin.sf, start_index..end_index))
     }
 
-    /// Format the span location to be printed in diagnostics. Must not be emitted
-    /// to build artifacts as this may leak local file paths. Use span_to_embeddable_string
-    /// for string suitable for embedding.
+    /// Format the span location to be printed in diagnostics.
+    ///
+    /// Must not be emitted to build artifacts as this may leak local file paths.
     pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display {
-        self.span_to_string(sp)
-    }
-
-    pub fn span_to_string(&self, sp: Span) -> impl fmt::Display {
         let (source_file, lo_line, lo_col, hi_line, hi_col) = self.span_to_location_info(sp);
         fmt::from_fn(move |f| {
             let file_name = match &source_file {
@@ -471,6 +469,7 @@ impl SourceMap {
         })
     }
 
+    /// Returns the source file, line, and column information for the given span.
     pub fn span_to_location_info(
         &self,
         sp: Span,
