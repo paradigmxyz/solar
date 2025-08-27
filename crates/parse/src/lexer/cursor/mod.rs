@@ -388,14 +388,6 @@ impl<'a> Cursor<'a> {
         self.eat_decimal_digits()
     }
 
-    /// Returns the remaining input as a string slice.
-    #[inline]
-    #[deprecated = "use `as_bytes` instead; utf-8 is not guaranteed anymore"]
-    pub fn as_str(&self) -> &'a str {
-        // SAFETY: Not safe.
-        unsafe { std::str::from_utf8_unchecked(self.bytes.as_slice()) }
-    }
-
     /// Returns the remaining input as a byte slice.
     #[inline]
     pub fn as_bytes(&self) -> &'a [u8] {
