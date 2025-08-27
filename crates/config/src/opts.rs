@@ -204,9 +204,7 @@ fn make_clap_error(kind: clap::error::ErrorKind, message: impl std::fmt::Display
     disable_help_flag = true,
     before_help = concat!(
         "List of all unstable flags.\n",
-        "WARNING: these are completely unstable, and may change at any time!\n",
-        // TODO: This is pretty hard to fix, as we don't have access to the `Command` in the derive macros.
-        "   NOTE: the following flags should be passed on the command-line using `-Z`, not `--`",
+        "WARNING: these are completely unstable, and may change at any time!",
     ),
     help_template = "{before-help}{all-args}"
 ))]

@@ -1,0 +1,35 @@
+error: List of all unstable flags.
+WARNING: these are completely unstable, and may change at any time!
+
+Options:
+      -Zui-testing
+          Enables UI testing mode
+
+      -Ztrack-diagnostics
+          Prints a note for every diagnostic that is emitted with the creation and emission location.
+          
+          This is enabled by default on debug builds.
+
+      -Zparse-yul
+          Enables parsing Yul files for testing
+
+      -Zno-resolve-imports
+          Disables import resolution
+
+      -Zdump <KIND[=PATHS...]>
+          Print additional information about the compiler's internal state.
+          
+          Valid kinds are `ast` and `hir`.
+
+      -Zast-stats
+          Print AST stats
+
+      -Zspan-visitor
+          Run the span visitor after parsing
+
+      -Zhelp
+          Print help
+
+Usage: solar [OPTIONS] [INPUT]...
+
+For more information, try '--help'.

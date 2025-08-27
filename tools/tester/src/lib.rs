@@ -199,8 +199,10 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
-    config.comment_defaults.base().require_annotations = Spanned::dummy(has_annotations).into();
-    let code = if has_annotations && src.contains("ERROR:") { 1 } else { 0 };
+    let is_check_fail = src.contains("check-fail");
+    config.comment_defaults.base().require_annotations =
+        Spanned::dummy(is_check_fail || has_annotations).into();
+    let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
 }
 

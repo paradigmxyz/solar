@@ -1,0 +1,87 @@
+Blazingly fast Solidity compiler
+
+Usage: solar [OPTIONS] [INPUT]...
+
+Arguments:
+  [INPUT]...
+          Files to compile, or import remappings.
+          
+          `-` specifies standard input.
+          
+          Import remappings are specified as `[context:]prefix=path`. See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
+
+Options:
+  -j, --threads <THREADS>
+          Number of threads to use. Zero specifies the number of logical cores
+          
+          [default: 8]
+          [aliases: --jobs]
+
+      --evm-version <EVM_VERSION>
+          EVM version
+          
+          [default: prague]
+          [possible values: homestead, tangerineWhistle, spuriousDragon, byzantium, constantinople, petersburg, istanbul, berlin, london, paris, shanghai, cancun, prague, osaka]
+
+      --stop-after <STOP_AFTER>
+          Stop execution after the given compiler stage
+          
+          [possible values: parsing, lowering, analysis]
+
+      --out-dir <OUT_DIR>
+          Directory to write output files
+
+      --emit <EMIT>
+          Comma separated list of types of output for the compiler to emit
+          
+          [possible values: abi, hashes]
+
+  -Z <FLAG>
+          Unstable flags. WARNING: these are completely unstable, and may change at any time.
+          
+          See `-Zhelp` for more details.
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+Input options:
+      --base-path <BASE_PATH>
+          Use the given path as the root of the source tree
+
+  -I, --include-path <INCLUDE_PATH>
+          Directory to search for files.
+          
+          Can be used multiple times.
+
+      --allow-paths <ALLOW_PATHS>
+          Allow a given path for imports
+
+Display options:
+      --color <COLOR>
+          Coloring
+          
+          [default: auto]
+          [possible values: auto, always, never]
+
+  -v, --verbose
+          Use verbose output
+
+      --pretty-json
+          Pretty-print JSON output.
+          
+          Does not include errors. See `--pretty-json-err`.
+
+      --pretty-json-err
+          Pretty-print error JSON output
+
+      --error-format <ERROR_FORMAT>
+          How errors and other messages are produced
+          
+          [default: human]
+          [possible values: human, json, rustc-json]
+
+      --no-warnings
+          Whether to disable warnings
