@@ -221,7 +221,7 @@ impl Session {
     /// Print diagnostics to `stdout` if there are no errors, otherwise propagate with `?`:
     ///
     /// ```no_run
-    /// # fn f(dcx: DiagCtxt) -> Result<(), Box<dyn std::error::Error>> {
+    /// # fn f(dcx: solar_interface::diagnostics::DiagCtxt) -> Result<(), Box<dyn std::error::Error>> {
     /// println!("{}", dcx.emitted_diagnostics_result().unwrap()?);
     /// # Ok(())
     /// # }
