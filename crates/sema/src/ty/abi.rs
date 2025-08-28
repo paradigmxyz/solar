@@ -53,8 +53,7 @@ impl<'gcx> Gcx<'gcx> {
 
         // https://github.com/argotorg/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
         fn cmp_key<'a>(item: &'a json::AbiItem<'_>) -> impl Ord + use<'a> {
-            // TODO: Use `json_type` instead of `debug_name`.
-            (item.debug_name(), item.name())
+            (item.json_type(), item.name())
         }
         items.sort_by(|a, b| cmp_key(a).cmp(&cmp_key(b)));
 
