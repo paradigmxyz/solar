@@ -16,7 +16,6 @@ pub use opts::{Opts, UnstableOpts};
 
 mod utils;
 
-#[cfg(feature = "version")]
 pub mod version;
 
 /// Whether the target is single-threaded.
