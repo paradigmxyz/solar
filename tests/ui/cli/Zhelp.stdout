@@ -16,7 +16,7 @@ Options:
       -Zno-resolve-imports
           Disables import resolution
 
-      -Zdump <KIND[=PATHS...]>
+      -Zdump=<KIND[=PATHS...]>
           Print additional information about the compiler's internal state.
           
           Valid kinds are `ast` and `hir`.

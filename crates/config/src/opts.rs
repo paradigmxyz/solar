@@ -231,7 +231,7 @@ pub struct UnstableOpts {
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
-    #[cfg_attr(feature = "clap", arg(long, value_name = "KIND[=PATHS...]"))]
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "KIND[=PATHS...]"))]
     pub dump: Option<Dump>,
 
     /// Print AST stats.
