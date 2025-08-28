@@ -150,6 +150,8 @@ impl SessionBuilder {
             sess.source_map().set_base_path(base_path);
         }
 
+        debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
+
         sess
     }
 }

@@ -15,3 +15,6 @@ pub const LONG_VERSION: &str = concat!(
     "\n",
     env!("LONG_VERSION4"),
 );
+
+/// The semver version information.
+pub const SEMVER_VERSION: &str = env!("CARGO_PKG_VERSION");

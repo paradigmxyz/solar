@@ -37,9 +37,6 @@ pub use dunce::canonicalize;
 pub use solar_config as config;
 pub use solar_data_structures as data_structures;
 
-/// The current version of the Solar compiler.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 
