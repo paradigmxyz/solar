@@ -103,6 +103,30 @@ impl Compiler {
         sess.enter(|| f(self.as_mut()))
     }
 
+    /// Enters the compiler context.
+    ///
+    /// Note that this does not set up the rayon thread pool. This is only useful when parsing
+    /// sequentially, like manually using `Parser`. Otherwise, it might cause panics later on if a
+    /// thread pool is expected to be set up correctly.
+    ///
+    /// See [`enter`](Self::enter) for more details.
+    pub fn enter_sequential<T>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T) -> T {
+        self.0.sess.enter_sequential(|| f(CompilerRef::new(&self.0)))
+    }
+
+    /// Enters the compiler context with mutable access.
+    ///
+    /// Note that this does not set up the rayon thread pool. This is only useful when parsing
+    /// sequentially, like manually using `Parser`. Otherwise, it might cause panics later on if a
+    /// thread pool is expected to be set up correctly.
+    ///
+    /// See [`enter_mut`](Self::enter_mut) for more details.
+    pub fn enter_sequential_mut<T>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T) -> T {
+        // SAFETY: `sess` is not modified.
+        let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
+        sess.enter_sequential(|| f(self.as_mut()))
+    }
+
     fn as_mut(&mut self) -> &mut CompilerRef<'_> {
         // SAFETY: `CompilerRef` does not allow invalidating the `Pin`.
         let inner = unsafe { Pin::get_unchecked_mut(Pin::as_mut(&mut self.0)) };
