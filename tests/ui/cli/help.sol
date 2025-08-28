@@ -2,4 +2,4 @@
 //@[short] compile-flags: -h
 //@[long] compile-flags: --help
 //@ normalize-stdout-test: "\[default: \d+\]" -> "[default: <DEFAULT>]"
-//@ normalize-stdout-test: "solar(\.exe)?" -> "solar[EXE]"
+//@ normalize-stdout-test: "\.exe" -> ""
