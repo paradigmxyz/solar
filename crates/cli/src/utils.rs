@@ -1,6 +1,7 @@
 //! Utility functions used by the Solar CLI.
 
 use solar_interface::diagnostics::DiagCtxt;
+use std::sync::OnceLock;
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -43,6 +44,12 @@ pub const fn new_allocator() -> Allocator {
     new_wrapped_allocator()
 }
 
+/// Returns a shared early diagnostic context.
+pub fn early_dcx() -> &'static DiagCtxt {
+    static CACHE: OnceLock<DiagCtxt> = OnceLock::new();
+    CACHE.get_or_init(DiagCtxt::new_early)
+}
+
 /// Initialize the tracing logger.
 #[must_use]
 pub fn init_logger() -> impl Sized {
@@ -50,19 +57,19 @@ pub fn init_logger() -> impl Sized {
     {
         if std::env::var_os("RUST_LOG").is_some() {
             let msg = "`RUST_LOG` is set, but \"tracing\" support was not enabled at compile time";
-            DiagCtxt::new_early().warn(msg).emit();
+            early_dcx().warn(msg).emit();
         }
         if std::env::var_os("SOLAR_PROFILE").is_some() {
             let msg =
                 "`SOLAR_PROFILE` is set, but \"tracing\" support was not enabled at compile time";
-            DiagCtxt::new_early().warn(msg).emit();
+            early_dcx().warn(msg).emit();
         }
     }
 
     #[cfg(feature = "tracing")]
     match try_init_logger() {
         Ok(guard) => guard,
-        Err(e) => DiagCtxt::new_early().fatal(e).emit(),
+        Err(e) => early_dcx().fatal(e).emit(),
     }
 }
 

@@ -2586,6 +2586,7 @@ name = "solar-cli"
 version = "0.1.6"
 dependencies = [
  "alloy-primitives",
+ "anstream",
  "cfg-if",
  "clap",
  "libc",

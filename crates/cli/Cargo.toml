@@ -21,6 +21,7 @@ solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
+anstream.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 

@@ -12,7 +12,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, DynEmitter, HumanEmitter, JsonEmitter},
 };
 use solar_sema::CompilerRef;
-use std::{ops::ControlFlow, sync::Arc};
+use std::{ops::ControlFlow, process::ExitCode, sync::Arc};
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
@@ -38,7 +38,45 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Opts, ExitCode>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    match parse_args_clap(itr) {
+        Ok(opts) => Ok(opts),
+        Err(e) => {
+            // For errors, emit the first line of the error message as an error diagnostic,
+            // and the rest to `stderr`.
+            if e.use_stderr() {
+                fn split(s: &str) -> (&str, &str) {
+                    if let Some(l) = s.find('\n') { s.split_at(l) } else { (&s[..], "") }
+                }
+
+                let rendered = e.render();
+                let unstyled = rendered.to_string();
+                let styled = rendered.ansi().to_string();
+
+                utils::early_dcx().err(split(&unstyled).0.trim().replace("error: ", "")).emit();
+
+                let mut stream =
+                    anstream::AutoStream::new(std::io::stderr(), anstream::ColorChoice::Auto);
+                let _ = std::io::Write::write_all(
+                    &mut stream,
+                    split(&styled).1.trim_start().as_bytes(),
+                );
+
+                return Err(ExitCode::FAILURE);
+            }
+
+            // For --help and similar, just print directly to `stdout`.
+            let _ = e.print();
+            Err(ExitCode::SUCCESS)
+        }
+    }
+}
+
+pub fn parse_args_clap<I, T>(itr: I) -> Result<Opts, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,

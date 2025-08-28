@@ -15,7 +15,7 @@ fn main() -> ExitCode {
     let _guard = utils::init_logger();
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
-        Err(e) => e.exit(),
+        Err(code) => return code,
     };
     match run_compiler_args(args) {
         Ok(()) => ExitCode::SUCCESS,
