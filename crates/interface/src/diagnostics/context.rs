@@ -213,6 +213,32 @@ impl DiagCtxt {
         self.inner.lock().note_count
     }
 
+    /// Returns the emitted diagnostics as a result. Can be empty.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](Self::with_buffer_emitter).
+    ///
+    /// Results `Ok` if there are no errors, `Err` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// Print diagnostics to `stdout` if there are no errors, otherwise propagate with `?`:
+    ///
+    /// ```no_run
+    /// # fn f(dcx: solar_interface::diagnostics::DiagCtxt) -> Result<(), Box<dyn std::error::Error>> {
+    /// println!("{}", dcx.emitted_diagnostics_result().unwrap()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn emitted_diagnostics_result(
+        &self,
+    ) -> Option<Result<EmittedDiagnostics, EmittedDiagnostics>> {
+        let inner = self.inner.lock();
+        let diags = EmittedDiagnostics(inner.emitter.local_buffer()?.to_string());
+        Some(if inner.has_errors() { Err(diags) } else { Ok(diags) })
+    }
+
     /// Returns the emitted diagnostics. Can be empty.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
