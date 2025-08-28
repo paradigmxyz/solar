@@ -199,6 +199,7 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
+    // TODO: https://github.com/oli-obk/ui_test/issues/341
     let is_check_fail = src.contains("check-fail");
     config.comment_defaults.base().require_annotations =
         Spanned::dummy(is_check_fail || has_annotations).into();
