@@ -89,6 +89,8 @@ impl Compiler {
     }
 
     /// Enters the compiler context.
+    ///
+    /// See [`Session::enter`](Session::enter) for more details.
     pub fn enter<T: Send>(&self, f: impl FnOnce(&CompilerRef<'_>) -> T + Send) -> T {
         self.0.sess.enter(|| f(CompilerRef::new(&self.0)))
     }
@@ -97,6 +99,8 @@ impl Compiler {
     ///
     /// This is currently only necessary when parsing sources and lowering the ASTs.
     /// All accesses after can make use of `gcx`, passed by immutable reference.
+    ///
+    /// See [`Session::enter`](Session::enter) for more details.
     pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
         // SAFETY: `sess` is not modified.
         let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
