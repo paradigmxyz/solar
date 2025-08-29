@@ -344,11 +344,10 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up a thread pool and the session globals in the current thread, then executes the given
-    /// closure.
+    /// Sets up the session globals and executes the given closure in the thread pool.
     ///
-    /// The globals are stored in this [`Session`] itself, meaning multiple consecutive calls to
-    /// [`enter`](Self::enter) will share the same globals.
+    /// The thread pool and globals are stored in this [`Session`] itself, meaning multiple
+    /// consecutive calls to [`enter`](Self::enter) will share the same globals and resources.
     #[track_caller]
     pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
         if in_rayon() {
@@ -367,7 +366,7 @@ impl Session {
         self.enter_sequential(|| self.thread_pool().install(f))
     }
 
-    /// Sets up the session globals in the current thread, then executes the given closure.
+    /// Sets up the session globals and executes the given closure in the current thread.
     ///
     /// Note that this does not set up the rayon thread pool. This is only useful when parsing
     /// sequentially, like manually using `Parser`. Otherwise, it might cause panics later on if a
