@@ -3,7 +3,10 @@ use crate::{
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
-use std::{path::Path, sync::Arc};
+use std::{
+    path::Path,
+    sync::{Arc, OnceLock},
+};
 
 /// Information about the current compiler session.
 pub struct Session {
@@ -13,7 +16,10 @@ pub struct Session {
     /// The diagnostics context.
     pub dcx: DiagCtxt,
     /// The globals.
-    globals: SessionGlobals,
+    globals: Arc<SessionGlobals>,
+    /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
+    /// one with `SessionBuilder`.
+    thread_pool: OnceLock<rayon::ThreadPool>,
 }
 
 /// [`Session`] builder.
@@ -122,7 +128,7 @@ impl SessionBuilder {
     pub fn build(mut self) -> Session {
         let mut dcx = self.dcx.take().unwrap_or_else(|| panic!("diagnostics context not set"));
         let sess = Session {
-            globals: match self.globals.take() {
+            globals: Arc::new(match self.globals.take() {
                 Some(globals) => {
                     // Check that the source map matches the one in the diagnostics context.
                     if let Some(sm) = dcx.source_map_mut() {
@@ -138,9 +144,10 @@ impl SessionBuilder {
                     let sm = dcx.source_map_mut().cloned().unwrap_or_default();
                     SessionGlobals::new(sm)
                 }
-            },
+            }),
             dcx,
             opts: self.opts.take().unwrap_or_default(),
+            thread_pool: OnceLock::new(),
         };
 
         if let Some(base_path) =
@@ -357,19 +364,7 @@ impl Session {
             }
         }
 
-        self.enter_sequential(|| {
-            match thread_pool_builder(self).build_scoped(
-                // Initialize each new worker thread when created.
-                // Note that this is not called on the current thread, so `SessionGlobals::set`
-                // can't panic.
-                thread_wrapper(self),
-                // Run `f` on the first thread in the thread pool.
-                move |pool| pool.install(f),
-            ) {
-                Ok(r) => r,
-                Err(e) => handle_thread_pool_build_error(self, e),
-            }
-        })
+        self.enter_sequential(|| self.thread_pool().install(f))
     }
 
     /// Sets up the session globals in the current thread, then executes the given closure.
@@ -389,6 +384,53 @@ impl Session {
     fn is_set(&self) -> bool {
         SessionGlobals::try_with(|g| g.is_some_and(|g| g.maybe_eq(&self.globals)))
     }
+
+    fn thread_pool(&self) -> &rayon::ThreadPool {
+        self.thread_pool.get_or_init(|| {
+            trace!(threads = self.threads(), "building rayon thread pool");
+            self.thread_pool_builder()
+                .spawn_handler(|thread| {
+                    let mut builder = std::thread::Builder::new();
+                    if let Some(name) = thread.name() {
+                        builder = builder.name(name.to_string());
+                    }
+                    if let Some(size) = thread.stack_size() {
+                        builder = builder.stack_size(size);
+                    }
+                    let globals = self.globals.clone();
+                    builder.spawn(move || globals.set(|| thread.run()))?;
+                    Ok(())
+                })
+                .build()
+                .unwrap_or_else(|e| self.handle_thread_pool_build_error(e))
+        })
+    }
+
+    fn thread_pool_builder(&self) -> rayon::ThreadPoolBuilder {
+        let threads = self.threads();
+        debug_assert!(threads > 0, "number of threads must already be resolved");
+        let mut builder = rayon::ThreadPoolBuilder::new()
+            .thread_name(|i| format!("solar-{i}"))
+            .num_threads(threads);
+        // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
+        // install and run in the default global thread pool.
+        if threads == 1 {
+            builder = builder.use_current_thread();
+        }
+        builder
+    }
+
+    #[cold]
+    fn handle_thread_pool_build_error(&self, e: rayon::ThreadPoolBuildError) -> ! {
+        let mut err = self.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
+        if self.is_parallel() {
+            if SINGLE_THREADED_TARGET {
+                err = err.note("the current target might not support multi-threaded execution");
+            }
+            err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
+        }
+        err.emit()
+    }
 }
 
 fn reentrant_log() {
@@ -396,35 +438,6 @@ fn reentrant_log() {
         "running in the current thread's rayon thread pool; \
          this could cause panics later on if it was created without setting the session globals!"
     );
-}
-
-fn thread_pool_builder(sess: &Session) -> rayon::ThreadPoolBuilder {
-    let threads = sess.threads();
-    debug_assert!(threads > 0, "number of threads must already be resolved");
-    let mut builder =
-        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
-    // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
-    // install and run in the default global thread pool.
-    if threads == 1 {
-        builder = builder.use_current_thread();
-    }
-    builder
-}
-
-fn thread_wrapper(sess: &Session) -> impl Fn(rayon::ThreadBuilder) {
-    move |thread| sess.enter_sequential(|| thread.run())
-}
-
-#[cold]
-fn handle_thread_pool_build_error(sess: &Session, e: rayon::ThreadPoolBuildError) -> ! {
-    let mut err = sess.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
-    if sess.is_parallel() {
-        if SINGLE_THREADED_TARGET {
-            err = err.note("the current target might not support multi-threaded execution");
-        }
-        err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
-    }
-    err.emit()
 }
 
 #[inline]
