@@ -158,23 +158,24 @@ impl HumanEmitter {
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
     fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Report<'_>) -> R) -> R {
-        // Current format (annotate-snippets 0.10.0) (comments in <...>):
+        // Current format (annotate-snippets 0.12.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
-           --> snippets[0].origin
+           --> snippets[0].path:ll:cc
             |
-         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations>
-            | ^^^^^^^^^^^^^^^^ ann[0].level: ann[0].label <type is skipped for error, warning>
+         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations; these are diag.span_label()s>
+            | ^^^^^^^^^^^^^^^^ ann[0].label <primary>
          LL | snippets[0].source[ann[1].range]
-            | ---------------- ann[1].level: ann[1].label
+            | ---------------- ann[1].label <secondary>
             |
-           ::: snippets[1].origin
+           ::: snippets[1].path:ll:cc
             |
         etc...
             |
             = footer[0].level: footer[0].label
             = footer[1].level: footer[1].label
             = ...
+        <other groups for subdiagnostics, same as above without footers>
         */
 
         let sm = self.source_map.as_deref();
