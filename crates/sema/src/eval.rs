@@ -205,7 +205,7 @@ impl IntScalar {
             | hir::BinOpKind::Eq
             | hir::BinOpKind::Ne
             | hir::BinOpKind::Or
-            | hir::BinOpKind::And => return Err(EE::UnsupportedBinaryOp.into()),
+            | hir::BinOpKind::And => return Err(EE::UnsupportedBinaryOp),
         })
     }
 }
