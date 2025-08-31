@@ -2,25 +2,19 @@ error: identifier `x` already declared
   --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
    |
 LL |     uint public x = 0;
-   |                 - note: previous declaration declared here
-LL | }
-LL |
-LL | contract B is A {
+   |                 - previous declaration declared here
+...
 LL |     uint public x = 1;
    |                 ^
-   |
 
 error: identifier `y` already declared
   --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
    |
 LL |     uint public y = 2;
-   |                 - note: previous declaration declared here
-LL | }
-LL |
-LL | contract BB {
+   |                 - previous declaration declared here
+...
 LL |     uint public y = 3;
    |                 ^
-   |
 
 error: aborting due to 2 previous errors
 

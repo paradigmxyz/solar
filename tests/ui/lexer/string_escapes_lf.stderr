@@ -3,70 +3,73 @@ error: invalid hex digit
    |
 LL | bytes constant s = hex"\
    |                        ^
-   |
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | bytes constant s = hex"\
-   |                         ^
-   |
+LL |   bytes constant s = hex"\
+   |  _________________________^
+LL | | ";
+   | |_^
 
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL |
-   | ^
-   |
+LL | /
+LL | | ";
+   | |_^
 
 error: cannot skip multiple lines with `\`
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL |
-   | ^
-   |
+LL | /
+LL | | ";
+   | |_^
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
 LL | bytes constant s = hex"\
    |                        ^
-   |
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | bytes constant s = hex"\
-   |                         ^
-   |
+LL |   bytes constant s = hex"\
+   |  _________________________^
+LL | |
+   | |_^
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL |
-   | ^
-   |
+LL | /
+LL | | ";
+   | |_^
 
 error: unescaped newline
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | string constant s = "
-   |                      ^
-   |
+LL |   string constant s = "
+   |  ______________________^
+LL | | ";
+   | |_^
 
 error: unescaped newline
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | string constant s = unicode"
-   |                             ^
-   |
+LL |   string constant s = unicode"
+   |  _____________________________^
+LL | | ";
+   | |_^
 
 error: invalid hex digit
   --> ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    |
-LL | bytes constant s = hex"
-   |                        ^
-   |
+LL |   bytes constant s = hex"
+   |  ________________________^
+LL | | ";
+   | |_^
 
 error: aborting due to 10 previous errors
 

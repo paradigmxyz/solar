@@ -4,8 +4,7 @@ error: getter must return at least one value
 LL |     S public var_2;
    |     -^^^^^^^^^^^^^^
    |     |
-   |     note: the struct has all its members omitted, therefore the getter cannot return any values
-   |
+   |     the struct has all its members omitted, therefore the getter cannot return any values
 
 error: getter must return at least one value
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -13,29 +12,25 @@ error: getter must return at least one value
 LL |     S[] public var_array_2;
    |     -^^^^^^^^^^^^^^^^^^^^^^
    |     |
-   |     note: the struct has all its members omitted, therefore the getter cannot return any values
-   |
+   |     the struct has all its members omitted, therefore the getter cannot return any values
 
 error: types containing mappings cannot be parameter or return types of public getter functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     Nested public var_nested_2;
    |     ^^^^^^
-   |
 
 error: types containing mappings cannot be parameter or return types of public getter functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     Nested[] public var_nested_array_2;
    |     ^^^^^^
-   |
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     function func_1(S memory) public {}
    |                     ^
-   |
 
 error: invalid data location `storage`
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -50,14 +45,12 @@ error: types containing mappings cannot be parameter or return types of public f
    |
 LL |     function func_2(S storage) public {}
    |                     ^
-   |
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     function func_3() public returns(S memory) {}
    |                                      ^
-   |
 
 error: invalid data location `storage`
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -72,14 +65,12 @@ error: types containing mappings cannot be parameter or return types of public f
    |
 LL |     function func_4() public returns(S storage) {}
    |                                      ^
-   |
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     function func_nested_1(Nested memory) public {}
    |                            ^^^^^^
-   |
 
 error: invalid data location `storage`
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -94,14 +85,12 @@ error: types containing mappings cannot be parameter or return types of public f
    |
 LL |     function func_nested_2(Nested storage) public {}
    |                            ^^^^^^
-   |
 
 error: types containing mappings cannot be parameter or return types of public functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     function func_nested_3() public returns(Nested memory) {}
    |                                             ^^^^^^
-   |
 
 error: invalid data location `storage`
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
@@ -116,7 +105,6 @@ error: types containing mappings cannot be parameter or return types of public f
    |
 LL |     function func_nested_4() public returns(Nested storage) {}
    |                                             ^^^^^^
-   |
 
 error: aborting due to 16 previous errors
 

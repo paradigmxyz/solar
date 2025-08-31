@@ -2,14 +2,13 @@ error: function signature hash collision
   --> ROOT/tests/ui/typeck/duplicate_selectors.sol:LL:CC
    |
 LL |     function mintEfficientN2M_001Z5BWH() public {}
-   |     ---------------------------------------------- note: first function
-LL | }
-LL |
+   |     ---------------------------------------------- first function
+...
 LL | contract D is C {
    |          ^
 LL |
 LL |     function BlazingIt4490597615() public {}
-   |     ---------------------------------------- note: second function
+   |     ---------------------------------------- second function
    |
    = note: the function signatures `mintEfficientN2M_001Z5BWH()` and `BlazingIt4490597615()` produce the same 4-byte selector `0x00000000`
 

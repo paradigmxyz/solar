@@ -2,12 +2,10 @@ error: identifier `MyUdvt` already declared
   --> ROOT/tests/ui/resolve/import_conflicts.sol:LL:CC
    |
 LL | import {MyUdvt, MyUdvt as MyUdvt} from "./auxiliary/udvt.sol";
-   |         ------ note: previous declaration declared here
-LL | import {MyUdvt as MyUdvt2, MyUdvt as MyUdvt2} from "./auxiliary/udvt.sol";
-LL |
+   |         ------ previous declaration declared here
+...
 LL | import "./auxiliary/udvt.sol" as MyUdvt;
    |                                  ^^^^^^
-   |
 
 error: aborting due to 1 previous error
 

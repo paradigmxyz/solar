@@ -3,16 +3,14 @@ error: modifier-style base constructor call without arguments
    |
 LL |     constructor() NoArgs {}
    |                   ^^^^^^
-   |
 
 error: base constructor arguments given twice
   --> ROOT/tests/ui/resolve/base_constructor.sol:LL:CC
    |
 LL | contract J is WithArgs(1337) {
-   |               -------------- help: previous declaration
+   |               -------------- previous declaration
 LL |     constructor() WithArgs(1337) {}
    |                   ^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 2 previous errors
 

@@ -3,28 +3,24 @@ error: data locations are not allowed here
    |
 LL | uint memory constant a0 = 0;
    |      ^^^^^^
-   |
 
 error: data locations are not allowed here
   --> ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    |
 LL | uint[] memory constant b0 = [];
    |        ^^^^^^
-   |
 
 error: data locations are not allowed here
   --> ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    |
 LL | S memory constant c0 = S(0);
    |   ^^^^^^
-   |
 
 error: data locations are not allowed here
   --> ROOT/tests/ui/typeck/var_loc_file_level.sol:LL:CC
    |
 LL | S[] memory constant d0 = [];
    |     ^^^^^^
-   |
 
 error: aborting due to 4 previous errors
 

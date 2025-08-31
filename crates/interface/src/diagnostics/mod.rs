@@ -337,7 +337,7 @@ pub struct SubDiagnostic {
 impl SubDiagnostic {
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages, false, self.level)
+        self.label_with_style(false)
     }
 
     /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
@@ -434,16 +434,18 @@ impl Diag {
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
-    fn keys(&self) -> impl PartialEq + std::hash::Hash + '_ {
+    fn keys(&self) -> impl PartialEq + std::hash::Hash {
         (
             &self.level,
             &self.messages,
-            // self.args().collect(),
             &self.code,
             &self.span,
-            // &self.suggestions,
-            // (if self.is_lint { None } else { Some(&self.children) }),
             &self.children,
+            // &self.suggestions,
+            // self.args().collect(),
+            // omit self.sort_span
+            // &self.is_lint,
+            // omit self.created_at
         )
     }
 }
@@ -624,8 +626,8 @@ fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Leve
 }
 
 fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
-    let ansi_style = style.to_color_spec(level);
-    write!(output, "{}{}{}", ansi_style.render(), msg.as_str(), ansi_style.render_reset()).unwrap();
+    let style = style.to_color_spec(level);
+    let _ = write!(output, "{style}{}{style:#}", msg.as_str());
 }
 
 #[cfg(test)]

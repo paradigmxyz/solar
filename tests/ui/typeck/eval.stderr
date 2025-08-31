@@ -2,125 +2,91 @@ error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function a(uint[x / 0] memory) public {}
-   |                     -----
-   |                     |
-   |                     note: division by zero
-   |
+   |                     ^^^^^ division by zero
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function d(uint[0 - 1] memory) public {}
-   |                     -----
-   |                     |
-   |                     note: arithmetic overflow
-   |
+   |                     ^^^^^ arithmetic overflow
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL | uint constant rec1 = rec1;
-   |                      ---- note: recursion limit reached
-LL | uint constant rec2 = rec1;
+   |                      ---- recursion limit reached
 ...
-LL |     function d(uint[0 - 1] memory) public {}
 LL |     function e(uint[rec1] memory) public {}
    |                     ^^^^
-   |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL | uint constant rec1 = rec1;
-   |                      ---- note: recursion limit reached
-LL | uint constant rec2 = rec1;
+   |                      ---- recursion limit reached
 ...
-LL |     function e(uint[rec1] memory) public {}
 LL |     function f(uint[rec2] memory) public {}
    |                     ^^^^
-   |
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function g(uint[0] memory) public {}
    |                     ^
-   |
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function h(uint[zero] memory) public {}
    |                     ^^^^
-   |
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function h2(uint[zeroPublic] memory) public {}
    |                      ^^^^^^^^^^
-   |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function i(uint[block.timestamp] memory) public {}
-   |                     ---------------
-   |                     |
-   |                     note: unsupported expression
-   |
+   |                     ^^^^^^^^^^^^^^^ unsupported expression
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function j(uint["lol"] memory) public {}
-   |                     -----
-   |                     |
-   |                     note: unsupported literal
-   |
+   |                     ^^^^^ unsupported literal
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function k(uint[--x] memory) public {}
-   |                     ---
-   |                     |
-   |                     note: unsupported unary operation
-   |
+   |                     ^^^ unsupported unary operation
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function l(uint[stateVar] memory) public {}
-   |                     --------
-   |                     |
-   |                     note: only constant variables are allowed
-   |
+   |                     ^^^^^^^^ only constant variables are allowed
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function m(uint[stateVarPublic] memory) public {}
-   |                     --------------
-   |                     |
-   |                     note: only constant variables are allowed
-   |
+   |                     ^^^^^^^^^^^^^^ only constant variables are allowed
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     uint[zero] public zeroArray;
    |          ^^^^
-   |
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     uint[bigLiteral + 1] public tooBig1;
-   |          --------------
-   |          |
-   |          note: arithmetic overflow
-   |
+   |          ^^^^^^^^^^^^^^ arithmetic overflow
 
 error: aborting due to 14 previous errors
 

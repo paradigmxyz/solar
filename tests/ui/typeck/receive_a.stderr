@@ -2,10 +2,9 @@ error: receive function already declared
   --> ROOT/tests/ui/typeck/receive_a.sol:LL:CC
    |
 LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
+   |     ----------------------------- previous declaration here
 LL |     receive() external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 1 previous error
 

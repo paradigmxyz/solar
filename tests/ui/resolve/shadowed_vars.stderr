@@ -2,10 +2,9 @@ error: identifier `x` already declared
   --> ROOT/tests/ui/resolve/shadowed_vars.sol:LL:CC
    |
 LL |     function g(uint x) private
-   |                     - note: previous declaration declared here
+   |                     - previous declaration declared here
 LL |         returns (int x)
    |                      ^
-   |
 
 error: aborting due to 1 previous error
 

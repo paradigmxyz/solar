@@ -4,8 +4,7 @@ error: getter must return at least one value
 LL |     mapping(uint256 => B) public mapB;
    |     ^^^^^^^^^^^^^^^^^^^-^^^^^^^^^^^^^^
    |                        |
-   |                        note: the struct has all its members omitted, therefore the getter cannot return any values
-   |
+   |                        the struct has all its members omitted, therefore the getter cannot return any values
 
 error: aborting due to 1 previous error
 

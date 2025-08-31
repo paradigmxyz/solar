@@ -2,40 +2,34 @@ error: identifier `Er1` already declared
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL | error Er1(uint);
-   |       --- note: previous declaration declared here
+   |       --- previous declaration declared here
 LL | error Er1(int);
    |       ^^^
-   |
 
 error: identifier `C` already declared
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL | contract C {
-   |          - note: previous declaration declared here
-LL |     // OK
+   |          - previous declaration declared here
 ...
-LL |
 LL | contract C {}
    |          ^
-   |
 
 error: identifier `m` already declared
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     modifier m(uint) { _; }
-   |              - note: previous declaration declared here
+   |              - previous declaration declared here
 LL |     modifier m(int) { _; }
    |              ^
-   |
 
 error: identifier `Er2` already declared
   --> ROOT/tests/ui/resolve/conflicts.sol:LL:CC
    |
 LL |     error Er2(uint);
-   |           --- note: previous declaration declared here
+   |           --- previous declaration declared here
 LL |     error Er2(int);
    |           ^^^
-   |
 
 error: aborting due to 4 previous errors
 

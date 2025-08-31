@@ -2,85 +2,76 @@ error: constructor function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     constructor() {}
-   |     ---------------- note: previous declaration here
+   |     ---------------- previous declaration here
 LL |     constructor() {}
    |     ^^^^^^^^^^^^^^^^
-   |
 
 error: fallback function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
+   |     ---------------------- previous declaration here
 LL |     fallback() external {}
    |     ^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: receive function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
+   |     ----------------------------- previous declaration here
 LL |     receive() external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: constructor function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     constructor() {}
-   |     ---------------- note: previous declaration here
+   |     ---------------- previous declaration here
 LL |     constructor() {}
    |     ^^^^^^^^^^^^^^^^
-   |
 
 error: constructor function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     constructor() {}
-   |     ---------------- note: previous declaration here
+   |     ---------------- previous declaration here
 LL |     constructor() {}
 LL |     constructor() {}
    |     ^^^^^^^^^^^^^^^^
-   |
 
 error: fallback function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
+   |     ---------------------- previous declaration here
 LL |     fallback() external {}
    |     ^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: fallback function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     fallback() external {}
-   |     ---------------------- note: previous declaration here
+   |     ---------------------- previous declaration here
 LL |     fallback() external {}
 LL |     fallback() external {}
    |     ^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: receive function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
+   |     ----------------------------- previous declaration here
 LL |     receive() external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: receive function already declared
   --> ROOT/tests/ui/resolve/contract_special_functions.sol:LL:CC
    |
 LL |     receive() external payable {}
-   |     ----------------------------- note: previous declaration here
+   |     ----------------------------- previous declaration here
 LL |     receive() external payable {}
 LL |     receive() external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 9 previous errors
 

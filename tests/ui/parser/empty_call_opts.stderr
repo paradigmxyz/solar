@@ -3,7 +3,6 @@ error: expected one of `(`, `.`, `;`, `?`, or `[`, found `{`
    |
 LL |     f{}();
    |      ^ expected one of `(`, `.`, `;`, `?`, or `[`
-   |
 
 error: aborting due to 1 previous error
 
