@@ -224,7 +224,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     let mut v = Some(visibility);
@@ -243,7 +243,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     let mut sm = Some(state_mutability);
@@ -263,7 +263,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx().err(msg).span(span).emit();
                 } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
-                    self.dcx().err(msg).span(span).span_note(prev, "previous definition").emit();
+                    self.dcx().err(msg).span(span).span_label(prev, "previous definition").emit();
                 } else {
                     header.virtual_ = Some(span);
                 }
@@ -278,7 +278,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     header.override_ = Some(o);
@@ -366,7 +366,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span(new_bases))
-                        .span_note(span(prev), "previous definition")
+                        .span_label(span(prev), "previous definition")
                         .emit();
                 } else if !new_bases.is_empty() {
                     bases = Some(new_bases);
@@ -378,7 +378,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(new_layout.span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     layout = Some(new_layout);
