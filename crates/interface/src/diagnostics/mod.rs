@@ -268,7 +268,9 @@ impl Level {
         // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
         match self {
             Self::Bug | Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
-            Self::Warning => Some(AnsiColor::BrightYellow),
+            Self::Warning => {
+                Some(if cfg!(windows) { AnsiColor::BrightYellow } else { AnsiColor::Yellow })
+            }
             Self::Note | Self::OnceNote => Some(AnsiColor::BrightGreen),
             Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),
             Self::FailureNote | Self::Allow => None,

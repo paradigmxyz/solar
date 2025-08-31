@@ -18,15 +18,15 @@ use std::{
 
 type Writer = dyn Write + Send + 'static;
 
-const DEFAULT_RENDERER: Renderer = Renderer::plain()
+const DEFAULT_RENDERER: Renderer = Renderer::styled()
     .error(Level::Error.style())
     .warning(Level::Warning.style())
-    .info(Level::Note.style())
     .note(Level::Note.style())
     .help(Level::Help.style())
     .line_num(Style::LineNumber.to_color_spec(Level::Note))
-    .emphasis(anstyle::Style::new().bold())
-    .none(anstyle::Style::new());
+    .addition(Style::Addition.to_color_spec(Level::Note))
+    .removal(Style::Removal.to_color_spec(Level::Note))
+    .context(Style::LabelSecondary.to_color_spec(Level::Note));
 
 /// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
@@ -68,7 +68,6 @@ impl HumanEmitter {
     /// at this point. Prefer calling [`AutoStream::choice`] on the writer if it is known
     /// before-hand.
     pub fn new<W: Write + Send + 'static>(writer: W, color: ColorChoice) -> Self {
-        // TODO: Clean this up on next anstream release
         let writer_type_id = writer.type_id();
         let mut real_writer = Box::new(writer) as Box<Writer>;
         Self {
@@ -82,7 +81,7 @@ impl HumanEmitter {
 
     /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
     pub fn test() -> Self {
-        struct TestWriter(io::Stderr);
+        struct TestWriter;
 
         impl Write for TestWriter {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -97,11 +96,11 @@ impl HumanEmitter {
             }
 
             fn flush(&mut self) -> io::Result<()> {
-                self.0.flush()
+                io::stderr().flush()
             }
         }
 
-        Self::new(TestWriter(io::stderr()), ColorChoice::Always)
+        Self::new(TestWriter, ColorChoice::Always)
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
@@ -400,14 +399,15 @@ fn file_to_snippet<'a>(
         .annotations(annotations)
 }
 
-fn to_as_level(level: Level) -> ASLevel<'static> {
+fn to_as_level<'a>(level: Level) -> ASLevel<'a> {
     match level {
-        Level::Bug | Level::Fatal | Level::Error => ASLevel::ERROR,
+        Level::Bug | Level::Fatal | Level::Error | Level::FailureNote => ASLevel::ERROR,
         Level::Warning => ASLevel::WARNING,
-        Level::Note | Level::OnceNote | Level::FailureNote => ASLevel::NOTE,
+        Level::Note | Level::OnceNote => ASLevel::NOTE,
         Level::Help | Level::OnceHelp => ASLevel::HELP,
         Level::Allow => ASLevel::INFO,
     }
+    .with_name(if level == Level::FailureNote { None } else { Some(level.to_str()) })
 }
 
 fn char_to_byte_pos(s: &str, char_pos: usize) -> usize {
