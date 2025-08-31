@@ -22,7 +22,7 @@ mod yul;
 /// Maximum allowed recursive descent depth for selected parser entry points.
 ///
 /// This limit is applied to `parse_expr`, `parse_stmt`, and `parse_yul_stmt`.
-const PARSER_RECURSION_LIMIT: usize = 512;
+const PARSER_RECURSION_LIMIT: usize = 128;
 
 /// Solidity and Yul parser.
 ///
