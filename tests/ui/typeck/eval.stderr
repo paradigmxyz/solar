@@ -1,50 +1,53 @@
-error: evaluation of constant value failed
+error: failed to evaluate constant: attempted to divide by zero
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL | uint constant fails = 0 / 0;
+   |                       ----- evaluation of constant value failed here
+...
+LL |     function early(uint[fails] memory) public {}
+   |                         ^^^^^
+
+error: failed to evaluate constant: attempted to divide by zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function a(uint[x / 0] memory) public {}
-   |                     ^^^^^
-   |
-note: division by zero
+   |                     ^^^^^ evaluation of constant value failed here
+
+error: failed to evaluate constant: attempted to divide by zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
-LL |     function a(uint[x / 0] memory) public {}
-   |                     ^^^^^
+LL |     function a2(uint[x / zeroPublic] memory) public {}
+   |                      ^^^^^^^^^^^^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: arithmetic overflow
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function d(uint[0 - 1] memory) public {}
-   |                     ^^^^^
-   |
-note: arithmetic overflow
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function d(uint[0 - 1] memory) public {}
-   |                     ^^^^^
+   |                     ^^^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: arithmetic overflow
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
+LL |     function d2(uint[zeroPublic - 1] memory) public {}
+   |                      ^^^^^^^^^^^^^^ evaluation of constant value failed here
+
+error: failed to evaluate constant: recursion limit reached
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL | uint constant rec1 = rec1;
+   |                      ---- evaluation of constant value failed here
+...
 LL |     function e(uint[rec1] memory) public {}
    |                     ^^^^
-   |
-note: recursion limit reached
+
+error: failed to evaluate constant: recursion limit reached
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL | uint constant rec1 = rec1;
-   |                      ^^^^
-
-error: evaluation of constant value failed
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
+   |                      ---- evaluation of constant value failed here
+...
 LL |     function f(uint[rec2] memory) public {}
    |                     ^^^^
-   |
-note: recursion limit reached
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL | uint constant rec1 = rec1;
-   |                      ^^^^
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -64,65 +67,35 @@ error: array length must be greater than zero
 LL |     function h2(uint[zeroPublic] memory) public {}
    |                      ^^^^^^^^^^
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: unsupported expression
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function i(uint[block.timestamp] memory) public {}
-   |                     ^^^^^^^^^^^^^^^
-   |
-note: unsupported expression
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function i(uint[block.timestamp] memory) public {}
-   |                     ^^^^^^^^^^^^^^^
+   |                     ^^^^^^^^^^^^^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: unsupported literal
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function j(uint["lol"] memory) public {}
-   |                     ^^^^^
-   |
-note: unsupported literal
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function j(uint["lol"] memory) public {}
-   |                     ^^^^^
+   |                     ^^^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: unsupported unary operation
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function k(uint[--x] memory) public {}
-   |                     ^^^
-   |
-note: unsupported unary operation
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function k(uint[--x] memory) public {}
-   |                     ^^^
+   |                     ^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: only constant variables are allowed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function l(uint[stateVar] memory) public {}
-   |                     ^^^^^^^^
-   |
-note: only constant variables are allowed
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function l(uint[stateVar] memory) public {}
-   |                     ^^^^^^^^
+   |                     ^^^^^^^^ evaluation of constant value failed here
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: only constant variables are allowed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function m(uint[stateVarPublic] memory) public {}
-   |                     ^^^^^^^^^^^^^^
-   |
-note: only constant variables are allowed
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     function m(uint[stateVarPublic] memory) public {}
-   |                     ^^^^^^^^^^^^^^
+   |                     ^^^^^^^^^^^^^^ evaluation of constant value failed here
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -130,17 +103,11 @@ error: array length must be greater than zero
 LL |     uint[zero] public zeroArray;
    |          ^^^^
 
-error: evaluation of constant value failed
+error: failed to evaluate constant: arithmetic overflow
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     uint[bigLiteral + 1] public tooBig1;
-   |          ^^^^^^^^^^^^^^
-   |
-note: arithmetic overflow
-  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
-   |
-LL |     uint[bigLiteral + 1] public tooBig1;
-   |          ^^^^^^^^^^^^^^
+   |          ^^^^^^^^^^^^^^ evaluation of constant value failed here
 
-error: aborting due to 14 previous errors
+error: aborting due to 17 previous errors
 
