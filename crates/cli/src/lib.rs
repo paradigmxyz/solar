@@ -19,13 +19,13 @@ pub use solar_config::{self as config, Opts, UnstableOpts, version};
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
-pub mod sigsegv_handler;
+pub mod signal_handler;
 
 /// Signal handler to extract a backtrace from stack overflow.
 ///
 /// This is a no-op because this platform doesn't support our signal handler's requirements.
 #[cfg(not(all(unix, any(target_env = "gnu", target_os = "macos"))))]
-pub mod sigsegv_handler {
+pub mod signal_handler {
     #[cfg(unix)]
     use libc as _;
 
