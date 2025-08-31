@@ -344,22 +344,6 @@ impl FileWithAnnotatedLines {
         }
         output
     }
-
-    pub(crate) fn add_lines(&mut self, lines: impl IntoIterator<Item = Line>) {
-        debug_assert!(self.lines.is_sorted(), "file lines should be sorted");
-        for line in lines {
-            match self.lines.binary_search_by_key(&line.line_index, |l| l.line_index) {
-                Ok(i) => {
-                    self.lines[i].annotations.extend(line.annotations);
-                    self.lines[i].annotations.sort();
-                }
-                Err(i) => {
-                    self.lines.insert(i, line);
-                }
-            }
-        }
-        debug_assert!(self.lines.is_sorted(), "file lines should still be sorted");
-    }
 }
 
 fn num_overlap(

@@ -177,23 +177,25 @@ impl HumanEmitter {
             = ...
         */
 
+        let sm = self.source_map.as_deref();
+
         let title = title_from_diagnostic(diagnostic);
+        let snippets = sm.map(|sm| iter_snippets(sm, &diagnostic.span)).into_iter().flatten();
 
-        let snippets = self
-            .source_map
-            .as_deref()
-            .map(|sm| collect_snippets(sm, diagnostic))
-            .unwrap_or_default();
+        // Dummy subdiagnostics go in the main group's footer, non-dummy ones go as separate groups.
+        let subs = |d| diagnostic.children.iter().filter(move |sub| sub.span.is_dummy() == d);
+        let footers = subs(true).map(|sub| message_from_subdiagnostic(sub, self.supports_color()));
+        let sub_groups = subs(false).map(|sub| {
+            let mut g = Group::with_title(title_from_subdiagnostic(sub, self.supports_color()));
+            if let Some(sm) = sm {
+                g = g.elements(iter_snippets(sm, &sub.span));
+            }
+            g
+        });
 
-        // Dummy subdiagnostics go in the footer, while non-dummy ones go in the snippets.
-        let footers = diagnostic
-            .children
-            .iter()
-            .filter(|sub| sub.span.is_dummy())
-            .map(|sub| message_from_subdiagnostic(sub, self.supports_color()));
-
-        let group = Group::with_title(title).elements(snippets).elements(footers);
-        f(self, &[group])
+        let main_group = Group::with_title(title).elements(snippets).elements(footers);
+        let report = std::iter::once(main_group).chain(sub_groups).collect::<Vec<_>>();
+        f(self, &report)
     }
 }
 
@@ -275,43 +277,24 @@ fn title_from_diagnostic(diag: &Diag) -> Title<'_> {
     title
 }
 
+fn title_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Title<'_> {
+    to_as_level(sub.level).secondary_title(sub.label_with_style(supports_color))
+}
+
 fn message_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Message<'_> {
     to_as_level(sub.level).message(sub.label_with_style(supports_color))
 }
 
-fn collect_snippets(
+fn iter_snippets<'a>(
     sm: &SourceMap,
-    diagnostic: &Diag,
-) -> Vec<Snippet<'static, Annotation<'static>>> {
-    // Collect main diagnostic.
-    let mut files = collect_files(sm, &diagnostic.span);
-
-    // Collect subdiagnostics.
-    for sub in &diagnostic.children {
-        let label = sub.label();
-        for mut sub_file in collect_files(sm, &sub.span) {
-            for line in &mut sub_file.lines {
-                for ann in &mut line.annotations {
-                    ann.is_primary = false;
-                    ann.label = Some(label.to_string());
-                }
-            }
-
-            if let Some(main_file) =
-                files.iter_mut().find(|main_file| Arc::ptr_eq(&main_file.file, &sub_file.file))
-            {
-                main_file.add_lines(sub_file.lines);
-            } else {
-                files.push(sub_file);
-            }
-        }
-    }
-
-    files.iter().map(|file| file_to_snippet(sm, &file.file, &file.lines)).collect()
+    msp: &MultiSpan,
+) -> impl Iterator<Item = Snippet<'a, Annotation<'a>>> {
+    collect_files(sm, msp).into_iter().map(|file| file_to_snippet(sm, &file.file, &file.lines))
 }
 
 fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines> {
     let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
+    // Make sure our primary file comes first
     if let Some(primary_span) = msp.primary_span()
         && !primary_span.is_dummy()
         && annotated_files.len() > 1
@@ -326,25 +309,28 @@ fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines>
     annotated_files
 }
 
-type MultiLine<'a> = (Option<&'a String>, usize);
-
-fn multi_line_at<'a, 'b>(mls: &'a mut Vec<MultiLine<'b>>, depth: usize) -> &'a mut MultiLine<'b> {
-    assert!(depth > 0);
-    if mls.len() < depth {
-        mls.resize_with(depth, || (None, 0));
-    }
-    &mut mls[depth - 1]
-}
-
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
 /// Expects that lines are sorted.
-fn file_to_snippet(
+fn file_to_snippet<'a>(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
-) -> Snippet<'static, Annotation<'static>> {
+) -> Snippet<'a, Annotation<'a>> {
+    /// `label, start_idx`
+    type MultiLine<'a> = (Option<&'a String>, usize);
+    fn multi_line_at<'a, 'b>(
+        mls: &'a mut Vec<MultiLine<'b>>,
+        depth: usize,
+    ) -> &'a mut MultiLine<'b> {
+        assert!(depth > 0);
+        if mls.len() < depth {
+            mls.resize_with(depth, || (None, 0));
+        }
+        &mut mls[depth - 1]
+    }
+
     debug_assert!(!lines.is_empty());
 
     let first_line = lines.first().unwrap().line_index;
@@ -356,9 +342,11 @@ fn file_to_snippet(
 
     let source = file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default();
     let mut annotations = Vec::new();
-    let mut push_annotation = |is_primary, span, label| {
-        let kind = if is_primary { AnnotationKind::Primary } else { AnnotationKind::Context };
+    let mut push_annotation = |kind: AnnotationKind, span, label| {
         annotations.push(kind.span(span).label(label));
+    };
+    let annotation_kind = |is_primary: bool| {
+        if is_primary { AnnotationKind::Primary } else { AnnotationKind::Context }
     };
 
     let mut mls = Vec::new();
@@ -375,7 +363,7 @@ fn file_to_snippet(
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
                     push_annotation(
-                        ann.is_primary,
+                        annotation_kind(ann.is_primary),
                         rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
                         ann.label.clone().unwrap_or_default(),
                     );
@@ -383,14 +371,20 @@ fn file_to_snippet(
                 super::rustc::AnnotationType::MultilineStart(depth) => {
                     *multi_line_at(&mut mls, depth) = (ann.label.as_ref(), rel_pos(&ann.start_col));
                 }
-                // TODO: push a `AnnotationKind::Visible` annotation
-                super::rustc::AnnotationType::MultilineLine(_) => {}
+                super::rustc::AnnotationType::MultilineLine(_depth) => {
+                    // TODO: unvalidated
+                    push_annotation(
+                        AnnotationKind::Visible,
+                        line_rel_pos..line_rel_pos,
+                        String::new(),
+                    );
+                }
                 super::rustc::AnnotationType::MultilineEnd(depth) => {
                     let (label, multiline_start_idx) = *multi_line_at(&mut mls, depth);
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
                     push_annotation(
-                        ann.is_primary,
+                        annotation_kind(ann.is_primary),
                         multiline_start_idx..end_idx,
                         label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
                     );

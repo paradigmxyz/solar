@@ -2,17 +2,25 @@ error: getter must return at least one value
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     S public var_2;
-   |     -^^^^^^^^^^^^^^
-   |     |
-   |     the struct has all its members omitted, therefore the getter cannot return any values
+   |     ^^^^^^^^^^^^^^^
+   |
+note: the struct has all its members omitted, therefore the getter cannot return any values
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     S public var_2;
+   |     ^
 
 error: getter must return at least one value
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
    |
 LL |     S[] public var_array_2;
-   |     -^^^^^^^^^^^^^^^^^^^^^^
-   |     |
-   |     the struct has all its members omitted, therefore the getter cannot return any values
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: the struct has all its members omitted, therefore the getter cannot return any values
+  --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   |
+LL |     S[] public var_array_2;
+   |     ^
 
 error: types containing mappings cannot be parameter or return types of public getter functions
   --> ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC

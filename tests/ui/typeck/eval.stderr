@@ -2,31 +2,49 @@ error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function a(uint[x / 0] memory) public {}
-   |                     ^^^^^ division by zero
+   |                     ^^^^^
+   |
+note: division by zero
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function a(uint[x / 0] memory) public {}
+   |                     ^^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function d(uint[0 - 1] memory) public {}
-   |                     ^^^^^ arithmetic overflow
+   |                     ^^^^^
+   |
+note: arithmetic overflow
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function d(uint[0 - 1] memory) public {}
+   |                     ^^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
-LL | uint constant rec1 = rec1;
-   |                      ---- recursion limit reached
-...
 LL |     function e(uint[rec1] memory) public {}
    |                     ^^^^
+   |
+note: recursion limit reached
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL | uint constant rec1 = rec1;
+   |                      ^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
-LL | uint constant rec1 = rec1;
-   |                      ---- recursion limit reached
-...
 LL |     function f(uint[rec2] memory) public {}
    |                     ^^^^
+   |
+note: recursion limit reached
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL | uint constant rec1 = rec1;
+   |                      ^^^^
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -50,31 +68,61 @@ error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function i(uint[block.timestamp] memory) public {}
-   |                     ^^^^^^^^^^^^^^^ unsupported expression
+   |                     ^^^^^^^^^^^^^^^
+   |
+note: unsupported expression
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function i(uint[block.timestamp] memory) public {}
+   |                     ^^^^^^^^^^^^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function j(uint["lol"] memory) public {}
-   |                     ^^^^^ unsupported literal
+   |                     ^^^^^
+   |
+note: unsupported literal
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function j(uint["lol"] memory) public {}
+   |                     ^^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function k(uint[--x] memory) public {}
-   |                     ^^^ unsupported unary operation
+   |                     ^^^
+   |
+note: unsupported unary operation
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function k(uint[--x] memory) public {}
+   |                     ^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function l(uint[stateVar] memory) public {}
-   |                     ^^^^^^^^ only constant variables are allowed
+   |                     ^^^^^^^^
+   |
+note: only constant variables are allowed
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function l(uint[stateVar] memory) public {}
+   |                     ^^^^^^^^
 
 error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     function m(uint[stateVarPublic] memory) public {}
-   |                     ^^^^^^^^^^^^^^ only constant variables are allowed
+   |                     ^^^^^^^^^^^^^^
+   |
+note: only constant variables are allowed
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function m(uint[stateVarPublic] memory) public {}
+   |                     ^^^^^^^^^^^^^^
 
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -86,7 +134,13 @@ error: evaluation of constant value failed
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
 LL |     uint[bigLiteral + 1] public tooBig1;
-   |          ^^^^^^^^^^^^^^ arithmetic overflow
+   |          ^^^^^^^^^^^^^^
+   |
+note: arithmetic overflow
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     uint[bigLiteral + 1] public tooBig1;
+   |          ^^^^^^^^^^^^^^
 
 error: aborting due to 14 previous errors
 
