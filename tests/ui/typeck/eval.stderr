@@ -97,6 +97,12 @@ error: failed to evaluate constant: only constant variables are allowed
 LL |     function m(uint[stateVarPublic] memory) public {}
    |                     ^^^^^^^^^^^^^^ evaluation of constant value failed here
 
+error: failed to evaluate constant: unsupported expression
+  --> ROOT/tests/ui/typeck/eval.sol:LL:CC
+   |
+LL |     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
+   |                        ^^^^^^^^^^^^^^^^^^ evaluation of constant value failed here
+
 error: array length must be greater than zero
   --> ROOT/tests/ui/typeck/eval.sol:LL:CC
    |
@@ -109,5 +115,5 @@ error: failed to evaluate constant: arithmetic overflow
 LL |     uint[bigLiteral + 1] public tooBig1;
    |          ^^^^^^^^^^^^^^ evaluation of constant value failed here
 
-error: aborting due to 17 previous errors
+error: aborting due to 18 previous errors
 

@@ -91,10 +91,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            hir::ExprKind::Ternary(cond, t, f) => {
-                let cond = self.try_eval(cond)?;
-                Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
-            }
+            // hir::ExprKind::Ternary(cond, t, f) => {
+            //     let cond = self.try_eval(cond)?;
+            //     Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
+            // }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
             // hir::ExprKind::Type(_) => unimplemented!(),
