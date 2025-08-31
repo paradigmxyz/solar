@@ -19,6 +19,11 @@ mod stmt;
 mod ty;
 mod yul;
 
+/// Maximum allowed recursive descent depth for selected parser entry points.
+///
+/// This limit is applied to `parse_expr`, `parse_stmt`, and `parse_yul_stmt`.
+const PARSER_RECURSION_LIMIT: usize = 512;
+
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -54,6 +59,13 @@ pub struct Parser<'sess, 'ast> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
+
+    /// Current recursion depth for expression parsing via `parse_expr`.
+    expr_recursion_depth: usize,
+    /// Current recursion depth for statement parsing via `parse_stmt`.
+    stmt_recursion_depth: usize,
+    /// Current recursion depth for Yul statement parsing via `parse_yul_stmt`.
+    yul_stmt_recursion_depth: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -138,6 +150,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
+            expr_recursion_depth: 0,
+            stmt_recursion_depth: 0,
+            yul_stmt_recursion_depth: 0,
         };
         parser.bump();
         parser
