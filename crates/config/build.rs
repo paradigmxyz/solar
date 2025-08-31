@@ -1,16 +1,15 @@
 #[cfg(feature = "version")]
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::env;
 
-    vergen::EmitBuilder::builder()
-        .git_describe(false, true, None)
-        .git_dirty(true)
-        .git_sha(false)
-        .build_timestamp()
-        .cargo_features()
-        .cargo_target_triple()
-        .emit_and_set()
-        .unwrap();
+    let cargo = vergen::Cargo::builder().features(true).target_triple(true).build();
+    let build = vergen::Build::builder().build_timestamp(true).build();
+    let git = vergen::Gitcl::builder().describe(false, true, None).dirty(true).sha(false).build();
+    vergen::Emitter::new()
+        .add_instructions(&cargo)?
+        .add_instructions(&build)?
+        .add_instructions(&git)?
+        .emit_and_set()?;
 
     let sha = env::var("VERGEN_GIT_SHA").unwrap();
     let sha_short = &sha[..7];
@@ -59,6 +58,8 @@ fn main() {
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
     }
+
+    Ok(())
 }
 
 #[cfg(not(feature = "version"))]

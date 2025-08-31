@@ -179,6 +179,6 @@ smallvec = { version = "1", features = ["const_generics", "union"] }
 thread_local = "1.1"
 typed-arena = "2.0"
 unicode-width = "0.2"
-vergen = "8"
+vergen = { package = "vergen-gitcl", version = "2.0.0-beta.1" }
 
 [patch.crates-io]
