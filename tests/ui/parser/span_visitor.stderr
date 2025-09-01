@@ -3,46 +3,41 @@ note: span #1
    |
 LL | / contract SpanVisitorTest {
 LL | |     uint256 x;
+LL | |     
+LL | |     function foo() public {
 ...  |
-LL | |     }
 LL | | }
-   | |_-
-   |
+   | |_^
 
 note: span #2
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL | contract SpanVisitorTest {
-   |          ---------------
-   |
+   |          ^^^^^^^^^^^^^^^
 
 note: span #3
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     uint256 x;
-   |     ----------
-   |
+   |     ^^^^^^^^^^
 
 note: span #4
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     uint256 x;
-   |     ----------
-   |
+   |     ^^^^^^^^^^
 
 note: span #5
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     uint256 x;
-   |     -------
-   |
+   |     ^^^^^^^
 
 note: span #6
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     uint256 x;
-   |             -
-   |
+   |             ^
 
 note: span #7
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
@@ -50,96 +45,83 @@ note: span #7
 LL | /     function foo() public {
 LL | |         x = 42;
 LL | |     }
-   | |_____-
-   |
+   | |_____^
 
 note: span #8
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     function foo() public {
-   |     ---------------------
-   |
+   |     ^^^^^^^^^^^^^^^^^^^^^
 
 note: span #9
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     function foo() public {
-   |              ---
-   |
+   |              ^^^
 
 note: span #10
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     function foo() public {
-   |                 --
-   |
+   |                 ^^
 
 note: span #11
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |     function foo() public {
-   |                    ------
-   |
+   |                    ^^^^^^
 
 note: span #12
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |       function foo() public {
-   |  ___________________________-
+   |  ___________________________^
 LL | |         x = 42;
 LL | |     }
-   | |_____-
-   |
+   | |_____^
 
 note: span #13
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |         -------
-   |
+   |         ^^^^^^^
 
 note: span #14
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |         ------
-   |
+   |         ^^^^^^
 
 note: span #15
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |         -
-   |
+   |         ^
 
 note: span #16
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |         -
-   |
+   |         ^
 
 note: span #17
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |             --
-   |
+   |             ^^
 
 note: span #18
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |         x = 42;
-   |             --
-   |
+   |             ^^
 
 note: span #19
   --> ROOT/tests/ui/parser/span_visitor.sol:LL:CC
    |
 LL |       function foo() public {
-   |  ___________________________-
+   |  ___________________________^
 LL | |         x = 42;
 LL | |     }
-   | |_____-
-   |
+   | |_____^
 

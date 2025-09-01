@@ -111,6 +111,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "710e8eae58854cdc1790fcb56cca04d712a17be849eeb81da2a724bf4bae2bc4"
 dependencies = [
  "anstyle",
+ "unicode-width 0.2.1",
+]
+
+[[package]]
+name = "annotate-snippets"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f0b4cc914c1b0d47acea9b7abc1deffde6430c7c417ff2e7ceb77b80f137739"
+dependencies = [
+ "anstyle",
  "memchr",
  "unicode-width 0.2.1",
 ]
@@ -2644,7 +2654,7 @@ dependencies = [
 name = "solar-interface"
 version = "0.1.6"
 dependencies = [
- "annotate-snippets",
+ "annotate-snippets 0.12.0",
  "anstream",
  "anstyle",
  "derive_more",
@@ -3196,7 +3206,7 @@ version = "0.30.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b56a6897cc4bb6f8daf1939b0b39cd9645856997f46f4d0b3e3cb7122dfe9251"
 dependencies = [
- "annotate-snippets",
+ "annotate-snippets 0.11.5",
  "anyhow",
  "bstr",
  "cargo-platform",

@@ -268,7 +268,9 @@ impl Level {
         // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
         match self {
             Self::Bug | Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
-            Self::Warning => Some(AnsiColor::BrightYellow),
+            Self::Warning => {
+                Some(if cfg!(windows) { AnsiColor::BrightYellow } else { AnsiColor::Yellow })
+            }
             Self::Note | Self::OnceNote => Some(AnsiColor::BrightGreen),
             Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),
             Self::FailureNote | Self::Allow => None,
@@ -337,7 +339,7 @@ pub struct SubDiagnostic {
 impl SubDiagnostic {
     /// Formats the diagnostic messages into a single string.
     pub fn label(&self) -> Cow<'_, str> {
-        flatten_messages(&self.messages, false, self.level)
+        self.label_with_style(false)
     }
 
     /// Formats the diagnostic messages into a single string with ANSI color codes if applicable.
@@ -434,16 +436,18 @@ impl Diag {
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
-    fn keys(&self) -> impl PartialEq + std::hash::Hash + '_ {
+    fn keys(&self) -> impl PartialEq + std::hash::Hash {
         (
             &self.level,
             &self.messages,
-            // self.args().collect(),
             &self.code,
             &self.span,
-            // &self.suggestions,
-            // (if self.is_lint { None } else { Some(&self.children) }),
             &self.children,
+            // &self.suggestions,
+            // self.args().collect(),
+            // omit self.sort_span
+            // &self.is_lint,
+            // omit self.created_at
         )
     }
 }
@@ -624,8 +628,8 @@ fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Leve
 }
 
 fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
-    let ansi_style = style.to_color_spec(level);
-    write!(output, "{}{}{}", ansi_style.render(), msg.as_str(), ansi_style.render_reset()).unwrap();
+    let style = style.to_color_spec(level);
+    let _ = write!(output, "{style}{}{style:#}", msg.as_str());
 }
 
 #[cfg(test)]

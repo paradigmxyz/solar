@@ -7,7 +7,6 @@ LL | |     // TODO: Cache the check so we don't emit the error twice.
 LL | |     A a;
 LL | | }
    | |_^
-   |
 
 error: recursive struct definition
   --> ROOT/tests/ui/typeck/recursive_structs.sol:LL:CC
@@ -18,7 +17,6 @@ LL | |     // TODO: Cache the check so we don't emit the error twice.
 LL | |     A a;
 LL | | }
    | |_^
-   |
 
 error: aborting due to 2 previous errors
 

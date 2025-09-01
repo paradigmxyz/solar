@@ -3,28 +3,24 @@ error: the type has to be specified explicitly at file level (cannot use `*`)
    |
 LL | using {f} for * global;
    | ^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: can only globally attach functions to specific types
   --> ROOT/tests/ui/parser/using.sol:LL:CC
    |
 LL | using {f} for * global;
    | ^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: `global` can only be used at file level
   --> ROOT/tests/ui/parser/using.sol:LL:CC
    |
 LL |     using {f} for uint global;
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: the `using for` directive is not allowed inside interfaces
   --> ROOT/tests/ui/parser/using.sol:LL:CC
    |
 LL |     using L for int;
    |     ^^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 4 previous errors
 
