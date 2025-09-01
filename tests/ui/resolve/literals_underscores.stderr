@@ -3,7 +3,6 @@ error: empty rational
    |
 LL |     uint F6 = 1._;
    |               ^^^
-   |
 
 error: invalid use of underscores in number literal
   --> ROOT/tests/ui/resolve/literals_underscores.sol:LL:CC

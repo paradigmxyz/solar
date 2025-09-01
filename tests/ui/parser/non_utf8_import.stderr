@@ -3,7 +3,6 @@ error: couldn't read ROOT/tests/ui/parser/auxiliary/non_utf8.sol: stream did not
    |
 LL | import "./auxiliary/non_utf8.sol";
    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 1 previous error
 

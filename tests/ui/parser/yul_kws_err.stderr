@@ -3,28 +3,24 @@ error: expected identifier, found Yul EVM builtin keyword `number`
    |
 LL |             number := 0
    |             ^^^^^^
-   |
 
 error: expected identifier, found Yul EVM builtin keyword `number`
   --> ROOT/tests/ui/parser/yul_kws_err.sol:LL:CC
    |
 LL |             number, number := some_call()
    |             ^^^^^^
-   |
 
 error: expected identifier, found Yul EVM builtin keyword `number`
   --> ROOT/tests/ui/parser/yul_kws_err.sol:LL:CC
    |
 LL |             number, number := some_call()
    |                     ^^^^^^
-   |
 
 error: expected identifier, found Yul EVM builtin keyword `number`
   --> ROOT/tests/ui/parser/yul_kws_err.sol:LL:CC
    |
 LL |             let number := 0
    |                 ^^^^^^
-   |
 
 error: aborting due to 4 previous errors
 

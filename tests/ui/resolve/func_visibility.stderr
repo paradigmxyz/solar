@@ -43,7 +43,6 @@ error: free functions must be implemented
    |
 LL | function xyz();
    | ^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 6 previous errors
 

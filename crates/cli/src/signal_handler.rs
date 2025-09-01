@@ -4,8 +4,16 @@
 
 use std::{
     alloc::{Layout, alloc},
-    fmt, mem, ptr,
+    fmt, mem, ptr, slice,
 };
+
+/// Signals that represent that we have a bug, and our prompt termination has been ordered.
+#[rustfmt::skip]
+const KILL_SIGNALS: [(libc::c_int, &str); 3] = [
+    (libc::SIGILL, "SIGILL"),
+    (libc::SIGBUS, "SIGBUS"),
+    (libc::SIGSEGV, "SIGSEGV")
+];
 
 unsafe extern "C" {
     fn backtrace_symbols_fd(buffer: *const *mut libc::c_void, size: libc::c_int, fd: libc::c_int);
@@ -38,20 +46,34 @@ macro_rules! raw_errln {
 }
 
 /// Signal handler installed for SIGSEGV
-extern "C" fn print_stack_trace(_: libc::c_int) {
+///
+/// # Safety
+///
+/// Caller must ensure that this function is not re-entered.
+unsafe extern "C" fn print_stack_trace(signum: libc::c_int) {
     const MAX_FRAMES: usize = 256;
-    let mut stack_trace = [ptr::null_mut(); MAX_FRAMES];
+
+    let signame = KILL_SIGNALS
+        .into_iter()
+        .find(|(num, _)| *num == signum)
+        .map(|(_, name)| name)
+        .unwrap_or("<unknown>");
+
     let stack = unsafe {
+        // Reserve data segment so we don't have to malloc in a signal handler, which might fail
+        // in incredibly undesirable and unexpected ways due to e.g. the allocator deadlocking
+        static mut STACK_TRACE: [*mut libc::c_void; MAX_FRAMES] = [ptr::null_mut(); MAX_FRAMES];
         // Collect return addresses
-        let depth = libc::backtrace(stack_trace.as_mut_ptr(), MAX_FRAMES as i32);
+        let depth = libc::backtrace(&raw mut STACK_TRACE as _, MAX_FRAMES as i32);
         if depth == 0 {
             return;
         }
-        &stack_trace.as_slice()[0..(depth as _)]
+        slice::from_raw_parts(&raw const STACK_TRACE as _, depth as _)
     };
 
     // Just a stack trace is cryptic. Explain what we're doing.
-    raw_errln!("error: solar interrupted by SIGSEGV, printing backtrace\n");
+    raw_errln!("error: solar interrupted by {signame}, printing backtrace\n");
+
     let mut written = 1;
     let mut consumed = 0;
     // Begin elaborating return addrs into symbols and writing them directly to stderr
@@ -91,8 +113,8 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
     written += rem.len() + 1;
 
     let random_depth = || 8 * 16; // chosen by random diceroll (2d20)
-    if cyclic || stack.len() > random_depth() {
-        // technically speculation, but assert it with confidence anyway.
+    if (cyclic || stack.len() > random_depth()) && signum == libc::SIGSEGV {
+        // Technically speculation, but assert it with confidence anyway.
         // We only arrived in this signal handler because bad things happened
         // and this message is for explaining it's not the programmer's fault
         raw_errln!("note: solar unexpectedly overflowed its stack! this is a bug");
@@ -105,14 +127,14 @@ extern "C" fn print_stack_trace(_: libc::c_int) {
     raw_errln!("note: we would appreciate a report at https://github.com/paradigmxyz/solar");
     written += 1;
     if written > 24 {
-        // We probably just scrolled the earlier "we got SIGSEGV" message off the terminal
-        raw_errln!("note: backtrace dumped due to SIGSEGV! resuming signal");
+        // We probably just scrolled the earlier "interrupted by {signame}" message off the terminal
+        raw_errln!("note: backtrace dumped due to {signame}! resuming signal");
     }
 }
 
-/// Installs a SIGSEGV handler.
+/// Install the signal handler for the KILL signals.
 ///
-/// When SIGSEGV is delivered to the process, print a stack trace and then exit.
+/// When one of the KILL signals is delivered to the process, print a stack trace and then exit.
 pub fn install() {
     unsafe {
         let alt_stack_size: usize = min_sigstack_size() + 64 * 1024;
@@ -125,7 +147,9 @@ pub fn install() {
         sa.sa_sigaction = print_stack_trace as libc::sighandler_t;
         sa.sa_flags = libc::SA_NODEFER | libc::SA_RESETHAND | libc::SA_ONSTACK;
         libc::sigemptyset(&mut sa.sa_mask);
-        libc::sigaction(libc::SIGSEGV, &sa, ptr::null_mut());
+        for (signum, _signame) in KILL_SIGNALS {
+            libc::sigaction(signum, &sa, ptr::null_mut());
+        }
     }
 }
 

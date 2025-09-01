@@ -21,7 +21,7 @@ impl Emitter for JsonEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) {
         if self.rustc_like {
             let diagnostic = self.diagnostic(diagnostic);
-            self.emit(&EmitTyped::Diag(diagnostic))
+            self.emit(&EmitTyped::Diagnostic(diagnostic))
         } else {
             let diagnostic = self.solc_diagnostic(diagnostic);
             self.emit(&diagnostic)
@@ -69,8 +69,8 @@ impl JsonEmitter {
         Emitter::source_map(self).unwrap()
     }
 
-    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> Diag {
-        Diag {
+    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> Diagnostic {
+        Diagnostic {
             message: diagnostic.label().into_owned(),
             code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
             level: diagnostic.level.to_str(),
@@ -80,8 +80,8 @@ impl JsonEmitter {
         }
     }
 
-    fn sub_diagnostic(&self, diagnostic: &crate::diagnostics::SubDiagnostic) -> Diag {
-        Diag {
+    fn sub_diagnostic(&self, diagnostic: &crate::diagnostics::SubDiagnostic) -> Diagnostic {
+        Diagnostic {
             message: diagnostic.label().into_owned(),
             code: None,
             level: diagnostic.level.to_str(),
@@ -215,11 +215,11 @@ impl JsonEmitter {
 #[derive(Serialize)]
 #[serde(tag = "$message_type", rename_all = "snake_case")]
 enum EmitTyped {
-    Diag(Diag),
+    Diagnostic(Diagnostic),
 }
 
 #[derive(Serialize)]
-struct Diag {
+struct Diagnostic {
     /// The primary error message.
     message: String,
     code: Option<DiagnosticCode>,
@@ -227,7 +227,7 @@ struct Diag {
     level: &'static str,
     spans: Vec<DiagnosticSpan>,
     /// Associated diagnostic messages.
-    children: Vec<Diag>,
+    children: Vec<Diagnostic>,
     /// The message as the compiler would render it.
     rendered: Option<String>,
 }
@@ -310,9 +310,11 @@ fn to_severity(level: Level) -> Severity {
     match level {
         Level::Bug | Level::Fatal | Level::Error => Severity::Error,
         Level::Warning => Severity::Warning,
-        #[rustfmt::skip]
-        Level::Note | Level::OnceNote | Level::FailureNote |
-        Level::Help | Level::OnceHelp |
-        Level::Allow => Severity::Info,
+        Level::Note
+        | Level::OnceNote
+        | Level::FailureNote
+        | Level::Help
+        | Level::OnceHelp
+        | Level::Allow => Severity::Info,
     }
 }
