@@ -852,9 +852,118 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        let docs = self.arena.alloc_slice_copy(&self.docs);
+        let comments = self.arena.alloc_slice_copy(&self.docs);
         self.docs.clear();
-        docs.into()
+        let natspec = self.parse_natspec(comments);
+        DocComments { comments, natspec }
+    }
+
+    /// A naive parser implementation for `NatSpec` comments.
+    ///
+    /// Only validates that the grammar follows the NatSpec specification, but does not perform any
+    /// validation against the documented AST item.
+    fn parse_natspec(&mut self, comments: &[DocComment]) -> Option<ast::NatSpec<'ast>> {
+        if comments.is_empty() {
+            return None;
+        }
+
+        let mut items = SmallVec::<[ast::NatSpecItem; 8]>::new();
+        let mut has_tags = false;
+
+        let mut span: Option<Span> = None;
+        let mut kind: Option<ast::NatSpecKind> = None;
+        let mut content = String::new();
+
+        fn flush_item(
+            items: &mut SmallVec<[ast::NatSpecItem; 8]>,
+            kind: &mut Option<ast::NatSpecKind>,
+            content: &mut String,
+            span: &mut Option<Span>,
+        ) {
+            if let Some(k) = kind.take() {
+                let c = content.trim();
+                if !c.is_empty() {
+                    items.push(ast::NatSpecItem {
+                        span: span.take().unwrap(),
+                        kind: k,
+                        content: Symbol::intern(c),
+                    });
+                }
+            }
+            content.clear();
+        }
+
+        for comment in comments {
+            for line in comment.symbol.as_str().lines() {
+                let mut trimmed = line.trim_start();
+                if trimmed.starts_with('*') {
+                    trimmed = &trimmed[1..].trim_start();
+                }
+
+                if trimmed.starts_with('@') {
+                    has_tags = true;
+                    flush_item(&mut items, &mut kind, &mut content, &mut span);
+
+                    span = Some(comment.span);
+
+                    let tag_line = &trimmed[1..];
+                    let (tag, rest) =
+                        tag_line.split_once(char::is_whitespace).unwrap_or((tag_line, ""));
+
+                    let make_ident = |s: &str| Ident::new(Symbol::intern(s), comment.span);
+
+                    let (k, c) = match tag {
+                        "title" => (ast::NatSpecKind::Title, rest),
+                        "author" => (ast::NatSpecKind::Author, rest),
+                        "notice" => (ast::NatSpecKind::Notice, rest),
+                        "dev" => (ast::NatSpecKind::Dev, rest),
+                        "param" | "return" | "inheritdoc" => {
+                            let (name, content) =
+                                rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+                            let ident = make_ident(name);
+                            let kind = match tag {
+                                "param" => ast::NatSpecKind::Param { tag: ident },
+                                "return" => ast::NatSpecKind::Return { tag: ident },
+                                "inheritdoc" => ast::NatSpecKind::Inheritdoc { tag: ident },
+                                _ => unreachable!(),
+                            };
+                            (kind, content)
+                        }
+                        custom_tag => match custom_tag.strip_prefix("custom:") {
+                            Some(n) => (ast::NatSpecKind::Custom { tag: make_ident(n) }, rest),
+                            None => {
+                                self.dcx()
+                                    .err(format!("invalid natspec tag '@{custom_tag}', custom tags must use format '@custom:name'"))
+                                    .span(comment.span)
+                                    .emit();
+                                (ast::NatSpecKind::Custom { tag: make_ident("") }, rest)
+                            }
+                        },
+                    };
+
+                    kind = Some(k);
+                    content.push_str(c);
+                } else if kind.is_some() {
+                    if !content.is_empty() {
+                        content.push('\n');
+                    }
+                    content.push_str(trimmed);
+                    if let Some(s) = &mut span {
+                        *s = s.to(comment.span);
+                    }
+                }
+            }
+        }
+        flush_item(&mut items, &mut kind, &mut content, &mut span);
+
+        if !has_tags {
+            return None;
+        }
+
+        Some(ast::NatSpec {
+            span: Span::join_first_last(items.iter().map(|i| i.span)),
+            items: self.alloc_smallvec(items),
+        })
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.

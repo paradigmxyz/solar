@@ -81,34 +81,35 @@ impl std::ops::Deref for Arena {
 
 /// A list of doc-comments.
 #[derive(Default)]
-pub struct DocComments<'ast>(pub Box<'ast, [DocComment]>);
+pub struct DocComments<'ast> {
+    /// The raw doc comments.
+    pub comments: Box<'ast, [DocComment]>,
+    /// The parsed Natspec, if it exists.
+    pub natspec: Option<NatSpec<'ast>>,
+}
 
 impl<'ast> std::ops::Deref for DocComments<'ast> {
     type Target = Box<'ast, [DocComment]>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.comments
     }
 }
 
 impl std::ops::DerefMut for DocComments<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-impl<'ast> From<Box<'ast, [DocComment]>> for DocComments<'ast> {
-    fn from(comments: Box<'ast, [DocComment]>) -> Self {
-        Self(comments)
+        &mut self.comments
     }
 }
 
 impl fmt::Debug for DocComments<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("DocComments")?;
-        self.0.fmt(f)
+        self.comments.fmt(f)?;
+        f.write_str("\nNatSpec")?;
+        self.natspec.fmt(f)
     }
 }
 
@@ -117,6 +118,52 @@ impl DocComments<'_> {
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
     }
+}
+
+/// A Natspec documentation block.
+#[derive(Debug, Default)]
+pub struct NatSpec<'ast> {
+    pub span: Span,
+    pub items: Box<'ast, [NatSpecItem]>,
+}
+
+impl<'ast> std::ops::Deref for NatSpec<'ast> {
+    type Target = Box<'ast, [NatSpecItem]>;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.items
+    }
+}
+
+impl std::ops::DerefMut for NatSpec<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.items
+    }
+}
+
+/// A single item within a Natspec comment block.
+#[derive(Clone, Copy, Debug)]
+pub struct NatSpecItem {
+    pub span: Span,
+    pub kind: NatSpecKind,
+    pub content: Symbol,
+}
+
+/// The kind of a `NatSpec` item.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
+#[derive(Clone, Copy, Debug)]
+pub enum NatSpecKind {
+    Title,
+    Author,
+    Notice,
+    Dev,
+    Param { tag: Ident },
+    Return { tag: Ident },
+    Inheritdoc { tag: Ident },
+    Custom { tag: Ident },
 }
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
