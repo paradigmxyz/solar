@@ -6,7 +6,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        self.parse_expr_with(None)
+        self.with_recursion_limit("expression", |this| this.parse_expr_with(None))
     }
 
     #[instrument(name = "parse_expr", level = "trace", skip_all)]

@@ -1,0 +1,10 @@
+error: recursion limit reached
+  --> ROOT/tests/ui/parser/recursion_limit_yul.sol:LL:CC
+   |
+LL | ...{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}...
+   |                                                      -^
+   |                                                      |
+   |                                                      while parsing Yul statement
+
+error: aborting due to 1 previous error
+

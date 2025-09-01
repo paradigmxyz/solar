@@ -9,8 +9,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
     #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        self.with_recursion_limit("statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        })
     }
 
     /// Parses a statement into a new allocation.

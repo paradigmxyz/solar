@@ -42,10 +42,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("Unicode direction override checks not implemented");
     }
 
-    if path_contains("max_depth_reached_") {
-        return Err("recursion guard will not be implemented");
-    }
-
     if path_contains("wrong_compiler_") {
         return Err("Solidity pragma version is not checked");
     }
