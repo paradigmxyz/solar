@@ -22,6 +22,12 @@ pub struct Session {
     thread_pool: OnceLock<rayon::ThreadPool>,
 }
 
+impl Default for Session {
+    fn default() -> Self {
+        Self::new(Opts::default())
+    }
+}
+
 /// [`Session`] builder.
 #[derive(Default)]
 #[must_use = "builders don't do anything unless you call `build`"]
@@ -32,7 +38,9 @@ pub struct SessionBuilder {
 }
 
 impl SessionBuilder {
-    /// Sets the diagnostic context. This is required.
+    /// Sets the diagnostic context.
+    ///
+    /// If `opts` is set this will default to [`DiagCtxt::from_opts`], otherwise this is required.
     ///
     /// See also the `with_*_emitter*` methods.
     pub fn dcx(mut self, dcx: DiagCtxt) -> Self {
@@ -126,7 +134,12 @@ impl SessionBuilder {
     /// - the source map in the diagnostics context does not match the one set in the builder
     #[track_caller]
     pub fn build(mut self) -> Session {
-        let mut dcx = self.dcx.take().unwrap_or_else(|| panic!("diagnostics context not set"));
+        let opts = self.opts.take();
+        let mut dcx = self.dcx.take().unwrap_or_else(|| {
+            opts.as_ref()
+                .map(DiagCtxt::from_opts)
+                .unwrap_or_else(|| panic!("either diagnostics context or options must be set"))
+        });
         let sess = Session {
             globals: Arc::new(match self.globals.take() {
                 Some(globals) => {
@@ -146,7 +159,7 @@ impl SessionBuilder {
                 }
             }),
             dcx,
-            opts: self.opts.take().unwrap_or_default(),
+            opts: opts.unwrap_or_default(),
             thread_pool: OnceLock::new(),
         };
 
@@ -164,20 +177,17 @@ impl SessionBuilder {
 }
 
 impl Session {
-    /// Creates a new session with the given diagnostics context and source map.
-    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
-        Self::builder().dcx(dcx).source_map(source_map).build()
-    }
-
-    /// Creates a new session with the given diagnostics context and an empty source map.
-    pub fn empty(dcx: DiagCtxt) -> Self {
-        Self::builder().dcx(dcx).build()
-    }
-
     /// Creates a new session builder.
     #[inline]
     pub fn builder() -> SessionBuilder {
         SessionBuilder::default()
+    }
+
+    /// Creates a new session from the given options.
+    ///
+    /// See [`builder`](Self::builder) for a more flexible way to create a session.
+    pub fn new(opts: Opts) -> Self {
+        Self::builder().opts(opts).build()
     }
 
     /// Infers the language from the input files.
@@ -491,9 +501,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "diagnostics context not set"]
-    fn no_dcx() {
-        Session::builder().build();
+    fn builder() {
+        let _ = Session::builder().with_stderr_emitter().build();
+    }
+
+    #[test]
+    fn not_builder() {
+        let _ = Session::new(Opts::default());
+        let _ = Session::default();
     }
 
     #[test]
@@ -506,23 +521,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "session source map does not match the one in the diagnostics context"]
-    fn sm_mismatch_non_builder() {
-        let sm1 = Arc::<SourceMap>::default();
-        let sm2 = Arc::<SourceMap>::default();
-        assert!(!Arc::ptr_eq(&sm1, &sm2));
-        Session::new(DiagCtxt::with_stderr_emitter(Some(sm2)), sm1);
+    #[should_panic = "either diagnostics context or options must be set"]
+    fn no_dcx() {
+        Session::builder().build();
     }
 
     #[test]
-    fn builder() {
-        let _ = Session::builder().with_stderr_emitter().build();
-    }
-
-    #[test]
-    fn empty() {
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(None));
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(Some(Default::default())));
+    fn dcx() {
+        let _ = Session::builder().dcx(DiagCtxt::with_stderr_emitter(None)).build();
+        let _ =
+            Session::builder().dcx(DiagCtxt::with_stderr_emitter(Some(Default::default()))).build();
     }
 
     #[test]

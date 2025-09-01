@@ -117,7 +117,7 @@ impl JsonEmitter {
     fn span_lines(&self, span: Span) -> Vec<DiagnosticSpanLine> {
         let Ok(f) = self.source_map().span_to_lines(span) else { return Vec::new() };
         let sf = &*f.file;
-        f.lines.iter().map(|line| self.span_line(sf, line)).collect()
+        f.data.iter().map(|line| self.span_line(sf, line)).collect()
     }
 
     fn span_line(&self, sf: &SourceFile, line: &LineInfo) -> DiagnosticSpanLine {

@@ -11,7 +11,7 @@ use anstream::{AutoStream, ColorChoice};
 use std::{
     any::Any,
     io::{self, Write},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 // TODO: Tabs are not formatted correctly: https://github.com/rust-lang/annotate-snippets-rs/issues/25
@@ -104,14 +104,9 @@ impl HumanEmitter {
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
-    pub fn stderr(mut color_choice: ColorChoice) -> Self {
-        let stderr = io::stderr();
-        // Call `AutoStream::choice` on `io::Stderr` rather than later on `Box<dyn Write>`.
-        if color_choice == ColorChoice::Auto {
-            color_choice = AutoStream::choice(&stderr);
-        }
+    pub fn stderr(color_choice: ColorChoice) -> Self {
         // `io::Stderr` is not buffered.
-        Self::new(io::BufWriter::new(stderr), color_choice)
+        Self::new(io::BufWriter::new(io::stderr()), stderr_choice(color_choice))
     }
 
     /// Sets the source map.
@@ -223,11 +218,8 @@ impl Emitter for HumanBufferEmitter {
 
 impl HumanBufferEmitter {
     /// Creates a new `BufferEmitter` that writes to a local buffer.
-    pub fn new(mut color: ColorChoice) -> Self {
-        if color == ColorChoice::Auto {
-            color = anstream::AutoStream::choice(&std::io::stderr());
-        }
-        Self { inner: HumanEmitter::new(Vec::<u8>::new(), color) }
+    pub fn new(color_choice: ColorChoice) -> Self {
+        Self { inner: HumanEmitter::new(Vec::<u8>::new(), stderr_choice(color_choice)) }
     }
 
     /// Sets the source map.
@@ -412,4 +404,13 @@ fn to_as_level<'a>(level: Level) -> ASLevel<'a> {
 
 fn char_to_byte_pos(s: &str, char_pos: usize) -> usize {
     s.chars().take(char_pos).map(char::len_utf8).sum()
+}
+
+fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
+    static AUTO: OnceLock<ColorChoice> = OnceLock::new();
+    if color_choice == ColorChoice::Auto {
+        *AUTO.get_or_init(|| anstream::AutoStream::choice(&std::io::stderr()))
+    } else {
+        color_choice
+    }
 }

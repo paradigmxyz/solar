@@ -117,6 +117,7 @@ clap_builder = "4.4"
 anstream = "0.6.18"
 anstyle = "1.0"
 annotate-snippets = { version = "0.12", features = ["simd"] }
+colorchoice = "1.0"
 
 # serde
 serde = "1.0"

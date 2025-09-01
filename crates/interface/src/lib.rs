@@ -32,7 +32,7 @@ pub use symbol::{ByteSymbol, Ident, Symbol, kw, sym};
 
 pub mod panic_hook;
 
-pub use anstream::ColorChoice;
+pub use config::ColorChoice;
 pub use dunce::canonicalize;
 pub use solar_config as config;
 pub use solar_data_structures as data_structures;

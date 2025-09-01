@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
+use solar_config::{ErrorFormat, Opts};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
 use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 
@@ -29,6 +30,21 @@ impl Default for DiagCtxtFlags {
             deduplicate_diagnostics: true,
             track_diagnostics: cfg!(debug_assertions),
         }
+    }
+}
+
+impl DiagCtxtFlags {
+    /// Updates the flags from the given options.
+    ///
+    /// Looks at the following options:
+    /// - `unstable.ui_testing`
+    /// - `unstable.track_diagnostics`
+    /// - `no_warnings`
+    pub fn update_from_opts(&mut self, opts: &Opts) {
+        self.deduplicate_diagnostics &= !opts.unstable.ui_testing;
+        self.track_diagnostics &= !opts.unstable.ui_testing;
+        self.track_diagnostics |= opts.unstable.track_diagnostics;
+        self.can_emit_warnings |= !opts.no_warnings;
     }
 }
 
@@ -119,6 +135,43 @@ impl DiagCtxt {
         color_choice: ColorChoice,
     ) -> Self {
         Self::new(Box::new(HumanBufferEmitter::new(color_choice).source_map(source_map)))
+    }
+
+    /// Creates a new `DiagCtxt` from the given options.
+    ///
+    /// This is the default `DiagCtxt` used by the `Session` if one is not provided manually.
+    /// It looks at the following options:
+    /// - `error_format`
+    /// - `color`
+    /// - `unstable.ui_testing`
+    /// - `unstable.track_diagnostics`
+    /// - `no_warnings`
+    ///
+    /// The default is human emitter to stderr.
+    ///
+    /// See also [`DiagCtxtFlags::update_from_opts`].
+    pub fn from_opts(opts: &solar_config::Opts) -> Self {
+        let source_map = Arc::new(SourceMap::empty());
+        let emitter: Box<DynEmitter> = match opts.error_format {
+            ErrorFormat::Human => {
+                let human = HumanEmitter::stderr(opts.color)
+                    .source_map(Some(source_map))
+                    .ui_testing(opts.unstable.ui_testing);
+                Box::new(human)
+            }
+            #[cfg(feature = "json")]
+            ErrorFormat::Json | ErrorFormat::RustcJson => {
+                // `io::Stderr` is not buffered.
+                let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
+                let json = crate::diagnostics::JsonEmitter::new(writer, source_map)
+                    .pretty(opts.pretty_json_err)
+                    .rustc_like(matches!(opts.error_format, ErrorFormat::RustcJson))
+                    .ui_testing(opts.unstable.ui_testing);
+                Box::new(json)
+            }
+            format => unimplemented!("{format:?}"),
+        };
+        Self::new(emitter).set_flags(|flags| flags.update_from_opts(opts))
     }
 
     /// Sets the emitter to [`SilentEmitter`].

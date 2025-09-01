@@ -2624,6 +2624,7 @@ name = "solar-config"
 version = "0.1.6"
 dependencies = [
  "clap",
+ "colorchoice",
  "serde",
  "serde_json",
  "strum 0.27.2",
