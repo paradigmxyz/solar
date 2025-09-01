@@ -60,12 +60,8 @@ pub struct Parser<'sess, 'ast> {
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
 
-    /// Current recursion depth for expression parsing via `parse_expr`.
-    expr_recursion_depth: usize,
-    /// Current recursion depth for statement parsing via `parse_stmt`.
-    stmt_recursion_depth: usize,
-    /// Current recursion depth for Yul statement parsing via `parse_yul_stmt`.
-    yul_stmt_recursion_depth: usize,
+    /// Current recursion depth for recursive parsing operations.
+    recursion_depth: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -150,9 +146,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
-            expr_recursion_depth: 0,
-            stmt_recursion_depth: 0,
-            yul_stmt_recursion_depth: 0,
+            recursion_depth: 0,
         };
         parser.bump();
         parser
@@ -837,6 +831,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let old = std::mem::replace(&mut self.in_yul, true);
         let res = f(self);
         self.in_yul = old;
+        res
+    }
+
+    /// Runs `f` with recursion depth tracking and limit enforcement.
+    #[inline]
+    pub fn with_recursion_limit<T>(
+        &mut self,
+        context: &str,
+        f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, T> {
+        // Increment recursion depth and enforce limit.
+        self.recursion_depth = self.recursion_depth.saturating_add(1);
+        if self.recursion_depth > PARSER_RECURSION_LIMIT {
+            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
+            // Try to point at a larger span if we have a previous token.
+            if !self.prev_token.span.is_dummy() {
+                err = err.span_note(self.prev_token.span, format!("while parsing {context}"));
+            }
+            // Decrement depth before returning to keep counters consistent if caller continues.
+            self.recursion_depth = self.recursion_depth.saturating_sub(1);
+            return Err(err);
+        }
+
+        let res = f(self);
+        self.recursion_depth = self.recursion_depth.saturating_sub(1);
         res
     }
 }

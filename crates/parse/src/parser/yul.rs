@@ -90,19 +90,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        // Increment recursion depth and enforce limit for Yul statements.
-        self.yul_stmt_recursion_depth = self.yul_stmt_recursion_depth.saturating_add(1);
-        if self.yul_stmt_recursion_depth > super::PARSER_RECURSION_LIMIT {
-            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
-            if !self.prev_token.span.is_dummy() {
-                err = err.span_note(self.prev_token.span, "while parsing Yul statement");
-            }
-            self.yul_stmt_recursion_depth = self.yul_stmt_recursion_depth.saturating_sub(1);
-            return Err(err);
-        }
-        let res = self.in_yul(Self::parse_yul_stmt);
-        self.yul_stmt_recursion_depth = self.yul_stmt_recursion_depth.saturating_sub(1);
-        res
+        self.with_recursion_limit("Yul statement", |parser| {
+            parser.in_yul(Self::parse_yul_stmt_unchecked)
+        })
     }
 
     /// Parses a Yul statement, without setting `in_yul`.

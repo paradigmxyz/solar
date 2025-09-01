@@ -1,0 +1,11 @@
+error: recursion limit reached
+  --> ROOT/tests/ui/parser/recursion_limit.sol:LL:CC
+   |
+LL | ...{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}...
+   |                                                        -^
+   |                                                        |
+   |                                                        note: while parsing statement
+   |
+
+error: aborting due to 1 previous error
+

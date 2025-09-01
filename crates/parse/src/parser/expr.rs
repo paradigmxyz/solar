@@ -6,22 +6,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        // Increment recursion depth and enforce limit.
-        self.expr_recursion_depth = self.expr_recursion_depth.saturating_add(1);
-        if self.expr_recursion_depth > super::PARSER_RECURSION_LIMIT {
-            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
-            // Try to point at a larger span if we have a previous token.
-            if !self.prev_token.span.is_dummy() {
-                err = err.span_note(self.prev_token.span, "while parsing expression");
-            }
-            // Decrement depth before returning to keep counters consistent if caller continues.
-            self.expr_recursion_depth = self.expr_recursion_depth.saturating_sub(1);
-            return Err(err);
-        }
-
-        let res = self.parse_expr_with(None);
-        self.expr_recursion_depth = self.expr_recursion_depth.saturating_sub(1);
-        res
+        self.with_recursion_limit("expression", |parser| parser.parse_expr_with(None))
     }
 
     #[instrument(name = "parse_expr", level = "trace", skip_all)]

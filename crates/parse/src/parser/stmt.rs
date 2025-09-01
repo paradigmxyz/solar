@@ -9,21 +9,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
     #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        // Increment recursion depth and enforce limit for statements.
-        self.stmt_recursion_depth = self.stmt_recursion_depth.saturating_add(1);
-        if self.stmt_recursion_depth > super::PARSER_RECURSION_LIMIT {
-            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
-            if !self.prev_token.span.is_dummy() {
-                err = err.span_note(self.prev_token.span, "while parsing statement");
-            }
-            self.stmt_recursion_depth = self.stmt_recursion_depth.saturating_sub(1);
-            return Err(err);
-        }
-        let docs = self.parse_doc_comments();
-        let res =
-            self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span });
-        self.stmt_recursion_depth = self.stmt_recursion_depth.saturating_sub(1);
-        res
+        self.with_recursion_limit("statement", |parser| {
+            let docs = parser.parse_doc_comments();
+            parser.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        })
     }
 
     /// Parses a statement into a new allocation.
