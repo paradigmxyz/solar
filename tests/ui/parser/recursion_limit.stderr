@@ -4,8 +4,7 @@ error: recursion limit reached
 LL | ...{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}...
    |                                                        -^
    |                                                        |
-   |                                                        note: while parsing statement
-   |
+   |                                                        while parsing statement
 
 error: aborting due to 1 previous error
 

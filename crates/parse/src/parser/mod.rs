@@ -847,7 +847,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
             // Try to point at a larger span if we have a previous token.
             if !self.prev_token.span.is_dummy() {
-                err = err.span_note(self.prev_token.span, format!("while parsing {context}"));
+                err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
             }
             // Decrement depth before returning to keep counters consistent if caller continues.
             self.recursion_depth = self.recursion_depth.saturating_sub(1);
