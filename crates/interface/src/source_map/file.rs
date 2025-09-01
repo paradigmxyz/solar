@@ -194,14 +194,11 @@ pub struct SourceFile {
     /// Locations of multi-byte characters in the source code.
     #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
-    /// A hash of the filename for faster equality checks.
-    #[debug(skip)]
-    pub(crate) id: SourceFileId,
 }
 
 impl PartialEq for SourceFile {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.start_pos == other.start_pos
     }
 }
 
@@ -209,7 +206,7 @@ impl Eq for SourceFile {}
 
 impl std::hash::Hash for SourceFile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+        self.start_pos.hash(state);
     }
 }
 
@@ -239,7 +236,6 @@ impl SourceFile {
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
-            id,
         })
     }
 

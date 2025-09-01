@@ -18,6 +18,8 @@ mod utils;
 
 pub mod version;
 
+pub use colorchoice::ColorChoice;
+
 /// Whether the target is single-threaded.
 ///
 /// We still allow passing `-j` greater than 1, but it should gracefully handle the error when

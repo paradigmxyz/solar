@@ -243,7 +243,7 @@ impl FileWithAnnotatedLines {
                     label,
                     annotation_type: AnnotationType::Singleline,
                 };
-                add_annotation_to_file(&mut output, lo.file, lo.line, ann);
+                add_annotation_to_file(&mut output, lo.file, lo.data.line, ann);
             };
         }
 
