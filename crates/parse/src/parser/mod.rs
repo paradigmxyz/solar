@@ -681,7 +681,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     match self.expect(sep_kind) {
                         Ok(recovered_) => {
                             if recovered_ {
-                                recovered = recovered_;
+                                recovered = true;
                                 break;
                             }
                         }

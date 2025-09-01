@@ -203,7 +203,13 @@ impl<'a> Cursor<'a> {
         self.bump();
 
         // `////` (more than 3 slashes) is not considered a doc comment.
-        let is_doc = matches!(self.first(), b'/' if self.second() != b'/');
+        let bytes = self.as_bytes();
+        let is_doc = bytes.len() >= 2 && {
+            let w = u16::from_le_bytes([bytes[0], bytes[1]]);
+            let first = (w & 0xFF) as u8;
+            let second = (w >> 8) as u8;
+            first == b'/' && second != b'/'
+        };
 
         // Take into account Windows line ending (CRLF)
         self.eat_until_either(b'\n', b'\r');
