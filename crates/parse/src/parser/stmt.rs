@@ -11,7 +11,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         self.with_recursion_limit("statement", |parser| {
             let docs = parser.parse_doc_comments();
-            parser.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+            parser.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt {
+                docs,
+                kind,
+                span,
+            })
         })
     }
 
