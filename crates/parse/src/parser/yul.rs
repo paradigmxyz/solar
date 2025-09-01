@@ -90,15 +90,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        self.with_recursion_limit("Yul statement", |parser| {
-            parser.in_yul(Self::parse_yul_stmt_unchecked)
-        })
+        self.in_yul(Self::parse_yul_stmt_unchecked)
     }
 
     /// Parses a Yul statement, without setting `in_yul`.
     pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
+        self.with_recursion_limit("Yul statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt {
+                docs,
+                span,
+                kind,
+            })
+        })
     }
 
     /// Parses a Yul block.
