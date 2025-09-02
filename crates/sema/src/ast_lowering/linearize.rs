@@ -22,7 +22,8 @@ impl super::LoweringContext<'_> {
                 if linearizer.result.is_empty() {
                     let msg = "linearization of inheritance graph impossible";
                     self.dcx().err(msg).span(self.hir.contract(contract_id).name.span).emit();
-                    continue;
+                    // Always include the contract itself in the linearized bases.
+                    linearizer.result.push(contract_id);
                 }
                 let linearized_bases = &*self.arena.alloc_slice_copy(&linearizer.result);
                 self.hir.contracts[contract_id].linearized_bases = linearized_bases;

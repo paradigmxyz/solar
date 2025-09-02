@@ -443,6 +443,10 @@ impl<'gcx> ResolveContext<'gcx> {
             );
             let contract = self.hir.contract(c_id);
 
+            if contract.linearization_failed() {
+                continue;
+            }
+
             let len = contract.linearized_bases.len() - 1;
             let base_args: &mut [Option<&'gcx hir::Modifier<'gcx>>] =
                 self.arena.alloc_from_iter(std::iter::repeat_n(None, len));

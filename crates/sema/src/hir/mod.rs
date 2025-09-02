@@ -536,7 +536,9 @@ pub struct Contract<'hir> {
     pub bases_args: &'hir [Modifier<'hir>],
     /// The linearized contract bases.
     ///
-    /// The first element is the contract itself, followed by its bases in order of inheritance.
+    /// The first element is always the contract itself, followed by its bases in order of
+    /// inheritance. The bases may not be present if the inheritance linearization failed. See
+    /// [`Contract::linearization_failed`].
     pub linearized_bases: &'hir [ContractId],
     /// The constructor base arguments (if any).
     ///
@@ -559,6 +561,12 @@ pub struct Contract<'hir> {
 }
 
 impl Contract<'_> {
+    /// Returns `true` if the inheritance linearization failed.
+    pub fn linearization_failed(&self) -> bool {
+        self.linearized_bases.is_empty()
+            || (self.bases.len() > 0 && self.linearized_bases.len() == 1)
+    }
+
     /// Returns an iterator over functions declared in the contract.
     ///
     /// Note that this does not include the constructor and fallback functions, as they are stored
