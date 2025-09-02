@@ -564,7 +564,7 @@ impl Contract<'_> {
     /// Returns `true` if the inheritance linearization failed.
     pub fn linearization_failed(&self) -> bool {
         self.linearized_bases.is_empty()
-            || (self.bases.len() > 0 && self.linearized_bases.len() == 1)
+            || (!self.bases.is_empty() && self.linearized_bases.len() == 1)
     }
 
     /// Returns an iterator over functions declared in the contract.
