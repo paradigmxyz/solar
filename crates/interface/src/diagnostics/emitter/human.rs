@@ -6,6 +6,7 @@ use crate::{
 };
 use annotate_snippets::{
     Annotation, AnnotationKind, Group, Level as ASLevel, Message, Renderer, Report, Snippet, Title,
+    renderer::DecorStyle,
 };
 use anstream::{AutoStream, ColorChoice};
 use solar_config::HumanEmitterKind;
@@ -136,17 +137,18 @@ impl HumanEmitter {
     /// Sets the human emitter kind (unicode vs short).
     pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
         match kind {
+            HumanEmitterKind::Ascii => {
+                self.renderer = self.renderer.decor_style(DecorStyle::Ascii);
+            }
             HumanEmitterKind::Unicode => {
-                // Unicode is the default, no change needed
-                self
+                self.renderer = self.renderer.decor_style(DecorStyle::Unicode);
             }
             HumanEmitterKind::Short => {
-                // Use short message format
                 self.renderer = self.renderer.short_message(true);
-                self
             }
-            _ => unreachable!("Invalid HumanEmitterKind: {kind:?}"),
+            _ => unimplemented!("{kind:?}"),
         }
+        self
     }
 
     /// Sets the terminal width for formatting.

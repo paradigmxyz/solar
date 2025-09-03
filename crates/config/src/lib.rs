@@ -211,10 +211,12 @@ str_enum! {
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum HumanEmitterKind {
-        /// Unicode-style decorations (default).
+        /// ASCII decorations (default).
         #[default]
+        Ascii,
+        /// Unicode decorations.
         Unicode,
-        /// Short-style decorations.
+        /// Short messages.
         Short,
     }
 }
