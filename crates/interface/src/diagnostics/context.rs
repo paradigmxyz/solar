@@ -146,6 +146,8 @@ impl DiagCtxt {
     /// - `unstable.ui_testing`
     /// - `unstable.track_diagnostics`
     /// - `no_warnings`
+    /// - `error_format_human`
+    /// - `diagnostic_width`
     ///
     /// The default is human emitter to stderr.
     ///
@@ -156,7 +158,9 @@ impl DiagCtxt {
             ErrorFormat::Human => {
                 let human = HumanEmitter::stderr(opts.color)
                     .source_map(Some(source_map))
-                    .ui_testing(opts.unstable.ui_testing);
+                    .ui_testing(opts.unstable.ui_testing)
+                    .human_kind(opts.error_format_human)
+                    .terminal_width(opts.diagnostic_width);
                 Box::new(human)
             }
             #[cfg(feature = "json")]
@@ -166,7 +170,9 @@ impl DiagCtxt {
                 let json = crate::diagnostics::JsonEmitter::new(writer, source_map)
                     .pretty(opts.pretty_json_err)
                     .rustc_like(matches!(opts.error_format, ErrorFormat::RustcJson))
-                    .ui_testing(opts.unstable.ui_testing);
+                    .ui_testing(opts.unstable.ui_testing)
+                    .human_kind(opts.error_format_human)
+                    .terminal_width(opts.diagnostic_width);
                 Box::new(json)
             }
             format => unimplemented!("{format:?}"),

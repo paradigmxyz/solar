@@ -205,6 +205,22 @@ str_enum! {
     }
 }
 
+str_enum! {
+    /// Human-readable error message style.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum HumanEmitterKind {
+        /// ASCII decorations (default).
+        #[default]
+        Ascii,
+        /// Unicode decorations.
+        Unicode,
+        /// Short messages.
+        Short,
+    }
+}
+
 /// A single import remapping: `[context:]prefix=path`.
 #[derive(Clone)]
 pub struct ImportRemapping {
