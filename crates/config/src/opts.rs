@@ -1,8 +1,8 @@
 //! Solar CLI arguments.
 
 use crate::{
-    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportRemapping,
-    Language, Threads,
+    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
+    ImportRemapping, Language, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -123,6 +123,18 @@ pub struct Opts {
         arg(help_heading = "Display options", long, value_enum, default_value_t)
     )]
     pub error_format: ErrorFormat,
+    /// Human-readable error message style.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_enum, default_value_t)
+    )]
+    pub error_format_human: HumanEmitterKind,
+    /// Terminal width for error message formatting.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_name = "WIDTH")
+    )]
+    pub diagnostic_width: Option<usize>,
     /// Whether to disable warnings.
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,

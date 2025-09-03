@@ -83,5 +83,14 @@ Display options:
           [default: human]
           [possible values: human, json, rustc-json]
 
+      --error-format-human <ERROR_FORMAT_HUMAN>
+          Human-readable error message style
+          
+          [default: unicode]
+          [possible values: unicode, short]
+
+      --diagnostic-width <WIDTH>
+          Terminal width for error message formatting
+
       --no-warnings
           Whether to disable warnings

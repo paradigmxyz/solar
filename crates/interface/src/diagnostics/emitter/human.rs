@@ -8,6 +8,7 @@ use annotate_snippets::{
     Annotation, AnnotationKind, Group, Level as ASLevel, Message, Renderer, Report, Snippet, Title,
 };
 use anstream::{AutoStream, ColorChoice};
+use solar_config::HumanEmitterKind;
 use std::{
     any::Any,
     io::{self, Write},
@@ -132,6 +133,30 @@ impl HumanEmitter {
             std::mem::replace(&mut self.renderer, DEFAULT_RENDERER).anonymized_line_numbers(yes);
     }
 
+    /// Sets the human emitter kind (unicode vs short).
+    pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
+        match kind {
+            HumanEmitterKind::Unicode => {
+                // Unicode is the default, no change needed
+                self
+            }
+            HumanEmitterKind::Short => {
+                // Use short message format
+                self.renderer = self.renderer.short_message(true);
+                self
+            }
+            _ => unreachable!("Invalid HumanEmitterKind: {kind:?}"),
+        }
+    }
+
+    /// Sets the terminal width for formatting.
+    pub fn terminal_width(mut self, width: Option<usize>) -> Self {
+        if let Some(w) = width {
+            self.renderer = self.renderer.term_width(w);
+        }
+        self
+    }
+
     /// Downcasts the underlying writer to the specified type.
     fn downcast_writer<T: Any>(&self) -> Option<&T> {
         if self.writer_type_id == std::any::TypeId::of::<T>() {
@@ -231,6 +256,18 @@ impl HumanBufferEmitter {
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
         self.inner = self.inner.ui_testing(yes);
+        self
+    }
+
+    /// Sets the human emitter kind (unicode vs short).
+    pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
+        self.inner = self.inner.human_kind(kind);
+        self
+    }
+
+    /// Sets the terminal width for formatting.
+    pub fn terminal_width(mut self, width: Option<usize>) -> Self {
+        self.inner = self.inner.terminal_width(width);
         self
     }
 
