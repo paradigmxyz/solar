@@ -15,12 +15,6 @@ pub use mem::InMemoryEmitter;
 
 mod rustc;
 
-/// Maximum number of suggestions to emit per diagnostic.
-
-/// Maximum number of lines to highlight in a suggestion.
-#[allow(dead_code)]
-pub(super) const MAX_SUGGESTION_HIGHLIGHT_LINES: usize = 6;
-
 /// Dynamic diagnostic emitter. See [`Emitter`].
 pub type DynEmitter = dyn Emitter + Send;
 

@@ -178,23 +178,19 @@ impl HumanEmitter {
         <other groups for subdiagnostics, same as above without footers>
         */
 
-        let sm = self.source_map.as_deref();
-
-        // Process suggestions and modify primary span for those than can be inlined
+        // Process suggestions. Inline primary span if necessary.
         let mut primary_span = diagnostic.span.clone();
-        let children = {
-            // inline primary span --> suggestions are cleared when the span is inlined.
-            self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
+        self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
-            diagnostic.suggestions.iter().filter_map(|sugg|
-                // Unless style is `HideCodeAlways`, render as a diff group.
-                if sugg.style != SuggestionStyle::HideCodeAlways {
-                    Some(sugg)
-                } else {
-                    None
-                }).collect::<Vec<_>>()
-        };
+        // Render suggestions unless style is `HideCodeAlways`.
+        // Note that if the span was previously inlined, suggestions will be empty.
+        let children = diagnostic
+            .suggestions
+            .iter()
+            .filter(|sugg| sugg.style != SuggestionStyle::HideCodeAlways)
+            .collect::<Vec<_>>();
 
+        let sm = self.source_map.as_deref();
         let title = title_from_diagnostic(diagnostic);
         let snippets = sm.map(|sm| iter_snippets(sm, &primary_span)).into_iter().flatten();
 

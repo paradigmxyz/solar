@@ -70,28 +70,19 @@ impl JsonEmitter {
     }
 
     fn diagnostic(&mut self, diagnostic: &mut Diag) -> Diagnostic {
-        // Process suggestions and modify primary span for those than can be inlined
-        let mut primary_span = diagnostic.span.clone();
-        let children = {
-            // inline primary span --> suggestions are cleared when the span is inlined.
-            self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
-
-            // get children (only if primary span wasn't inlined)
-            diagnostic
-                .children
-                .iter()
-                .map(|sub| self.sub_diagnostic(sub))
-                .chain(
-                    diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)),
-                )
-                .collect()
-        };
+        // Unlike the human emitter, all suggestions are preserved as separate diagnostic children.
+        let children = diagnostic
+            .children
+            .iter()
+            .map(|sub| self.sub_diagnostic(sub))
+            .chain(diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)))
+            .collect();
 
         Diagnostic {
             message: diagnostic.label().into_owned(),
             code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
             level: diagnostic.level.to_str(),
-            spans: self.spans(&primary_span),
+            spans: self.spans(&diagnostic.span),
             children,
             rendered: Some(self.emit_diagnostic_to_buffer(diagnostic)),
         }

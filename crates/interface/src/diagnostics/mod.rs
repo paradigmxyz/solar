@@ -388,7 +388,7 @@ impl Default for SuggestionStyle {
 
 impl SuggestionStyle {
     fn hide_inline(&self) -> bool {
-        !matches!(*self, SuggestionStyle::ShowCode)
+        !matches!(*self, Self::ShowCode)
     }
 }
 
@@ -414,9 +414,9 @@ impl Suggestions {
     /// Returns the underlying list of suggestions.
     pub fn unwrap_tag(&self) -> &[CodeSuggestion] {
         match self {
-            Suggestions::Enabled(suggestions) => suggestions,
-            Suggestions::Sealed(suggestions) => suggestions,
-            Suggestions::Disabled => &[],
+            Self::Enabled(suggestions) => suggestions,
+            Self::Sealed(suggestions) => suggestions,
+            Self::Disabled => &[],
         }
     }
 }
@@ -1034,7 +1034,6 @@ help: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        // Emit and assert
         let expected = r#"warning: inefficient visibility and mutability
  --> <test.sol>:3:20
   |
@@ -1054,7 +1053,6 @@ help: consider changing visibility and mutability
     #[test]
     #[cfg(feature = "json")]
     fn test_json_suggestion() {
-        // Construct a diagnostic manually
         let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
         let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
         diag.span(var_span).span_suggestion(
@@ -1068,7 +1066,6 @@ help: consider changing visibility and mutability
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        // Emit the diagnostics and assert output
         let expected = json!({
             "$message_type": "diagnostic",
             "message": "mutable variables should use mixedCase",
@@ -1091,8 +1088,31 @@ help: consider changing visibility and mutability
                 "label": null,
                 "suggested_replacement": null
             }],
-            "children": [],
-            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n |\n 4 |         uint256 my_var = 0;\n |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`\n\n"
+            "children": [{
+                "message": "mutable variables should use mixedCase",
+                "code": null,
+                "level": "help",
+                "spans": [{
+                    "file_name": "<test.sol>",
+                    "byte_start": 66,
+                    "byte_end": 72,
+                    "line_start": 4,
+                    "line_end": 4,
+                    "column_start": 17,
+                    "column_end": 23,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "        uint256 my_var = 0;",
+                        "highlight_start": 17,
+                        "highlight_end": 23
+                    }],
+                    "label": null,
+                    "suggested_replacement": "myVar"
+                }],
+                "children": [],
+                "rendered": null
+            }],
+            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n  |\n4 |         uint256 my_var = 0;\n  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`\n\n"
         });
 
         assert_eq!(emit_json_diagnostics(diag), expected);
@@ -1101,7 +1121,6 @@ help: consider changing visibility and mutability
     #[test]
     #[cfg(feature = "json")]
     fn test_multispan_json_suggestion() {
-        // Construct a diagnostic manually
         let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
         let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
         let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
@@ -1116,7 +1135,6 @@ help: consider changing visibility and mutability
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        // Emit the diagnostics and assert output
         let expected = json!({
             "$message_type": "diagnostic",
             "message": "inefficient visibility and mutability",
