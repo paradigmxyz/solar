@@ -1,9 +1,9 @@
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, sync::Arc};
 
 use crop::Rope;
 use lsp_types::{
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
 use tracing::error;
 
@@ -79,5 +79,26 @@ pub(crate) fn did_change_configuration(
     // this notification's parameters should be ignored and the actual config queried separately.
     //
     // For now this is just a stub.
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_change_workspace_folders(
+    state: &mut GlobalState,
+    params: DidChangeWorkspaceFoldersParams,
+) -> NotifyResult {
+    let config = Arc::make_mut(&mut state.config);
+
+    for workspace in params.event.removed {
+        let Ok(path) = workspace.uri.to_file_path() else {
+            continue;
+        };
+        config.remove_workspace(&path);
+    }
+
+    let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
+    config.add_workspaces(added);
+
+    // todo: rediscover workspaces & refetch configs
+
     ControlFlow::Continue(())
 }
