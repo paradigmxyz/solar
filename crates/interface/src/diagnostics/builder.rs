@@ -226,7 +226,22 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
         pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
 
-        pub fn span_suggestion(span: Span, msg: impl Into<DiagMsg>, suggestion: impl Into<String>);
-        pub fn multipart_suggestion(msg: impl Into<DiagMsg>, substitutions: Vec<(Span, String)>);
+        pub fn span_suggestion(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<String>,
+            applicability: crate::diagnostics::Applicability,
+        );
+        pub fn span_suggestion_short(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<String>,
+            applicability: crate::diagnostics::Applicability,
+        );
+        pub fn multipart_suggestion(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, String)>,
+            applicability: crate::diagnostics::Applicability,
+        );
     }
 }

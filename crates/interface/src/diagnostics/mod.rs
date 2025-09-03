@@ -327,6 +327,50 @@ impl Style {
     }
 }
 
+/// Indicates the confidence level of applying the suggestion.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Applicability {
+    /// The suggestion is definitely what the user intended, and/or maintains the exact meaning of
+    /// the code. This suggestion should be automatically applied.
+    MachineApplicable,
+
+    /// The suggestion may be what the user intended, but it is uncertain.
+    /// The suggestion should result in a successful compilation if applied.
+    MaybeIncorrect,
+
+    /// The suggestion contains placeholders that need to be manually replaced by the user before
+    /// the code will compile.
+    HasPlaceholders,
+
+    /// The applicability of the suggestion is unknown.
+    Unspecified,
+}
+
+impl Default for Applicability {
+    fn default() -> Self {
+        Self::Unspecified
+    }
+}
+
+/// Controls how suggestions are rendered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SuggestionStyle {
+    /// Always show the suggested code.
+    ShowCode,
+
+    /// Hide the suggested code when displaying inline, but show it in a diff.
+    HideCodeInline,
+
+    /// Never show the suggested code.
+    HideCodeAlways,
+}
+
+impl Default for SuggestionStyle {
+    fn default() -> Self {
+        Self::ShowCode
+    }
+}
+
 /// A "sub"-diagnostic attached to a parent diagnostic.
 /// For example, a note attached to an error.
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -355,6 +399,10 @@ pub struct Suggestion {
     /// A single suggestion can have multiple parts, for example, to suggest changing `foo` to
     /// `bar` and `baz` to `bob` at the same time.
     pub substitutions: Vec<(Span, String)>,
+    /// Indicates the confidence level of applying the suggestion.
+    pub applicability: Applicability,
+    /// Controls how the suggestion is rendered.
+    pub style: SuggestionStyle,
 }
 
 /// A compiler diagnostic.
@@ -614,10 +662,30 @@ impl Diag {
         span: Span,
         msg: impl Into<DiagMsg>,
         suggestion: impl Into<String>,
+        applicability: Applicability,
     ) -> &mut Self {
         self.suggestions.push(Suggestion {
             message: msg.into(),
             substitutions: vec![(span, suggestion.into())],
+            applicability,
+            style: SuggestionStyle::ShowCode,
+        });
+        self
+    }
+
+    /// Adds a short suggestion that will be shown inline if possible.
+    pub fn span_suggestion_short(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<String>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.suggestions.push(Suggestion {
+            message: msg.into(),
+            substitutions: vec![(span, suggestion.into())],
+            applicability,
+            style: SuggestionStyle::HideCodeInline,
         });
         self
     }
@@ -627,8 +695,14 @@ impl Diag {
         &mut self,
         msg: impl Into<DiagMsg>,
         substitutions: Vec<(Span, String)>,
+        applicability: Applicability,
     ) -> &mut Self {
-        self.suggestions.push(Suggestion { message: msg.into(), substitutions });
+        self.suggestions.push(Suggestion {
+            message: msg.into(),
+            substitutions,
+            applicability,
+            style: SuggestionStyle::ShowCode,
+        });
         self
     }
 }
@@ -708,7 +782,12 @@ mod tests {
             var_span,
             "mutable variables should use mixedCase",
             var_sugg,
+            Applicability::MachineApplicable,
         );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
         // Emit and assert
         let expected = r#"note: mutable variables should use mixedCase
@@ -735,7 +814,12 @@ help: mutable variables should use mixedCase
         diag.span(vec![pub_span, view_span]).multipart_suggestion(
             "consider changing visibility and mutability",
             vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+            Applicability::MaybeIncorrect,
         );
+
+        assert_eq!(diag.suggestions[0].substitutions.len(), 2);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
         // Emit and assert
         let expected = r#"warning: inefficient visibility and mutability
@@ -764,7 +848,12 @@ help: consider changing visibility and mutability
             var_span,
             "mutable variables should use mixedCase",
             var_sugg,
+            Applicability::MachineApplicable,
         );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
         // Emit the diagnostics and assert output
         let expected = json!({
@@ -829,7 +918,12 @@ help: consider changing visibility and mutability
         diag.span(vec![pub_span, view_span]).multipart_suggestion(
             "consider changing visibility and mutability",
             vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+            Applicability::MaybeIncorrect,
         );
+
+        assert_eq!(diag.suggestions[0].substitutions.len(), 2);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
         // Emit the diagnostics and assert output
         let expected = json!({
