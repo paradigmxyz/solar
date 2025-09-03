@@ -146,6 +146,8 @@ impl DiagCtxt {
     /// - `unstable.ui_testing`
     /// - `unstable.track_diagnostics`
     /// - `no_warnings`
+    /// - `error_format_human`
+    /// - `diagnostic_width`
     ///
     /// The default is human emitter to stderr.
     ///
