@@ -1,11 +1,11 @@
-use std::ops::ControlFlow;
+use std::{ops::ControlFlow, sync::Arc};
 
 use crop::Rope;
 use lsp_types::{
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 
@@ -13,6 +13,7 @@ pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
     params: DidOpenTextDocumentParams,
 ) -> NotifyResult {
+    info!("config: {:?}", state.config);
     if let Some(path) = proto::vfs_path(&params.text_document.uri) {
         let already_exists = state.vfs.read().exists(&path);
         if already_exists {
@@ -79,5 +80,26 @@ pub(crate) fn did_change_configuration(
     // this notification's parameters should be ignored and the actual config queried separately.
     //
     // For now this is just a stub.
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_change_workspace_folders(
+    state: &mut GlobalState,
+    params: DidChangeWorkspaceFoldersParams,
+) -> NotifyResult {
+    let config = Arc::make_mut(&mut state.config);
+
+    for workspace in params.event.removed {
+        let Ok(path) = workspace.uri.to_file_path() else {
+            continue;
+        };
+        config.remove_workspace(&path);
+    }
+
+    let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
+    config.add_workspaces(added);
+
+    // todo: rediscover workspaces & refetch configs
+
     ControlFlow::Continue(())
 }

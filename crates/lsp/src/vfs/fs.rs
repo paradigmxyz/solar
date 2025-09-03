@@ -71,4 +71,8 @@ impl Vfs {
     pub(crate) fn iter(&self) -> impl Iterator<Item = (&VfsPath, &Rope)> {
         self.data.iter()
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
 }

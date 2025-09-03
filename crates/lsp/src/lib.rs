@@ -20,8 +20,10 @@ mod config;
 mod global_state;
 mod handlers;
 mod proto;
+mod serde;
 mod utils;
 mod vfs;
+mod workspace;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
@@ -35,6 +37,9 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .notification::<notif::Initialized>(GlobalState::on_initialized)
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
+
+    // Workspace management
+    router.notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders);
 
     // Notifications
     router

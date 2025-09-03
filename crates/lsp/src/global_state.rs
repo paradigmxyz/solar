@@ -15,25 +15,39 @@ use solar_interface::{
 use solar_sema::Compiler;
 use tokio::task::JoinHandle;
 
-use crate::{NotifyResult, config::negotiate_capabilities, proto, vfs::Vfs};
+use crate::{
+    NotifyResult,
+    config::{Config, negotiate_capabilities},
+    proto,
+    vfs::Vfs,
+};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
+    pub(crate) config: Arc<Config>,
     analysis_version: usize,
 }
 
 impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
-        Self { client, vfs: Arc::new(Default::default()), analysis_version: 0 }
+        Self {
+            client,
+            vfs: Arc::new(Default::default()),
+            analysis_version: 0,
+            config: Arc::new(Default::default()),
+        }
     }
 
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<InitializeResult, ResponseError>> + use<> {
-        let (capabilities, _config) = negotiate_capabilities(params);
+        let (capabilities, mut config) = negotiate_capabilities(params);
 
+        config.rediscover_workspaces();
+
+        self.config = Arc::new(config);
         std::future::ready(Ok(InitializeResult {
             capabilities,
             server_info: Some(ServerInfo {
@@ -98,16 +112,36 @@ impl GlobalState {
                 let _ = compiler.lower_asts();
                 let _ = compiler.analysis();
 
-                // todo handle diagnostic clearing
                 // todo clean this mess up boya
-                let diagnostics: HashMap<_, Vec<_>> = diag_buffer
+                let mut diagnostics: HashMap<lsp_types::Url, Vec<lsp_types::Diagnostic>> =
+                    HashMap::new();
+                for (path, diagnostic) in diag_buffer
                     .read()
                     .iter()
                     .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-                    .fold(HashMap::new(), |mut diags, (path, diag)| {
-                        diags.entry(path).or_default().push(diag);
-                        diags
-                    });
+                {
+                    diagnostics.entry(path).or_default().push(diagnostic);
+                }
+
+                // For any other file that was parsed, we additionally load it into the VFS for
+                // later, and set an empty diagnostics set. This is to clear the existing
+                // diagnostics for files that went from an errored to an ok state, but tracking this
+                // separately is more efficient given most of these are wasted allocations.
+                for url in compiler
+                    .gcx()
+                    .sources
+                    .sources
+                    .iter()
+                    .filter_map(|source| source.file.name.as_real())
+                    .filter_map(|path| lsp_types::Url::from_file_path(path).ok())
+                {
+                    // todo: all of this can be a `HashMap::try_insert` (<https://github.com/rust-lang/rust/issues/82766>)
+                    if diagnostics.contains_key(&url) {
+                        continue;
+                    }
+                    diagnostics.insert(url, Vec::new());
+                }
+
                 for (uri, diagnostics) in diagnostics.into_iter() {
                     let _ = snapshot.client.publish_diagnostics(PublishDiagnosticsParams::new(
                         uri,
@@ -122,7 +156,11 @@ impl GlobalState {
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
-        GlobalStateSnapshot { client: self.client.clone(), vfs: self.vfs.clone() }
+        GlobalStateSnapshot {
+            client: self.client.clone(),
+            vfs: self.vfs.clone(),
+            config: self.config.clone(),
+        }
     }
 
     fn spawn_with_snapshot<T: Send + 'static>(
@@ -137,4 +175,5 @@ impl GlobalState {
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
+    config: Arc<Config>,
 }
