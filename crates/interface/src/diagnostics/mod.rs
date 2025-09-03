@@ -4,9 +4,11 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
+use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
+    ops::Deref,
     panic::Location,
 };
 
@@ -327,19 +329,29 @@ impl Style {
     }
 }
 
-/// Indicates the confidence level of applying the suggestion.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// Indicates the confidence in the correctness of a suggestion.
+///
+/// All suggestions are marked with an `Applicability`. Tools use the applicability of a suggestion
+/// to determine whether it should be automatically applied or if the user should be consulted
+/// before applying the suggestion.
+#[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum Applicability {
-    /// The suggestion is definitely what the user intended, and/or maintains the exact meaning of
-    /// the code. This suggestion should be automatically applied.
+    /// The suggestion is definitely what the user intended, or maintains the exact meaning of the
+    /// code. This suggestion should be automatically applied.
+    ///
+    /// In case of multiple `MachineApplicable` suggestions (whether as part of
+    /// the same `multipart_suggestion` or not), all of them should be
+    /// automatically applied.
     MachineApplicable,
 
-    /// The suggestion may be what the user intended, but it is uncertain.
-    /// The suggestion should result in a successful compilation if applied.
+    /// The suggestion may be what the user intended, but it is uncertain. The suggestion should
+    /// compile if it is applied.
     MaybeIncorrect,
 
-    /// The suggestion contains placeholders that need to be manually replaced by the user before
-    /// the code will compile.
+    /// The suggestion contains placeholders like `(...)` or `{ /* fields */ }`. The suggestion
+    /// cannot be applied automatically because it will fail to compile. The user will need to fill
+    /// in the placeholders.
     HasPlaceholders,
 
     /// The applicability of the suggestion is unknown.
@@ -352,17 +364,20 @@ impl Default for Applicability {
     }
 }
 
-/// Controls how suggestions are rendered.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum SuggestionStyle {
-    /// Always show the suggested code.
-    ShowCode,
-
-    /// Hide the suggested code when displaying inline, but show it in a diff.
+    /// Hide the suggested code when displaying this suggestion inline.
     HideCodeInline,
-
-    /// Never show the suggested code.
+    /// Always hide the suggested code but display the message.
     HideCodeAlways,
+    /// Do not display this suggestion in the cli output, it is only meant for tools.
+    CompletelyHidden,
+    /// Always show the suggested code.
+    /// This will *not* show the code if the suggestion is inline *and* the suggested code is
+    /// empty.
+    ShowCode,
+    /// Always show the suggested code independently.
+    ShowAlways,
 }
 
 impl Default for SuggestionStyle {
@@ -371,6 +386,118 @@ impl Default for SuggestionStyle {
     }
 }
 
+impl SuggestionStyle {
+    fn hide_inline(&self) -> bool {
+        !matches!(*self, SuggestionStyle::ShowCode)
+    }
+}
+
+/// Represents the help messages seen on a diagnostic.
+#[derive(Clone, Debug, PartialEq, Hash)]
+pub enum Suggestions {
+    /// Indicates that new suggestions can be added or removed from this diagnostic.
+    ///
+    /// `DiagInner`'s new_* methods initialize the `suggestions` field with
+    /// this variant. Also, this is the default variant for `Suggestions`.
+    Enabled(Vec<CodeSuggestion>),
+    /// Indicates that suggestions cannot be added or removed from this diagnostic.
+    ///
+    /// Gets toggled when `.seal_suggestions()` is called on the `DiagInner`.
+    Sealed(Box<[CodeSuggestion]>),
+    /// Indicates that no suggestion is available for this diagnostic.
+    ///
+    /// Gets toggled when `.disable_suggestions()` is called on the `DiagInner`.
+    Disabled,
+}
+
+impl Suggestions {
+    /// Returns the underlying list of suggestions.
+    pub fn unwrap_tag(&self) -> &[CodeSuggestion] {
+        match self {
+            Suggestions::Enabled(suggestions) => suggestions,
+            Suggestions::Sealed(suggestions) => suggestions,
+            Suggestions::Disabled => &[],
+        }
+    }
+}
+
+impl Default for Suggestions {
+    fn default() -> Self {
+        Self::Enabled(vec![])
+    }
+}
+
+impl Deref for Suggestions {
+    type Target = [CodeSuggestion];
+
+    fn deref(&self) -> &Self::Target {
+        self.unwrap_tag()
+    }
+}
+
+/// A structured suggestion for code changes.
+/// Based on rustc's CodeSuggestion structure.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CodeSuggestion {
+    /// Each substitute can have multiple variants due to multiple
+    /// applicable suggestions
+    ///
+    /// `foo.bar` might be replaced with `a.b` or `x.y` by replacing
+    /// `foo` and `bar` on their own:
+    ///
+    /// ```ignore (illustrative)
+    /// vec![
+    ///     Substitution { parts: vec![(0..3, "a"), (4..7, "b")] },
+    ///     Substitution { parts: vec![(0..3, "x"), (4..7, "y")] },
+    /// ]
+    /// ```
+    ///
+    /// or by replacing the entire span:
+    ///
+    /// ```ignore (illustrative)
+    /// vec![
+    ///     Substitution { parts: vec![(0..7, "a.b")] },
+    ///     Substitution { parts: vec![(0..7, "x.y")] },
+    /// ]
+    /// ```
+    pub substitutions: Vec<Substitution>,
+    pub msg: DiagMsg,
+    /// Visual representation of this suggestion.
+    pub style: SuggestionStyle,
+    /// Whether or not the suggestion is approximate
+    ///
+    /// Sometimes we may show suggestions with placeholders,
+    /// which are useful for users but not useful for
+    /// tools like rustfix
+    pub applicability: Applicability,
+}
+
+/// A single part of a substitution, indicating a specific span to replace with a snippet.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SubstitutionPart {
+    pub span: Span,
+    pub snippet: String,
+}
+
+impl SubstitutionPart {
+    pub fn is_addition(&self) -> bool {
+        self.span.lo() == self.span.hi() && !self.snippet.is_empty()
+    }
+
+    pub fn is_deletion(&self) -> bool {
+        self.span.lo() != self.span.hi() && self.snippet.is_empty()
+    }
+
+    pub fn is_replacement(&self) -> bool {
+        self.span.lo() != self.span.hi() && !self.snippet.is_empty()
+    }
+}
+
+/// A substitution represents a single alternative fix consisting of multiple parts.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Substitution {
+    pub parts: Vec<SubstitutionPart>,
+}
 /// A "sub"-diagnostic attached to a parent diagnostic.
 /// For example, a note attached to an error.
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -392,19 +519,6 @@ impl SubDiagnostic {
     }
 }
 
-/// A structured suggestion for code changes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Suggestion {
-    pub message: DiagMsg,
-    /// A single suggestion can have multiple parts, for example, to suggest changing `foo` to
-    /// `bar` and `baz` to `bob` at the same time.
-    pub substitutions: Vec<(Span, String)>,
-    /// Indicates the confidence level of applying the suggestion.
-    pub applicability: Applicability,
-    /// Controls how the suggestion is rendered.
-    pub style: SuggestionStyle,
-}
-
 /// A compiler diagnostic.
 #[must_use]
 #[derive(Clone, Debug)]
@@ -415,7 +529,7 @@ pub struct Diag {
     pub span: MultiSpan,
     pub children: Vec<SubDiagnostic>,
     pub code: Option<DiagId>,
-    pub suggestions: Vec<Suggestion>,
+    pub suggestions: Suggestions,
 
     pub created_at: &'static Location<'static>,
 }
@@ -448,7 +562,7 @@ impl Diag {
             code: None,
             span: MultiSpan::new(),
             children: vec![],
-            suggestions: vec![],
+            suggestions: Suggestions::default(),
             // args: Default::default(),
             // sort_span: DUMMY_SP,
             // is_lint: false,
@@ -656,7 +770,53 @@ impl Diag {
 
 /// Suggestions.
 impl Diag {
-    /// Adds a suggestion to this diagnostic.
+    /// Disallow attaching suggestions to this diagnostic.
+    /// Any suggestions attached e.g. with the `span_suggestion_*` methods
+    /// (before and after the call to `disable_suggestions`) will be ignored.
+    pub fn disable_suggestions(&mut self) -> &mut Self {
+        self.suggestions = Suggestions::Disabled;
+        self
+    }
+
+    /// Prevent new suggestions from being added to this diagnostic.
+    ///
+    /// Suggestions added before the call to `.seal_suggestions()` will be preserved
+    /// and new suggestions will be ignored.
+    pub fn seal_suggestions(&mut self) -> &mut Self {
+        if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
+            let suggestions_slice = std::mem::take(suggestions).into_boxed_slice();
+            self.suggestions = Suggestions::Sealed(suggestions_slice);
+        }
+        self
+    }
+
+    /// Helper for pushing to `self.suggestions`.
+    ///
+    /// A new suggestion is added if suggestions are enabled for this diagnostic.
+    /// Otherwise, they are ignored.
+    fn push_suggestion(&mut self, suggestion: CodeSuggestion) {
+        if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
+            suggestions.push(suggestion);
+        }
+    }
+
+    /// Prints out a message with a suggested edit of the code.
+    ///
+    /// In case of short messages and a simple suggestion, rustc displays it as a label:
+    ///
+    /// ```text
+    /// try adding parentheses: `(tup.0).1`
+    /// ```
+    ///
+    /// The message
+    ///
+    /// * should not end in any punctuation (a `:` is added automatically)
+    /// * should not be a question (avoid language like "did you mean")
+    /// * should not contain any phrases like "the following", "as shown", etc.
+    /// * may look like "to do xyz, use" or "to do xyz, use abc"
+    /// * may contain a name of a function, variable, or type, but not whole expressions
+    ///
+    /// See [`CodeSuggestion`] for more information.
     pub fn span_suggestion(
         &mut self,
         span: Span,
@@ -664,44 +824,71 @@ impl Diag {
         suggestion: impl Into<String>,
         applicability: Applicability,
     ) -> &mut Self {
-        self.suggestions.push(Suggestion {
-            message: msg.into(),
-            substitutions: vec![(span, suggestion.into())],
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
             applicability,
-            style: SuggestionStyle::ShowCode,
-        });
+            SuggestionStyle::ShowCode,
+        );
         self
     }
 
-    /// Adds a short suggestion that will be shown inline if possible.
-    pub fn span_suggestion_short(
+    /// [`Diag::span_suggestion()`] but you can set the [`SuggestionStyle`].
+    pub fn span_suggestion_with_style(
         &mut self,
         span: Span,
         msg: impl Into<DiagMsg>,
         suggestion: impl Into<String>,
         applicability: Applicability,
+        style: SuggestionStyle,
     ) -> &mut Self {
-        self.suggestions.push(Suggestion {
-            message: msg.into(),
-            substitutions: vec![(span, suggestion.into())],
+        self.push_suggestion(CodeSuggestion {
+            substitutions: vec![Substitution {
+                parts: vec![SubstitutionPart { snippet: suggestion.into(), span }],
+            }],
+            msg: msg.into(),
+            style,
             applicability,
-            style: SuggestionStyle::HideCodeInline,
         });
         self
     }
 
-    /// Adds a suggestion with multiple parts to this diagnostic.
+    /// Show a suggestion that has multiple parts to it.
+    /// In other words, multiple changes need to be applied as part of this suggestion.
     pub fn multipart_suggestion(
         &mut self,
         msg: impl Into<DiagMsg>,
         substitutions: Vec<(Span, String)>,
         applicability: Applicability,
     ) -> &mut Self {
-        self.suggestions.push(Suggestion {
-            message: msg.into(),
+        self.multipart_suggestion_with_style(
+            msg,
             substitutions,
             applicability,
-            style: SuggestionStyle::ShowCode,
+            SuggestionStyle::ShowCode,
+        );
+        self
+    }
+
+    /// [`Diag::multipart_suggestion()`] but you can set the [`SuggestionStyle`].
+    pub fn multipart_suggestion_with_style(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        substitutions: Vec<(Span, String)>,
+        applicability: Applicability,
+        style: SuggestionStyle,
+    ) -> &mut Self {
+        self.push_suggestion(CodeSuggestion {
+            substitutions: vec![Substitution {
+                parts: substitutions
+                    .into_iter()
+                    .map(|(span, snippet)| SubstitutionPart { span, snippet })
+                    .collect(),
+            }],
+            msg: msg.into(),
+            style,
+            applicability,
         });
         self
     }
@@ -775,7 +962,7 @@ mod tests {
     }
 
     #[test]
-    fn test_suggestion() {
+    fn test_inline_suggestion() {
         let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
         let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
         diag.span(var_span).span_suggestion(
@@ -788,6 +975,33 @@ mod tests {
         assert_eq!(diag.suggestions.len(), 1);
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+
+        // Emit and assert
+        let expected = r#"note: mutable variables should use mixedCase
+ --> <test.sol>:4:17
+  |
+4 |         uint256 my_var = 0;
+  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    fn test_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion_with_style(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+            SuggestionStyle::ShowAlways,
+        );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
         // Emit and assert
         let expected = r#"note: mutable variables should use mixedCase
@@ -817,7 +1031,8 @@ help: mutable variables should use mixedCase
             Applicability::MaybeIncorrect,
         );
 
-        assert_eq!(diag.suggestions[0].substitutions.len(), 2);
+        assert_eq!(diag.suggestions[0].substitutions.len(), 1);
+        assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
@@ -921,7 +1136,8 @@ help: consider changing visibility and mutability
             Applicability::MaybeIncorrect,
         );
 
-        assert_eq!(diag.suggestions[0].substitutions.len(), 2);
+        assert_eq!(diag.suggestions[0].substitutions.len(), 1);
+        assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 

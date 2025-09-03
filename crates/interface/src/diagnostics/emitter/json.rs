@@ -1,8 +1,8 @@
 use super::{Emitter, human::HumanBufferEmitter, io_panic};
 use crate::{
-    SourceMap, Span,
-    diagnostics::{Level, MultiSpan, SpanLabel},
-    source_map::{LineInfo, SourceFile},
+    Span,
+    diagnostics::{CodeSuggestion, Diag, Level, MultiSpan, SpanLabel, SubDiagnostic},
+    source_map::{LineInfo, SourceFile, SourceMap},
 };
 use anstream::ColorChoice;
 use serde::Serialize;
@@ -18,7 +18,7 @@ pub struct JsonEmitter {
 }
 
 impl Emitter for JsonEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         if self.rustc_like {
             let diagnostic = self.diagnostic(diagnostic);
             self.emit(&EmitTyped::Diagnostic(diagnostic))
@@ -69,25 +69,35 @@ impl JsonEmitter {
         Emitter::source_map(self).unwrap()
     }
 
-    fn diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> Diagnostic {
-        Diagnostic {
-            message: diagnostic.label().into_owned(),
-            code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
-            level: diagnostic.level.to_str(),
-            spans: self.spans(&diagnostic.span),
-            children: diagnostic
+    fn diagnostic(&mut self, diagnostic: &mut Diag) -> Diagnostic {
+        // Process suggestions using the shared logic
+        let mut primary_span = diagnostic.span.clone();
+        let children = {
+            // inline primary span (clears suggestions)
+            self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
+
+            // get children (only if primary span wasn't inlined)
+            diagnostic
                 .children
                 .iter()
                 .map(|sub| self.sub_diagnostic(sub))
                 .chain(
                     diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)),
                 )
-                .collect(),
+                .collect()
+        };
+
+        Diagnostic {
+            message: diagnostic.label().into_owned(),
+            code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
+            level: diagnostic.level.to_str(),
+            spans: self.spans(&primary_span),
+            children,
             rendered: Some(self.emit_diagnostic_to_buffer(diagnostic)),
         }
     }
 
-    fn sub_diagnostic(&self, diagnostic: &crate::diagnostics::SubDiagnostic) -> Diagnostic {
+    fn sub_diagnostic(&self, diagnostic: &SubDiagnostic) -> Diagnostic {
         Diagnostic {
             message: diagnostic.label().into_owned(),
             code: None,
@@ -98,16 +108,20 @@ impl JsonEmitter {
         }
     }
 
-    fn suggestion_to_diagnostic(&self, sugg: &crate::diagnostics::Suggestion) -> Diagnostic {
+    fn suggestion_to_diagnostic(&self, sugg: &CodeSuggestion) -> Diagnostic {
+        // Collect all spans from all substitutions
+        let spans = sugg
+            .substitutions
+            .iter()
+            .flat_map(|sub| sub.parts.iter())
+            .map(|part| self.span_with_suggestion(part.span, part.snippet.clone()))
+            .collect();
+
         Diagnostic {
-            message: sugg.message.as_str().to_string(),
+            message: sugg.msg.as_str().to_string(),
             code: None,
             level: "help",
-            spans: sugg
-                .substitutions
-                .iter()
-                .map(|(span, replacement)| self.span_with_suggestion(*span, replacement.clone()))
-                .collect(),
+            spans,
             children: vec![],
             rendered: None,
         }
@@ -170,7 +184,7 @@ impl JsonEmitter {
         }
     }
 
-    fn solc_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) -> SolcDiagnostic {
+    fn solc_diagnostic(&mut self, diagnostic: &mut crate::diagnostics::Diag) -> SolcDiagnostic {
         let primary = diagnostic.span.primary_span();
         let file = primary
             .map(|span| {
@@ -236,7 +250,7 @@ impl JsonEmitter {
         }
     }
 
-    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diag) -> String {
+    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &mut crate::diagnostics::Diag) -> String {
         self.human_emitter.emit_diagnostic(diagnostic);
         std::mem::take(self.human_emitter.buffer_mut())
     }

@@ -23,7 +23,7 @@ impl InMemoryEmitter {
 }
 
 impl Emitter for InMemoryEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &crate::diagnostics::Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut crate::diagnostics::Diag) {
         self.buffer.write().push(diagnostic.clone());
     }
 }

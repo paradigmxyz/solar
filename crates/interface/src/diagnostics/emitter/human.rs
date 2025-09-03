@@ -1,7 +1,10 @@
-use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
+use super::{
+    Diag, Emitter, format_inline_help, io_panic, rustc::FileWithAnnotatedLines,
+    should_inline_suggestion,
+};
 use crate::{
     SourceMap,
-    diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
+    diagnostics::{Level, MultiSpan, Style, SubDiagnostic, SuggestionStyle},
     source_map::SourceFile,
 };
 use annotate_snippets::{
@@ -43,7 +46,7 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
@@ -153,7 +156,11 @@ impl HumanEmitter {
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
-    fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Report<'_>) -> R) -> R {
+    fn snippet<R>(
+        &mut self,
+        diagnostic: &mut Diag,
+        f: impl FnOnce(&mut Self, Report<'_>) -> R,
+    ) -> R {
         // Current format (annotate-snippets 0.12.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
@@ -176,8 +183,33 @@ impl HumanEmitter {
 
         let sm = self.source_map.as_deref();
 
+        // Process suggestions and modify primary span for inline ones
+        let mut primary_span = diagnostic.span.clone();
+        let suggestions_to_render = {
+            // inline primary span --> suggestions are cleared when the span is inlined.
+            self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
+
+            let mut suggestions_to_render = Vec::new();
+            for suggestion in diagnostic.suggestions.iter() {
+                // If necessary, inline the suggestion into the primary span
+                if should_inline_suggestion(suggestion) {
+                    // For inline suggestions, we know there's exactly one substitution with one
+                    // part
+                    let part = &suggestion.substitutions[0].parts[0];
+                    let help_msg = format_inline_help(suggestion.msg.as_str(), &part.snippet);
+                    primary_span.push_span_label(part.span, help_msg);
+                }
+                // Otherwise render as a diff group
+                else if suggestion.style != SuggestionStyle::HideCodeAlways {
+                    suggestions_to_render.push(suggestion);
+                }
+                // If style is `HideCodeAlways`, don't show anything
+            }
+            suggestions_to_render
+        };
+
         let title = title_from_diagnostic(diagnostic);
-        let snippets = sm.map(|sm| iter_snippets(sm, &diagnostic.span)).into_iter().flatten();
+        let snippets = sm.map(|sm| iter_snippets(sm, &primary_span)).into_iter().flatten();
 
         // Dummy subdiagnostics go in the main group's footer, non-dummy ones go as separate groups.
         let subs = |d| diagnostic.children.iter().filter(move |sub| sub.span.is_dummy() == d);
@@ -190,41 +222,46 @@ impl HumanEmitter {
             g
         });
 
-        let suggestion_groups = diagnostic.suggestions.iter().flat_map(|suggestion| {
+        // Create suggestion groups for non-inline suggestions
+        let suggestion_groups = suggestions_to_render.iter().flat_map(|suggestion| {
             let sm = self.source_map.as_deref()?;
 
-            // Group substitutions by file.
-            let mut subs_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
-            for (span, replacement) in &suggestion.substitutions {
-                let file = sm.lookup_source_file(span.lo());
-                subs_by_file.entry(file.name.clone()).or_default().push((span, replacement));
-            }
-
-            if subs_by_file.is_empty() {
-                return None;
-            }
-
-            let mut snippets = vec![];
-            for (filename, subs) in subs_by_file {
-                let file = sm.get_file_ref(&filename)?;
-                let mut snippet = Snippet::source(file.src.to_string())
-                    .path(sm.filename_for_diagnostics(&file.name).to_string())
-                    .fold(true);
-
-                for (span, replacement) in subs {
-                    if let Ok(range) = sm.span_to_range(*span) {
-                        snippet = snippet.patch(Patch::new(range, replacement.clone()));
-                    }
+            // For each substitution, create a separate group
+            // Currently we typically only have one substitution per suggestion
+            for substitution in &suggestion.substitutions {
+                // Group parts by file
+                let mut parts_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
+                for part in &substitution.parts {
+                    let file = sm.lookup_source_file(part.span.lo());
+                    parts_by_file.entry(file.name.clone()).or_default().push(part);
                 }
-                snippets.push(snippet);
+
+                if parts_by_file.is_empty() {
+                    continue;
+                }
+
+                let mut snippets = vec![];
+                for (filename, parts) in parts_by_file {
+                    let file = sm.get_file_ref(&filename)?;
+                    let mut snippet = Snippet::source(file.src.to_string())
+                        .path(sm.filename_for_diagnostics(&file.name).to_string())
+                        .fold(true);
+
+                    for part in parts {
+                        if let Ok(range) = sm.span_to_range(part.span) {
+                            snippet = snippet.patch(Patch::new(range, part.snippet.clone()));
+                        }
+                    }
+                    snippets.push(snippet);
+                }
+
+                if !snippets.is_empty() {
+                    let title = ASLevel::HELP.secondary_title(suggestion.msg.as_str());
+                    return Some(Group::with_title(title).elements(snippets));
+                }
             }
 
-            if snippets.is_empty() {
-                return None;
-            }
-
-            let title = ASLevel::HELP.secondary_title(suggestion.message.as_str());
-            Some(Group::with_title(title).elements(snippets))
+            None
         });
 
         let main_group = Group::with_title(title).elements(snippets).elements(footers);
@@ -243,7 +280,7 @@ pub struct HumanBufferEmitter {
 
 impl Emitter for HumanBufferEmitter {
     #[inline]
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.inner.emit_diagnostic(diagnostic);
     }
 
