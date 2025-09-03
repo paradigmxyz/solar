@@ -11,15 +11,8 @@ use clap::{Parser, ValueHint};
 
 // TODO: implement `allow_paths`.
 
-/// Blazingly fast Solidity compiler.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
-#[cfg_attr(feature = "clap", command(
-    name = "solar",
-    version = crate::version::SHORT_VERSION,
-    long_version = crate::version::LONG_VERSION,
-    arg_required_else_help = true,
-))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
     /// Files to compile, or import remappings.

@@ -2,9 +2,10 @@
 
 #![allow(unused_crate_dependencies)]
 
-use solar_cli::{parse_args, run_compiler_args, signal_handler, utils};
+use solar_cli::{Subcommands, parse_args, run_compiler_args, signal_handler, utils};
 use solar_interface::panic_hook;
 use std::process::ExitCode;
+use tokio::runtime::Runtime;
 
 #[global_allocator]
 static ALLOC: utils::Allocator = utils::new_allocator();
@@ -17,7 +18,16 @@ fn main() -> ExitCode {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
-    match run_compiler_args(args) {
+
+    if let Some(Subcommands::Lsp) = args.commands {
+        let rt = Runtime::new().unwrap();
+        return match rt.block_on(solar_lsp::run_server_stdio()) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
+
+    match run_compiler_args(args.default_compile) {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
