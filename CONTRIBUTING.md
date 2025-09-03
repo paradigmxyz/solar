@@ -173,7 +173,7 @@ typos
 For details of how to use `typos`, see <https://github.com/crate-ci/typos>.
 
 If the command rejects a word, you should backtick the rejected word if it's code related.
-If not, the rejected word should be inserted into `typos.toml`.
+If not, the  rejected word should be inserted into `typos.toml`. 
 
 ### Tests
 
@@ -182,7 +182,6 @@ example), it is either adding new functionality to Solar or it is fixing
 existing, broken functionality. In both of these cases, the pull request should
 include one or more tests to ensure that Solar does not regress in the future.
 There are a few ways to write tests:
-
 - [unit tests][unit-tests]
 - [documentation tests][documentation-tests]
 - [integration tests][integration-tests]
@@ -344,7 +343,7 @@ Note that only **incremental** improvement is needed to land a PR. This means
 that the PR does not need to be perfect, only better than the status quo. Follow
 up PRs may be opened to continue iterating.
 
-When changes are necessary, _request_ them, do not _demand_ them, and **do not
+When changes are necessary, *request* them, do not *demand* them, and **do not
 assume that the submitter already knows how to add a test or run a benchmark**.
 
 Specific performance optimization techniques, coding styles and conventions
@@ -364,7 +363,7 @@ with the appropriate reason to keep the conversation flow concise and relevant.
 
 ### Be aware of the person behind the code
 
-Be aware that _how_ you communicate requests and reviews in your feedback can
+Be aware that *how* you communicate requests and reviews in your feedback can
 have a significant impact on the success of the Pull Request. Yes, we may land
 a particular change that makes Solar better, but the individual might just not
 want to have anything to do with Solar ever again. The goal is not just having
