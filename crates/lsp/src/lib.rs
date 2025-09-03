@@ -20,8 +20,10 @@ mod config;
 mod global_state;
 mod handlers;
 mod proto;
+mod serde;
 mod utils;
 mod vfs;
+mod workspace;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 

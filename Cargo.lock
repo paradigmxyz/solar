@@ -2921,6 +2921,8 @@ dependencies = [
  "crop",
  "lsp-types",
  "normalize-path",
+ "serde",
+ "serde_json",
  "solar-config",
  "solar-interface",
  "solar-sema",
