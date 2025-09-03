@@ -70,10 +70,10 @@ impl JsonEmitter {
     }
 
     fn diagnostic(&mut self, diagnostic: &mut Diag) -> Diagnostic {
-        // Process suggestions using the shared logic
+        // Process suggestions and modify primary span for those than can be inlined
         let mut primary_span = diagnostic.span.clone();
         let children = {
-            // inline primary span (clears suggestions)
+            // inline primary span --> suggestions are cleared when the span is inlined.
             self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
             // get children (only if primary span wasn't inlined)

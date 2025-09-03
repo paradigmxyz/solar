@@ -4,7 +4,6 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
-use serde::{Deserialize, Serialize};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
@@ -334,8 +333,9 @@ impl Style {
 /// All suggestions are marked with an `Applicability`. Tools use the applicability of a suggestion
 /// to determine whether it should be automatically applied or if the user should be consulted
 /// before applying the suggestion.
-#[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize)]
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(rename_all = "kebab-case"))]
+#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Applicability {
     /// The suggestion is definitely what the user intended, or maintains the exact meaning of the
     /// code. This suggestion should be automatically applied.
@@ -976,7 +976,6 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        // Emit and assert
         let expected = r#"note: mutable variables should use mixedCase
  --> <test.sol>:4:17
   |
@@ -1003,7 +1002,6 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
-        // Emit and assert
         let expected = r#"note: mutable variables should use mixedCase
  --> <test.sol>:4:17
   |
@@ -1093,31 +1091,8 @@ help: consider changing visibility and mutability
                 "label": null,
                 "suggested_replacement": null
             }],
-            "children": [{
-                "message": "mutable variables should use mixedCase",
-                "code": null,
-                "level": "help",
-                "spans": [{
-                    "file_name": "<test.sol>",
-                    "byte_start": 66,
-                    "byte_end": 72,
-                    "line_start": 4,
-                    "line_end": 4,
-                    "column_start": 17,
-                    "column_end": 23,
-                    "is_primary": true,
-                    "text": [{
-                        "text": "        uint256 my_var = 0;",
-                        "highlight_start": 17,
-                        "highlight_end": 23
-                    }],
-                    "label": null,
-                    "suggested_replacement": "myVar"
-                }],
-                "children": [],
-                "rendered": null
-            }],
-            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n  |\n4 |         uint256 my_var = 0;\n  |                 ^^^^^^\n  |\nhelp: mutable variables should use mixedCase\n  |\n4 -         uint256 my_var = 0;\n4 +         uint256 myVar = 0;\n  |\n\n"
+            "children": [],
+            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n |\n 4 |         uint256 my_var = 0;\n |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`\n\n"
         });
 
         assert_eq!(emit_json_diagnostics(diag), expected);

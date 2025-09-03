@@ -1,4 +1,4 @@
-use super::{CodeSuggestion, Diag, Level, MultiSpan, SuggestionStyle};
+use super::{Diag, Level, MultiSpan, SuggestionStyle};
 use crate::{SourceMap, diagnostics::Suggestions};
 use std::{any::Any, sync::Arc};
 
@@ -179,44 +179,6 @@ impl LocalEmitter {
 impl Emitter for LocalEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.diagnostics.push(diagnostic.clone());
-    }
-}
-
-/// Determines whether a suggestion should be displayed inline.
-/// Based on rustc's implementation in compiler/rustc_errors/src/emitter.rs.
-pub(crate) fn should_inline_suggestion(suggestion: &CodeSuggestion) -> bool {
-    // Match rustc's conditions exactly:
-    // 1. Must be HideCodeInline style
-    // 2. Single substitution
-    // 3. Single part in that substitution
-    // 4. Message is short (< 10 words)
-    // 5. Not multiline
-
-    if !matches!(suggestion.style, SuggestionStyle::HideCodeInline) {
-        return false;
-    }
-
-    suggestion.substitutions.len() == 1
-        && suggestion.substitutions[0].parts.len() == 1
-        && suggestion.msg.as_str().split_whitespace().count() < 10
-        && !suggestion.substitutions[0].parts[0].snippet.contains('\n')
-}
-
-/// Formats a suggestion for inline display.
-/// Based on rustc's implementation.
-pub(crate) fn format_inline_help(message: &str, replacement: &str) -> String {
-    let snippet = replacement.trim();
-
-    if snippet.is_empty() || matches!(snippet, "..." | "…") {
-        // For removal or placeholder suggestions, just show the help message
-        format!("help: {message}")
-    } else {
-        // Include the suggestion inline
-        if message.ends_with(':') {
-            format!("help: {message} `{snippet}`")
-        } else {
-            format!("help: {message}: `{snippet}`")
-        }
     }
 }
 

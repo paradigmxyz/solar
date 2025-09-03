@@ -1,7 +1,4 @@
-use super::{
-    Diag, Emitter, format_inline_help, io_panic, rustc::FileWithAnnotatedLines,
-    should_inline_suggestion,
-};
+use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
     SourceMap,
     diagnostics::{Level, MultiSpan, Style, SubDiagnostic, SuggestionStyle},
@@ -183,29 +180,19 @@ impl HumanEmitter {
 
         let sm = self.source_map.as_deref();
 
-        // Process suggestions and modify primary span for inline ones
+        // Process suggestions and modify primary span for those than can be inlined
         let mut primary_span = diagnostic.span.clone();
-        let suggestions_to_render = {
+        let children = {
             // inline primary span --> suggestions are cleared when the span is inlined.
             self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
-            let mut suggestions_to_render = Vec::new();
-            for suggestion in diagnostic.suggestions.iter() {
-                // If necessary, inline the suggestion into the primary span
-                if should_inline_suggestion(suggestion) {
-                    // For inline suggestions, we know there's exactly one substitution with one
-                    // part
-                    let part = &suggestion.substitutions[0].parts[0];
-                    let help_msg = format_inline_help(suggestion.msg.as_str(), &part.snippet);
-                    primary_span.push_span_label(part.span, help_msg);
-                }
-                // Otherwise render as a diff group
-                else if suggestion.style != SuggestionStyle::HideCodeAlways {
-                    suggestions_to_render.push(suggestion);
-                }
-                // If style is `HideCodeAlways`, don't show anything
-            }
-            suggestions_to_render
+            diagnostic.suggestions.iter().filter_map(|sugg|
+                // Unless style is `HideCodeAlways`, render as a diff group.
+                if sugg.style != SuggestionStyle::HideCodeAlways {
+                    Some(sugg)
+                } else {
+                    None
+                }).collect::<Vec<_>>()
         };
 
         let title = title_from_diagnostic(diagnostic);
@@ -223,7 +210,7 @@ impl HumanEmitter {
         });
 
         // Create suggestion groups for non-inline suggestions
-        let suggestion_groups = suggestions_to_render.iter().flat_map(|suggestion| {
+        let suggestion_groups = children.iter().flat_map(|suggestion| {
             let sm = self.source_map.as_deref()?;
 
             // For each substitution, create a separate group
