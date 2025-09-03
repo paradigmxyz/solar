@@ -11,6 +11,7 @@ use annotate_snippets::{
 use anstream::{AutoStream, ColorChoice};
 use std::{
     any::Any,
+    borrow::Cow,
     collections::BTreeMap,
     io::{self, Write},
     sync::{Arc, OnceLock},
@@ -179,7 +180,7 @@ impl HumanEmitter {
         */
 
         // Process suggestions. Inline primary span if necessary.
-        let mut primary_span = diagnostic.span.clone();
+        let mut primary_span = Cow::Borrowed(&diagnostic.span);
         self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
         // Render suggestions unless style is `HideCodeAlways`.

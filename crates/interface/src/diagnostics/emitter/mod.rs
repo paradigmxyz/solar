@@ -1,6 +1,6 @@
 use super::{Diag, Level, MultiSpan, SuggestionStyle};
 use crate::{SourceMap, diagnostics::Suggestions};
-use std::{any::Any, sync::Arc};
+use std::{any::Any, borrow::Cow, sync::Arc};
 
 mod human;
 pub use human::{HumanBufferEmitter, HumanEmitter};
@@ -45,7 +45,11 @@ pub trait Emitter: Any {
     ///
     /// * If the current `DiagInner` has multiple suggestions, we leave `primary_span` and the
     ///   suggestions untouched.
-    fn primary_span_formatted(&self, primary_span: &mut MultiSpan, suggestions: &mut Suggestions) {
+    fn primary_span_formatted<'a>(
+        &self,
+        primary_span: &mut Cow<'a, MultiSpan>,
+        suggestions: &mut Suggestions,
+    ) {
         if let Some((sugg, rest)) = &suggestions.split_first()
             // if there are multiple suggestions, print them all in full
             // to be consistent.
@@ -75,7 +79,7 @@ pub trait Emitter: Any {
             } else {
                 format!("help: {}: `{}`", sugg.msg.as_str(), snippet,)
             };
-            primary_span.push_span_label(part.span, msg);
+            primary_span.to_mut().push_span_label(part.span, msg);
 
             // Since we only return the modified primary_span, we disable suggestions.
             *suggestions = Suggestions::Disabled;
