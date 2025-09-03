@@ -15,25 +15,39 @@ use solar_interface::{
 use solar_sema::Compiler;
 use tokio::task::JoinHandle;
 
-use crate::{NotifyResult, config::negotiate_capabilities, proto, vfs::Vfs};
+use crate::{
+    NotifyResult,
+    config::{Config, negotiate_capabilities},
+    proto,
+    vfs::Vfs,
+};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
+    pub(crate) config: Arc<Config>,
     analysis_version: usize,
 }
 
 impl GlobalState {
     pub(crate) fn new(client: ClientSocket) -> Self {
-        Self { client, vfs: Arc::new(Default::default()), analysis_version: 0 }
+        Self {
+            client,
+            vfs: Arc::new(Default::default()),
+            analysis_version: 0,
+            config: Arc::new(Default::default()),
+        }
     }
 
     pub(crate) fn on_initialize(
         &mut self,
         params: InitializeParams,
     ) -> impl Future<Output = Result<InitializeResult, ResponseError>> + use<> {
-        let (capabilities, _config) = negotiate_capabilities(params);
+        let (capabilities, mut config) = negotiate_capabilities(params);
 
+        config.rediscover_workspaces();
+
+        self.config = Arc::new(config);
         std::future::ready(Ok(InitializeResult {
             capabilities,
             server_info: Some(ServerInfo {
@@ -122,7 +136,11 @@ impl GlobalState {
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
-        GlobalStateSnapshot { client: self.client.clone(), vfs: self.vfs.clone() }
+        GlobalStateSnapshot {
+            client: self.client.clone(),
+            vfs: self.vfs.clone(),
+            config: self.config.clone(),
+        }
     }
 
     fn spawn_with_snapshot<T: Send + 'static>(
@@ -137,4 +155,5 @@ impl GlobalState {
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
+    config: Arc<Config>,
 }

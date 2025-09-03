@@ -60,7 +60,7 @@ pub struct SpanLabel {
 /// A collection of `Span`s.
 ///
 /// Spans have two orthogonal attributes:
-/// - They can be *primary spans*. In this case they are the locus of the error, and would be
+/// - They can be *primary spans*. In this case they are the focus of the error, and would be
 ///   rendered with `^^^`.
 /// - They can have a *label*. In this case, the label is written next to the mark in the snippet
 ///   when we render.
