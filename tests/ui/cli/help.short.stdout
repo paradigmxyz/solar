@@ -21,19 +21,11 @@ Input options:
       --allow-paths <ALLOW_PATHS>    Allow a given path for imports
 
 Display options:
-      --color <COLOR>
-          Coloring [default: auto] [possible values: auto, always, never]
-  -v, --verbose
-          Use verbose output
-      --pretty-json
-          Pretty-print JSON output
-      --pretty-json-err
-          Pretty-print error JSON output
-      --error-format <ERROR_FORMAT>
-          How errors and other messages are produced [default: human] [possible values: human, json, rustc-json]
-      --error-format-human <ERROR_FORMAT_HUMAN>
-          Human-readable error message style [default: ascii] [possible values: ascii, unicode, short]
-      --diagnostic-width <WIDTH>
-          Terminal width for error message formatting
-      --no-warnings
-          Whether to disable warnings
+      --color <COLOR>                Coloring [default: auto] [possible values: auto, always, never]
+  -v, --verbose                      Use verbose output
+      --pretty-json                  Pretty-print JSON output
+      --pretty-json-err              Pretty-print error JSON output
+      --error-format <ERROR_FORMAT>  How errors and other messages are produced [default: human] [possible values: human, json, rustc-json]
+      --error-format-human <VALUE>   Human-readable error message style [default: ascii] [possible values: ascii, unicode, short]
+      --diagnostic-width <WIDTH>     Terminal width for error message formatting
+      --no-warnings                  Whether to disable warnings

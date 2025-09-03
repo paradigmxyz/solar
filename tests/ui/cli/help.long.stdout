@@ -83,7 +83,7 @@ Display options:
           [default: human]
           [possible values: human, json, rustc-json]
 
-      --error-format-human <ERROR_FORMAT_HUMAN>
+      --error-format-human <VALUE>
           Human-readable error message style
           
           [default: ascii]

@@ -126,7 +126,13 @@ pub struct Opts {
     /// Human-readable error message style.
     #[cfg_attr(
         feature = "clap",
-        arg(help_heading = "Display options", long, value_enum, default_value_t)
+        arg(
+            help_heading = "Display options",
+            long,
+            value_name = "VALUE",
+            value_enum,
+            default_value_t
+        )
     )]
     pub error_format_human: HumanEmitterKind,
     /// Terminal width for error message formatting.
