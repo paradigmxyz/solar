@@ -225,5 +225,8 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn help_once(msg: impl Into<DiagMsg>);
         pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
         pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
+
+        pub fn span_suggestion(span: Span, msg: impl Into<DiagMsg>, suggestion: impl Into<String>);
+        pub fn multipart_suggestion(msg: impl Into<DiagMsg>, substitutions: Vec<(Span, String)>);
     }
 }

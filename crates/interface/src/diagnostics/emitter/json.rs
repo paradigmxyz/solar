@@ -75,7 +75,14 @@ impl JsonEmitter {
             code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
             level: diagnostic.level.to_str(),
             spans: self.spans(&diagnostic.span),
-            children: diagnostic.children.iter().map(|sub| self.sub_diagnostic(sub)).collect(),
+            children: diagnostic
+                .children
+                .iter()
+                .map(|sub| self.sub_diagnostic(sub))
+                .chain(
+                    diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)),
+                )
+                .collect(),
             rendered: Some(self.emit_diagnostic_to_buffer(diagnostic)),
         }
     }
@@ -86,6 +93,21 @@ impl JsonEmitter {
             code: None,
             level: diagnostic.level.to_str(),
             spans: self.spans(&diagnostic.span),
+            children: vec![],
+            rendered: None,
+        }
+    }
+
+    fn suggestion_to_diagnostic(&self, sugg: &crate::diagnostics::Suggestion) -> Diagnostic {
+        Diagnostic {
+            message: sugg.message.as_str().to_string(),
+            code: None,
+            level: "help",
+            spans: sugg
+                .substitutions
+                .iter()
+                .map(|(span, replacement)| self.span_with_suggestion(*span, replacement.clone()))
+                .collect(),
             children: vec![],
             rendered: None,
         }
@@ -111,6 +133,26 @@ impl JsonEmitter {
             is_primary: label.is_primary,
             text: self.span_lines(span),
             label: label.label.as_ref().map(|msg| msg.as_str().into()),
+            suggested_replacement: None,
+        }
+    }
+
+    fn span_with_suggestion(&self, span: Span, replacement: String) -> DiagnosticSpan {
+        let sm = &**self.source_map();
+        let start = sm.lookup_char_pos(span.lo());
+        let end = sm.lookup_char_pos(span.hi());
+        DiagnosticSpan {
+            file_name: sm.filename_for_diagnostics(&start.file.name).to_string(),
+            byte_start: start.file.original_relative_byte_pos(span.lo()).0,
+            byte_end: start.file.original_relative_byte_pos(span.hi()).0,
+            line_start: start.line,
+            line_end: end.line,
+            column_start: start.col.0 + 1,
+            column_end: end.col.0 + 1,
+            is_primary: true,
+            text: self.span_lines(span),
+            label: None,
+            suggested_replacement: Some(replacement),
         }
     }
 
@@ -250,9 +292,9 @@ struct DiagnosticSpan {
     text: Vec<DiagnosticSpanLine>,
     /// Label that should be placed at this location (if any)
     label: Option<String>,
-    // /// If we are suggesting a replacement, this will contain text
-    // /// that should be sliced in atop this span.
-    // suggested_replacement: Option<String>,
+    /// If we are suggesting a replacement, this will contain text
+    /// that should be sliced in atop this span.
+    suggested_replacement: Option<String>,
 }
 
 #[derive(Serialize)]

@@ -348,6 +348,15 @@ impl SubDiagnostic {
     }
 }
 
+/// A structured suggestion for code changes.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Suggestion {
+    pub message: DiagMsg,
+    /// A single suggestion can have multiple parts, for example, to suggest changing `foo` to
+    /// `bar` and `baz` to `bob` at the same time.
+    pub substitutions: Vec<(Span, String)>,
+}
+
 /// A compiler diagnostic.
 #[must_use]
 #[derive(Clone, Debug)]
@@ -358,6 +367,7 @@ pub struct Diag {
     pub span: MultiSpan,
     pub children: Vec<SubDiagnostic>,
     pub code: Option<DiagId>,
+    pub suggestions: Vec<Suggestion>,
 
     pub created_at: &'static Location<'static>,
 }
@@ -390,7 +400,7 @@ impl Diag {
             code: None,
             span: MultiSpan::new(),
             children: vec![],
-            // suggestions: Ok(vec![]),
+            suggestions: vec![],
             // args: Default::default(),
             // sort_span: DUMMY_SP,
             // is_lint: false,
@@ -443,7 +453,7 @@ impl Diag {
             &self.code,
             &self.span,
             &self.children,
-            // &self.suggestions,
+            &self.suggestions,
             // self.args().collect(),
             // omit self.sort_span
             // &self.is_lint,
@@ -596,6 +606,33 @@ impl Diag {
     }
 }
 
+/// Suggestions.
+impl Diag {
+    /// Adds a suggestion to this diagnostic.
+    pub fn span_suggestion(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<String>,
+    ) -> &mut Self {
+        self.suggestions.push(Suggestion {
+            message: msg.into(),
+            substitutions: vec![(span, suggestion.into())],
+        });
+        self
+    }
+
+    /// Adds a suggestion with multiple parts to this diagnostic.
+    pub fn multipart_suggestion(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        substitutions: Vec<(Span, String)>,
+    ) -> &mut Self {
+        self.suggestions.push(Suggestion { message: msg.into(), substitutions });
+        self
+    }
+}
+
 /// Flattens diagnostic messages, applying ANSI styles if requested.
 fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Level) -> Cow<'_, str> {
     if with_style {
@@ -635,6 +672,7 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{BytePos, ColorChoice, Span, source_map};
 
     #[test]
     fn test_styled_messages() {
@@ -660,5 +698,286 @@ mod tests {
             styled.to_string(),
             "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
         );
+    }
+
+    #[test]
+    fn test_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+        );
+
+        // Emit and assert
+        let expected = r#"note: mutable variables should use mixedCase
+ --> <test.sol>:4:17
+  |
+4 |         uint256 my_var = 0;
+  |                 ^^^^^^
+  |
+help: mutable variables should use mixedCase
+  |
+4 -         uint256 my_var = 0;
+4 +         uint256 myVar = 0;
+  |
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    fn test_multispan_suggestion() {
+        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
+        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
+        let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
+        diag.span(vec![pub_span, view_span]).multipart_suggestion(
+            "consider changing visibility and mutability",
+            vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+        );
+
+        // Emit and assert
+        let expected = r#"warning: inefficient visibility and mutability
+ --> <test.sol>:3:20
+  |
+3 |     function foo() public view {
+  |                    ^^^^^^ ^^^^
+  |
+help: consider changing visibility and mutability
+  |
+3 -     function foo() public view {
+3 +     function foo() external pure {
+  |
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_suggestion() {
+        // Construct a diagnostic manually
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+        );
+
+        // Emit the diagnostics and assert output
+        let expected = json!({
+            "$message_type": "diagnostic",
+            "message": "mutable variables should use mixedCase",
+            "code": null,
+            "level": "note",
+            "spans": [{
+                "file_name": "<test.sol>",
+                "byte_start": 66,
+                "byte_end": 72,
+                "line_start": 4,
+                "line_end": 4,
+                "column_start": 17,
+                "column_end": 23,
+                "is_primary": true,
+                "text": [{
+                    "text": "        uint256 my_var = 0;",
+                    "highlight_start": 17,
+                    "highlight_end": 23
+                }],
+                "label": null,
+                "suggested_replacement": null
+            }],
+            "children": [{
+                "message": "mutable variables should use mixedCase",
+                "code": null,
+                "level": "help",
+                "spans": [{
+                    "file_name": "<test.sol>",
+                    "byte_start": 66,
+                    "byte_end": 72,
+                    "line_start": 4,
+                    "line_end": 4,
+                    "column_start": 17,
+                    "column_end": 23,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "        uint256 my_var = 0;",
+                        "highlight_start": 17,
+                        "highlight_end": 23
+                    }],
+                    "label": null,
+                    "suggested_replacement": "myVar"
+                }],
+                "children": [],
+                "rendered": null
+            }],
+            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n  |\n4 |         uint256 my_var = 0;\n  |                 ^^^^^^\n  |\nhelp: mutable variables should use mixedCase\n  |\n4 -         uint256 my_var = 0;\n4 +         uint256 myVar = 0;\n  |\n\n"
+        });
+
+        assert_eq!(emit_json_diagnostics(diag), expected);
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_multispan_json_suggestion() {
+        // Construct a diagnostic manually
+        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
+        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
+        let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
+        diag.span(vec![pub_span, view_span]).multipart_suggestion(
+            "consider changing visibility and mutability",
+            vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+        );
+
+        // Emit the diagnostics and assert output
+        let expected = json!({
+            "$message_type": "diagnostic",
+            "message": "inefficient visibility and mutability",
+            "code": null,
+            "level": "warning",
+            "spans": [
+                {
+                    "file_name": "<test.sol>",
+                    "byte_start": 36,
+                    "byte_end": 42,
+                    "line_start": 3,
+                    "line_end": 3,
+                    "column_start": 20,
+                    "column_end": 26,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "    function foo() public view {",
+                        "highlight_start": 20,
+                        "highlight_end": 26
+                    }],
+                    "label": null,
+                    "suggested_replacement": null
+                },
+                {
+                    "file_name": "<test.sol>",
+                    "byte_start": 43,
+                    "byte_end": 47,
+                    "line_start": 3,
+                    "line_end": 3,
+                    "column_start": 27,
+                    "column_end": 31,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "    function foo() public view {",
+                        "highlight_start": 27,
+                        "highlight_end": 31
+                    }],
+                    "label": null,
+                    "suggested_replacement": null
+                }
+            ],
+            "children": [{
+                "message": "consider changing visibility and mutability",
+                "code": null,
+                "level": "help",
+                "spans": [
+                    {
+                        "file_name": "<test.sol>",
+                        "byte_start": 36,
+                        "byte_end": 42,
+                        "line_start": 3,
+                        "line_end": 3,
+                        "column_start": 20,
+                        "column_end": 26,
+                        "is_primary": true,
+                        "text": [{
+                            "text": "    function foo() public view {",
+                            "highlight_start": 20,
+                            "highlight_end": 26
+                        }],
+                        "label": null,
+                        "suggested_replacement": "external"
+                    },
+                    {
+                        "file_name": "<test.sol>",
+                        "byte_start": 43,
+                        "byte_end": 47,
+                        "line_start": 3,
+                        "line_end": 3,
+                        "column_start": 27,
+                        "column_end": 31,
+                        "is_primary": true,
+                        "text": [{
+                            "text": "    function foo() public view {",
+                            "highlight_start": 27,
+                            "highlight_end": 31
+                        }],
+                        "label": null,
+                        "suggested_replacement": "pure"
+                    }
+                ],
+                "children": [],
+                "rendered": null
+            }],
+            "rendered": "warning: inefficient visibility and mutability\n --> <test.sol>:3:20\n  |\n3 |     function foo() public view {\n  |                    ^^^^^^ ^^^^\n  |\nhelp: consider changing visibility and mutability\n  |\n3 -     function foo() public view {\n3 +     function foo() external pure {\n  |\n\n"
+        });
+        assert_eq!(emit_json_diagnostics(diag), expected);
+    }
+
+    // --- HELPERS -------------------------------------------------------------
+
+    const CONTRACT: &str = r#"
+contract Test {
+    function foo() public view {
+        uint256 my_var = 0;
+    }
+}"#;
+
+    // Helper to setup the run the human-readable emitter.
+    fn emit_human_diagnostics(diag: Diag) -> String {
+        let sm = source_map::SourceMap::empty();
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+
+        let dcx = DiagCtxt::with_buffer_emitter(Some(std::sync::Arc::new(sm)), ColorChoice::Never);
+        let _ = dcx.emit_diagnostic(diag);
+
+        dcx.emitted_diagnostics().unwrap().0
+    }
+
+    #[cfg(feature = "json")]
+    use {
+        serde_json::{Value, json},
+        std::sync::{Arc, Mutex},
+    };
+
+    // A sharable writer
+    #[cfg(feature = "json")]
+    #[derive(Clone)]
+    struct SharedWriter(Arc<Mutex<Vec<u8>>>);
+
+    #[cfg(feature = "json")]
+    impl std::io::Write for SharedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().write(buf)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0.lock().unwrap().flush()
+        }
+    }
+
+    // Helper to setup the run the json emitter. Outputs a json object for the given diagnostics.
+    #[cfg(feature = "json")]
+    fn emit_json_diagnostics(diag: Diag) -> Value {
+        let sm = Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+
+        let writer = Arc::new(Mutex::new(Vec::new()));
+        let emitter = JsonEmitter::new(Box::new(SharedWriter(writer.clone())), Arc::clone(&sm))
+            .rustc_like(true);
+        let dcx = DiagCtxt::new(Box::new(emitter));
+        let _ = dcx.emit_diagnostic(diag);
+
+        let buffer = writer.lock().unwrap();
+        serde_json::from_str(
+            &String::from_utf8(buffer.clone()).expect("JSON output was not valid UTF-8"),
+        )
+        .expect("failed to deserialize JSON")
     }
 }

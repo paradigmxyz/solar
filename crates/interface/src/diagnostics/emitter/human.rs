@@ -5,11 +5,13 @@ use crate::{
     source_map::SourceFile,
 };
 use annotate_snippets::{
-    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Renderer, Report, Snippet, Title,
+    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Patch, Renderer, Report, Snippet,
+    Title,
 };
 use anstream::{AutoStream, ColorChoice};
 use std::{
     any::Any,
+    collections::BTreeMap,
     io::{self, Write},
     sync::{Arc, OnceLock},
 };
@@ -188,8 +190,48 @@ impl HumanEmitter {
             g
         });
 
+        let suggestion_groups = diagnostic.suggestions.iter().flat_map(|suggestion| {
+            let sm = self.source_map.as_deref()?;
+
+            // Group substitutions by file.
+            let mut subs_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
+            for (span, replacement) in &suggestion.substitutions {
+                let file = sm.lookup_source_file(span.lo());
+                subs_by_file.entry(file.name.clone()).or_default().push((span, replacement));
+            }
+
+            if subs_by_file.is_empty() {
+                return None;
+            }
+
+            let mut snippets = vec![];
+            for (filename, subs) in subs_by_file {
+                let file = sm.get_file_ref(&filename)?;
+                let mut snippet = Snippet::source(file.src.to_string())
+                    .path(sm.filename_for_diagnostics(&file.name).to_string())
+                    .fold(true);
+
+                for (span, replacement) in subs {
+                    if let Ok(range) = sm.span_to_range(*span) {
+                        snippet = snippet.patch(Patch::new(range, replacement.clone()));
+                    }
+                }
+                snippets.push(snippet);
+            }
+
+            if snippets.is_empty() {
+                return None;
+            }
+
+            let title = ASLevel::HELP.secondary_title(suggestion.message.as_str());
+            Some(Group::with_title(title).elements(snippets))
+        });
+
         let main_group = Group::with_title(title).elements(snippets).elements(footers);
-        let report = std::iter::once(main_group).chain(sub_groups).collect::<Vec<_>>();
+        let report = std::iter::once(main_group)
+            .chain(sub_groups)
+            .chain(suggestion_groups)
+            .collect::<Vec<_>>();
         f(self, &report)
     }
 }
