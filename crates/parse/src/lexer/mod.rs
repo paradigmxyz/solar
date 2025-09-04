@@ -12,6 +12,9 @@ mod cursor;
 use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
 pub use cursor::*;
 
+mod char_class_table;
+mod simd_lexer;
+
 pub mod unescape;
 
 mod unicode_chars;

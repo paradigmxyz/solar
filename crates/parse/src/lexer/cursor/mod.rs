@@ -7,6 +7,8 @@ use solar_ast::{Base, StrKind};
 use solar_data_structures::hint::unlikely;
 use std::sync::OnceLock;
 
+use super::simd_lexer::*;
+
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
 
@@ -232,7 +234,8 @@ impl<'a> Cursor<'a> {
 
     fn whitespace(&mut self) -> RawTokenKind {
         debug_assert!(is_whitespace_byte(self.prev()));
-        self.eat_while(is_whitespace_byte);
+        let skipped = skip_whitespace_bulk(self.as_bytes());
+        self.ignore_bytes(skipped);
         RawTokenKind::Whitespace
     }
 
@@ -241,7 +244,8 @@ impl<'a> Cursor<'a> {
 
         // Start is already eaten, eat the rest of identifier.
         let start = self.as_ptr();
-        self.eat_while(is_id_continue_byte);
+        let parsed = parse_identifier_bulk(self.as_bytes());
+        self.ignore_bytes(parsed);
 
         // Check if the identifier is a string literal prefix.
         if unlikely(matches!(first, b'h' | b'u')) {
@@ -353,14 +357,27 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_digit())
+        let parsed = parse_decimal_digits_bulk(self.as_bytes());
+        if parsed > 0 {
+            self.ignore_bytes(parsed);
+            true
+        } else {
+            false
+        }
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_hexdigit())
+        let parsed = parse_hex_digits_bulk(self.as_bytes());
+        if parsed > 0 {
+            self.ignore_bytes(parsed);
+            true
+        } else {
+            false
+        }
     }
 
+    #[allow(dead_code)]
     fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
         let mut has_digits = false;
         loop {
@@ -481,6 +498,7 @@ impl<'a> Cursor<'a> {
     }
 
     /// Eats symbols while predicate returns true or until the end of file is reached.
+    #[allow(dead_code)]
     #[inline]
     fn eat_while(&mut self, mut predicate: impl FnMut(u8) -> bool) {
         while predicate(self.first()) {
