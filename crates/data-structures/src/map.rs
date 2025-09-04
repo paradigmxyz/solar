@@ -9,6 +9,7 @@ pub use rustc_hash::{self, FxBuildHasher, FxHasher};
 pub type StdEntry<'a, K, V> = std::collections::hash_map::Entry<'a, K, V>;
 /// [`IndexMap`] entry type.
 pub type IndexEntry<'a, K, V> = indexmap::map::Entry<'a, K, V>;
+pub type IndexSetSlice<V> = indexmap::set::Slice<V>;
 
 /// A [`HashMap`] using [`FxHasher`] as its hasher.
 pub type FxHashMap<K, V> = HashMap<K, V, FxBuildHasher>;
