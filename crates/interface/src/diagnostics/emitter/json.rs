@@ -6,6 +6,7 @@ use crate::{
 };
 use anstream::ColorChoice;
 use serde::Serialize;
+use solar_config::HumanEmitterKind;
 use std::{io, sync::Arc};
 
 /// Diagnostic emitter that emits diagnostics as JSON.
@@ -62,6 +63,18 @@ impl JsonEmitter {
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
         self.human_emitter = self.human_emitter.ui_testing(yes);
+        self
+    }
+
+    /// Sets the human emitter kind for rendered messages.
+    pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
+        self.human_emitter = self.human_emitter.human_kind(kind);
+        self
+    }
+
+    /// Sets the terminal width for formatting.
+    pub fn terminal_width(mut self, width: Option<usize>) -> Self {
+        self.human_emitter = self.human_emitter.terminal_width(width);
         self
     }
 
