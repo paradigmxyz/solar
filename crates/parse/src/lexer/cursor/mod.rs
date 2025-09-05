@@ -224,20 +224,22 @@ impl<'a> Cursor<'a> {
                     }
                     b'>' => {
                         self.bump();
-                        if self.first() == b'>' {
-                            // >>> or >>>=
-                            self.bump();
-                            if self.first() == b'=' {
+                        match self.first() {
+                            b'>' => {
+                                // >>> or >>>=
                                 self.bump();
-                                RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Sar)
-                            } else {
-                                RawTokenKind::BinOp(solar_ast::token::BinOpToken::Sar)
+                                if self.first() == b'=' {
+                                    self.bump();
+                                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Sar)
+                                } else {
+                                    RawTokenKind::BinOp(solar_ast::token::BinOpToken::Sar)
+                                }
                             }
-                        } else if self.first() == b'=' {
-                            self.bump();
-                            RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Shr)
-                        } else {
-                            RawTokenKind::BinOp(solar_ast::token::BinOpToken::Shr)
+                            b'=' => {
+                                self.bump();
+                                RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Shr)
+                            }
+                            _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Shr),
                         }
                     }
                     _ => RawTokenKind::Gt,
