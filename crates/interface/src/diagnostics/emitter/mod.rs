@@ -77,7 +77,7 @@ pub trait Emitter: Any {
                 // code inline (`hide_inline`). Therefore, we don't show the substitution.
                 format!("help: {}", sugg.msg.as_str())
             } else {
-                format!("help: {}: `{}`", sugg.msg.as_str(), snippet,)
+                format!("help: {}: `{}`", sugg.msg.as_str(), snippet)
             };
             primary_span.to_mut().push_span_label(part.span, msg);
 

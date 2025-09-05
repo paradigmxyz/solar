@@ -3,22 +3,16 @@ warning[3628]: contract has a payable fallback function, but no receive ether fu
    |
 LL | contract P1 {
    |          ^^
-   |
-help: consider changing `fallback` to `receive`
-  --> ROOT/tests/ui/parser/payable_fallback_without_receive.sol:LL:CC
-   |
+LL |
 LL |     fallback() external payable {}
-   |     ^^^^^^^^
+   |     -------- help: consider changing to: `receive`
 
 warning[3628]: contract has a payable fallback function, but no receive ether function
   --> ROOT/tests/ui/parser/payable_fallback_without_receive.sol:LL:CC
    |
+LL |     fallback() external payable {}
+   |     -------- help: consider changing to: `receive`
+...
 LL | contract P4 is P1 {}
    |          ^^
-   |
-help: consider changing `fallback` to `receive`
-  --> ROOT/tests/ui/parser/payable_fallback_without_receive.sol:LL:CC
-   |
-LL |     fallback() external payable {}
-   |     ^^^^^^^^
 
