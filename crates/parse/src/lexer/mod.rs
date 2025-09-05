@@ -72,7 +72,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             token: Token::DUMMY,
             nbsp_is_whitespace: false,
         };
-        (lexer.token, _) = lexer.bump();
+        lexer.token = lexer.bump();
         lexer
     }
 
@@ -113,12 +113,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Returns the next token, advancing the lexer.
     pub fn next_token(&mut self) -> Token {
-        let (next_token, _) = self.bump();
+        let next_token = self.bump();
         std::mem::replace(&mut self.token, next_token)
     }
 
-    fn bump(&mut self) -> (Token, bool) {
-        let mut preceded_by_whitespace = false;
+    fn bump(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
@@ -129,16 +128,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             // This turns strings into interned symbols and runs additional validation.
             let kind = match raw_kind {
                 RawTokenKind::LineComment { is_doc } => {
-                    preceded_by_whitespace = true;
-
                     // Opening delimiter is not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
-                    preceded_by_whitespace = true;
-
                     if !terminated {
                         let msg = if is_doc {
                             "unterminated block doc-comment"
@@ -155,7 +150,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
                 }
                 RawTokenKind::Whitespace => {
-                    preceded_by_whitespace = true;
                     continue;
                 }
                 RawTokenKind::Ident => {
@@ -220,7 +214,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         // space characters earlier in the file, treat all
                         // subsequent occurrences as whitespace.
                         if self.nbsp_is_whitespace {
-                            preceded_by_whitespace = true;
                             continue;
                         }
                         self.nbsp_is_whitespace = true;
@@ -280,7 +273,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     if let Some(token) = token {
                         token
                     } else {
-                        preceded_by_whitespace = true;
                         continue;
                     }
                 }
@@ -288,7 +280,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
-            return (Token::new(kind, span), preceded_by_whitespace);
+            return Token::new(kind, span);
         }
     }
 
