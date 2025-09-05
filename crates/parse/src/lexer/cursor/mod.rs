@@ -172,6 +172,8 @@ impl<'a> Cursor<'a> {
             b']' => RawTokenKind::CloseBracket,
             b'~' => RawTokenKind::Tilde,
             b'?' => RawTokenKind::Question,
+
+            // Multi-character tokens.
             b':' => match self.first() {
                 b'=' => {
                     self.bump();
