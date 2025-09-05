@@ -39,9 +39,6 @@ pub struct Lexer<'sess, 'src> {
     /// Cursor for getting lexer tokens.
     cursor: Cursor<'src>,
 
-    /// The current token which has not been processed by `next_token` yet.
-    token: Token,
-
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
     /// space character as whitespace.
@@ -63,17 +60,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Creates a new `Lexer` for the given source string and starting position.
     pub fn with_start_pos(sess: &'sess Session, src: &'src str, start_pos: BytePos) -> Self {
-        let mut lexer = Self {
+        Self {
             sess,
             start_pos,
             pos: start_pos,
             src,
             cursor: Cursor::new(src),
-            token: Token::DUMMY,
             nbsp_is_whitespace: false,
-        };
-        lexer.token = lexer.bump();
-        lexer
+        }
     }
 
     /// Returns a reference to the diagnostic context.
@@ -113,11 +107,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Returns the next token, advancing the lexer.
     pub fn next_token(&mut self) -> Token {
-        let next_token = self.bump();
-        std::mem::replace(&mut self.token, next_token)
-    }
-
-    fn bump(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
