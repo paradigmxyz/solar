@@ -1,6 +1,6 @@
 //! Raw, low-level tokens. Created using [`Cursor`](crate::Cursor).
 
-use solar_ast::{Base, StrKind};
+use solar_ast::{Base, StrKind, token::BinOpToken};
 
 /// A raw token.
 ///
@@ -53,6 +53,36 @@ pub enum RawTokenKind {
     ///
     /// See [`RawLiteralKind`] for more details.
     Literal { kind: RawLiteralKind },
+
+    // Multi-character operator tokens:
+    /// `==`
+    EqEq,
+    /// `<=`
+    Le,
+    /// `>=`
+    Ge,
+    /// `!=`
+    Ne,
+    /// `&&`
+    AndAnd,
+    /// `||`
+    OrOr,
+    /// `:=`
+    Walrus,
+    /// `++`
+    PlusPlus,
+    /// `--`
+    MinusMinus,
+    /// `**`
+    StarStar,
+    /// `->`
+    Arrow,
+    /// `=>`
+    FatArrow,
+    /// Binary operator composed of multiple characters, e.g. `<<`, `>>`, `>>>` ...
+    BinOp(BinOpToken),
+    /// Binary operator with assignment, e.g. `+=`, `*=`, `<<=` ...
+    BinOpEq(BinOpToken),
 
     // One-char tokens:
     /// `;`

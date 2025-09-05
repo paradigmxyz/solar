@@ -113,18 +113,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Returns the next token, advancing the lexer.
     pub fn next_token(&mut self) -> Token {
-        let mut next_token;
-        loop {
-            let preceded_by_whitespace;
-            (next_token, preceded_by_whitespace) = self.bump();
-            if preceded_by_whitespace {
-                break;
-            } else if let Some(glued) = self.token.glue(next_token) {
-                self.token = glued;
-            } else {
-                break;
-            }
-        }
+        let (next_token, _) = self.bump();
         std::mem::replace(&mut self.token, next_token)
     }
 
@@ -202,6 +191,21 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
                 RawTokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
                 RawTokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
+
+                RawTokenKind::EqEq => TokenKind::EqEq,
+                RawTokenKind::Le => TokenKind::Le,
+                RawTokenKind::Ge => TokenKind::Ge,
+                RawTokenKind::Ne => TokenKind::Ne,
+                RawTokenKind::AndAnd => TokenKind::AndAnd,
+                RawTokenKind::OrOr => TokenKind::OrOr,
+                RawTokenKind::Walrus => TokenKind::Walrus,
+                RawTokenKind::PlusPlus => TokenKind::PlusPlus,
+                RawTokenKind::MinusMinus => TokenKind::MinusMinus,
+                RawTokenKind::StarStar => TokenKind::StarStar,
+                RawTokenKind::Arrow => TokenKind::Arrow,
+                RawTokenKind::FatArrow => TokenKind::FatArrow,
+                RawTokenKind::BinOp(op) => TokenKind::BinOp(op),
+                RawTokenKind::BinOpEq(op) => TokenKind::BinOpEq(op),
 
                 RawTokenKind::Unknown => {
                     // Don't emit diagnostics for sequences of the same invalid token
