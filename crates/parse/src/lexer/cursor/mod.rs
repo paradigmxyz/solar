@@ -118,8 +118,11 @@ impl<'a> Cursor<'a> {
         CursorWithPosition::new(self)
     }
 
-    /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> RawToken {
+    /// Slops up a token from the input string.
+    ///
+    /// Advances the cursor by the length of the token.
+    /// Prefer using `Cursor::with_position`, or using it as an iterator instead.
+    pub fn slop(&mut self) -> RawToken {
         // Use the pointer instead of the length to track how many bytes were consumed, since
         // internally the iterator is a pair of `start` and `end` pointers.
         let start = self.as_ptr();
@@ -633,7 +636,7 @@ impl Iterator for Cursor<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.advance_token();
+        let token = self.slop();
         if token.kind == RawTokenKind::Eof { None } else { Some(token) }
     }
 }
