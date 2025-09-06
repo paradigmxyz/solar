@@ -83,7 +83,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         // This is an estimate of the number of tokens in the source.
         let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
-            let token = self.next_token();
+            let token = self.slop();
             if token.is_eof() {
                 break;
             }
@@ -102,11 +102,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         tokens
     }
 
-    /// Returns the next token, advancing the lexer.
-    pub fn next_token(&mut self) -> Token {
+    /// Slops up a token from the input string.
+    ///
+    /// Advances the lexer by the length of the token.
+    /// Prefer using `self` as an iterator instead.
+    pub fn slop(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
-            let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
+            let RawToken { kind: raw_kind, len } = self.cursor.slop();
             let start = self.pos;
             self.pos += len;
 
@@ -410,7 +413,7 @@ impl Iterator for Lexer<'_, '_> {
 
     #[inline]
     fn next(&mut self) -> Option<Token> {
-        let token = self.next_token();
+        let token = self.slop();
         if token.is_eof() { None } else { Some(token) }
     }
 }
