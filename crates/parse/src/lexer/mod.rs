@@ -178,75 +178,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::CloseDelim(delim) => TokenKind::CloseDelim(delim),
 
                 RawTokenKind::Unknown => {
-                    // Don't emit diagnostics for sequences of the same invalid token
-                    if swallow_next_invalid > 0 {
-                        swallow_next_invalid -= 1;
-                        continue;
-                    }
-                    let mut it = self.str_from_to_end(start).chars();
-                    let c = it.next().unwrap();
-                    if c == '\u{00a0}' {
-                        // If an error has already been reported on non-breaking
-                        // space characters earlier in the file, treat all
-                        // subsequent occurrences as whitespace.
-                        if self.nbsp_is_whitespace {
-                            continue;
-                        }
-                        self.nbsp_is_whitespace = true;
-                    }
-
-                    let repeats = it.take_while(|c1| *c1 == c).count();
-                    swallow_next_invalid = repeats;
-
-                    let (token, sugg) =
-                        unicode_chars::check_for_substitution(self, start, c, repeats + 1);
-
-                    let span = self
-                        .new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
-                    let msg = format!("unknown start of token: {}", escaped_char(c));
-                    let mut err = self.dcx().err(msg).span(span);
-                    if let Some(sugg) = sugg {
-                        match sugg {
-                            unicode_chars::TokenSubstitution::DirectedQuotes {
-                                span,
-                                suggestion: _,
-                                ascii_str,
-                                ascii_name,
-                            } => {
-                                let msg = format!(
-                                    "Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not"
-                                );
-                                err = err.span_help(span, msg);
-                            }
-                            unicode_chars::TokenSubstitution::Other {
-                                span,
-                                suggestion: _,
-                                ch,
-                                u_name,
-                                ascii_str,
-                                ascii_name,
-                            } => {
-                                let msg = format!(
-                                    "Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not"
-                                );
-                                err = err.span_help(span, msg);
-                            }
-                        }
-                    }
-                    if c == '\0' {
-                        let help = "source files must contain UTF-8 encoded text, unexpected null bytes might occur when a different encoding is used";
-                        err = err.help(help);
-                    }
-                    if repeats > 0 {
-                        let note = match repeats {
-                            1 => "once more".to_string(),
-                            _ => format!("{repeats} more times"),
-                        };
-                        err = err.note(format!("character repeats {note}"));
-                    }
-                    err.emit();
-
-                    if let Some(token) = token {
+                    if let Some(token) = self.handle_unknown_token(start, &mut swallow_next_invalid)
+                    {
                         token
                     } else {
                         continue;
@@ -258,6 +191,81 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             let span = self.new_span(start, self.pos);
             return Token::new(kind, span);
         }
+    }
+
+    #[cold]
+    fn handle_unknown_token(
+        &mut self,
+        start: BytePos,
+        swallow_next_invalid: &mut usize,
+    ) -> Option<TokenKind> {
+        // Don't emit diagnostics for sequences of the same invalid token
+        if *swallow_next_invalid > 0 {
+            *swallow_next_invalid -= 1;
+            return None;
+        }
+        let mut it = self.str_from_to_end(start).chars();
+        let c = it.next().unwrap();
+        if c == '\u{00a0}' {
+            // If an error has already been reported on non-breaking
+            // space characters earlier in the file, treat all
+            // subsequent occurrences as whitespace.
+            if self.nbsp_is_whitespace {
+                return None;
+            }
+            self.nbsp_is_whitespace = true;
+        }
+
+        let repeats = it.take_while(|c1| *c1 == c).count();
+        *swallow_next_invalid = repeats;
+
+        let (token, sugg) = unicode_chars::check_for_substitution(self, start, c, repeats + 1);
+
+        let span = self.new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
+        let msg = format!("unknown start of token: {}", escaped_char(c));
+        let mut err = self.dcx().err(msg).span(span);
+        if let Some(sugg) = sugg {
+            match sugg {
+                unicode_chars::TokenSubstitution::DirectedQuotes {
+                    span,
+                    suggestion: _,
+                    ascii_str,
+                    ascii_name,
+                } => {
+                    let msg = format!(
+                        "Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not"
+                    );
+                    err = err.span_help(span, msg);
+                }
+                unicode_chars::TokenSubstitution::Other {
+                    span,
+                    suggestion: _,
+                    ch,
+                    u_name,
+                    ascii_str,
+                    ascii_name,
+                } => {
+                    let msg = format!(
+                        "Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not"
+                    );
+                    err = err.span_help(span, msg);
+                }
+            }
+        }
+        if c == '\0' {
+            let help = "source files must contain UTF-8 encoded text, unexpected null bytes might occur when a different encoding is used";
+            err = err.help(help);
+        }
+        if repeats > 0 {
+            let note = match repeats {
+                1 => "once more".to_string(),
+                _ => format!("{repeats} more times"),
+            };
+            err = err.note(format!("character repeats {note}"));
+        }
+        err.emit();
+
+        token
     }
 
     fn cook_doc_comment(
