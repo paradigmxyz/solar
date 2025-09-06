@@ -378,16 +378,22 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         Symbol::intern(self.str_from_to(start, end))
     }
 
-    /// Slice of the source text spanning from `start` up to but excluding `end`.
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
-        &self.src[self.src_index(start)..self.src_index(end)]
-    }
-
     /// Slice of the source text spanning from `start` until the end.
     #[cfg_attr(debug_assertions, track_caller)]
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
         self.str_from_to(start, BytePos::from_usize(self.src.len()))
+    }
+
+    /// Slice of the source text spanning from `start` up to but excluding `end`.
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
+        let range = self.src_index(start)..self.src_index(end);
+        if cfg!(debug_assertions) {
+            &self.src[range]
+        } else {
+            // SAFETY: Should never be out of bounds.
+            unsafe { self.src.get_unchecked(range) }
+        }
     }
 }
 
