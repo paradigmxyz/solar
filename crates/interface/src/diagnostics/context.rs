@@ -99,7 +99,7 @@ impl DiagCtxt {
     /// Creates a new `DiagCtxt` with a stderr emitter for emitting one-off/early fatal errors that
     /// contain no source information.
     pub fn new_early() -> Self {
-        Self::with_stderr_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
+        Self::with_stderr_emitter(None).with_flags(|flags| flags.track_diagnostics = false)
     }
 
     /// Creates a new `DiagCtxt` with a test emitter.
@@ -177,7 +177,7 @@ impl DiagCtxt {
             }
             format => unimplemented!("{format:?}"),
         };
-        Self::new(emitter).set_flags(|flags| flags.update_from_opts(opts))
+        Self::new(emitter).with_flags(|flags| flags.update_from_opts(opts))
     }
 
     /// Sets the emitter to [`SilentEmitter`].
@@ -187,9 +187,9 @@ impl DiagCtxt {
         });
     }
 
-    /// Sets the inner emitter.
-    pub fn set_emitter(&self, emitter: Box<DynEmitter>) {
-        self.inner.lock().emitter = emitter;
+    /// Sets the inner emitter. Returns the previous emitter.
+    pub fn set_emitter(&self, emitter: Box<DynEmitter>) -> Box<DynEmitter> {
+        std::mem::replace(&mut self.inner.lock().emitter, emitter)
     }
 
     /// Wraps the current emitter with the given closure.
@@ -215,9 +215,14 @@ impl DiagCtxt {
     }
 
     /// Sets flags.
-    pub fn set_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
+    pub fn with_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
         self.set_flags_mut(f);
         self
+    }
+
+    /// Sets flags.
+    pub fn set_flags(&self, f: impl FnOnce(&mut DiagCtxtFlags)) {
+        f(&mut self.inner.lock().flags);
     }
 
     /// Sets flags.
@@ -227,7 +232,7 @@ impl DiagCtxt {
 
     /// Disables emitting warnings.
     pub fn disable_warnings(self) -> Self {
-        self.set_flags(|f| f.can_emit_warnings = false)
+        self.with_flags(|f| f.can_emit_warnings = false)
     }
 
     /// Returns `true` if diagnostics are being tracked.
