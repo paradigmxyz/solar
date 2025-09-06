@@ -196,7 +196,7 @@ impl DiagCtxt {
     pub fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
         struct FakeEmitter;
         impl crate::diagnostics::Emitter for FakeEmitter {
-            fn emit_diagnostic(&mut self, _diagnostic: &Diag) {}
+            fn emit_diagnostic(&mut self, _diagnostic: &mut Diag) {}
         }
 
         let mut inner = self.inner.lock();
@@ -474,7 +474,7 @@ impl DiagCtxtInner {
                 // TODO: Don't emit in tests since it's not handled by `ui_test`.
                 if self.flags.track_diagnostics {
                     let msg = others.join(", ");
-                    self.emitter.emit_diagnostic(&Diag::new(Level::Warning, msg));
+                    self.emitter.emit_diagnostic(&mut Diag::new(Level::Warning, msg));
                 }
                 Ok(())
             }

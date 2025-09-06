@@ -1,17 +1,19 @@
 use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
     SourceMap,
-    diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
+    diagnostics::{Level, MultiSpan, Style, SubDiagnostic, SuggestionStyle},
     source_map::SourceFile,
 };
 use annotate_snippets::{
-    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Renderer, Report, Snippet, Title,
-    renderer::DecorStyle,
+    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Patch, Renderer, Report, Snippet,
+    Title, renderer::DecorStyle,
 };
 use anstream::{AutoStream, ColorChoice};
 use solar_config::HumanEmitterKind;
 use std::{
     any::Any,
+    borrow::Cow,
+    collections::BTreeMap,
     io::{self, Write},
     sync::{Arc, OnceLock},
 };
@@ -43,7 +45,7 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
@@ -178,7 +180,11 @@ impl HumanEmitter {
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
-    fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Report<'_>) -> R) -> R {
+    fn snippet<R>(
+        &mut self,
+        diagnostic: &mut Diag,
+        f: impl FnOnce(&mut Self, Report<'_>) -> R,
+    ) -> R {
         // Current format (annotate-snippets 0.12.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
@@ -199,10 +205,21 @@ impl HumanEmitter {
         <other groups for subdiagnostics, same as above without footers>
         */
 
-        let sm = self.source_map.as_deref();
+        // Process suggestions. Inline primary span if necessary.
+        let mut primary_span = Cow::Borrowed(&diagnostic.span);
+        self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
+        // Render suggestions unless style is `HideCodeAlways`.
+        // Note that if the span was previously inlined, suggestions will be empty.
+        let children = diagnostic
+            .suggestions
+            .iter()
+            .filter(|sugg| sugg.style != SuggestionStyle::HideCodeAlways)
+            .collect::<Vec<_>>();
+
+        let sm = self.source_map.as_deref();
         let title = title_from_diagnostic(diagnostic);
-        let snippets = sm.map(|sm| iter_snippets(sm, &diagnostic.span)).into_iter().flatten();
+        let snippets = sm.map(|sm| iter_snippets(sm, &primary_span)).into_iter().flatten();
 
         // Dummy subdiagnostics go in the main group's footer, non-dummy ones go as separate groups.
         let subs = |d| diagnostic.children.iter().filter(move |sub| sub.span.is_dummy() == d);
@@ -215,8 +232,53 @@ impl HumanEmitter {
             g
         });
 
+        // Create suggestion groups for non-inline suggestions
+        let suggestion_groups = children.iter().flat_map(|suggestion| {
+            let sm = self.source_map.as_deref()?;
+
+            // For each substitution, create a separate group
+            // Currently we typically only have one substitution per suggestion
+            for substitution in &suggestion.substitutions {
+                // Group parts by file
+                let mut parts_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
+                for part in &substitution.parts {
+                    let file = sm.lookup_source_file(part.span.lo());
+                    parts_by_file.entry(file.name.clone()).or_default().push(part);
+                }
+
+                if parts_by_file.is_empty() {
+                    continue;
+                }
+
+                let mut snippets = vec![];
+                for (filename, parts) in parts_by_file {
+                    let file = sm.get_file_ref(&filename)?;
+                    let mut snippet = Snippet::source(file.src.to_string())
+                        .path(sm.filename_for_diagnostics(&file.name).to_string())
+                        .fold(true);
+
+                    for part in parts {
+                        if let Ok(range) = sm.span_to_range(part.span) {
+                            snippet = snippet.patch(Patch::new(range, part.snippet.clone()));
+                        }
+                    }
+                    snippets.push(snippet);
+                }
+
+                if !snippets.is_empty() {
+                    let title = ASLevel::HELP.secondary_title(suggestion.msg.as_str());
+                    return Some(Group::with_title(title).elements(snippets));
+                }
+            }
+
+            None
+        });
+
         let main_group = Group::with_title(title).elements(snippets).elements(footers);
-        let report = std::iter::once(main_group).chain(sub_groups).collect::<Vec<_>>();
+        let report = std::iter::once(main_group)
+            .chain(sub_groups)
+            .chain(suggestion_groups)
+            .collect::<Vec<_>>();
         f(self, &report)
     }
 }
@@ -228,7 +290,7 @@ pub struct HumanBufferEmitter {
 
 impl Emitter for HumanBufferEmitter {
     #[inline]
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.inner.emit_diagnostic(diagnostic);
     }
 
