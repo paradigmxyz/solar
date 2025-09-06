@@ -106,7 +106,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     pub fn next_token(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
-            let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
+            let RawToken { kind: raw_kind, len } = self.cursor.advance_token_inline();
             let start = self.pos;
             self.pos += len;
 

@@ -120,6 +120,12 @@ impl<'a> Cursor<'a> {
 
     /// Parses a token from the input string.
     pub fn advance_token(&mut self) -> RawToken {
+        self.advance_token_inline()
+    }
+
+    /// Parses a token from the input string.
+    #[inline(always)]
+    pub fn advance_token_inline(&mut self) -> RawToken {
         // Use the pointer instead of the length to track how many bytes were consumed, since
         // internally the iterator is a pair of `start` and `end` pointers.
         let start = self.as_ptr();
@@ -133,7 +139,7 @@ impl<'a> Cursor<'a> {
         RawToken::new(token_kind, len as u32)
     }
 
-    #[inline]
+    #[inline(always)]
     fn advance_token_kind(&mut self, first_char: u8) -> RawTokenKind {
         match first_char {
             // Slash, comment or block comment.
