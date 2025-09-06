@@ -4,6 +4,7 @@ use solar_ast::{
     Base, StrKind,
     token::{CommentKind, Token, TokenKind, TokenLitKind},
 };
+use solar_data_structures::hint::cold_path;
 use solar_interface::{
     BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
 };
@@ -120,6 +121,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
                     if !terminated {
+                        cold_path();
                         let msg = if is_doc {
                             "unterminated block doc-comment"
                         } else {
@@ -287,6 +289,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         match kind {
             RawLiteralKind::Str { kind, terminated } => {
                 if !terminated {
+                    cold_path();
                     let span = self.new_span(start, end);
                     let guar = self.dcx().err("unterminated string").span(span).emit();
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
@@ -296,11 +299,13 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             }
             RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
+                    cold_path();
                     let span = self.new_span(start, end);
                     self.dcx().err("no valid digits found for number").span(span).emit();
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
+                        cold_path();
                         let start = start + 2;
                         // To uncomment if binary and octal literals are ever supported.
                         /*
@@ -308,6 +313,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         let s = self.str_from_to(start, end);
                         for (i, c) in s.char_indices() {
                             if c != '_' && c.to_digit(base).is_none() {
+                                cold_path();
                                 let msg = format!("invalid digit for a base {base} literal");
                                 let lo = start + BytePos::from_usize(i);
                                 let hi = lo + BytePos::from_usize(c.len_utf8());
@@ -324,6 +330,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             }
             RawLiteralKind::Rational { base, empty_exponent } => {
                 if empty_exponent {
+                    cold_path();
                     let span = self.new_span(start, self.pos);
                     self.dcx().err("expected at least one digit in exponent").span(span).emit();
                 }
@@ -331,6 +338,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 let unsupported_base =
                     matches!(base, Base::Binary | Base::Octal | Base::Hexadecimal);
                 if unsupported_base {
+                    cold_path();
                     let msg = format!("{base} rational numbers are not supported");
                     self.dcx().err(msg).span(self.new_span(start, end)).emit();
                 }
