@@ -8,7 +8,6 @@ use solar_data_structures::hint::cold_path;
 use solar_interface::{
     BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
 };
-use std::mem::MaybeUninit;
 
 mod cursor;
 use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
@@ -82,19 +81,16 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     #[instrument(name = "lex", level = "debug", skip_all)]
     pub fn into_tokens(mut self) -> Vec<Token> {
         // This is an estimate of the number of tokens in the source.
-        let mut tokens = Vec::<Token>::with_capacity(self.src.len() / 4);
+        let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
-            tokens.reserve(1);
-            let ptr = tokens.spare_capacity_mut().as_mut_ptr();
-            let token = unsafe {
-                self.next_token_(&mut *ptr, true);
-                (&*ptr).assume_init_ref()
-            };
-            // tokens.push(self.next_token());
+            let token = self.next_token();
             if token.is_eof() {
                 break;
             }
-            unsafe { tokens.set_len(tokens.len() + 1) };
+            if token.is_comment() {
+                continue;
+            }
+            tokens.push(token);
         }
         trace!(
             src.len = self.src.len(),
@@ -108,12 +104,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Returns the next token, advancing the lexer.
     pub fn next_token(&mut self) -> Token {
-        let mut token = MaybeUninit::<Token>::uninit();
-        self.next_token_(&mut token, false);
-        unsafe { token.assume_init() }
-    }
-
-    fn next_token_(&mut self, token: &mut MaybeUninit<Token>, skip_comments: bool) {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
@@ -201,11 +191,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
-            if skip_comments && kind.is_comment() {
-                continue;
-            }
-            token.write(Token::new(kind, span));
-            return;
+            return Token::new(kind, span);
         }
     }
 
