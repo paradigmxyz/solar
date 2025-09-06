@@ -358,7 +358,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     #[inline]
     fn new_span(&self, lo: BytePos, hi: BytePos) -> Span {
-        Span::new(lo, hi)
+        Span::new_unchecked(lo, hi)
     }
 
     #[inline]
