@@ -72,6 +72,18 @@ impl Span {
         Self { lo, hi }
     }
 
+    /// Creates a new span from two byte positions, without checking if `lo` is less than or equal
+    /// to `hi`.
+    ///
+    /// This is not inherently unsafe, however the behavior of various methods is undefined if `lo`
+    /// is greater than `hi`.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
+        debug_assert!(lo <= hi, "creating span with lo {lo:?} > hi {hi:?}");
+        Self { lo, hi }
+    }
+
     /// Returns the span as a `Range<usize>`.
     ///
     /// Note that this may not be directly usable to index into the source string.
