@@ -335,7 +335,7 @@ impl Style {
 /// before applying the suggestion.
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "json", serde(rename_all = "kebab-case"))]
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Applicability {
     /// The suggestion is definitely what the user intended, or maintains the exact meaning of the
     /// code. This suggestion should be automatically applied.
@@ -355,16 +355,11 @@ pub enum Applicability {
     HasPlaceholders,
 
     /// The applicability of the suggestion is unknown.
+    #[default]
     Unspecified,
 }
 
-impl Default for Applicability {
-    fn default() -> Self {
-        Self::Unspecified
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum SuggestionStyle {
     /// Hide the suggested code when displaying this suggestion inline.
     HideCodeInline,
@@ -375,15 +370,10 @@ pub enum SuggestionStyle {
     /// Always show the suggested code.
     /// This will *not* show the code if the suggestion is inline *and* the suggested code is
     /// empty.
+    #[default]
     ShowCode,
     /// Always show the suggested code independently.
     ShowAlways,
-}
-
-impl Default for SuggestionStyle {
-    fn default() -> Self {
-        Self::ShowCode
-    }
 }
 
 impl SuggestionStyle {
