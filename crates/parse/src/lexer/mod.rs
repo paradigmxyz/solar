@@ -21,8 +21,7 @@ mod utf8;
 /// Solidity and Yul lexer.
 ///
 /// Converts a [`Cursor`]'s output from simple [`RawTokenKind`]s into rich [`TokenKind`]s, by
-/// converting strings into interned symbols, concatenating tokens together, and running additional
-/// validation.
+/// converting strings into interned symbols, and running additional validation.
 pub struct Lexer<'sess, 'src> {
     /// The parsing context.
     pub(crate) sess: &'sess Session,
