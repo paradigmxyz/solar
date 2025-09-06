@@ -449,9 +449,9 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 if let Some(ret_name) = ret.name {
                     self.dcx()
                         .err("return parameters in function types may not be named")
-                        .span(ret_name.span)
+                        .span(ret.span)
                         .span_suggestion(
-                            ret_name.span,
+                            ret_name.span.with_lo(ret.ty.span.hi()),
                             format!("remove `{ret_name}`"),
                             "",
                             solar_interface::diagnostics::Applicability::MachineApplicable,
