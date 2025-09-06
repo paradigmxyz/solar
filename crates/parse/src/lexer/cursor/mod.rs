@@ -141,7 +141,7 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Slash)
                 }
-                _ => RawTokenKind::Slash,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Slash),
             },
 
             // Whitespace sequence.
@@ -260,7 +260,7 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::Arrow
                 }
-                _ => RawTokenKind::Minus,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Minus),
             },
             b'&' => match self.first() {
                 b'&' => {
@@ -271,7 +271,7 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::And)
                 }
-                _ => RawTokenKind::And,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::And),
             },
             b'|' => match self.first() {
                 b'|' => {
@@ -282,7 +282,7 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Or)
                 }
-                _ => RawTokenKind::Or,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Or),
             },
             b'+' => match self.first() {
                 b'+' => {
@@ -293,7 +293,7 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Plus)
                 }
-                _ => RawTokenKind::Plus,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Plus),
             },
             b'*' => match self.first() {
                 b'*' => {
@@ -304,21 +304,21 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Star)
                 }
-                _ => RawTokenKind::Star,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Star),
             },
             b'^' => match self.first() {
                 b'=' => {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Caret)
                 }
-                _ => RawTokenKind::Caret,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Caret),
             },
             b'%' => match self.first() {
                 b'=' => {
                     self.bump();
                     RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Percent)
                 }
-                _ => RawTokenKind::Percent,
+                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Percent),
             },
 
             // String literal.

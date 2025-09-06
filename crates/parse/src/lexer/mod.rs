@@ -2,7 +2,7 @@
 
 use solar_ast::{
     Base, StrKind,
-    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
+    token::{CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{
     BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
@@ -165,14 +165,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Bang => TokenKind::Not,
                 RawTokenKind::Lt => TokenKind::Lt,
                 RawTokenKind::Gt => TokenKind::Gt,
-                RawTokenKind::Minus => TokenKind::BinOp(BinOpToken::Minus),
-                RawTokenKind::And => TokenKind::BinOp(BinOpToken::And),
-                RawTokenKind::Or => TokenKind::BinOp(BinOpToken::Or),
-                RawTokenKind::Plus => TokenKind::BinOp(BinOpToken::Plus),
-                RawTokenKind::Star => TokenKind::BinOp(BinOpToken::Star),
-                RawTokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
-                RawTokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
-                RawTokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
 
                 RawTokenKind::EqEq => TokenKind::EqEq,
                 RawTokenKind::Le => TokenKind::Le,
@@ -417,8 +409,8 @@ fn escaped_char(c: char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use BinOpToken::*;
     use TokenKind::*;
+    use solar_ast::token::BinOpToken::*;
     use std::ops::Range;
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];

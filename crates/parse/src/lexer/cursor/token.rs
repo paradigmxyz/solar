@@ -79,7 +79,7 @@ pub enum RawTokenKind {
     Arrow,
     /// `=>`
     FatArrow,
-    /// Binary operator composed of multiple characters, e.g. `<<`, `>>`, `>>>` ...
+    /// Binary operator, e.g. `<<`, `>>`, `>>>` ...
     BinOp(BinOpToken),
     /// Binary operator with assignment, e.g. `+=`, `*=`, `<<=` ...
     BinOpEq(BinOpToken),
@@ -117,22 +117,6 @@ pub enum RawTokenKind {
     Lt,
     /// `>`
     Gt,
-    /// `-`
-    Minus,
-    /// `&`
-    And,
-    /// `|`
-    Or,
-    /// `+`
-    Plus,
-    /// `*`
-    Star,
-    /// `/`
-    Slash,
-    /// `^`
-    Caret,
-    /// `%`
-    Percent,
 
     /// Unknown token, not expected by the lexer, e.g. `№`
     Unknown,
