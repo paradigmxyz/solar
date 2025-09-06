@@ -20,18 +20,18 @@ RawToken { kind: Whitespace, len: 1 }
 RawToken { kind: Ident, len: 2 }
 RawToken { kind: Whitespace, len: 1 }
 RawToken { kind: Ident, len: 4 }
-RawToken { kind: OpenParen, len: 1 }
-RawToken { kind: CloseParen, len: 1 }
+RawToken { kind: OpenDelim(Parenthesis), len: 1 }
+RawToken { kind: CloseDelim(Parenthesis), len: 1 }
 RawToken { kind: Whitespace, len: 1 }
-RawToken { kind: OpenBrace, len: 1 }
+RawToken { kind: OpenDelim(Brace), len: 1 }
 RawToken { kind: Whitespace, len: 1 }
 RawToken { kind: Ident, len: 5 }
-RawToken { kind: OpenParen, len: 1 }
+RawToken { kind: OpenDelim(Parenthesis), len: 1 }
 RawToken { kind: Literal { kind: Str { kind: Str, terminated: true } }, len: 7 }
-RawToken { kind: CloseParen, len: 1 }
+RawToken { kind: CloseDelim(Parenthesis), len: 1 }
 RawToken { kind: Semi, len: 1 }
 RawToken { kind: Whitespace, len: 1 }
-RawToken { kind: CloseBrace, len: 1 }
+RawToken { kind: CloseDelim(Brace), len: 1 }
 RawToken { kind: Whitespace, len: 1 }
 "#]],
     );
