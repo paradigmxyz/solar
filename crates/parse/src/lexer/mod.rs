@@ -87,15 +87,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             tokens.reserve(1);
             let ptr = tokens.spare_capacity_mut().as_mut_ptr();
             let token = unsafe {
-                self.next_token_(&mut *ptr);
+                self.next_token_(&mut *ptr, true);
                 (&*ptr).assume_init_ref()
             };
             // tokens.push(self.next_token());
             if token.is_eof() {
                 break;
-            }
-            if token.is_comment() {
-                continue;
             }
             unsafe { tokens.set_len(tokens.len() + 1) };
         }
@@ -112,11 +109,11 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Returns the next token, advancing the lexer.
     pub fn next_token(&mut self) -> Token {
         let mut token = MaybeUninit::<Token>::uninit();
-        self.next_token_(&mut token);
+        self.next_token_(&mut token, false);
         unsafe { token.assume_init() }
     }
 
-    fn next_token_(&mut self, token: &mut MaybeUninit<Token>) {
+    fn next_token_(&mut self, token: &mut MaybeUninit<Token>, skip_comments: bool) {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
@@ -204,6 +201,9 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
+            if skip_comments && kind.is_comment() {
+                continue;
+            }
             token.write(Token::new(kind, span));
             return;
         }
