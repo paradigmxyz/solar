@@ -3,7 +3,10 @@
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
 use memchr::memmem;
-use solar_ast::{Base, StrKind};
+use solar_ast::{
+    Base, StrKind,
+    token::{BinOpToken, Delimiter},
+};
 use solar_data_structures::hint::unlikely;
 use std::sync::OnceLock;
 
@@ -139,9 +142,9 @@ impl<'a> Cursor<'a> {
                 b'*' => self.block_comment(),
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Slash)
+                    RawTokenKind::BinOpEq(BinOpToken::Slash)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Slash),
+                _ => RawTokenKind::BinOp(BinOpToken::Slash),
             },
 
             // Whitespace sequence.
@@ -164,12 +167,12 @@ impl<'a> Cursor<'a> {
             b';' => RawTokenKind::Semi,
             b',' => RawTokenKind::Comma,
             b'.' => RawTokenKind::Dot,
-            b'(' => RawTokenKind::OpenParen,
-            b')' => RawTokenKind::CloseParen,
-            b'{' => RawTokenKind::OpenBrace,
-            b'}' => RawTokenKind::CloseBrace,
-            b'[' => RawTokenKind::OpenBracket,
-            b']' => RawTokenKind::CloseBracket,
+            b'(' => RawTokenKind::OpenDelim(Delimiter::Parenthesis),
+            b')' => RawTokenKind::CloseDelim(Delimiter::Parenthesis),
+            b'{' => RawTokenKind::OpenDelim(Delimiter::Brace),
+            b'}' => RawTokenKind::CloseDelim(Delimiter::Brace),
+            b'[' => RawTokenKind::OpenDelim(Delimiter::Bracket),
+            b']' => RawTokenKind::CloseDelim(Delimiter::Bracket),
             b'~' => RawTokenKind::Tilde,
             b'?' => RawTokenKind::Question,
 
@@ -197,56 +200,52 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     RawTokenKind::Ne
                 }
-                _ => RawTokenKind::Bang,
+                _ => RawTokenKind::Not,
             },
-            b'<' => {
-                match self.first() {
-                    b'=' => {
+            b'<' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Le
+                }
+                b'<' => {
+                    self.bump();
+                    // Now check for <<= or <<
+                    if self.first() == b'=' {
                         self.bump();
-                        RawTokenKind::Le
+                        RawTokenKind::BinOpEq(BinOpToken::Shl)
+                    } else {
+                        RawTokenKind::BinOp(BinOpToken::Shl)
                     }
-                    b'<' => {
-                        self.bump();
-                        // Now check for <<= or <<
-                        if self.first() == b'=' {
+                }
+                _ => RawTokenKind::Lt,
+            },
+            b'>' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Ge
+                }
+                b'>' => {
+                    self.bump();
+                    match self.first() {
+                        b'>' => {
+                            // >>> or >>>=
                             self.bump();
-                            RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Shl)
-                        } else {
-                            RawTokenKind::BinOp(solar_ast::token::BinOpToken::Shl)
-                        }
-                    }
-                    _ => RawTokenKind::Lt,
-                }
-            }
-            b'>' => {
-                match self.first() {
-                    b'=' => {
-                        self.bump();
-                        RawTokenKind::Ge
-                    }
-                    b'>' => {
-                        self.bump();
-                        match self.first() {
-                            b'>' => {
-                                // >>> or >>>=
+                            if self.first() == b'=' {
                                 self.bump();
-                                if self.first() == b'=' {
-                                    self.bump();
-                                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Sar)
-                                } else {
-                                    RawTokenKind::BinOp(solar_ast::token::BinOpToken::Sar)
-                                }
+                                RawTokenKind::BinOpEq(BinOpToken::Sar)
+                            } else {
+                                RawTokenKind::BinOp(BinOpToken::Sar)
                             }
-                            b'=' => {
-                                self.bump();
-                                RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Shr)
-                            }
-                            _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Shr),
                         }
+                        b'=' => {
+                            self.bump();
+                            RawTokenKind::BinOpEq(BinOpToken::Shr)
+                        }
+                        _ => RawTokenKind::BinOp(BinOpToken::Shr),
                     }
-                    _ => RawTokenKind::Gt,
                 }
-            }
+                _ => RawTokenKind::Gt,
+            },
             b'-' => match self.first() {
                 b'-' => {
                     self.bump();
@@ -254,13 +253,13 @@ impl<'a> Cursor<'a> {
                 }
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Minus)
+                    RawTokenKind::BinOpEq(BinOpToken::Minus)
                 }
                 b'>' => {
                     self.bump();
                     RawTokenKind::Arrow
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Minus),
+                _ => RawTokenKind::BinOp(BinOpToken::Minus),
             },
             b'&' => match self.first() {
                 b'&' => {
@@ -269,9 +268,9 @@ impl<'a> Cursor<'a> {
                 }
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::And)
+                    RawTokenKind::BinOpEq(BinOpToken::And)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::And),
+                _ => RawTokenKind::BinOp(BinOpToken::And),
             },
             b'|' => match self.first() {
                 b'|' => {
@@ -280,9 +279,9 @@ impl<'a> Cursor<'a> {
                 }
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Or)
+                    RawTokenKind::BinOpEq(BinOpToken::Or)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Or),
+                _ => RawTokenKind::BinOp(BinOpToken::Or),
             },
             b'+' => match self.first() {
                 b'+' => {
@@ -291,9 +290,9 @@ impl<'a> Cursor<'a> {
                 }
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Plus)
+                    RawTokenKind::BinOpEq(BinOpToken::Plus)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Plus),
+                _ => RawTokenKind::BinOp(BinOpToken::Plus),
             },
             b'*' => match self.first() {
                 b'*' => {
@@ -302,23 +301,23 @@ impl<'a> Cursor<'a> {
                 }
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Star)
+                    RawTokenKind::BinOpEq(BinOpToken::Star)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Star),
+                _ => RawTokenKind::BinOp(BinOpToken::Star),
             },
             b'^' => match self.first() {
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Caret)
+                    RawTokenKind::BinOpEq(BinOpToken::Caret)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Caret),
+                _ => RawTokenKind::BinOp(BinOpToken::Caret),
             },
             b'%' => match self.first() {
                 b'=' => {
                     self.bump();
-                    RawTokenKind::BinOpEq(solar_ast::token::BinOpToken::Percent)
+                    RawTokenKind::BinOpEq(BinOpToken::Percent)
                 }
-                _ => RawTokenKind::BinOp(solar_ast::token::BinOpToken::Percent),
+                _ => RawTokenKind::BinOp(BinOpToken::Percent),
             },
 
             // String literal.

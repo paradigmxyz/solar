@@ -1,6 +1,9 @@
 //! Raw, low-level tokens. Created using [`Cursor`](crate::Cursor).
 
-use solar_ast::{Base, StrKind, token::BinOpToken};
+use solar_ast::{
+    Base, StrKind,
+    token::{BinOpToken, Delimiter},
+};
 
 /// A raw token.
 ///
@@ -54,19 +57,29 @@ pub enum RawTokenKind {
     /// See [`RawLiteralKind`] for more details.
     Literal { kind: RawLiteralKind },
 
-    // Multi-character operator tokens:
-    /// `==`
-    EqEq,
+    // Expression-operator symbols.
+    /// `=`
+    Eq,
+    /// `<`
+    Lt,
     /// `<=`
     Le,
-    /// `>=`
-    Ge,
+    /// `==`
+    EqEq,
     /// `!=`
     Ne,
+    /// `>=`
+    Ge,
+    /// `>`
+    Gt,
     /// `&&`
     AndAnd,
     /// `||`
     OrOr,
+    /// `!`
+    Not,
+    /// `~`
+    Tilde,
     /// `:=`
     Walrus,
     /// `++`
@@ -75,48 +88,32 @@ pub enum RawTokenKind {
     MinusMinus,
     /// `**`
     StarStar,
+    /// A binary operator token.
+    BinOp(BinOpToken),
+    /// A binary operator token, followed by an equals sign (`=`).
+    BinOpEq(BinOpToken),
+
+    // Structural symbols.
+    /// `@`
+    At,
+    /// `.`
+    Dot,
+    /// `,`
+    Comma,
+    /// `;`
+    Semi,
+    /// `:`
+    Colon,
     /// `->`
     Arrow,
     /// `=>`
     FatArrow,
-    /// Binary operator, e.g. `<<`, `>>`, `>>>` ...
-    BinOp(BinOpToken),
-    /// Binary operator with assignment, e.g. `+=`, `*=`, `<<=` ...
-    BinOpEq(BinOpToken),
-
-    // One-char tokens:
-    /// `;`
-    Semi,
-    /// `,`
-    Comma,
-    /// `.`
-    Dot,
-    /// `(`
-    OpenParen,
-    /// `)`
-    CloseParen,
-    /// `{`
-    OpenBrace,
-    /// `}`
-    CloseBrace,
-    /// `[`
-    OpenBracket,
-    /// `]`
-    CloseBracket,
-    /// `~`
-    Tilde,
     /// `?`
     Question,
-    /// `:`
-    Colon,
-    /// `=`
-    Eq,
-    /// `!`
-    Bang,
-    /// `<`
-    Lt,
-    /// `>`
-    Gt,
+    /// An opening delimiter (e.g., `{`).
+    OpenDelim(Delimiter),
+    /// A closing delimiter (e.g., `}`).
+    CloseDelim(Delimiter),
 
     /// Unknown token, not expected by the lexer, e.g. `№`
     Unknown,

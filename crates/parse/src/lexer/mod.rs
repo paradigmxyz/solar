@@ -2,7 +2,7 @@
 
 use solar_ast::{
     Base, StrKind,
-    token::{CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
+    token::{CommentKind, Token, TokenKind, TokenLitKind},
 };
 use solar_interface::{
     BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
@@ -23,20 +23,17 @@ mod utf8;
 /// Converts a [`Cursor`]'s output from simple [`RawTokenKind`]s into rich [`TokenKind`]s, by
 /// converting strings into interned symbols, and running additional validation.
 pub struct Lexer<'sess, 'src> {
-    /// The parsing context.
-    pub(crate) sess: &'sess Session,
-
-    /// Initial position, read-only.
-    start_pos: BytePos,
-
+    /// Cursor for getting lexer tokens.
+    cursor: Cursor<'src>,
     /// The absolute offset within the source_map of the current character.
     pos: BytePos,
 
+    /// The parsing context.
+    pub(crate) sess: &'sess Session,
+    /// Initial position, read-only.
+    start_pos: BytePos,
     /// Source text to tokenize.
     src: &'src str,
-
-    /// Cursor for getting lexer tokens.
-    cursor: Cursor<'src>,
 
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
@@ -149,37 +146,36 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     TokenKind::Literal(kind, symbol)
                 }
 
-                RawTokenKind::Semi => TokenKind::Semi,
-                RawTokenKind::Comma => TokenKind::Comma,
-                RawTokenKind::Dot => TokenKind::Dot,
-                RawTokenKind::OpenParen => TokenKind::OpenDelim(Delimiter::Parenthesis),
-                RawTokenKind::CloseParen => TokenKind::CloseDelim(Delimiter::Parenthesis),
-                RawTokenKind::OpenBrace => TokenKind::OpenDelim(Delimiter::Brace),
-                RawTokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
-                RawTokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
-                RawTokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
-                RawTokenKind::Tilde => TokenKind::Tilde,
-                RawTokenKind::Question => TokenKind::Question,
-                RawTokenKind::Colon => TokenKind::Colon,
+                // Expression-operator symbols.
                 RawTokenKind::Eq => TokenKind::Eq,
-                RawTokenKind::Bang => TokenKind::Not,
                 RawTokenKind::Lt => TokenKind::Lt,
-                RawTokenKind::Gt => TokenKind::Gt,
-
-                RawTokenKind::EqEq => TokenKind::EqEq,
                 RawTokenKind::Le => TokenKind::Le,
-                RawTokenKind::Ge => TokenKind::Ge,
+                RawTokenKind::EqEq => TokenKind::EqEq,
                 RawTokenKind::Ne => TokenKind::Ne,
+                RawTokenKind::Ge => TokenKind::Ge,
+                RawTokenKind::Gt => TokenKind::Gt,
                 RawTokenKind::AndAnd => TokenKind::AndAnd,
                 RawTokenKind::OrOr => TokenKind::OrOr,
+                RawTokenKind::Not => TokenKind::Not,
+                RawTokenKind::Tilde => TokenKind::Tilde,
                 RawTokenKind::Walrus => TokenKind::Walrus,
                 RawTokenKind::PlusPlus => TokenKind::PlusPlus,
                 RawTokenKind::MinusMinus => TokenKind::MinusMinus,
                 RawTokenKind::StarStar => TokenKind::StarStar,
+                RawTokenKind::BinOp(binop) => TokenKind::BinOp(binop),
+                RawTokenKind::BinOpEq(binop) => TokenKind::BinOpEq(binop),
+
+                // Structural symbols.
+                RawTokenKind::At => TokenKind::At,
+                RawTokenKind::Dot => TokenKind::Dot,
+                RawTokenKind::Comma => TokenKind::Comma,
+                RawTokenKind::Semi => TokenKind::Semi,
+                RawTokenKind::Colon => TokenKind::Colon,
                 RawTokenKind::Arrow => TokenKind::Arrow,
                 RawTokenKind::FatArrow => TokenKind::FatArrow,
-                RawTokenKind::BinOp(op) => TokenKind::BinOp(op),
-                RawTokenKind::BinOpEq(op) => TokenKind::BinOpEq(op),
+                RawTokenKind::Question => TokenKind::Question,
+                RawTokenKind::OpenDelim(delim) => TokenKind::OpenDelim(delim),
+                RawTokenKind::CloseDelim(delim) => TokenKind::CloseDelim(delim),
 
                 RawTokenKind::Unknown => {
                     // Don't emit diagnostics for sequences of the same invalid token
@@ -562,7 +558,7 @@ mod tests {
 
     #[test]
     fn operators() {
-        use Delimiter::*;
+        use solar_ast::token::Delimiter::*;
         // From Solc `TOKEN_LIST`: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
         checks(&[
             (")", &[(0..1, CloseDelim(Parenthesis))]),
