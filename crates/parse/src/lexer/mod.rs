@@ -360,30 +360,34 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn symbol_from(&self, start: BytePos) -> Symbol {
         self.symbol_from_to(start, self.pos)
     }
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn str_from(&self, start: BytePos) -> &'src str {
         self.str_from_to(start, self.pos)
     }
 
     /// Same as `symbol_from`, with an explicit endpoint.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn symbol_from_to(&self, start: BytePos, end: BytePos) -> Symbol {
         Symbol::intern(self.str_from_to(start, end))
     }
 
     /// Slice of the source text spanning from `start` up to but excluding `end`.
-    #[track_caller]
+    #[cfg_attr(debug_assertions, track_caller)]
     fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
         &self.src[self.src_index(start)..self.src_index(end)]
     }
 
     /// Slice of the source text spanning from `start` until the end.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
-        &self.src[self.src_index(start)..]
+        self.str_from_to(start, BytePos::from_usize(self.src.len()))
     }
 }
 
