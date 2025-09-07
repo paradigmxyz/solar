@@ -9,7 +9,9 @@ pub struct DiagMsg {
 }
 
 impl Deref for DiagMsg {
-    type Target = Cow<'static, str>;
+    type Target = str;
+
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
