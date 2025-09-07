@@ -1,11 +1,18 @@
 //! Modified from [`rustc_error_messages`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_error_messages/src/lib.rs).
 
 use crate::Span;
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Deref};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagMsg {
     inner: Cow<'static, str>,
+}
+
+impl Deref for DiagMsg {
+    type Target = Cow<'static, str>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl From<&'static str> for DiagMsg {

@@ -61,7 +61,7 @@ pub trait Emitter: Any {
             // don't display long messages as labels
             && sugg.msg.as_str().split_whitespace().count() < 10
             // don't display multiline suggestions as labels
-            && !part.snippet.contains('\n')
+            && !part.snippet.as_str().contains('\n')
             && ![
                 // when this style is set we want the suggestion to be a message, not inline
                 SuggestionStyle::HideCodeAlways,
@@ -71,7 +71,7 @@ pub trait Emitter: Any {
                 SuggestionStyle::ShowAlways,
             ].contains(&sugg.style)
         {
-            let snippet = part.snippet.trim();
+            let snippet = part.snippet.as_str().trim();
             let msg = if snippet.is_empty() || sugg.style.hide_inline() {
                 // This substitution is only removal OR we explicitly don't want to show the
                 // code inline (`hide_inline`). Therefore, we don't show the substitution.

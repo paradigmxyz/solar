@@ -4,7 +4,6 @@ use super::{
 };
 use solar_data_structures::Never;
 use std::{
-    borrow::Cow,
     fmt,
     marker::PhantomData,
     mem::ManuallyDrop,
@@ -229,13 +228,13 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn span_suggestion(
             span: Span,
             msg: impl Into<DiagMsg>,
-            suggestion: impl Into<Cow<'static, str>>,
+            suggestion: impl Into<DiagMsg>,
             applicability: Applicability,
         );
         pub fn span_suggestion_with_style(
             span: Span,
             msg: impl Into<DiagMsg>,
-            suggestion: impl Into<Cow<'static, str>>,
+            suggestion: impl Into<DiagMsg>,
             applicability: Applicability,
             style: SuggestionStyle
         );

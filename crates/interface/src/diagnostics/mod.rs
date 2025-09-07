@@ -4,8 +4,6 @@
 
 use crate::Span;
 use anstyle::{AnsiColor, Color};
-use smallvec::SmallVec;
-use solar_data_structures::map::{FxIndexSet, IndexSetSlice};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
@@ -386,18 +384,17 @@ impl SuggestionStyle {
 }
 
 /// Represents the help messages seen on a diagnostic.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Hash)]
 pub enum Suggestions {
     /// Indicates that new suggestions can be added or removed from this diagnostic.
     ///
     /// `DiagInner`'s new_* methods initialize the `suggestions` field with
     /// this variant. Also, this is the default variant for `Suggestions`.
-    /// Contains suggestions and a hash set of seen suggestion hashes for deduplication.
-    Enabled(FxIndexSet<CodeSuggestion>),
+    Enabled(Vec<CodeSuggestion>),
     /// Indicates that suggestions cannot be added or removed from this diagnostic.
     ///
     /// Gets toggled when `.seal_suggestions()` is called on the `DiagInner`.
-    Sealed(Box<IndexSetSlice<CodeSuggestion>>),
+    Sealed(Box<[CodeSuggestion]>),
     /// Indicates that no suggestion is available for this diagnostic.
     ///
     /// Gets toggled when `.disable_suggestions()` is called on the `DiagInner`.
@@ -406,33 +403,26 @@ pub enum Suggestions {
 
 impl Suggestions {
     /// Returns the underlying list of suggestions.
-    pub fn unwrap_tag(&self) -> &IndexSetSlice<CodeSuggestion> {
+    pub fn unwrap_tag(&self) -> &[CodeSuggestion] {
         match self {
-            Self::Enabled(suggestions) => suggestions.as_slice(),
+            Self::Enabled(suggestions) => suggestions,
             Self::Sealed(suggestions) => suggestions,
-            Self::Disabled => IndexSetSlice::new(),
+            Self::Disabled => &[],
         }
     }
 }
 
 impl Default for Suggestions {
     fn default() -> Self {
-        Self::Enabled(FxIndexSet::default())
+        Self::Enabled(Vec::new())
     }
 }
 
 impl Deref for Suggestions {
-    type Target = IndexSetSlice<CodeSuggestion>;
+    type Target = [CodeSuggestion];
 
     fn deref(&self) -> &Self::Target {
         self.unwrap_tag()
-    }
-}
-
-impl Hash for Suggestions {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        std::mem::discriminant(self).hash(state);
-        self.unwrap_tag().hash(state);
     }
 }
 
@@ -461,7 +451,7 @@ pub struct CodeSuggestion {
     ///     Substitution { parts: vec![(0..7, "x.y")] },
     /// ]
     /// ```
-    pub substitutions: SmallVec<[Substitution; 1]>,
+    pub substitutions: Vec<Substitution>,
     pub msg: DiagMsg,
     /// Visual representation of this suggestion.
     pub style: SuggestionStyle,
@@ -477,7 +467,7 @@ pub struct CodeSuggestion {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubstitutionPart {
     pub span: Span,
-    pub snippet: Cow<'static, str>,
+    pub snippet: DiagMsg,
 }
 
 impl SubstitutionPart {
@@ -497,7 +487,7 @@ impl SubstitutionPart {
 /// A substitution represents a single alternative fix consisting of multiple parts.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Substitution {
-    pub parts: SmallVec<[SubstitutionPart; 2]>,
+    pub parts: Vec<SubstitutionPart>,
 }
 
 /// A "sub"-diagnostic attached to a parent diagnostic.
@@ -785,8 +775,8 @@ impl Diag {
     /// Suggestions added before the call to `.seal_suggestions()` will be preserved
     /// and new suggestions will be ignored.
     pub fn seal_suggestions(&mut self) -> &mut Self {
-        if let Suggestions::Enabled(items) = &mut self.suggestions {
-            let suggestions_slice = std::mem::take(items).into_boxed_slice();
+        if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
+            let suggestions_slice = std::mem::take(suggestions).into_boxed_slice();
             self.suggestions = Suggestions::Sealed(suggestions_slice);
         }
         self
@@ -798,7 +788,7 @@ impl Diag {
     /// Otherwise, they are ignored.
     fn push_suggestion(&mut self, suggestion: CodeSuggestion) {
         if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
-            suggestions.insert(suggestion);
+            suggestions.push(suggestion);
         }
     }
 
@@ -823,7 +813,7 @@ impl Diag {
         &mut self,
         span: Span,
         msg: impl Into<DiagMsg>,
-        suggestion: impl Into<Cow<'static, str>>,
+        suggestion: impl Into<DiagMsg>,
         applicability: Applicability,
     ) -> &mut Self {
         self.span_suggestion_with_style(
@@ -841,15 +831,12 @@ impl Diag {
         &mut self,
         span: Span,
         msg: impl Into<DiagMsg>,
-        suggestion: impl Into<Cow<'static, str>>,
+        suggestion: impl Into<DiagMsg>,
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
-        let mut parts = SmallVec::new();
-        parts.push(SubstitutionPart { snippet: suggestion.into(), span });
-
-        let mut substitutions = SmallVec::new();
-        substitutions.push(Substitution { parts });
+        let parts = vec![SubstitutionPart { snippet: suggestion.into(), span }];
+        let substitutions = vec![Substitution { parts }];
 
         self.push_suggestion(CodeSuggestion {
             substitutions,
@@ -886,12 +873,12 @@ impl Diag {
         style: SuggestionStyle,
     ) -> &mut Self {
         self.push_suggestion(CodeSuggestion {
-            substitutions: SmallVec::from([Substitution {
+            substitutions: vec![Substitution {
                 parts: substitutions
                     .into_iter()
                     .map(|(span, snippet)| SubstitutionPart { span, snippet: snippet.into() })
                     .collect(),
-            }]),
+            }],
             msg: msg.into(),
             style,
             applicability,

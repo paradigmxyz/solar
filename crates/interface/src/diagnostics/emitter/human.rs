@@ -15,6 +15,7 @@ use std::{
     borrow::Cow,
     collections::BTreeMap,
     io::{self, Write},
+    ops::Deref,
     sync::{Arc, OnceLock},
 };
 
@@ -259,7 +260,8 @@ impl HumanEmitter {
 
                     for part in parts {
                         if let Ok(range) = sm.span_to_range(part.span) {
-                            snippet = snippet.patch(Patch::new(range, part.snippet.clone()));
+                            snippet =
+                                snippet.patch(Patch::new(range, part.snippet.deref().clone()));
                         }
                     }
                     snippets.push(snippet);
