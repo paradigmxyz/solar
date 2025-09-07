@@ -3,7 +3,7 @@
 //! This module provides optimized implementations of common lexing operations.
 //! For stable Rust, we use lookup tables and manual loop unrolling.
 
-use std::simd::{Simd, cmp::SimdPartialEq};
+use wide::u8x16;
 
 use super::char_class_table::{is_id_continue_fast, is_whitespace_fast};
 
@@ -17,13 +17,13 @@ pub(super) fn skip_whitespace_bulk(input: &[u8]) -> usize {
     let mut pos = 0;
     
     while pos + LANES <= input.len() {
-        let chunk = Simd::<u8, LANES>::from_slice(&input[pos..pos + LANES]);
+        let chunk = u8x16::from(&input[pos..pos + LANES]);
 
         // True parallel whitespace detection - all 16 bytes compared simultaneously
-        let is_space = chunk.simd_eq(Simd::splat(b' '));
-        let is_tab = chunk.simd_eq(Simd::splat(b'\t'));
-        let is_newline = chunk.simd_eq(Simd::splat(b'\n'));
-        let is_carriage = chunk.simd_eq(Simd::splat(b'\r'));
+        let is_space = chunk.cmp_eq(u8x16::splat(b' '));
+        let is_tab = chunk.cmp_eq(u8x16::splat(b'\t'));
+        let is_newline = chunk.cmp_eq(u8x16::splat(b'\n'));
+        let is_carriage = chunk.cmp_eq(u8x16::splat(b'\r'));
 
         // Combine all whitespace checks with parallel OR operations
         let is_whitespace = is_space | is_tab | is_newline | is_carriage;
@@ -33,7 +33,7 @@ pub(super) fn skip_whitespace_bulk(input: &[u8]) -> usize {
             pos += LANES;
         } else {
             // Found non-whitespace - find exact position
-            let mask = is_whitespace.to_bitmask();
+            let mask = is_whitespace.move_mask();
             let idx = mask.trailing_ones() as usize;
             return pos + idx;
         }

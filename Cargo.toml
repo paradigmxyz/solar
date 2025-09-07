@@ -169,6 +169,7 @@ libc = "0.2"
 md-5 = "0.10"
 memchr = "2.7"
 once_map = { version = "0.4.20", default-features = false, features = ["std"] }
+wide = "0.7"
 paste = "1.0"
 petgraph = "0.8"
 rustc-hash = "2.0"

@@ -39,6 +39,7 @@ num-traits.workspace = true
 ruint.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
+wide.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
