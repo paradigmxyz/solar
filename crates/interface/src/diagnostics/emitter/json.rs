@@ -118,7 +118,7 @@ impl JsonEmitter {
             .substitutions
             .iter()
             .flat_map(|sub| sub.parts.iter())
-            .map(|part| self.span_with_suggestion(part.span, part.snippet.clone()))
+            .map(|part| self.span_with_suggestion(part.span, part.snippet.to_string()))
             .collect();
 
         Diagnostic {

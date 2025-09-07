@@ -7,6 +7,7 @@ use anstyle::{AnsiColor, Color};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
+    hash::{Hash, Hasher},
     ops::Deref,
     panic::Location,
 };
@@ -466,7 +467,7 @@ pub struct CodeSuggestion {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SubstitutionPart {
     pub span: Span,
-    pub snippet: String,
+    pub snippet: DiagMsg,
 }
 
 impl SubstitutionPart {
@@ -488,6 +489,7 @@ impl SubstitutionPart {
 pub struct Substitution {
     pub parts: Vec<SubstitutionPart>,
 }
+
 /// A "sub"-diagnostic attached to a parent diagnostic.
 /// For example, a note attached to an error.
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -530,8 +532,8 @@ impl PartialEq for Diag {
     }
 }
 
-impl std::hash::Hash for Diag {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Diag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.keys().hash(state);
     }
 }
@@ -811,7 +813,7 @@ impl Diag {
         &mut self,
         span: Span,
         msg: impl Into<DiagMsg>,
-        suggestion: impl Into<String>,
+        suggestion: impl Into<DiagMsg>,
         applicability: Applicability,
     ) -> &mut Self {
         self.span_suggestion_with_style(
@@ -829,7 +831,7 @@ impl Diag {
         &mut self,
         span: Span,
         msg: impl Into<DiagMsg>,
-        suggestion: impl Into<String>,
+        suggestion: impl Into<DiagMsg>,
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
@@ -849,7 +851,7 @@ impl Diag {
     pub fn multipart_suggestion(
         &mut self,
         msg: impl Into<DiagMsg>,
-        substitutions: Vec<(Span, String)>,
+        substitutions: Vec<(Span, DiagMsg)>,
         applicability: Applicability,
     ) -> &mut Self {
         self.multipart_suggestion_with_style(
@@ -865,7 +867,7 @@ impl Diag {
     pub fn multipart_suggestion_with_style(
         &mut self,
         msg: impl Into<DiagMsg>,
-        substitutions: Vec<(Span, String)>,
+        substitutions: Vec<(Span, DiagMsg)>,
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {

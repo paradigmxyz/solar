@@ -228,24 +228,24 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn span_suggestion(
             span: Span,
             msg: impl Into<DiagMsg>,
-            suggestion: impl Into<String>,
+            suggestion: impl Into<DiagMsg>,
             applicability: Applicability,
         );
         pub fn span_suggestion_with_style(
             span: Span,
             msg: impl Into<DiagMsg>,
-            suggestion: impl Into<String>,
+            suggestion: impl Into<DiagMsg>,
             applicability: Applicability,
             style: SuggestionStyle
         );
         pub fn multipart_suggestion(
             msg: impl Into<DiagMsg>,
-            substitutions: Vec<(Span, String)>,
+            substitutions: Vec<(Span, DiagMsg)>,
             applicability: Applicability,
         );
         pub fn multipart_suggestion_with_style(
             msg: impl Into<DiagMsg>,
-            substitutions: Vec<(Span, String)>,
+            substitutions: Vec<(Span, DiagMsg)>,
             applicability: Applicability,
             style: SuggestionStyle
         );

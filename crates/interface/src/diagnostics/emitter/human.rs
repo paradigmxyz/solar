@@ -259,7 +259,7 @@ impl HumanEmitter {
 
                     for part in parts {
                         if let Ok(range) = sm.span_to_range(part.span) {
-                            snippet = snippet.patch(Patch::new(range, part.snippet.clone()));
+                            snippet = snippet.patch(Patch::new(range, part.snippet.as_str()));
                         }
                     }
                     snippets.push(snippet);
