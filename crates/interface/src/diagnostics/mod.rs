@@ -7,6 +7,8 @@ use anstyle::{AnsiColor, Color};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
+    hash::{Hash, Hasher},
+    ops::Deref,
     panic::Location,
 };
 
@@ -327,6 +329,167 @@ impl Style {
     }
 }
 
+/// Indicates the confidence in the correctness of a suggestion.
+///
+/// All suggestions are marked with an `Applicability`. Tools use the applicability of a suggestion
+/// to determine whether it should be automatically applied or if the user should be consulted
+/// before applying the suggestion.
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "json", serde(rename_all = "kebab-case"))]
+#[derive(Copy, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Applicability {
+    /// The suggestion is definitely what the user intended, or maintains the exact meaning of the
+    /// code. This suggestion should be automatically applied.
+    ///
+    /// In case of multiple `MachineApplicable` suggestions (whether as part of
+    /// the same `multipart_suggestion` or not), all of them should be
+    /// automatically applied.
+    MachineApplicable,
+
+    /// The suggestion may be what the user intended, but it is uncertain. The suggestion should
+    /// compile if it is applied.
+    MaybeIncorrect,
+
+    /// The suggestion contains placeholders like `(...)` or `{ /* fields */ }`. The suggestion
+    /// cannot be applied automatically because it will fail to compile. The user will need to fill
+    /// in the placeholders.
+    HasPlaceholders,
+
+    /// The applicability of the suggestion is unknown.
+    #[default]
+    Unspecified,
+}
+
+#[derive(Debug, Default, PartialEq, Eq, Clone, Copy, Hash)]
+pub enum SuggestionStyle {
+    /// Hide the suggested code when displaying this suggestion inline.
+    HideCodeInline,
+    /// Always hide the suggested code but display the message.
+    HideCodeAlways,
+    /// Do not display this suggestion in the cli output, it is only meant for tools.
+    CompletelyHidden,
+    /// Always show the suggested code.
+    /// This will *not* show the code if the suggestion is inline *and* the suggested code is
+    /// empty.
+    #[default]
+    ShowCode,
+    /// Always show the suggested code independently.
+    ShowAlways,
+}
+
+impl SuggestionStyle {
+    fn hide_inline(&self) -> bool {
+        !matches!(*self, Self::ShowCode)
+    }
+}
+
+/// Represents the help messages seen on a diagnostic.
+#[derive(Clone, Debug, PartialEq, Hash)]
+pub enum Suggestions {
+    /// Indicates that new suggestions can be added or removed from this diagnostic.
+    ///
+    /// `DiagInner`'s new_* methods initialize the `suggestions` field with
+    /// this variant. Also, this is the default variant for `Suggestions`.
+    Enabled(Vec<CodeSuggestion>),
+    /// Indicates that suggestions cannot be added or removed from this diagnostic.
+    ///
+    /// Gets toggled when `.seal_suggestions()` is called on the `DiagInner`.
+    Sealed(Box<[CodeSuggestion]>),
+    /// Indicates that no suggestion is available for this diagnostic.
+    ///
+    /// Gets toggled when `.disable_suggestions()` is called on the `DiagInner`.
+    Disabled,
+}
+
+impl Suggestions {
+    /// Returns the underlying list of suggestions.
+    pub fn unwrap_tag(&self) -> &[CodeSuggestion] {
+        match self {
+            Self::Enabled(suggestions) => suggestions,
+            Self::Sealed(suggestions) => suggestions,
+            Self::Disabled => &[],
+        }
+    }
+}
+
+impl Default for Suggestions {
+    fn default() -> Self {
+        Self::Enabled(vec![])
+    }
+}
+
+impl Deref for Suggestions {
+    type Target = [CodeSuggestion];
+
+    fn deref(&self) -> &Self::Target {
+        self.unwrap_tag()
+    }
+}
+
+/// A structured suggestion for code changes.
+/// Based on rustc's CodeSuggestion structure.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct CodeSuggestion {
+    /// Each substitute can have multiple variants due to multiple
+    /// applicable suggestions
+    ///
+    /// `foo.bar` might be replaced with `a.b` or `x.y` by replacing
+    /// `foo` and `bar` on their own:
+    ///
+    /// ```ignore (illustrative)
+    /// vec![
+    ///     Substitution { parts: vec![(0..3, "a"), (4..7, "b")] },
+    ///     Substitution { parts: vec![(0..3, "x"), (4..7, "y")] },
+    /// ]
+    /// ```
+    ///
+    /// or by replacing the entire span:
+    ///
+    /// ```ignore (illustrative)
+    /// vec![
+    ///     Substitution { parts: vec![(0..7, "a.b")] },
+    ///     Substitution { parts: vec![(0..7, "x.y")] },
+    /// ]
+    /// ```
+    pub substitutions: Vec<Substitution>,
+    pub msg: DiagMsg,
+    /// Visual representation of this suggestion.
+    pub style: SuggestionStyle,
+    /// Whether or not the suggestion is approximate
+    ///
+    /// Sometimes we may show suggestions with placeholders,
+    /// which are useful for users but not useful for
+    /// tools like rustfix
+    pub applicability: Applicability,
+}
+
+/// A single part of a substitution, indicating a specific span to replace with a snippet.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SubstitutionPart {
+    pub span: Span,
+    pub snippet: DiagMsg,
+}
+
+impl SubstitutionPart {
+    pub fn is_addition(&self) -> bool {
+        self.span.lo() == self.span.hi() && !self.snippet.is_empty()
+    }
+
+    pub fn is_deletion(&self) -> bool {
+        self.span.lo() != self.span.hi() && self.snippet.is_empty()
+    }
+
+    pub fn is_replacement(&self) -> bool {
+        self.span.lo() != self.span.hi() && !self.snippet.is_empty()
+    }
+}
+
+/// A substitution represents a single alternative fix consisting of multiple parts.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Substitution {
+    pub parts: Vec<SubstitutionPart>,
+}
+
 /// A "sub"-diagnostic attached to a parent diagnostic.
 /// For example, a note attached to an error.
 #[derive(Clone, Debug, PartialEq, Hash)]
@@ -358,6 +521,7 @@ pub struct Diag {
     pub span: MultiSpan,
     pub children: Vec<SubDiagnostic>,
     pub code: Option<DiagId>,
+    pub suggestions: Suggestions,
 
     pub created_at: &'static Location<'static>,
 }
@@ -368,8 +532,8 @@ impl PartialEq for Diag {
     }
 }
 
-impl std::hash::Hash for Diag {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Diag {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.keys().hash(state);
     }
 }
@@ -390,7 +554,7 @@ impl Diag {
             code: None,
             span: MultiSpan::new(),
             children: vec![],
-            // suggestions: Ok(vec![]),
+            suggestions: Suggestions::default(),
             // args: Default::default(),
             // sort_span: DUMMY_SP,
             // is_lint: false,
@@ -443,7 +607,7 @@ impl Diag {
             &self.code,
             &self.span,
             &self.children,
-            // &self.suggestions,
+            &self.suggestions,
             // self.args().collect(),
             // omit self.sort_span
             // &self.is_lint,
@@ -596,6 +760,132 @@ impl Diag {
     }
 }
 
+/// Suggestions.
+impl Diag {
+    /// Disallow attaching suggestions to this diagnostic.
+    /// Any suggestions attached e.g. with the `span_suggestion_*` methods
+    /// (before and after the call to `disable_suggestions`) will be ignored.
+    pub fn disable_suggestions(&mut self) -> &mut Self {
+        self.suggestions = Suggestions::Disabled;
+        self
+    }
+
+    /// Prevent new suggestions from being added to this diagnostic.
+    ///
+    /// Suggestions added before the call to `.seal_suggestions()` will be preserved
+    /// and new suggestions will be ignored.
+    pub fn seal_suggestions(&mut self) -> &mut Self {
+        if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
+            let suggestions_slice = std::mem::take(suggestions).into_boxed_slice();
+            self.suggestions = Suggestions::Sealed(suggestions_slice);
+        }
+        self
+    }
+
+    /// Helper for pushing to `self.suggestions`.
+    ///
+    /// A new suggestion is added if suggestions are enabled for this diagnostic.
+    /// Otherwise, they are ignored.
+    fn push_suggestion(&mut self, suggestion: CodeSuggestion) {
+        if let Suggestions::Enabled(suggestions) = &mut self.suggestions {
+            suggestions.push(suggestion);
+        }
+    }
+
+    /// Prints out a message with a suggested edit of the code.
+    ///
+    /// In case of short messages and a simple suggestion, rustc displays it as a label:
+    ///
+    /// ```text
+    /// try adding parentheses: `(tup.0).1`
+    /// ```
+    ///
+    /// The message
+    ///
+    /// * should not end in any punctuation (a `:` is added automatically)
+    /// * should not be a question (avoid language like "did you mean")
+    /// * should not contain any phrases like "the following", "as shown", etc.
+    /// * may look like "to do xyz, use" or "to do xyz, use abc"
+    /// * may contain a name of a function, variable, or type, but not whole expressions
+    ///
+    /// See [`CodeSuggestion`] for more information.
+    pub fn span_suggestion(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
+            applicability,
+            SuggestionStyle::ShowCode,
+        );
+        self
+    }
+
+    /// [`Diag::span_suggestion()`] but you can set the [`SuggestionStyle`].
+    pub fn span_suggestion_with_style(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+        style: SuggestionStyle,
+    ) -> &mut Self {
+        self.push_suggestion(CodeSuggestion {
+            substitutions: vec![Substitution {
+                parts: vec![SubstitutionPart { snippet: suggestion.into(), span }],
+            }],
+            msg: msg.into(),
+            style,
+            applicability,
+        });
+        self
+    }
+
+    /// Show a suggestion that has multiple parts to it.
+    /// In other words, multiple changes need to be applied as part of this suggestion.
+    pub fn multipart_suggestion(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        substitutions: Vec<(Span, DiagMsg)>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.multipart_suggestion_with_style(
+            msg,
+            substitutions,
+            applicability,
+            SuggestionStyle::ShowCode,
+        );
+        self
+    }
+
+    /// [`Diag::multipart_suggestion()`] but you can set the [`SuggestionStyle`].
+    pub fn multipart_suggestion_with_style(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        substitutions: Vec<(Span, DiagMsg)>,
+        applicability: Applicability,
+        style: SuggestionStyle,
+    ) -> &mut Self {
+        self.push_suggestion(CodeSuggestion {
+            substitutions: vec![Substitution {
+                parts: substitutions
+                    .into_iter()
+                    .map(|(span, snippet)| SubstitutionPart { span, snippet })
+                    .collect(),
+            }],
+            msg: msg.into(),
+            style,
+            applicability,
+        });
+        self
+    }
+}
+
 /// Flattens diagnostic messages, applying ANSI styles if requested.
 fn flatten_messages(messages: &[(DiagMsg, Style)], with_style: bool, level: Level) -> Cow<'_, str> {
     if with_style {
@@ -635,6 +925,7 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{BytePos, ColorChoice, Span, source_map};
 
     #[test]
     fn test_styled_messages() {
@@ -660,5 +951,328 @@ mod tests {
             styled.to_string(),
             "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
         );
+    }
+
+    #[test]
+    fn test_inline_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+        );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+
+        let expected = r#"note: mutable variables should use mixedCase
+ --> <test.sol>:4:17
+  |
+4 |         uint256 my_var = 0;
+  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    fn test_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion_with_style(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+            SuggestionStyle::ShowAlways,
+        );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
+
+        let expected = r#"note: mutable variables should use mixedCase
+ --> <test.sol>:4:17
+  |
+4 |         uint256 my_var = 0;
+  |                 ^^^^^^
+  |
+help: mutable variables should use mixedCase
+  |
+4 -         uint256 my_var = 0;
+4 +         uint256 myVar = 0;
+  |
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    fn test_multispan_suggestion() {
+        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
+        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
+        let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
+        diag.span(vec![pub_span, view_span]).multipart_suggestion(
+            "consider changing visibility and mutability",
+            vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+            Applicability::MaybeIncorrect,
+        );
+
+        assert_eq!(diag.suggestions[0].substitutions.len(), 1);
+        assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+
+        let expected = r#"warning: inefficient visibility and mutability
+ --> <test.sol>:3:20
+  |
+3 |     function foo() public view {
+  |                    ^^^^^^ ^^^^
+  |
+help: consider changing visibility and mutability
+  |
+3 -     function foo() public view {
+3 +     function foo() external pure {
+  |
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+        );
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+
+        let expected = json!({
+            "$message_type": "diagnostic",
+            "message": "mutable variables should use mixedCase",
+            "code": null,
+            "level": "note",
+            "spans": [{
+                "file_name": "<test.sol>",
+                "byte_start": 66,
+                "byte_end": 72,
+                "line_start": 4,
+                "line_end": 4,
+                "column_start": 17,
+                "column_end": 23,
+                "is_primary": true,
+                "text": [{
+                    "text": "        uint256 my_var = 0;",
+                    "highlight_start": 17,
+                    "highlight_end": 23
+                }],
+                "label": null,
+                "suggested_replacement": null
+            }],
+            "children": [{
+                "message": "mutable variables should use mixedCase",
+                "code": null,
+                "level": "help",
+                "spans": [{
+                    "file_name": "<test.sol>",
+                    "byte_start": 66,
+                    "byte_end": 72,
+                    "line_start": 4,
+                    "line_end": 4,
+                    "column_start": 17,
+                    "column_end": 23,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "        uint256 my_var = 0;",
+                        "highlight_start": 17,
+                        "highlight_end": 23
+                    }],
+                    "label": null,
+                    "suggested_replacement": "myVar"
+                }],
+                "children": [],
+                "rendered": null
+            }],
+            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n  |\n4 |         uint256 my_var = 0;\n  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`\n\n"
+        });
+
+        assert_eq!(emit_json_diagnostics(diag), expected);
+    }
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_multispan_json_suggestion() {
+        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
+        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
+        let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
+        diag.span(vec![pub_span, view_span]).multipart_suggestion(
+            "consider changing visibility and mutability",
+            vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+            Applicability::MaybeIncorrect,
+        );
+
+        assert_eq!(diag.suggestions[0].substitutions.len(), 1);
+        assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+
+        let expected = json!({
+            "$message_type": "diagnostic",
+            "message": "inefficient visibility and mutability",
+            "code": null,
+            "level": "warning",
+            "spans": [
+                {
+                    "file_name": "<test.sol>",
+                    "byte_start": 36,
+                    "byte_end": 42,
+                    "line_start": 3,
+                    "line_end": 3,
+                    "column_start": 20,
+                    "column_end": 26,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "    function foo() public view {",
+                        "highlight_start": 20,
+                        "highlight_end": 26
+                    }],
+                    "label": null,
+                    "suggested_replacement": null
+                },
+                {
+                    "file_name": "<test.sol>",
+                    "byte_start": 43,
+                    "byte_end": 47,
+                    "line_start": 3,
+                    "line_end": 3,
+                    "column_start": 27,
+                    "column_end": 31,
+                    "is_primary": true,
+                    "text": [{
+                        "text": "    function foo() public view {",
+                        "highlight_start": 27,
+                        "highlight_end": 31
+                    }],
+                    "label": null,
+                    "suggested_replacement": null
+                }
+            ],
+            "children": [{
+                "message": "consider changing visibility and mutability",
+                "code": null,
+                "level": "help",
+                "spans": [
+                    {
+                        "file_name": "<test.sol>",
+                        "byte_start": 36,
+                        "byte_end": 42,
+                        "line_start": 3,
+                        "line_end": 3,
+                        "column_start": 20,
+                        "column_end": 26,
+                        "is_primary": true,
+                        "text": [{
+                            "text": "    function foo() public view {",
+                            "highlight_start": 20,
+                            "highlight_end": 26
+                        }],
+                        "label": null,
+                        "suggested_replacement": "external"
+                    },
+                    {
+                        "file_name": "<test.sol>",
+                        "byte_start": 43,
+                        "byte_end": 47,
+                        "line_start": 3,
+                        "line_end": 3,
+                        "column_start": 27,
+                        "column_end": 31,
+                        "is_primary": true,
+                        "text": [{
+                            "text": "    function foo() public view {",
+                            "highlight_start": 27,
+                            "highlight_end": 31
+                        }],
+                        "label": null,
+                        "suggested_replacement": "pure"
+                    }
+                ],
+                "children": [],
+                "rendered": null
+            }],
+            "rendered": "warning: inefficient visibility and mutability\n --> <test.sol>:3:20\n  |\n3 |     function foo() public view {\n  |                    ^^^^^^ ^^^^\n  |\nhelp: consider changing visibility and mutability\n  |\n3 -     function foo() public view {\n3 +     function foo() external pure {\n  |\n\n"
+        });
+        assert_eq!(emit_json_diagnostics(diag), expected);
+    }
+
+    // --- HELPERS -------------------------------------------------------------
+
+    const CONTRACT: &str = r#"
+contract Test {
+    function foo() public view {
+        uint256 my_var = 0;
+    }
+}"#;
+
+    // Helper to setup the run the human-readable emitter.
+    fn emit_human_diagnostics(diag: Diag) -> String {
+        let sm = source_map::SourceMap::empty();
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+
+        let dcx = DiagCtxt::with_buffer_emitter(Some(std::sync::Arc::new(sm)), ColorChoice::Never);
+        let _ = dcx.emit_diagnostic(diag);
+
+        dcx.emitted_diagnostics().unwrap().0
+    }
+
+    #[cfg(feature = "json")]
+    use {
+        serde_json::{Value, json},
+        std::sync::{Arc, Mutex},
+    };
+
+    // A sharable writer
+    #[cfg(feature = "json")]
+    #[derive(Clone)]
+    struct SharedWriter(Arc<Mutex<Vec<u8>>>);
+
+    #[cfg(feature = "json")]
+    impl std::io::Write for SharedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().write(buf)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.0.lock().unwrap().flush()
+        }
+    }
+
+    // Helper to setup the run the json emitter. Outputs a json object for the given diagnostics.
+    #[cfg(feature = "json")]
+    fn emit_json_diagnostics(diag: Diag) -> Value {
+        let sm = Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+
+        let writer = Arc::new(Mutex::new(Vec::new()));
+        let emitter = JsonEmitter::new(Box::new(SharedWriter(writer.clone())), Arc::clone(&sm))
+            .rustc_like(true);
+        let dcx = DiagCtxt::new(Box::new(emitter));
+        let _ = dcx.emit_diagnostic(diag);
+
+        let buffer = writer.lock().unwrap();
+        serde_json::from_str(
+            &String::from_utf8(buffer.clone()).expect("JSON output was not valid UTF-8"),
+        )
+        .expect("failed to deserialize JSON")
     }
 }

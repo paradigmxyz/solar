@@ -1,8 +1,7 @@
 use super::{
-    BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug, FatalAbort, Level,
-    MultiSpan, Style,
+    Applicability, BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug,
+    FatalAbort, Level, MultiSpan, Span, Style, SuggestionStyle,
 };
-use crate::Span;
 use solar_data_structures::Never;
 use std::{
     fmt,
@@ -225,5 +224,30 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn help_once(msg: impl Into<DiagMsg>);
         pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
         pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
+
+        pub fn span_suggestion(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+        );
+        pub fn span_suggestion_with_style(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
+        pub fn multipart_suggestion(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+        );
+        pub fn multipart_suggestion_with_style(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
     }
 }

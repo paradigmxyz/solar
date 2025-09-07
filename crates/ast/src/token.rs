@@ -439,59 +439,6 @@ impl TokenKind {
     pub const fn is_comment_or_doc(&self) -> bool {
         matches!(self, Self::Comment(..))
     }
-
-    /// Glues two token kinds together.
-    pub const fn glue(self, other: Self) -> Option<Self> {
-        use BinOpToken::*;
-        use TokenKind::*;
-        Some(match self {
-            Eq => match other {
-                Eq => EqEq,
-                Gt => FatArrow,
-                _ => return None,
-            },
-            Lt => match other {
-                Eq => Le,
-                Lt => BinOp(Shl),
-                Le => BinOpEq(Shl),
-                _ => return None,
-            },
-            Gt => match other {
-                Eq => Ge,
-                Gt => BinOp(Shr),
-                Ge => BinOpEq(Shr),
-                BinOp(Shr) => BinOp(Sar),
-                BinOpEq(Shr) => BinOpEq(Sar),
-                _ => return None,
-            },
-            Not => match other {
-                Eq => Ne,
-                _ => return None,
-            },
-            Colon => match other {
-                Eq => Walrus,
-                _ => return None,
-            },
-            BinOp(op) => match (op, other) {
-                (op, Eq) => BinOpEq(op),
-                (And, BinOp(And)) => AndAnd,
-                (Or, BinOp(Or)) => OrOr,
-                (Minus, Gt) => Arrow,
-                (Shr, Gt) => BinOp(Sar),
-                (Shr, Ge) => BinOpEq(Sar),
-                (Plus, BinOp(Plus)) => PlusPlus,
-                (Minus, BinOp(Minus)) => MinusMinus,
-                (Star, BinOp(Star)) => StarStar,
-                _ => return None,
-            },
-
-            Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
-            | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
-            | OpenDelim(_) | CloseDelim(_) | Literal(..) | Ident(_) | Comment(..) | Eof => {
-                return None;
-            }
-        })
-    }
 }
 
 /// A single token.
@@ -763,11 +710,6 @@ impl Token {
     #[inline]
     pub fn description(self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
-    }
-
-    /// Glues two tokens together.
-    pub fn glue(self, other: Self) -> Option<Self> {
-        self.kind.glue(other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
     }
 }
 

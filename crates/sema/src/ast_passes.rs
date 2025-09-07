@@ -450,7 +450,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx()
                         .err("return parameters in function types may not be named")
                         .span(ret.span)
-                        .span_help(ret_name.span, format!("remove `{ret_name}`"))
+                        .span_suggestion(
+                            ret_name.span.with_lo(ret.ty.span.hi()),
+                            format!("remove `{ret_name}`"),
+                            "",
+                            solar_interface::diagnostics::Applicability::MachineApplicable,
+                        )
                         .emit();
                 }
             }

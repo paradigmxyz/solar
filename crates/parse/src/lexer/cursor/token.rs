@@ -1,6 +1,9 @@
 //! Raw, low-level tokens. Created using [`Cursor`](crate::Cursor).
 
-use solar_ast::{Base, StrKind};
+use solar_ast::{
+    Base, StrKind,
+    token::{BinOpToken, Delimiter},
+};
 
 /// A raw token.
 ///
@@ -54,55 +57,63 @@ pub enum RawTokenKind {
     /// See [`RawLiteralKind`] for more details.
     Literal { kind: RawLiteralKind },
 
-    // One-char tokens:
-    /// `;`
-    Semi,
-    /// `,`
-    Comma,
-    /// `.`
-    Dot,
-    /// `(`
-    OpenParen,
-    /// `)`
-    CloseParen,
-    /// `{`
-    OpenBrace,
-    /// `}`
-    CloseBrace,
-    /// `[`
-    OpenBracket,
-    /// `]`
-    CloseBracket,
-    /// `~`
-    Tilde,
-    /// `?`
-    Question,
-    /// `:`
-    Colon,
+    // Expression-operator symbols.
     /// `=`
     Eq,
-    /// `!`
-    Bang,
     /// `<`
     Lt,
+    /// `<=`
+    Le,
+    /// `==`
+    EqEq,
+    /// `!=`
+    Ne,
+    /// `>=`
+    Ge,
     /// `>`
     Gt,
-    /// `-`
-    Minus,
-    /// `&`
-    And,
-    /// `|`
-    Or,
-    /// `+`
-    Plus,
-    /// `*`
-    Star,
-    /// `/`
-    Slash,
-    /// `^`
-    Caret,
-    /// `%`
-    Percent,
+    /// `&&`
+    AndAnd,
+    /// `||`
+    OrOr,
+    /// `!`
+    Not,
+    /// `~`
+    Tilde,
+    /// `:=`
+    Walrus,
+    /// `++`
+    PlusPlus,
+    /// `--`
+    MinusMinus,
+    /// `**`
+    StarStar,
+    /// A binary operator token.
+    BinOp(BinOpToken),
+    /// A binary operator token, followed by an equals sign (`=`).
+    BinOpEq(BinOpToken),
+
+    // Structural symbols.
+    /// `@`
+    At,
+    /// `.`
+    Dot,
+    /// `,`
+    Comma,
+    /// `;`
+    Semi,
+    /// `:`
+    Colon,
+    /// `->`
+    Arrow,
+    /// `=>`
+    FatArrow,
+    /// `?`
+    Question,
+    /// An opening delimiter (e.g., `{`).
+    OpenDelim(Delimiter),
+    /// A closing delimiter (e.g., `}`).
+    CloseDelim(Delimiter),
 
     /// Unknown token, not expected by the lexer, e.g. `№`
     Unknown,
