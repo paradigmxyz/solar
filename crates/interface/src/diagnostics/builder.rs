@@ -240,12 +240,12 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         );
         pub fn multipart_suggestion(
             msg: impl Into<DiagMsg>,
-            substitutions: Vec<(Span, String)>,
+            substitutions: Vec<(Span, DiagMsg)>,
             applicability: Applicability,
         );
         pub fn multipart_suggestion_with_style(
             msg: impl Into<DiagMsg>,
-            substitutions: Vec<(Span, String)>,
+            substitutions: Vec<(Span, DiagMsg)>,
             applicability: Applicability,
             style: SuggestionStyle
         );

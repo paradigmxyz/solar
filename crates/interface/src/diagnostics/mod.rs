@@ -414,7 +414,7 @@ impl Suggestions {
 
 impl Default for Suggestions {
     fn default() -> Self {
-        Self::Enabled(Vec::new())
+        Self::Enabled(vec![])
     }
 }
 
@@ -835,11 +835,10 @@ impl Diag {
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
-        let parts = vec![SubstitutionPart { snippet: suggestion.into(), span }];
-        let substitutions = vec![Substitution { parts }];
-
         self.push_suggestion(CodeSuggestion {
-            substitutions,
+            substitutions: vec![Substitution {
+                parts: vec![SubstitutionPart { snippet: suggestion.into(), span }],
+            }],
             msg: msg.into(),
             style,
             applicability,
@@ -852,7 +851,7 @@ impl Diag {
     pub fn multipart_suggestion(
         &mut self,
         msg: impl Into<DiagMsg>,
-        substitutions: Vec<(Span, String)>,
+        substitutions: Vec<(Span, DiagMsg)>,
         applicability: Applicability,
     ) -> &mut Self {
         self.multipart_suggestion_with_style(
@@ -868,7 +867,7 @@ impl Diag {
     pub fn multipart_suggestion_with_style(
         &mut self,
         msg: impl Into<DiagMsg>,
-        substitutions: Vec<(Span, String)>,
+        substitutions: Vec<(Span, DiagMsg)>,
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
@@ -876,7 +875,7 @@ impl Diag {
             substitutions: vec![Substitution {
                 parts: substitutions
                     .into_iter()
-                    .map(|(span, snippet)| SubstitutionPart { span, snippet: snippet.into() })
+                    .map(|(span, snippet)| SubstitutionPart { span, snippet })
                     .collect(),
             }],
             msg: msg.into(),
