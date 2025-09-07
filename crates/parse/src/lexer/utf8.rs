@@ -23,7 +23,7 @@ const fn len_utf8(code: u32) -> usize {
 /// Copied from [`core::char::encode_utf8_raw`].
 #[inline]
 #[allow(clippy::precedence)]
-pub(super) fn encode_utf8_raw(code: u32, dst: &mut [u8]) -> &mut [u8] {
+pub(super) fn encode_utf8_raw(code: u32, dst: &mut [u8]) -> &mut [u8] {//sds
     let len = len_utf8(code);
     match (len, &mut dst[..]) {
         (1, [a, ..]) => {
@@ -33,6 +33,7 @@ pub(super) fn encode_utf8_raw(code: u32, dst: &mut [u8]) -> &mut [u8] {
             *a = (code >> 6 & 0x1F) as u8 | TAG_TWO_B;
             *b = (code & 0x3F) as u8 | TAG_CONT;
         }
+        
         (3, [a, b, c, ..]) => {
             *a = (code >> 12 & 0x0F) as u8 | TAG_THREE_B;
             *b = (code >> 6 & 0x3F) as u8 | TAG_CONT;

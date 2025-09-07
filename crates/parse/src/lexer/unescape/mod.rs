@@ -298,7 +298,7 @@ where
         callback(start..end, res);
     }
 
-    if emit_underscore_errors && src.len() > 1 && src.ends_with('_') {
+    if emit_underscore_errors && src.len() > 1 && src.ends_with('_') {//
         callback(src.len() - 1..src.len(), Err(EscapeError::HexBadUnderscore));
     }
 }
