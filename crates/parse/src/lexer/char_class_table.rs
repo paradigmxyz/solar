@@ -72,7 +72,7 @@ const CHAR_CLASS_TABLE: [u8; 256] = {
 
 /// Fast character classification using lookup table.
 #[inline]
-const fn classify_byte(c: u8) -> u8 {
+pub(super) const fn classify_byte(c: u8) -> u8 {
     CHAR_CLASS_TABLE[c as usize]
 }
 

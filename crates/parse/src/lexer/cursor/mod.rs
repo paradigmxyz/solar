@@ -7,6 +7,8 @@ use solar_ast::{Base, StrKind};
 use solar_data_structures::hint::unlikely;
 use std::sync::OnceLock;
 
+use crate::lexer::char_class_table::*;
+
 use super::simd_lexer::*;
 
 pub mod token;
@@ -143,7 +145,7 @@ impl<'a> Cursor<'a> {
             },
 
             // Whitespace sequence.
-            c if is_whitespace_byte(c) => self.whitespace(),
+            c if is_whitespace_fast(c) => self.whitespace(),
 
             // Identifier (this should be checked after other variant that can start as identifier).
             c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
