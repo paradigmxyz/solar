@@ -74,7 +74,12 @@ fn check_payable_fallback_without_receive(gcx: Gcx<'_>, contract_id: hir::Contra
                 .warn("contract has a payable fallback function, but no receive ether function")
                 .span(contract.name.span)
                 .code(error_code!(3628))
-                .span_help(fallback.keyword_span(), "consider changing `fallback` to `receive`")
+                .span_suggestion(
+                    fallback.keyword_span(),
+                    "consider changing to",
+                    "receive",
+                    solar_interface::diagnostics::Applicability::MachineApplicable,
+                )
                 .emit();
         }
     }

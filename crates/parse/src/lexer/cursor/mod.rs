@@ -3,7 +3,10 @@
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
 use memchr::memmem;
-use solar_ast::{Base, StrKind};
+use solar_ast::{
+    Base, StrKind,
+    token::{BinOpToken, Delimiter},
+};
 use solar_data_structures::hint::unlikely;
 use std::sync::OnceLock;
 
@@ -115,8 +118,11 @@ impl<'a> Cursor<'a> {
         CursorWithPosition::new(self)
     }
 
-    /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> RawToken {
+    /// Slops up a token from the input string.
+    ///
+    /// Advances the cursor by the length of the token.
+    /// Prefer using `Cursor::with_position`, or using it as an iterator instead.
+    pub fn slop(&mut self) -> RawToken {
         // Use the pointer instead of the length to track how many bytes were consumed, since
         // internally the iterator is a pair of `start` and `end` pointers.
         let start = self.as_ptr();
@@ -137,7 +143,11 @@ impl<'a> Cursor<'a> {
             b'/' => match self.first() {
                 b'/' => self.line_comment(),
                 b'*' => self.block_comment(),
-                _ => RawTokenKind::Slash,
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Slash)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Slash),
             },
 
             // Whitespace sequence.
@@ -160,26 +170,158 @@ impl<'a> Cursor<'a> {
             b';' => RawTokenKind::Semi,
             b',' => RawTokenKind::Comma,
             b'.' => RawTokenKind::Dot,
-            b'(' => RawTokenKind::OpenParen,
-            b')' => RawTokenKind::CloseParen,
-            b'{' => RawTokenKind::OpenBrace,
-            b'}' => RawTokenKind::CloseBrace,
-            b'[' => RawTokenKind::OpenBracket,
-            b']' => RawTokenKind::CloseBracket,
+            b'(' => RawTokenKind::OpenDelim(Delimiter::Parenthesis),
+            b')' => RawTokenKind::CloseDelim(Delimiter::Parenthesis),
+            b'{' => RawTokenKind::OpenDelim(Delimiter::Brace),
+            b'}' => RawTokenKind::CloseDelim(Delimiter::Brace),
+            b'[' => RawTokenKind::OpenDelim(Delimiter::Bracket),
+            b']' => RawTokenKind::CloseDelim(Delimiter::Bracket),
             b'~' => RawTokenKind::Tilde,
             b'?' => RawTokenKind::Question,
-            b':' => RawTokenKind::Colon,
-            b'=' => RawTokenKind::Eq,
-            b'!' => RawTokenKind::Bang,
-            b'<' => RawTokenKind::Lt,
-            b'>' => RawTokenKind::Gt,
-            b'-' => RawTokenKind::Minus,
-            b'&' => RawTokenKind::And,
-            b'|' => RawTokenKind::Or,
-            b'+' => RawTokenKind::Plus,
-            b'*' => RawTokenKind::Star,
-            b'^' => RawTokenKind::Caret,
-            b'%' => RawTokenKind::Percent,
+
+            // Multi-character tokens.
+            b':' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Walrus
+                }
+                _ => RawTokenKind::Colon,
+            },
+            b'=' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::EqEq
+                }
+                b'>' => {
+                    self.bump();
+                    RawTokenKind::FatArrow
+                }
+                _ => RawTokenKind::Eq,
+            },
+            b'!' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Ne
+                }
+                _ => RawTokenKind::Not,
+            },
+            b'<' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Le
+                }
+                b'<' => {
+                    self.bump();
+                    // Now check for <<= or <<
+                    if self.first() == b'=' {
+                        self.bump();
+                        RawTokenKind::BinOpEq(BinOpToken::Shl)
+                    } else {
+                        RawTokenKind::BinOp(BinOpToken::Shl)
+                    }
+                }
+                _ => RawTokenKind::Lt,
+            },
+            b'>' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Ge
+                }
+                b'>' => {
+                    self.bump();
+                    match self.first() {
+                        b'>' => {
+                            // >>> or >>>=
+                            self.bump();
+                            if self.first() == b'=' {
+                                self.bump();
+                                RawTokenKind::BinOpEq(BinOpToken::Sar)
+                            } else {
+                                RawTokenKind::BinOp(BinOpToken::Sar)
+                            }
+                        }
+                        b'=' => {
+                            self.bump();
+                            RawTokenKind::BinOpEq(BinOpToken::Shr)
+                        }
+                        _ => RawTokenKind::BinOp(BinOpToken::Shr),
+                    }
+                }
+                _ => RawTokenKind::Gt,
+            },
+            b'-' => match self.first() {
+                b'-' => {
+                    self.bump();
+                    RawTokenKind::MinusMinus
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Minus)
+                }
+                b'>' => {
+                    self.bump();
+                    RawTokenKind::Arrow
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Minus),
+            },
+            b'&' => match self.first() {
+                b'&' => {
+                    self.bump();
+                    RawTokenKind::AndAnd
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::And)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::And),
+            },
+            b'|' => match self.first() {
+                b'|' => {
+                    self.bump();
+                    RawTokenKind::OrOr
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Or)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Or),
+            },
+            b'+' => match self.first() {
+                b'+' => {
+                    self.bump();
+                    RawTokenKind::PlusPlus
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Plus)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Plus),
+            },
+            b'*' => match self.first() {
+                b'*' => {
+                    self.bump();
+                    RawTokenKind::StarStar
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Star)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Star),
+            },
+            b'^' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Caret)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Caret),
+            },
+            b'%' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Percent)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Percent),
+            },
 
             // String literal.
             b'\'' | b'"' => {
@@ -494,7 +636,7 @@ impl Iterator for Cursor<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.advance_token();
+        let token = self.slop();
         if token.kind == RawTokenKind::Eof { None } else { Some(token) }
     }
 }

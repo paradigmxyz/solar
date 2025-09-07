@@ -2,8 +2,9 @@
 
 use solar_ast::{
     Base, StrKind,
-    token::{BinOpToken, CommentKind, Delimiter, Token, TokenKind, TokenLitKind},
+    token::{CommentKind, Token, TokenKind, TokenLitKind},
 };
+use solar_data_structures::hint::cold_path;
 use solar_interface::{
     BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
 };
@@ -21,26 +22,19 @@ mod utf8;
 /// Solidity and Yul lexer.
 ///
 /// Converts a [`Cursor`]'s output from simple [`RawTokenKind`]s into rich [`TokenKind`]s, by
-/// converting strings into interned symbols, concatenating tokens together, and running additional
-/// validation.
+/// converting strings into interned symbols, and running additional validation.
 pub struct Lexer<'sess, 'src> {
-    /// The parsing context.
-    pub(crate) sess: &'sess Session,
-
-    /// Initial position, read-only.
-    start_pos: BytePos,
-
+    /// Cursor for getting lexer tokens.
+    cursor: Cursor<'src>,
     /// The absolute offset within the source_map of the current character.
     pos: BytePos,
 
+    /// The parsing context.
+    pub(crate) sess: &'sess Session,
+    /// Initial position, read-only.
+    start_pos: BytePos,
     /// Source text to tokenize.
     src: &'src str,
-
-    /// Cursor for getting lexer tokens.
-    cursor: Cursor<'src>,
-
-    /// The current token which has not been processed by `next_token` yet.
-    token: Token,
 
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
@@ -63,17 +57,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Creates a new `Lexer` for the given source string and starting position.
     pub fn with_start_pos(sess: &'sess Session, src: &'src str, start_pos: BytePos) -> Self {
-        let mut lexer = Self {
+        Self {
             sess,
             start_pos,
             pos: start_pos,
             src,
             cursor: Cursor::new(src),
-            token: Token::DUMMY,
             nbsp_is_whitespace: false,
-        };
-        (lexer.token, _) = lexer.bump();
-        lexer
+        }
     }
 
     /// Returns a reference to the diagnostic context.
@@ -92,7 +83,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         // This is an estimate of the number of tokens in the source.
         let mut tokens = Vec::with_capacity(self.src.len() / 4);
         loop {
-            let token = self.next_token();
+            let token = self.slop();
             if token.is_eof() {
                 break;
             }
@@ -111,28 +102,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         tokens
     }
 
-    /// Returns the next token, advancing the lexer.
-    pub fn next_token(&mut self) -> Token {
-        let mut next_token;
-        loop {
-            let preceded_by_whitespace;
-            (next_token, preceded_by_whitespace) = self.bump();
-            if preceded_by_whitespace {
-                break;
-            } else if let Some(glued) = self.token.glue(next_token) {
-                self.token = glued;
-            } else {
-                break;
-            }
-        }
-        std::mem::replace(&mut self.token, next_token)
-    }
-
-    fn bump(&mut self) -> (Token, bool) {
-        let mut preceded_by_whitespace = false;
+    /// Slops up a token from the input string.
+    ///
+    /// Advances the lexer by the length of the token.
+    /// Prefer using `self` as an iterator instead.
+    pub fn slop(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
-            let RawToken { kind: raw_kind, len } = self.cursor.advance_token();
+            let RawToken { kind: raw_kind, len } = self.cursor.slop();
             let start = self.pos;
             self.pos += len;
 
@@ -140,17 +117,14 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             // This turns strings into interned symbols and runs additional validation.
             let kind = match raw_kind {
                 RawTokenKind::LineComment { is_doc } => {
-                    preceded_by_whitespace = true;
-
                     // Opening delimiter is not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
                 }
                 RawTokenKind::BlockComment { is_doc, terminated } => {
-                    preceded_by_whitespace = true;
-
                     if !terminated {
+                        cold_path();
                         let msg = if is_doc {
                             "unterminated block doc-comment"
                         } else {
@@ -166,7 +140,6 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
                 }
                 RawTokenKind::Whitespace => {
-                    preceded_by_whitespace = true;
                     continue;
                 }
                 RawTokenKind::Ident => {
@@ -178,105 +151,42 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     TokenKind::Literal(kind, symbol)
                 }
 
-                RawTokenKind::Semi => TokenKind::Semi,
-                RawTokenKind::Comma => TokenKind::Comma,
-                RawTokenKind::Dot => TokenKind::Dot,
-                RawTokenKind::OpenParen => TokenKind::OpenDelim(Delimiter::Parenthesis),
-                RawTokenKind::CloseParen => TokenKind::CloseDelim(Delimiter::Parenthesis),
-                RawTokenKind::OpenBrace => TokenKind::OpenDelim(Delimiter::Brace),
-                RawTokenKind::CloseBrace => TokenKind::CloseDelim(Delimiter::Brace),
-                RawTokenKind::OpenBracket => TokenKind::OpenDelim(Delimiter::Bracket),
-                RawTokenKind::CloseBracket => TokenKind::CloseDelim(Delimiter::Bracket),
-                RawTokenKind::Tilde => TokenKind::Tilde,
-                RawTokenKind::Question => TokenKind::Question,
-                RawTokenKind::Colon => TokenKind::Colon,
+                // Expression-operator symbols.
                 RawTokenKind::Eq => TokenKind::Eq,
-                RawTokenKind::Bang => TokenKind::Not,
                 RawTokenKind::Lt => TokenKind::Lt,
+                RawTokenKind::Le => TokenKind::Le,
+                RawTokenKind::EqEq => TokenKind::EqEq,
+                RawTokenKind::Ne => TokenKind::Ne,
+                RawTokenKind::Ge => TokenKind::Ge,
                 RawTokenKind::Gt => TokenKind::Gt,
-                RawTokenKind::Minus => TokenKind::BinOp(BinOpToken::Minus),
-                RawTokenKind::And => TokenKind::BinOp(BinOpToken::And),
-                RawTokenKind::Or => TokenKind::BinOp(BinOpToken::Or),
-                RawTokenKind::Plus => TokenKind::BinOp(BinOpToken::Plus),
-                RawTokenKind::Star => TokenKind::BinOp(BinOpToken::Star),
-                RawTokenKind::Slash => TokenKind::BinOp(BinOpToken::Slash),
-                RawTokenKind::Caret => TokenKind::BinOp(BinOpToken::Caret),
-                RawTokenKind::Percent => TokenKind::BinOp(BinOpToken::Percent),
+                RawTokenKind::AndAnd => TokenKind::AndAnd,
+                RawTokenKind::OrOr => TokenKind::OrOr,
+                RawTokenKind::Not => TokenKind::Not,
+                RawTokenKind::Tilde => TokenKind::Tilde,
+                RawTokenKind::Walrus => TokenKind::Walrus,
+                RawTokenKind::PlusPlus => TokenKind::PlusPlus,
+                RawTokenKind::MinusMinus => TokenKind::MinusMinus,
+                RawTokenKind::StarStar => TokenKind::StarStar,
+                RawTokenKind::BinOp(binop) => TokenKind::BinOp(binop),
+                RawTokenKind::BinOpEq(binop) => TokenKind::BinOpEq(binop),
+
+                // Structural symbols.
+                RawTokenKind::At => TokenKind::At,
+                RawTokenKind::Dot => TokenKind::Dot,
+                RawTokenKind::Comma => TokenKind::Comma,
+                RawTokenKind::Semi => TokenKind::Semi,
+                RawTokenKind::Colon => TokenKind::Colon,
+                RawTokenKind::Arrow => TokenKind::Arrow,
+                RawTokenKind::FatArrow => TokenKind::FatArrow,
+                RawTokenKind::Question => TokenKind::Question,
+                RawTokenKind::OpenDelim(delim) => TokenKind::OpenDelim(delim),
+                RawTokenKind::CloseDelim(delim) => TokenKind::CloseDelim(delim),
 
                 RawTokenKind::Unknown => {
-                    // Don't emit diagnostics for sequences of the same invalid token
-                    if swallow_next_invalid > 0 {
-                        swallow_next_invalid -= 1;
-                        continue;
-                    }
-                    let mut it = self.str_from_to_end(start).chars();
-                    let c = it.next().unwrap();
-                    if c == '\u{00a0}' {
-                        // If an error has already been reported on non-breaking
-                        // space characters earlier in the file, treat all
-                        // subsequent occurrences as whitespace.
-                        if self.nbsp_is_whitespace {
-                            preceded_by_whitespace = true;
-                            continue;
-                        }
-                        self.nbsp_is_whitespace = true;
-                    }
-
-                    let repeats = it.take_while(|c1| *c1 == c).count();
-                    swallow_next_invalid = repeats;
-
-                    let (token, sugg) =
-                        unicode_chars::check_for_substitution(self, start, c, repeats + 1);
-
-                    let span = self
-                        .new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
-                    let msg = format!("unknown start of token: {}", escaped_char(c));
-                    let mut err = self.dcx().err(msg).span(span);
-                    if let Some(sugg) = sugg {
-                        match sugg {
-                            unicode_chars::TokenSubstitution::DirectedQuotes {
-                                span,
-                                suggestion: _,
-                                ascii_str,
-                                ascii_name,
-                            } => {
-                                let msg = format!(
-                                    "Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not"
-                                );
-                                err = err.span_help(span, msg);
-                            }
-                            unicode_chars::TokenSubstitution::Other {
-                                span,
-                                suggestion: _,
-                                ch,
-                                u_name,
-                                ascii_str,
-                                ascii_name,
-                            } => {
-                                let msg = format!(
-                                    "Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not"
-                                );
-                                err = err.span_help(span, msg);
-                            }
-                        }
-                    }
-                    if c == '\0' {
-                        let help = "source files must contain UTF-8 encoded text, unexpected null bytes might occur when a different encoding is used";
-                        err = err.help(help);
-                    }
-                    if repeats > 0 {
-                        let note = match repeats {
-                            1 => "once more".to_string(),
-                            _ => format!("{repeats} more times"),
-                        };
-                        err = err.note(format!("character repeats {note}"));
-                    }
-                    err.emit();
-
-                    if let Some(token) = token {
+                    if let Some(token) = self.handle_unknown_token(start, &mut swallow_next_invalid)
+                    {
                         token
                     } else {
-                        preceded_by_whitespace = true;
                         continue;
                     }
                 }
@@ -284,8 +194,83 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 RawTokenKind::Eof => TokenKind::Eof,
             };
             let span = self.new_span(start, self.pos);
-            return (Token::new(kind, span), preceded_by_whitespace);
+            return Token::new(kind, span);
         }
+    }
+
+    #[cold]
+    fn handle_unknown_token(
+        &mut self,
+        start: BytePos,
+        swallow_next_invalid: &mut usize,
+    ) -> Option<TokenKind> {
+        // Don't emit diagnostics for sequences of the same invalid token
+        if *swallow_next_invalid > 0 {
+            *swallow_next_invalid -= 1;
+            return None;
+        }
+        let mut it = self.str_from_to_end(start).chars();
+        let c = it.next().unwrap();
+        if c == '\u{00a0}' {
+            // If an error has already been reported on non-breaking
+            // space characters earlier in the file, treat all
+            // subsequent occurrences as whitespace.
+            if self.nbsp_is_whitespace {
+                return None;
+            }
+            self.nbsp_is_whitespace = true;
+        }
+
+        let repeats = it.take_while(|c1| *c1 == c).count();
+        *swallow_next_invalid = repeats;
+
+        let (token, sugg) = unicode_chars::check_for_substitution(self, start, c, repeats + 1);
+
+        let span = self.new_span(start, self.pos + BytePos::from_usize(repeats * c.len_utf8()));
+        let msg = format!("unknown start of token: {}", escaped_char(c));
+        let mut err = self.dcx().err(msg).span(span);
+        if let Some(sugg) = sugg {
+            match sugg {
+                unicode_chars::TokenSubstitution::DirectedQuotes {
+                    span,
+                    suggestion: _,
+                    ascii_str,
+                    ascii_name,
+                } => {
+                    let msg = format!(
+                        "Unicode characters '“' (Left Double Quotation Mark) and '”' (Right Double Quotation Mark) look like '{ascii_str}' ({ascii_name}), but are not"
+                    );
+                    err = err.span_help(span, msg);
+                }
+                unicode_chars::TokenSubstitution::Other {
+                    span,
+                    suggestion: _,
+                    ch,
+                    u_name,
+                    ascii_str,
+                    ascii_name,
+                } => {
+                    let msg = format!(
+                        "Unicode character '{ch}' ({u_name}) looks like '{ascii_str}' ({ascii_name}), but it is not"
+                    );
+                    err = err.span_help(span, msg);
+                }
+            }
+        }
+        if c == '\0' {
+            let help = "source files must contain UTF-8 encoded text, unexpected null bytes might occur when a different encoding is used";
+            err = err.help(help);
+        }
+        if repeats > 0 {
+            let note = match repeats {
+                1 => "once more".to_string(),
+                _ => format!("{repeats} more times"),
+            };
+            err = err.note(format!("character repeats {note}"));
+        }
+        err.emit();
+
+        token
     }
 
     fn cook_doc_comment(
@@ -307,6 +292,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         match kind {
             RawLiteralKind::Str { kind, terminated } => {
                 if !terminated {
+                    cold_path();
                     let span = self.new_span(start, end);
                     let guar = self.dcx().err("unterminated string").span(span).emit();
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
@@ -316,11 +302,13 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             }
             RawLiteralKind::Int { base, empty_int } => {
                 if empty_int {
+                    cold_path();
                     let span = self.new_span(start, end);
                     self.dcx().err("no valid digits found for number").span(span).emit();
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
+                        cold_path();
                         let start = start + 2;
                         // To uncomment if binary and octal literals are ever supported.
                         /*
@@ -328,6 +316,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         let s = self.str_from_to(start, end);
                         for (i, c) in s.char_indices() {
                             if c != '_' && c.to_digit(base).is_none() {
+                                cold_path();
                                 let msg = format!("invalid digit for a base {base} literal");
                                 let lo = start + BytePos::from_usize(i);
                                 let hi = lo + BytePos::from_usize(c.len_utf8());
@@ -344,6 +333,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             }
             RawLiteralKind::Rational { base, empty_exponent } => {
                 if empty_exponent {
+                    cold_path();
                     let span = self.new_span(start, self.pos);
                     self.dcx().err("expected at least one digit in exponent").span(span).emit();
                 }
@@ -351,6 +341,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 let unsupported_base =
                     matches!(base, Base::Binary | Base::Octal | Base::Hexadecimal);
                 if unsupported_base {
+                    cold_path();
                     let msg = format!("{base} rational numbers are not supported");
                     self.dcx().err(msg).span(self.new_span(start, end)).emit();
                 }
@@ -370,7 +361,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     #[inline]
     fn new_span(&self, lo: BytePos, hi: BytePos) -> Span {
-        Span::new(lo, hi)
+        Span::new_unchecked(lo, hi)
     }
 
     #[inline]
@@ -380,30 +371,40 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn symbol_from(&self, start: BytePos) -> Symbol {
         self.symbol_from_to(start, self.pos)
     }
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
     /// meaning the slice does not include the character `self.ch`.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn str_from(&self, start: BytePos) -> &'src str {
         self.str_from_to(start, self.pos)
     }
 
     /// Same as `symbol_from`, with an explicit endpoint.
+    #[cfg_attr(debug_assertions, track_caller)]
     fn symbol_from_to(&self, start: BytePos, end: BytePos) -> Symbol {
         Symbol::intern(self.str_from_to(start, end))
     }
 
-    /// Slice of the source text spanning from `start` up to but excluding `end`.
-    #[track_caller]
-    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
-        &self.src[self.src_index(start)..self.src_index(end)]
+    /// Slice of the source text spanning from `start` until the end.
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn str_from_to_end(&self, start: BytePos) -> &'src str {
+        self.str_from_to(start, BytePos::from_usize(self.src.len()))
     }
 
-    /// Slice of the source text spanning from `start` until the end.
-    fn str_from_to_end(&self, start: BytePos) -> &'src str {
-        &self.src[self.src_index(start)..]
+    /// Slice of the source text spanning from `start` up to but excluding `end`.
+    #[cfg_attr(debug_assertions, track_caller)]
+    fn str_from_to(&self, start: BytePos, end: BytePos) -> &'src str {
+        let range = self.src_index(start)..self.src_index(end);
+        if cfg!(debug_assertions) {
+            &self.src[range]
+        } else {
+            // SAFETY: Should never be out of bounds.
+            unsafe { self.src.get_unchecked(range) }
+        }
     }
 }
 
@@ -412,7 +413,7 @@ impl Iterator for Lexer<'_, '_> {
 
     #[inline]
     fn next(&mut self) -> Option<Token> {
-        let token = self.next_token();
+        let token = self.slop();
         if token.is_eof() { None } else { Some(token) }
     }
 }
@@ -433,8 +434,8 @@ fn escaped_char(c: char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use BinOpToken::*;
     use TokenKind::*;
+    use solar_ast::token::BinOpToken::*;
     use std::ops::Range;
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
@@ -586,7 +587,7 @@ mod tests {
 
     #[test]
     fn operators() {
-        use Delimiter::*;
+        use solar_ast::token::Delimiter::*;
         // From Solc `TOKEN_LIST`: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
         checks(&[
             (")", &[(0..1, CloseDelim(Parenthesis))]),
