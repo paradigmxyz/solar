@@ -41,7 +41,7 @@ impl<'gcx> Gcx<'gcx> {
         for f in self.interface_functions(id) {
             items.push(self.function_abi(f.id).into());
         }
-        // TODO: Does not include referenced items.
+        // TODO: Does not include referenced items: https://github.com/paradigmxyz/solar/issues/305
         // See solc `interfaceEvents` and `interfaceErrors`.
         for item in self.hir.contract_item_ids(id) {
             match item {
