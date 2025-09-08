@@ -180,7 +180,7 @@ pub struct SourceMap {
     #[debug(skip)]
     id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    base_path: OnceLock<PathBuf>,
+    base_path: RwLock<Option<PathBuf>>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
 }
@@ -215,10 +215,13 @@ impl SourceMap {
     }
 
     /// Sets the file loader for the source map.
+    /// This may only be called once. Further calls will do nothing.
     ///
     /// See [its documentation][FileLoader] for more details.
     pub fn set_file_loader(&self, file_loader: impl FileLoader) {
-        let _ = self.file_loader.set(Box::new(file_loader));
+        if let Err(_prev) = self.file_loader.set(Box::new(file_loader)) {
+            warn!("file loader already set");
+        }
     }
 
     /// Returns the file loader for the source map.
@@ -229,8 +232,14 @@ impl SourceMap {
     }
 
     /// Sets the base path for the source map.
-    pub(crate) fn set_base_path(&self, base_path: PathBuf) {
-        let _ = self.base_path.set(base_path);
+    ///
+    /// This is currently only used for trimming diagnostics' paths.
+    pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
+        *self.base_path.write() = base_path;
+    }
+
+    pub(crate) fn base_path(&self) -> Option<PathBuf> {
+        self.base_path.read().as_ref().cloned()
     }
 
     /// Returns `true` if the source map is empty.
@@ -323,7 +332,7 @@ impl SourceMap {
 
     /// Display the filename for diagnostics.
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        FileNameDisplay { inner: filename, base_path: self.base_path.get().cloned() }
+        FileNameDisplay { inner: filename, base_path: self.base_path() }
     }
 
     /// Returns `true` if the given span is multi-line.

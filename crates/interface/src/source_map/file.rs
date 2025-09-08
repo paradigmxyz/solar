@@ -100,9 +100,8 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        let base_path = crate::SessionGlobals::try_with(|g| {
-            g.and_then(|g| g.source_map.base_path.get().cloned())
-        });
+        let base_path =
+            crate::SessionGlobals::try_with(|g| g.and_then(|g| g.source_map.base_path()));
         FileNameDisplay { inner: self, base_path }
     }
 

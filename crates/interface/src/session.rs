@@ -162,16 +162,8 @@ impl SessionBuilder {
             opts: opts.unwrap_or_default(),
             thread_pool: OnceLock::new(),
         };
-
-        if let Some(base_path) =
-            sess.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
-            && let Ok(base_path) = sess.source_map().file_loader().canonicalize_path(&base_path)
-        {
-            sess.source_map().set_base_path(base_path);
-        }
-
+        sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
-
         sess
     }
 }
@@ -204,6 +196,26 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result
+    }
+
+    /// Reconfigures inner state to match any new options.
+    ///
+    /// Call this after updating options.
+    pub fn reconfigure(&self) {
+        'bp: {
+            let new_base_path = if self.opts.unstable.ui_testing {
+                // `ui_test` relies on absolute paths.
+                None
+            } else if let Some(base_path) =
+                self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
+                && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)
+            {
+                Some(base_path)
+            } else {
+                break 'bp;
+            };
+            self.source_map().set_base_path(new_base_path);
+        }
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
