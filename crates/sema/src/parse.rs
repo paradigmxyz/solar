@@ -154,21 +154,43 @@ impl<'gcx> ParsingContext<'gcx> {
     pub fn parse(mut self) {
         self.parsed = true;
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
+
         let mut sources = std::mem::take(self.sources);
         if !sources.is_empty() {
+            let dbg = enabled!(tracing::Level::DEBUG);
+            let len_before = sources.len();
+            let sources_parsed_before = if dbg { 0 } else { sources.count_parsed() };
+
             if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
                 self.parse_sequential(&mut sources, self.arenas.get_or_default());
             } else {
                 self.parse_parallel(&mut sources, self.arenas);
             }
-            debug!(
-                num_sources = sources.len(),
-                num_contracts = sources.iter().map(|s| s.count_contracts()).sum::<usize>(),
-                total_bytes = %crate::fmt_bytes(sources.iter().map(|s| s.file.src.len()).sum::<usize>()),
-                total_lines = sources.iter().map(|s| s.file.count_lines()).sum::<usize>(),
-                "parsed all sources",
-            );
+
+            if dbg {
+                let len_after = sources.len();
+                let sources_added =
+                    len_after.checked_sub(len_before).expect("parsing removed sources?");
+
+                let sources_parsed_after = sources.count_parsed();
+                let solidity_sources_parsed = sources_parsed_after
+                    .checked_sub(sources_parsed_before)
+                    .expect("parsing removed parsed sources?");
+
+                if sources_added > 0 || solidity_sources_parsed > 0 {
+                    debug!(
+                        sources_added,
+                        solidity_sources_parsed,
+                        num_sources = len_after,
+                        num_contracts = sources.iter().map(|s| s.count_contracts()).sum::<usize>(),
+                        total_bytes = %crate::fmt_bytes(sources.iter().map(|s| s.file.src.len()).sum::<usize>()),
+                        total_lines = sources.iter().map(|s| s.file.count_lines()).sum::<usize>(),
+                        "parsed",
+                    );
+                }
+            }
         }
+
         sources.assert_unique();
         *self.sources = sources;
     }
@@ -366,6 +388,10 @@ impl<'ast> Sources<'ast> {
     /// Creates a new empty list of parsed sources.
     pub fn new() -> Self {
         Self { sources: IndexVec::new() }
+    }
+
+    fn count_parsed(&self) -> usize {
+        self.sources.iter().filter(|s| s.ast.is_some()).count()
     }
 
     /// Returns the ID of the imported file, and whether it was newly added.

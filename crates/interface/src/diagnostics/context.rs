@@ -471,7 +471,7 @@ impl DiagCtxtInner {
         match (errors, others.is_empty()) {
             (None, true) => Ok(()),
             (None, false) => {
-                // TODO: Don't emit in tests since it's not handled by `ui_test`.
+                // TODO: Don't emit in tests since it's not handled by `ui_test`: https://github.com/oli-obk/ui_test/issues/324
                 if self.flags.track_diagnostics {
                     let msg = others.join(", ");
                     self.emitter.emit_diagnostic(&mut Diag::new(Level::Warning, msg));
