@@ -253,14 +253,19 @@ impl<'gcx> Gcx<'gcx> {
         Self(gcx)
     }
 
+    /// Returns the current compiler stage.
+    pub fn stage(&self) -> Option<CompilerStage> {
+        self.stage.get()
+    }
+
     pub(crate) fn advance_stage(&self, to: CompilerStage) -> ControlFlow<()> {
         let result = self.advance_stage_(to);
-        trace!(from=?self.stage.get(), ?to, ?result, "advance stage");
+        trace!(from=?self.stage(), ?to, ?result, "advance stage");
         result
     }
 
     fn advance_stage_(&self, to: CompilerStage) -> ControlFlow<()> {
-        let current = self.stage.get();
+        let current = self.stage();
 
         // Special case: allow calling `parse` multiple times while currently parsing.
         if to == CompilerStage::Parsing && current == Some(to) {
