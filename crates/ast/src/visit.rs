@@ -565,20 +565,20 @@ declare_visitors! {
         }
 
         fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitch { selector, branches, default_case } = switch;
+            let yul::StmtSwitch { selector, cases } = switch;
             self.visit_yul_expr #_mut(selector)?;
-            for case in branches.iter #_mut() {
+            for case in cases.iter #_mut() {
                 self.visit_yul_stmt_case #_mut(case)?;
-            }
-            if let Some(case) = default_case {
-                self.visit_yul_block #_mut(case)?;
             }
             ControlFlow::Continue(())
         }
 
         fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitchCase { constant, body } = case;
-            self.visit_lit #_mut(constant)?;
+            let yul::StmtSwitchCase { span, constant, body } = case;
+            self.visit_span #_mut(span)?;
+            if let Some(constant) = constant {
+                self.visit_lit #_mut(constant)?;
+            }
             self.visit_yul_block #_mut(body)?;
             ControlFlow::Continue(())
         }

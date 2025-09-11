@@ -157,8 +157,15 @@ pub enum StmtKind<'ast> {
 #[derive(Debug)]
 pub struct StmtSwitch<'ast> {
     pub selector: Expr<'ast>,
-    pub branches: Box<'ast, [StmtSwitchCase<'ast>]>,
-    pub default_case: Option<Block<'ast>>,
+    /// The cases of the switch statement. Includes the default case in the last position, if any.
+    pub cases: Box<'ast, [StmtSwitchCase<'ast>]>,
+}
+
+impl<'ast> StmtSwitch<'ast> {
+    /// Returns the default case of the switch statement, if any.
+    pub fn default_case(&self) -> Option<&StmtSwitchCase<'ast>> {
+        self.cases.last().filter(|case| case.constant.is_none())
+    }
 }
 
 /// Represents a non-default case of a Yul switch statement.
@@ -166,7 +173,9 @@ pub struct StmtSwitch<'ast> {
 /// See [`StmtSwitch`] for more information.
 #[derive(Debug)]
 pub struct StmtSwitchCase<'ast> {
-    pub constant: Lit<'ast>,
+    pub span: Span,
+    /// The constant of the case, if any. `None` for the default case.
+    pub constant: Option<Lit<'ast>>,
     pub body: Block<'ast>,
 }
 
