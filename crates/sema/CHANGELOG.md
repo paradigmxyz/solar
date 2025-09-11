@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Bug Fixes
+
+- [sema] Handle linearization failure fallout ([#472](https://github.com/paradigmxyz/solar/issues/472))
+
+### Features
+
+- [sema] Add Compiler::stage getter ([#490](https://github.com/paradigmxyz/solar/issues/490))
+- Diagnostic suggestions ([#474](https://github.com/paradigmxyz/solar/issues/474))
+- Bump to annotate-snippets 0.12, diagnostic tweaks ([#465](https://github.com/paradigmxyz/solar/issues/465))
+- [sema] Add `Compiler::enter{,_mut}_sequential` ([#457](https://github.com/paradigmxyz/solar/issues/457))
+
+### Miscellaneous Tasks
+
+- Improve 'parsed' debug log ([#489](https://github.com/paradigmxyz/solar/issues/489))
+- Use json_type to sort ABIs ([#456](https://github.com/paradigmxyz/solar/issues/456))
+- Move VERSION to config::version::SEMVER_VERSION and log it ([#454](https://github.com/paradigmxyz/solar/issues/454))
+- Hide more source map implementation details ([#450](https://github.com/paradigmxyz/solar/issues/450))
+- Chore!(data-structures): remove aliases in sync re-exports ([#452](https://github.com/paradigmxyz/solar/issues/452))
+- [meta] Update solidity links ([#448](https://github.com/paradigmxyz/solar/issues/448))
+- Make all features reachable from meta crate ([#444](https://github.com/paradigmxyz/solar/issues/444))
+
+### Performance
+
+- [interface] Cache thread pool inside of session ([#458](https://github.com/paradigmxyz/solar/issues/458))
+
 ## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
 
 ### Bug Fixes

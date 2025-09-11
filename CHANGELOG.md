@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Bug Fixes
+
+- [sema] Handle linearization failure fallout ([#472](https://github.com/paradigmxyz/solar/issues/472))
+- Pin dependencies on ourselves
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#482](https://github.com/paradigmxyz/solar/issues/482))
+- [lexer] Inline token glueing into Cursor ([#479](https://github.com/paradigmxyz/solar/issues/479))
+- [deps] Weekly `cargo update` ([#459](https://github.com/paradigmxyz/solar/issues/459))
+
+### Features
+
+- [interface] Add Session::reconfigure ([#491](https://github.com/paradigmxyz/solar/issues/491))
+- [sema] Add Compiler::stage getter ([#490](https://github.com/paradigmxyz/solar/issues/490))
+- Diagnostic suggestions ([#474](https://github.com/paradigmxyz/solar/issues/474))
+- Add error format options for human-readable diagnostics ([#473](https://github.com/paradigmxyz/solar/issues/473))
+- [interface] Impl Default for Session, create dcx from opts ([#471](https://github.com/paradigmxyz/solar/issues/471))
+- [parser] Implement recursion depth limit for `expr`, `stmt`, and `yul_stmt` ([#464](https://github.com/paradigmxyz/solar/issues/464))
+- Bump to annotate-snippets 0.12, diagnostic tweaks ([#465](https://github.com/paradigmxyz/solar/issues/465))
+- [sema] Add `Compiler::enter{,_mut}_sequential` ([#457](https://github.com/paradigmxyz/solar/issues/457))
+- Add another utility method for extracting diagnostics ([#455](https://github.com/paradigmxyz/solar/issues/455))
+- [diagnostics] Track notes + expose notes/warn counts ([#447](https://github.com/paradigmxyz/solar/issues/447))
+- `InMemoryEmitter` ([#451](https://github.com/paradigmxyz/solar/issues/451))
+
+### Miscellaneous Tasks
+
+- Improve 'parsed' debug log ([#489](https://github.com/paradigmxyz/solar/issues/489))
+- Rename lexer methods to slop ([#481](https://github.com/paradigmxyz/solar/issues/481))
+- [interface] Rename dcx flag setters ([#478](https://github.com/paradigmxyz/solar/issues/478))
+- Update signal handler ([#463](https://github.com/paradigmxyz/solar/issues/463))
+- Use json_type to sort ABIs ([#456](https://github.com/paradigmxyz/solar/issues/456))
+- Move VERSION to config::version::SEMVER_VERSION and log it ([#454](https://github.com/paradigmxyz/solar/issues/454))
+- Hide more source map implementation details ([#450](https://github.com/paradigmxyz/solar/issues/450))
+- Chore!(data-structures): remove aliases in sync re-exports ([#452](https://github.com/paradigmxyz/solar/issues/452))
+- Remove deprecated items ([#449](https://github.com/paradigmxyz/solar/issues/449))
+- [meta] Update solidity links ([#448](https://github.com/paradigmxyz/solar/issues/448))
+- Cap default threads at available_parallelism ([#445](https://github.com/paradigmxyz/solar/issues/445))
+- Make all features reachable from meta crate ([#444](https://github.com/paradigmxyz/solar/issues/444))
+
+### Performance
+
+- Diagnostic suggestions ([#483](https://github.com/paradigmxyz/solar/issues/483))
+- [lexer] Minor improvements ([#480](https://github.com/paradigmxyz/solar/issues/480))
+- [interface] Cache thread pool inside of session ([#458](https://github.com/paradigmxyz/solar/issues/458))
+
+### Testing
+
+- Add CLI test suite ([#453](https://github.com/paradigmxyz/solar/issues/453))
+
 ## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
 
 Notable changes:
