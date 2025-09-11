@@ -2,7 +2,7 @@ use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{
-    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, token::*, yul::*,
+    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, Symbol, token::*, yul::*,
 };
 use solar_interface::{Ident, error_code, kw, sym};
 
@@ -214,20 +214,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_stmt_switch(&mut self) -> PResult<'sess, StmtSwitch<'ast>> {
         let lo = self.prev_token.span;
         let selector = self.parse_yul_expr()?;
-        let mut branches = Vec::new();
-        while self.eat_keyword(kw::Case) {
-            let constant = self.parse_yul_lit()?;
-            self.expect_no_subdenomination();
-            let body = self.parse_yul_block_unchecked()?;
-            branches.push(StmtSwitchCase { constant, body });
+        let mut cases = Vec::new();
+        while self.check_keyword(kw::Case) {
+            cases.push(self.parse_yul_stmt_switch_case(kw::Case)?);
         }
-        let branches = self.alloc_vec(branches);
-        let default_case = if self.eat_keyword(kw::Default) {
-            Some(self.parse_yul_block_unchecked()?)
+        let default_case = if self.check_keyword(kw::Default) {
+            Some(self.parse_yul_stmt_switch_case(kw::Default)?)
         } else {
             None
         };
-        if branches.is_empty() {
+        if cases.is_empty() {
             let span = lo.to(self.prev_token.span);
             if default_case.is_none() {
                 self.dcx().err("`switch` statement has no cases").span(span).emit();
@@ -239,7 +235,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .emit();
             }
         }
-        Ok(StmtSwitch { selector, branches, default_case })
+        if let Some(default_case) = default_case {
+            cases.push(default_case);
+        }
+        let cases = self.alloc_vec(cases);
+        Ok(StmtSwitch { selector, cases })
+    }
+
+    fn parse_yul_stmt_switch_case(&mut self, kw: Symbol) -> PResult<'sess, StmtSwitchCase<'ast>> {
+        self.parse_spanned(|this| {
+            debug_assert!(this.token.is_keyword(kw));
+            this.bump();
+            let constant = if kw == kw::Case {
+                let lit = this.parse_yul_lit()?;
+                this.expect_no_subdenomination();
+                Some(lit)
+            } else {
+                None
+            };
+            let body = this.parse_yul_block_unchecked()?;
+            Ok((constant, body))
+        })
+        .map(|(span, (constant, body))| StmtSwitchCase { span, constant, body })
     }
 
     /// Parses a Yul for statement.
