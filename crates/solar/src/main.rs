@@ -12,7 +12,7 @@ static ALLOC: utils::Allocator = utils::new_allocator();
 fn main() -> ExitCode {
     signal_handler::install();
     panic_hook::install();
-    let _guard = utils::init_logger();
+    let _guard = utils::init_logger(Default::default());
     let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
