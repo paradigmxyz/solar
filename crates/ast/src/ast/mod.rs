@@ -185,4 +185,61 @@ mod tests {
         assert_no_drop::<Item<'_>>();
         assert_no_drop::<SourceUnit<'_>>();
     }
+
+    // Ensure that we track the size of individual AST nodes.
+    #[test]
+    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
+    #[cfg_attr(feature = "nightly", ignore = "stable only")]
+    fn sizes() {
+        use snapbox::{assert_data_eq, str};
+        #[track_caller]
+        fn assert_size<T>(size: impl snapbox::IntoData) {
+            assert_size_(std::mem::size_of::<T>(), size.into_data());
+        }
+        #[track_caller]
+        fn assert_size_(actual: usize, expected: snapbox::Data) {
+            assert_data_eq!(actual.to_string(), expected);
+        }
+
+        assert_size::<Span>(str!["8"]);
+        assert_size::<DocComments<'_>>(str!["16"]);
+
+        assert_size::<SourceUnit<'_>>(str!["16"]);
+
+        assert_size::<PragmaDirective<'_>>(str!["40"]);
+        assert_size::<ImportDirective<'_>>(str!["40"]);
+        assert_size::<UsingDirective<'_>>(str!["64"]);
+        assert_size::<ItemContract<'_>>(str!["64"]);
+        assert_size::<ItemFunction<'_>>(str!["184"]);
+        assert_size::<VariableDefinition<'_>>(str!["88"]);
+        assert_size::<ItemStruct<'_>>(str!["32"]);
+        assert_size::<ItemEnum<'_>>(str!["32"]);
+        assert_size::<ItemUdvt<'_>>(str!["48"]);
+        assert_size::<ItemError<'_>>(str!["40"]);
+        assert_size::<ItemEvent<'_>>(str!["40"]);
+        assert_size::<ItemKind<'_>>(str!["184"]);
+        assert_size::<Item<'_>>(str!["208"]);
+
+        assert_size::<FunctionHeader<'_>>(str!["144"]);
+        assert_size::<ParameterList<'_>>(str!["24"]);
+
+        assert_size::<ElementaryType>(str!["3"]);
+        assert_size::<TypeKind<'_>>(str!["24"]);
+        assert_size::<Type<'_>>(str!["32"]);
+
+        assert_size::<ExprKind<'_>>(str!["40"]);
+        assert_size::<Expr<'_>>(str!["48"]);
+
+        assert_size::<StmtKind<'_>>(str!["64"]);
+        assert_size::<Stmt<'_>>(str!["88"]);
+        assert_size::<Block<'_>>(str!["24"]);
+
+        assert_size::<yul::ExprCall<'_>>(str!["32"]);
+        assert_size::<yul::ExprKind<'_>>(str!["40"]);
+        assert_size::<yul::Expr<'_>>(str!["48"]);
+
+        assert_size::<yul::StmtKind<'_>>(str!["120"]);
+        assert_size::<yul::Stmt<'_>>(str!["144"]);
+        assert_size::<yul::Block<'_>>(str!["24"]);
+    }
 }
