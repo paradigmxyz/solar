@@ -268,7 +268,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let cond = self.parse_yul_expr()?;
         let step = self.parse_yul_block_unchecked()?;
         let body = self.parse_yul_block_unchecked()?;
-        Ok(StmtKind::For { init, cond, step, body })
+        Ok(StmtKind::For(self.alloc(YulStmtFor { init, cond, step, body })))
     }
 
     /// Parses a Yul expression.
