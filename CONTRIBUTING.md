@@ -126,7 +126,7 @@ to ignore benchmarks and examples:
 ```
 cargo check --workspace
 cargo clippy --workspace
-cargo fmt --all --check
+cargo +nightly fmt --all --check
 cargo test --workspace
 ```
 
