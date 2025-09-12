@@ -515,14 +515,14 @@ declare_visitors! {
                     self.visit_path #_mut(path)?;
                     self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::AssignMulti(paths, call) => {
+                yul::StmtKind::AssignMulti(paths, expr) => {
                     for path in paths.iter #_mut() {
                         self.visit_path #_mut(path)?;
                     }
-                    self.visit_yul_expr_call #_mut(call)?;
+                    self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::Expr(call) => {
-                    self.visit_yul_expr_call #_mut(call)?;
+                yul::StmtKind::Expr(expr) => {
+                    self.visit_yul_expr #_mut(expr)?;
                 }
                 yul::StmtKind::If(expr, block) => {
                     self.visit_yul_expr #_mut(expr)?;

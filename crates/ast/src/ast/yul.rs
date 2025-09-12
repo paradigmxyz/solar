@@ -101,10 +101,10 @@ pub enum StmtKind<'ast> {
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Box<'ast, [AstPath<'ast>]>, ExprCall<'ast>),
+    AssignMulti(Box<'ast, [AstPath<'ast>]>, Expr<'ast>),
 
     /// An expression statement. This can only be a function call.
-    Expr(ExprCall<'ast>),
+    Expr(Expr<'ast>),
 
     /// An if statement: `if lt(a, b) { ... }`.
     ///
