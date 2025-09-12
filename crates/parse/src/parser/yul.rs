@@ -141,10 +141,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Leave) {
             Ok(StmtKind::Leave)
         } else if self.check_ident() {
+            let lo = self.token.span;
             let path = self.parse_path_any()?;
             if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 let name = self.expect_single_ident_path(path);
-                self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
+                let (hi, call) = self.parse_spanned(|this| this.parse_yul_expr_call_with(name))?;
+                let span = lo.to(hi);
+                Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Call(call) }))
             } else if self.eat(TokenKind::Walrus) {
                 self.check_valid_path(path);
                 let expr = self.parse_yul_expr()?;
@@ -159,7 +162,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let paths = self.alloc_smallvec(paths);
                 self.expect(TokenKind::Walrus)?;
                 let expr = self.parse_yul_expr()?;
-                let ExprKind::Call(expr) = expr.kind else {
+                let ExprKind::Call(_expr) = &expr.kind else {
                     let msg = "only function calls are allowed in multi-assignment";
                     return Err(self.dcx().err(msg).span(expr.span));
                 };

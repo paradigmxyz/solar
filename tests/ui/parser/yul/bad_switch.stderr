@@ -1,11 +1,11 @@
 error: `switch` statement has no cases
-  --> ROOT/tests/ui/parser/bad_switch.sol:LL:CC
+  --> ROOT/tests/ui/parser/yul/bad_switch.sol:LL:CC
    |
 LL |         switch 42
    |         ^^^^^^^^^
 
 warning[9592]: `switch` statement has only a default case
-  --> ROOT/tests/ui/parser/bad_switch.sol:LL:CC
+  --> ROOT/tests/ui/parser/yul/bad_switch.sol:LL:CC
    |
 LL | /         switch 42
 LL | |         default {}
