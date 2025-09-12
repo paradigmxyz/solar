@@ -24,6 +24,24 @@ impl AsRef<Self> for Expr<'_> {
 }
 
 impl<'ast> Expr<'ast> {
+    /// Peels off unnecessary parentheses from the expression.
+    pub fn peel_parens(&self) -> &Self {
+        let mut expr = self;
+        while let ExprKind::Tuple([Some(inner)]) = &expr.kind {
+            expr = inner;
+        }
+        expr
+    }
+
+    /// Peels off unnecessary parentheses from the expression.
+    pub fn peel_parens_mut(&mut self) -> &mut Self {
+        let mut expr = self;
+        while let ExprKind::Tuple([Some(inner)]) = expr.kind {
+            expr = inner;
+        }
+        expr
+    }
+
     /// Creates a new expression from an identifier.
     pub fn from_ident(ident: Ident) -> Self {
         Self { span: ident.span, kind: ExprKind::Ident(ident) }

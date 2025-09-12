@@ -259,8 +259,9 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub(crate) fn advance_stage(&self, to: CompilerStage) -> ControlFlow<()> {
+        let from = self.stage();
         let result = self.advance_stage_(to);
-        trace!(from=?self.stage(), ?to, ?result, "advance stage");
+        trace!(?from, ?to, ?result, "advance stage");
         result
     }
 
