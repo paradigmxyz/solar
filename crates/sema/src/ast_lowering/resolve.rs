@@ -1017,6 +1017,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
+                let callee = callee.peel_parens();
                 let (callee, options) =
                     if let ast::ExprKind::CallOptions(expr, options) = &callee.kind {
                         (self.lower_expr(expr), Some(self.lower_named_args(options)))
