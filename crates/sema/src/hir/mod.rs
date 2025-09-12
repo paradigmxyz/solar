@@ -1472,3 +1472,46 @@ pub struct TypeMapping<'hir> {
     pub value: Type<'hir>,
     pub value_name: Option<Ident>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Ensure that we track the size of individual HIR nodes.
+    #[test]
+    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
+    #[cfg_attr(feature = "nightly", ignore = "stable only")]
+    fn sizes() {
+        use snapbox::{assert_data_eq, str};
+        #[track_caller]
+        fn assert_size<T>(size: impl snapbox::IntoData) {
+            assert_size_(std::mem::size_of::<T>(), size.into_data());
+        }
+        #[track_caller]
+        fn assert_size_(actual: usize, expected: snapbox::Data) {
+            assert_data_eq!(actual.to_string(), expected);
+        }
+
+        assert_size::<Hir<'_>>(str!["216"]);
+
+        assert_size::<Item<'_, '_>>(str!["16"]);
+        assert_size::<Contract<'_>>(str!["120"]);
+        assert_size::<Function<'_>>(str!["136"]);
+        assert_size::<Struct<'_>>(str!["48"]);
+        assert_size::<Enum<'_>>(str!["48"]);
+        assert_size::<Udvt<'_>>(str!["56"]);
+        assert_size::<Error<'_>>(str!["48"]);
+        assert_size::<Event<'_>>(str!["48"]);
+        assert_size::<Variable<'_>>(str!["96"]);
+
+        assert_size::<TypeKind<'_>>(str!["16"]);
+        assert_size::<Type<'_>>(str!["24"]);
+
+        assert_size::<ExprKind<'_>>(str!["56"]);
+        assert_size::<Expr<'_>>(str!["72"]);
+
+        assert_size::<StmtKind<'_>>(str!["32"]);
+        assert_size::<Stmt<'_>>(str!["40"]);
+        assert_size::<Block<'_>>(str!["24"]);
+    }
+}
