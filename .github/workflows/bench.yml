@@ -12,6 +12,8 @@ env:
 jobs:
   codspeed:
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-C target-feature=+avx2,+fma"
     steps:
       - uses: actions/checkout@v5
         with:
@@ -39,6 +41,7 @@ jobs:
     env:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
+      RUSTFLAGS: "-C target-feature=+avx2,+fma"
     steps:
       - uses: actions/checkout@v5
         with:
