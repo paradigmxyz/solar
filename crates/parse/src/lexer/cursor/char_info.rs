@@ -33,6 +33,7 @@ pub const fn is_id_continue_byte(c: u8) -> bool {
 
 #[inline]
 pub(super) const fn is_decimal_digit(c: u8) -> bool {
+    // `is_ascii_digit` is cheap enough to not benefit from the lookup table.
     // classify(c) & DECIMAL_DIGIT != 0
     c.is_ascii_digit()
 }
