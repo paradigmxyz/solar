@@ -129,7 +129,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'sess, ItemFunction<'ast>> {
-        let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
+        let TokenRepr { span: lo, kind: TokenKind::Ident(kw) } = *self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
         self.bump(); // kw
@@ -930,7 +930,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
+        let TokenRepr { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = *self.token
+        else {
             unreachable!()
         };
         self.bump();

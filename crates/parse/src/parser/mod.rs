@@ -781,7 +781,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Use [`bump`](Self::bump) and [`token`](Self::token) instead.
     #[inline(always)]
     fn next_token(&mut self) -> Token {
-        self.tokens.next().unwrap_or(Token { kind: TokenKind::Eof, span: self.token.span })
+        self.tokens.next().unwrap_or(Token::new(TokenKind::Eof, self.token.span))
     }
 
     /// Returns the token `dist` tokens ahead of the current one.
