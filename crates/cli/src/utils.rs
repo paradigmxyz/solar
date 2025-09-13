@@ -1,5 +1,7 @@
 //! Utility functions used by the Solar CLI.
 
+use std::io::{self, StderrLock, StdoutLock};
+
 use solar_interface::diagnostics::DiagCtxt;
 
 #[cfg(feature = "mimalloc")]
@@ -43,9 +45,56 @@ pub const fn new_allocator() -> Allocator {
     new_wrapped_allocator()
 }
 
+#[derive(Default)]
+pub enum LogDestination {
+    #[default]
+    Stdout,
+    Stderr,
+}
+
+#[cfg(feature = "tracing")]
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
+    type Writer = LogWriter<'a>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        match self {
+            Self::Stdout => LogWriter::Stdout(std::io::stdout().lock()),
+            Self::Stderr => LogWriter::Stderr(std::io::stderr().lock()),
+        }
+    }
+}
+
+pub enum LogWriter<'a> {
+    Stdout(StdoutLock<'a>),
+    Stderr(StderrLock<'a>),
+}
+
+impl<'a> io::Write for LogWriter<'a> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::Stdout(lock) => lock.write(buf),
+            Self::Stderr(lock) => lock.write(buf),
+        }
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        match self {
+            Self::Stdout(lock) => lock.write_all(buf),
+            Self::Stderr(lock) => lock.write_all(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::Stdout(lock) => lock.flush(),
+            Self::Stderr(lock) => lock.flush(),
+        }
+    }
+}
+
 /// Initialize the tracing logger.
 #[must_use]
-pub fn init_logger() -> impl Sized {
+pub fn init_logger(dest: LogDestination) -> impl Sized {
     #[cfg(not(feature = "tracing"))]
     {
         if std::env::var_os("RUST_LOG").is_some() {
@@ -60,14 +109,14 @@ pub fn init_logger() -> impl Sized {
     }
 
     #[cfg(feature = "tracing")]
-    match try_init_logger() {
+    match try_init_logger(dest) {
         Ok(guard) => guard,
         Err(e) => DiagCtxt::new_early().fatal(e).emit(),
     }
 }
 
 #[cfg(feature = "tracing")]
-fn try_init_logger() -> Result<impl Sized, String> {
+fn try_init_logger(dest: LogDestination) -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
     let (profile_layer, guard) = match std::env::var("SOLAR_PROFILE").as_deref() {
@@ -90,7 +139,7 @@ fn try_init_logger() -> Result<impl Sized, String> {
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(profile_layer)
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(dest))
         .try_init()
         .map(|()| guard)
         .map_err(|e| e.to_string())
