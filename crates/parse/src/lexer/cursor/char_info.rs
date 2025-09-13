@@ -6,7 +6,7 @@ pub const fn is_whitespace(c: char) -> bool {
 /// Returns `true` if the given character is considered a whitespace.
 #[inline]
 pub const fn is_whitespace_byte(c: u8) -> bool {
-    INFO[c as usize] & WHITESPACE != 0
+    classify(c) & WHITESPACE != 0
 }
 
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
@@ -17,7 +17,7 @@ pub const fn is_id_start(c: char) -> bool {
 /// Returns `true` if the given character is valid at the start of a Solidity identifier.
 #[inline]
 pub const fn is_id_start_byte(c: u8) -> bool {
-    INFO[c as usize] & ID_START != 0
+    classify(c) & ID_START != 0
 }
 
 /// Returns `true` if the given character is valid in a Solidity identifier.
@@ -28,7 +28,7 @@ pub const fn is_id_continue(c: char) -> bool {
 /// Returns `true` if the given character is valid in a Solidity identifier.
 #[inline]
 pub const fn is_id_continue_byte(c: u8) -> bool {
-    INFO[c as usize] & ID_CONTINUE != 0
+    classify(c) & ID_CONTINUE != 0
 }
 
 /// Returns `true` if the given string is a valid Solidity identifier.
@@ -65,6 +65,14 @@ pub const fn is_ident_bytes(s: &[u8]) -> bool {
     true
 }
 
+pub(super) const fn is_decimal_digit(c: u8) -> bool {
+    classify(c) & DECIMAL_DIGIT != 0
+}
+
+pub(super) const fn is_hex_digit(c: u8) -> bool {
+    classify(c) & HEX_DIGIT != 0
+}
+
 /// Converts a `char` to a `u8`.
 #[inline(always)]
 const fn ch2u8(c: char) -> u8 {
@@ -76,23 +84,42 @@ pub(super) const EOF: u8 = b'\0';
 const WHITESPACE: u8 = 1 << 0;
 const ID_START: u8 = 1 << 1;
 const ID_CONTINUE: u8 = 1 << 2;
+const DECIMAL_DIGIT: u8 = 1 << 3;
+const HEX_DIGIT: u8 = 1 << 4;
+
+#[inline(always)]
+const fn classify(c: u8) -> u8 {
+    INFO[c as usize]
+}
 
 static INFO: [u8; 256] = {
     let mut table = [0; 256];
     let mut i = 0;
     while i < 256 {
-        table[i] = classify(i as u8);
+        table[i] = classify_impl(i as u8);
         i += 1;
     }
     table
 };
 
-const fn classify(c: u8) -> u8 {
+const fn classify_impl(c: u8) -> u8 {
     // https://github.com/argotorg/solidity/blob/965166317bbc2b02067eb87f222a2dce9d24e289/liblangutil/Common.h#L20-L46
-    match c {
-        b' ' | b'\t' | b'\n' | b'\r' => WHITESPACE,
-        b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' => ID_START | ID_CONTINUE,
-        b'0'..=b'9' => ID_CONTINUE,
-        _ => 0,
+
+    let mut result = 0;
+    if matches!(c, b' ' | b'\t' | b'\n' | b'\r') {
+        result |= WHITESPACE;
     }
+    if matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$') {
+        result |= ID_START;
+    }
+    if matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' | b'0'..=b'9') {
+        result |= ID_CONTINUE;
+    }
+    if matches!(c, b'0'..=b'9') {
+        result |= DECIMAL_DIGIT;
+    }
+    if matches!(c, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F') {
+        result |= HEX_DIGIT;
+    }
+    result
 }

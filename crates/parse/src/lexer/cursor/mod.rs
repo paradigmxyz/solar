@@ -433,7 +433,7 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_digit())
+        self.eat_digits(is_decimal_digit)
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
