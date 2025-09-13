@@ -241,6 +241,6 @@ mod tests {
         assert_size::<yul::StmtKind<'_>>(str!["80"]);
         assert_size::<yul::Stmt<'_>>(str!["104"]);
         assert_size::<yul::Block<'_>>(str!["24"]);
-        assert_size::<yul::YulStmtFor<'_>>(str!["120"]);
+        assert_size::<yul::StmtFor<'_>>(str!["120"]);
     }
 }

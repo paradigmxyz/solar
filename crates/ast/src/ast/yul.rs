@@ -116,7 +116,7 @@ pub enum StmtKind<'ast> {
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulForStatement>
     ///
     /// Breakdown of parts: <https://docs.soliditylang.org/en/latest/yul.html#loops>
-    For(Box<'ast, YulStmtFor<'ast>>),
+    For(Box<'ast, StmtFor<'ast>>),
 
     /// A switch statement: `switch expr case 0 { ... } default { ... }`.
     ///
@@ -141,9 +141,13 @@ pub enum StmtKind<'ast> {
     VarDecl(Box<'ast, [Ident]>, Option<Expr<'ast>>),
 }
 
-/// A Yul `for` statement parts.
+/// A Yul for statement: `for {let i := 0} lt(i,10) {i := add(i,1)} { ... }`.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulForStatement>
+///
+/// Breakdown of parts: <https://docs.soliditylang.org/en/latest/yul.html#loops>
 #[derive(Debug)]
-pub struct YulStmtFor<'ast> {
+pub struct StmtFor<'ast> {
     pub init: Block<'ast>,
     pub cond: Expr<'ast>,
     pub step: Block<'ast>,
