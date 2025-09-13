@@ -13,84 +13,11 @@ use std::sync::OnceLock;
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
 
+mod char_info;
+pub use char_info::*;
+
 #[cfg(test)]
 mod tests;
-
-/// Returns `true` if the given character is considered a whitespace.
-#[inline]
-pub const fn is_whitespace(c: char) -> bool {
-    is_whitespace_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is considered a whitespace.
-#[inline]
-pub const fn is_whitespace_byte(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r')
-}
-
-/// Returns `true` if the given character is valid at the start of a Solidity identifier.
-#[inline]
-pub const fn is_id_start(c: char) -> bool {
-    is_id_start_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is valid at the start of a Solidity identifier.
-#[inline]
-pub const fn is_id_start_byte(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$')
-}
-
-/// Returns `true` if the given character is valid in a Solidity identifier.
-#[inline]
-pub const fn is_id_continue(c: char) -> bool {
-    is_id_continue_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is valid in a Solidity identifier.
-#[inline]
-pub const fn is_id_continue_byte(c: u8) -> bool {
-    let is_number = (c >= b'0') & (c <= b'9');
-    is_id_start_byte(c) || is_number
-}
-
-/// Returns `true` if the given string is a valid Solidity identifier.
-///
-/// An identifier in Solidity has to start with a letter, a dollar-sign or an underscore and may
-/// additionally contain numbers after the first symbol.
-///
-/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier>
-#[inline]
-pub const fn is_ident(s: &str) -> bool {
-    is_ident_bytes(s.as_bytes())
-}
-
-/// Returns `true` if the given byte slice is a valid Solidity identifier.
-///
-/// See [`is_ident`] for more details.
-pub const fn is_ident_bytes(s: &[u8]) -> bool {
-    let [first, ref rest @ ..] = *s else {
-        return false;
-    };
-
-    if !is_id_start_byte(first) {
-        return false;
-    }
-
-    let mut i = 0;
-    while i < rest.len() {
-        if !is_id_continue_byte(rest[i]) {
-            return false;
-        }
-        i += 1;
-    }
-
-    true
-}
-
-/// Converts a `char` to a `u8`.
-#[inline(always)]
-const fn ch2u8(c: char) -> u8 {
-    c as u32 as u8
-}
-
-const EOF: u8 = b'\0';
 
 /// Peekable iterator over a char sequence.
 ///
@@ -153,7 +80,7 @@ impl<'a> Cursor<'a> {
             // Whitespace sequence.
             c if is_whitespace_byte(c) => self.whitespace(),
 
-            // Identifier (this should be checked after other variant that can start as identifier).
+            // Identifier. This should be checked after other variants that can start as identifier.
             c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
 
             // Numeric literal.
@@ -180,6 +107,7 @@ impl<'a> Cursor<'a> {
             b'?' => RawTokenKind::Question,
 
             // Multi-character tokens.
+            // : :=
             b':' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -187,6 +115,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::Colon,
             },
+            // = == =>
             b'=' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -198,6 +127,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::Eq,
             },
+            // ! !=
             b'!' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -205,6 +135,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::Not,
             },
+            // < <= << <<=
             b'<' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -212,7 +143,6 @@ impl<'a> Cursor<'a> {
                 }
                 b'<' => {
                     self.bump();
-                    // Now check for <<= or <<
                     if self.first() == b'=' {
                         self.bump();
                         RawTokenKind::BinOpEq(BinOpToken::Shl)
@@ -222,6 +152,8 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::Lt,
             },
+            // https://github.com/rust-lang/rustfmt/issues/6660
+            // `> >= >> >>= >>> >>>=`
             b'>' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -231,7 +163,6 @@ impl<'a> Cursor<'a> {
                     self.bump();
                     match self.first() {
                         b'>' => {
-                            // >>> or >>>=
                             self.bump();
                             if self.first() == b'=' {
                                 self.bump();
@@ -249,6 +180,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::Gt,
             },
+            // - -- -= ->
             b'-' => match self.first() {
                 b'-' => {
                     self.bump();
@@ -264,6 +196,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Minus),
             },
+            // & && &=
             b'&' => match self.first() {
                 b'&' => {
                     self.bump();
@@ -275,6 +208,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::And),
             },
+            // | || |=
             b'|' => match self.first() {
                 b'|' => {
                     self.bump();
@@ -286,6 +220,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Or),
             },
+            // + ++ +=
             b'+' => match self.first() {
                 b'+' => {
                     self.bump();
@@ -297,6 +232,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Plus),
             },
+            // * ** *=
             b'*' => match self.first() {
                 b'*' => {
                     self.bump();
@@ -308,6 +244,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Star),
             },
+            // ^ ^=
             b'^' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -315,6 +252,7 @@ impl<'a> Cursor<'a> {
                 }
                 _ => RawTokenKind::BinOp(BinOpToken::Caret),
             },
+            // % %=
             b'%' => match self.first() {
                 b'=' => {
                     self.bump();
@@ -495,12 +433,12 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_digit())
+        self.eat_digits(is_decimal_digit)
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_hexdigit())
+        self.eat_digits(is_hex_digit)
     }
 
     fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
