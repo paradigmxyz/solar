@@ -3,7 +3,7 @@ use super::{
 };
 use crate::token::Token;
 use either::Either;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, Symbol};
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -230,6 +230,14 @@ pub enum IdentOrStrLit {
 }
 
 impl IdentOrStrLit {
+    /// Returns the value of the identifier or literal.
+    pub fn value(&self) -> Symbol {
+        match self {
+            Self::Ident(ident) => ident.name,
+            Self::StrLit(str_lit) => str_lit.value,
+        }
+    }
+
     /// Returns the string value of the identifier or literal.
     pub fn as_str(&self) -> &str {
         match self {

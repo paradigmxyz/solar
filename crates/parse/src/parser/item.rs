@@ -1385,8 +1385,12 @@ mod tests {
     use super::*;
     use solar_interface::{Result, Session, source_map::FileName};
 
+    fn session() -> Session {
+        Session::builder().with_test_emitter().single_threaded().build()
+    }
+
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
@@ -1608,7 +1612,7 @@ mod tests {
         ];
 
         for (idx, src) in test_functions.iter().enumerate() {
-            let sess = Session::builder().with_test_emitter().build();
+            let sess = session();
             sess.enter(|| -> Result {
                 let arena = Arena::new();
                 let mut parser = Parser::from_source_code(
@@ -1703,7 +1707,7 @@ mod tests {
             ),
         ];
 
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (idx, (src, vis, sm, virt, params, returns)) in test_cases.iter().enumerate() {
                 let arena = Arena::new();

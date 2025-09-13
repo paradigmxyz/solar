@@ -1,4 +1,4 @@
-use crate::{SessionGlobals, Span};
+use crate::{Session, SessionGlobals, Span};
 use solar_data_structures::{index::BaseIndex32, trustme};
 use solar_macros::symbols;
 use std::{cmp, fmt, hash, str};
@@ -93,16 +93,26 @@ impl Ident {
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn to_string(&self) -> String {
         self.as_str().to_string()
     }
 
-    /// Access the underlying string. This is a slowish operation because it requires locking the
-    /// symbol interner.
+    /// Access the underlying string.
     ///
     /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn as_str(&self) -> &str {
         self.name.as_str()
+    }
+
+    /// Access the underlying string in the given session.
+    ///
+    /// The identifier must have been interned in the given session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_str_in(self, session: &Session) -> &str {
+        self.name.as_str_in(session)
     }
 
     /// Returns `true` if the identifier is a keyword used in the language.
@@ -209,6 +219,12 @@ impl Symbol {
         SessionGlobals::with(|g| g.symbol_interner.intern(string))
     }
 
+    /// Maps a string to its interned representation in the given session.
+    #[inline]
+    pub fn intern_in(string: &str, session: &Session) -> Self {
+        session.intern(string)
+    }
+
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
@@ -216,16 +232,25 @@ impl Symbol {
         self.as_str().to_string()
     }
 
-    /// Access the underlying string. This is a slowish operation because it
-    /// requires locking the symbol interner.
+    /// Access the underlying string.
     ///
     /// Note that the lifetime of the return value is a lie. It's not the same
     /// as `&self`, but actually tied to the lifetime of the underlying
     /// interner. Interners are long-lived, and there are very few of them, and
     /// this function is typically used for short-lived things, so in practice
     /// it works out ok.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn as_str(&self) -> &str {
         SessionGlobals::with(|g| unsafe { trustme::decouple_lt(g.symbol_interner.get(*self)) })
+    }
+
+    /// Access the underlying string in the given session.
+    ///
+    /// The symbol must have been interned in the given session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_str_in(self, session: &Session) -> &str {
+        session.resolve_symbol(self)
     }
 
     /// Returns the internal representation of the symbol.
@@ -368,10 +393,19 @@ impl ByteSymbol {
     /// Access the underlying byte string.
     ///
     /// See [`Symbol::as_str`] for more information.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn as_byte_str(&self) -> &[u8] {
         SessionGlobals::with(|g| unsafe {
             trustme::decouple_lt(g.symbol_interner.get_byte_str(*self))
         })
+    }
+
+    /// Access the underlying byte string in the given session.
+    ///
+    /// The symbol must have been interned in the given session.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_byte_str_in(self, session: &Session) -> &[u8] {
+        session.resolve_byte_str(self)
     }
 
     /// Returns the internal representation of the symbol.
@@ -407,24 +441,26 @@ impl Interner {
     }
 
     #[inline]
-    fn intern(&self, string: &str) -> Symbol {
+    pub(crate) fn intern(&self, string: &str) -> Symbol {
         Symbol(self.inner.intern(string.as_bytes()).0)
     }
 
     #[inline]
-    fn get(&self, symbol: Symbol) -> &str {
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub(crate) fn get(&self, symbol: Symbol) -> &str {
         let s = self.inner.resolve(ByteSymbol(symbol.0));
         // SAFETY: `Symbol` can only be constructed from UTF-8 strings in `intern`.
         unsafe { std::str::from_utf8_unchecked(s) }
     }
 
     #[inline]
-    fn intern_byte_str(&self, byte_str: &[u8]) -> ByteSymbol {
+    pub(crate) fn intern_byte_str(&self, byte_str: &[u8]) -> ByteSymbol {
         self.inner.intern(byte_str)
     }
 
     #[inline]
-    fn get_byte_str(&self, symbol: ByteSymbol) -> &[u8] {
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub(crate) fn get_byte_str(&self, symbol: ByteSymbol) -> &[u8] {
         self.inner.resolve(symbol)
     }
 

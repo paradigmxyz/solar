@@ -135,6 +135,7 @@ impl SeqSep {
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
+        assert!(sess.is_entered(), "session should be entered before parsing");
         let mut parser = Self {
             sess,
             arena,

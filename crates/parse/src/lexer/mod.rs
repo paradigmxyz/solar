@@ -57,6 +57,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
 
     /// Creates a new `Lexer` for the given source string and starting position.
     pub fn with_start_pos(sess: &'sess Session, src: &'src str, start_pos: BytePos) -> Self {
+        assert!(sess.is_entered(), "session should be entered before lexing");
         Self {
             sess,
             start_pos,
@@ -280,7 +281,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         is_doc: bool,
         comment_kind: CommentKind,
     ) -> TokenKind {
-        TokenKind::Comment(is_doc, comment_kind, Symbol::intern(content))
+        TokenKind::Comment(is_doc, comment_kind, self.intern(content))
     }
 
     fn cook_literal(
@@ -356,7 +357,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         let content_start = start + 1 + BytePos(kind.prefix().len() as u32);
         let content_end = end - 1;
         let lit_content = self.str_from_to(content_start, content_end);
-        Symbol::intern(lit_content)
+        self.intern(lit_content)
     }
 
     #[inline]
@@ -386,7 +387,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Same as `symbol_from`, with an explicit endpoint.
     #[cfg_attr(debug_assertions, track_caller)]
     fn symbol_from_to(&self, start: BytePos, end: BytePos) -> Symbol {
-        Symbol::intern(self.str_from_to(start, end))
+        self.intern(self.str_from_to(start, end))
     }
 
     /// Slice of the source text spanning from `start` until the end.
@@ -405,6 +406,10 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             // SAFETY: Should never be out of bounds.
             unsafe { self.src.get_unchecked(range) }
         }
+    }
+
+    fn intern(&self, s: &str) -> Symbol {
+        self.sess.intern(s)
     }
 }
 
@@ -440,26 +445,39 @@ mod tests {
 
     type Expected<'a> = &'a [(Range<usize>, TokenKind)];
 
-    fn check(src: &str, should_fail: bool, expected: Expected<'_>) {
-        let sess = Session::builder().with_silent_emitter(None).build();
-        let tokens: Vec<_> = Lexer::new(&sess, src)
-            .filter(|t| !t.is_comment())
-            .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
-            .collect();
-        assert_eq!(sess.dcx.has_errors().is_err(), should_fail, "{src:?}");
-        assert_eq!(tokens, expected, "{src:?}");
+    // Run through the lexer to get the same input that the parser gets.
+    #[track_caller]
+    fn lex(src: &str, should_fail: bool, f: fn(Expected<'_>)) {
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let file = sess.source_map().new_source_file("test".to_string(), src).unwrap();
+            let tokens: Vec<_> = Lexer::from_source_file(&sess, &file)
+                .filter(|t| !t.is_comment())
+                .map(|t| (t.span.lo().to_usize()..t.span.hi().to_usize(), t.kind))
+                .collect();
+            let diags = sess.dcx.emitted_diagnostics().unwrap();
+            assert_eq!(
+                sess.dcx.has_errors().is_err(),
+                should_fail,
+                "{src:?} -> {tokens:?};\n{diags}",
+            );
+            f(&tokens)
+        });
     }
 
-    fn checks(tests: &[(&str, Expected<'_>)]) {
-        for &(src, expected) in tests {
-            check(src, false, expected);
-        }
+    macro_rules! checks {
+        ($( ($src:expr, $expected:expr $(,)?) ),* $(,)?) => {
+            checks_full! { $( ($src, false, $expected) ),* }
+        };
     }
 
-    fn checks_full(tests: &[(&str, bool, Expected<'_>)]) {
-        for &(src, should_fail, expected) in tests {
-            check(src, should_fail, expected);
-        }
+    macro_rules! checks_full {
+        ($( ($src:expr, $should_fail:expr, $expected:expr $(,)?) ),* $(,)?) => {{
+            $(
+                lex($src, $should_fail, |tokens| assert_eq!(tokens, $expected, "{:?}", $src));
+            )*
+        }};
     }
 
     fn lit(kind: TokenLitKind, symbol: &str) -> TokenKind {
@@ -476,7 +494,7 @@ mod tests {
 
     #[test]
     fn empty() {
-        checks(&[
+        checks![
             ("", &[]),
             (" ", &[]),
             (" \n", &[]),
@@ -485,70 +503,66 @@ mod tests {
             ("\n \t", &[]),
             ("\n \t ", &[]),
             (" \n \t \t", &[]),
-        ]);
+        ];
     }
 
     #[test]
     fn literals() {
         use TokenLitKind::*;
-        solar_interface::SessionGlobals::default().set(|| {
-            checks(&[
-                ("\"\"", &[(0..2, lit(Str, ""))]),
-                ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
-                ("\"\" \"\"", &[(0..2, lit(Str, "")), (3..5, lit(Str, ""))]),
-                ("\"\\\"\"", &[(0..4, lit(Str, "\\\""))]),
-                ("unicode\"\"", &[(0..9, lit(UnicodeStr, ""))]),
-                ("unicode \"\"", &[(0..7, id("unicode")), (8..10, lit(Str, ""))]),
-                ("hex\"\"", &[(0..5, lit(HexStr, ""))]),
-                ("hex \"\"", &[(0..3, id("hex")), (4..6, lit(Str, ""))]),
-                //
-                ("0", &[(0..1, lit(Integer, "0"))]),
-                ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
-                ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
-                (
-                    "0.e-1",
-                    &[
-                        (0..1, lit(Integer, "0")),
-                        (1..2, Dot),
-                        (2..3, id("e")),
-                        (3..4, BinOp(Minus)),
-                        (4..5, lit(Integer, "1")),
-                    ],
-                ),
-                ("0.0", &[(0..3, lit(Rational, "0.0"))]),
-                ("0.", &[(0..2, lit(Rational, "0."))]),
-                (".0", &[(0..2, lit(Rational, ".0"))]),
-                ("0.0e1", &[(0..5, lit(Rational, "0.0e1"))]),
-                ("0.0e-1", &[(0..6, lit(Rational, "0.0e-1"))]),
-                ("0e1", &[(0..3, lit(Rational, "0e1"))]),
-                ("0e1.", &[(0..3, lit(Rational, "0e1")), (3..4, Dot)]),
-            ]);
+        checks![
+            ("\"\"", &[(0..2, lit(Str, ""))]),
+            ("\"\"\"\"", &[(0..2, lit(Str, "")), (2..4, lit(Str, ""))]),
+            ("\"\" \"\"", &[(0..2, lit(Str, "")), (3..5, lit(Str, ""))]),
+            ("\"\\\"\"", &[(0..4, lit(Str, "\\\""))]),
+            ("unicode\"\"", &[(0..9, lit(UnicodeStr, ""))]),
+            ("unicode \"\"", &[(0..7, id("unicode")), (8..10, lit(Str, ""))]),
+            ("hex\"\"", &[(0..5, lit(HexStr, ""))]),
+            ("hex \"\"", &[(0..3, id("hex")), (4..6, lit(Str, ""))]),
+            //
+            ("0", &[(0..1, lit(Integer, "0"))]),
+            ("0a", &[(0..1, lit(Integer, "0")), (1..2, id("a"))]),
+            ("0.e1", &[(0..1, lit(Integer, "0")), (1..2, Dot), (2..4, id("e1"))]),
+            (
+                "0.e-1",
+                &[
+                    (0..1, lit(Integer, "0")),
+                    (1..2, Dot),
+                    (2..3, id("e")),
+                    (3..4, BinOp(Minus)),
+                    (4..5, lit(Integer, "1")),
+                ],
+            ),
+            ("0.0", &[(0..3, lit(Rational, "0.0"))]),
+            ("0.", &[(0..2, lit(Rational, "0."))]),
+            (".0", &[(0..2, lit(Rational, ".0"))]),
+            ("0.0e1", &[(0..5, lit(Rational, "0.0e1"))]),
+            ("0.0e-1", &[(0..6, lit(Rational, "0.0e-1"))]),
+            ("0e1", &[(0..3, lit(Rational, "0e1"))]),
+            ("0e1.", &[(0..3, lit(Rational, "0e1")), (3..4, Dot)]),
+        ];
 
-            checks_full(&[
-                ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
-                ("0B0", false, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
-                ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
-                ("0O0", false, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
-                ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
-                ("0Xa", false, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
-            ]);
-        });
+        checks_full![
+            ("0b0", true, &[(0..3, lit(Integer, "0b0"))]),
+            ("0B0", false, &[(0..1, lit(Integer, "0")), (1..3, id("B0"))]),
+            ("0o0", true, &[(0..3, lit(Integer, "0o0"))]),
+            ("0O0", false, &[(0..1, lit(Integer, "0")), (1..3, id("O0"))]),
+            ("0xa", false, &[(0..3, lit(Integer, "0xa"))]),
+            ("0Xa", false, &[(0..1, lit(Integer, "0")), (1..3, id("Xa"))]),
+        ];
     }
 
     #[test]
     fn idents() {
-        solar_interface::SessionGlobals::default().set(|| {
-            checks(&[
-                ("$", &[(0..1, id("$"))]),
-                ("a$", &[(0..2, id("a$"))]),
-                ("a_$123_", &[(0..7, id("a_$123_"))]),
-                ("   b", &[(3..4, id("b"))]),
-                (" c\t ", &[(1..2, id("c"))]),
-                (" \td ", &[(2..3, id("d"))]),
-                (" \t\nef ", &[(3..5, id("ef"))]),
-                (" \t\n\tghi ", &[(4..7, id("ghi"))]),
-            ]);
-        });
+        checks![
+            ("$", &[(0..1, id("$"))]),
+            ("a$", &[(0..2, id("a$"))]),
+            ("a_$123_", &[(0..7, id("a_$123_"))]),
+            ("   b", &[(3..4, id("b"))]),
+            (" c\t ", &[(1..2, id("c"))]),
+            (" \td ", &[(2..3, id("d"))]),
+            (" \t\nef ", &[(3..5, id("ef"))]),
+            (" \t\n\tghi ", &[(4..7, id("ghi"))]),
+        ];
     }
 
     #[test]
@@ -559,37 +573,35 @@ mod tests {
             Comment(true, kind, sym(symbol))
         }
 
-        solar_interface::SessionGlobals::default().set(|| {
-            checks(&[
-                ("// line comment", &[]),
-                ("// / line comment", &[]),
-                ("// ! line comment", &[]),
-                ("// /* line comment", &[]), // */ <-- aaron-bond.better-comments doesn't like this
-                ("/// line doc-comment", &[(0..20, doc(Line, " line doc-comment"))]),
-                ("//// invalid doc-comment", &[]),
-                ("///// invalid doc-comment", &[]),
-                //
-                ("/**/", &[]),
-                ("/***/", &[]),
-                ("/****/", &[]),
-                ("/*/*/", &[]),
-                ("/* /*/", &[]),
-                ("/*/**/", &[]),
-                ("/* /**/", &[]),
-                ("/* normal block comment */", &[]),
-                ("/* /* normal block comment */", &[]),
-                ("/** block doc-comment */", &[(0..24, doc(Block, " block doc-comment "))]),
-                ("/** /* block doc-comment */", &[(0..27, doc(Block, " /* block doc-comment "))]),
-                ("/** block doc-comment /*/", &[(0..25, doc(Block, " block doc-comment /"))]),
-            ]);
-        });
+        checks![
+            ("// line comment", &[]),
+            ("// / line comment", &[]),
+            ("// ! line comment", &[]),
+            ("// /* line comment", &[]), // */ <-- aaron-bond.better-comments doesn't like this
+            ("/// line doc-comment", &[(0..20, doc(Line, " line doc-comment"))]),
+            ("//// invalid doc-comment", &[]),
+            ("///// invalid doc-comment", &[]),
+            //
+            ("/**/", &[]),
+            ("/***/", &[]),
+            ("/****/", &[]),
+            ("/*/*/", &[]),
+            ("/* /*/", &[]),
+            ("/*/**/", &[]),
+            ("/* /**/", &[]),
+            ("/* normal block comment */", &[]),
+            ("/* /* normal block comment */", &[]),
+            ("/** block doc-comment */", &[(0..24, doc(Block, " block doc-comment "))]),
+            ("/** /* block doc-comment */", &[(0..27, doc(Block, " /* block doc-comment "))]),
+            ("/** block doc-comment /*/", &[(0..25, doc(Block, " block doc-comment /"))]),
+        ];
     }
 
     #[test]
     fn operators() {
         use solar_ast::token::Delimiter::*;
         // From Solc `TOKEN_LIST`: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
-        checks(&[
+        checks![
             (")", &[(0..1, CloseDelim(Parenthesis))]),
             ("(", &[(0..1, OpenDelim(Parenthesis))]),
             ("[", &[(0..1, OpenDelim(Bracket))]),
@@ -640,12 +652,12 @@ mod tests {
             ("++", &[(0..2, PlusPlus)]),
             ("--", &[(0..2, MinusMinus)]),
             (":=", &[(0..2, Walrus)]),
-        ]);
+        ];
     }
 
     #[test]
     fn glueing() {
-        checks(&[
+        checks![
             ("=", &[(0..1, Eq)]),
             ("==", &[(0..2, EqEq)]),
             ("= =", &[(0..1, Eq), (2..3, Eq)]),
@@ -685,6 +697,6 @@ mod tests {
             ("- -=", &[(0..1, BinOp(Minus)), (2..4, BinOpEq(Minus))]),
             ("---=", &[(0..2, MinusMinus), (2..4, BinOpEq(Minus))]),
             ("- -", &[(0..1, BinOp(Minus)), (2..3, BinOp(Minus))]),
-        ]);
+        ];
     }
 }
