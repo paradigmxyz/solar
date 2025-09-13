@@ -115,10 +115,10 @@ const fn classify_impl(c: u8) -> u8 {
     if matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$' | b'0'..=b'9') {
         result |= ID_CONTINUE;
     }
-    if matches!(c, b'0'..=b'9') {
+    if c.is_ascii_digit() {
         result |= DECIMAL_DIGIT;
     }
-    if matches!(c, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F') {
+    if c.is_ascii_hexdigit() {
         result |= HEX_DIGIT;
     }
     result
