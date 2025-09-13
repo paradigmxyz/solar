@@ -13,7 +13,7 @@ pub mod diagnostics;
 use diagnostics::ErrorGuaranteed;
 
 mod globals;
-pub use globals::SessionGlobals;
+use globals::SessionGlobals;
 
 mod pos;
 pub use pos::{BytePos, CharPos, RelativeBytePos};
