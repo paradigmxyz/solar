@@ -4,18 +4,75 @@ use solar_ast::{
     Base, StrKind,
     token::{BinOpToken, Delimiter},
 };
+use std::fmt;
 
 /// A raw token.
 ///
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
-#[derive(Clone, Debug, PartialEq, Eq)]
+///
+/// This struct is written in such a way that it can be passed in registers.
+/// The actual representation is [`RawTokenRepr`], but it should not be accessed directly.
+#[derive(Clone)]
 pub struct RawToken {
+    _data: std::mem::MaybeUninit<u64>,
+}
+
+/// Actual representation of [`RawToken`].
+///
+/// Do not use this struct directly. Use [`RawToken`] instead.
+#[derive(Clone, PartialEq, Eq)]
+pub struct RawTokenRepr {
     /// The kind of token.
     pub kind: RawTokenKind,
     /// The length of the token in bytes.
     pub len: u32,
 }
+
+const _: () = {
+    assert!(size_of::<RawToken>() == size_of::<RawTokenRepr>());
+    assert!(align_of::<RawToken>() >= align_of::<RawTokenRepr>());
+};
+
+impl std::ops::Deref for RawToken {
+    type Target = RawTokenRepr;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl std::ops::DerefMut for RawToken {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl fmt::Debug for RawToken {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for RawTokenRepr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RawToken").field("kind", &self.kind).field("len", &self.len).finish()
+    }
+}
+
+impl PartialEq for RawToken {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for RawToken {}
 
 impl RawToken {
     /// The [`EOF`](RawTokenKind::Eof) token with length 0.
@@ -24,7 +81,8 @@ impl RawToken {
     /// Creates a new token.
     #[inline]
     pub const fn new(kind: RawTokenKind, len: u32) -> Self {
-        Self { kind, len }
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(RawTokenRepr { kind, len }) }
     }
 }
 

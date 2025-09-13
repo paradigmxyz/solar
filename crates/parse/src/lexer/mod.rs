@@ -10,7 +10,7 @@ use solar_interface::{
 };
 
 mod cursor;
-use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
+use cursor::token::{RawLiteralKind, RawTokenKind, RawTokenRepr};
 pub use cursor::*;
 
 pub mod unescape;
@@ -110,7 +110,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     pub fn slop(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
-            let RawToken { kind: raw_kind, len } = self.cursor.slop();
+            let RawTokenRepr { kind: raw_kind, len } = *self.cursor.slop();
             let start = self.pos;
             self.pos += len;
 

@@ -453,7 +453,7 @@ pub struct Token {
 /// Actual representation of [`Token`].
 ///
 /// Do not use this struct directly. Use [`Token`] instead.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TokenRepr {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -488,6 +488,13 @@ impl fmt::Debug for Token {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for TokenRepr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Token").field("kind", &self.kind).field("span", &self.span).finish()
     }
 }
 
