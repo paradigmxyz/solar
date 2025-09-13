@@ -7,7 +7,7 @@ use solar_ast::{
     Base, StrKind,
     token::{BinOpToken, Delimiter},
 };
-use solar_data_structures::hint::unlikely;
+use solar_data_structures::hint::{likely, unlikely};
 use std::sync::OnceLock;
 
 pub mod token;
@@ -415,20 +415,23 @@ impl<'a> Cursor<'a> {
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: u8) -> bool {
         debug_assert_eq!(self.prev(), quote);
-        while let Some(c) = self.bump_ret() {
-            if c == quote {
+        loop {
+            if unlikely(!self.eat_until_either(quote, b'\\')) {
+                return false;
+            }
+            // SAFETY: `eat_until_either` returns `true` if `quote` or `b'\\'` was found.
+            let c = unsafe { self.bump_ret().unwrap_unchecked() };
+            if likely(c == quote) {
                 return true;
             }
-            if c == b'\\' {
-                let first = self.first();
-                if first == b'\\' || first == quote {
-                    // Bump again to skip escaped character.
-                    self.bump();
-                }
+            // `\\` or `\"`: skip the escaped character.
+            debug_assert_eq!(c, b'\\');
+            let next = self.first();
+            if next == b'\\' || next == quote {
+                // Bump again to skip escaped character.
+                self.bump();
             }
         }
-        // End of file reached.
-        false
     }
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
