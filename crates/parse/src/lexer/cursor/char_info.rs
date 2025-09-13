@@ -31,6 +31,14 @@ pub const fn is_id_continue_byte(c: u8) -> bool {
     classify(c) & ID_CONTINUE != 0
 }
 
+pub(super) const fn is_decimal_digit(c: u8) -> bool {
+    classify(c) & DECIMAL_DIGIT != 0
+}
+
+pub(super) const fn is_hex_digit(c: u8) -> bool {
+    classify(c) & HEX_DIGIT != 0
+}
+
 /// Returns `true` if the given string is a valid Solidity identifier.
 ///
 /// An identifier in Solidity has to start with a letter, a dollar-sign or an underscore and may
@@ -63,14 +71,6 @@ pub const fn is_ident_bytes(s: &[u8]) -> bool {
     }
 
     true
-}
-
-pub(super) const fn is_decimal_digit(c: u8) -> bool {
-    classify(c) & DECIMAL_DIGIT != 0
-}
-
-pub(super) const fn is_hex_digit(c: u8) -> bool {
-    classify(c) & HEX_DIGIT != 0
 }
 
 /// Converts a `char` to a `u8`.

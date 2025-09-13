@@ -438,7 +438,7 @@ impl<'a> Cursor<'a> {
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_hexdigit())
+        self.eat_digits(is_hex_digit)
     }
 
     fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
