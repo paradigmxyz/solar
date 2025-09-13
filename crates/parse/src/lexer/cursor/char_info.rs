@@ -31,10 +31,13 @@ pub const fn is_id_continue_byte(c: u8) -> bool {
     classify(c) & ID_CONTINUE != 0
 }
 
+#[inline]
 pub(super) const fn is_decimal_digit(c: u8) -> bool {
-    classify(c) & DECIMAL_DIGIT != 0
+    // classify(c) & DECIMAL_DIGIT != 0
+    c.is_ascii_digit()
 }
 
+#[inline]
 pub(super) const fn is_hex_digit(c: u8) -> bool {
     classify(c) & HEX_DIGIT != 0
 }
