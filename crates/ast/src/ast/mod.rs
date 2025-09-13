@@ -238,8 +238,9 @@ mod tests {
         assert_size::<yul::ExprKind<'_>>(str!["40"]);
         assert_size::<yul::Expr<'_>>(str!["48"]);
 
-        assert_size::<yul::StmtKind<'_>>(str!["120"]);
-        assert_size::<yul::Stmt<'_>>(str!["144"]);
+        assert_size::<yul::StmtKind<'_>>(str!["80"]);
+        assert_size::<yul::Stmt<'_>>(str!["104"]);
         assert_size::<yul::Block<'_>>(str!["24"]);
+        assert_size::<yul::StmtFor<'_>>(str!["120"]);
     }
 }
