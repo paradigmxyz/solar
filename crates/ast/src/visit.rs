@@ -528,7 +528,7 @@ declare_visitors! {
                     self.visit_yul_expr #_mut(expr)?;
                     self.visit_yul_block #_mut(block)?;
                 }
-                yul::StmtKind::For { init, cond, step, body } => {
+                yul::StmtKind::For(yul::StmtFor { init, cond, step, body }) => {
                     self.visit_yul_block #_mut(init)?;
                     self.visit_yul_expr #_mut(cond)?;
                     self.visit_yul_block #_mut(step)?;
