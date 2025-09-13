@@ -480,8 +480,8 @@ mod tests {
     #[test]
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
-            solar_interface::enter(|| -> Result {
-                let sess = Session::builder().with_test_emitter().build();
+            let sess = Session::builder().with_test_emitter().single_threaded().build();
+            sess.enter_sequential(|| -> Result {
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let arena = Arena::new();

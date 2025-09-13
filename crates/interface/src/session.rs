@@ -1,5 +1,5 @@
 use crate::{
-    ColorChoice, SessionGlobals, SourceMap,
+    ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
@@ -379,7 +379,7 @@ impl Session {
                 return self.enter_sequential(f);
             }
             // Avoid creating a new thread pool if it's already set up with the same globals.
-            if self.is_set() {
+            if self.is_entered() {
                 // No need to set again.
                 return f();
             }
@@ -401,8 +401,44 @@ impl Session {
         self.globals.set(f)
     }
 
-    /// Returns `true` if the session globals are already set to this instance's.
-    fn is_set(&self) -> bool {
+    /// Interns a string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern(&self, s: &str) -> Symbol {
+        self.globals.symbol_interner.intern(s)
+    }
+
+    /// Resolves a symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_symbol(&self, s: Symbol) -> &str {
+        self.globals.symbol_interner.get(s)
+    }
+
+    /// Interns a byte string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern_byte_str(&self, s: &[u8]) -> ByteSymbol {
+        self.globals.symbol_interner.intern_byte_str(s)
+    }
+
+    /// Resolves a byte symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_byte_str(&self, s: ByteSymbol) -> &[u8] {
+        self.globals.symbol_interner.get_byte_str(s)
+    }
+
+    /// Returns `true` if this session has been entered.
+    pub fn is_entered(&self) -> bool {
         SessionGlobals::try_with(|g| g.is_some_and(|g| g.maybe_eq(&self.globals)))
     }
 
