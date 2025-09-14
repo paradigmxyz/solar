@@ -304,7 +304,42 @@ impl fmt::Display for TokenKind {
     }
 }
 
+#[unsafe(no_mangle)]
+pub fn tk_eq(a: TokenKind, b: TokenKind) -> bool {
+    TokenKind::eq_kind(a, b)
+    // a == b
+}
+
 impl TokenKind {
+    /// Returns `true` if the token kinds are equal, without checking the data contained in the
+    /// kind.
+    ///
+    /// For example, this function will return true when comparing `Ident("foo")` and
+    /// `Ident("bar")`, but of course using `PartialEq` (`==`) will return false.
+    #[inline]
+    pub fn eq_kind(self, other: Self) -> bool {
+        if std::mem::discriminant(&self) != std::mem::discriminant(&other) {
+            return false;
+        }
+
+        match self {
+            Self::BinOp(_) | Self::BinOpEq(_) | Self::OpenDelim(_) | Self::CloseDelim(_) => {
+                // All of these variants have a C-style enum as a single field.
+                let (data1, data2) = match (self, other) {
+                    (Self::BinOp(op1), Self::BinOp(op2))
+                    | (Self::BinOpEq(op1), Self::BinOpEq(op2)) => (op1 as isize, op2 as isize),
+                    (Self::OpenDelim(delim1), Self::OpenDelim(delim2))
+                    | (Self::CloseDelim(delim1), Self::CloseDelim(delim2)) => {
+                        (delim1 as isize, delim2 as isize)
+                    }
+                    _ => unreachable!(),
+                };
+                data1 == data2
+            }
+            _ => true,
+        }
+    }
+
     /// Creates a new literal token kind.
     pub fn lit(kind: TokenLitKind, symbol: Symbol) -> Self {
         Self::Literal(kind, symbol)
@@ -806,5 +841,84 @@ impl TokenDescription {
             Self::YulKeyword => "Yul keyword",
             Self::YulEvmBuiltin => "Yul EVM builtin keyword",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_interface::kw;
+
+    #[test]
+    fn token_eq_kind() {
+        use BinOpToken::*;
+        use Delimiter::*;
+        use TokenKind::*;
+
+        let dataless = [
+            Eq,
+            Lt,
+            Le,
+            EqEq,
+            Ne,
+            Ge,
+            Gt,
+            AndAnd,
+            OrOr,
+            Not,
+            Tilde,
+            Walrus,
+            PlusPlus,
+            MinusMinus,
+            StarStar,
+            BinOp(Plus),
+            BinOp(Minus),
+            BinOp(Star),
+            BinOp(Slash),
+            BinOp(Percent),
+            BinOp(Caret),
+            BinOp(And),
+            BinOp(Or),
+            BinOp(Shl),
+            BinOp(Shr),
+            BinOp(Sar),
+            BinOpEq(Plus),
+            BinOpEq(Minus),
+            BinOpEq(Star),
+            BinOpEq(Slash),
+            BinOpEq(Percent),
+            BinOpEq(Caret),
+            BinOpEq(And),
+            BinOpEq(Or),
+            BinOpEq(Shl),
+            BinOpEq(Shr),
+            BinOpEq(Sar),
+            At,
+            Dot,
+            Comma,
+            Semi,
+            Colon,
+            Arrow,
+            FatArrow,
+            Question,
+            OpenDelim(Parenthesis),
+            OpenDelim(Brace),
+            OpenDelim(Bracket),
+            CloseDelim(Parenthesis),
+            CloseDelim(Brace),
+            CloseDelim(Bracket),
+        ];
+        for tk in dataless {
+            assert!(tk.eq_kind(tk), "!eq_kind({tk:?}, {tk:?})");
+            assert_eq!(tk, tk);
+        }
+
+        solar_interface::Session::builder().with_test_emitter().build().enter(|| {
+            let with_data = [(Ident(kw::While), Ident(kw::Do)), (Ident(kw::While), Ident(kw::For))];
+            for (tk1, tk2) in with_data {
+                assert!(tk1.eq_kind(tk2), "!eq_kind({tk1:?}, {tk2:?})");
+                assert_ne!(tk1, tk2);
+            }
+        });
     }
 }
