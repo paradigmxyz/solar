@@ -466,6 +466,8 @@ pub struct TokenRepr {
 const _: () = {
     assert!(size_of::<Token>() == size_of::<TokenRepr>());
     assert!(align_of::<Token>() >= align_of::<TokenRepr>());
+    assert!(std::mem::offset_of!(Token, _kind) == std::mem::offset_of!(TokenRepr, kind));
+    assert!(std::mem::offset_of!(Token, _span) == std::mem::offset_of!(TokenRepr, span));
 };
 
 impl std::ops::Deref for Token {
