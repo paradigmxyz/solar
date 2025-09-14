@@ -17,8 +17,7 @@ use std::{
 /// get the source file and source code range.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
-    lo: BytePos,
-    hi: BytePos,
+    packed: u64,
 }
 
 impl Default for Span {
@@ -61,7 +60,7 @@ impl fmt::Debug for Span {
 
 impl Span {
     /// A dummy span.
-    pub const DUMMY: Self = Self { lo: BytePos(0), hi: BytePos(0) };
+    pub const DUMMY: Self = Self::_new(BytePos(0), BytePos(0));
 
     /// Creates a new span from two byte positions.
     #[inline]
@@ -69,7 +68,7 @@ impl Span {
         if lo > hi {
             std::mem::swap(&mut lo, &mut hi);
         }
-        Self { lo, hi }
+        Self::_new(lo, hi)
     }
 
     /// Creates a new span from two byte positions, without checking if `lo` is less than or equal
@@ -81,7 +80,12 @@ impl Span {
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
         debug_assert!(lo <= hi, "creating span with lo {lo:?} > hi {hi:?}");
-        Self { lo, hi }
+        Self::_new(lo, hi)
+    }
+
+    #[inline]
+    const fn _new(lo: BytePos, hi: BytePos) -> Self {
+        Self { packed: (lo.0 as u64) << 32 | hi.0 as u64 }
     }
 
     /// Returns the span as a `Range<usize>`.
@@ -108,7 +112,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
-        self.lo
+        BytePos((self.packed >> 32) as u32)
     }
 
     /// Creates a new span with the same hi position as this span and the given lo position.
@@ -123,7 +127,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
-        self.hi
+        BytePos(self.packed as u32)
     }
 
     /// Creates a new span with the same lo position as this span and the given hi position.
