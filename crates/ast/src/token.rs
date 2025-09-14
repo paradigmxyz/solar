@@ -691,7 +691,7 @@ impl Token {
     /// Returns `true` if the token is an identifier for which `pred` holds.
     #[inline]
     pub fn is_ident_where(&self, pred: impl FnOnce(Ident) -> bool) -> bool {
-        self.ident().map(pred).unwrap_or(false)
+        self.ident().is_some_and(pred)
     }
 
     /// Returns `true` if the token is an end-of-file marker.
