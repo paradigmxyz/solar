@@ -243,7 +243,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Returns an "unexpected token" error for the current token.
     #[cold]
-    #[inline(never)]
     #[track_caller]
     pub fn unexpected_error(&mut self) -> PErr<'sess> {
         match self.expected_one_of_not_found(&[], &[]) {
@@ -253,49 +252,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
+    #[inline]
     #[track_caller]
     pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, bool /* recovered */> {
-        if self.expected_tokens.is_empty() {
-            if self.check_noexpect(tok) {
-                self.bump();
-                Ok(false)
-            } else {
-                Err(self.unexpected_error_with(tok))
-            }
+        if self.check_noexpect(tok) {
+            self.bump();
+            Ok(false)
         } else {
-            self.expect_one_of_inlined(std::slice::from_ref(&tok), &[])
+            self.expected_one_of_not_found(std::slice::from_ref(&tok), &[])
         }
-    }
-
-    /// Creates a [`PErr`] for an unexpected token `t`.
-    #[track_caller]
-    #[cold]
-    fn unexpected_error_with(&mut self, t: TokenKind) -> PErr<'sess> {
-        let prev_span = if self.prev_token.span.is_dummy() {
-            // We don't want to point at the following span after a dummy span.
-            // This happens when the parser finds an empty token stream.
-            self.token.span
-        } else if self.token.is_eof() {
-            // EOF, don't want to point at the following char, but rather the last token.
-            self.prev_token.span
-        } else {
-            self.prev_token.span.shrink_to_hi()
-        };
-        let span = self.token.span;
-
-        let this_token_str = self.token.full_description();
-        let label_exp = format!("expected `{t}`");
-        let msg = format!("{label_exp}, found {this_token_str}");
-        let mut err = self.dcx().err(msg).span(span);
-        if !self.sess.source_map().is_multiline(prev_span.until(span)) {
-            // When the spans are in the same line, it means that the only content
-            // between them is whitespace, point only at the found token.
-            err = err.span_label(span, label_exp);
-        } else {
-            err = err.span_label(prev_span, label_exp);
-            err = err.span_label(span, "unexpected token");
-        }
-        err
     }
 
     /// Expect next token to be edible or inedible token. If edible,
@@ -303,16 +268,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// anything. Signal a fatal error if next token is unexpected.
     #[track_caller]
     pub fn expect_one_of(
-        &mut self,
-        edible: &[TokenKind],
-        inedible: &[TokenKind],
-    ) -> PResult<'sess, bool /* recovered */> {
-        self.expect_one_of_inlined(edible, inedible)
-    }
-
-    #[track_caller]
-    #[inline(always)]
-    fn expect_one_of_inlined(
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
@@ -328,8 +283,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
-    #[track_caller]
     #[cold]
+    #[track_caller]
     fn expected_one_of_not_found(
         &mut self,
         edible: &[TokenKind],
