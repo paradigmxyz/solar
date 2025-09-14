@@ -5,7 +5,7 @@ use crate::{
     ast::{BinOp, BinOpKind, UnOp, UnOpKind},
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, mem::MaybeUninit};
 
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -446,8 +446,10 @@ impl TokenKind {
 /// This struct is written in such a way that it can be passed in registers.
 /// The actual representation is [`TokenRepr`], but it should not be accessed directly.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Token {
-    _data: (std::mem::MaybeUninit<u64>, std::mem::MaybeUninit<u64>),
+    _kind: MaybeUninit<u64>,
+    _span: u64,
 }
 
 /// Actual representation of [`Token`].
