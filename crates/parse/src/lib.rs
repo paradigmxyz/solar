@@ -17,7 +17,7 @@ pub mod lexer;
 pub use lexer::{Cursor, Lexer, unescape};
 
 mod parser;
-pub use parser::Parser;
+pub use parser::{Parser, Recovered};
 
 // Convenience re-exports.
 pub use bumpalo;

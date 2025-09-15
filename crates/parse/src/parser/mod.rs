@@ -132,6 +132,13 @@ impl SeqSep {
     }
 }
 
+/// Indicates whether the parser took a recovery path and continued.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Recovered {
+    No,
+    Yes,
+}
+
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
@@ -250,8 +257,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         #[cold]
         #[inline(never)]
         #[track_caller]
-        fn unexpected_ok(b: bool) -> ! {
-            unreachable!("`unexpected()` returned Ok({b})")
+        fn unexpected_ok(b: Recovered) -> ! {
+            unreachable!("`unexpected()` returned Ok({b:?})")
         }
         match self.expect_one_of(&[], &[]) {
             Ok(b) => unexpected_ok(b),
@@ -261,11 +268,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
     #[track_caller]
-    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, bool /* recovered */> {
+    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, Recovered> {
         if self.expected_tokens.is_empty() {
             if self.check_noexpect(tok) {
                 self.bump();
-                Ok(false)
+                Ok(Recovered::No)
             } else {
                 Err(self.unexpected_error_with(tok))
             }
@@ -312,13 +319,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool /* recovered */> {
+    ) -> PResult<'sess, Recovered> {
         if edible.contains(&self.token.kind) {
             self.bump();
-            Ok(false)
+            Ok(Recovered::No)
         } else if inedible.contains(&self.token.kind) {
             // leave it in the input
-            Ok(false)
+            Ok(Recovered::No)
         } else if self.token.kind != TokenKind::Eof
             && self.last_unexpected_token_span == Some(self.token.span)
         {
@@ -333,7 +340,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool> {
+    ) -> PResult<'sess, Recovered> {
         let mut expected = edible
             .iter()
             .chain(inedible)
@@ -630,7 +637,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, Box<'ast, [T]>> {
         let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
-        if !recovered {
+        if recovered == Recovered::No {
             self.expect(ket)?;
         }
         Ok(val)
@@ -647,7 +654,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
@@ -666,9 +673,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         let mut first = true;
-        let mut recovered = false;
+        let mut recovered = Recovered::No;
         let mut trailing = false;
         let mut v = SmallVec::<[T; 8]>::new();
 
@@ -690,8 +697,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     // check for separator
                     match self.expect(sep_kind) {
                         Ok(recovered_) => {
-                            if recovered_ {
-                                recovered = true;
+                            if recovered_ == Recovered::Yes {
+                                recovered = Recovered::Yes;
                                 break;
                             }
                         }
