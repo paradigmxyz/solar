@@ -130,6 +130,13 @@ impl SeqSep {
     }
 }
 
+/// Indicates whether the parser took a recovery path and continued.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Recovered {
+    No,
+    Yes,
+}
+
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
@@ -246,7 +253,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     pub fn unexpected_error(&mut self) -> PErr<'sess> {
         match self.expected_one_of_not_found(&[], &[]) {
-            Ok(b) => unreachable!("`unexpected()` returned Ok({b})"),
+            Ok(b) => unreachable!("`unexpected()` returned Ok({b:?})"),
             Err(e) => e,
         }
     }
@@ -254,10 +261,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
     #[inline]
     #[track_caller]
-    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, bool /* recovered */> {
+    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, Recovered> {
         if self.check_noexpect(tok) {
             self.bump();
-            Ok(false)
+            Ok(Recovered::No)
         } else {
             self.expected_one_of_not_found(std::slice::from_ref(&tok), &[])
         }
@@ -271,13 +278,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool /* recovered */> {
+    ) -> PResult<'sess, Recovered> {
         if edible.contains(&self.token.kind) {
             self.bump();
-            Ok(false)
+            Ok(Recovered::No)
         } else if inedible.contains(&self.token.kind) {
             // leave it in the input
-            Ok(false)
+            Ok(Recovered::No)
         } else {
             self.expected_one_of_not_found(edible, inedible)
         }
@@ -289,7 +296,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool> {
+    ) -> PResult<'sess, Recovered> {
         if self.token.kind != TokenKind::Eof
             && self.last_unexpected_token_span == Some(self.token.span)
         {
@@ -604,7 +611,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, Box<'ast, [T]>> {
         let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
-        if !recovered {
+        if recovered == Recovered::No {
             self.expect(ket)?;
         }
         Ok(val)
@@ -621,7 +628,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         self.parse_seq_to_before_tokens(ket, sep, allow_empty, f)
     }
 
@@ -635,9 +642,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         let mut first = true;
-        let mut recovered = false;
+        let mut recovered = Recovered::No;
         let mut trailing = false;
         let mut v = SmallVec::<[T; 8]>::new();
 
@@ -659,8 +666,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     // check for separator
                     match self.expect(sep_kind) {
                         Ok(recovered_) => {
-                            if recovered_ {
-                                recovered = true;
+                            if recovered_ == Recovered::Yes {
+                                recovered = Recovered::Yes;
                                 break;
                             }
                         }
