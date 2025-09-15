@@ -396,7 +396,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn check(&mut self, tok: TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if !is_present {
-            self.expected_tokens.push(ExpectedToken::Token(tok));
+            self.push_expected(ExpectedToken::Token(tok));
         }
         is_present
     }
@@ -439,7 +439,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn check_keyword(&mut self, kw: Symbol) -> bool {
         let is_keyword = self.token.is_keyword(kw);
         if !is_keyword {
-            self.expected_tokens.push(ExpectedToken::Keyword(kw));
+            self.push_expected(ExpectedToken::Keyword(kw));
         }
         is_keyword
     }
@@ -497,9 +497,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[must_use]
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
         if !ok {
-            self.expected_tokens.push(t);
+            self.push_expected(t);
         }
         ok
+    }
+
+    // #[inline(never)]
+    fn push_expected(&mut self, expected: ExpectedToken) {
+        self.expected_tokens.push(expected);
     }
 
     /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
