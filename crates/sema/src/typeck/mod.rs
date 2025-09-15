@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{DataLocation, StateMutability, Visibility};
+use solar_ast::{StateMutability, Visibility};
 use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     parallel,
@@ -202,15 +202,18 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 ///
 /// Reference: <https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2>
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let span = gcx.hir.contract(contract_id).name.span;
     let Some(total_size) = storage_size_upper_bound(gcx, contract_id) else {
-        let span = gcx.hir.contract(contract_id).name.span;
         gcx.dcx().err("contract requires too much storage").span(span).emit();
         return;
     };
 
-    if gcx.sess.opts.unstable.print_contract_max_storage_size {
+    if gcx.sess.opts.unstable.print_max_storage_sizes {
         let full_contract_name = gcx.contract_fully_qualified_name(contract_id);
-        println!("{full_contract_name} requires a maximum of {total_size} storage slots");
+        gcx.dcx()
+            .note(format!("{full_contract_name} requires a maximum of {total_size} storage slots"))
+            .span(span)
+            .emit();
     }
 }
 
@@ -222,13 +225,13 @@ fn storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Optio
             && !(var.is_constant() || var.is_immutable())
         {
             let ty = gcx.type_of_item(item_id);
-            total_size = total_size.checked_add(ty_upper_bound_storage_var_size(ty, gcx)?)?;
+            total_size = total_size.checked_add(ty_storage_size_upper_bound(ty, gcx)?)?;
         }
     }
     Some(total_size)
 }
 
-fn ty_upper_bound_storage_var_size(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
+fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
     match ty.kind {
         TyKind::Elementary(..)
         | TyKind::StringLiteral(..)
@@ -237,10 +240,26 @@ fn ty_upper_bound_storage_var_size(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Contract(..)
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
-        | TyKind::DynArray(..) => Some(U256::from(1)),
-        TyKind::Ref(ty, _) => ty_upper_bound_storage_var_size(ty, gcx),
-        TyKind::Tuple(..)
         | TyKind::FnPtr(..)
+        | TyKind::DynArray(..) => Some(U256::from(1)),
+        TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
+        TyKind::Array(ty, uint) => {
+            // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
+            let elem_size = ty_storage_size_upper_bound(ty, gcx)?;
+            uint.checked_mul(elem_size)
+        }
+        TyKind::Struct(struct_id) => {
+            // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
+            let mut total_size = U256::from(1);
+            for t in gcx.struct_field_types(struct_id) {
+                let size_contribution = ty_storage_size_upper_bound(*t, gcx)?;
+                total_size = total_size.checked_add(size_contribution)?;
+            }
+            Some(total_size)
+        }
+
+        TyKind::Type(..)
+        | TyKind::Tuple(..)
         | TyKind::Module(..)
         | TyKind::BuiltinModule(..)
         | TyKind::Event(..)
@@ -249,20 +268,5 @@ fn ty_upper_bound_storage_var_size(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Error(..) => {
             unreachable!()
         }
-        TyKind::Array(ty, uint) => {
-            // Reference: https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
-            let elem_size = ty_upper_bound_storage_var_size(ty, gcx)?;
-            uint.checked_mul(elem_size)
-        }
-        TyKind::Struct(struct_id) => {
-            // Reference https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
-            let mut total_size = U256::from(1);
-            for t in gcx.struct_field_types(struct_id) {
-                let size_contribution = ty_upper_bound_storage_var_size(*t, gcx)?;
-                total_size = total_size.checked_add(size_contribution)?;
-            }
-            Some(total_size)
-        }
-        TyKind::Type(ty) => ty_upper_bound_storage_var_size(ty, gcx),
     }
 }

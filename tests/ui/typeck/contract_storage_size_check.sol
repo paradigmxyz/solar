@@ -1,4 +1,4 @@
-//@ compile-flags: -Zprint-contract-max-storage-size
+//@ compile-flags: -Zprint-max-storage-sizes
 
 struct Person {
     string name;
@@ -10,9 +10,7 @@ contract B {
     bool x;
 }
 
-// Total = 1 + 1 = 2
-
-contract A {
+contract A { //~ NOTE: :A requires a maximum of 77 storage slots
     uint256 a; // 1
     bool b; // 1
     B c; // 1
@@ -22,9 +20,7 @@ contract A {
     Person[23] h; // 23 * 3 = 69
 }
 
-// Total = 1 + 1 + 1 + 3 + 1 + 1 + 69 = 77
-
-contract M {
+contract M { //~ NOTE: :M requires a maximum of 8 storage slots
     struct P1 {
         string first;
         string middle;
@@ -38,4 +34,25 @@ contract M {
     B d; // 1
 }
 
-// Total = 4 + 1 + 1 + 1 + 1 = 8
+contract Random { //~ NOTE: :Random requires a maximum of 38 storage slots
+    struct Rec {
+        Rec[] r;
+    }
+
+    Rec r; // 1 + 1
+
+    function() internal internal $0; // 1
+
+    string a; // 1
+    bytes b; // 1
+    string[] c; // 1
+    uint[10][] d; // 1
+    bool e; // 1
+    uint[][10] f; // 1 * 10
+
+    struct One {
+        uint x;
+    }
+
+    One[10] g; // 2 * 10
+}
