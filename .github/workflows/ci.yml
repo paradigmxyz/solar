@@ -5,10 +5,6 @@ on:
     branches: [main]
   pull_request:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 env:
   CARGO_TERM_COLOR: always
 
@@ -24,13 +20,15 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.83" # MSRV
+            rust: "1.88" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
@@ -45,30 +43,35 @@ jobs:
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --workspace --features nightly
+      - name: doctest
+        run: cargo test --doc --workspace
 
   feature-checks:
     name: features
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - uses: taiki-e/install-action@cargo-hack
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
       - name: cargo hack
-        run: cargo hack check --feature-powerset --depth 2
+        run: cargo hack check --feature-powerset --depth 1
+
+  typos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: crate-ci/typos@v1
 
   clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@clippy
       - uses: Swatinem/rust-cache@v2
         with:
@@ -80,34 +83,22 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions:
-      contents: write
-      pages: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - run: cargo doc
+      - name: Build documentation
+        run: cargo doc --workspace --all-features --no-deps --document-private-items
         env:
-          RUSTDOCFLAGS: --cfg docsrs -D warnings --show-type-layout --generate-link-to-definition --enable-index-page -Zunstable-options
-      - name: Deploy documentation
-        uses: peaceiris/actions-gh-pages@v3
-        # TODO
-        if: false && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: target/doc
-          force_orphan: true
+          RUSTDOCFLAGS: --cfg docsrs -D warnings -Zunstable-options --show-type-layout --generate-link-to-definition
 
   fmt:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
@@ -123,6 +114,7 @@ jobs:
     needs:
       - test
       - feature-checks
+      - typos
       - clippy
       - docs
       - fmt

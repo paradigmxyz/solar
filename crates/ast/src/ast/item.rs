@@ -3,12 +3,35 @@ use super::{
 };
 use crate::token::Token;
 use either::Either;
-use solar_interface::{Ident, Span};
-use std::fmt;
+use solar_interface::{Ident, Span, Spanned, Symbol};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 use strum::EnumIs;
 
-/// A list of variable declarations.
-pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
+/// A list of variable declarations and its span, which includes the brackets.
+///
+/// Implements `Deref` and `DerefMut` for transparent access to the parameter list.
+#[derive(Debug, Default)]
+pub struct ParameterList<'ast> {
+    pub span: Span,
+    pub vars: Box<'ast, [VariableDefinition<'ast>]>,
+}
+
+impl<'ast> Deref for ParameterList<'ast> {
+    type Target = Box<'ast, [VariableDefinition<'ast>]>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vars
+    }
+}
+
+impl<'ast> DerefMut for ParameterList<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vars
+    }
+}
 
 /// A top-level item in a Solidity source file.
 #[derive(Debug)]
@@ -195,9 +218,9 @@ impl PragmaTokens<'_> {
 /// This is used in `pragma` declaration because Solc for some reason accepts and treats both as
 /// identical.
 ///
-/// Parsed in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
+/// Parsed in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
 ///
-/// Syntax-checked in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
+/// Syntax-checked in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
 #[derive(Clone, Debug)]
 pub enum IdentOrStrLit {
     /// An identifier.
@@ -207,6 +230,14 @@ pub enum IdentOrStrLit {
 }
 
 impl IdentOrStrLit {
+    /// Returns the value of the identifier or literal.
+    pub fn value(&self) -> Symbol {
+        match self {
+            Self::Ident(ident) => ident.name,
+            Self::StrLit(str_lit) => str_lit.value,
+        }
+    }
+
     /// Returns the string value of the identifier or literal.
     pub fn as_str(&self) -> &str {
         match self {
@@ -230,14 +261,16 @@ impl IdentOrStrLit {
 #[derive(Debug)]
 pub struct ImportDirective<'ast> {
     /// The path string literal value.
+    ///
+    /// Note that this is not escaped.
     pub path: StrLit,
     pub items: ImportItems<'ast>,
 }
 
 impl ImportDirective<'_> {
-    /// Returns `true` if the import directive imports all items from the target.
-    pub fn imports_all(&self) -> bool {
-        matches!(self.items, ImportItems::Glob(None) | ImportItems::Plain(None))
+    /// Returns the alias of the source, if any.
+    pub fn source_alias(&self) -> Option<Ident> {
+        self.items.source_alias()
     }
 }
 
@@ -249,7 +282,18 @@ pub enum ImportItems<'ast> {
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
     Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
-    Glob(Option<Ident>),
+    Glob(Ident),
+}
+
+impl ImportItems<'_> {
+    /// Returns the alias of the source, if any.
+    pub fn source_alias(&self) -> Option<Ident> {
+        match *self {
+            ImportItems::Plain(ident) => ident,
+            ImportItems::Aliases(_) => None,
+            ImportItems::Glob(ident) => Some(ident),
+        }
+    }
 }
 
 /// A `using` directive: `using { A, B.add as + } for uint256 global;`.
@@ -331,16 +375,25 @@ impl UserDefinableOperator {
             Self::Ne => Either::Right(BinOpKind::Ne),
         }
     }
+
+    /// Returns the string representation of the operator.
+    pub const fn to_str(self) -> &'static str {
+        match self.to_op() {
+            Either::Left(unop) => unop.to_str(),
+            Either::Right(binop) => binop.to_str(),
+        }
+    }
 }
 
 /// A contract, abstract contract, interface, or library definition:
-/// `contract Foo is Bar("foo"), Baz { ... }`.
+/// `contract Foo layout at 10 is Bar("foo"), Baz { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractDefinition>
 #[derive(Debug)]
 pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
+    pub layout: Option<StorageLayoutSpecifier<'ast>>,
     pub bases: Box<'ast, [Modifier<'ast>]>,
     pub body: Box<'ast, [Item<'ast>]>,
 }
@@ -376,6 +429,15 @@ impl ContractKind {
     }
 }
 
+/// The storage layout specifier of a contract.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/contracts.html#custom-storage-layout>
+#[derive(Debug)]
+pub struct StorageLayoutSpecifier<'ast> {
+    pub span: Span,
+    pub slot: Box<'ast, Expr<'ast>>,
+}
+
 /// A function, constructor, fallback, receive, or modifier definition:
 /// `function helloWorld() external pure returns(string memory);`.
 ///
@@ -402,20 +464,53 @@ impl ItemFunction<'_> {
 /// A function header: `function helloWorld() external pure returns(string memory)`.
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
+    /// The span of the function header.
+    pub span: Span,
+
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
+
     /// The parameters of the function.
     pub parameters: ParameterList<'ast>,
 
-    pub visibility: Option<Visibility>,
-    pub state_mutability: StateMutability,
+    /// The visibility keyword.
+    pub visibility: Option<Spanned<Visibility>>,
+
+    /// The state mutability.
+    pub state_mutability: Option<Spanned<StateMutability>>,
+
+    /// The function modifiers.
     pub modifiers: Box<'ast, [Modifier<'ast>]>,
-    pub virtual_: bool,
+
+    /// The span of the `virtual` keyword.
+    pub virtual_: Option<Span>,
+
+    /// The `override` keyword.
     pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
-    pub returns: ParameterList<'ast>,
+    ///
+    /// If `Some`, it's always non-empty.
+    pub returns: Option<ParameterList<'ast>>,
+}
+
+impl<'ast> FunctionHeader<'ast> {
+    pub fn visibility(&self) -> Option<Visibility> {
+        self.visibility.map(Spanned::into_inner)
+    }
+
+    pub fn state_mutability(&self) -> StateMutability {
+        self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
+    }
+
+    pub fn virtual_(&self) -> bool {
+        self.virtual_.is_some()
+    }
+
+    pub fn returns(&self) -> &[VariableDefinition<'ast>] {
+        self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
+    }
 }
 
 /// A kind of function.
@@ -472,6 +567,13 @@ pub struct Modifier<'ast> {
     pub arguments: CallArgs<'ast>,
 }
 
+impl Modifier<'_> {
+    /// Returns the span of the modifier.
+    pub fn span(&self) -> Span {
+        self.name.span().to(self.arguments.span)
+    }
+}
+
 /// An override specifier: `override`, `override(a, b.c)`.
 #[derive(Debug)]
 pub struct Override<'ast> {
@@ -519,7 +621,7 @@ impl DataLocation {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs, PartialOrd, Ord)]
 pub enum StateMutability {
     /// `pure`
     Pure,

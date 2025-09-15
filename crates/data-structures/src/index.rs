@@ -3,7 +3,7 @@
 use std::fmt;
 
 pub use index_vec::{
-    index_box, index_vec, Idx, IdxRangeBounds, IdxSliceIndex, IndexBox, IndexSlice, IndexVec,
+    Idx, IdxRangeBounds, IdxSliceIndex, IndexBox, IndexSlice, IndexVec, index_box, index_vec,
 };
 
 /// Creates a new index to use with [`::index_vec`].
@@ -38,18 +38,23 @@ macro_rules! newtype_index {
             /// The maximum index value.
             $vis const MAX: Self = Self($crate::index::BaseIndex32::MAX);
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
             $vis const fn new(value: u32) -> Self {
                 Self($crate::index::BaseIndex32::new(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Safety
             ///
@@ -57,10 +62,12 @@ macro_rules! newtype_index {
             #[inline(always)]
             #[must_use]
             $vis const unsafe fn new_unchecked(value: u32) -> Self {
-                Self($crate::index::BaseIndex32::new_unchecked(value))
+                Self(unsafe { $crate::index::BaseIndex32::new_unchecked(value) })
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -72,18 +79,23 @@ macro_rules! newtype_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
             /// Panics if `value` exceeds `MAX`.
             #[inline(always)]
             #[must_use]
+            #[cfg_attr(debug_assertions, track_caller)]
             $vis const fn from_usize(value: usize) -> Self {
                 Self($crate::index::BaseIndex32::from_usize(value))
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Safety
             ///
@@ -91,10 +103,12 @@ macro_rules! newtype_index {
             #[inline(always)]
             #[must_use]
             $vis const unsafe fn from_usize_unchecked(value: usize) -> Self {
-                Self($crate::index::BaseIndex32::from_usize_unchecked(value))
+                Self(unsafe { $crate::index::BaseIndex32::from_usize_unchecked(value) })
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -170,7 +184,9 @@ macro_rules! base_index {
             /// The maximum index value.
             pub const MAX: Self = Self::new(Self::MAX_AS);
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -185,7 +201,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -199,7 +217,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// # Panics
             ///
@@ -214,7 +234,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`."]
             ///
             /// Returns `None` if `value` exceeds `MAX`.
             #[inline(always)]
@@ -228,7 +250,9 @@ macro_rules! base_index {
                 }
             }
 
-            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`, without checking for overflow."]
             ///
             /// # Safety
             ///
@@ -247,7 +271,9 @@ macro_rules! base_index {
             }
 
 
-            /// Creates a new `$name` from the given `value`, without checking for overflow.
+            #[doc = "Creates a new `"]
+            #[doc = stringify!($name)]
+            #[doc = "` from the given `value`, without checking for overflow."]
             ///
             /// # Safety
             ///
@@ -256,7 +282,7 @@ macro_rules! base_index {
             #[must_use]
             pub const unsafe fn from_usize_unchecked(value: usize) -> Self {
                 debug_assert!(value <= Self::MAX_AS as usize);
-                Self::new_unchecked(value as $primitive)
+                unsafe { Self::new_unchecked(value as $primitive) }
             }
 
             /// Returns the underlying index value.
@@ -290,6 +316,7 @@ base_index!(BaseIndex32(u32 <= 0xFFFF_FF00));
 
 #[inline(never)]
 #[cold]
+#[cfg_attr(debug_assertions, track_caller)]
 const fn index_overflow() -> ! {
     panic!("index overflowed")
 }

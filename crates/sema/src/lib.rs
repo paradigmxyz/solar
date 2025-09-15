@@ -10,10 +10,8 @@
 extern crate tracing;
 
 use rayon::prelude::*;
-use solar_data_structures::{trustme, OnDrop};
-use solar_interface::{config::CompilerStage, Result, Session};
-use thread_local::ThreadLocal;
-use ty::Gcx;
+use solar_interface::{Result, Session, config::CompilerStage};
+use std::ops::ControlFlow;
 
 // Convenience re-exports.
 pub use ::thread_local;
@@ -24,13 +22,20 @@ pub use solar_interface as interface;
 mod ast_lowering;
 mod ast_passes;
 
+mod compiler;
+pub use compiler::{Compiler, CompilerRef};
+
 mod parse;
-pub use parse::{ParsedSource, ParsedSources, ParsingContext};
+pub use parse::{ParsingContext, Source, Sources};
 
 pub mod builtins;
 pub mod eval;
+
 pub mod hir;
+pub use hir::Hir;
+
 pub mod ty;
+pub use ty::{Gcx, Ty};
 
 mod typeck;
 
@@ -38,91 +43,69 @@ mod emit;
 
 pub mod stats;
 
-/// Parses and semantically analyzes all the loaded sources, recursing into imports.
-pub fn parse_and_resolve(pcx: ParsingContext<'_>) -> Result<()> {
-    let sess = pcx.sess;
+mod span_visitor;
 
-    if pcx.sources.is_empty() {
+pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
+    let gcx = compiler.gcx();
+    let sess = gcx.sess;
+
+    if gcx.sources.is_empty() {
         let msg = "no files found";
         let note = "if you wish to use the standard input, please specify `-` explicitly";
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
-    let ast_arenas = OnDrop::new(ThreadLocal::<ast::Arena>::new(), |mut arenas| {
-        debug!(asts_allocated = arenas.iter_mut().map(|a| a.allocated_bytes()).sum::<usize>());
-        debug_span!("dropping_ast_arenas").in_scope(|| drop(arenas));
-    });
-    let mut sources = pcx.parse(&ast_arenas);
-
-    if let Some(dump) = &sess.opts.unstable.dump {
-        if dump.kind.is_ast() {
-            dump_ast(sess, &sources, dump.paths.as_deref())?;
-        }
+    if let Some(dump) = &sess.opts.unstable.dump
+        && dump.kind.is_ast()
+    {
+        dump_ast(sess, &gcx.sources, dump.paths.as_deref())?;
     }
 
     if sess.opts.unstable.ast_stats {
-        for source in sources.asts() {
+        for source in gcx.sources.asts() {
             stats::print_ast_stats(source, "AST STATS", "ast-stats");
         }
     }
 
-    if sess.opts.language.is_yul() || sess.stop_after(CompilerStage::Parsed) {
-        return Ok(());
+    if sess.opts.unstable.span_visitor {
+        use crate::span_visitor::SpanVisitor;
+        use ast::visit::Visit;
+        for source in gcx.sources.asts() {
+            let mut visitor = SpanVisitor::new(sess);
+            let _ = visitor.visit_source_unit(source);
+            debug!(spans_visited = visitor.count(), "span visitor completed");
+        }
     }
 
-    sources.topo_sort();
+    if sess.opts.language.is_yul() || gcx.advance_stage(CompilerStage::Lowering).is_break() {
+        return Ok(ControlFlow::Break(()));
+    }
 
-    let hir_arena = OnDrop::new(ThreadLocal::<hir::Arena>::new(), |hir_arena| {
-        debug!(hir_allocated = hir_arena.get_or_default().allocated_bytes());
-        debug_span!("dropping_hir_arena").in_scope(|| drop(hir_arena));
-    });
-    let (hir, symbol_resolver) = lower(sess, &sources, hir_arena.get_or_default())?;
+    compiler.gcx_mut().sources.topo_sort();
 
-    // Drop the ASTs and AST arenas in a separate thread.
-    sess.spawn({
-        // TODO: The transmute is required because `sources` borrows from `ast_arenas`,
-        // even though both are moved in the closure.
-        let sources =
-            unsafe { std::mem::transmute::<ParsedSources<'_>, ParsedSources<'static>>(sources) };
-        move || {
-            debug_span!("drop_asts").in_scope(|| drop(sources));
-            drop(ast_arenas);
-        }
-    });
-
-    let global_context =
-        OnDrop::new(ty::GlobalCtxt::new(sess, &hir_arena, hir, symbol_resolver), |gcx| {
-            debug_span!("drop_gcx").in_scope(|| drop(gcx));
-        });
-    let gcx = ty::Gcx::new(unsafe { trustme::decouple_lt(&global_context) });
-    analysis(gcx)?;
-
-    Ok(())
-}
-
-/// Lowers the parsed ASTs into the HIR.
-fn lower<'sess, 'hir>(
-    sess: &'sess Session,
-    sources: &ParsedSources<'_>,
-    arena: &'hir hir::Arena,
-) -> Result<(hir::Hir<'hir>, ast_lowering::SymbolResolver<'sess>)> {
     debug_span!("all_ast_passes").in_scope(|| {
-        sources.par_asts().for_each(|ast| {
-            ast_passes::run(sess, ast);
+        gcx.sources.par_asts().for_each(|ast| {
+            ast_passes::run(gcx.sess, ast);
         });
     });
 
-    sess.dcx.has_errors()?;
+    gcx.sess.dcx.has_errors()?;
 
-    Ok(ast_lowering::lower(sess, sources, arena))
+    ast_lowering::lower(compiler.gcx_mut());
+
+    Ok(ControlFlow::Continue(()))
 }
 
 #[instrument(level = "debug", skip_all)]
-fn analysis(gcx: Gcx<'_>) -> Result<()> {
-    if let Some(dump) = &gcx.sess.opts.unstable.dump {
-        if dump.kind.is_hir() {
-            dump_hir(gcx, dump.paths.as_deref())?;
-        }
+fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
+    if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
+        return Ok(ControlFlow::Break(()));
+    }
+
+    if let Some(dump) = &gcx.sess.opts.unstable.dump
+        && dump.kind.is_hir()
+    {
+        dump_hir(gcx, dump.paths.as_deref())?;
     }
 
     // Lower HIR types.
@@ -144,10 +127,10 @@ fn analysis(gcx: Gcx<'_>) -> Result<()> {
         gcx.sess.dcx.has_errors()?;
     }
 
-    Ok(())
+    Ok(ControlFlow::Continue(()))
 }
 
-fn dump_ast(sess: &Session, sources: &ParsedSources<'_>, paths: Option<&[String]>) -> Result<()> {
+fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
         for path in paths {
             if let Some(source) = sources.iter().find(|&s| match_file_name(&s.file.name, path)) {
@@ -188,4 +171,30 @@ fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> 
         solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
         solar_interface::source_map::FileName::Custom(name) => path == name,
     }
+}
+
+fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {
+    solar_data_structures::fmt::from_fn(move |f| {
+        let mut size = bytes as f64;
+        let mut suffix = "B";
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "KiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "MiB";
+        }
+        if size >= 1024.0 {
+            size /= 1024.0;
+            suffix = "GiB";
+        }
+
+        let precision = if size.fract() != 0.0 { 2 } else { 0 };
+        write!(f, "{size:.precision$} {suffix}")?;
+        if suffix != "B" {
+            write!(f, " ({bytes} B)")?;
+        }
+        Ok(())
+    })
 }

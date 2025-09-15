@@ -3,7 +3,6 @@ error: libraries cannot have receive ether functions
    |
 LL |     receive() external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: receive ether function must be payable
   --> ROOT/tests/ui/resolve/receive_func.sol:LL:CC
@@ -18,7 +17,6 @@ error: receive ether function cannot take parameters
    |
 LL |     receive(bool _x) external payable {}
    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: aborting due to 3 previous errors
 

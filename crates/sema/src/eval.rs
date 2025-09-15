@@ -1,12 +1,12 @@
 use crate::{hir, ty::Gcx};
 use alloy_primitives::U256;
 use solar_ast::LitKind;
-use solar_interface::{diagnostics::ErrorGuaranteed, Span};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
 
-// TODO: `convertType` for truncating and extending correctly: https://github.com/ethereum/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
+// TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
 /// Evaluates simple constants.
 ///
@@ -39,10 +39,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
         }
         let mut res = self.eval_expr(expr);
-        if let Err(e) = &mut res {
-            if e.span.is_dummy() {
-                e.span = expr.span;
-            }
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
         }
         self.depth = self.depth.checked_sub(1).unwrap();
         res
@@ -53,8 +53,9 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         match err.kind {
             EE::AlreadyEmitted(guar) => guar,
             _ => {
-                let msg = "evaluation of constant value failed";
-                self.gcx.dcx().err(msg).span(expr.span).span_note(err.span, err.kind.msg()).emit()
+                let msg = format!("failed to evaluate constant: {}", err.kind.msg());
+                let label = "evaluation of constant value failed here";
+                self.gcx.dcx().err(msg).span(expr.span).span_label(err.span, label).emit()
             }
         }
     }
@@ -90,10 +91,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            hir::ExprKind::Ternary(cond, t, f) => {
-                let cond = self.try_eval(cond)?;
-                Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
-            }
+            // hir::ExprKind::Ternary(cond, t, f) => {
+            //     let cond = self.try_eval(cond)?;
+            //     Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
+            // }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
             // hir::ExprKind::Type(_) => unimplemented!(),
@@ -106,16 +107,10 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_lit(&mut self, lit: &hir::Lit) -> EvalResult<'gcx> {
+    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
-            LitKind::Number(ref big_int) => {
-                let (_, bytes) = big_int.to_bytes_be();
-                if bytes.len() > 32 {
-                    return Err(EE::IntTooBig.into());
-                }
-                Ok(IntScalar::from_be_bytes(&bytes))
-            }
+            LitKind::Number(n) => Ok(IntScalar::new(n)),
             // LitKind::Rational(ratio) => todo!(),
             LitKind::Address(address) => Ok(IntScalar::from_be_bytes(address.as_slice())),
             LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),
@@ -169,14 +164,16 @@ impl IntScalar {
     pub fn binop(&self, r: &Self, op: hir::BinOpKind) -> Result<Self, EE> {
         let l = self;
         Ok(match op {
-            hir::BinOpKind::Lt => Self::from_bool(l.data < r.data),
-            hir::BinOpKind::Le => Self::from_bool(l.data <= r.data),
-            hir::BinOpKind::Gt => Self::from_bool(l.data > r.data),
-            hir::BinOpKind::Ge => Self::from_bool(l.data >= r.data),
-            hir::BinOpKind::Eq => Self::from_bool(l.data == r.data),
-            hir::BinOpKind::Ne => Self::from_bool(l.data != r.data),
-            hir::BinOpKind::Or | hir::BinOpKind::BitOr => Self::new(l.data | r.data),
-            hir::BinOpKind::And | hir::BinOpKind::BitAnd => Self::new(l.data & r.data),
+            // hir::BinOpKind::Lt => Self::from_bool(l.data < r.data),
+            // hir::BinOpKind::Le => Self::from_bool(l.data <= r.data),
+            // hir::BinOpKind::Gt => Self::from_bool(l.data > r.data),
+            // hir::BinOpKind::Ge => Self::from_bool(l.data >= r.data),
+            // hir::BinOpKind::Eq => Self::from_bool(l.data == r.data),
+            // hir::BinOpKind::Ne => Self::from_bool(l.data != r.data),
+            // hir::BinOpKind::Or => Self::from_bool(l.data != 0 || r.data != 0),
+            // hir::BinOpKind::And => Self::from_bool(l.data != 0 && r.data != 0),
+            hir::BinOpKind::BitOr => Self::new(l.data | r.data),
+            hir::BinOpKind::BitAnd => Self::new(l.data & r.data),
             hir::BinOpKind::BitXor => Self::new(l.data ^ r.data),
             hir::BinOpKind::Shr => {
                 Self::new(l.data.wrapping_shr(r.data.try_into().unwrap_or(usize::MAX)))
@@ -201,6 +198,14 @@ impl IntScalar {
             }
             hir::BinOpKind::Div => Self::new(l.data.checked_div(r.data).ok_or(EE::DivisionByZero)?),
             hir::BinOpKind::Rem => Self::new(l.data.checked_rem(r.data).ok_or(EE::DivisionByZero)?),
+            hir::BinOpKind::Lt
+            | hir::BinOpKind::Le
+            | hir::BinOpKind::Gt
+            | hir::BinOpKind::Ge
+            | hir::BinOpKind::Eq
+            | hir::BinOpKind::Ne
+            | hir::BinOpKind::Or
+            | hir::BinOpKind::And => return Err(EE::UnsupportedBinaryOp),
         })
     }
 }
@@ -209,10 +214,10 @@ impl IntScalar {
 pub enum EvalErrorKind {
     RecursionLimitReached,
     ArithmeticOverflow,
-    IntTooBig,
     DivisionByZero,
     UnsupportedLiteral,
     UnsupportedUnaryOp,
+    UnsupportedBinaryOp,
     UnsupportedExpr,
     NonConstantVar,
     AlreadyEmitted(ErrorGuaranteed),
@@ -228,13 +233,13 @@ impl EvalErrorKind {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
-            Self::IntTooBig => "integer value is too big",
-            Self::DivisionByZero => "division by zero",
+            Self::DivisionByZero => "attempted to divide by zero",
             Self::UnsupportedLiteral => "unsupported literal",
             Self::UnsupportedUnaryOp => "unsupported unary operation",
+            Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",
             Self::NonConstantVar => "only constant variables are allowed",
-            Self::AlreadyEmitted(_) => "error already emitted",
+            Self::AlreadyEmitted(_) => unreachable!(),
         }
     }
 }

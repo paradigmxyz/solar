@@ -29,10 +29,9 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::collections::HashMap;
 use syn::{
-    braced,
+    Expr, Ident, Lit, LitStr, Macro, Token, braced,
     parse::{Parse, ParseStream, Result},
     punctuated::Punctuated,
-    Expr, Ident, Lit, LitStr, Macro, Token,
 };
 
 #[cfg(test)]
@@ -90,10 +89,10 @@ impl Parse for Value {
                 }
             }
             Expr::Macro(expr) => {
-                if expr.mac.path.is_ident("env") {
-                    if let Ok(lit) = expr.mac.parse_body() {
-                        return Ok(Self::Env(lit, expr.mac.clone()));
-                    }
+                if expr.mac.path.is_ident("env")
+                    && let Ok(lit) = expr.mac.parse_body()
+                {
+                    return Ok(Self::Env(lit, expr.mac.clone()));
                 }
             }
             _ => {}
@@ -196,11 +195,11 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
     let mut prev_key: Option<(Span, String)> = None;
 
     let mut check_order = |span: Span, str: &str, errors: &mut Errors| {
-        if let Some((prev_span, ref prev_str)) = prev_key {
-            if str < prev_str {
-                errors.error(span, format!("Symbol `{str}` must precede `{prev_str}`"));
-                errors.error(prev_span, format!("location of previous symbol `{prev_str}`"));
-            }
+        if let Some((prev_span, ref prev_str)) = prev_key
+            && str < prev_str
+        {
+            errors.error(span, format!("Symbol `{str}` must precede `{prev_str}`"));
+            errors.error(prev_span, format!("location of previous symbol `{prev_str}`"));
         }
         prev_key = Some((span, str.to_string()));
     };
@@ -299,11 +298,10 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
 
     let symbol_digits_base = entries.map["0"].idx;
     let preinterned_symbols_count = entries.len();
-    let preinterned_symbols_bytes = entries.map.keys().map(String::len).sum::<usize>() as u64;
     let output = quote! {
+        const PREINTERNED: &[&str] = &[#prefill_stream];
         const SYMBOL_DIGITS_BASE: u32 = #symbol_digits_base;
         const PREINTERNED_SYMBOLS_COUNT: u32 = #preinterned_symbols_count;
-        const PREINTERNED_SYMBOLS_BYTES: u64 = #preinterned_symbols_bytes;
 
         #[allow(non_upper_case_globals)]
         #[doc(hidden)]
@@ -317,14 +315,6 @@ fn symbols_with_errors(input: TokenStream) -> (TokenStream, Vec<syn::Error>) {
         mod sym_generated {
             use super::Symbol;
             #symbols_stream
-        }
-
-        impl InternerInner {
-            pub(crate) fn fresh() -> Self {
-                Self::prefill(&[
-                    #prefill_stream
-                ])
-            }
         }
     };
 

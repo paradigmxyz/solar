@@ -1,4 +1,4 @@
-use crate::{SessionGlobals, Span};
+use crate::{Session, SessionGlobals, Span};
 use solar_data_structures::{index::BaseIndex32, trustme};
 use solar_macros::symbols;
 use std::{cmp, fmt, hash, str};
@@ -93,16 +93,26 @@ impl Ident {
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn to_string(&self) -> String {
         self.as_str().to_string()
     }
 
-    /// Access the underlying string. This is a slowish operation because it requires locking the
-    /// symbol interner.
+    /// Access the underlying string.
     ///
     /// Note that the lifetime of the return value is a lie. See [`Symbol::as_str()`] for details.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn as_str(&self) -> &str {
         self.name.as_str()
+    }
+
+    /// Access the underlying string in the given session.
+    ///
+    /// The identifier must have been interned in the given session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_str_in(self, session: &Session) -> &str {
+        self.name.as_str_in(session)
     }
 
     /// Returns `true` if the identifier is a keyword used in the language.
@@ -209,6 +219,12 @@ impl Symbol {
         SessionGlobals::with(|g| g.symbol_interner.intern(string))
     }
 
+    /// Maps a string to its interned representation in the given session.
+    #[inline]
+    pub fn intern_in(string: &str, session: &Session) -> Self {
+        session.intern(string)
+    }
+
     /// "Specialization" of [`ToString`] using [`as_str`](Self::as_str).
     #[inline]
     #[allow(clippy::inherent_to_string_shadow_display)]
@@ -216,16 +232,25 @@ impl Symbol {
         self.as_str().to_string()
     }
 
-    /// Access the underlying string. This is a slowish operation because it
-    /// requires locking the symbol interner.
+    /// Access the underlying string.
     ///
     /// Note that the lifetime of the return value is a lie. It's not the same
     /// as `&self`, but actually tied to the lifetime of the underlying
     /// interner. Interners are long-lived, and there are very few of them, and
     /// this function is typically used for short-lived things, so in practice
     /// it works out ok.
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn as_str(&self) -> &str {
         SessionGlobals::with(|g| unsafe { trustme::decouple_lt(g.symbol_interner.get(*self)) })
+    }
+
+    /// Access the underlying string in the given session.
+    ///
+    /// The symbol must have been interned in the given session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_str_in(self, session: &Session) -> &str {
+        session.resolve_symbol(self)
     }
 
     /// Returns the internal representation of the symbol.
@@ -257,7 +282,7 @@ impl Symbol {
     /// Returns `true` if the symbol is a keyword in a Yul context. Excludes EVM builtins.
     #[inline]
     pub fn is_yul_keyword(self) -> bool {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L329
         matches!(
             self,
             kw::Function
@@ -353,76 +378,136 @@ impl fmt::Display for Symbol {
     }
 }
 
-type InternerInner = LassoInterner;
+/// Like [`Symbol`], but for byte strings.
+///
+/// [`ByteSymbol`] is used less widely, so it has fewer operations defined than [`Symbol`].
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteSymbol(BaseIndex32);
+
+impl ByteSymbol {
+    /// Maps a string to its interned representation.
+    pub fn intern(byte_str: &[u8]) -> Self {
+        SessionGlobals::with(|g| g.symbol_interner.intern_byte_str(byte_str))
+    }
+
+    /// Access the underlying byte string.
+    ///
+    /// See [`Symbol::as_str`] for more information.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_byte_str(&self) -> &[u8] {
+        SessionGlobals::with(|g| unsafe {
+            trustme::decouple_lt(g.symbol_interner.get_byte_str(*self))
+        })
+    }
+
+    /// Access the underlying byte string in the given session.
+    ///
+    /// The symbol must have been interned in the given session.
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn as_byte_str_in(self, session: &Session) -> &[u8] {
+        session.resolve_byte_str(self)
+    }
+
+    /// Returns the internal representation of the symbol.
+    #[inline(always)]
+    pub fn as_u32(self) -> u32 {
+        self.0.get()
+    }
+}
+
+impl fmt::Debug for ByteSymbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self.as_byte_str(), f)
+    }
+}
 
 /// Symbol interner.
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
-pub(crate) struct Interner(InternerInner);
+pub(crate) struct Interner {
+    inner: inturn::BytesInterner<ByteSymbol, solar_data_structures::map::FxBuildHasher>,
+}
 
 impl Interner {
     pub(crate) fn fresh() -> Self {
-        Self(InternerInner::fresh())
+        Self::prefill(PREINTERNED)
     }
 
-    #[cfg(test)]
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
-        Self(InternerInner::prefill(init))
+        let mut inner =
+            inturn::BytesInterner::with_capacity_and_hasher(init.len() * 4, Default::default());
+        inner.intern_many_mut_static(init.iter().map(|s| s.as_bytes()));
+        Self { inner }
     }
 
     #[inline]
-    fn intern(&self, string: &str) -> Symbol {
-        self.0.intern(string)
+    pub(crate) fn intern(&self, string: &str) -> Symbol {
+        Symbol(self.inner.intern(string.as_bytes()).0)
     }
 
     #[inline]
-    fn get(&self, symbol: Symbol) -> &str {
-        self.0.get(symbol)
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub(crate) fn get(&self, symbol: Symbol) -> &str {
+        let s = self.inner.resolve(ByteSymbol(symbol.0));
+        // SAFETY: `Symbol` can only be constructed from UTF-8 strings in `intern`.
+        unsafe { std::str::from_utf8_unchecked(s) }
     }
-}
 
-// TODO: We could finalize the interner after parsing to a `RodeoResolver`, making it read-only.
-struct LassoInterner(lasso::ThreadedRodeo<Symbol, solar_data_structures::map::FxBuildHasher>);
+    #[inline]
+    pub(crate) fn intern_byte_str(&self, byte_str: &[u8]) -> ByteSymbol {
+        self.inner.intern(byte_str)
+    }
 
-impl LassoInterner {
-    fn prefill(init: &[&'static str]) -> Self {
-        let capacity = if init.is_empty() {
-            Default::default()
-        } else {
-            let actual_string = init.len();
-            let strings = actual_string.next_power_of_two();
-            let actual_bytes = PREINTERNED_SYMBOLS_BYTES as usize;
-            let bytes = actual_bytes.next_power_of_two().max(4096);
-            trace!(strings, bytes, "prefill capacity");
-            lasso::Capacity::new(strings, std::num::NonZeroUsize::new(bytes).unwrap())
-        };
-        let rodeo = lasso::ThreadedRodeo::with_capacity_and_hasher(capacity, Default::default());
-        for &s in init {
-            rodeo.get_or_intern_static(s);
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub(crate) fn get_byte_str(&self, symbol: ByteSymbol) -> &[u8] {
+        self.inner.resolve(symbol)
+    }
+
+    fn trace_stats(&mut self) {
+        if enabled!(tracing::Level::TRACE) {
+            self.trace_stats_impl();
         }
-        Self(rodeo)
     }
 
-    #[inline]
-    fn intern(&self, string: &str) -> Symbol {
-        self.0.get_or_intern(string)
-    }
-
-    #[inline]
-    fn get(&self, symbol: Symbol) -> &str {
-        self.0.resolve(&symbol)
+    #[inline(never)]
+    fn trace_stats_impl(&mut self) {
+        let mut lengths = self.inner.iter().map(|(_, s)| s.len()).collect::<Vec<_>>();
+        lengths.sort_unstable();
+        let len = lengths.len();
+        assert!(len > 0);
+        let bytes = lengths.iter().copied().sum::<usize>();
+        trace!(
+            preinterned=PREINTERNED_SYMBOLS_COUNT,
+            len,
+            bytes,
+            max=lengths.last().copied().unwrap_or(0),
+            mean=%format!("{:.2}", (bytes as f64 / len as f64)),
+            median=%format!("{:.2}", if len.is_multiple_of(2) {
+                (lengths[len / 2 - 1] + lengths[len / 2]) as f64 / 2.0
+            } else {
+                lengths[len / 2] as f64
+            }),
+            "Interner stats",
+        );
     }
 }
 
-unsafe impl lasso::Key for Symbol {
+impl inturn::InternerSymbol for ByteSymbol {
     #[inline]
-    fn into_usize(self) -> usize {
+    fn try_from_usize(n: usize) -> Option<Self> {
+        BaseIndex32::try_from_usize(n).map(Self)
+    }
+
+    #[inline]
+    fn to_usize(self) -> usize {
         self.0.index()
     }
+}
 
-    #[inline]
-    fn try_from_usize(value: usize) -> Option<Self> {
-        BaseIndex32::try_from_usize(value).map(Self)
+impl Drop for Interner {
+    fn drop(&mut self) {
+        self.trace_stats();
     }
 }
 
@@ -440,11 +525,7 @@ pub mod kw {
     /// Returns the boolean keyword for the given value.
     #[inline]
     pub const fn boolean(b: bool) -> Symbol {
-        if b {
-            True
-        } else {
-            False
-        }
+        if b { True } else { False }
     }
 
     /// Returns the `int` keyword for the given byte (**not bit**) size.
@@ -514,7 +595,7 @@ pub mod sym {
 symbols! {
     // Solidity keywords.
     // When modifying this, also update all the `is_keyword` functions in this file.
-    // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
+    // Modified from the `TOKEN_LIST` macro in Solc: https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/liblangutil/Token.h#L67
     Keywords {
         // Special symbols used internally.
         Empty:       "",
@@ -850,6 +931,7 @@ symbols! {
         abi,
         abicoder,
         assert,
+        at,
         block,
         code,
         codehash,
@@ -869,6 +951,7 @@ symbols! {
         gasleft,
         global,
         interfaceId,
+        layout,
         length,
         max,
         min,

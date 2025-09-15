@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Features
+
+- [interface] Impl Default for Session, create dcx from opts ([#471](https://github.com/paradigmxyz/solar/issues/471))
+
+### Miscellaneous Tasks
+
+- Update signal handler ([#463](https://github.com/paradigmxyz/solar/issues/463))
+
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Features
+
+- Implement base_path, streamline creating pcx ([#436](https://github.com/paradigmxyz/solar/issues/436))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+### Miscellaneous Tasks
+
+- Rename enter to enter_sequential ([#392](https://github.com/paradigmxyz/solar/issues/392))
+
+### Performance
+
+- Load input source files in parallel ([#429](https://github.com/paradigmxyz/solar/issues/429))
+
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Dependencies
+
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+
+## [Unreleased](https://github.com/paradigmxyz/solar/compare/v0.1.3...HEAD)
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Features
+
+- `--no-warnings` ([#293](https://github.com/paradigmxyz/solar/issues/293))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+
+### Miscellaneous Tasks
+
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Revert extra changelog
+
+### Performance
+
+- Add and default to using mimalloc ([#276](https://github.com/paradigmxyz/solar/issues/276))
+
+## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
+
+### Bug Fixes
+
+- Correct features in version string ([#242](https://github.com/paradigmxyz/solar/issues/242))
+
+### Features
+
+- Align input options with solc, implement remapping context ([#238](https://github.com/paradigmxyz/solar/issues/238))
+- Allow compiling out tracing-subscriber ([#213](https://github.com/paradigmxyz/solar/issues/213))
+- Saner defaults for single threaded targets ([#212](https://github.com/paradigmxyz/solar/issues/212))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Bug Fixes

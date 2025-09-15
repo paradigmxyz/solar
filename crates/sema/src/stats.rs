@@ -1,7 +1,7 @@
-use solar_ast::{self as ast, visit::Visit, yul, ItemId};
+use solar_ast::{self as ast, ItemId, visit::Visit, yul};
 use solar_data_structures::{
-    map::{FxHashMap, FxHashSet},
     Never,
+    map::{FxHashMap, FxHashSet},
 };
 use std::ops::ControlFlow;
 
@@ -37,9 +37,9 @@ struct StatCollector {
     seen: FxHashSet<ItemId>,
 }
 
-pub fn print_ast_stats(ast: &ast::SourceUnit<'_>, title: &str, prefix: &str) {
+pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, prefix: &str) {
     let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
-    collector.visit_source_unit(ast);
+    let _ = collector.visit_source_unit(ast);
     collector.print(title, prefix)
 }
 
@@ -73,12 +73,12 @@ impl StatCollector {
 
         let node = self.nodes.entry(label1).or_insert(Node::new());
         node.stats.count += 1;
-        node.stats.size = std::mem::size_of_val(val);
+        node.stats.size = size_of_val(val);
 
         if let Some(label2) = label2 {
             let subnode = node.subnodes.entry(label2).or_insert(NodeStats::new());
             subnode.count += 1;
-            subnode.size = std::mem::size_of_val(val);
+            subnode.size = size_of_val(val);
         }
     }
 
@@ -154,7 +154,7 @@ impl<'ast> Visit<'ast> for StatCollector {
 
     fn visit_source_unit(
         &mut self,
-        source_unit: &ast::SourceUnit<'ast>,
+        source_unit: &'ast ast::SourceUnit<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("SourceUnit", None, source_unit);
         self.walk_source_unit(source_unit)
@@ -208,6 +208,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         contract: &'ast ast::ItemContract<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("ItemContract", None, contract);
+        if let Some(layout) = &contract.layout {
+            self.visit_expr(layout.slot)?;
+        }
         for base in contract.bases.iter() {
             self.visit_modifier(base)?;
         }
@@ -312,7 +315,9 @@ impl<'ast> Visit<'ast> for StatCollector {
         for modifier in header.modifiers.iter() {
             self.visit_modifier(modifier)?;
         }
-        self.visit_parameter_list(&header.returns)?;
+        if let Some(returns) = &header.returns {
+            self.visit_parameter_list(returns)?;
+        }
         // Don't visit ident field since it isn't boxed
         ControlFlow::Continue(())
     }
@@ -431,7 +436,7 @@ impl<'ast> Visit<'ast> for StatCollector {
         self.walk_parameter_list(list)
     }
 
-    fn visit_lit(&mut self, lit: &'ast ast::Lit) -> ControlFlow<Self::BreakValue> {
+    fn visit_lit(&mut self, lit: &'ast ast::Lit<'_>) -> ControlFlow<Self::BreakValue> {
         self.record("Lit", None, lit);
         // Don't visit span field since it isn't boxed
         ControlFlow::Continue(())
@@ -469,11 +474,8 @@ impl<'ast> Visit<'ast> for StatCollector {
     ) -> ControlFlow<Self::BreakValue> {
         self.record("YulStmtSwitch", None, switch);
         // Don't visit selector field since it isn't boxed
-        for case in switch.branches.iter() {
+        for case in switch.cases.iter() {
             self.visit_yul_stmt_case(case)?;
-        }
-        if let Some(case) = &switch.default_case {
-            self.visit_yul_block(case)?;
         }
         ControlFlow::Continue(())
     }

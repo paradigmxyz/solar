@@ -1,4 +1,6 @@
 [submodule "testdata/solidity"]
 	path = testdata/solidity
-	url = https://github.com/ethereum/solidity.git
+	url = https://github.com/argotorg/solidity.git
 	shallow = true
+	fetchRecurseSubmodules = false
+	update = none # Makes `cargo` not clone the submodule: https://github.com/rust-lang/cargo/issues/4247#issuecomment-1149178736

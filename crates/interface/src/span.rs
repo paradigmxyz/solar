@@ -1,11 +1,20 @@
 use crate::{BytePos, SessionGlobals};
-use std::{cmp, fmt, ops::Range};
+use std::{
+    cmp, fmt,
+    ops::{Deref, DerefMut, Range},
+};
 
 /// A source code location.
 ///
 /// Essentially a `lo..hi` range into a `SourceMap` file's source code.
 ///
-/// Both `lo` and `hi` are offset by the file's starting position.
+/// Note that `lo` and `hi` are both offset from the file's starting position in the source map,
+/// meaning that they are not always directly usable to index into the source string.
+///
+/// This is the case when there are multiple source files in the source map.
+/// Use [`SourceMap::span_to_snippet`](crate::SourceMap::span_to_snippet) to get the actual source
+/// code snippet of the span, or [`SourceMap::span_to_source`](crate::SourceMap::span_to_source) to
+/// get the source file and source code range.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Span {
     lo: BytePos,
@@ -36,12 +45,11 @@ impl fmt::Debug for Span {
         }
 
         if SessionGlobals::is_set() {
-            SessionGlobals::with(|g: &SessionGlobals| {
-                let sm = g.source_map.lock();
-                if let Some(source_map) = &*sm {
-                    f.write_str(&source_map.span_to_diagnostic_string(*self))
+            SessionGlobals::with(|g| {
+                let sm = &g.source_map;
+                if !sm.is_empty() {
+                    write!(f, "{}", sm.span_to_diagnostic_string(*self))
                 } else {
-                    drop(sm);
                     fallback(*self, f)
                 }
             })
@@ -64,19 +72,40 @@ impl Span {
         Self { lo, hi }
     }
 
+    /// Creates a new span from two byte positions, without checking if `lo` is less than or equal
+    /// to `hi`.
+    ///
+    /// This is not inherently unsafe, however the behavior of various methods is undefined if `lo`
+    /// is greater than `hi`.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
+        debug_assert!(lo <= hi, "creating span with lo {lo:?} > hi {hi:?}");
+        Self { lo, hi }
+    }
+
     /// Returns the span as a `Range<usize>`.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline]
     pub fn to_range(self) -> Range<usize> {
         self.lo().to_usize()..self.hi().to_usize()
     }
 
     /// Returns the span as a `Range<u32>`.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline]
     pub fn to_u32_range(self) -> Range<u32> {
         self.lo().to_u32()..self.hi().to_u32()
     }
 
     /// Returns the span's start position.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
         self.lo
@@ -89,6 +118,9 @@ impl Span {
     }
 
     /// Returns the span's end position.
+    ///
+    /// Note that this may not be directly usable to index into the source string.
+    /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
         self.hi
@@ -186,22 +218,67 @@ impl Span {
     }
 
     /// Joins all the spans in the given iterator using [`to`](Self::to).
+    ///
+    /// Returns [`DUMMY`](Self::DUMMY) if the iterator is empty.
     #[inline]
     pub fn join_many(spans: impl IntoIterator<Item = Self>) -> Self {
         spans.into_iter().reduce(Self::to).unwrap_or_default()
     }
 
     /// Joins the first and last span in the given iterator.
+    ///
+    /// Returns [`DUMMY`](Self::DUMMY) if the iterator is empty.
     #[inline]
     pub fn join_first_last(
         spans: impl IntoIterator<Item = Self, IntoIter: DoubleEndedIterator>,
     ) -> Self {
         let mut spans = spans.into_iter();
         let first = spans.next().unwrap_or_default();
-        if let Some(last) = spans.next_back() {
-            first.to(last)
-        } else {
-            first
-        }
+        if let Some(last) = spans.next_back() { first.to(last) } else { first }
+    }
+}
+
+/// A value paired with a source code location.
+///
+/// Wraps any value with a [`Span`] to track its location in the source code.
+/// Implements `Deref` and `DerefMut` for transparent access to the inner value.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Spanned<T> {
+    pub span: Span,
+    pub data: T,
+}
+
+impl<T> Deref for Spanned<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> DerefMut for Spanned<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
+impl<T> Spanned<T> {
+    pub fn map<U, F>(self, f: F) -> Spanned<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        Spanned { span: self.span, data: f(self.data) }
+    }
+
+    pub fn as_ref(&self) -> Spanned<&T> {
+        Spanned { span: self.span, data: &self.data }
+    }
+
+    pub fn as_mut(&mut self) -> Spanned<&mut T> {
+        Spanned { span: self.span, data: &mut self.data }
+    }
+
+    pub fn into_inner(self) -> T {
+        self.data
     }
 }

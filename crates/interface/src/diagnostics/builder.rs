@@ -1,8 +1,7 @@
 use super::{
-    BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug, FatalAbort, Level,
-    MultiSpan, Style,
+    Applicability, BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug,
+    FatalAbort, Level, MultiSpan, Span, Style, SuggestionStyle,
 };
-use crate::Span;
 use solar_data_structures::Never;
 use std::{
     fmt,
@@ -11,6 +10,9 @@ use std::{
     ops::{Deref, DerefMut},
     panic::Location,
 };
+
+// Since diagnostics are usually at the cold path, methods in this file are marked with
+// `#[inline(never)]` to prevent code bloat at callsites.
 
 /// Trait for types that `DiagBuilder::emit` can return as a "guarantee" (or "proof") token
 /// that the emission happened.
@@ -135,6 +137,7 @@ impl<G: EmissionGuarantee> Drop for DiagBuilder<'_, G> {
 
 impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
     /// Creates a new `DiagBuilder`.
+    #[inline(never)]
     #[track_caller]
     pub fn new<M: Into<DiagMsg>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
         Self { dcx, diagnostic: Box::new(Diag::new(level, msg)), _marker: PhantomData }
@@ -148,6 +151,7 @@ impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
 
     /// Emits the diagnostic.
     #[track_caller]
+    #[inline(never)]
     pub fn emit(mut self) -> G::EmitResult {
         if self.dcx.track_diagnostics() {
             self.diagnostic.locations_note(Location::caller());
@@ -189,6 +193,7 @@ macro_rules! forward {
         $(
             $(#[$attrs])*
             #[doc = concat!("See [`Diag::", stringify!($n), "()`].")]
+            #[inline(never)]
             $vis fn $n(mut self, $($name: $ty),*) -> Self {
                 self.diagnostic.$n($($name),*);
                 self
@@ -219,5 +224,30 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn help_once(msg: impl Into<DiagMsg>);
         pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
         pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
+
+        pub fn span_suggestion(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+        );
+        pub fn span_suggestion_with_style(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
+        pub fn multipart_suggestion(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+        );
+        pub fn multipart_suggestion_with_style(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
     }
 }

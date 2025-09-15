@@ -14,7 +14,11 @@ categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
 
 [lints]
 workspace = true
@@ -30,7 +34,8 @@ smallvec.workspace = true
 
 [features]
 nightly = [
-    "smallvec/specialization",
-    "smallvec/may_dangle",
     "parking_lot/nightly",
+    "rustc-hash/nightly",
+    "smallvec/may_dangle",
+    "smallvec/specialization",
 ]

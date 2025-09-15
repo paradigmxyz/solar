@@ -9,7 +9,7 @@ const BUG_REPORT_URL: &str =
 /// Install the compiler's default panic hook.
 pub fn install() {
     if std::env::var_os("RUST_BACKTRACE").is_none() {
-        std::env::set_var("RUST_BACKTRACE", "1");
+        unsafe { std::env::set_var("RUST_BACKTRACE", "1") };
     }
 
     update_hook(|default_hook, info| {

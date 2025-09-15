@@ -9,17 +9,15 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
 jobs:
   codspeed:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -42,16 +40,18 @@ jobs:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
       - name: Install Valgrind
         run: sudo apt update && sudo apt install valgrind
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
@@ -66,7 +66,7 @@ jobs:
       - name: Save baseline
         run: cargo bench -p solar-bench --bench iai --features ci -- --save-baseline=$BASELINE
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           clean: false
       - name: Install iai-callgrind-runner

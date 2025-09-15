@@ -1,7 +1,7 @@
 [advisories]
 version = 2
 yanked = "warn"
-ignore = ["RUSTSEC-2024-0384"]
+ignore = ["RUSTSEC-2024-0436"]
 
 [bans]
 multiple-versions = "warn"
@@ -40,4 +40,6 @@ unknown-git = "deny"
 allow-git = [
     # Used only for testing.
     "https://github.com/oli-obk/ui_test",
+    # Used only for benchmarks.
+    "https://github.com/DaniPopes/codspeed-rust",
 ]

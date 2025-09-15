@@ -23,19 +23,25 @@ solar-sema.workspace = true
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
+
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+tracing-subscriber = { workspace = true, optional = true, features = [
+    "registry",
+    "env-filter",
+] }
 
 tracing-chrome = { version = "0.7", optional = true }
 tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
 
+mimalloc = { version = "0.1", optional = true }
+
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
-tikv-jemallocator = { workspace = true, optional = true }
+tikv-jemallocator = { version = "0.6", optional = true }
 
 [features]
-default = ["jemalloc"]
+default = ["mimalloc", "tracing"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-config/nightly",
@@ -43,12 +49,18 @@ nightly = [
     "solar-sema/nightly",
 ]
 # Faster but less portable algorithm implementations, such as Keccak-256.
-asm = ["alloy-primitives/asm-keccak"]
-# Faster but less portable allocator.
-jemalloc = ["dep:tikv-jemallocator"]
+asm = ["alloy-primitives/asm-keccak", "solar-config/asm"]
+# Faster but possibly less portable allocators.
+jemalloc = ["dep:tikv-jemallocator", "solar-config/jemalloc"]
+mimalloc = ["dep:mimalloc", "solar-config/mimalloc"]
 
 # Debugging and profiling.
-tracing-off = ["tracing/release_max_level_off"]
-tracing-chrome = ["dep:tracing-chrome"]
-tracy = ["dep:tracing-tracy"]
-tracy-allocator = ["tracy"]
+tracing = ["dep:tracing-subscriber", "solar-config/tracing"]
+tracing-off = ["tracing/release_max_level_off", "solar-config/tracing-off"]
+tracing-chrome = [
+    "tracing",
+    "dep:tracing-chrome",
+    "solar-config/tracing-chrome",
+]
+tracy = ["tracing", "dep:tracing-tracy", "solar-config/tracy"]
+tracy-allocator = ["tracing", "tracy", "solar-config/tracy-allocator"]

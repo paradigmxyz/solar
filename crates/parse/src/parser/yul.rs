@@ -1,14 +1,16 @@
 use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
-use solar_ast::{token::*, yul::*, AstPath, Box, DocComments, LitKind, PathSlice, StrKind, StrLit};
-use solar_interface::{error_code, kw, sym, Ident};
+use solar_ast::{
+    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, Symbol, token::*, yul::*,
+};
+use solar_interface::{Ident, error_code, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a Yul object or plain block.
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.
-    /// See: <https://github.com/ethereum/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
+    /// See: <https://github.com/argotorg/solidity/blob/eff410eb746f202fe756a2473fd0c8a718348457/libyul/ObjectParser.cpp#L50>
     #[instrument(level = "debug", skip_all)]
     pub fn parse_yul_file_object(&mut self) -> PResult<'sess, Object<'ast>> {
         let docs = self.parse_doc_comments();
@@ -23,7 +25,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Object { docs, span, name, code, children: Box::default(), data: Box::default() }
             })
         }?;
-        self.expect(&TokenKind::Eof)?;
+        self.expect(TokenKind::Eof)?;
         Ok(object)
     }
 
@@ -35,7 +37,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect_keyword(sym::object)?;
         let name = self.parse_str_lit()?;
 
-        self.expect(&TokenKind::OpenDelim(Delimiter::Brace))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let code = self.parse_yul_code()?;
         let mut children = Vec::new();
         let mut data = Vec::new();
@@ -49,7 +51,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 break;
             }
         }
-        self.expect(&TokenKind::CloseDelim(Delimiter::Brace))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Brace))?;
 
         let span = lo.to(self.prev_token.span);
         let children = self.alloc_vec(children);
@@ -71,8 +73,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let lo = self.token.span;
         self.expect_keyword(sym::data)?;
         let name = self.parse_str_lit()?;
-        let data = self.parse_lit()?;
-        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, _)) {
+        let data = self.parse_yul_lit()?;
+        if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
             return Err(self.dcx().err(msg).span(data.span));
         }
@@ -80,15 +82,27 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(Data { span, name, data })
     }
 
+    fn parse_yul_lit(&mut self) -> PResult<'sess, Lit<'ast>> {
+        let (lit, subdenomination) = self.parse_lit(false)?;
+        assert!(subdenomination.is_none());
+        Ok(lit)
+    }
+
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        self.in_yul(Self::parse_yul_stmt)
+        self.in_yul(Self::parse_yul_stmt_unchecked)
     }
 
     /// Parses a Yul statement, without setting `in_yul`.
     pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
+        self.with_recursion_limit("Yul statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt {
+                docs,
+                span,
+                kind,
+            })
+        })
     }
 
     /// Parses a Yul block.
@@ -98,7 +112,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul block, without setting `in_yul`.
     pub fn parse_yul_block_unchecked(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_yul_stmt_unchecked)
+            .map(|stmts| {
+                let span = lo.to(self.prev_token.span);
+                Block { span, stmts }
+            })
     }
 
     /// Parses a Yul statement kind.
@@ -107,7 +126,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             self.parse_yul_stmt_var_decl()
         } else if self.eat_keyword(kw::Function) {
             self.parse_yul_function()
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             self.parse_yul_block_unchecked().map(StmtKind::Block)
         } else if self.eat_keyword(kw::If) {
             self.parse_yul_stmt_if()
@@ -122,25 +141,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Leave) {
             Ok(StmtKind::Leave)
         } else if self.check_ident() {
+            let lo = self.token.span;
             let path = self.parse_path_any()?;
-            if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 let name = self.expect_single_ident_path(path);
-                self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
-            } else if self.eat(&TokenKind::Walrus) {
+                let (hi, call) = self.parse_spanned(|this| this.parse_yul_expr_call_with(name))?;
+                let span = lo.to(hi);
+                Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Call(call) }))
+            } else if self.eat(TokenKind::Walrus) {
                 self.check_valid_path(path);
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
-            } else if self.check(&TokenKind::Comma) {
+            } else if self.check(TokenKind::Comma) {
                 self.check_valid_path(path);
                 let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
-                while self.eat(&TokenKind::Comma) {
-                    paths.push(self.parse_path()?);
+                while self.eat(TokenKind::Comma) {
+                    paths.push(self.parse_yul_path()?);
                 }
                 let paths = self.alloc_smallvec(paths);
-                self.expect(&TokenKind::Walrus)?;
+                self.expect(TokenKind::Walrus)?;
                 let expr = self.parse_yul_expr()?;
-                let ExprKind::Call(expr) = expr.kind else {
+                let ExprKind::Call(_expr) = &expr.kind else {
                     let msg = "only function calls are allowed in multi-assignment";
                     return Err(self.dcx().err(msg).span(expr.span));
                 };
@@ -158,12 +180,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut idents = SmallVec::<[_; 8]>::new();
         loop {
             idents.push(self.parse_ident()?);
-            if !self.eat(&TokenKind::Comma) {
+            if !self.eat(TokenKind::Comma) {
                 break;
             }
         }
         let idents = self.alloc_smallvec(idents);
-        let expr = if self.eat(&TokenKind::Walrus) { Some(self.parse_yul_expr()?) } else { None };
+        let expr = if self.eat(TokenKind::Walrus) { Some(self.parse_yul_expr()?) } else { None };
         Ok(StmtKind::VarDecl(idents, expr))
     }
 
@@ -171,9 +193,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_function(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let name = self.parse_ident()?;
         let parameters = self.parse_paren_comma_seq(true, Self::parse_ident)?;
-        let returns = if self.eat(&TokenKind::Arrow) {
+        let returns = if self.eat(TokenKind::Arrow) {
             self.parse_nodelim_comma_seq(
-                &TokenKind::OpenDelim(Delimiter::Brace),
+                TokenKind::OpenDelim(Delimiter::Brace),
                 false,
                 Self::parse_ident,
             )?
@@ -195,20 +217,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_stmt_switch(&mut self) -> PResult<'sess, StmtSwitch<'ast>> {
         let lo = self.prev_token.span;
         let selector = self.parse_yul_expr()?;
-        let mut branches = Vec::new();
-        while self.eat_keyword(kw::Case) {
-            let constant = self.parse_lit()?;
-            self.expect_no_subdenomination();
-            let body = self.parse_yul_block_unchecked()?;
-            branches.push(StmtSwitchCase { constant, body });
+        let mut cases = Vec::new();
+        while self.check_keyword(kw::Case) {
+            cases.push(self.parse_yul_stmt_switch_case(kw::Case)?);
         }
-        let branches = self.alloc_vec(branches);
-        let default_case = if self.eat_keyword(kw::Default) {
-            Some(self.parse_yul_block_unchecked()?)
+        let default_case = if self.check_keyword(kw::Default) {
+            Some(self.parse_yul_stmt_switch_case(kw::Default)?)
         } else {
             None
         };
-        if branches.is_empty() {
+        if cases.is_empty() {
             let span = lo.to(self.prev_token.span);
             if default_case.is_none() {
                 self.dcx().err("`switch` statement has no cases").span(span).emit();
@@ -220,7 +238,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .emit();
             }
         }
-        Ok(StmtSwitch { selector, branches, default_case })
+        if let Some(default_case) = default_case {
+            cases.push(default_case);
+        }
+        let cases = self.alloc_vec(cases);
+        Ok(StmtSwitch { selector, cases })
+    }
+
+    fn parse_yul_stmt_switch_case(&mut self, kw: Symbol) -> PResult<'sess, StmtSwitchCase<'ast>> {
+        self.parse_spanned(|this| {
+            debug_assert!(this.token.is_keyword(kw));
+            this.bump();
+            let constant = if kw == kw::Case {
+                let lit = this.parse_yul_lit()?;
+                this.expect_no_subdenomination();
+                Some(lit)
+            } else {
+                None
+            };
+            let body = this.parse_yul_block_unchecked()?;
+            Ok((constant, body))
+        })
+        .map(|(span, (constant, body))| StmtSwitchCase { span, constant, body })
     }
 
     /// Parses a Yul for statement.
@@ -229,7 +268,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let cond = self.parse_yul_expr()?;
         let step = self.parse_yul_block_unchecked()?;
         let body = self.parse_yul_block_unchecked()?;
-        Ok(StmtKind::For { init, cond, step, body })
+        Ok(StmtKind::For(self.alloc(StmtFor { init, cond, step, body })))
     }
 
     /// Parses a Yul expression.
@@ -241,7 +280,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_expr_kind(&mut self) -> PResult<'sess, ExprKind<'ast>> {
         if self.check_lit() {
             // NOTE: We can't `expect_no_subdenomination` because they're valid variable names.
-            self.parse_lit().map(ExprKind::Lit)
+            self.parse_yul_lit().map(|lit| ExprKind::Lit(self.alloc(lit)))
         } else if self.check_path() {
             let path = self.parse_path_any()?;
             if self.token.is_open_delim(Delimiter::Parenthesis) {
@@ -275,16 +314,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         *path.last()
     }
 
+    fn parse_yul_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
+        let path = self.parse_path_any()?;
+        self.check_valid_path(path);
+        Ok(path)
+    }
+
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulPath
     #[track_caller]
     fn check_valid_path(&mut self, path: &PathSlice) {
-        let first = path.first();
-        if first.is_reserved(true) {
-            self.expected_ident_found_other((*first).into(), false).unwrap_err().emit();
+        // We allow EVM builtins in any position if multiple segments are present:
+        // https://github.com/argotorg/solidity/issues/16054
+        let first = *path.first();
+        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_yul_evm_builtin()) {
+            self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
-        for ident in &path.segments()[1..] {
-            if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
-                self.expected_ident_found_other((*ident).into(), false).unwrap_err().emit();
+        for &ident in &path.segments()[1..] {
+            if ident.is_yul_keyword() {
+                self.expected_ident_found_other(ident.into(), false).unwrap_err().emit();
             }
         }
     }

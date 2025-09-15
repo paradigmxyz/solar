@@ -17,8 +17,8 @@ pub trait Visit<'hir> {
         visit_nested_items(self, self.hir().source(id).items)
     }
 
-    fn visit_nested_item(&mut self, id: impl Into<ItemId>) -> ControlFlow<Self::BreakValue> {
-        match id.into() {
+    fn visit_nested_item(&mut self, id: ItemId) -> ControlFlow<Self::BreakValue> {
+        match id {
             ItemId::Contract(id) => self.visit_nested_contract(id),
             ItemId::Function(id) => self.visit_nested_function(id),
             ItemId::Struct(_id) => ControlFlow::Continue(()), // TODO
@@ -48,7 +48,9 @@ pub trait Visit<'hir> {
     }
 
     fn visit_contract(&mut self, contract: &'hir Contract<'hir>) -> ControlFlow<Self::BreakValue> {
-        // TODO: base initializers
+        for base in contract.bases_args {
+            self.visit_modifier(base)?;
+        }
         visit_nested_items(self, contract.items)
     }
 
@@ -57,13 +59,27 @@ pub trait Visit<'hir> {
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
-        // TODO: modifiers
-        if let Some(body) = func.body {
-            for stmt in body {
+        let Function { source: _, contract: _, span: _, name: _, kind: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
+        for &param in parameters.iter() {
+            self.visit_nested_var(param)?;
+        }
+        for modifier in modifiers.iter() {
+            self.visit_modifier(modifier)?;
+        }
+        for &ret in returns.iter() {
+            self.visit_nested_var(ret)?;
+        }
+        if let Some(body) = body {
+            for stmt in body.iter() {
                 self.visit_stmt(stmt)?;
             }
         }
         ControlFlow::Continue(())
+    }
+
+    fn visit_modifier(&mut self, modifier: &'hir Modifier<'hir>) -> ControlFlow<Self::BreakValue> {
+        let Modifier { span: _, id: _, args } = modifier;
+        self.visit_call_args(args)
     }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
@@ -80,8 +96,16 @@ pub trait Visit<'hir> {
 
     fn visit_expr(&mut self, expr: &'hir Expr<'hir>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
-            ExprKind::Call(expr, _, _)
-            | ExprKind::Delete(expr)
+            ExprKind::Call(expr, ref args, opts) => {
+                self.visit_expr(expr)?;
+                if let Some(opts) = opts {
+                    for opt in opts {
+                        self.visit_expr(&opt.value)?;
+                    }
+                }
+                self.visit_call_args(args)?;
+            }
+            ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
             | ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
@@ -115,7 +139,7 @@ pub trait Visit<'hir> {
                 }
             }
             ExprKind::Tuple(exprs) => {
-                exprs.iter().flatten().try_for_each(|expr| self.visit_expr(expr))?;
+                exprs.iter().copied().flatten().try_for_each(|expr| self.visit_expr(expr))?;
             }
             ExprKind::Ident(_) => {}
             ExprKind::Lit(_) => {}
@@ -123,6 +147,14 @@ pub trait Visit<'hir> {
                 self.visit_ty(ty)?;
             }
             ExprKind::Err(_guar) => {}
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_call_args(&mut self, args: &'hir CallArgs<'hir>) -> ControlFlow<Self::BreakValue> {
+        let CallArgs { span: _, kind } = args;
+        for expr in kind.exprs() {
+            self.visit_expr(expr)?;
         }
         ControlFlow::Continue(())
     }
@@ -138,8 +170,8 @@ pub trait Visit<'hir> {
                 }
                 self.visit_expr(expr)?;
             }
-            StmtKind::Block(stmts) | StmtKind::UncheckedBlock(stmts) | StmtKind::Loop(stmts, _) => {
-                for stmt in stmts {
+            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) | StmtKind::Loop(block, _) => {
+                for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }
             }
@@ -160,12 +192,12 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Try(try_) => {
-                self.visit_expr(&try_.expr);
+                self.visit_expr(&try_.expr)?;
                 for clause in try_.clauses {
                     for &var in clause.args {
                         self.visit_nested_var(var)?;
                     }
-                    for stmt in clause.block {
+                    for stmt in clause.block.iter() {
                         self.visit_stmt(stmt)?;
                     }
                 }

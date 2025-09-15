@@ -3,7 +3,6 @@ error: structs must have at least one field
    |
 LL | struct A {}
    |        ^
-   |
 
 error: aborting due to 1 previous error
 

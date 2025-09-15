@@ -1,11 +1,31 @@
 use super::{
-    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
-    VariableDefinition,
+    AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
+    VariableDefinition, yul,
 };
 use solar_interface::{Ident, Span};
 
 /// A block of statements.
-pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
+#[derive(Debug)]
+pub struct Block<'ast> {
+    /// The span of the block, including the `{` and `}`.
+    pub span: Span,
+    /// The statements in the block.
+    pub stmts: Box<'ast, [Stmt<'ast>]>,
+}
+
+impl<'ast> std::ops::Deref for Block<'ast> {
+    type Target = [Stmt<'ast>];
+
+    fn deref(&self) -> &Self::Target {
+        self.stmts
+    }
+}
+
+impl<'ast> std::ops::DerefMut for Block<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.stmts
+    }
+}
 
 /// A statement, usually ending in a semicolon.
 ///
@@ -109,7 +129,13 @@ pub struct StmtTry<'ast> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
 pub struct TryCatchClause<'ast> {
+    /// The span of the entire clause, from the `returns` and `catch`
+    /// keywords, to the closing brace of the block.
+    pub span: Span,
+    /// The catch clause name: `Error`, `Panic`, or custom.
     pub name: Option<Ident>,
+    /// The parameter list for the clause.
     pub args: ParameterList<'ast>,
+    /// A block of statements
     pub block: Block<'ast>,
 }

@@ -5,7 +5,7 @@
 
 use super::Lexer;
 use solar_ast::token::{BinOpToken, Delimiter, TokenKind};
-use solar_interface::{sym, BytePos, Span};
+use solar_interface::{BytePos, Span, sym};
 
 #[rustfmt::skip] // for line breaks
 pub(crate) const UNICODE_ARRAY: &[(char, &str, &str)] = &[
@@ -385,7 +385,7 @@ pub(super) fn check_for_substitution(
             ascii_name,
         })
     };
-    (token.clone(), sugg)
+    (*token, sugg)
 }
 
 /// Extract string if found at current position with given delimiters

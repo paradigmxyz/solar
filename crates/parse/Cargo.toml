@@ -14,7 +14,11 @@ categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
 
 [lints]
 workspace = true
@@ -32,11 +36,12 @@ memchr.workspace = true
 num-bigint.workspace = true
 num-rational.workspace = true
 num-traits.workspace = true
+ruint.workspace = true
 smallvec.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-expect-test.workspace = true
+snapbox.workspace = true
 
 [features]
 nightly = ["solar-ast/nightly", "solar-interface/nightly"]

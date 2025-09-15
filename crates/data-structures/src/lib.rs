@@ -8,6 +8,7 @@
 #![cfg_attr(feature = "nightly", feature(never_type))]
 #![cfg_attr(feature = "nightly", feature(debug_closure_helpers))]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
+#![cfg_attr(feature = "nightly", feature(likely_unlikely))]
 #![cfg_attr(feature = "nightly", allow(internal_features))]
 
 pub mod cycle;
@@ -27,8 +28,8 @@ pub use collect::CollectAndApply;
 mod never;
 pub use never::Never;
 
-mod on_drop;
-pub use on_drop::{defer, OnDrop};
+mod drop_guard;
+pub use drop_guard::{DropGuard, defer};
 
 mod interned;
 pub use interned::Interned;

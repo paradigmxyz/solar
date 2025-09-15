@@ -1,4 +1,4 @@
-use crate::{pos::RelativeBytePos, BytePos, CharPos};
+use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
     fmt, io,
     ops::RangeInclusive,
@@ -15,68 +15,10 @@ pub struct MultiByteChar {
     pub bytes: u8,
 }
 
-/// Identifies an offset of a non-narrow character in a `SourceFile`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NonNarrowChar {
-    /// Represents a zero-width character.
-    ZeroWidth(RelativeBytePos),
-    /// Represents a wide (full-width) character.
-    Wide(RelativeBytePos),
-    /// Represents a tab character, represented visually with a width of 4 characters.
-    Tab(RelativeBytePos),
-}
-
-impl NonNarrowChar {
-    pub(crate) fn new(pos: RelativeBytePos, width: usize) -> Self {
-        match width {
-            0 => Self::ZeroWidth(pos),
-            2 => Self::Wide(pos),
-            4 => Self::Tab(pos),
-            _ => panic!("width {width} given for non-narrow character"),
-        }
-    }
-
-    /// Returns the relative offset of the character in the `SourceFile`.
-    pub fn pos(&self) -> RelativeBytePos {
-        match *self {
-            Self::ZeroWidth(p) | Self::Wide(p) | Self::Tab(p) => p,
-        }
-    }
-
-    /// Returns the width of the character, 0 (zero-width) or 2 (wide).
-    pub fn width(&self) -> usize {
-        match *self {
-            Self::ZeroWidth(_) => 0,
-            Self::Wide(_) => 2,
-            Self::Tab(_) => 4,
-        }
-    }
-}
-
-impl std::ops::Add<RelativeBytePos> for NonNarrowChar {
-    type Output = Self;
-
-    fn add(self, rhs: RelativeBytePos) -> Self {
-        match self {
-            Self::ZeroWidth(pos) => Self::ZeroWidth(pos + rhs),
-            Self::Wide(pos) => Self::Wide(pos + rhs),
-            Self::Tab(pos) => Self::Tab(pos + rhs),
-        }
-    }
-}
-
-impl std::ops::Sub<RelativeBytePos> for NonNarrowChar {
-    type Output = Self;
-
-    fn sub(self, rhs: RelativeBytePos) -> Self {
-        match self {
-            Self::ZeroWidth(pos) => Self::ZeroWidth(pos - rhs),
-            Self::Wide(pos) => Self::Wide(pos - rhs),
-            Self::Tab(pos) => Self::Tab(pos - rhs),
-        }
-    }
-}
-
+/// The name of a source file.
+///
+/// This is used as the key in the source map. See
+/// [`SourceMap::get_file`](crate::SourceMap::get_file).
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FileName {
     /// Files from the file system.
@@ -120,6 +62,30 @@ impl From<PathBuf> for FileName {
     }
 }
 
+impl From<&PathBuf> for FileName {
+    fn from(p: &PathBuf) -> Self {
+        Self::Real(p.clone())
+    }
+}
+
+impl From<&Path> for FileName {
+    fn from(p: &Path) -> Self {
+        Self::Real(p.to_path_buf())
+    }
+}
+
+impl From<String> for FileName {
+    fn from(s: String) -> Self {
+        Self::Custom(s)
+    }
+}
+
+impl From<&Self> for FileName {
+    fn from(s: &Self) -> Self {
+        s.clone()
+    }
+}
+
 impl FileName {
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
@@ -134,18 +100,42 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        FileNameDisplay { inner: self }
+        let base_path =
+            crate::SessionGlobals::try_with(|g| g.and_then(|g| g.source_map.base_path()));
+        FileNameDisplay { inner: self, base_path }
+    }
+
+    /// Returns the path if the file name is a real file.
+    #[inline]
+    pub fn as_real(&self) -> Option<&Path> {
+        match self {
+            Self::Real(path) => Some(path),
+            _ => None,
+        }
     }
 }
 
+/// A display wrapper for `FileName`.
+///
+/// Created by [`FileName::display`].
 pub struct FileNameDisplay<'a> {
-    inner: &'a FileName,
+    pub(crate) inner: &'a FileName,
+    pub(crate) base_path: Option<PathBuf>,
 }
 
 impl fmt::Display for FileNameDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
-            FileName::Real(path) => path.display().fmt(f),
+            FileName::Real(path) => {
+                let path = if let Some(base_path) = &self.base_path
+                    && let Ok(rpath) = path.strip_prefix(base_path)
+                {
+                    rpath
+                } else {
+                    path.as_path()
+                };
+                path.display().fmt(f)
+            }
             FileName::Stdin => f.write_str("<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
         }
@@ -153,31 +143,13 @@ impl fmt::Display for FileNameDisplay<'_> {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct StableSourceFileId(u64);
+pub(crate) struct SourceFileId(u64);
 
-impl StableSourceFileId {
-    pub(super) fn from_filename_in_current_crate(filename: &FileName) -> Self {
-        Self::new(
-            filename,
-            // None
-        )
-    }
-
-    // pub fn from_filename_for_export(
-    //     filename: &FileName,
-    //     local_crate_stable_crate_id: StableCrateId,
-    // ) -> Self {
-    //     Self::new(filename, Some(local_crate_stable_crate_id))
-    // }
-
-    fn new(
-        filename: &FileName,
-        // stable_crate_id: Option<StableCrateId>,
-    ) -> Self {
+impl SourceFileId {
+    pub(crate) fn new(filename: &FileName) -> Self {
         use std::hash::{Hash, Hasher};
-        let mut hasher = solar_data_structures::map::FxHasher::default();
+        let mut hasher = solar_data_structures::map::FxHasher::with_seed(0);
         filename.hash(&mut hasher);
-        // stable_crate_id.hash(&mut hasher);
         Self(hasher.finish())
     }
 }
@@ -201,59 +173,68 @@ impl From<OffsetOverflowError> for io::Error {
 }
 
 /// A single source in the `SourceMap`.
-#[derive(Clone, Debug)]
+#[derive(Clone, derive_more::Debug)]
+#[non_exhaustive]
 pub struct SourceFile {
     /// The name of the file that the source came from. Source that doesn't
     /// originate from files has names between angle brackets by convention
     /// (e.g., `<stdin>`).
     pub name: FileName,
     /// The complete source code.
+    #[debug(skip)]
     pub src: Arc<String>,
-    /// The source code's hash.
-    pub src_hash: SourceFileHash,
     /// The start position of this source in the `SourceMap`.
     pub start_pos: BytePos,
     /// The byte length of this source.
     pub source_len: RelativeBytePos,
     /// Locations of lines beginnings in the source code.
+    #[debug(skip)]
     pub lines: Vec<RelativeBytePos>,
     /// Locations of multi-byte characters in the source code.
+    #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
-    /// Width of characters that are not narrow in the source code.
-    pub non_narrow_chars: Vec<NonNarrowChar>,
-    /// A hash of the filename & crate-id, used for uniquely identifying source
-    /// files within the crate graph and for speeding up hashing in incremental
-    /// compilation.
-    pub stable_id: StableSourceFileId,
+}
+
+impl PartialEq for SourceFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.start_pos == other.start_pos
+    }
+}
+
+impl Eq for SourceFile {}
+
+impl std::hash::Hash for SourceFile {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start_pos.hash(state);
+    }
 }
 
 impl SourceFile {
-    pub fn new(
+    /// Creates a new `SourceFile`. Use the [`SourceMap`](crate::SourceMap) methods instead.
+    pub(crate) fn new(
         name: FileName,
+        id: SourceFileId,
         mut src: String,
-        hash_kind: SourceFileHashAlgorithm,
     ) -> Result<Self, OffsetOverflowError> {
         // Compute the file hash before any normalization.
-        let src_hash = SourceFileHash::new(hash_kind, &src);
+        // let src_hash = SourceFileHash::new(hash_kind, &src);
+
         // let normalized_pos = normalize_src(&mut src);
 
-        let stable_id = StableSourceFileId::from_filename_in_current_crate(&name);
+        debug_assert_eq!(id, SourceFileId::new(&name));
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
-        let (lines, multibyte_chars, non_narrow_chars) = super::analyze::analyze_source_file(&src);
+        let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
 
         src.shrink_to_fit();
         Ok(Self {
             name,
             src: Arc::new(src),
-            src_hash,
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
-            non_narrow_chars,
-            stable_id,
         })
     }
 
@@ -339,37 +320,22 @@ impl SourceFile {
         let pos = self.relative_position(pos);
         let (line, col_or_chpos) = self.lookup_file_pos(pos);
         if line > 0 {
-            let col = col_or_chpos;
-            let linebpos = self.lines()[line - 1];
-            let col_display = {
-                let start_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&linebpos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let end_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&pos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let special_chars = end_width_idx - start_width_idx;
-                let non_narrow: usize = self.non_narrow_chars[start_width_idx..end_width_idx]
-                    .iter()
-                    .map(|x| x.width())
-                    .sum();
-                col.0 - special_chars + non_narrow
+            let Some(code) = self.get_line(line - 1) else {
+                // If we don't have the code available, it is ok as a fallback to return the bytepos
+                // instead of the "display" column, which is only used to properly show underlines
+                // in the terminal.
+                // FIXME: we'll want better handling of this in the future for the sake of tools
+                // that want to use the display col instead of byte offsets to modify code, but
+                // that is a problem for another day, the previous code was already incorrect for
+                // both displaying *and* third party tools using the json output naïvely.
+                debug!("couldn't find line {line} in {:?}", self.name);
+                return (line, col_or_chpos, col_or_chpos.0);
             };
-            (line, col, col_display)
+            let display_col = code.chars().take(col_or_chpos.0).map(char_width).sum();
+            (line, col_or_chpos, display_col)
         } else {
-            let chpos = col_or_chpos;
-            let col_display = {
-                let end_width_idx = self
-                    .non_narrow_chars
-                    .binary_search_by_key(&pos, |x| x.pos())
-                    .unwrap_or_else(|x| x);
-                let non_narrow: usize =
-                    self.non_narrow_chars[0..end_width_idx].iter().map(|x| x.width()).sum();
-                chpos.0 - end_width_idx + non_narrow
-            };
-            (0, chpos, col_display)
+            // This is never meant to happen?
+            (0, col_or_chpos, col_or_chpos.0)
         }
     }
 
@@ -430,105 +396,9 @@ impl SourceFile {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum SourceFileHashAlgorithm {
-    #[default]
-    None,
-    // Md5,
-    // Sha1,
-    // Sha256,
-}
-
-impl std::str::FromStr for SourceFileHashAlgorithm {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // match s {
-        //     "md5" => Ok(Self::Md5),
-        //     "sha1" => Ok(Self::Sha1),
-        //     "sha256" => Ok(Self::Sha256),
-        //     _ => Err(()),
-        // }
-        let _ = s;
-        Err(())
-    }
-}
-
-impl SourceFileHashAlgorithm {
-    /// The length of the hash in bytes.
-    #[inline]
-    pub const fn hash_len(self) -> usize {
-        match self {
-            Self::None => 0,
-            // Self::Md5 => 16,
-            // Self::Sha1 => 20,
-            // Self::Sha256 => 32,
-        }
-    }
-}
-
-const MAX_HASH_SIZE: usize = 32;
-
-/// The hash of the on-disk source file used for debug info.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub struct SourceFileHash {
-    kind: SourceFileHashAlgorithm,
-    value: [u8; MAX_HASH_SIZE],
-}
-
-impl fmt::Debug for SourceFileHash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut dbg = f.debug_struct("SourceFileHash");
-        dbg.field("kind", &self.kind);
-        if self.kind != SourceFileHashAlgorithm::None {
-            dbg.field("value", &format_args!("{}", hex::encode(self.hash_bytes())));
-        }
-        dbg.finish()
-    }
-}
-
-impl SourceFileHash {
-    pub fn new(kind: SourceFileHashAlgorithm, src: &str) -> Self {
-        // use md5::digest::{typenum::Unsigned, Digest, OutputSizeUser};
-
-        // fn digest_into<D: Digest>(data: &[u8], out: &mut [u8; MAX_HASH_SIZE]) {
-        //     let mut hasher = D::new();
-        //     hasher.update(data);
-        //     hasher.finalize_into((&mut out[..<D as OutputSizeUser>::OutputSize::USIZE]).into());
-        // }
-
-        // let mut hash = Self { kind, value: Default::default() };
-        // let value = &mut hash.value;
-        // let data = src.as_bytes();
-        // match kind {
-        //     SourceFileHashAlgorithm::None => (),
-        //     SourceFileHashAlgorithm::Md5 => digest_into::<md5::Md5>(data, value),
-        //     SourceFileHashAlgorithm::Sha1 => digest_into::<sha1::Sha1>(data, value),
-        //     SourceFileHashAlgorithm::Sha256 => digest_into::<sha256::Sha256>(data, value),
-        // }
-        // hash
-        let _ = src;
-        Self { kind, value: Default::default() }
-    }
-
-    /// Check if the stored hash matches the hash of the string.
-    pub fn matches(&self, src: &str) -> bool {
-        Self::new(self.kind, src).hash_bytes() == self.hash_bytes()
-    }
-
-    /// The bytes of the hash.
-    pub fn hash_bytes(&self) -> &[u8] {
-        &self.value[..self.hash_len()]
-    }
-
-    /// The hash algorithm used.
-    pub const fn kind(&self) -> SourceFileHashAlgorithm {
-        self.kind
-    }
-
-    /// Returns the length of the hash in bytes.
-    #[inline]
-    pub const fn hash_len(&self) -> usize {
-        self.kind.hash_len()
+pub fn char_width(ch: char) -> usize {
+    match ch {
+        '\t' => 4,
+        _ => unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1),
     }
 }

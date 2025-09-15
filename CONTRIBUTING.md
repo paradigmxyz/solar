@@ -126,6 +126,7 @@ to ignore benchmarks and examples:
 ```
 cargo check --workspace
 cargo clippy --workspace
+cargo +nightly fmt --all --check
 cargo test --workspace
 ```
 
@@ -183,10 +184,24 @@ include one or more tests to ensure that Solar does not regress in the future.
 There are a few ways to write tests:
 - [unit tests][unit-tests]
 - [documentation tests][documentation-tests]
+- [snapshot tests][snapshot-tests]
 - [integration tests][integration-tests]
 
-Unit and documentation tests are used to test individual library functions or modules, whereas
+Unit, documentation, and snapshot tests are used to test individual library functions or modules, whereas
 integration tests are used to test the compiler binary.
+
+#### Snapshot Tests
+
+Snapshot tests are a subset of unit tests that capture some specific output and compare it to a snapshot, usually defined inline in the test itself.
+
+We use `snapbox` as the snapshot testing framework, which does not require any external binaries to be installed.
+
+You can automatically create or update the snapshots by running tests normally with the `SNAPSHOTS=overwrite` environment variable,
+optionally specifying the crate or test name, as you would with `cargo test` normally.
+For example:
+```bash
+SNAPSHOTS=overwrite cargo test -p solar-ast
+```
 
 #### Integration Tests
 
@@ -276,14 +291,6 @@ nicely even when it is indented.
 Fixes: #1337
 Refs: #453, #154
 ```
-
-### Opening the Pull Request
-
-From within GitHub, opening a new Pull Request will present you with a
-[template] that should be filled out. Please try to do your best at filling out
-the details, but feel free to skip parts if you're not sure what to put.
-
-[template]: .github/PULL_REQUEST_TEMPLATE.md
 
 ### Discuss and update
 

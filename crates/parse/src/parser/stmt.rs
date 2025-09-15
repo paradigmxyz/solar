@@ -1,16 +1,18 @@
 use super::item::VarFlags;
-use crate::{parser::SeqSep, PResult, Parser};
+use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::BumpExt;
-use solar_interface::{kw, sym, Ident, Span};
+use solar_interface::{Ident, Span, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        self.with_recursion_limit("statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        })
     }
 
     /// Parses a statement into a new allocation.
@@ -35,7 +37,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Unchecked) {
             semi = false;
             self.parse_block().map(StmtKind::UncheckedBlock)
-        } else if self.check(&TokenKind::OpenDelim(Delimiter::Brace)) {
+        } else if self.check(TokenKind::OpenDelim(Delimiter::Brace)) {
             semi = false;
             self.parse_block().map(StmtKind::Block)
         } else if self.eat_keyword(kw::Continue) {
@@ -43,7 +45,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Break) {
             Ok(StmtKind::Break)
         } else if self.eat_keyword(kw::Return) {
-            let expr = if self.check(&TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
+            let expr = if self.check(TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
             Ok(StmtKind::Return(expr))
         } else if self.eat_keyword(kw::Throw) {
             let msg = "`throw` statements have been removed; use `revert`, `require`, or `assert` instead";
@@ -74,14 +76,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
     /// Parses an if statement.
     fn parse_stmt_if(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let true_stmt = self.parse_stmt()?;
         let else_stmt =
             if self.eat_keyword(kw::Else) { Some(self.parse_stmt_boxed()?) } else { None };
@@ -90,9 +94,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a while statement.
     fn parse_stmt_while(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let stmt = self.parse_stmt()?;
         Ok(StmtKind::While(expr, self.alloc(stmt)))
     }
@@ -102,29 +106,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let stmt = self.parse_stmt()?;
         let stmt = self.alloc(stmt);
         self.expect_keyword(kw::While)?;
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
         let expr = self.parse_expr()?;
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         Ok(StmtKind::DoWhile(stmt, expr))
     }
 
     /// Parses a for statement.
     fn parse_stmt_for(&mut self) -> PResult<'sess, StmtKind<'ast>> {
-        self.expect(&TokenKind::OpenDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
-        let init =
-            if self.check(&TokenKind::Semi) { None } else { Some(self.parse_simple_stmt()?) };
-        self.expect(&TokenKind::Semi)?;
+        let init = if self.check(TokenKind::Semi) { None } else { Some(self.parse_simple_stmt()?) };
+        self.expect(TokenKind::Semi)?;
 
-        let cond = if self.check(&TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
+        let cond = if self.check(TokenKind::Semi) { None } else { Some(self.parse_expr()?) };
         self.expect_semi()?;
 
-        let next = if self.check_noexpect(&TokenKind::CloseDelim(Delimiter::Parenthesis)) {
+        let next = if self.check_noexpect(TokenKind::CloseDelim(Delimiter::Parenthesis)) {
             None
         } else {
             Some(self.parse_expr()?)
         };
-        self.expect(&TokenKind::CloseDelim(Delimiter::Parenthesis))?;
+        self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
         let body = self.parse_stmt_boxed()?;
         Ok(StmtKind::For { init: init.map(|init| self.alloc(init)), cond, next, body })
     }
@@ -132,26 +135,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
-
         let mut clauses = SmallVec::<[_; 4]>::new();
+
+        let mut lo = self.token.span;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
-        clauses.push(TryCatchClause { name: None, args: returns, block });
+        let span = lo.to(self.prev_token.span);
+        clauses.push(TryCatchClause { name: None, args: returns, block, span });
 
+        lo = self.token.span;
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
-            let args = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            let args = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 self.parse_parameter_list(false, VarFlags::FUNCTION)?
             } else {
                 Default::default()
             };
             let block = self.parse_block()?;
-            clauses.push(TryCatchClause { name, args, block });
+            let span = lo.to(self.prev_token.span);
+            clauses.push(TryCatchClause { name, args, block, span });
+            lo = self.token.span;
             if !self.eat_keyword(kw::Catch) {
                 break;
             }
@@ -164,7 +172,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an assembly block.
     fn parse_stmt_assembly(&mut self) -> PResult<'sess, StmtAssembly<'ast>> {
         let dialect = self.parse_str_lit_opt();
-        let flags = if self.check(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        let flags = if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             self.parse_paren_comma_seq(false, Self::parse_str_lit)?
         } else {
             Default::default()
@@ -188,9 +196,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
-        if self.eat(&TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
             let mut empty_components = 0usize;
-            while self.eat(&TokenKind::Comma) {
+            while self.eat(TokenKind::Comma) {
                 empty_components += 1;
             }
 
@@ -206,7 +214,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         &mut variables,
                         |this| this.parse_variable_definition(VarFlags::FUNCTION),
                     )?;
-                    self.expect(&TokenKind::Eq)?;
+                    self.expect(TokenKind::Eq)?;
                     let expr = self.parse_expr()?;
                     Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
                 }
@@ -251,12 +259,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, Box<'ast, [Option<T>]>> {
-        self.expect(&TokenKind::OpenDelim(delim))?;
+        self.expect(TokenKind::OpenDelim(delim))?;
         let mut out = SmallVec::<[_; 8]>::new();
-        while self.eat(&TokenKind::Comma) {
+        while self.eat(TokenKind::Comma) {
             out.push(None);
         }
-        if !self.check(&TokenKind::CloseDelim(delim)) {
+        if !self.check(TokenKind::CloseDelim(delim)) {
             out.push(Some(f(self)?));
         }
         self.parse_optional_items_seq_required(delim, &mut out, f)
@@ -270,9 +278,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, ()> {
         let close = TokenKind::CloseDelim(delim);
-        while !self.eat(&close) {
-            self.expect(&TokenKind::Comma)?;
-            if self.check(&TokenKind::Comma) || self.check(&close) {
+        while !self.eat(close) {
+            self.expect(TokenKind::Comma)?;
+            if self.check(TokenKind::Comma) || self.check(close) {
                 out.push(None);
             } else {
                 out.push(Some(f(self)?));
@@ -290,7 +298,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
         {
@@ -310,7 +318,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn peek_statement_type(&mut self) -> LookAheadInfo {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
         if self.token.is_keyword_any(&[kw::Mapping, kw::Function]) {
             return LookAheadInfo::VariableDeclaration;
         }
@@ -336,11 +344,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
-            while self.eat(&TokenKind::Dot) {
+            while self.eat(TokenKind::Dot) {
                 let id = self.ident_or_err(true)?;
                 if id.name != kw::Address && id.is_reserved(self.in_yul) {
                     self.expected_ident_found_err().emit();
@@ -356,7 +364,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         let n_idents = path.len();
 
-        while self.check(&TokenKind::OpenDelim(Delimiter::Bracket)) {
+        while self.check(TokenKind::OpenDelim(Delimiter::Bracket)) {
             let (span, kind) = self.parse_spanned(Self::parse_expr_index_kind)?;
             path.push(IapKind::Index(span, kind));
         }
@@ -392,7 +400,7 @@ struct IndexAccessedPath<'ast> {
 
 impl<'ast> IndexAccessedPath<'ast> {
     fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
@@ -432,7 +440,7 @@ impl<'ast> IndexAccessedPath<'ast> {
     }
 
     fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
         let mut expr = parser.alloc(match path.next()? {
@@ -467,18 +475,18 @@ fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
 
     #[test]
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
-            solar_interface::enter(|| -> Result {
-                let sess = Session::builder().with_test_emitter().build();
+            let sess = Session::builder().with_test_emitter().single_threaded().build();
+            sess.enter_sequential(|| -> Result {
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let arena = Arena::new();
                     let mut parser =
-                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s.into())?;
+                        Parser::from_source_code(&sess, &arena, FileName::Custom(name), s)?;
 
                     let list = parser
                         .parse_optional_items_seq(Delimiter::Parenthesis, Parser::parse_ident)

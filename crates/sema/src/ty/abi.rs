@@ -24,11 +24,11 @@ impl<'gcx> Gcx<'gcx> {
         let mut items = Vec::<json::AbiItem<'a>>::new();
 
         let c = self.hir.contract(id);
-        if let Some(ctor) = c.ctor {
-            if !c.is_abstract() {
-                let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
-                items.push(json::Constructor { inputs, state_mutability }.into());
-            }
+        if let Some(ctor) = c.ctor
+            && !c.is_abstract()
+        {
+            let json::Function { inputs, state_mutability, .. } = self.function_abi(ctor);
+            items.push(json::Constructor { inputs, state_mutability }.into());
         }
         if let Some(fallback) = c.fallback {
             let json::Function { state_mutability, .. } = self.function_abi(fallback);
@@ -41,7 +41,7 @@ impl<'gcx> Gcx<'gcx> {
         for f in self.interface_functions(id) {
             items.push(self.function_abi(f.id).into());
         }
-        // TODO: Does not include referenced items.
+        // TODO: Does not include referenced items: https://github.com/paradigmxyz/solar/issues/305
         // See solc `interfaceEvents` and `interfaceErrors`.
         for item in self.hir.contract_item_ids(id) {
             match item {
@@ -51,10 +51,9 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        // https://github.com/ethereum/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
+        // https://github.com/argotorg/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
         fn cmp_key<'a>(item: &'a json::AbiItem<'_>) -> impl Ord + use<'a> {
-            // TODO: Use `json_type` instead of `debug_name`.
-            (item.debug_name(), item.name())
+            (item.json_type(), item.name())
         }
         items.sort_by(|a, b| cmp_key(a).cmp(&cmp_key(b)));
 
@@ -137,8 +136,8 @@ fn json_state_mutability(s: hir::StateMutability) -> json::StateMutability {
     match s {
         hir::StateMutability::Pure => json::StateMutability::Pure,
         hir::StateMutability::View => json::StateMutability::View,
-        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
         hir::StateMutability::Payable => json::StateMutability::Payable,
+        hir::StateMutability::NonPayable => json::StateMutability::NonPayable,
     }
 }
 
@@ -245,27 +244,27 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
 ///
 /// This is mainly used in the `internalType` field of the ABI.
 ///
-/// Example: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358
-struct TySolcPrinter<'gcx, W> {
+/// Example: <https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L2352-L2358>
+pub(crate) struct TySolcPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     data_locations: bool,
 }
 
 impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
-    fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
+    pub(crate) fn new(gcx: Gcx<'gcx>, buf: W) -> Self {
         Self { gcx, buf, data_locations: false }
     }
 
     /// Whether to print data locations for reference types.
     ///
     /// Default: `false`.
-    fn data_locations(mut self, yes: bool) -> Self {
+    pub(crate) fn data_locations(mut self, yes: bool) -> Self {
         self.data_locations = yes;
         self
     }
 
-    fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
+    pub(crate) fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => {
                 ty.write_abi_str(&mut self.buf)?;
@@ -279,7 +278,9 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.buf.write_str(if c.kind.is_library() { "library" } else { "contract" })?;
                 write!(self.buf, " {}", c.name)
             }
-            TyKind::FnPtr(_) => self.buf.write_str("function"),
+            TyKind::FnPtr(f) => {
+                self.print_function(None, f.parameters, f.returns, f.state_mutability, f.visibility)
+            }
             TyKind::Struct(id) => {
                 write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
             }
@@ -301,17 +302,89 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, "[{len}]")
             }
 
-            TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
-            | TyKind::Tuple(_)
-            | TyKind::Mapping(..)
-            | TyKind::Error(..)
-            | TyKind::Event(..)
-            | TyKind::Module(_)
-            | TyKind::BuiltinModule(_)
-            | TyKind::Type(_)
-            | TyKind::Meta(_)
-            | TyKind::Err(_) => panic!("printing unsupported type as solc: {ty:?}"),
+            // Internal types.
+            TyKind::StringLiteral(utf8, size) => {
+                let kind = if utf8 { "utf8" } else { "bytes" };
+                write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
+            }
+            TyKind::IntLiteral(size) => {
+                write!(self.buf, "int_literal[{}]", size.bytes())
+            }
+            TyKind::Tuple(tys) => {
+                self.buf.write_str("tuple")?;
+                self.print_tuple(tys)
+            }
+            TyKind::Mapping(key, value) => {
+                self.buf.write_str("mapping(")?;
+                self.print(key)?;
+                self.buf.write_str(" => ")?;
+                self.print(value)?;
+                self.buf.write_str(")")
+            }
+            TyKind::Module(id) => {
+                let s = self.gcx.hir.source(id);
+                write!(self.buf, "module {}", s.file.name.display())
+            }
+            TyKind::BuiltinModule(b) => self.buf.write_str(b.name().as_str()),
+            TyKind::Type(ty) | TyKind::Meta(ty) => {
+                self.buf.write_str("type(")?;
+                self.print(ty)?; // TODO: `richIdentifier`
+                self.buf.write_str(")")
+            }
+            TyKind::Error(tys, id) => self.print_function_like(tys, id.into()),
+            TyKind::Event(tys, id) => self.print_function_like(tys, id.into()),
+
+            TyKind::Err(_) => self.buf.write_str("<error>"),
         }
+    }
+
+    fn print_function_like(&mut self, parameters: &[Ty<'gcx>], id: hir::ItemId) -> fmt::Result {
+        self.print_function(
+            Some(id),
+            parameters,
+            &[],
+            hir::StateMutability::NonPayable,
+            solar_ast::Visibility::Internal,
+        )
+    }
+
+    fn print_function(
+        &mut self,
+        def: Option<hir::ItemId>,
+        parameters: &[Ty<'gcx>],
+        returns: &[Ty<'gcx>],
+        state_mutability: hir::StateMutability,
+        visibility: hir::Visibility,
+    ) -> fmt::Result {
+        self.buf.write_str("function ")?;
+        if let Some(def) = def {
+            let name = self.gcx.item_canonical_name(def);
+            write!(self.buf, "{name}")?;
+        }
+        self.print_tuple(parameters)?;
+
+        if state_mutability != hir::StateMutability::NonPayable {
+            write!(self.buf, " {state_mutability}")?;
+        }
+        if visibility == hir::Visibility::External {
+            self.buf.write_str(" external")?;
+        }
+
+        if !returns.is_empty() {
+            self.buf.write_str(" returns ")?;
+            self.print_tuple(returns)?;
+        }
+        Ok(())
+    }
+
+    fn print_tuple(&mut self, tys: &[Ty<'gcx>]) -> fmt::Result {
+        self.buf.write_str("(")?;
+        for (i, &ty) in tys.iter().enumerate() {
+            if i > 0 {
+                self.buf.write_str(",")?;
+            }
+            self.print(ty)?;
+        }
+        self.buf.write_str(")")
     }
 }
