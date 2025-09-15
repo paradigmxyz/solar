@@ -1,16 +1,18 @@
 use super::item::VarFlags;
-use crate::{parser::SeqSep, PResult, Parser};
+use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::BumpExt;
-use solar_interface::{kw, sym, Ident, Span};
+use solar_interface::{Ident, Span, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        self.with_recursion_limit("statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        })
     }
 
     /// Parses a statement into a new allocation.
@@ -74,7 +76,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
     /// Parses an if statement.
@@ -131,16 +135,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
-
         let mut clauses = SmallVec::<[_; 4]>::new();
+
+        let mut lo = self.token.span;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
-        clauses.push(TryCatchClause { name: None, args: returns, block });
+        let span = lo.to(self.prev_token.span);
+        clauses.push(TryCatchClause { name: None, args: returns, block, span });
 
+        lo = self.token.span;
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
@@ -150,7 +157,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Default::default()
             };
             let block = self.parse_block()?;
-            clauses.push(TryCatchClause { name, args, block });
+            let span = lo.to(self.prev_token.span);
+            clauses.push(TryCatchClause { name, args, block, span });
+            lo = self.token.span;
             if !self.eat_keyword(kw::Catch) {
                 break;
             }
@@ -289,7 +298,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
         {
@@ -309,7 +318,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn peek_statement_type(&mut self) -> LookAheadInfo {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
         if self.token.is_keyword_any(&[kw::Mapping, kw::Function]) {
             return LookAheadInfo::VariableDeclaration;
         }
@@ -335,7 +344,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
@@ -391,7 +400,7 @@ struct IndexAccessedPath<'ast> {
 
 impl<'ast> IndexAccessedPath<'ast> {
     fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
@@ -431,7 +440,7 @@ impl<'ast> IndexAccessedPath<'ast> {
     }
 
     fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
         let mut expr = parser.alloc(match path.next()? {
@@ -466,13 +475,13 @@ fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
 
     #[test]
     fn optional_items_seq() {
         fn check(tests: &[(&str, &[Option<&str>])]) {
-            solar_interface::enter(|| -> Result {
-                let sess = Session::builder().with_test_emitter().build();
+            let sess = Session::builder().with_test_emitter().single_threaded().build();
+            sess.enter_sequential(|| -> Result {
                 for (i, &(s, results)) in tests.iter().enumerate() {
                     let name = i.to_string();
                     let arena = Arena::new();

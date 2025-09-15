@@ -1,8 +1,7 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use solar_data_structures::trustme;
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, Spanned};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -15,9 +14,7 @@ declare_visitors! {
         /// should never break.
         type BreakValue;
 
-        fn visit_source_unit(&mut self, source_unit: &#mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
-            // TODO: SAFETY: Idk
-            let source_unit = unsafe { trustme::decouple_lt #_mut(source_unit) };
+        fn visit_source_unit(&mut self, source_unit: &'ast #mut SourceUnit<'ast>) -> ControlFlow<Self::BreakValue> {
             let SourceUnit { items } = source_unit;
             for item in items.iter #_mut() {
                 self.visit_item #_mut(item)?;
@@ -187,13 +184,18 @@ declare_visitors! {
             match kind {
                 TypeKind::Elementary(_) => {}
                 TypeKind::Array(array) => {
-                    let TypeArray { element, size: _ } = &#mut **array;
+                    let TypeArray { element, size } = &#mut **array;
                     self.visit_ty #_mut(element)?;
+                    if let Some(size) = size {
+                        self.visit_expr #_mut(size)?;
+                    }
                 }
                 TypeKind::Function(function) => {
                     let TypeFunction { parameters, visibility: _, state_mutability: _, returns } = &#mut **function;
                     self.visit_parameter_list #_mut(parameters)?;
-                    self.visit_parameter_list #_mut(returns)?;
+                    if let Some(returns) = returns {
+                        self.visit_parameter_list #_mut(returns)?;
+                    }
                 }
                 TypeKind::Mapping(mapping) => {
                     let TypeMapping { key, key_name, value, value_name } = &#mut **mapping;
@@ -215,23 +217,38 @@ declare_visitors! {
 
         fn visit_function_header(&mut self, header: &'ast #mut FunctionHeader<'ast>) -> ControlFlow<Self::BreakValue> {
             let FunctionHeader {
+                span,
                 name,
                 parameters,
-                visibility: _,
-                state_mutability: _,
+                visibility,
+                state_mutability,
                 modifiers,
                 virtual_: _,
-                override_: _,
+                override_,
                 returns,
             } = header;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
             self.visit_parameter_list #_mut(parameters)?;
+            if let Some(vis) = visibility {
+                let Spanned { span: vis_span, .. } = vis;
+                self.visit_span #_mut(vis_span)?;
+            }
+            if let Some(state_mut) = state_mutability {
+                let Spanned { span: state_mut_span, .. } = state_mut;
+                self.visit_span #_mut(state_mut_span)?;
+            }
             for modifier in modifiers.iter #_mut() {
                 self.visit_modifier #_mut(modifier)?;
             }
-            self.visit_parameter_list #_mut(returns)?;
+            if let Some(returns) = returns {
+                self.visit_parameter_list #_mut(returns)?;
+            }
+            if let Some(override_) = override_ {
+                self.visit_override #_mut(override_)?;
+            }
             ControlFlow::Continue(())
         }
 
@@ -242,12 +259,23 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
+        fn visit_override(&mut self, override_: &'ast #mut Override<'ast>) -> ControlFlow<Self::BreakValue> {
+            let Override { span, paths } = override_;
+            self.visit_span #_mut(span)?;
+            for path in paths.iter #_mut() {
+                self.visit_path #_mut(path)?;
+            }
+            ControlFlow::Continue(())
+        }
+
         fn visit_call_args(&mut self, args: &'ast #mut CallArgs<'ast>) -> ControlFlow<Self::BreakValue> {
-            match args {
-                CallArgs::Named(named) => {
+            let CallArgs { span, kind } = args;
+            self.visit_span #_mut(span)?;
+            match kind {
+                CallArgsKind::Named(named) => {
                     self.visit_named_args #_mut(named)?;
                 }
-                CallArgs::Unnamed(unnamed) => {
+                CallArgsKind::Unnamed(unnamed) => {
                     for arg in unnamed.iter #_mut() {
                         self.visit_expr #_mut(arg)?;
                     }
@@ -356,7 +384,8 @@ declare_visitors! {
         }
 
         fn visit_try_catch_clause(&mut self, catch: &'ast #mut TryCatchClause<'ast>) -> ControlFlow<Self::BreakValue> {
-            let TryCatchClause { name, args, block } = catch;
+            let TryCatchClause { span, name, args, block } = catch;
+            self.visit_span #_mut(span)?;
             if let Some(name) = name {
                 self.visit_ident #_mut(name)?;
             }
@@ -366,7 +395,9 @@ declare_visitors! {
         }
 
         fn visit_block(&mut self, block: &'ast #mut Block<'ast>) -> ControlFlow<Self::BreakValue> {
-            for stmt in block.iter #_mut() {
+            let Block { span, stmts } = block;
+            self.visit_span #_mut(span)?;
+            for stmt in stmts.iter #_mut() {
                 self.visit_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())
@@ -458,13 +489,15 @@ declare_visitors! {
         }
 
         fn visit_parameter_list(&mut self, list: &'ast #mut ParameterList<'ast>) -> ControlFlow<Self::BreakValue> {
-            for param in list.iter #_mut() {
+            let ParameterList { span, vars } = list;
+            for param in vars.iter #_mut() {
                 self.visit_variable_definition #_mut(param)?;
             }
+            self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
 
-        fn visit_lit(&mut self, lit: &'ast #mut Lit) -> ControlFlow<Self::BreakValue> {
+        fn visit_lit(&mut self, lit: &'ast #mut Lit<'_>) -> ControlFlow<Self::BreakValue> {
             let Lit { span, symbol: _, kind: _ } = lit;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
@@ -482,20 +515,20 @@ declare_visitors! {
                     self.visit_path #_mut(path)?;
                     self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::AssignMulti(paths, call) => {
+                yul::StmtKind::AssignMulti(paths, expr) => {
                     for path in paths.iter #_mut() {
                         self.visit_path #_mut(path)?;
                     }
-                    self.visit_yul_expr_call #_mut(call)?;
+                    self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::Expr(call) => {
-                    self.visit_yul_expr_call #_mut(call)?;
+                yul::StmtKind::Expr(expr) => {
+                    self.visit_yul_expr #_mut(expr)?;
                 }
                 yul::StmtKind::If(expr, block) => {
                     self.visit_yul_expr #_mut(expr)?;
                     self.visit_yul_block #_mut(block)?;
                 }
-                yul::StmtKind::For { init, cond, step, body } => {
+                yul::StmtKind::For(yul::StmtFor { init, cond, step, body }) => {
                     self.visit_yul_block #_mut(init)?;
                     self.visit_yul_expr #_mut(cond)?;
                     self.visit_yul_block #_mut(step)?;
@@ -523,27 +556,29 @@ declare_visitors! {
         }
 
         fn visit_yul_block(&mut self, block: &'ast #mut yul::Block<'ast>) -> ControlFlow<Self::BreakValue> {
-            for stmt in block.iter #_mut() {
+            let yul::Block { span, stmts } = block;
+            self.visit_span #_mut(span)?;
+            for stmt in stmts.iter #_mut() {
                 self.visit_yul_stmt #_mut(stmt)?;
             }
             ControlFlow::Continue(())
         }
 
         fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitch { selector, branches, default_case } = switch;
+            let yul::StmtSwitch { selector, cases } = switch;
             self.visit_yul_expr #_mut(selector)?;
-            for case in branches.iter #_mut() {
+            for case in cases.iter #_mut() {
                 self.visit_yul_stmt_case #_mut(case)?;
-            }
-            if let Some(case) = default_case {
-                self.visit_yul_block #_mut(case)?;
             }
             ControlFlow::Continue(())
         }
 
         fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitchCase { constant, body } = case;
-            self.visit_lit #_mut(constant)?;
+            let yul::StmtSwitchCase { span, constant, body } = case;
+            self.visit_span #_mut(span)?;
+            if let Some(constant) = constant {
+                self.visit_lit #_mut(constant)?;
+            }
             self.visit_yul_block #_mut(body)?;
             ControlFlow::Continue(())
         }

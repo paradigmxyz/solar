@@ -10,13 +10,14 @@ changed or not.
 
 - [cargo-release](https://github.com/crate-ci/cargo-release): `cargo install cargo-release`
 - [git-cliff](https://github.com/orhun/git-cliff) (patched with [orhun/git-cliff#711](https://github.com/orhun/git-cliff/pull/711)): `cargo install --git https://github.com/DaniPopes/git-cliff.git --branch fix-include-paths git-cliff`
-- [dist](https://github.com/axodotdev/cargo-dist): `cargo install cargo-dist`
+- [dist](https://github.com/astral-sh/cargo-dist): `cargo install cargo-dist`
 
 ## Steps
 
 - [ ] Create a new branch: `git checkout -b release-<version>`
 - [ ] Run `cargo-release` to handle the version bump, changelog, and commit: `cargo release --execute --no-publish --no-tag --allow-branch=<branch> <version>`
 - [ ] Update changelog message if necessary.
+- [ ] Update `README.md`'s `### Library usage`.
 - [ ] Push, open and merge the PR. The name of the PR should be the same as the `cargo-release` commit message.
 - [ ] `git checkout main` and `git pull`.
 - [ ] Verify `dist plan` is correct.

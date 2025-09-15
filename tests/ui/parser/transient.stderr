@@ -3,7 +3,6 @@ error: data location can only be specified for array, struct or mapping types
    |
 LL |     function g(uint256 transient transient) external {
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
 
 error: invalid data location `transient`
   --> ROOT/tests/ui/parser/transient.sol:LL:CC

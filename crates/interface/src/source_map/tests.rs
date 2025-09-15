@@ -134,8 +134,8 @@ fn t7() {
     let file_lines = sm.span_to_lines(span).unwrap();
 
     assert_eq!(file_lines.file.name, Path::new("blork.rs"));
-    assert_eq!(file_lines.lines.len(), 1);
-    assert_eq!(file_lines.lines[0].line_index, 1);
+    assert_eq!(file_lines.data.len(), 1);
+    assert_eq!(file_lines.data[0].line_index, 1);
 }
 
 /// Given a string like " ~~~~~~~~~~~~ ", produces a span
@@ -169,7 +169,7 @@ fn span_to_snippet_and_lines_spanning_multiple_lines() {
         LineInfo { line_index: 2, start_col: CharPos(0), end_col: CharPos(3) },
         LineInfo { line_index: 3, start_col: CharPos(0), end_col: CharPos(5) },
     ];
-    assert_eq!(lines.lines, expected);
+    assert_eq!(lines.data, expected);
 }
 
 /// Test span_to_snippet for a span ending at the end of a `SourceFile`.
@@ -189,7 +189,7 @@ fn t9() {
     let span = Span::new(BytePos(12), BytePos(23));
     let sstr = sm.span_to_diagnostic_string(span);
 
-    assert_eq!(sstr, "blork.rs:2:1: 2:12");
+    assert_eq!(sstr.to_string(), "blork.rs:2:1: 2:12");
 }
 
 /// Tests failing to merge two spans on different lines.

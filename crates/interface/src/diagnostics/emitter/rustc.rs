@@ -1,9 +1,9 @@
 //! Annotation collector for displaying diagnostics vendored from Rustc.
 
 use crate::{
-    diagnostics::{Level, MultiSpan, SpanLabel},
-    source_map::{Loc, SourceFile},
     SourceMap,
+    diagnostics::{MultiSpan, SpanLabel},
+    source_map::{Loc, SourceFile},
 };
 use std::{
     cmp::{max, min},
@@ -14,14 +14,6 @@ use std::{
 pub(crate) struct Line {
     pub(crate) line_index: usize,
     pub(crate) annotations: Vec<Annotation>,
-}
-
-impl Line {
-    pub(crate) fn set_level(&mut self, level: Level) {
-        for ann in &mut self.annotations {
-            ann.level = Some(level);
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Default)]
@@ -87,7 +79,6 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: None,
             annotation_type: AnnotationType::MultilineStart(self.depth),
-            level: None,
         }
     }
 
@@ -103,7 +94,6 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: self.label.clone(),
             annotation_type: AnnotationType::MultilineEnd(self.depth),
-            level: None,
         }
     }
 
@@ -114,7 +104,6 @@ impl MultilineAnnotation {
             is_primary: self.is_primary,
             label: None,
             annotation_type: AnnotationType::MultilineLine(self.depth),
-            level: None,
         }
     }
 }
@@ -165,8 +154,6 @@ pub(crate) struct Annotation {
     /// Is this a single line, multiline or multiline span minimized down to a
     /// smaller span.
     pub(crate) annotation_type: AnnotationType,
-
-    pub(crate) level: Option<Level>,
 }
 
 #[derive(Debug)]
@@ -255,9 +242,8 @@ impl FileWithAnnotatedLines {
                     is_primary,
                     label,
                     annotation_type: AnnotationType::Singleline,
-                    level: None,
                 };
-                add_annotation_to_file(&mut output, lo.file, lo.line, ann);
+                add_annotation_to_file(&mut output, lo.file, lo.data.line, ann);
             };
         }
 
@@ -312,19 +298,41 @@ impl FileWithAnnotatedLines {
                 //  | |      |
                 //  | |______foo
                 //  |        baz
-                add_annotation_to_file(&mut output, file.clone(), ann.line_start, ann.as_start());
+                add_annotation_to_file(
+                    &mut output,
+                    Arc::clone(&file),
+                    ann.line_start,
+                    ann.as_start(),
+                );
                 // 4 is the minimum vertical length of a multiline span when presented: two lines
                 // of code and two lines of underline. This is not true for the special case where
                 // the beginning doesn't have an underline, but the current logic seems to be
                 // working correctly.
                 let middle = min(ann.line_start + 4, ann.line_end);
-                for line in ann.line_start + 1..middle {
+                // We'll show up to 4 lines past the beginning of the multispan start.
+                // We will *not* include the tail of lines that are only whitespace, a comment or
+                // a bare delimiter.
+                let filter = |s: &str| {
+                    let s = s.trim();
+                    // Consider comments as empty, but don't consider docstrings to be empty.
+                    !(s.starts_with("//") && !(s.starts_with("///") || s.starts_with("//!")))
+                        // Consider lines with nothing but whitespace, a single delimiter as empty.
+                        && !["", "{", "}", "(", ")", "[", "]"].contains(&s)
+                };
+                let until = (ann.line_start..middle)
+                    .rev()
+                    .filter_map(|line| file.get_line(line - 1).map(|s| (line + 1, s)))
+                    .find(|(_, s)| filter(s))
+                    .map(|(line, _)| line)
+                    .unwrap_or(ann.line_start);
+                for line in ann.line_start + 1..until {
                     // Every `|` that joins the beginning of the span (`___^`) to the end (`|__^`).
-                    add_annotation_to_file(&mut output, file.clone(), line, ann.as_line());
+                    add_annotation_to_file(&mut output, Arc::clone(&file), line, ann.as_line());
                 }
                 let line_end = ann.line_end - 1;
-                if middle < line_end {
-                    add_annotation_to_file(&mut output, file.clone(), line_end, ann.as_line());
+                let end_is_empty = file.get_line(line_end - 1).is_some_and(|s| !filter(s));
+                if middle < line_end && !end_is_empty {
+                    add_annotation_to_file(&mut output, Arc::clone(&file), line_end, ann.as_line());
                 }
             } else {
                 end_ann.annotation_type = AnnotationType::Singleline;
@@ -335,28 +343,6 @@ impl FileWithAnnotatedLines {
             file_vec.multiline_depth = max_depth;
         }
         output
-    }
-
-    pub(crate) fn set_level(&mut self, level: Level) {
-        for line in &mut self.lines {
-            line.set_level(level);
-        }
-    }
-
-    pub(crate) fn add_lines(&mut self, lines: impl IntoIterator<Item = Line>) {
-        debug_assert!(self.lines.is_sorted(), "file lines should be sorted");
-        for line in lines {
-            match self.lines.binary_search_by_key(&line.line_index, |l| l.line_index) {
-                Ok(i) => {
-                    self.lines[i].annotations.extend(line.annotations);
-                    self.lines[i].annotations.sort();
-                }
-                Err(i) => {
-                    self.lines.insert(i, line);
-                }
-            }
-        }
-        debug_assert!(self.lines.is_sorted(), "file lines should still be sorted");
     }
 }
 

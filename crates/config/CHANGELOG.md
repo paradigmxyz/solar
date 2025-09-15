@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Features
+
+- Add error format options for human-readable diagnostics ([#473](https://github.com/paradigmxyz/solar/issues/473))
+- [interface] Impl Default for Session, create dcx from opts ([#471](https://github.com/paradigmxyz/solar/issues/471))
+
+### Miscellaneous Tasks
+
+- Move VERSION to config::version::SEMVER_VERSION and log it ([#454](https://github.com/paradigmxyz/solar/issues/454))
+- Cap default threads at available_parallelism ([#445](https://github.com/paradigmxyz/solar/issues/445))
+
+### Testing
+
+- Add CLI test suite ([#453](https://github.com/paradigmxyz/solar/issues/453))
+
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Features
+
+- Implement base_path, streamline creating pcx ([#436](https://github.com/paradigmxyz/solar/issues/436))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Features
+
+- Add span visitor debug tool ([#355](https://github.com/paradigmxyz/solar/issues/355))
+
+## [Unreleased](https://github.com/paradigmxyz/solar/compare/v0.1.3...HEAD)
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Features
+
+- Update solidity to 0.8.30 ([#307](https://github.com/paradigmxyz/solar/issues/307))
+- `--no-warnings` ([#293](https://github.com/paradigmxyz/solar/issues/293))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+
+### Miscellaneous Tasks
+
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Revert extra changelog
+
+### Performance
+
+- Add and default to using mimalloc ([#276](https://github.com/paradigmxyz/solar/issues/276))
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes

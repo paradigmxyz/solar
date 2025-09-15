@@ -26,8 +26,10 @@ type Abi = Vec<alloy_json_abi::AbiItem<'static>>;
 type Hashes = BTreeMap<String, String>;
 
 pub(crate) fn emit(gcx: Gcx<'_>) {
-    let mut output =
-        CombinedJson { contracts: Default::default(), version: solar_interface::VERSION };
+    let mut output = CombinedJson {
+        contracts: Default::default(),
+        version: solar_interface::config::version::SEMVER_VERSION,
+    };
     for id in gcx.hir.contract_ids() {
         let name = gcx.contract_fully_qualified_name(id).to_string();
         let contract_output = output.contracts.entry(name).or_default();

@@ -1,25 +1,33 @@
 use crate::{
+    Source, Sources, ast,
     ast_lowering::SymbolResolver,
-    builtins::{members, Builtin},
-    hir::{self, Hir},
+    builtins::{Builtin, members},
+    hir::{self, Hir, SourceId},
 };
-use alloy_primitives::{keccak256, Selector, B256, U256};
+use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
+    BumpExt,
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
-    BumpExt,
+    trustme,
 };
 use solar_interface::{
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
     Ident, Session, Span,
+    config::CompilerStage,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    source_map::{FileName, SourceFile},
 };
 use std::{
     fmt,
-    hash::{BuildHasher, Hash},
+    hash::Hash,
     ops::ControlFlow,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 use thread_local::ThreadLocal;
 
@@ -135,36 +143,105 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+/// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
+///
+/// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
+/// is too annoying/impossible to deal with.
+/// Since it's only used internally (`pub(crate)`), this is fine.
+#[repr(transparent)]
+pub(crate) struct GcxMut<'gcx>(*mut GlobalCtxt<'gcx>);
+
+impl<'gcx> GcxMut<'gcx> {
+    #[inline(always)]
+    pub(crate) fn new(gcx: &mut GlobalCtxt<'gcx>) -> Self {
+        Self(gcx)
+    }
+
+    #[inline(always)]
+    pub(crate) fn get(&self) -> Gcx<'gcx> {
+        unsafe { Gcx(&*self.0) }
+    }
+
+    #[inline(always)]
+    pub(crate) fn get_mut(&mut self) -> &'gcx mut GlobalCtxt<'gcx> {
+        unsafe { &mut *self.0 }
+    }
+}
+
+impl<'gcx> std::ops::Deref for GcxMut<'gcx> {
+    type Target = &'gcx mut GlobalCtxt<'gcx>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<'gcx> std::ops::DerefMut for GcxMut<'gcx> {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
 #[cfg(test)]
 fn _gcx_traits() {
     fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<Gcx<'static>>();
 }
 
+struct AtomicCompilerStage(AtomicUsize);
+
+impl AtomicCompilerStage {
+    fn new() -> Self {
+        Self(AtomicUsize::new(usize::MAX))
+    }
+
+    fn set(&self, stage: CompilerStage) {
+        self.0.store(stage as usize, Ordering::Relaxed);
+    }
+
+    fn get(&self) -> Option<CompilerStage> {
+        let stage = self.0.load(Ordering::Relaxed);
+        if stage == usize::MAX { None } else { Some(CompilerStage::from_repr(stage).unwrap()) }
+    }
+}
+
 /// The global compilation context.
 pub struct GlobalCtxt<'gcx> {
     pub sess: &'gcx Session,
-    pub types: CommonTypes<'gcx>,
-    pub hir: Hir<'gcx>,
+    pub sources: Sources<'gcx>,
     pub(crate) symbol_resolver: SymbolResolver<'gcx>,
+    pub hir: Hir<'gcx>,
+    stage: AtomicCompilerStage,
 
+    pub types: CommonTypes<'gcx>,
+
+    pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
+    pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {
-    pub(crate) fn new(
-        sess: &'gcx Session,
-        arena: &'gcx ThreadLocal<hir::Arena>,
-        hir: Hir<'gcx>,
-        symbol_resolver: SymbolResolver<'gcx>,
-    ) -> Self {
-        let interner = Interner::new(arena);
+    pub(crate) fn new(sess: &'gcx Session) -> Self {
+        let interner = Interner::new();
+        let hir_arenas = ThreadLocal::<hir::Arena>::new();
         Self {
             sess,
-            types: CommonTypes::new(&interner),
-            hir,
-            symbol_resolver,
+            sources: Sources::new(),
+            symbol_resolver: SymbolResolver::new(&sess.dcx),
+            hir: Hir::new(),
+            stage: AtomicCompilerStage::new(),
+
+            // SAFETY: stable address because ThreadLocal holds the arenas through indirection.
+            types: CommonTypes::new(
+                &interner,
+                unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
+            ),
+
+            ast_arenas: ThreadLocal::new(),
+            hir_arenas,
             interner,
             cache: Cache::default(),
         }
@@ -176,17 +253,66 @@ impl<'gcx> Gcx<'gcx> {
         Self(gcx)
     }
 
+    /// Returns the current compiler stage.
+    pub fn stage(&self) -> Option<CompilerStage> {
+        self.stage.get()
+    }
+
+    pub(crate) fn advance_stage(&self, to: CompilerStage) -> ControlFlow<()> {
+        let from = self.stage();
+        let result = self.advance_stage_(to);
+        trace!(?from, ?to, ?result, "advance stage");
+        result
+    }
+
+    fn advance_stage_(&self, to: CompilerStage) -> ControlFlow<()> {
+        let current = self.stage();
+
+        // Special case: allow calling `parse` multiple times while currently parsing.
+        if to == CompilerStage::Parsing && current == Some(to) {
+            return ControlFlow::Continue(());
+        }
+
+        let next = CompilerStage::next_opt(current);
+        if next.is_none_or(|next| to != next) {
+            let current_s = match current {
+                Some(s) => s.to_str(),
+                None => "none",
+            };
+            let next_s = match next {
+                Some(s) => &format!("`{s}`"),
+                None => "none (current stage is the last)",
+            };
+            self.dcx()
+                .bug(format!(
+                    "invalid compiler stage transition: cannot advance from `{current_s}` to `{to}`"
+                ))
+                .note(format!("expected next stage: {next_s}"))
+                .note("stages must be advanced sequentially")
+                .emit();
+        }
+
+        if let Some(current) = current
+            && self.sess.stop_after(current)
+        {
+            return ControlFlow::Break(());
+        }
+
+        self.stage.set(to);
+        ControlFlow::Continue(())
+    }
+
     /// Returns the diagnostics context.
     pub fn dcx(self) -> &'gcx DiagCtxt {
         &self.sess.dcx
     }
 
     pub fn arena(self) -> &'gcx hir::Arena {
-        self.interner.arena.get_or_default()
+        self.hir_arenas.get_or_default()
     }
 
     pub fn bump(self) -> &'gcx bumpalo::Bump {
-        &self.arena().bump
+        self.arena().bump()
     }
 
     pub fn alloc<T>(self, value: T) -> &'gcx T {
@@ -194,15 +320,15 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty(self, kind: TyKind<'gcx>) -> Ty<'gcx> {
-        self.interner.intern_ty_with_flags(kind, |kind| TyFlags::calculate(self, kind))
+        self.interner.intern_ty_with_flags(self.bump(), kind, |kind| TyFlags::calculate(self, kind))
     }
 
     pub fn mk_tys(self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_tys(tys)
+        self.interner.intern_tys(self.bump(), tys)
     }
 
     pub fn mk_ty_iter(self, tys: impl Iterator<Item = Ty<'gcx>>) -> &'gcx [Ty<'gcx>] {
-        self.interner.intern_ty_iter(tys)
+        self.interner.intern_ty_iter(self.bump(), tys)
     }
 
     fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
@@ -221,7 +347,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
-        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(ptr)))
+        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(self.bump(), ptr)))
     }
 
     pub fn mk_ty_fn(
@@ -254,6 +380,29 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
         Ty::new(self, TyKind::Err(guar))
+    }
+
+    /// Returns the source file with the given path, if it exists.
+    pub fn get_file(self, name: impl Into<FileName>) -> Option<Arc<SourceFile>> {
+        self.sess.source_map().get_file(name)
+    }
+
+    /// Returns the AST source at the given path, if it exists.
+    pub fn get_ast_source(
+        self,
+        name: impl Into<FileName>,
+    ) -> Option<(SourceId, &'gcx Source<'gcx>)> {
+        let file = self.get_file(name)?;
+        self.sources.get_file(&file)
+    }
+
+    /// Returns the HIR source at the given path, if it exists.
+    pub fn get_hir_source(
+        self,
+        name: impl Into<FileName>,
+    ) -> Option<(SourceId, &'gcx hir::Source<'gcx>)> {
+        let file = self.get_file(name)?;
+        self.hir.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, &file))
     }
 
     /// Returns the name of the given item.
@@ -412,12 +561,14 @@ impl<'gcx> Gcx<'gcx> {
                     None => TyKind::DynArray(ty),
                 }
             }
-            hir::TypeKind::Function(f) => TyKind::FnPtr(self.interner.intern_ty_fn_ptr(TyFnPtr {
-                parameters: self.mk_item_tys(f.parameters),
-                returns: self.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
-            })),
+            hir::TypeKind::Function(f) => {
+                return self.mk_ty_fn_ptr(TyFnPtr {
+                    parameters: self.mk_item_tys(f.parameters),
+                    returns: self.mk_item_tys(f.returns),
+                    state_mutability: f.state_mutability,
+                    visibility: f.visibility,
+                });
+            }
             hir::TypeKind::Mapping(mapping) => {
                 let key = self.type_of_hir_ty(&mapping.key);
                 let value = self.type_of_hir_ty(&mapping.value);
@@ -466,13 +617,19 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
+                    #[cfg(false)]
                     let _guard = log_cache_query(stringify!($name), &$key);
+                    #[cfg(false)]
                     let mut hit = true;
                     let r = cache_insert(&self.cache.$name, $key, |&$key| {
-                        hit = false;
+                        #[cfg(false)]
+                        {
+                            hit = false;
+                        }
                         let $gcx = self;
                         $imp
                     });
+                    #[cfg(false)]
                     log_cache_query_result(&r, hit);
                     r
                 }
@@ -486,7 +643,7 @@ cached! {
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
 ///
-/// The solc implementation excludes inheritance: <https://github.com/ethereum/solidity/blob/ad2644c52b3afbe80801322c5fe44edb59383500/libsolidity/ast/AST.cpp#L310-L316>
+/// The solc implementation excludes inheritance: <https://github.com/argotorg/solidity/blob/ad2644c52b3afbe80801322c5fe44edb59383500/libsolidity/ast/AST.cpp#L310-L316>
 ///
 /// See [ERC-165] for more details.
 ///
@@ -583,7 +740,7 @@ pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
 }
 
-fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
+pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
@@ -593,7 +750,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(TyFnPtr {
+            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
                 parameters: gcx.mk_item_tys(f.parameters),
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,
@@ -609,12 +766,10 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Enum(id) => TyKind::Enum(id),
         hir::ItemId::Udvt(id) => {
             let udvt = gcx.hir.udvt(id);
-            // TODO: let-chains plz
-            let ty;
-            if udvt.ty.kind.is_elementary() && {
-                ty = gcx.type_of_hir_ty(&udvt.ty);
-                ty.is_value_type()
-            } {
+            if udvt.ty.kind.is_elementary()
+                && let ty = gcx.type_of_hir_ty(&udvt.ty)
+                && ty.is_value_type()
+            {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
@@ -697,7 +852,7 @@ pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;
 
-    // https://github.com/ethereum/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
+    // https://github.com/argotorg/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
     let has_reference_or_mapping_type = ty.is_reference_type() || ty.has_mapping();
     let mut func_vis = None;
     let mut locs;
@@ -803,33 +958,32 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         }
     };
 
-    if ty.is_reference_type() {
-        ty.with_loc(gcx, ty_loc)
-    } else {
-        ty
-    }
+    if ty.is_reference_type() { ty.with_loc(gcx, ty_loc) } else { ty }
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.
-fn cache_insert<K, V, S>(
-    map: &once_map::OnceMap<K, V, S>,
-    key: K,
-    make_val: impl FnOnce(&K) -> V,
-) -> V
+#[inline]
+fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
 where
     K: Copy + Eq + Hash,
     V: Copy,
-    S: BuildHasher,
 {
-    map.map_insert(key, make_val, |_k, v| *v)
+    map.map_insert(key, make_val, cache_insert_with_result)
 }
 
+#[inline]
+fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
+    *v
+}
+
+#[cfg(false)]
 fn log_cache_query(name: &str, key: &dyn fmt::Debug) -> tracing::span::EnteredSpan {
     let guard = trace_span!("query", %name, ?key).entered();
     trace!("entered");
     guard
 }
 
+#[cfg(false)]
 fn log_cache_query_result(result: &dyn fmt::Debug, hit: bool) {
     trace!(?result, hit);
 }

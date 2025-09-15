@@ -3,7 +3,6 @@ error: unknown character escape
    |
 LL | import "\?";
    |          ^
-   |
 
 error: aborting due to 1 previous error
 

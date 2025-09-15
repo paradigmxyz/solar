@@ -78,7 +78,9 @@ impl PathSlice {
     /// Panics if `segments` is empty.
     #[inline]
     pub fn from_slice(segments: &[Ident]) -> &Self {
-        assert!(!segments.is_empty());
+        if segments.is_empty() {
+            panic_empty_path();
+        }
         // SAFETY: `segments` is not empty.
         unsafe { Self::from_slice_unchecked(segments) }
     }
@@ -90,6 +92,7 @@ impl PathSlice {
     /// The caller must ensure that `segments` is not empty.
     #[inline]
     pub unsafe fn from_slice_unchecked(segments: &[Ident]) -> &Self {
+        debug_assert!(!segments.is_empty());
         // SAFETY: We're just a wrapper around a slice `[Ident]`.
         unsafe { &*(segments as *const _ as *const Self) }
     }
@@ -119,9 +122,10 @@ impl PathSlice {
 
     /// Returns the path's span.
     #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn span(&self) -> Span {
         match self.segments() {
-            [] => unreachable!(),
+            [] => panic_empty_path(),
             [ident] => ident.span,
             [first, .., last] => first.span.with_hi(last.span.hi()),
         }
@@ -159,27 +163,38 @@ impl PathSlice {
 
     /// Returns the first segment of the path.
     #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn first(&self) -> &Ident {
-        self.segments().first().expect("paths cannot be empty")
+        self.segments().first().unwrap_or_else(|| panic_empty_path())
     }
 
     /// Returns the first segment of the path.
     #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn first_mut(&mut self) -> &mut Ident {
-        self.segments_mut().first_mut().expect("paths cannot be empty")
+        self.segments_mut().first_mut().unwrap_or_else(|| panic_empty_path())
     }
 
     /// Returns the last segment of the path.
     #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn last(&self) -> &Ident {
-        self.segments().last().expect("paths cannot be empty")
+        self.segments().last().unwrap_or_else(|| panic_empty_path())
     }
 
     /// Returns the last segment of the path.
     #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn last_mut(&mut self) -> &mut Ident {
-        self.segments_mut().last_mut().expect("paths cannot be empty")
+        self.segments_mut().last_mut().unwrap_or_else(|| panic_empty_path())
     }
+}
+
+#[inline(never)]
+#[cold]
+#[cfg_attr(debug_assertions, track_caller)]
+fn panic_empty_path() -> ! {
+    panic!("paths cannot be empty");
 }
 
 /// A qualified identifier: `foo.bar.baz`.

@@ -19,7 +19,7 @@ workspace = true
 [dependencies]
 regex.workspace = true
 tempfile.workspace = true
-ui_test = "0.29.2"
+ui_test = "0.30"
 
 [features]
 nightly = []

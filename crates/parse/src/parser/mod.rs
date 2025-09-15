@@ -1,15 +1,14 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    self as ast,
+    self as ast, AstPath, Box, DocComment, DocComments, PathSlice,
     token::{Delimiter, Token, TokenKind},
-    AstPath, Box, DocComment, DocComments, PathSlice,
 };
-use solar_data_structures::{fmt::or_list, BumpExt};
+use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
+    Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
     source_map::{FileName, SourceFile},
-    Ident, Result, Session, Span, Symbol,
 };
 use std::{fmt, path::Path};
 
@@ -20,7 +19,20 @@ mod stmt;
 mod ty;
 mod yul;
 
+/// Maximum allowed recursive descent depth for selected parser entry points.
+///
+/// This limit is applied to `parse_expr`, `parse_stmt`, and `parse_yul_stmt`.
+const PARSER_RECURSION_LIMIT: usize = 128;
+
 /// Solidity and Yul parser.
+///
+/// # Examples
+///
+/// ```
+/// # mod solar { pub use {solar_ast as ast, solar_interface as interface, solar_parse as parse}; }
+/// # fn main() {}
+#[doc = include_str!("../../doc-examples/parser.rs")]
+/// ```
 pub struct Parser<'sess, 'ast> {
     /// The parser session.
     pub sess: &'sess Session,
@@ -47,6 +59,9 @@ pub struct Parser<'sess, 'ast> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
+
+    /// Current recursion depth for recursive parsing operations.
+    recursion_depth: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -117,9 +132,17 @@ impl SeqSep {
     }
 }
 
+/// Indicates whether the parser took a recovery path and continued.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Recovered {
+    No,
+    Yes,
+}
+
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
+        assert!(sess.is_entered(), "session should be entered before parsing");
         let mut parser = Self {
             sess,
             arena,
@@ -131,6 +154,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
+            recursion_depth: 0,
         };
         parser.bump();
         parser
@@ -151,12 +175,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// The file will not be read if it has already been added into the source map.
     pub fn from_file(sess: &'sess Session, arena: &'ast ast::Arena, path: &Path) -> Result<Self> {
         Self::from_lazy_source_code(sess, arena, FileName::Real(path.to_path_buf()), || {
-            std::fs::read_to_string(path).map_err(|e| {
-                std::io::Error::new(
-                    e.kind(),
-                    solar_interface::source_map::ResolveError::ReadFile(path.to_path_buf(), e),
-                )
-            })
+            sess.source_map().file_loader().load_file(path)
         })
     }
 
@@ -238,8 +257,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         #[cold]
         #[inline(never)]
         #[track_caller]
-        fn unexpected_ok(b: bool) -> ! {
-            unreachable!("`unexpected()` returned Ok({b})")
+        fn unexpected_ok(b: Recovered) -> ! {
+            unreachable!("`unexpected()` returned Ok({b:?})")
         }
         match self.expect_one_of(&[], &[]) {
             Ok(b) => unexpected_ok(b),
@@ -249,11 +268,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
     #[track_caller]
-    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, bool /* recovered */> {
+    pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, Recovered> {
         if self.expected_tokens.is_empty() {
             if self.check_noexpect(tok) {
                 self.bump();
-                Ok(false)
+                Ok(Recovered::No)
             } else {
                 Err(self.unexpected_error_with(tok))
             }
@@ -300,13 +319,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool /* recovered */> {
+    ) -> PResult<'sess, Recovered> {
         if edible.contains(&self.token.kind) {
             self.bump();
-            Ok(false)
+            Ok(Recovered::No)
         } else if inedible.contains(&self.token.kind) {
             // leave it in the input
-            Ok(false)
+            Ok(Recovered::No)
         } else if self.token.kind != TokenKind::Eof
             && self.last_unexpected_token_span == Some(self.token.span)
         {
@@ -321,7 +340,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
-    ) -> PResult<'sess, bool> {
+    ) -> PResult<'sess, Recovered> {
         let mut expected = edible
             .iter()
             .chain(inedible)
@@ -332,10 +351,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 // Filter out suggestions that suggest the same token
                 // which was found and deemed incorrect.
                 fn is_ident_eq_keyword(found: TokenKind, expected: &ExpectedToken) -> bool {
-                    if let TokenKind::Ident(current_sym) = found {
-                        if let ExpectedToken::Keyword(suggested_sym) = expected {
-                            return current_sym == *suggested_sym;
-                        }
+                    if let TokenKind::Ident(current_sym) = found
+                        && let ExpectedToken::Keyword(suggested_sym) = expected
+                    {
+                        return current_sym == *suggested_sym;
                     }
                     false
                 }
@@ -349,10 +368,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     // If this isn't the case however, and the suggestion is a token the
                     // content of which is the same as the found token's, we remove it as well.
                     if !eq {
-                        if let ExpectedToken::Token(kind) = token {
-                            if *kind == self.token.kind {
-                                return false;
-                            }
+                        if let ExpectedToken::Token(kind) = token
+                            && *kind == self.token.kind
+                        {
+                            return false;
                         }
                         return true;
                     }
@@ -480,11 +499,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Otherwise, eats it.
     #[track_caller]
     fn expect_keyword(&mut self, kw: Symbol) -> PResult<'sess, ()> {
-        if !self.eat_keyword(kw) {
-            self.unexpected()
-        } else {
-            Ok(())
-        }
+        if !self.eat_keyword(kw) { self.unexpected() } else { Ok(()) }
     }
 
     #[must_use]
@@ -622,7 +637,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, Box<'ast, [T]>> {
         let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
-        if !recovered {
+        if recovered == Recovered::No {
             self.expect(ket)?;
         }
         Ok(val)
@@ -639,7 +654,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
     }
 
@@ -658,9 +673,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, bool /* recovered */)> {
+    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
         let mut first = true;
-        let mut recovered = false;
+        let mut recovered = Recovered::No;
         let mut trailing = false;
         let mut v = SmallVec::<[T; 8]>::new();
 
@@ -682,8 +697,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     // check for separator
                     match self.expect(sep_kind) {
                         Ok(recovered_) => {
-                            if recovered_ {
-                                recovered = true;
+                            if recovered_ == Recovered::Yes {
+                                recovered = Recovered::Yes;
                                 break;
                             }
                         }
@@ -702,10 +717,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if let Some(sep_kind) = sep.sep {
             let open_close_delim = first && allow_empty;
-            if !open_close_delim && sep.trailing_sep_required && !trailing {
-                if let Err(e) = self.expect(sep_kind) {
-                    e.emit();
-                }
+            if !open_close_delim
+                && sep.trailing_sep_required
+                && !trailing
+                && let Err(e) = self.expect(sep_kind)
+            {
+                e.emit();
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
@@ -743,6 +760,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.prev_token = std::mem::replace(&mut self.token, next);
         self.expected_tokens.clear();
+        self.docs.clear();
     }
 
     /// Bumps comments and docs.
@@ -770,7 +788,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Use [`bump`](Self::bump) and [`token`](Self::token) instead.
     #[inline(always)]
     fn next_token(&mut self) -> Token {
-        self.tokens.next().unwrap_or(Token { kind: TokenKind::Eof, span: self.token.span })
+        self.tokens.next().unwrap_or(Token::new(TokenKind::Eof, self.token.span))
     }
 
     /// Returns the token `dist` tokens ahead of the current one.
@@ -779,11 +797,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// tokens.
     #[inline]
     pub fn look_ahead(&self, dist: usize) -> Token {
-        if dist == 0 {
-            self.token
-        } else {
-            self.tokens.as_slice().get(dist - 1).copied().unwrap_or(Token::EOF)
+        // Specialize for the common `dist` cases.
+        match dist {
+            0 => self.token,
+            1 => self.look_ahead_full(1),
+            2 => self.look_ahead_full(2),
+            dist => self.look_ahead_full(dist),
         }
+    }
+
+    fn look_ahead_full(&self, dist: usize) -> Token {
+        self.tokens
+            .as_slice()
+            .iter()
+            .copied()
+            .filter(|t| !t.is_comment_or_doc())
+            .nth(dist - 1)
+            .unwrap_or(Token::EOF)
     }
 
     /// Calls `f` with the token `dist` tokens ahead of the current one.
@@ -795,6 +825,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Runs `f` with the parser in a contract context.
+    #[inline]
     fn in_contract<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let old = std::mem::replace(&mut self.in_contract, true);
         let res = f(self);
@@ -803,10 +834,36 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Runs `f` with the parser in a Yul context.
+    #[inline]
     fn in_yul<R>(&mut self, f: impl FnOnce(&mut Self) -> R) -> R {
         let old = std::mem::replace(&mut self.in_yul, true);
         let res = f(self);
         self.in_yul = old;
+        res
+    }
+
+    /// Runs `f` with recursion depth tracking and limit enforcement.
+    #[inline]
+    pub fn with_recursion_limit<T>(
+        &mut self,
+        context: &str,
+        f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
+    ) -> PResult<'sess, T> {
+        // Increment recursion depth and enforce limit.
+        self.recursion_depth = self.recursion_depth.saturating_add(1);
+        if self.recursion_depth > PARSER_RECURSION_LIMIT {
+            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
+            // Try to point at a larger span if we have a previous token.
+            if !self.prev_token.span.is_dummy() {
+                err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
+            }
+            // Decrement depth before returning to keep counters consistent if caller continues.
+            self.recursion_depth = self.recursion_depth.saturating_sub(1);
+            return Err(err);
+        }
+
+        let res = f(self);
+        self.recursion_depth = self.recursion_depth.saturating_sub(1);
         res
     }
 }
@@ -832,11 +889,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses contiguous doc comments. Can be empty.
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
-        if !self.docs.is_empty() {
-            self.parse_doc_comments_inner()
-        } else {
-            Default::default()
-        }
+        if !self.docs.is_empty() { self.parse_doc_comments_inner() } else { Default::default() }
     }
 
     #[cold]
@@ -916,11 +969,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an optional identifier.
     #[track_caller]
     pub fn parse_ident_opt(&mut self) -> PResult<'sess, Option<Ident>> {
-        if self.check_ident() {
-            self.parse_ident().map(Some)
-        } else {
-            Ok(None)
-        }
+        if self.check_ident() { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
     #[track_caller]
@@ -969,11 +1018,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             err = err.span_help(span, "remove this comma");
         }
 
-        if recover {
-            if let Some(ident) = recovered_ident {
-                err.emit();
-                return Ok(ident);
-            }
+        if recover && let Some(ident) = recovered_ident {
+            err.emit();
+            return Ok(ident);
         }
         Err(err)
     }

@@ -18,7 +18,7 @@ workspace = true
 [dependencies]
 solar-ast.workspace = true
 solar-data-structures.workspace = true
-solar-interface.workspace = true
+solar-interface = { workspace = true, features = ["json"] }
 solar-macros.workspace = true
 solar-parse.workspace = true
 
@@ -32,14 +32,15 @@ bumpalo.workspace = true
 either.workspace = true
 once_map.workspace = true
 rayon.workspace = true
-scc.workspace = true
 thread_local.workspace = true
 tracing.workspace = true
-typed-arena.workspace = true
 
 alloy-json-abi.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true
 
 [features]
 nightly = [

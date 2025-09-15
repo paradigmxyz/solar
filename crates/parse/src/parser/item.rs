@@ -3,7 +3,7 @@ use crate::{PResult, Parser};
 use itertools::Itertools;
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_interface::{diagnostics::DiagMsg, error_code, kw, sym, Ident, Span};
+use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
@@ -27,7 +27,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             let msg =
                 format!("expected {prefix} item ({list}), found {}", this.token.full_description());
-            let note = format!("for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>");
+            let note = format!(
+                "for a full list of valid {prefix} items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.{link}>"
+            );
             (msg, note)
         };
 
@@ -109,7 +111,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Returns `true` if the current token is the start of a variable declaration.
     pub(super) fn is_variable_declaration(&self) -> bool {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
         self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
 
@@ -127,7 +129,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'sess, ItemFunction<'ast>> {
-        let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
+        let TokenRepr { span: lo, kind: TokenKind::Ident(kw) } = *self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
         self.bump(); // kw
@@ -164,6 +166,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         flags: FunctionFlags,
     ) -> PResult<'sess, FunctionHeader<'ast>> {
+        let lo = self.prev_token.span; // the header span includes the "function" kw
+
         let mut header = FunctionHeader::default();
         let var_flags = if flags.contains(FunctionFlags::PARAM_NAME) {
             VarFlags::FUNCTION_TY
@@ -182,7 +186,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let msg = format!("function named `{ident}`");
                 let mut warn = self.dcx().warn(msg).span(ident.span).code(error_code!(3445));
                 if self.in_contract {
-                    let help = format!("remove the `function` keyword if you intend this to be a contract's {ident} function");
+                    let help = format!(
+                        "remove the `function` keyword if you intend this to be a contract's {ident} function"
+                    );
                     warn = warn.span_help(kw_span, help);
                 }
                 warn.emit();
@@ -209,48 +215,71 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // This is needed to skip parsing surrounding variable's visibility in function types.
             // E.g. in `function(uint) external internal e;` the `internal` is the surrounding
             // variable's visibility, not the function's.
-            // HACK: Ugly way to add an extra guard to `if let` without the unstable `let-chains`.
-            // Ideally this would be `if let Some(_) = _ && guard { ... }`.
-            let vis_guard = (!(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some()))
-                .then_some(());
-            if let Some(visibility) = vis_guard.and_then(|()| self.parse_visibility()) {
-                if !flags.contains(FunctionFlags::from_visibility(visibility)) {
-                    let msg = visibility_error(visibility, flags.visibilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.visibility.is_some() {
+            if !(flags == FunctionFlags::FUNCTION_TY && header.visibility.is_some())
+                && let Some(visibility) = self.parse_visibility()
+            {
+                let span = self.prev_token.span;
+                if let Some(prev) = header.visibility {
                     let msg = "visibility already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
-                    header.visibility = Some(visibility);
+                    let mut v = Some(visibility);
+                    if !flags.contains(FunctionFlags::from_visibility(visibility)) {
+                        let msg = visibility_error(visibility, flags.visibilities());
+                        self.dcx().err(msg).span(span).emit();
+                        // Set to the first valid visibility, if any.
+                        v = flags.visibilities().into_iter().flatten().next();
+                    }
+                    header.visibility = v.map(|v| Spanned { span, data: v });
                 }
             } else if let Some(state_mutability) = self.parse_state_mutability() {
-                if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
-                    let msg = state_mutability_error(state_mutability, flags.state_mutabilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if !header.state_mutability.is_non_payable() {
+                let span = self.prev_token.span;
+                if let Some(prev) = header.state_mutability {
                     let msg = "state mutability already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
-                    header.state_mutability = state_mutability;
+                    let mut sm = Some(state_mutability);
+                    if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
+                        let msg =
+                            state_mutability_error(state_mutability, flags.state_mutabilities());
+                        self.dcx().err(msg).span(span).emit();
+                        // Set to the first valid state mutability, if any.
+                        sm = flags.state_mutabilities().into_iter().flatten().next();
+                    }
+                    header.state_mutability = sm.map(|sm| Spanned { span, data: sm });
                 }
             } else if self.eat_keyword(kw::Virtual) {
+                let span = self.prev_token.span;
                 if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.virtual_ {
+                    self.dcx().err(msg).span(span).emit();
+                } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err(msg).span(span).span_label(prev, "previous definition").emit();
                 } else {
-                    header.virtual_ = true;
+                    header.virtual_ = Some(span);
                 }
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;
+                let span = o.span;
                 if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
-                } else if header.override_.is_some() {
+                    self.dcx().err(msg).span(span).emit();
+                } else if let Some(prev) = &header.override_ {
                     let msg = "override already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx()
+                        .err(msg)
+                        .span(span)
+                        .span_label(prev.span, "previous definition")
+                        .emit();
                 } else {
                     header.override_ = Some(o);
                 }
@@ -266,8 +295,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         header.modifiers = self.alloc_vec(modifiers);
 
         if flags.contains(FunctionFlags::RETURNS) && self.eat_keyword(kw::Returns) {
-            header.returns = self.parse_parameter_list(false, var_flags)?;
+            header.returns = Some(self.parse_parameter_list(false, var_flags)?);
         }
+
+        header.span = lo.to(self.prev_token.span);
 
         Ok(header)
     }
@@ -335,7 +366,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span(new_bases))
-                        .span_note(span(prev), "previous definition")
+                        .span_label(span(prev), "previous definition")
                         .emit();
                 } else if !new_bases.is_empty() {
                     bases = Some(new_bases);
@@ -347,7 +378,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(new_layout.span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     layout = Some(new_layout);
@@ -357,11 +388,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        if let Some(layout) = &layout {
-            if !kind.is_contract() {
-                let msg = "storage layout is only allowed for contracts";
-                self.dcx().err(msg).span(layout.span).emit();
-            }
+        if let Some(layout) = &layout
+            && !kind.is_contract()
+        {
+            let msg = "storage layout is only allowed for contracts";
+            self.dcx().err(msg).span(layout.span).emit();
         }
 
         self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
@@ -455,7 +486,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_semver_req_components_dis(
         &mut self,
     ) -> PResult<'sess, Box<'ast, [SemverReqCon<'ast>]>> {
-        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
+        // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
             dis.push(self.parse_semver_req_components_con()?);
@@ -493,7 +524,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (op, v) = self.parse_semver_component()?;
         if self.eat(TokenKind::BinOp(BinOpToken::Minus)) {
             // range
-            // Ops are parsed and overwritten: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
+            // Ops are parsed and overwritten: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L210
             let _ = op;
             let (_second_op, right) = self.parse_semver_component()?;
             let kind = SemverReqComponentKind::Range(v, right);
@@ -523,7 +554,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_semver_op(&mut self) -> Option<SemverOp> {
-        // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
+        // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L227
         let op = match self.token.kind {
             TokenKind::Eq => SemverOp::Exact,
             TokenKind::Gt => SemverOp::Greater,
@@ -577,11 +608,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses an optional `as` alias identifier.
     fn parse_as_alias_opt(&mut self) -> PResult<'sess, Option<Ident>> {
-        if self.eat_keyword(kw::As) {
-            self.parse_ident().map(Some)
-        } else {
-            Ok(None)
-        }
+        if self.eat_keyword(kw::As) { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
     /// Parses an `as` alias identifier.
@@ -776,12 +803,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else {
             self.parse_ident_opt()
         }?;
-        if let Some(name) = &name {
-            if flags.contains(VarFlags::NAME_WARN) {
-                debug_assert!(!flags.contains(VarFlags::NAME));
-                let msg = "named function type parameters are deprecated";
-                self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
-            }
+        if let Some(name) = &name
+            && flags.contains(VarFlags::NAME_WARN)
+        {
+            debug_assert!(!flags.contains(VarFlags::NAME));
+            let msg = "named function type parameters are deprecated";
+            self.dcx().warn(msg).code(error_code!(6162)).span(name.span).emit();
         }
 
         let initializer = if flags.contains(VarFlags::INITIALIZER) && self.eat(TokenKind::Eq) {
@@ -835,7 +862,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         allow_empty: bool,
         flags: VarFlags,
     ) -> PResult<'sess, ParameterList<'ast>> {
-        self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))
+        let lo = self.token.span;
+        let vars =
+            self.parse_paren_comma_seq(allow_empty, |this| this.parse_variable_definition(flags))?;
+        Ok(ParameterList { vars, span: lo.to(self.prev_token.span) })
     }
 
     /// Parses a list of inheritance specifiers.
@@ -865,7 +895,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let arguments = if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis) {
             self.parse_call_args()?
         } else {
-            CallArgs::empty()
+            CallArgs::empty(name.span().shrink_to_hi())
         };
         Ok(Modifier { name, arguments })
     }
@@ -900,7 +930,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
+        let TokenRepr { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = *self.token
+        else {
             unreachable!()
         };
         self.bump();
@@ -1257,11 +1288,7 @@ impl VarFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1304,7 +1331,7 @@ impl FunctionFlags {
             StateMutability::Pure => Self::PURE,
             StateMutability::View => Self::VIEW,
             StateMutability::Payable => Self::PAYABLE,
-            StateMutability::NonPayable => unreachable!(),
+            StateMutability::NonPayable => unreachable!("NonPayable should not be parsed"),
         }
     }
 
@@ -1324,11 +1351,7 @@ impl FunctionFlags {
 
     fn supported(self, what: Self) -> Option<impl Iterator<Item = Self>> {
         let s = self.intersection(what);
-        if s.is_empty() {
-            None
-        } else {
-            Some(s.iter())
-        }
+        if s.is_empty() { None } else { Some(s.iter()) }
     }
 }
 
@@ -1361,10 +1384,14 @@ fn common_flags_error<T: std::fmt::Display>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
+
+    fn session() -> Session {
+        Session::builder().with_test_emitter().single_threaded().build()
+    }
 
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
@@ -1557,5 +1584,181 @@ mod tests {
             ("0.8.1", "0.8 || 0.8.2", true),
             ("0.8.1", "0.8 || 0.9", true),
         ]);
+    }
+
+    #[test]
+    /// Test if the span of a function header is correct (should start at the function-like kw and
+    /// end at the last token)
+    fn function_header_span() {
+        let test_functions = [
+            "function foo(uint256 a) public view returns (uint256) {
+}",
+            "modifier foo() {
+    _;
+}",
+            "receive() external payable {
+}",
+            "fallback() external payable {
+}",
+            "constructor() {
+}",
+        ];
+
+        let test_function_headers = [
+            "function foo(uint256 a) public view returns (uint256)",
+            "modifier foo()",
+            "receive() external payable",
+            "fallback() external payable",
+            "constructor()",
+        ];
+
+        for (idx, src) in test_functions.iter().enumerate() {
+            let sess = session();
+            sess.enter(|| -> Result {
+                let arena = Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    FileName::Custom(String::from("test")),
+                    *src,
+                )?;
+
+                parser.in_contract = true; // Silence the wrong scope error
+
+                let header_span = parser.parse_function().unwrap().header.span;
+
+                assert_eq!(
+                    header_span,
+                    Span::new(
+                        solar_interface::BytePos(0),
+                        solar_interface::BytePos(test_function_headers[idx].len() as u32,),
+                    ),
+                );
+
+                Ok(())
+            })
+            .unwrap();
+        }
+    }
+
+    #[test]
+    /// Test if the individual spans in function headers are correct
+    fn function_header_field_spans() {
+        let test_cases = vec![
+            ("function foo() public {}", Some("public"), None, None, "()", None),
+            ("function foo() private view {}", Some("private"), Some("view"), None, "()", None),
+            (
+                "function foo() internal pure returns (uint) {}",
+                Some("internal"),
+                Some("pure"),
+                None,
+                "()",
+                Some("(uint)"),
+            ),
+            (
+                "function foo() external payable {}",
+                Some("external"),
+                Some("payable"),
+                None,
+                "()",
+                None,
+            ),
+            ("function foo() pure {}", None, Some("pure"), None, "()", None),
+            ("function foo() view {}", None, Some("view"), None, "()", None),
+            ("function foo() payable {}", None, Some("payable"), None, "()", None),
+            ("function foo() {}", None, None, None, "()", None),
+            ("function foo(uint a) {}", None, None, None, "(uint a)", None),
+            ("function foo(uint a, string b) {}", None, None, None, "(uint a, string b)", None),
+            ("function foo() returns (uint) {}", None, None, None, "()", Some("(uint)")),
+            (
+                "function foo() returns (uint, bool) {}",
+                None,
+                None,
+                None,
+                "()",
+                Some("(uint, bool)"),
+            ),
+            (
+                "function foo(uint x) public view returns (bool) {}",
+                Some("public"),
+                Some("view"),
+                None,
+                "(uint x)",
+                Some("(bool)"),
+            ),
+            ("function foo() public virtual {}", Some("public"), None, Some("virtual"), "()", None),
+            ("function foo() virtual public {}", Some("public"), None, Some("virtual"), "()", None),
+            (
+                "function foo() public virtual view {}",
+                Some("public"),
+                Some("view"),
+                Some("virtual"),
+                "()",
+                None,
+            ),
+            ("function foo() virtual override {}", None, None, Some("virtual"), "()", None),
+            ("modifier bar() virtual {}", None, None, Some("virtual"), "()", None),
+            (
+                "function foo() public virtual returns (uint) {}",
+                Some("public"),
+                None,
+                Some("virtual"),
+                "()",
+                Some("(uint)"),
+            ),
+        ];
+
+        let sess = session();
+        sess.enter(|| -> Result {
+            for (idx, (src, vis, sm, virt, params, returns)) in test_cases.iter().enumerate() {
+                let arena = Arena::new();
+                let mut parser = Parser::from_source_code(
+                    &sess,
+                    &arena,
+                    FileName::Custom(format!("test_{idx}")),
+                    *src,
+                )?;
+                parser.in_contract = true;
+
+                let func = parser.parse_function().unwrap();
+                let header = &func.header;
+
+                if let Some(expected) = vis {
+                    let vis_span = header.visibility.as_ref().expect("Expected visibility").span;
+                    let vis_text = sess.source_map().span_to_snippet(vis_span).unwrap();
+                    assert_eq!(vis_text, *expected, "Test {idx}: visibility span mismatch");
+                }
+                if let Some(expected) = sm
+                    && let Some(state_mutability) = header.state_mutability
+                {
+                    assert_eq!(
+                        *expected,
+                        sess.source_map().span_to_snippet(state_mutability.span).unwrap(),
+                        "Test {idx}: state mutability span mismatch",
+                    );
+                }
+                if let Some(expected) = virt {
+                    let virtual_span = header.virtual_.expect("Expected virtual span");
+                    let virtual_text = sess.source_map().span_to_snippet(virtual_span).unwrap();
+                    assert_eq!(virtual_text, *expected, "Test {idx}: virtual span mismatch");
+                }
+                let span = header.parameters.span;
+                assert_eq!(
+                    *params,
+                    sess.source_map().span_to_snippet(span).unwrap(),
+                    "Test {idx}: params span mismatch"
+                );
+                if let Some(expected) = returns {
+                    let span = header.returns.as_ref().expect("Expected returns").span;
+                    assert_eq!(
+                        *expected,
+                        sess.source_map().span_to_snippet(span).unwrap(),
+                        "Test {idx}: returns span mismatch",
+                    );
+                }
+            }
+            Ok(())
+        })
+        .unwrap();
     }
 }

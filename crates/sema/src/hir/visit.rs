@@ -48,7 +48,9 @@ pub trait Visit<'hir> {
     }
 
     fn visit_contract(&mut self, contract: &'hir Contract<'hir>) -> ControlFlow<Self::BreakValue> {
-        // TODO: base initializers
+        for base in contract.bases_args {
+            self.visit_modifier(base)?;
+        }
         visit_nested_items(self, contract.items)
     }
 
@@ -57,13 +59,27 @@ pub trait Visit<'hir> {
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
-        // TODO: modifiers
-        if let Some(body) = func.body {
-            for stmt in body {
+        let Function { source: _, contract: _, span: _, name: _, kind: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
+        for &param in parameters.iter() {
+            self.visit_nested_var(param)?;
+        }
+        for modifier in modifiers.iter() {
+            self.visit_modifier(modifier)?;
+        }
+        for &ret in returns.iter() {
+            self.visit_nested_var(ret)?;
+        }
+        if let Some(body) = body {
+            for stmt in body.iter() {
                 self.visit_stmt(stmt)?;
             }
         }
         ControlFlow::Continue(())
+    }
+
+    fn visit_modifier(&mut self, modifier: &'hir Modifier<'hir>) -> ControlFlow<Self::BreakValue> {
+        let Modifier { span: _, id: _, args } = modifier;
+        self.visit_call_args(args)
     }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
@@ -87,9 +103,7 @@ pub trait Visit<'hir> {
                         self.visit_expr(&opt.value)?;
                     }
                 }
-                for arg in args.exprs() {
-                    self.visit_expr(arg)?;
-                }
+                self.visit_call_args(args)?;
             }
             ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
@@ -137,6 +151,14 @@ pub trait Visit<'hir> {
         ControlFlow::Continue(())
     }
 
+    fn visit_call_args(&mut self, args: &'hir CallArgs<'hir>) -> ControlFlow<Self::BreakValue> {
+        let CallArgs { span: _, kind } = args;
+        for expr in kind.exprs() {
+            self.visit_expr(expr)?;
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_stmt(&mut self, stmt: &'hir Stmt<'hir>) -> ControlFlow<Self::BreakValue> {
         match stmt.kind {
             StmtKind::DeclSingle(var) => self.visit_nested_var(var)?,
@@ -148,8 +170,8 @@ pub trait Visit<'hir> {
                 }
                 self.visit_expr(expr)?;
             }
-            StmtKind::Block(stmts) | StmtKind::UncheckedBlock(stmts) | StmtKind::Loop(stmts, _) => {
-                for stmt in stmts {
+            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) | StmtKind::Loop(block, _) => {
+                for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }
             }
@@ -175,7 +197,7 @@ pub trait Visit<'hir> {
                     for &var in clause.args {
                         self.visit_nested_var(var)?;
                     }
-                    for stmt in clause.block {
+                    for stmt in clause.block.iter() {
                         self.visit_stmt(stmt)?;
                     }
                 }

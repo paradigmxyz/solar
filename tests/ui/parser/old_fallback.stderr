@@ -10,10 +10,9 @@ error: expected one of `(`, `.`, `;`, `?`, `[`, `payable`, `pure`, `view`, or `{
   --> ROOT/tests/ui/parser/old_fallback.sol:LL:CC
    |
 LL |         uint
-   |             ^ expected one of 9 possible tokens
+   |             - expected one of 9 possible tokens
 LL |     }
    |     ^ unexpected token
-   |
 
 error: aborting due to 2 previous errors
 

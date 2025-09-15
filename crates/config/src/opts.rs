@@ -1,10 +1,15 @@
 //! Solar CLI arguments.
 
-use crate::{CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, Language, Threads};
+use crate::{
+    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
+    ImportRemapping, Language, Threads,
+};
 use std::{num::NonZeroUsize, path::PathBuf};
 
 #[cfg(feature = "clap")]
-use clap::{ColorChoice, Parser, ValueHint};
+use clap::{Parser, ValueHint};
+
+// TODO: implement `allow_paths`.
 
 /// Blazingly fast Solidity compiler.
 #[derive(Clone, Debug, Default)]
@@ -23,8 +28,27 @@ pub struct Opts {
     ///
     /// Import remappings are specified as `[context:]prefix=path`.
     /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
+    // NOTE: Remappings are parsed away into the `import_remappings` field. Use that instead.
     #[cfg_attr(feature = "clap", arg(value_hint = ValueHint::FilePath))]
     pub input: Vec<String>,
+    /// Import remappings.
+    ///
+    /// This is either added manually when constructing the session or parsed from `input` into
+    /// this field.
+    ///
+    /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
+    #[cfg_attr(feature = "clap", arg(skip))]
+    pub import_remappings: Vec<ImportRemapping>,
+    /// Use the given path as the root of the source tree.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Input options",
+            long,
+            value_hint = ValueHint::DirPath,
+        )
+    )]
+    pub base_path: Option<PathBuf>,
     /// Directory to search for files.
     ///
     /// Can be used multiple times.
@@ -32,13 +56,26 @@ pub struct Opts {
         feature = "clap",
         arg(
             help_heading = "Input options",
+            name = "include-path",
+            value_name = "INCLUDE_PATH",
             long,
             short = 'I',
             alias = "import-path",
             value_hint = ValueHint::DirPath,
         )
     )]
-    pub include_path: Vec<PathBuf>,
+    pub include_paths: Vec<PathBuf>,
+    /// Allow a given path for imports.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Input options",
+            long,
+            value_delimiter = ',',
+            value_hint = ValueHint::DirPath,
+        )
+    )]
+    pub allow_paths: Vec<PathBuf>,
     /// Source code language. Only Solidity is currently implemented.
     #[cfg_attr(
         feature = "clap",
@@ -64,10 +101,9 @@ pub struct Opts {
     pub emit: Vec<CompilerOutput>,
 
     /// Coloring.
-    #[cfg(feature = "clap")] // TODO
     #[cfg_attr(
         feature = "clap",
-        arg(help_heading = "Display options", long, value_enum, default_value = "auto")
+        arg(help_heading = "Display options", long, value_parser = ColorChoiceValueParser::default(), default_value = "auto")
     )]
     pub color: ColorChoice,
     /// Use verbose output.
@@ -87,6 +123,27 @@ pub struct Opts {
         arg(help_heading = "Display options", long, value_enum, default_value_t)
     )]
     pub error_format: ErrorFormat,
+    /// Human-readable error message style.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Display options",
+            long,
+            value_name = "VALUE",
+            value_enum,
+            default_value_t
+        )
+    )]
+    pub error_format_human: HumanEmitterKind,
+    /// Terminal width for error message formatting.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_name = "WIDTH")
+    )]
+    pub diagnostic_width: Option<usize>,
+    /// Whether to disable warnings.
+    #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
+    pub no_warnings: bool,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
@@ -113,17 +170,80 @@ impl Opts {
     }
 
     /// Finishes argument parsing.
-    ///
-    /// This currently only parses the `-Z` arguments into the `unstable` field, but may be extended
-    /// in the future.
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
+        self.import_remappings = self
+            .input
+            .iter()
+            .filter(|s| s.contains('='))
+            .map(|s| {
+                s.parse::<ImportRemapping>().map_err(|e| {
+                    make_clap_error(
+                        clap::error::ErrorKind::InvalidValue,
+                        format!("invalid remapping {s:?}: {e}"),
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
+        self.input.retain(|s| !s.contains('='));
+
         if !self._unstable.is_empty() {
             let hack = self._unstable.iter().map(|s| format!("--{s}"));
-            self.unstable =
-                UnstableOpts::try_parse_from(std::iter::once(String::new()).chain(hack))?;
+            let args = std::iter::once(String::new()).chain(hack);
+            self.unstable = UnstableOpts::try_parse_from(args).map_err(|e| {
+                override_clap_message(e, |s| {
+                    s.replace("solar-config", "solar").replace("error:", "").replace("--", "-Z")
+                })
+            })?;
         }
+
         Ok(())
+    }
+}
+
+// Ideally would be clap::Error::raw but it never prints styled text.
+#[cfg(feature = "clap")]
+fn override_clap_message(e: clap::Error, f: impl FnOnce(String) -> String) -> clap::Error {
+    let msg = f(e.render().ansi().to_string());
+    let msg = msg.trim();
+    make_clap_error(e.kind(), msg)
+}
+
+#[cfg(feature = "clap")]
+fn make_clap_error(kind: clap::error::ErrorKind, message: impl std::fmt::Display) -> clap::Error {
+    <Opts as clap::CommandFactory>::command().error(kind, message)
+}
+
+#[cfg(feature = "clap")]
+#[derive(Clone, Default)]
+struct ColorChoiceValueParser(clap::builder::EnumValueParser<clap::ColorChoice>);
+
+#[cfg(feature = "clap")]
+impl clap::builder::TypedValueParser for ColorChoiceValueParser {
+    type Value = ColorChoice;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        self.0.parse_ref(cmd, arg, value).map(map_color_choice)
+    }
+
+    fn possible_values(
+        &self,
+    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        self.0.possible_values()
+    }
+}
+
+#[cfg(feature = "clap")]
+fn map_color_choice(c: clap::ColorChoice) -> ColorChoice {
+    match c {
+        clap::ColorChoice::Auto => ColorChoice::Auto,
+        clap::ColorChoice::Always => ColorChoice::Always,
+        clap::ColorChoice::Never => ColorChoice::Never,
     }
 }
 
@@ -134,9 +254,7 @@ impl Opts {
     disable_help_flag = true,
     before_help = concat!(
         "List of all unstable flags.\n",
-        "WARNING: these are completely unstable, and may change at any time!\n",
-        // TODO: This is pretty hard to fix, as we don't have access to the `Command` in the derive macros.
-        "   NOTE: the following flags should be passed on the command-line using `-Z`, not `--`",
+        "WARNING: these are completely unstable, and may change at any time!",
     ),
     help_template = "{before-help}{all-args}"
 ))]
@@ -156,15 +274,23 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub parse_yul: bool,
 
+    /// Disables import resolution.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_resolve_imports: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
-    #[cfg_attr(feature = "clap", arg(long, value_name = "KIND[=PATHS...]"))]
+    #[cfg_attr(feature = "clap", arg(long, require_equals = true, value_name = "KIND[=PATHS...]"))]
     pub dump: Option<Dump>,
 
     /// Print AST stats.
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
+
+    /// Run the span visitor after parsing.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub span_visitor: bool,
 
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]

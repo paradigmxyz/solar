@@ -5,6 +5,312 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Bug Fixes
+
+- [sema] Handle linearization failure fallout ([#472](https://github.com/paradigmxyz/solar/issues/472))
+- Pin dependencies on ourselves
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#482](https://github.com/paradigmxyz/solar/issues/482))
+- [lexer] Inline token glueing into Cursor ([#479](https://github.com/paradigmxyz/solar/issues/479))
+- [deps] Weekly `cargo update` ([#459](https://github.com/paradigmxyz/solar/issues/459))
+
+### Features
+
+- [interface] Add Session::reconfigure ([#491](https://github.com/paradigmxyz/solar/issues/491))
+- [sema] Add Compiler::stage getter ([#490](https://github.com/paradigmxyz/solar/issues/490))
+- Diagnostic suggestions ([#474](https://github.com/paradigmxyz/solar/issues/474))
+- Add error format options for human-readable diagnostics ([#473](https://github.com/paradigmxyz/solar/issues/473))
+- [interface] Impl Default for Session, create dcx from opts ([#471](https://github.com/paradigmxyz/solar/issues/471))
+- [parser] Implement recursion depth limit for `expr`, `stmt`, and `yul_stmt` ([#464](https://github.com/paradigmxyz/solar/issues/464))
+- Bump to annotate-snippets 0.12, diagnostic tweaks ([#465](https://github.com/paradigmxyz/solar/issues/465))
+- [sema] Add `Compiler::enter{,_mut}_sequential` ([#457](https://github.com/paradigmxyz/solar/issues/457))
+- Add another utility method for extracting diagnostics ([#455](https://github.com/paradigmxyz/solar/issues/455))
+- [diagnostics] Track notes + expose notes/warn counts ([#447](https://github.com/paradigmxyz/solar/issues/447))
+- `InMemoryEmitter` ([#451](https://github.com/paradigmxyz/solar/issues/451))
+
+### Miscellaneous Tasks
+
+- Improve 'parsed' debug log ([#489](https://github.com/paradigmxyz/solar/issues/489))
+- Rename lexer methods to slop ([#481](https://github.com/paradigmxyz/solar/issues/481))
+- [interface] Rename dcx flag setters ([#478](https://github.com/paradigmxyz/solar/issues/478))
+- Update signal handler ([#463](https://github.com/paradigmxyz/solar/issues/463))
+- Use json_type to sort ABIs ([#456](https://github.com/paradigmxyz/solar/issues/456))
+- Move VERSION to config::version::SEMVER_VERSION and log it ([#454](https://github.com/paradigmxyz/solar/issues/454))
+- Hide more source map implementation details ([#450](https://github.com/paradigmxyz/solar/issues/450))
+- Chore!(data-structures): remove aliases in sync re-exports ([#452](https://github.com/paradigmxyz/solar/issues/452))
+- Remove deprecated items ([#449](https://github.com/paradigmxyz/solar/issues/449))
+- [meta] Update solidity links ([#448](https://github.com/paradigmxyz/solar/issues/448))
+- Cap default threads at available_parallelism ([#445](https://github.com/paradigmxyz/solar/issues/445))
+- Make all features reachable from meta crate ([#444](https://github.com/paradigmxyz/solar/issues/444))
+
+### Performance
+
+- Diagnostic suggestions ([#483](https://github.com/paradigmxyz/solar/issues/483))
+- [lexer] Minor improvements ([#480](https://github.com/paradigmxyz/solar/issues/480))
+- [interface] Cache thread pool inside of session ([#458](https://github.com/paradigmxyz/solar/issues/458))
+
+### Testing
+
+- Add CLI test suite ([#453](https://github.com/paradigmxyz/solar/issues/453))
+
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+Notable changes:
+- Rename enter to enter_sequential ([#392](https://github.com/paradigmxyz/solar/issues/392))
+- Manual parser (`solar_parse`) usage is unchanged, but `solar_sema` API now goes through `Compiler`. See: Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+### Bug Fixes
+
+- Don't print fs errors twice ([#440](https://github.com/paradigmxyz/solar/issues/440))
+- [ast] Visit array size ([#437](https://github.com/paradigmxyz/solar/issues/437))
+- Error on dummy instead of empty args ([#407](https://github.com/paradigmxyz/solar/issues/407))
+- OnDrop drops, rename to DropGuard ([#399](https://github.com/paradigmxyz/solar/issues/399))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#433](https://github.com/paradigmxyz/solar/issues/433))
+- [deps] Weekly `cargo update` ([#402](https://github.com/paradigmxyz/solar/issues/402))
+- [deps] Weekly `cargo update` ([#395](https://github.com/paradigmxyz/solar/issues/395))
+- [deps] Weekly `cargo update` ([#393](https://github.com/paradigmxyz/solar/issues/393))
+- [deps] Bump breakings ([#388](https://github.com/paradigmxyz/solar/issues/388))
+- [deps] Weekly `cargo update` ([#387](https://github.com/paradigmxyz/solar/issues/387))
+- [deps] Weekly `cargo update` ([#384](https://github.com/paradigmxyz/solar/issues/384))
+
+### Documentation
+
+- Typo in benchmarks ([#431](https://github.com/paradigmxyz/solar/issues/431))
+- Link to benchmarks in readme ([#398](https://github.com/paradigmxyz/solar/issues/398))
+
+### Features
+
+- Add getters for source by file name (path) ([#442](https://github.com/paradigmxyz/solar/issues/442))
+- [interface] Add FileLoader abstraction for fs/io ([#438](https://github.com/paradigmxyz/solar/issues/438))
+- Implement base_path, streamline creating pcx ([#436](https://github.com/paradigmxyz/solar/issues/436))
+- Allow session mutable access ([#435](https://github.com/paradigmxyz/solar/issues/435))
+- Make `Lit`erals implement `Copy` ([#414](https://github.com/paradigmxyz/solar/issues/414))
+- Add ByteSymbol, use in LitKind::Str ([#425](https://github.com/paradigmxyz/solar/issues/425))
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+- Support `cargo binstall` ([#396](https://github.com/paradigmxyz/solar/issues/396))
+- [sema] Add helper methods to Function ([#385](https://github.com/paradigmxyz/solar/issues/385))
+- Visit_override when walking fn ([#383](https://github.com/paradigmxyz/solar/issues/383))
+
+### Miscellaneous Tasks
+
+- Update analyze_source_file ([#430](https://github.com/paradigmxyz/solar/issues/430))
+- Downgrade some debug spans to trace ([#412](https://github.com/paradigmxyz/solar/issues/412))
+- Abstract implementation of Declarations ([#410](https://github.com/paradigmxyz/solar/issues/410))
+- Add some more `#[track_caller]` ([#409](https://github.com/paradigmxyz/solar/issues/409))
+- Remove query tracing ([#406](https://github.com/paradigmxyz/solar/issues/406))
+- Clean up contract inheritance linearization ([#405](https://github.com/paradigmxyz/solar/issues/405))
+- Update docs, fix ci ([#403](https://github.com/paradigmxyz/solar/issues/403))
+- Update cargo-dist and move off of fork ([#400](https://github.com/paradigmxyz/solar/issues/400))
+- Rename enter to enter_sequential ([#392](https://github.com/paradigmxyz/solar/issues/392))
+- Update benchmarks ([#390](https://github.com/paradigmxyz/solar/issues/390))
+
+### Other
+
+- Enforce typos ([#423](https://github.com/paradigmxyz/solar/issues/423))
+- Update to `actions/checkout@v5` ([#404](https://github.com/paradigmxyz/solar/issues/404))
+
+### Performance
+
+- Load input source files in parallel ([#429](https://github.com/paradigmxyz/solar/issues/429))
+- [sema] Better parallel parser scheduling ([#428](https://github.com/paradigmxyz/solar/issues/428))
+- [parser] Improve parse_lit for integers ([#427](https://github.com/paradigmxyz/solar/issues/427))
+- Tweak inlining ([#426](https://github.com/paradigmxyz/solar/issues/426))
+- Pool symbol resolver scopes, refactor ([#413](https://github.com/paradigmxyz/solar/issues/413))
+- [sema] Add some reserve calls ([#411](https://github.com/paradigmxyz/solar/issues/411))
+- [sema] Use `Cell<usize>` in lowering ([#408](https://github.com/paradigmxyz/solar/issues/408))
+- Implement likely/unlikely with `#[cold]` ([#386](https://github.com/paradigmxyz/solar/issues/386))
+
+### Testing
+
+- Add non existant import test ([#441](https://github.com/paradigmxyz/solar/issues/441))
+
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Bug Fixes
+
+- Visit modifiers in hir visitor ([#373](https://github.com/paradigmxyz/solar/issues/373))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#381](https://github.com/paradigmxyz/solar/issues/381))
+- [deps] Weekly `cargo update` ([#376](https://github.com/paradigmxyz/solar/issues/376))
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+- [deps] Weekly `cargo update` ([#372](https://github.com/paradigmxyz/solar/issues/372))
+- [deps] Weekly `cargo update` ([#365](https://github.com/paradigmxyz/solar/issues/365))
+- Bump & remove mimalloc patch ([#361](https://github.com/paradigmxyz/solar/issues/361))
+- [deps] Weekly `cargo update` ([#358](https://github.com/paradigmxyz/solar/issues/358))
+- [deps] Weekly `cargo update` ([#351](https://github.com/paradigmxyz/solar/issues/351))
+- [deps] Weekly `cargo update` ([#345](https://github.com/paradigmxyz/solar/issues/345))
+
+### Documentation
+
+- Add CLAUDE.md for Claude Code guidance ([#357](https://github.com/paradigmxyz/solar/issues/357))
+- Recommend default-features=false in README.md
+
+### Features
+
+- Resolve ctor base args ([#322](https://github.com/paradigmxyz/solar/issues/322))
+- Flatten diag msg with style ([#368](https://github.com/paradigmxyz/solar/issues/368))
+- Add span visitor debug tool ([#355](https://github.com/paradigmxyz/solar/issues/355))
+- [lexer] Add Cursor::with_position ([#348](https://github.com/paradigmxyz/solar/issues/348))
+
+### Miscellaneous Tasks
+
+- Store SessionGlobals inside of Session ([#379](https://github.com/paradigmxyz/solar/issues/379))
+- [benches] Extract Session initialization to its own benchmark ([#380](https://github.com/paradigmxyz/solar/issues/380))
+- [meta] Add .git-blame-ignore-revs
+- Use Option<StateMutability> in the AST ([#374](https://github.com/paradigmxyz/solar/issues/374))
+- Fn header spans ([#371](https://github.com/paradigmxyz/solar/issues/371))
+- Clippy
+- Misc cleanup, util methods ([#367](https://github.com/paradigmxyz/solar/issues/367))
+- Add span to `TryCatchClause` ([#364](https://github.com/paradigmxyz/solar/issues/364))
+- [parser] Move unescaping from lexer to parser ([#360](https://github.com/paradigmxyz/solar/issues/360))
+
+### Other
+
+- Add ds store ([#362](https://github.com/paradigmxyz/solar/issues/362))
+- Rm bench concurrency
+
+### Performance
+
+- Use `inturn` as the interner ([#349](https://github.com/paradigmxyz/solar/issues/349))
+- [lexer] Optimize `is_id_continue_byte` using bitwise operations ([#347](https://github.com/paradigmxyz/solar/issues/347))
+
+### Refactor
+
+- Remove redundant EoF check ([#366](https://github.com/paradigmxyz/solar/issues/366))
+
+## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
+
+### Bug Fixes
+
+- Windows eol lexing ([#340](https://github.com/paradigmxyz/solar/issues/340))
+- [parser] Allow EVM builtins to be present in yul paths ([#336](https://github.com/paradigmxyz/solar/issues/336))
+- [sema] Don't warn 3628 if no interface functions ([#330](https://github.com/paradigmxyz/solar/issues/330))
+- Try absolute paths in file resolver too ([#323](https://github.com/paradigmxyz/solar/issues/323))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#333](https://github.com/paradigmxyz/solar/issues/333))
+- [lexer] Rewrite prefixed literal lexing ([#325](https://github.com/paradigmxyz/solar/issues/325))
+- [deps] Weekly `cargo update` ([#320](https://github.com/paradigmxyz/solar/issues/320))
+- [deps] Weekly `cargo update` ([#311](https://github.com/paradigmxyz/solar/issues/311))
+
+### Documentation
+
+- Remove outdated section in CONTRIBUTING.md
+
+### Features
+
+- [sema] Implement receive function checks ([#321](https://github.com/paradigmxyz/solar/issues/321))
+- [sema] Display more types, add Ty::display ([#328](https://github.com/paradigmxyz/solar/issues/328))
+- Add span in FunctionHeader ([#318](https://github.com/paradigmxyz/solar/issues/318))
+- [ast] Add spans to blocks ([#314](https://github.com/paradigmxyz/solar/issues/314))
+- Typecheck for external type clashes ([#312](https://github.com/paradigmxyz/solar/issues/312))
+
+### Miscellaneous Tasks
+
+- [lexer] Cursor cleanup ([#338](https://github.com/paradigmxyz/solar/issues/338))
+- [benches] Add Optimism
+- [benches] Add Solady
+- [meta] Fix deny.toml
+
+### Other
+
+- Remove concurrency from bench
+
+### Performance
+
+- [lexer] Use slice::Iter instead of Chars in Cursor ([#339](https://github.com/paradigmxyz/solar/issues/339))
+- [lexer] Use memchr in block_comment ([#337](https://github.com/paradigmxyz/solar/issues/337))
+- [lexer] Add eat_until ([#324](https://github.com/paradigmxyz/solar/issues/324))
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Bug Fixes
+
+- [parser] Clear docs if not consumed immediatly ([#309](https://github.com/paradigmxyz/solar/issues/309))
+- [sema] Declare selfdestruct builtin ([#297](https://github.com/paradigmxyz/solar/issues/297))
+- [sema] Correct variable declaration scopes ([#300](https://github.com/paradigmxyz/solar/issues/300))
+- [parser] Named call arguments are allowed to be empty ([#283](https://github.com/paradigmxyz/solar/issues/283))
+- Invalid underscores check ([#281](https://github.com/paradigmxyz/solar/issues/281))
+- [parser] Typo in concatenated string literals
+- [parser] Align number parsing with solc ([#272](https://github.com/paradigmxyz/solar/issues/272))
+- [parser] Correct token precedence ([#271](https://github.com/paradigmxyz/solar/issues/271))
+- [parser] Ignore comments in lookahead ([#267](https://github.com/paradigmxyz/solar/issues/267))
+- [ast] BinOpToken::Caret is BinOpKind::BitXor ([#262](https://github.com/paradigmxyz/solar/issues/262))
+- [parser] Remove RawTokenKind::UnknownPrefix ([#260](https://github.com/paradigmxyz/solar/issues/260))
+- [parser] Don't panic when parsing hex rationals ([#256](https://github.com/paradigmxyz/solar/issues/256))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#306](https://github.com/paradigmxyz/solar/issues/306))
+- [deps] Weekly `cargo update` ([#286](https://github.com/paradigmxyz/solar/issues/286))
+- [deps] Weekly `cargo update` ([#278](https://github.com/paradigmxyz/solar/issues/278))
+- Add update=none to submodules ([#270](https://github.com/paradigmxyz/solar/issues/270))
+- [deps] Weekly `cargo update` ([#257](https://github.com/paradigmxyz/solar/issues/257))
+- [deps] Bump breaking deps ([#253](https://github.com/paradigmxyz/solar/issues/253))
+
+### Documentation
+
+- [meta] Update RELEASE_CHECKLIST.md
+- Fix `newtype_index!` generated doc comments ([#288](https://github.com/paradigmxyz/solar/issues/288))
+- Update library usage in README
+- Update release checklist
+
+### Features
+
+- Update solidity to 0.8.30 ([#307](https://github.com/paradigmxyz/solar/issues/307))
+- [ast] Add helpers to Delimiter ([#296](https://github.com/paradigmxyz/solar/issues/296))
+- Allow constructing DiagId with a string ([#295](https://github.com/paradigmxyz/solar/issues/295))
+- Warn when payable fallback function found but no receive function ([#170](https://github.com/paradigmxyz/solar/issues/170))
+- `--no-warnings` ([#293](https://github.com/paradigmxyz/solar/issues/293))
+- Literal checks ([#287](https://github.com/paradigmxyz/solar/issues/287))
+- [parser] Accept non-checksummed addresses, to be validated later ([#285](https://github.com/paradigmxyz/solar/issues/285))
+- [ast] Store concatenated string literals ([#266](https://github.com/paradigmxyz/solar/issues/266))
+- [ast] Add span to CallArgs ([#265](https://github.com/paradigmxyz/solar/issues/265))
+- Pretty printing utilities ([#264](https://github.com/paradigmxyz/solar/issues/264))
+- Add CompilerStage::ParsedAndImported ([#259](https://github.com/paradigmxyz/solar/issues/259))
+- [parser] Use impl Into<String> ([#258](https://github.com/paradigmxyz/solar/issues/258))
+
+### Miscellaneous Tasks
+
+- [meta] Update dist
+- [lexer] Add tokens.capacity log
+- Use astral-sh/cargo-dist fork ([#292](https://github.com/paradigmxyz/solar/issues/292))
+- Shorter Debug impls ([#291](https://github.com/paradigmxyz/solar/issues/291))
+- Rust 1.86 ([#290](https://github.com/paradigmxyz/solar/issues/290))
+- Update hint fns ([#289](https://github.com/paradigmxyz/solar/issues/289))
+- [benches] Add seaport ([#282](https://github.com/paradigmxyz/solar/issues/282))
+- Add linguist-vendored
+- [benches] Add tree-sitter ([#280](https://github.com/paradigmxyz/solar/issues/280))
+- Misc map cleanups ([#277](https://github.com/paradigmxyz/solar/issues/277))
+- [benches] Update and plot data ([#274](https://github.com/paradigmxyz/solar/issues/274))
+- Add some more non_exhaustive ([#261](https://github.com/paradigmxyz/solar/issues/261))
+- Tweak tracing events ([#255](https://github.com/paradigmxyz/solar/issues/255))
+- Sync sourcemap from upstream ([#254](https://github.com/paradigmxyz/solar/issues/254))
+- Add 'fetchRecurseSubmodules = false' to solidity submodule
+- Revert extra changelog
+
+### Performance
+
+- [lexer] Deal with bytes instead of chars in Cursor ([#279](https://github.com/paradigmxyz/solar/issues/279))
+- Add and default to using mimalloc ([#276](https://github.com/paradigmxyz/solar/issues/276))
+- [lexer] Filter out comments again ([#269](https://github.com/paradigmxyz/solar/issues/269))
+- [lexer] Double tokens capacity estimate ([#268](https://github.com/paradigmxyz/solar/issues/268))
+
+### Testing
+
+- Add a test for global storage param ([#299](https://github.com/paradigmxyz/solar/issues/299))
+- Add another try catch resolve test ([#298](https://github.com/paradigmxyz/solar/issues/298))
+
 ## [0.1.2](https://github.com/paradigmxyz/solar/releases/tag/v0.1.2)
 
 ### Bug Fixes

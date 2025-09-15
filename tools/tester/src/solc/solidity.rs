@@ -42,10 +42,6 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         return Err("Unicode direction override checks not implemented");
     }
 
-    if path_contains("max_depth_reached_") {
-        return Err("recursion guard will not be implemented");
-    }
-
     if path_contains("wrong_compiler_") {
         return Err("Solidity pragma version is not checked");
     }
@@ -61,8 +57,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     #[rustfmt::skip]
     if matches!(
         stem,
-        // Exponent is too large, but apparently it's fine in Solc because the result is 0.
+        // Exponent is too large, but apparently it's fine in Solc because the result is 0 or it gets evaluated at compile time.
         | "rational_number_exp_limit_fine"
+        | "exponent_fine"
+        | "rational_large_1"
         // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
         | "address_payable_type_expression"
         | "mapping_from_address_payable"
@@ -197,7 +195,7 @@ fn split_sources(src: &str, path: &Path, tmp_dir: &Path, mut arg: impl FnMut(OsS
     tmp_dir2.is_some()
 }
 
-// https://github.com/ethereum/solidity/blob/ac54fe1972f25227f9932c8b224ef119360b0e2d/test/TestCaseReader.cpp#L111
+// https://github.com/argotorg/solidity/blob/ac54fe1972f25227f9932c8b224ef119360b0e2d/test/TestCaseReader.cpp#L111
 fn source_delim(line: &str) -> Option<&str> {
     line.strip_prefix("==== Source:").and_then(|s| s.strip_suffix("====")).map(str::trim)
 }

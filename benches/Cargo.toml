@@ -21,9 +21,12 @@ solang-parser = "=0.3.4"
 slang_solidity = "=0.18.3"
 semver.workspace = true
 
+tree-sitter = "=0.25.8"
+tree-sitter-solidity = "=1.2.12"
+
 [dev-dependencies]
-criterion = { package = "codspeed-criterion-compat", version = "2.7" }
-iai-callgrind = "0.14"
+criterion.workspace = true
+iai-callgrind = "0.16"
 paste.workspace = true
 
 [features]
