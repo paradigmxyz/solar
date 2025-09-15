@@ -267,30 +267,23 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 }
             }
             ast::StmtKind::Assembly(assembly) => {
-                let mut memory_safe_found = false;
+                let mut memory_safe = false;
 
-                // Check for multiple memory-safe flags
+                // TODO: Move to Yul lowering
                 for flag in assembly.flags.iter() {
-                    if flag.value.to_string() == "memory-safe" {
-                        if memory_safe_found {
-                            self.dcx()
-                                .err("Inline assembly marked memory-safe multiple times.")
-                                .span(stmt.span)
-                                .emit();
-                            break;
+                    let span = flag.span;
+                    match flag.value {
+                        sym::memory_dash_safe => {
+                            if memory_safe {
+                                self.dcx()
+                                    .err("inline assembly marked memory-safe multiple times")
+                                    .span(span)
+                                    .emit();
+                            }
+                            memory_safe = true;
                         }
-                        memory_safe_found = true;
-
-                        // TODO: Add annotation to Assembly block to indicate that it is memory-safe
+                        _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
                     }
-                    // TODO: Add warning for unknown flags
-                    // else {
-                    //     // Warning for unknown flags
-                    //     self.dcx()
-                    //         .warn(format!("Unknown inline assembly flag: \"{}\"", flag.value))
-                    //         .span(flag.span)
-                    //         .emit();
-                    // }
                 }
             }
             _ => {}
