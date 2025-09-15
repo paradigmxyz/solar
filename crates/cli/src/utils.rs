@@ -1,8 +1,10 @@
 //! Utility functions used by the Solar CLI.
 
-use std::io::{self};
-
 use solar_interface::diagnostics::DiagCtxt;
+use std::io;
+
+#[cfg(feature = "tracing")]
+use solar_sema::ast::Either;
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -45,21 +47,24 @@ pub const fn new_allocator() -> Allocator {
     new_wrapped_allocator()
 }
 
+/// `tracing` logger destination.
 #[derive(Default)]
 pub enum LogDestination {
+    /// [`io::stdout`].
     #[default]
     Stdout,
+    /// [`io::stderr`].
     Stderr,
 }
 
 #[cfg(feature = "tracing")]
 impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
-    type Writer = Box<dyn io::Write>;
+    type Writer = Either<io::Stdout, io::Stderr>;
 
     fn make_writer(&'a self) -> Self::Writer {
         match self {
-            Self::Stdout => Box::new(std::io::stdout().lock()),
-            Self::Stderr => Box::new(std::io::stderr().lock()),
+            Self::Stdout => Either::Left(io::stdout()),
+            Self::Stderr => Either::Right(io::stderr()),
         }
     }
 }
