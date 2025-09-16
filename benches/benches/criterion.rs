@@ -82,13 +82,39 @@ fn parser_benches(c: &mut Criterion) {
                     format!("{sname}/{pname}/{id}")
                 }
             };
-            let setup = &mut *parser.setup(src);
             if parser.capabilities().can_lex() {
-                g.bench_function(mk_id("lex"), |b| b.iter(|| parser.lex(src, setup)));
+                g.bench_function(mk_id("lex"), |b| {
+                    b.iter_batched(
+                        || parser.setup(src),
+                        |mut setup| {
+                            parser.lex(src, &mut *setup);
+                            setup
+                        },
+                        criterion::BatchSize::SmallInput,
+                    )
+                });
             }
-            g.bench_function(mk_id("parse"), |b| b.iter(|| parser.parse(src, setup)));
+            g.bench_function(mk_id("parse"), |b| {
+                b.iter_batched(
+                    || parser.setup(src),
+                    |mut setup| {
+                        parser.parse(src, &mut *setup);
+                        setup
+                    },
+                    criterion::BatchSize::SmallInput,
+                )
+            });
             if parser.capabilities().can_lower() && scaps.can_lower() {
-                g.bench_function(mk_id("lower"), |b| b.iter(|| parser.lower(src, setup)));
+                g.bench_function(mk_id("lower"), |b| {
+                    b.iter_batched(
+                        || parser.setup(src),
+                        |mut setup| {
+                            parser.lower(src, &mut *setup);
+                            setup
+                        },
+                        criterion::BatchSize::SmallInput,
+                    )
+                });
             }
         }
         eprintln!();
