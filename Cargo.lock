@@ -2597,8 +2597,7 @@ dependencies = [
  "semver 1.0.26",
  "slang_solidity",
  "solang-parser",
- "solar-parse",
- "solar-sema",
+ "solar-compiler",
  "tree-sitter",
  "tree-sitter-solidity",
 ]

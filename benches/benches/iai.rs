@@ -7,7 +7,7 @@ use std::hint::black_box;
 #[library_benchmark]
 fn solar_enter() -> usize {
     let f: fn() -> usize = || 42usize;
-    solar_parse::interface::enter(black_box(f))
+    solar::parse::interface::enter(black_box(f))
 }
 
 #[cfg(feature = "ci")]
