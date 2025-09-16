@@ -14,7 +14,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-solar.workspace = true
+solar = { workspace = true, features = ["cli", "mimalloc"] }
 
 solang-parser = "=0.3.4"
 
