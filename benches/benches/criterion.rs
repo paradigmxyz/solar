@@ -71,7 +71,7 @@ fn parser_benches(c: &mut Criterion) {
 
     let mut g = make_group(c, "parser");
 
-    for &Source { name: sname, path: _, src } in get_srcs() {
+    for &Source { name: sname, path: _, src, capabilities: ref scaps } in get_srcs() {
         for &parser in PARSERS {
             let pname = parser.name();
 
@@ -83,10 +83,13 @@ fn parser_benches(c: &mut Criterion) {
                 }
             };
             let setup = &mut *parser.setup(src);
-            if parser.can_lex() {
+            if parser.capabilities().can_lex() {
                 g.bench_function(mk_id("lex"), |b| b.iter(|| parser.lex(src, setup)));
             }
             g.bench_function(mk_id("parse"), |b| b.iter(|| parser.parse(src, setup)));
+            if parser.capabilities().can_lower() && scaps.can_lower() {
+                g.bench_function(mk_id("lower"), |b| b.iter(|| parser.lower(src, setup)));
+            }
         }
         eprintln!();
     }
