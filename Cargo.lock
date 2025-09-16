@@ -2598,6 +2598,7 @@ dependencies = [
  "slang_solidity",
  "solang-parser",
  "solar-parse",
+ "solar-sema",
  "tree-sitter",
  "tree-sitter-solidity",
 ]

@@ -1,6 +1,7 @@
 #![allow(clippy::disallowed_methods)]
 
 use solar_parse::interface::Session;
+use solar_sema::Compiler;
 use std::{
     any::Any,
     hint::black_box,
@@ -155,37 +156,58 @@ impl Parser for Solar {
     }
 
     fn capabilities(&self) -> Capabilities {
-        // TODO(onbjerg): impl lowering
-        Capabilities::lex_and_parse()
+        Capabilities::all()
     }
 
     fn setup(&self, _src: &str) -> Box<dyn Any> {
-        Box::new(session())
+        Box::new(Compiler::new(session()))
     }
 
-    fn lex(&self, src: &str, sess_any: &mut dyn Any) {
-        let sess = sess_any.downcast_ref::<Session>().unwrap();
-        sess.enter(|| {
-            for token in solar_parse::Lexer::new(sess, src) {
+    fn lex(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_ref::<Compiler>().unwrap();
+        compiler.enter(|compiler| {
+            for token in solar_parse::Lexer::new(compiler.sess(), src) {
                 black_box(token);
             }
-            sess.dcx.has_errors().unwrap();
+            compiler.dcx().has_errors().unwrap();
         });
     }
 
-    fn parse(&self, src: &str, sess_any: &mut dyn Any) {
-        let sess = sess_any.downcast_ref::<Session>().unwrap();
-        sess.enter(|| -> solar_parse::interface::Result {
-            let arena = solar_parse::ast::Arena::new();
-            let filename = PathBuf::from("test.sol");
-            let mut parser =
-                solar_parse::Parser::from_source_code(sess, &arena, filename.into(), src)?;
-            let result = parser.parse_file().map_err(|e| e.emit())?;
-            sess.dcx.has_errors()?;
-            black_box(result);
-            Ok(())
+    fn parse(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler
+            .enter_mut(|compiler| -> solar_parse::interface::Result {
+                let arena = solar_parse::ast::Arena::new();
+                let filename = PathBuf::from("test.sol");
+                let mut parser = solar_parse::Parser::from_source_code(
+                    compiler.sess(),
+                    &arena,
+                    filename.into(),
+                    src,
+                )?;
+                let result = parser.parse_file().map_err(|e| e.emit())?;
+                compiler.dcx().has_errors()?;
+                black_box(result);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    fn lower(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler.enter_mut(|compiler| {
+            let mut parsing_context = compiler.parse();
+            parsing_context.add_file(
+                compiler
+                    .sess()
+                    .source_map()
+                    .new_source_file(PathBuf::from("test.sol"), src)
+                    .unwrap(),
+            );
+            // load file
+            parsing_context.parse();
+            let _ = compiler.lower_asts().unwrap();
         })
-        .unwrap();
     }
 }
 

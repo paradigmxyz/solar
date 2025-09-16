@@ -15,6 +15,7 @@ categories.workspace = true
 
 [dependencies]
 solar-parse.workspace = true
+solar-sema.workspace = true
 
 solang-parser = "=0.3.4"
 
