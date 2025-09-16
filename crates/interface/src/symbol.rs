@@ -954,6 +954,7 @@ symbols! {
         layout,
         length,
         max,
+        memory_dash_safe: "memory-safe",
         min,
         msg,
         name,

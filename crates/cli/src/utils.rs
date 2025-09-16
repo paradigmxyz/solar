@@ -1,6 +1,10 @@
 //! Utility functions used by the Solar CLI.
 
 use solar_interface::diagnostics::DiagCtxt;
+use std::io;
+
+#[cfg(feature = "tracing")]
+use solar_sema::ast::Either;
 
 #[cfg(feature = "mimalloc")]
 use mimalloc as _;
@@ -43,9 +47,31 @@ pub const fn new_allocator() -> Allocator {
     new_wrapped_allocator()
 }
 
+/// `tracing` logger destination.
+#[derive(Default)]
+pub enum LogDestination {
+    /// [`io::stdout`].
+    #[default]
+    Stdout,
+    /// [`io::stderr`].
+    Stderr,
+}
+
+#[cfg(feature = "tracing")]
+impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
+    type Writer = Either<io::Stdout, io::Stderr>;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        match self {
+            Self::Stdout => Either::Left(io::stdout()),
+            Self::Stderr => Either::Right(io::stderr()),
+        }
+    }
+}
+
 /// Initialize the tracing logger.
 #[must_use]
-pub fn init_logger() -> impl Sized {
+pub fn init_logger(dst: LogDestination) -> impl Sized {
     #[cfg(not(feature = "tracing"))]
     {
         if std::env::var_os("RUST_LOG").is_some() {
@@ -60,14 +86,14 @@ pub fn init_logger() -> impl Sized {
     }
 
     #[cfg(feature = "tracing")]
-    match try_init_logger() {
+    match try_init_logger(dst) {
         Ok(guard) => guard,
         Err(e) => DiagCtxt::new_early().fatal(e).emit(),
     }
 }
 
 #[cfg(feature = "tracing")]
-fn try_init_logger() -> Result<impl Sized, String> {
+fn try_init_logger(dst: LogDestination) -> Result<impl Sized, String> {
     use tracing_subscriber::prelude::*;
 
     let (profile_layer, guard) = match std::env::var("SOLAR_PROFILE").as_deref() {
@@ -90,7 +116,7 @@ fn try_init_logger() -> Result<impl Sized, String> {
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(profile_layer)
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(dst))
         .try_init()
         .map(|()| guard)
         .map_err(|e| e.to_string())
