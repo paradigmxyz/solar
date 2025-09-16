@@ -1,7 +1,6 @@
 #![allow(clippy::disallowed_methods)]
 
-use solar_parse::interface::Session;
-use solar_sema::Compiler;
+use solar::{cli::utils, parse::interface::Session, sema::Compiler};
 use std::{
     any::Any,
     hint::black_box,
@@ -9,6 +8,9 @@ use std::{
     path::{Path, PathBuf},
     process::Stdio,
 };
+
+#[global_allocator]
+static ALLOC: utils::Allocator = utils::new_allocator();
 
 #[allow(unexpected_cfgs)]
 pub const PARSERS: &[&dyn Parser] = if cfg!(codspeed) {
@@ -166,7 +168,7 @@ impl Parser for Solar {
     fn lex(&self, src: &str, compiler_any: &mut dyn Any) {
         let compiler = compiler_any.downcast_ref::<Compiler>().unwrap();
         compiler.enter(|compiler| {
-            for token in solar_parse::Lexer::new(compiler.sess(), src) {
+            for token in solar::parse::Lexer::new(compiler.sess(), src) {
                 black_box(token);
             }
             compiler.dcx().has_errors().unwrap();
@@ -176,10 +178,10 @@ impl Parser for Solar {
     fn parse(&self, src: &str, compiler_any: &mut dyn Any) {
         let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
         compiler
-            .enter_mut(|compiler| -> solar_parse::interface::Result {
-                let arena = solar_parse::ast::Arena::new();
+            .enter_mut(|compiler| -> solar::parse::interface::Result {
+                let arena = solar::parse::ast::Arena::new();
                 let filename = PathBuf::from("test.sol");
-                let mut parser = solar_parse::Parser::from_source_code(
+                let mut parser = solar::parse::Parser::from_source_code(
                     compiler.sess(),
                     &arena,
                     filename.into(),
@@ -213,7 +215,7 @@ impl Parser for Solar {
 
 fn session() -> Session {
     Session::builder()
-        .with_stderr_emitter_and_color(solar_parse::interface::ColorChoice::Always)
+        .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
         .single_threaded()
         .build()
 }

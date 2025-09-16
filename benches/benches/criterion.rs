@@ -6,12 +6,12 @@ fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
 
     g.bench_function("session/new", |b| {
-        b.iter(|| solar_parse::interface::Session::builder().with_stderr_emitter().build());
+        b.iter(|| solar::parse::interface::Session::builder().with_stderr_emitter().build());
     });
 
     {
         let sess =
-            &black_box(solar_parse::interface::Session::builder().with_stderr_emitter().build());
+            &black_box(solar::parse::interface::Session::builder().with_stderr_emitter().build());
 
         g.bench_function("session/enter", |b| {
             b.iter(|| black_box(sess).enter(|| black_box(sess)));
@@ -50,10 +50,10 @@ fn micro_benches(c: &mut Criterion) {
     g.bench_function("source_map/new_source_file", |b| {
         let source = black_box(get_src("Optimism"));
         b.iter_batched_ref(
-            solar_parse::interface::SourceMap::default,
+            solar::parse::interface::SourceMap::default,
             |sm| {
                 sm.new_source_file(
-                    solar_parse::interface::source_map::FileName::Real(source.path.into()),
+                    solar::parse::interface::source_map::FileName::Real(source.path.into()),
                     source.src,
                 )
                 .unwrap()
