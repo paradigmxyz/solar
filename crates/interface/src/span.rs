@@ -15,10 +15,14 @@ use std::{
 /// Use [`SourceMap::span_to_snippet`](crate::SourceMap::span_to_snippet) to get the actual source
 /// code snippet of the span, or [`SourceMap::span_to_source`](crate::SourceMap::span_to_source) to
 /// get the source file and source code range.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(Rust, packed(4))]
 pub struct Span {
-    lo: BytePos,
-    hi: BytePos,
+    // This is `SpanRepr` packed into a single value for:
+    // - improved codegen of derived traits
+    // - passed in a single register as an argument/return value
+    // - better layout computation for structs containing `Span`s
+    data: u64,
 }
 
 impl Default for Span {
@@ -59,9 +63,23 @@ impl fmt::Debug for Span {
     }
 }
 
+impl PartialOrd for Span {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Span {
+    #[inline]
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        self.lo().cmp(&other.lo()).then(self.hi().cmp(&other.hi()))
+    }
+}
+
 impl Span {
     /// A dummy span.
-    pub const DUMMY: Self = Self { lo: BytePos(0), hi: BytePos(0) };
+    pub const DUMMY: Self = Self::new_(BytePos(0), BytePos(0));
 
     /// Creates a new span from two byte positions.
     #[inline]
@@ -69,7 +87,7 @@ impl Span {
         if lo > hi {
             std::mem::swap(&mut lo, &mut hi);
         }
-        Self { lo, hi }
+        Self::new_(lo, hi)
     }
 
     /// Creates a new span from two byte positions, without checking if `lo` is less than or equal
@@ -81,7 +99,12 @@ impl Span {
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn new_unchecked(lo: BytePos, hi: BytePos) -> Self {
         debug_assert!(lo <= hi, "creating span with lo {lo:?} > hi {hi:?}");
-        Self { lo, hi }
+        Self::new_(lo, hi)
+    }
+
+    #[inline(always)]
+    const fn new_(lo: BytePos, hi: BytePos) -> Self {
+        Self { data: (lo.0 as u64) | ((hi.0 as u64) << 32) }
     }
 
     /// Returns the span as a `Range<usize>`.
@@ -108,7 +131,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn lo(self) -> BytePos {
-        self.lo
+        BytePos(self.data as u32)
     }
 
     /// Creates a new span with the same hi position as this span and the given lo position.
@@ -123,7 +146,7 @@ impl Span {
     /// See the [type-level documentation][Span] for more information.
     #[inline(always)]
     pub fn hi(self) -> BytePos {
-        self.hi
+        BytePos((self.data >> 32) as u32)
     }
 
     /// Creates a new span with the same lo position as this span and the given hi position.

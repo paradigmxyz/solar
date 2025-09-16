@@ -20,8 +20,6 @@ mod ty;
 mod yul;
 
 /// Maximum allowed recursive descent depth for selected parser entry points.
-///
-/// This limit is applied to `parse_expr`, `parse_stmt`, and `parse_yul_stmt`.
 const PARSER_RECURSION_LIMIT: usize = 128;
 
 /// Solidity and Yul parser.
@@ -251,64 +249,25 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Returns an "unexpected token" error for the current token.
-    #[inline]
+    #[cold]
     #[track_caller]
     pub fn unexpected_error(&mut self) -> PErr<'sess> {
-        #[cold]
-        #[inline(never)]
-        #[track_caller]
-        fn unexpected_ok(b: Recovered) -> ! {
-            unreachable!("`unexpected()` returned Ok({b:?})")
-        }
-        match self.expect_one_of(&[], &[]) {
-            Ok(b) => unexpected_ok(b),
+        match self.expected_one_of_not_found(&[], &[]) {
+            Ok(b) => unreachable!("`unexpected()` returned Ok({b:?})"),
             Err(e) => e,
         }
     }
 
     /// Expects and consumes the token `t`. Signals an error if the next token is not `t`.
+    #[inline]
     #[track_caller]
     pub fn expect(&mut self, tok: TokenKind) -> PResult<'sess, Recovered> {
-        if self.expected_tokens.is_empty() {
-            if self.check_noexpect(tok) {
-                self.bump();
-                Ok(Recovered::No)
-            } else {
-                Err(self.unexpected_error_with(tok))
-            }
+        if self.check_noexpect(tok) {
+            self.bump();
+            Ok(Recovered::No)
         } else {
-            self.expect_one_of(&[tok], &[])
+            self.expected_one_of_not_found(std::slice::from_ref(&tok), &[])
         }
-    }
-
-    /// Creates a [`PErr`] for an unexpected token `t`.
-    #[track_caller]
-    fn unexpected_error_with(&mut self, t: TokenKind) -> PErr<'sess> {
-        let prev_span = if self.prev_token.span.is_dummy() {
-            // We don't want to point at the following span after a dummy span.
-            // This happens when the parser finds an empty token stream.
-            self.token.span
-        } else if self.token.is_eof() {
-            // EOF, don't want to point at the following char, but rather the last token.
-            self.prev_token.span
-        } else {
-            self.prev_token.span.shrink_to_hi()
-        };
-        let span = self.token.span;
-
-        let this_token_str = self.token.full_description();
-        let label_exp = format!("expected `{t}`");
-        let msg = format!("{label_exp}, found {this_token_str}");
-        let mut err = self.dcx().err(msg).span(span);
-        if !self.sess.source_map().is_multiline(prev_span.until(span)) {
-            // When the spans are in the same line, it means that the only content
-            // between them is whitespace, point only at the found token.
-            err = err.span_label(span, label_exp);
-        } else {
-            err = err.span_label(prev_span, label_exp);
-            err = err.span_label(span, "unexpected token");
-        }
-        err
     }
 
     /// Expect next token to be edible or inedible token. If edible,
@@ -326,21 +285,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if inedible.contains(&self.token.kind) {
             // leave it in the input
             Ok(Recovered::No)
-        } else if self.token.kind != TokenKind::Eof
-            && self.last_unexpected_token_span == Some(self.token.span)
-        {
-            panic!("called unexpected twice on the same token");
         } else {
             self.expected_one_of_not_found(edible, inedible)
         }
     }
 
+    #[cold]
     #[track_caller]
     fn expected_one_of_not_found(
         &mut self,
         edible: &[TokenKind],
         inedible: &[TokenKind],
     ) -> PResult<'sess, Recovered> {
+        if self.token.kind != TokenKind::Eof
+            && self.last_unexpected_token_span == Some(self.token.span)
+        {
+            panic!("called unexpected twice on the same token");
+        }
+
         let mut expected = edible
             .iter()
             .chain(inedible)
@@ -426,6 +388,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Expects and consumes a semicolon.
+    #[inline]
     #[track_caller]
     fn expect_semi(&mut self) -> PResult<'sess, ()> {
         self.expect(TokenKind::Semi).map(drop)
@@ -440,7 +403,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn check(&mut self, tok: TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
         if !is_present {
-            self.expected_tokens.push(ExpectedToken::Token(tok));
+            self.push_expected(ExpectedToken::Token(tok));
         }
         is_present
     }
@@ -455,6 +418,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// the main purpose of this function is to reduce the cluttering of the suggestions list
     /// which using the normal eat method could introduce in some cases.
+    #[inline]
     #[must_use]
     pub fn eat_noexpect(&mut self, tok: TokenKind) -> bool {
         let is_present = self.check_noexpect(tok);
@@ -465,6 +429,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Consumes a token 'tok' if it exists. Returns whether the given token was present.
+    #[inline]
     #[must_use]
     pub fn eat(&mut self, tok: TokenKind) -> bool {
         let is_present = self.check(tok);
@@ -476,22 +441,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// If the next token is the given keyword, returns `true` without eating it.
     /// An expectation is also added for diagnostics purposes.
+    #[inline]
     #[must_use]
     fn check_keyword(&mut self, kw: Symbol) -> bool {
-        self.expected_tokens.push(ExpectedToken::Keyword(kw));
-        self.token.is_keyword(kw)
+        let is_keyword = self.token.is_keyword(kw);
+        if !is_keyword {
+            self.push_expected(ExpectedToken::Keyword(kw));
+        }
+        is_keyword
     }
 
     /// If the next token is the given keyword, eats it and returns `true`.
     /// Otherwise, returns `false`. An expectation is also added for diagnostics purposes.
+    #[inline]
     #[must_use]
     pub fn eat_keyword(&mut self, kw: Symbol) -> bool {
-        if self.check_keyword(kw) {
+        let is_keyword = self.check_keyword(kw);
+        if is_keyword {
             self.bump();
-            true
-        } else {
-            false
         }
+        is_keyword
     }
 
     /// If the given word is not a keyword, signals an error.
@@ -535,9 +504,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[must_use]
     fn check_or_expected(&mut self, ok: bool, t: ExpectedToken) -> bool {
         if !ok {
-            self.expected_tokens.push(t);
+            self.push_expected(t);
         }
         ok
+    }
+
+    // #[inline(never)]
+    fn push_expected(&mut self, expected: ExpectedToken) {
+        self.expected_tokens.push(expected);
     }
 
     /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
@@ -655,12 +629,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
-        self.parse_seq_to_before_tokens(&[ket], sep, allow_empty, f)
-    }
-
-    /// Checks if the next token is contained within `kets`, and returns `true` if so.
-    fn check_any(&mut self, kets: &[TokenKind]) -> bool {
-        kets.iter().any(|&k| self.check(k))
+        self.parse_seq_to_before_tokens(ket, sep, allow_empty, f)
     }
 
     /// Parses a sequence until the specified delimiters. The function
@@ -669,7 +638,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn parse_seq_to_before_tokens<T>(
         &mut self,
-        kets: &[TokenKind],
+        ket: TokenKind,
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
@@ -684,7 +653,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             first = false;
         }
 
-        while !self.check_any(kets) {
+        while !self.check(ket) {
             if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
                 break;
             }
@@ -705,7 +674,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         Err(e) => return Err(e),
                     }
 
-                    if self.check_any(kets) {
+                    if self.check(ket) {
                         trailing = true;
                         break;
                     }
@@ -849,22 +818,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         context: &str,
         f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, T> {
-        // Increment recursion depth and enforce limit.
-        self.recursion_depth = self.recursion_depth.saturating_add(1);
-        if self.recursion_depth > PARSER_RECURSION_LIMIT {
-            let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
-            // Try to point at a larger span if we have a previous token.
-            if !self.prev_token.span.is_dummy() {
-                err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
-            }
-            // Decrement depth before returning to keep counters consistent if caller continues.
-            self.recursion_depth = self.recursion_depth.saturating_sub(1);
-            return Err(err);
-        }
-
-        let res = f(self);
-        self.recursion_depth = self.recursion_depth.saturating_sub(1);
+        self.recursion_depth += 1;
+        let res = if self.recursion_depth > PARSER_RECURSION_LIMIT {
+            Err(self.recursion_limit_reached(context))
+        } else {
+            f(self)
+        };
+        self.recursion_depth -= 1;
         res
+    }
+
+    #[cold]
+    fn recursion_limit_reached(&mut self, context: &str) -> PErr<'sess> {
+        let mut err = self.dcx().err("recursion limit reached").span(self.token.span);
+        if !self.prev_token.span.is_dummy() {
+            err = err.span_label(self.prev_token.span, format!("while parsing {context}"));
+        }
+        err
     }
 }
 
@@ -996,11 +966,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
     }
 
+    #[cold]
     #[track_caller]
     fn expected_ident_found(&mut self, recover: bool) -> PResult<'sess, Ident> {
         self.expected_ident_found_other(self.token, recover)
     }
 
+    #[cold]
     #[track_caller]
     fn expected_ident_found_other(&mut self, token: Token, recover: bool) -> PResult<'sess, Ident> {
         let msg = format!("expected identifier, found {}", token.full_description());
@@ -1025,6 +997,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Err(err)
     }
 
+    #[cold]
     #[track_caller]
     fn expected_ident_found_err(&mut self) -> PErr<'sess> {
         self.expected_ident_found(false).unwrap_err()
