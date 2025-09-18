@@ -159,7 +159,7 @@ impl<'gcx> ParsingContext<'gcx> {
         if !sources.is_empty() {
             let dbg = enabled!(tracing::Level::DEBUG);
             let len_before = sources.len();
-            let sources_parsed_before = if dbg { 0 } else { sources.count_parsed() };
+            let sources_parsed_before = if dbg { sources.count_parsed() } else { 0 };
 
             if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
                 self.parse_sequential(&mut sources, self.arenas.get_or_default());
