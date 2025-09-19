@@ -270,15 +270,19 @@ impl<'a> FileResolver<'a> {
             let context = &*sanitize_path(context);
             let prefix = &*sanitize_path(prefix);
 
+            // Skip if current context is closer.
             if context.len() < longest_context {
                 continue;
             }
+            // Skip if current context is not a prefix of the context.
             if !_context.starts_with(context) {
                 continue;
             }
-            if prefix.len() < longest_prefix {
+            // Skip if we already have a closer prefix match.
+            if prefix.len() < longest_prefix && context.len() == longest_context {
                 continue;
             }
+            // Skip if the prefix does not match.
             let Ok(up) = path.strip_prefix(prefix) else {
                 continue;
             };
