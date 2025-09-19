@@ -207,7 +207,7 @@ impl<'c> CompilerRef<'c> {
 
     /// Returns a reference to the diagnostics context.
     #[inline]
-    pub fn dcx(&self) -> &DiagCtxt {
+    pub fn dcx(&self) -> &'c DiagCtxt {
         &self.sess().dcx
     }
 
@@ -215,6 +215,18 @@ impl<'c> CompilerRef<'c> {
     #[inline]
     pub fn dcx_mut(&mut self) -> &mut DiagCtxt {
         &mut self.inner.sess.dcx
+    }
+
+    /// Returns a reference to the sources.
+    #[inline]
+    pub fn sources(&self) -> &'c Sources<'c> {
+        &self.gcx().sources
+    }
+
+    /// Returns a mutable reference to the sources.
+    #[inline]
+    pub fn sources_mut(&mut self) -> &mut Sources<'c> {
+        &mut self.gcx_mut().get_mut().sources
     }
 
     /// Returns a reference to the global context.
