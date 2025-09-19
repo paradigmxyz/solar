@@ -2,7 +2,7 @@ use crate::{Gcx, hir::SourceId, ty::GcxMut};
 use rayon::prelude::*;
 use solar_ast::{self as ast, Span};
 use solar_data_structures::{
-    index::{Idx, IndexVec},
+    index::{Idx, IndexVec, index_vec},
     map::{FxHashMap, FxHashSet},
     sync::Mutex,
 };
@@ -523,6 +523,8 @@ impl<'ast> Sources<'ast> {
     }
 
     /// Sorts the sources topologically in-place. Invalidates all source IDs.
+    ///
+    /// Reference: <https://github.com/argotorg/solidity/blob/965166317bbc2b02067eb87f222a2dce9d24e289/libsolidity/interface/CompilerStack.cpp#L1350>
     #[instrument(level = "debug", skip_all)]
     pub fn topo_sort(&mut self) {
         let len = self.len();
@@ -530,19 +532,23 @@ impl<'ast> Sources<'ast> {
             return;
         }
 
-        let mut order = Vec::with_capacity(len);
+        let mut order = IndexVec::with_capacity(len);
+        let mut map = index_vec![SourceId::MAX; len];
         let mut seen = FxHashSet::with_capacity_and_hasher(len, Default::default());
         debug_span!("topo_order").in_scope(|| {
             for id in self.sources.indices() {
-                self.topo_order(id, &mut order, &mut seen);
+                self.topo_order(id, &mut order, &mut map, &mut seen);
             }
         });
+        debug_assert!(
+            order.len() == len && !map.contains(&SourceId::MAX) && seen.len() == len,
+            "topo_order did not visit all sources"
+        );
 
         debug_span!("remap_imports").in_scope(|| {
             for source in &mut self.sources {
                 for (_, import) in &mut source.imports {
-                    *import =
-                        SourceId::from_usize(order.iter().position(|id| id == import).unwrap());
+                    *import = map[*import];
                 }
             }
         });
@@ -552,14 +558,20 @@ impl<'ast> Sources<'ast> {
         });
     }
 
-    fn topo_order(&self, id: SourceId, order: &mut Vec<SourceId>, seen: &mut FxHashSet<SourceId>) {
+    fn topo_order(
+        &self,
+        id: SourceId,
+        order: &mut IndexVec<SourceId, SourceId>,
+        map: &mut IndexVec<SourceId, SourceId>,
+        seen: &mut FxHashSet<SourceId>,
+    ) {
         if !seen.insert(id) {
             return;
         }
         for &(_, import_id) in &self.sources[id].imports {
-            self.topo_order(import_id, order, seen);
+            self.topo_order(import_id, order, map, seen);
         }
-        order.push(id);
+        map[id] = order.push(id);
     }
 }
 
@@ -619,15 +631,15 @@ impl Source<'_> {
 /// Sorts `data` according to `indices`.
 ///
 /// Adapted from: <https://stackoverflow.com/a/69774341>
-fn sort_by_indices<I: Idx, T>(data: &mut IndexVec<I, T>, mut indices: Vec<I>) {
+fn sort_by_indices<I: Idx, T>(data: &mut IndexVec<I, T>, mut indices: IndexVec<I, I>) {
     assert_eq!(data.len(), indices.len());
     for idx in data.indices() {
-        if indices[idx.index()] != idx {
+        if indices[idx] != idx {
             let mut current_idx = idx;
             loop {
-                let target_idx = indices[current_idx.index()];
-                indices[current_idx.index()] = current_idx;
-                if indices[target_idx.index()] == target_idx {
+                let target_idx = indices[current_idx];
+                indices[current_idx] = current_idx;
+                if indices[target_idx] == target_idx {
                     break;
                 }
                 data.swap(current_idx, target_idx);
