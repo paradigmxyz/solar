@@ -189,7 +189,7 @@ pub struct SourceFile {
     pub source_len: RelativeBytePos,
     /// Locations of lines beginnings in the source code.
     #[debug(skip)]
-    pub lines: Vec<RelativeBytePos>,
+    lines: Vec<RelativeBytePos>,
     /// Locations of multi-byte characters in the source code.
     #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,

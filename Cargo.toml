@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.7"
 edition = "2024"
-rust-version = "1.88" # MSRV
+rust-version = "1.88"                                                        # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
@@ -92,6 +92,7 @@ solar-cli = { version = "=0.1.7", path = "crates/cli", default-features = false 
 solar-config = { version = "=0.1.7", path = "crates/config", default-features = false }
 solar-data-structures = { version = "=0.1.7", path = "crates/data-structures", default-features = false }
 solar-interface = { version = "=0.1.7", path = "crates/interface", default-features = false }
+solar-lsp = { version = "=0.1.7", path = "crates/lsp", default-features = false }
 solar-macros = { version = "=0.1.7", path = "crates/macros", default-features = false }
 solar-parse = { version = "=0.1.7", path = "crates/parse", default-features = false }
 solar-sema = { version = "=0.1.7", path = "crates/sema", default-features = false }
@@ -151,6 +152,18 @@ snapbox = "0.6"
 tempfile = "3.9"
 tester = "0.9"
 
+# lsp
+async-lsp = { version = "0.2", default-features = false, features = [
+    "client-monitor",
+    "stdio",
+    "tokio",
+    "tracing",
+] }
+crop = "0.4"
+# See <https://github.com/gluon-lang/lsp-types/issues/284>
+lsp-types = "0.95.0"
+tower = "0.5"
+
 # misc
 arrayvec = "0.7"
 bitflags = "2.4"
@@ -168,6 +181,7 @@ inturn = "0.1.0"
 libc = "0.2"
 md-5 = "0.10"
 memchr = "2.7"
+normalize-path = "0.2.1"
 once_map = { version = "0.4.20", default-features = false, features = ["std"] }
 paste = "1.0"
 petgraph = "0.8"
@@ -177,8 +191,17 @@ scoped-tls = "1.0"
 semver = "1.0"
 smallvec = { version = "1", features = ["const_generics", "union"] }
 thread_local = "1.1"
+tokio = { version = "1.47", default-features = false }
+tokio-util = { version = "0.7", default-features = false }
 typed-arena = "2.0"
 unicode-width = "0.2"
 vergen = "8"
+
+## Pinned dependencies. Enabled for the workspace in crates/solar.
+
+# Use unicode-rs which has a smaller binary size than the default ICU4X as the IDNA backend, used
+# by the `url` crate.
+# See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
+idna_adapter = "=1.1.0"
 
 [patch.crates-io]
