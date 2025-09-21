@@ -129,7 +129,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'sess, ItemFunction<'ast>> {
-        let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
+        let TokenRepr { span: lo, kind: TokenKind::Ident(kw) } = *self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
         self.bump(); // kw
@@ -930,7 +930,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
+        let TokenRepr { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = *self.token
+        else {
             unreachable!()
         };
         self.bump();
@@ -1385,8 +1386,12 @@ mod tests {
     use super::*;
     use solar_interface::{Result, Session, source_map::FileName};
 
+    fn session() -> Session {
+        Session::builder().with_test_emitter().single_threaded().build()
+    }
+
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
@@ -1608,7 +1613,7 @@ mod tests {
         ];
 
         for (idx, src) in test_functions.iter().enumerate() {
-            let sess = Session::builder().with_test_emitter().build();
+            let sess = session();
             sess.enter(|| -> Result {
                 let arena = Arena::new();
                 let mut parser = Parser::from_source_code(
@@ -1703,7 +1708,7 @@ mod tests {
             ),
         ];
 
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (idx, (src, vis, sm, virt, params, returns)) in test_cases.iter().enumerate() {
                 let arena = Arena::new();

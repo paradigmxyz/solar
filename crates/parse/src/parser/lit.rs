@@ -4,7 +4,7 @@ use num_bigint::{BigInt, BigUint};
 use num_rational::Ratio;
 use num_traits::{Num, Signed, Zero};
 use solar_ast::{token::*, *};
-use solar_interface::{ByteSymbol, Symbol, diagnostics::ErrorGuaranteed, kw};
+use solar_interface::{ByteSymbol, Session, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -110,7 +110,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         subdenomination: Option<SubDenomination>,
     ) -> PResult<'sess, LitKind<'ast>> {
         use LitError::*;
-        match parse_integer(symbol, subdenomination) {
+        match parse_integer(self.sess, symbol, subdenomination) {
             Ok(l) => Ok(l),
             // User error.
             Err(e @ (IntegerLeadingZeros | IntegerTooLarge)) => Err(self.dcx().err(e.to_string())),
@@ -133,7 +133,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         subdenomination: Option<SubDenomination>,
     ) -> PResult<'sess, LitKind<'ast>> {
         use LitError::*;
-        match parse_rational(symbol, subdenomination) {
+        match parse_rational(self.sess, symbol, subdenomination) {
             Ok(l) => Ok(l),
             // User error.
             Err(
@@ -223,10 +223,11 @@ impl fmt::Display for LitError {
 }
 
 fn parse_integer<'ast>(
+    sess: &Session,
     symbol: Symbol,
     subdenomination: Option<SubDenomination>,
 ) -> Result<LitKind<'ast>, LitError> {
-    let s = &strip_underscores(&symbol)[..];
+    let s = &strip_underscores(symbol, sess)[..];
     let base = match s.as_bytes() {
         [b'0', b'x', ..] => Base::Hexadecimal,
         [b'0', b'o', ..] => Base::Octal,
@@ -259,10 +260,11 @@ fn parse_integer<'ast>(
 }
 
 fn parse_rational<'ast>(
+    sess: &Session,
     symbol: Symbol,
     subdenomination: Option<SubDenomination>,
 ) -> Result<LitKind<'ast>, LitError> {
-    let s = &strip_underscores(&symbol)[..];
+    let s = &strip_underscores(symbol, sess)[..];
     debug_assert!(!s.is_empty());
 
     if matches!(s.get(..2), Some("0b" | "0o" | "0x")) {
@@ -480,9 +482,9 @@ fn split_at_exclusive(s: &str, idx: usize) -> (&str, &str) {
 }
 
 #[inline]
-fn strip_underscores(symbol: &Symbol) -> Cow<'_, str> {
+fn strip_underscores(symbol: Symbol, sess: &Session) -> Cow<'_, str> {
     // Do not allocate a new string unless necessary.
-    let s = symbol.as_str();
+    let s = symbol.as_str_in(sess);
     if s.contains('_') { Cow::Owned(strip_underscores_slow(s)) } else { Cow::Borrowed(s) }
 }
 
@@ -505,12 +507,21 @@ mod tests {
 
     // Run through the lexer to get the same input that the parser gets.
     #[track_caller]
-    fn lex_literal(src: &str, should_fail: bool) -> Symbol {
-        let sess = Session::builder().with_silent_emitter(None).build();
-        let tokens = Lexer::new(&sess, src).into_tokens();
-        assert_eq!(tokens.len(), 1, "expected exactly 1 token: {tokens:?}");
-        assert_eq!(sess.dcx.has_errors().is_err(), should_fail, "{src:?} -> {tokens:?}");
-        tokens[0].lit().expect("not a literal").symbol
+    fn lex_literal(src: &str, should_fail: bool, f: impl FnOnce(&Session, Symbol)) {
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let file = sess.source_map().new_source_file("test".to_string(), src).unwrap();
+            let tokens = Lexer::from_source_file(&sess, &file).into_tokens();
+            let diags = sess.dcx.emitted_diagnostics().unwrap();
+            assert_eq!(tokens.len(), 1, "expected exactly 1 token: {tokens:?}\n{diags}");
+            assert_eq!(
+                sess.dcx.has_errors().is_err(),
+                should_fail,
+                "{src:?} -> {tokens:?};\n{diags}",
+            );
+            f(&sess, tokens[0].lit().expect("not a literal").symbol)
+        });
     }
 
     #[test]
@@ -519,100 +530,95 @@ mod tests {
 
         #[track_caller]
         fn check_int(src: &str, expected: Result<&str, LitError>) {
-            let symbol = lex_literal(src, false);
-            let res = match parse_integer(symbol, None) {
-                Ok(LitKind::Number(n)) => Ok(n),
-                Ok(x) => panic!("not a number: {x:?} ({src:?})"),
-                Err(e) => Err(e),
-            };
-            let expected = match expected {
-                Ok(s) => Ok(U256::from_str_radix(s, 10).unwrap()),
-                Err(e) => Err(e),
-            };
-            assert_eq!(res, expected, "{src:?}");
+            lex_literal(src, false, |sess, symbol| {
+                let res = match parse_integer(sess, symbol, None) {
+                    Ok(LitKind::Number(n)) => Ok(n),
+                    Ok(x) => panic!("not a number: {x:?} ({src:?})"),
+                    Err(e) => Err(e),
+                };
+                let expected = match expected {
+                    Ok(s) => Ok(U256::from_str_radix(s, 10).unwrap()),
+                    Err(e) => Err(e),
+                };
+                assert_eq!(res, expected, "{src:?}");
+            });
         }
 
         #[track_caller]
         fn check_address(src: &str, expected: Result<Address, &str>) {
-            let symbol = lex_literal(src, false);
-            match expected {
-                Ok(address) => match parse_integer(symbol, None) {
+            lex_literal(src, false, |sess, symbol| match expected {
+                Ok(address) => match parse_integer(sess, symbol, None) {
                     Ok(LitKind::Address(a)) => assert_eq!(a, address, "{src:?}"),
                     e => panic!("not an address: {e:?} ({src:?})"),
                 },
-                Err(int) => match parse_integer(symbol, None) {
+                Err(int) => match parse_integer(sess, symbol, None) {
                     Ok(LitKind::Number(n)) => {
                         assert_eq!(n, U256::from_str_radix(int, 10).unwrap(), "{src:?}")
                     }
                     e => panic!("not an integer: {e:?} ({src:?})"),
                 },
-            }
+            });
         }
 
-        solar_interface::enter(|| {
-            check_int("00", Err(IntegerLeadingZeros));
-            check_int("01", Err(IntegerLeadingZeros));
-            check_int("00", Err(IntegerLeadingZeros));
-            check_int("001", Err(IntegerLeadingZeros));
-            check_int("000", Err(IntegerLeadingZeros));
-            check_int("0001", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("01", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("001", Err(IntegerLeadingZeros));
+        check_int("000", Err(IntegerLeadingZeros));
+        check_int("0001", Err(IntegerLeadingZeros));
 
-            check_int("0", Ok("0"));
-            check_int("1", Ok("1"));
+        check_int("0", Ok("0"));
+        check_int("1", Ok("1"));
 
-            // check("0b10", Ok("2"));
-            // check("0o10", Ok("8"));
-            check_int("10", Ok("10"));
-            check_int("0x10", Ok("16"));
+        // check("0b10", Ok("2"));
+        // check("0o10", Ok("8"));
+        check_int("10", Ok("10"));
+        check_int("0x10", Ok("16"));
 
-            check_address("0x00000000000000000000000000000000000000", Err("0"));
-            check_address("0x000000000000000000000000000000000000000", Err("0"));
-            check_address("0x0000000000000000000000000000000000000000", Ok(Address::ZERO));
-            check_address("0x00000000000000000000000000000000000000000", Err("0"));
-            check_address("0x000000000000000000000000000000000000000000", Err("0"));
-            check_address(
-                "0x0000000000000000000000000000000000000001",
-                Ok(Address::with_last_byte(1)),
-            );
+        check_address("0x00000000000000000000000000000000000000", Err("0"));
+        check_address("0x000000000000000000000000000000000000000", Err("0"));
+        check_address("0x0000000000000000000000000000000000000000", Ok(Address::ZERO));
+        check_address("0x00000000000000000000000000000000000000000", Err("0"));
+        check_address("0x000000000000000000000000000000000000000000", Err("0"));
+        check_address("0x0000000000000000000000000000000000000001", Ok(Address::with_last_byte(1)));
 
-            check_address(
-                "0x52908400098527886E0F7030069857D2E4169EE7",
-                Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
-            );
-            check_address(
-                "0x52908400098527886E0F7030069857D2E4169Ee7",
-                Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
-            );
+        check_address(
+            "0x52908400098527886E0F7030069857D2E4169EE7",
+            Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
+        );
+        check_address(
+            "0x52908400098527886E0F7030069857D2E4169Ee7",
+            Ok(address!("0x52908400098527886E0F7030069857D2E4169EE7")),
+        );
 
-            check_address(
-                "0x8617E340B3D01FA5F11F306F4090FD50E238070D",
-                Ok(address!("0x8617E340B3D01FA5F11F306F4090FD50E238070D")),
-            );
-            check_address(
-                "0xde709f2102306220921060314715629080e2fb77",
-                Ok(address!("0xde709f2102306220921060314715629080e2fb77")),
-            );
-            check_address(
-                "0x27b1fdb04752bbc536007a920d24acb045561c26",
-                Ok(address!("0x27b1fdb04752bbc536007a920d24acb045561c26")),
-            );
-            check_address(
-                "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
-                Ok(address!("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed")),
-            );
-            check_address(
-                "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
-                Ok(address!("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")),
-            );
-            check_address(
-                "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
-                Ok(address!("0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB")),
-            );
-            check_address(
-                "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
-                Ok(address!("0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb")),
-            );
-        });
+        check_address(
+            "0x8617E340B3D01FA5F11F306F4090FD50E238070D",
+            Ok(address!("0x8617E340B3D01FA5F11F306F4090FD50E238070D")),
+        );
+        check_address(
+            "0xde709f2102306220921060314715629080e2fb77",
+            Ok(address!("0xde709f2102306220921060314715629080e2fb77")),
+        );
+        check_address(
+            "0x27b1fdb04752bbc536007a920d24acb045561c26",
+            Ok(address!("0x27b1fdb04752bbc536007a920d24acb045561c26")),
+        );
+        check_address(
+            "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed",
+            Ok(address!("0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed")),
+        );
+        check_address(
+            "0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359",
+            Ok(address!("0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359")),
+        );
+        check_address(
+            "0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB",
+            Ok(address!("0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB")),
+        );
+        check_address(
+            "0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb",
+            Ok(address!("0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb")),
+        );
     }
 
     #[test]
@@ -621,17 +627,18 @@ mod tests {
 
         #[track_caller]
         fn check_int_full(src: &str, should_fail_lexing: bool, expected: Result<&str, LitError>) {
-            let symbol = lex_literal(src, should_fail_lexing);
-            let res = match parse_rational(symbol, None) {
-                Ok(LitKind::Number(r)) => Ok(r),
-                Ok(x) => panic!("not a number: {x:?} ({src:?})"),
-                Err(e) => Err(e),
-            };
-            let expected = match expected {
-                Ok(s) => Ok(U256::from_str_radix(s, 10).unwrap()),
-                Err(e) => Err(e),
-            };
-            assert_eq!(res, expected, "{src:?}");
+            lex_literal(src, should_fail_lexing, |sess, symbol| {
+                let res = match parse_rational(sess, symbol, None) {
+                    Ok(LitKind::Number(r)) => Ok(r),
+                    Ok(x) => panic!("not a number: {x:?} ({src:?})"),
+                    Err(e) => Err(e),
+                };
+                let expected = match expected {
+                    Ok(s) => Ok(U256::from_str_radix(s, 10).unwrap()),
+                    Err(e) => Err(e),
+                };
+                assert_eq!(res, expected, "{src:?}");
+            });
         }
 
         #[track_caller]
@@ -641,17 +648,18 @@ mod tests {
 
         #[track_caller]
         fn check_rat(src: &str, expected: Result<&str, LitError>) {
-            let symbol = lex_literal(src, false);
-            let res = match parse_rational(symbol, None) {
-                Ok(LitKind::Rational(r)) => Ok(r),
-                Ok(x) => panic!("not a number: {x:?} ({src:?})"),
-                Err(e) => Err(e),
-            };
-            let expected = match expected {
-                Ok(s) => Ok(Ratio::from_str_radix(s, 10).unwrap()),
-                Err(e) => Err(e),
-            };
-            assert_eq!(res, expected, "{src:?}");
+            lex_literal(src, false, |sess, symbol| {
+                let res = match parse_rational(sess, symbol, None) {
+                    Ok(LitKind::Rational(r)) => Ok(r),
+                    Ok(x) => panic!("not a number: {x:?} ({src:?})"),
+                    Err(e) => Err(e),
+                };
+                let expected = match expected {
+                    Ok(s) => Ok(Ratio::from_str_radix(s, 10).unwrap()),
+                    Err(e) => Err(e),
+                };
+                assert_eq!(res, expected, "{src:?}");
+            });
         }
 
         #[track_caller]
@@ -659,123 +667,121 @@ mod tests {
             before.to_string() + &"0".repeat(zeros)
         }
 
-        solar_interface::enter(|| {
-            check_int("00", Err(IntegerLeadingZeros));
-            check_int("0_0", Err(IntegerLeadingZeros));
-            check_int("01", Err(IntegerLeadingZeros));
-            check_int("0_1", Err(IntegerLeadingZeros));
-            check_int("00", Err(IntegerLeadingZeros));
-            check_int("001", Err(IntegerLeadingZeros));
-            check_int("000", Err(IntegerLeadingZeros));
-            check_int("0001", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("0_0", Err(IntegerLeadingZeros));
+        check_int("01", Err(IntegerLeadingZeros));
+        check_int("0_1", Err(IntegerLeadingZeros));
+        check_int("00", Err(IntegerLeadingZeros));
+        check_int("001", Err(IntegerLeadingZeros));
+        check_int("000", Err(IntegerLeadingZeros));
+        check_int("0001", Err(IntegerLeadingZeros));
 
-            check_int("0.", Err(EmptyRational));
+        check_int("0.", Err(EmptyRational));
 
-            check_int("0", Ok("0"));
-            check_int("0e0", Ok("0"));
-            check_int("0.0", Ok("0"));
-            check_int("0.00", Ok("0"));
-            check_int("0.0e0", Ok("0"));
-            check_int("0.00e0", Ok("0"));
-            check_int("0.0e00", Ok("0"));
-            check_int("0.00e00", Ok("0"));
-            check_int("0.0e-0", Ok("0"));
-            check_int("0.00e-0", Ok("0"));
-            check_int("0.0e-00", Ok("0"));
-            check_int("0.00e-00", Ok("0"));
-            check_int("0.0e1", Ok("0"));
-            check_int("0.00e1", Ok("0"));
-            check_int("0.00e01", Ok("0"));
-            check_int("0e999999", Ok("0"));
-            check_int("0E123456789", Ok("0"));
+        check_int("0", Ok("0"));
+        check_int("0e0", Ok("0"));
+        check_int("0.0", Ok("0"));
+        check_int("0.00", Ok("0"));
+        check_int("0.0e0", Ok("0"));
+        check_int("0.00e0", Ok("0"));
+        check_int("0.0e00", Ok("0"));
+        check_int("0.00e00", Ok("0"));
+        check_int("0.0e-0", Ok("0"));
+        check_int("0.00e-0", Ok("0"));
+        check_int("0.0e-00", Ok("0"));
+        check_int("0.00e-00", Ok("0"));
+        check_int("0.0e1", Ok("0"));
+        check_int("0.00e1", Ok("0"));
+        check_int("0.00e01", Ok("0"));
+        check_int("0e999999", Ok("0"));
+        check_int("0E123456789", Ok("0"));
 
-            check_int(".0", Ok("0"));
-            check_int(".00", Ok("0"));
-            check_int(".0e0", Ok("0"));
-            check_int(".00e0", Ok("0"));
-            check_int(".0e00", Ok("0"));
-            check_int(".00e00", Ok("0"));
-            check_int(".0e-0", Ok("0"));
-            check_int(".00e-0", Ok("0"));
-            check_int(".0e-00", Ok("0"));
-            check_int(".00e-00", Ok("0"));
-            check_int(".0e1", Ok("0"));
-            check_int(".00e1", Ok("0"));
-            check_int(".00e01", Ok("0"));
+        check_int(".0", Ok("0"));
+        check_int(".00", Ok("0"));
+        check_int(".0e0", Ok("0"));
+        check_int(".00e0", Ok("0"));
+        check_int(".0e00", Ok("0"));
+        check_int(".00e00", Ok("0"));
+        check_int(".0e-0", Ok("0"));
+        check_int(".00e-0", Ok("0"));
+        check_int(".0e-00", Ok("0"));
+        check_int(".00e-00", Ok("0"));
+        check_int(".0e1", Ok("0"));
+        check_int(".00e1", Ok("0"));
+        check_int(".00e01", Ok("0"));
 
-            check_int("1", Ok("1"));
-            check_int("1e0", Ok("1"));
-            check_int("1.0", Ok("1"));
-            check_int("1.00", Ok("1"));
-            check_int("1.0e0", Ok("1"));
-            check_int("1.00e0", Ok("1"));
-            check_int("1.0e00", Ok("1"));
-            check_int("1.00e00", Ok("1"));
-            check_int("1.0e-0", Ok("1"));
-            check_int("1.00e-0", Ok("1"));
-            check_int("1.0e-00", Ok("1"));
-            check_int("1.00e-00", Ok("1"));
+        check_int("1", Ok("1"));
+        check_int("1e0", Ok("1"));
+        check_int("1.0", Ok("1"));
+        check_int("1.00", Ok("1"));
+        check_int("1.0e0", Ok("1"));
+        check_int("1.00e0", Ok("1"));
+        check_int("1.0e00", Ok("1"));
+        check_int("1.00e00", Ok("1"));
+        check_int("1.0e-0", Ok("1"));
+        check_int("1.00e-0", Ok("1"));
+        check_int("1.0e-00", Ok("1"));
+        check_int("1.00e-00", Ok("1"));
 
-            check_int_full("0b", true, Err(InvalidRational));
-            check_int_full("0b0", true, Err(InvalidRational));
-            check_int_full("0b01", true, Err(InvalidRational));
-            check_int_full("0b01.0", true, Err(InvalidRational));
-            check_int_full("0b01.0e1", true, Err(InvalidRational));
-            check_int_full("0b0e", true, Err(InvalidRational));
-            // check_int_full("0b0e.0", true, Err(InvalidRational));
-            // check_int_full("0b0e.0e1", true, Err(InvalidRational));
+        check_int_full("0b", true, Err(InvalidRational));
+        check_int_full("0b0", true, Err(InvalidRational));
+        check_int_full("0b01", true, Err(InvalidRational));
+        check_int_full("0b01.0", true, Err(InvalidRational));
+        check_int_full("0b01.0e1", true, Err(InvalidRational));
+        check_int_full("0b0e", true, Err(InvalidRational));
+        // check_int_full("0b0e.0", true, Err(InvalidRational));
+        // check_int_full("0b0e.0e1", true, Err(InvalidRational));
 
-            check_int_full("0o", true, Err(InvalidRational));
-            check_int_full("0o0", true, Err(InvalidRational));
-            check_int_full("0o01", true, Err(InvalidRational));
-            check_int_full("0o01.0", true, Err(InvalidRational));
-            check_int_full("0o01.0e1", true, Err(InvalidRational));
-            check_int_full("0o0e", true, Err(InvalidRational));
-            // check_int_full("0o0e.0", true, Err(InvalidRational));
-            // check_int_full("0o0e.0e1", true, Err(InvalidRational));
+        check_int_full("0o", true, Err(InvalidRational));
+        check_int_full("0o0", true, Err(InvalidRational));
+        check_int_full("0o01", true, Err(InvalidRational));
+        check_int_full("0o01.0", true, Err(InvalidRational));
+        check_int_full("0o01.0e1", true, Err(InvalidRational));
+        check_int_full("0o0e", true, Err(InvalidRational));
+        // check_int_full("0o0e.0", true, Err(InvalidRational));
+        // check_int_full("0o0e.0e1", true, Err(InvalidRational));
 
-            check_int_full("0x", true, Err(InvalidRational));
-            check_int_full("0x0", false, Err(InvalidRational));
-            check_int_full("0x01", false, Err(InvalidRational));
-            check_int_full("0x01.0", true, Err(InvalidRational));
-            check_int_full("0x01.0e1", true, Err(InvalidRational));
-            check_int_full("0x0e", false, Err(InvalidRational));
-            check_int_full("0x0e.0", true, Err(InvalidRational));
-            check_int_full("0x0e.0e1", true, Err(InvalidRational));
+        check_int_full("0x", true, Err(InvalidRational));
+        check_int_full("0x0", false, Err(InvalidRational));
+        check_int_full("0x01", false, Err(InvalidRational));
+        check_int_full("0x01.0", true, Err(InvalidRational));
+        check_int_full("0x01.0e1", true, Err(InvalidRational));
+        check_int_full("0x0e", false, Err(InvalidRational));
+        check_int_full("0x0e.0", true, Err(InvalidRational));
+        check_int_full("0x0e.0e1", true, Err(InvalidRational));
 
-            check_int("1e1", Ok("10"));
-            check_int("1.0e1", Ok("10"));
-            check_int("1.00e1", Ok("10"));
-            check_int("1.00e01", Ok("10"));
+        check_int("1e1", Ok("10"));
+        check_int("1.0e1", Ok("10"));
+        check_int("1.00e1", Ok("10"));
+        check_int("1.00e01", Ok("10"));
 
-            check_int("1.1e1", Ok("11"));
-            check_int("1.10e1", Ok("11"));
-            check_int("1.100e1", Ok("11"));
-            check_int("1.2e1", Ok("12"));
-            check_int("1.200e1", Ok("12"));
+        check_int("1.1e1", Ok("11"));
+        check_int("1.10e1", Ok("11"));
+        check_int("1.100e1", Ok("11"));
+        check_int("1.2e1", Ok("12"));
+        check_int("1.200e1", Ok("12"));
 
-            check_int("1e10", Ok(&zeros("1", 10)));
-            check_int("1.0e10", Ok(&zeros("1", 10)));
-            check_int("1.1e10", Ok(&zeros("11", 9)));
-            check_int("10e-1", Ok("1"));
-            // check_int("1E1233", Ok(&zeros("1", 1233)));
-            // check_int("1E1234", Err(LitError::ExponentTooLarge));
+        check_int("1e10", Ok(&zeros("1", 10)));
+        check_int("1.0e10", Ok(&zeros("1", 10)));
+        check_int("1.1e10", Ok(&zeros("11", 9)));
+        check_int("10e-1", Ok("1"));
+        // check_int("1E1233", Ok(&zeros("1", 1233)));
+        // check_int("1E1234", Err(LitError::ExponentTooLarge));
 
-            check_rat("1e-1", Ok("1/10"));
-            check_rat("1e-2", Ok("1/100"));
-            check_rat("1e-3", Ok("1/1000"));
-            check_rat("1.0e-1", Ok("1/10"));
-            check_rat("1.0e-2", Ok("1/100"));
-            check_rat("1.0e-3", Ok("1/1000"));
-            check_rat("1.1e-1", Ok("11/100"));
-            check_rat("1.1e-2", Ok("11/1000"));
-            check_rat("1.1e-3", Ok("11/10000"));
+        check_rat("1e-1", Ok("1/10"));
+        check_rat("1e-2", Ok("1/100"));
+        check_rat("1e-3", Ok("1/1000"));
+        check_rat("1.0e-1", Ok("1/10"));
+        check_rat("1.0e-2", Ok("1/100"));
+        check_rat("1.0e-3", Ok("1/1000"));
+        check_rat("1.1e-1", Ok("11/100"));
+        check_rat("1.1e-2", Ok("11/1000"));
+        check_rat("1.1e-3", Ok("11/10000"));
 
-            check_rat("1.1", Ok("11/10"));
-            check_rat("1.10", Ok("11/10"));
-            check_rat("1.100", Ok("11/10"));
-            check_rat("1.2", Ok("12/10"));
-            check_rat("1.20", Ok("12/10"));
-        });
+        check_rat("1.1", Ok("11/10"));
+        check_rat("1.10", Ok("11/10"));
+        check_rat("1.100", Ok("11/10"));
+        check_rat("1.2", Ok("12/10"));
+        check_rat("1.20", Ok("12/10"));
     }
 }

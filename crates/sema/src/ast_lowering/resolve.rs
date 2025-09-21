@@ -78,60 +78,40 @@ impl super::LoweringContext<'_> {
                     ast::ImportItems::Aliases(ref aliases) => {
                         for &(import, alias) in aliases.iter() {
                             let name = alias.unwrap_or(import);
-                            if let Some(import_scope) = import_scope {
-                                Self::perform_alias_import(
-                                    self.sess,
-                                    &self.hir,
-                                    source,
-                                    source_scope,
-                                    name,
-                                    import,
-                                    import_scope.resolve(import),
-                                )
+                            let slot;
+                            let resolved = if let Some(import_scope) = import_scope {
+                                import_scope.resolve(import)
                             } else {
-                                Self::perform_alias_import(
+                                slot = source_scope.resolve_cloned(import);
+                                slot.as_deref()
+                            };
+                            if let Some(resolved) = resolved {
+                                debug_assert!(!resolved.is_empty());
+                                for mut decl in resolved.iter().copied() {
+                                    // Re-span to the import name.
+                                    decl.span = name.span;
+                                    let _ =
+                                        source_scope.declare(self.sess, &self.hir, name.name, decl);
+                                }
+                            } else {
+                                let msg = format!(
+                                    "declaration `{import}` not found in {}",
+                                    self.sess
+                                        .source_map()
+                                        .filename_for_diagnostics(&source.file.name)
+                                );
+                                let guar = self.sess.dcx.err(msg).span(import.span).emit();
+                                let _ = source_scope.declare_res(
                                     self.sess,
                                     &self.hir,
-                                    source,
-                                    source_scope,
                                     name,
-                                    import,
-                                    source_scope.resolve_cloned(import),
-                                )
+                                    Res::Err(guar),
+                                );
                             }
                         }
                     }
                 }
             }
-        }
-    }
-
-    /// Separate function to avoid cloning `resolved` when the import is not a self-import.
-    fn perform_alias_import(
-        sess: &Session,
-        hir: &hir::Hir<'_>,
-        source: &hir::Source<'_>,
-        source_scope: &mut Declarations,
-        name: Ident,
-        import: Ident,
-        resolved: Option<impl AsRef<[Declaration]>>,
-    ) {
-        if let Some(resolved) = resolved {
-            let resolved = resolved.as_ref();
-            debug_assert!(!resolved.is_empty());
-            for decl in resolved {
-                // Re-span to the import name.
-                let mut decl = *decl;
-                decl.span = name.span;
-                let _ = source_scope.declare(sess, hir, name.name, decl);
-            }
-        } else {
-            let msg = format!(
-                "declaration `{import}` not found in {}",
-                sess.source_map().filename_for_diagnostics(&source.file.name)
-            );
-            let guar = sess.dcx.err(msg).span(import.span).emit();
-            let _ = source_scope.declare_res(sess, hir, name, Res::Err(guar));
         }
     }
 

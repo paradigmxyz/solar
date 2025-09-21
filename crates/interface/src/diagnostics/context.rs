@@ -344,12 +344,14 @@ impl DiagCtxt {
 
     /// Creates a builder at the `Bug` level with the given `msg`.
     #[track_caller]
+    #[cold]
     pub fn bug(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, BugAbort> {
         self.diag(Level::Bug, msg)
     }
 
     /// Creates a builder at the `Fatal` level with the given `msg`.
     #[track_caller]
+    #[cold]
     pub fn fatal(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, FatalAbort> {
         self.diag(Level::Fatal, msg)
     }

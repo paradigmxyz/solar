@@ -7,7 +7,7 @@ use std::hint::black_box;
 #[library_benchmark]
 fn solar_enter() -> usize {
     let f: fn() -> usize = || 42usize;
-    solar_parse::interface::enter(black_box(f))
+    solar::parse::interface::enter(black_box(f))
 }
 
 #[cfg(feature = "ci")]
@@ -108,15 +108,15 @@ mk_groups!(
 
 #[inline]
 fn run_lex(name: &str, parser: &dyn Parser) {
-    assert!(parser.can_lex(), "{} can't lex", parser.name());
-    let Source { name: _, path: _, src } = get_src(name);
+    assert!(parser.capabilities().can_lex(), "{} can't lex", parser.name());
+    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
     let setup = &mut *parser.setup(src);
     parser.lex(black_box(src), setup)
 }
 
 #[inline]
 fn run_parse(name: &str, parser: &dyn Parser) {
-    let Source { name: _, path: _, src } = get_src(name);
+    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
     let setup = &mut *parser.setup(src);
     parser.parse(black_box(src), setup)
 }

@@ -7,7 +7,11 @@ use crate::pos::RelativeBytePos;
 /// This function will use an SSE2 enhanced implementation if hardware support
 /// is detected at runtime.
 pub(crate) fn analyze_source_file(src: &str) -> (Vec<RelativeBytePos>, Vec<MultiByteChar>) {
-    let mut lines = vec![RelativeBytePos::from_u32(0)];
+    // In most cases this will re-allocate 0 or 1 times.
+    let lines_upper_bound = 1 + src.len() / 32;
+    let mut lines = Vec::with_capacity(lines_upper_bound);
+    lines.push(RelativeBytePos::from_u32(0));
+
     let mut multi_byte_chars = vec![];
 
     // Calls the right implementation, depending on hardware support available.

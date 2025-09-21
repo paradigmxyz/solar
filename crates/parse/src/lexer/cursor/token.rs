@@ -9,7 +9,7 @@ use solar_ast::{
 ///
 /// It doesn't contain information about data that has been parsed, only the type of the token and
 /// its size.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RawToken {
     /// The kind of token.
     pub kind: RawTokenKind,

@@ -147,11 +147,41 @@ impl<'gcx> ParsingContext<'gcx> {
         self.sources.get_or_insert_file(file);
     }
 
+    /// Resolves all the imports of all the loaded sources.
+    pub fn force_resolve_all_imports(mut self) {
+        let mut sources = std::mem::take(self.sources);
+        let mut any_new = false;
+        for id in sources.indices() {
+            let source = &mut sources[id];
+            let ast = source.ast.take();
+            for (import_item_id, import_file) in
+                self.resolve_imports(&source.file.clone(), ast.as_ref())
+            {
+                let (_import_id, is_new) =
+                    sources.add_import(id, import_item_id, import_file, true);
+                if is_new {
+                    any_new = true;
+                }
+            }
+            sources[id].ast = ast;
+        }
+        *self.sources = sources;
+
+        self.parsed = true;
+        if any_new {
+            self.parse_inner();
+        }
+    }
+
     /// Parses all the loaded sources, recursing into imports if specified.
     ///
     /// Sources are not guaranteed to be in any particular order, as they may be parsed in parallel.
-    #[instrument(level = "debug", skip_all)]
     pub fn parse(mut self) {
+        self.parse_inner();
+    }
+
+    #[instrument(name = "parse", level = "debug", skip_all)]
+    fn parse_inner(&mut self) {
         self.parsed = true;
         let _ = self.gcx.advance_stage(CompilerStage::Parsing);
 
@@ -159,7 +189,7 @@ impl<'gcx> ParsingContext<'gcx> {
         if !sources.is_empty() {
             let dbg = enabled!(tracing::Level::DEBUG);
             let len_before = sources.len();
-            let sources_parsed_before = if dbg { 0 } else { sources.count_parsed() };
+            let sources_parsed_before = if dbg { sources.count_parsed() } else { 0 };
 
             if self.sess.is_sequential() || (sources.len() == 1 && !self.resolve_imports) {
                 self.parse_sequential(&mut sources, self.arenas.get_or_default());
@@ -208,7 +238,7 @@ impl<'gcx> ParsingContext<'gcx> {
             for (import_item_id, import_file) in
                 self.resolve_imports(&source.file.clone(), ast.as_ref())
             {
-                sources.add_import(id, import_item_id, import_file);
+                sources.add_import(id, import_item_id, import_file, false);
             }
             sources[id].ast = ast;
         }
@@ -266,7 +296,8 @@ impl<'gcx> ParsingContext<'gcx> {
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
         for (import_item_id, import_file) in imports {
-            let (import_id, is_new) = sources.add_import(id, import_item_id, import_file.clone());
+            let (import_id, is_new) =
+                sources.add_import(id, import_item_id, import_file.clone(), false);
             if is_new {
                 self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
             }
@@ -314,6 +345,14 @@ impl<'gcx> ParsingContext<'gcx> {
         parent: Option<&Path>,
     ) -> Option<Arc<SourceFile>> {
         let ast::ItemKind::Import(import) = &item.kind else { return None };
+        self.resolve_import_directive(import, parent)
+    }
+
+    fn resolve_import_directive(
+        &self,
+        import: &ast::ImportDirective<'_>,
+        parent: Option<&Path>,
+    ) -> Option<Arc<SourceFile>> {
         let span = import.path.span;
         let path_str = import.path.value.as_str();
         let (path_bytes, any_error) =
@@ -400,10 +439,20 @@ impl<'ast> Sources<'ast> {
         current: SourceId,
         import_item_id: ast::ItemId,
         import: Arc<SourceFile>,
+        check_dup: bool,
     ) -> (SourceId, bool) {
-        let (import_id, new) = self.get_or_insert_file(import);
-        self.sources[current].imports.push((import_item_id, import_id));
-        (import_id, new)
+        let ret = self.get_or_insert_file(import);
+        let (import_id, new) = ret;
+
+        let current = &mut self.sources[current].imports;
+        let value = (import_item_id, import_id);
+        if check_dup && current.contains(&value) {
+            assert!(!new, "duplicate import but source is new?");
+            return ret;
+        }
+        current.push(value);
+
+        ret
     }
 
     #[instrument(level = "debug", skip_all)]
