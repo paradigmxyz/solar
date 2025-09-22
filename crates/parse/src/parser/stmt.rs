@@ -2,7 +2,7 @@ use super::item::VarFlags;
 use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::BumpExt;
+use solar_data_structures::{BumpExt, hint::likely};
 use solar_interface::{Ident, Span, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -196,8 +196,21 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
-        if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            println!("true");
+        if !self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            let (statement_type, iap) = self.try_parse_iap()?;
+            match statement_type {
+                LookAheadInfo::VariableDeclaration => {
+                    let ty = iap.into_ty(self);
+                    self.parse_variable_definition_with(VarFlags::VAR, ty)
+                        .map(|var| StmtKind::DeclSingle(self.alloc(var)))
+                }
+                LookAheadInfo::Expression => {
+                    let expr = iap.into_expr(self);
+                    self.parse_expr_with(expr).map(StmtKind::Expr)
+                }
+                LookAheadInfo::IndexAccessStructure => unreachable!(),
+            }
+        } else {
             let mut empty_components = 0usize;
             while self.eat(TokenKind::Comma) {
                 empty_components += 1;
@@ -233,21 +246,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         kind: ExprKind::Tuple(self.alloc_smallvec(components)),
                     };
                     self.parse_expr_with(Some(self.alloc(partially_parsed))).map(StmtKind::Expr)
-                }
-                LookAheadInfo::IndexAccessStructure => unreachable!(),
-            }
-        } else {
-             println!("false");
-            let (statement_type, iap) = self.try_parse_iap()?;
-            match statement_type {
-                LookAheadInfo::VariableDeclaration => {
-                    let ty = iap.into_ty(self);
-                    self.parse_variable_definition_with(VarFlags::VAR, ty)
-                        .map(|var| StmtKind::DeclSingle(self.alloc(var)))
-                }
-                LookAheadInfo::Expression => {
-                    let expr = iap.into_expr(self);
-                    self.parse_expr_with(expr).map(StmtKind::Expr)
                 }
                 LookAheadInfo::IndexAccessStructure => unreachable!(),
             }
