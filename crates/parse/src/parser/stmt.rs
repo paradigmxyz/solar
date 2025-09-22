@@ -197,6 +197,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+            println!("true");
             let mut empty_components = 0usize;
             while self.eat(TokenKind::Comma) {
                 empty_components += 1;
@@ -236,6 +237,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 LookAheadInfo::IndexAccessStructure => unreachable!(),
             }
         } else {
+             println!("false");
             let (statement_type, iap) = self.try_parse_iap()?;
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
