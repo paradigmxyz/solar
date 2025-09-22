@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use solar_ast::{self as ast, Span};
 use solar_data_structures::{
     index::{Idx, IndexVec},
-    map::FxHashSet,
+    map::{FxHashMap, FxHashSet},
     sync::Mutex,
 };
 use solar_interface::{
@@ -413,7 +413,8 @@ fn path_from_bytes(bytes: &[u8]) -> Option<&Path> {
 /// Sources.
 #[derive(Default)]
 pub struct Sources<'ast> {
-    pub sources: IndexVec<SourceId, Source<'ast>>,
+    sources: IndexVec<SourceId, Source<'ast>>,
+    file_to_id: FxHashMap<Arc<SourceFile>, SourceId>,
 }
 
 impl fmt::Debug for Sources<'_> {
@@ -426,7 +427,60 @@ impl fmt::Debug for Sources<'_> {
 impl<'ast> Sources<'ast> {
     /// Creates a new empty list of parsed sources.
     pub fn new() -> Self {
-        Self { sources: IndexVec::new() }
+        Self::default()
+    }
+
+    /// Returns a reference to the source, if it exists.
+    #[inline]
+    pub fn get(&self, id: SourceId) -> Option<&Source<'ast>> {
+        self.sources.get(id)
+    }
+
+    /// Returns a mutable reference to the source, if it exists.
+    #[inline]
+    pub fn get_mut(&mut self, id: SourceId) -> Option<&mut Source<'ast>> {
+        self.sources.get_mut(id)
+    }
+
+    /// Returns the ID of the source file, if it exists.
+    pub fn get_file(&self, file: &Arc<SourceFile>) -> Option<(SourceId, &Source<'ast>)> {
+        self.file_to_id.get(file).map(|&id| (id, &self.sources[id]))
+    }
+
+    /// Returns the ID of the source file, if it exists.
+    pub fn get_file_mut(
+        &mut self,
+        file: &Arc<SourceFile>,
+    ) -> Option<(SourceId, &mut Source<'ast>)> {
+        self.file_to_id.get(file).map(|&id| (id, &mut self.sources[id]))
+    }
+
+    /// Returns the ID of the given file, or inserts it if it doesn't exist.
+    ///
+    /// Returns `true` if the file was newly inserted.
+    #[instrument(level = "debug", skip_all)]
+    pub fn get_or_insert_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
+        let mut new = false;
+        let id = *self.file_to_id.entry(file).or_insert_with_key(|file| {
+            new = true;
+            self.sources.push(Source::new(file.clone()))
+        });
+        (id, new)
+    }
+
+    /// Removes the given file from the sources.
+    pub fn remove_file(&mut self, file: &Arc<SourceFile>) -> Option<Source<'ast>> {
+        self.file_to_id.remove(file).map(|id| self.sources.remove(id))
+    }
+
+    /// Returns an iterator over all the ASTs.
+    pub fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit<'ast>> {
+        self.sources.iter().filter_map(|source| source.ast.as_ref())
+    }
+
+    /// Returns a parallel iterator over all the ASTs.
+    pub fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit<'ast>> {
+        self.sources.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }
 
     fn count_parsed(&self) -> usize {
@@ -455,28 +509,6 @@ impl<'ast> Sources<'ast> {
         ret
     }
 
-    #[instrument(level = "debug", skip_all)]
-    fn get_or_insert_file(&mut self, file: Arc<SourceFile>) -> (SourceId, bool) {
-        if let Some((id, _)) = self.get_file(&file) {
-            return (id, false);
-        }
-        (self.sources.push(Source::new(file)), true)
-    }
-
-    /// Returns the ID of the source file, if it exists.
-    pub fn get_file(&self, file: &Arc<SourceFile>) -> Option<(SourceId, &Source<'ast>)> {
-        self.sources.iter_enumerated().find(|(_, source)| Arc::ptr_eq(&source.file, file))
-    }
-
-    /// Returns the ID of the source file, if it exists.
-    pub fn get_file_mut(
-        &mut self,
-        file: &Arc<SourceFile>,
-    ) -> Option<(SourceId, &mut Source<'ast>)> {
-        let (id, _) = self.get_file(file)?;
-        Some((id, &mut self.sources[id]))
-    }
-
     /// Asserts that all sources are unique.
     fn assert_unique(&self) {
         if self.sources.len() <= 1 {
@@ -488,16 +520,6 @@ impl<'ast> Sources<'ast> {
             self.sources.len(),
             "parsing produced duplicate source files"
         );
-    }
-
-    /// Returns an iterator over all the ASTs.
-    pub fn asts(&self) -> impl DoubleEndedIterator<Item = &ast::SourceUnit<'ast>> {
-        self.sources.iter().filter_map(|source| source.ast.as_ref())
-    }
-
-    /// Returns a parallel iterator over all the ASTs.
-    pub fn par_asts(&self) -> impl ParallelIterator<Item = &ast::SourceUnit<'ast>> {
-        self.sources.as_raw_slice().par_iter().filter_map(|source| source.ast.as_ref())
     }
 
     /// Sorts the sources topologically in-place. Invalidates all source IDs.
