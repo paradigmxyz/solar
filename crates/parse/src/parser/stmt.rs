@@ -196,7 +196,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Also used in the for loop initializer. Does not parse the trailing semicolon.
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
-        if !self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
+        if likely(!self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis))) {
             let (statement_type, iap) = self.try_parse_iap()?;
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
