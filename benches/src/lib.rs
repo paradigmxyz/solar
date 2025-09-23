@@ -10,7 +10,7 @@ use std::{
 };
 
 #[allow(unexpected_cfgs)]
-pub const PARSERS: &[&dyn Parser] = if true {
+pub const PARSERS: &[&dyn Parser] = if cfg!(codspeed) {
     // Only benchmark our own code in CI.
     &[&Solar]
 } else {
