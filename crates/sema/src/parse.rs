@@ -595,7 +595,10 @@ impl std::ops::DerefMut for Sources<'_> {
 pub struct Source<'ast> {
     /// The source file.
     pub file: Arc<SourceFile>,
-    /// The AST IDs and source IDs of all the imports.
+    /// The individual imports with their resolved source IDs.
+    ///
+    /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
+    /// source.
     pub imports: Vec<(ast::ItemId, SourceId)>,
     /// The AST.
     ///

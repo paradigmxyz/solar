@@ -6,10 +6,10 @@ use crate::{Result, SourceMap};
 use anstream::ColorChoice;
 use solar_config::{ErrorFormat, Opts};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
-use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+use std::{borrow::Cow, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct DiagCtxtFlags {
     /// If false, warning-level lints are suppressed.
     pub can_emit_warnings: bool,
@@ -48,11 +48,26 @@ impl DiagCtxtFlags {
     }
 }
 
-/// A handler deals with errors and other compiler output.
-/// Certain errors (fatal, bug, unimpl) may cause immediate exit,
-/// others log errors for later reporting.
+/// A handler that deals with errors and other compiler output.
+///
+/// Certain errors (fatal, bug) may cause immediate exit, others log errors for later reporting.
 pub struct DiagCtxt {
     inner: Mutex<DiagCtxtInner>,
+}
+
+impl fmt::Debug for DiagCtxt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("DiagCtxt");
+        if let Some(inner) = self.inner.try_lock() {
+            s.field("flags", &inner.flags)
+                .field("err_count", &inner.err_count)
+                .field("warn_count", &inner.warn_count)
+                .field("note_count", &inner.note_count);
+        } else {
+            s.field("inner", &format_args!("<locked>"));
+        }
+        s.finish_non_exhaustive()
+    }
 }
 
 struct DiagCtxtInner {
