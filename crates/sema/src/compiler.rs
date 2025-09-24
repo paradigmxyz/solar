@@ -5,6 +5,7 @@ use crate::{
 use solar_data_structures::trustme;
 use solar_interface::{Result, Session, diagnostics::DiagCtxt};
 use std::{
+    fmt,
     marker::PhantomPinned,
     mem::{ManuallyDrop, MaybeUninit},
     ops::ControlFlow,
@@ -32,6 +33,12 @@ use thread_local::ThreadLocal;
 #[doc = include_str!("../doc-examples/hir.rs")]
 /// ```
 pub struct Compiler(ManuallyDrop<Pin<Box<CompilerInner<'static>>>>);
+
+impl fmt::Debug for Compiler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.enter_sequential(|compiler| compiler.debug_fmt("Compiler", f))
+    }
+}
 
 struct CompilerInner<'a> {
     sess: Session,
@@ -180,6 +187,12 @@ pub struct CompilerRef<'c> {
     inner: CompilerInner<'c>,
 }
 
+impl fmt::Debug for CompilerRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.debug_fmt("CompilerRef", f)
+    }
+}
+
 impl<'c> CompilerRef<'c> {
     #[inline]
     fn new<'a>(inner: &'a CompilerInner<'c>) -> &'a Self {
@@ -214,7 +227,7 @@ impl<'c> CompilerRef<'c> {
     /// Returns a mutable reference to the diagnostics context.
     #[inline]
     pub fn dcx_mut(&mut self) -> &mut DiagCtxt {
-        &mut self.inner.sess.dcx
+        &mut self.sess_mut().dcx
     }
 
     /// Returns a reference to the sources.
@@ -278,6 +291,10 @@ impl<'c> CompilerRef<'c> {
     pub fn analysis(&self) -> Result<ControlFlow<()>> {
         crate::analysis(self.gcx())
     }
+
+    fn debug_fmt(&self, name: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct(name).field("gcx", &self.gcx()).finish_non_exhaustive()
+    }
 }
 
 fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
@@ -289,9 +306,8 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn parse_multiple_times() {
@@ -387,5 +403,14 @@ mod tests {
             parse_dummy_file(c);
             parse_dummy_file(c);
         });
+    }
+
+    #[test]
+    fn replace_session() {
+        let mut compiler = Compiler::new(Session::builder().with_test_emitter().build());
+        compiler.dcx().err("test").emit();
+        assert!(compiler.sess().dcx.has_errors().is_err());
+        *compiler.sess_mut() = Session::builder().with_test_emitter().build();
+        assert!(compiler.sess().dcx.has_errors().is_ok());
     }
 }

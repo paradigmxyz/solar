@@ -143,6 +143,12 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+impl<'gcx> fmt::Debug for Gcx<'gcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
 ///
 /// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
@@ -221,6 +227,16 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+}
+
+impl fmt::Debug for GlobalCtxt<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GlobalCtxt")
+            .field("stage", &self.stage.get())
+            .field("sess", self.sess)
+            .field("sources", &self.sources.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {

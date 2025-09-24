@@ -301,6 +301,10 @@ newtype_index! {
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
+    /// The individual imports with their resolved source IDs.
+    ///
+    /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
+    /// source.
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
