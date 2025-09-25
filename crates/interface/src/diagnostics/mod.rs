@@ -1011,6 +1011,41 @@ help: mutable variables should use mixedCase
     }
 
     #[test]
+    fn test_suggestion_with_footer() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span)
+            .span_suggestion_with_style(
+                var_span,
+                "mutable variables should use mixedCase",
+                var_sugg,
+                Applicability::MachineApplicable,
+                SuggestionStyle::ShowAlways,
+            )
+            .help("some footer help msg that should be displayed at the very bottom");
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
+
+        let expected = r#"note: mutable variables should use mixedCase
+ --> <test.sol>:4:17
+  |
+4 |         uint256 my_var = 0;
+  |                 ^^^^^^
+  |
+help: mutable variables should use mixedCase
+  |
+4 -         uint256 my_var = 0;
+4 +         uint256 myVar = 0;
+  |
+  = help: some footer help msg that should be displayed at the very bottom
+
+"#;
+        assert_eq!(emit_human_diagnostics(diag), expected);
+    }
+
+    #[test]
     fn test_multispan_suggestion() {
         let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
         let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
