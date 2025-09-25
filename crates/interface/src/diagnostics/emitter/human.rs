@@ -280,9 +280,9 @@ impl HumanEmitter {
 
         let main_group = Group::with_title(title).elements(snippets);
         let report = std::iter::once(main_group)
-            .chain(sub_groups)
             .chain(suggestion_groups)
             .chain(footer_group)
+            .chain(sub_groups)
             .collect::<Vec<_>>();
         f(self, &report)
     }
