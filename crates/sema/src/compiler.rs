@@ -109,7 +109,7 @@ impl Compiler {
     ///
     /// See [`Session::enter`](Session::enter) for more details.
     pub fn enter_mut<T: Send>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T + Send) -> T {
-        // SAFETY: `sess` is not modified.
+        // SAFETY: `CompilerRef` does not allow mutable access to the session.
         let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
         sess.enter(|| f(self.as_mut()))
     }
@@ -133,7 +133,7 @@ impl Compiler {
     ///
     /// See [`enter_mut`](Self::enter_mut) for more details.
     pub fn enter_sequential_mut<T>(&mut self, f: impl FnOnce(&mut CompilerRef<'_>) -> T) -> T {
-        // SAFETY: `sess` is not modified.
+        // SAFETY: `CompilerRef` does not allow mutable access to the session.
         let sess = unsafe { trustme::decouple_lt(&self.0.sess) };
         sess.enter_sequential(|| f(self.as_mut()))
     }
@@ -210,9 +210,10 @@ impl<'c> CompilerRef<'c> {
         self.gcx().sess
     }
 
+    // NOTE: Do not expose mutable access to the session directly! See `replace_entered_session`.
     /// Returns a mutable reference to the compiler session.
     #[inline]
-    pub fn sess_mut(&mut self) -> &mut Session {
+    fn sess_mut(&mut self) -> &mut Session {
         &mut self.inner.sess
     }
 
@@ -306,6 +307,45 @@ fn log_ast_arenas_stats(arenas: &mut ThreadLocal<solar_ast::Arena>) {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    // --- copy from `crates/interface/src/session.rs`
+    use solar_ast::{Span, Symbol};
+    use solar_interface::{BytePos, ColorChoice};
+
+    /// Session to test `enter`.
+    fn enter_tests_session() -> Session {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.source_map().new_source_file(PathBuf::from("test"), "abcd").unwrap();
+        sess
+    }
+
+    #[track_caller]
+    fn use_globals_parallel(sess: &Session) {
+        use rayon::prelude::*;
+
+        use_globals();
+        sess.spawn(|| use_globals());
+        sess.join(|| use_globals(), || use_globals());
+        [1, 2, 3].par_iter().for_each(|_| use_globals());
+        use_globals();
+    }
+
+    #[track_caller]
+    fn use_globals() {
+        use_globals_no_sm();
+
+        let span = Span::new(BytePos(0), BytePos(1));
+        assert_eq!(format!("{span:?}"), "test:1:1: 1:2");
+        assert_eq!(format!("{span:#?}"), "test:1:1: 1:2");
+    }
+
+    #[track_caller]
+    fn use_globals_no_sm() {
+        let s = "hello";
+        let sym = Symbol::intern(s);
+        assert_eq!(sym.as_str(), s);
+    }
+    // --- end copy
 
     #[test]
     fn parse_multiple_times() {
@@ -409,6 +449,25 @@ mod tests {
         compiler.dcx().err("test").emit();
         assert!(compiler.sess().dcx.has_errors().is_err());
         *compiler.sess_mut() = Session::builder().with_test_emitter().build();
+        assert!(compiler.sess().dcx.has_errors().is_ok());
+    }
+
+    #[test]
+    fn replace_entered_session() {
+        let mut compiler = Compiler::new(enter_tests_session());
+        compiler.enter_mut(|compiler| {
+            use_globals_parallel(compiler.sess());
+
+            compiler.dcx().err("test").emit();
+            assert!(compiler.sess().dcx.has_errors().is_err());
+
+            // Replacing `Session` here drops the internal thread pool, which is currently in use,
+            // so we must not expose mutable access to the session.
+            *compiler.dcx_mut() = enter_tests_session().dcx;
+            assert!(compiler.sess().dcx.has_errors().is_ok());
+
+            use_globals_parallel(compiler.sess());
+        });
         assert!(compiler.sess().dcx.has_errors().is_ok());
     }
 }
