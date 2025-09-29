@@ -47,10 +47,10 @@ struct CompilerInner<'a> {
     _pinned: PhantomPinned,
 }
 
-/// `$x->$y`
+/// `$x->$y` like in C.
 macro_rules! project_ptr {
-    ($x:ident -> $y:ident : $xty:ty => $ty:ty) => {
-        $x.byte_add(std::mem::offset_of!($xty, $y)).cast::<$ty>()
+    ($x:ident -> $y:ident) => {
+        &raw mut (*$x).$y
     };
 }
 
@@ -152,14 +152,12 @@ impl CompilerInner<'_> {
     #[inline]
     #[allow(elided_lifetimes_in_paths)]
     unsafe fn init(this: *mut Self, sess: Session) {
-        use CompilerInner as C;
-
         unsafe {
-            let sess_p = project_ptr!(this->sess: C=>Session);
+            let sess_p = project_ptr!(this->sess);
             sess_p.write(sess);
 
             let sess = &*sess_p;
-            project_ptr!(this->gcx: C=>GlobalCtxt<'static>).write(GlobalCtxt::new(sess));
+            project_ptr!(this->gcx).write(GlobalCtxt::new(sess));
         }
     }
 }
