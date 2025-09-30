@@ -38,7 +38,7 @@ impl<'ast> Expr<'ast> {
     }
 
     /// Peels off unnecessary parentheses from the expression.
-    pub fn peel_parens_mut<'a>(&'a mut self) -> &'a mut Self {
+    pub fn peel_parens_mut(&mut self) -> &mut Self {
         let mut expr = self;
         // SAFETY: This is a bug in the compiler. This works when `x` is a slice and we can inline
         // into one pattern.

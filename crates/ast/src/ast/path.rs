@@ -13,14 +13,14 @@ impl std::ops::Deref for AstPath<'_> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { PathSlice::from_slice_unchecked(&self.0) }
+        unsafe { PathSlice::from_slice_unchecked(self.0) }
     }
 }
 
 impl std::ops::DerefMut for AstPath<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { PathSlice::from_mut_slice_unchecked(&mut self.0) }
+        unsafe { PathSlice::from_mut_slice_unchecked(self.0) }
     }
 }
 
