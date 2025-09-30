@@ -72,7 +72,7 @@ pub trait BumpExt {
         values: [T; N],
     ) -> &mut RawThinSlice<H, T>;
 
-    /// See [`alloc_slice_copy`](Self::alloc_slice_copy).
+    /// See [`alloc_slice_copy`](Bump::alloc_slice_copy).
     fn alloc_thin_slice_copy<'a, H, T: Copy>(
         &'a self,
         header: H,
