@@ -72,6 +72,16 @@ pub trait BumpExt {
         values: [T; N],
     ) -> &mut RawThinSlice<H, T>;
 
+    /// See [`alloc_slice_copy`](Bump::alloc_slice_copy).
+    fn alloc_thin_slice_copy<'a, H, T: Copy>(
+        &'a self,
+        header: H,
+        src: &[T],
+    ) -> &'a mut RawThinSlice<H, T> {
+        // SAFETY: `T` is `Copy`.
+        unsafe { self.alloc_thin_slice_unchecked(header, src) }
+    }
+
     /// See [`alloc_slice_unchecked`](Self::alloc_slice_unchecked).
     #[expect(clippy::missing_safety_doc)]
     unsafe fn alloc_thin_slice_unchecked<'a, H, T>(

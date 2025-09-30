@@ -13,7 +13,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
+    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, BoxSlice<'ast, Item<'ast>>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -353,7 +353,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let name = self.parse_ident()?;
 
-        let mut bases = None::<Box<'_, [Modifier<'_>]>>;
+        let mut bases = None::<BoxSlice<'_, Modifier<'_>>>;
         let mut layout = None::<StorageLayoutSpecifier<'_>>;
         loop {
             if self.eat_keyword(kw::Is) {
@@ -485,7 +485,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// `any(c)`
     fn parse_semver_req_components_dis(
         &mut self,
-    ) -> PResult<'sess, Box<'ast, [SemverReqCon<'ast>]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, SemverReqCon<'ast>>> {
         // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
@@ -500,7 +500,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // or all the values until `||`.
             debug_assert!(
                 matches!(
-                    dis.last().map(|x| &x.components),
+                    dis.last().map(|x| x.components.as_slice()),
                     Some([
                         ..,
                         SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }
@@ -869,7 +869,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a list of inheritance specifiers.
-    fn parse_inheritance(&mut self) -> PResult<'sess, Box<'ast, [Modifier<'ast>]>> {
+    fn parse_inheritance(&mut self) -> PResult<'sess, BoxSlice<'ast, Modifier<'ast>>> {
         let mut list = SmallVec::<[_; 8]>::new();
         loop {
             list.push(self.parse_modifier()?);
