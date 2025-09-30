@@ -868,8 +868,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        // SAFETY: `DocComment` is `Copy`.
-        let docs = unsafe { self.arena.alloc_thin_slice_unchecked((), &self.docs) };
+        let docs = self.arena.alloc_thin_slice_copy((), &self.docs);
         self.docs.clear();
         docs.into()
     }

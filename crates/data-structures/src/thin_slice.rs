@@ -175,7 +175,7 @@ impl<T> Default for &RawThinSlice<(), T> {
 
         // SAFETY: `EMPTY` is sufficiently aligned to be an empty slice for all
         // types with `align_of(T) <= align_of(MaxAlign)`, which we checked above.
-        unsafe { &*((&raw const EMPTY) as *const Self) }
+        unsafe { &*((&raw const EMPTY) as *const RawThinSlice<(), T>) }
     }
 }
 
@@ -187,7 +187,7 @@ impl<T> Default for &mut RawThinSlice<(), T> {
 
         // SAFETY: `EMPTY` is sufficiently aligned to be an empty slice for all
         // types with `align_of(T) <= align_of(MaxAlign)`, which we checked above.
-        unsafe { &mut *((&raw mut EMPTY) as *mut Self) }
+        unsafe { &mut *((&raw mut EMPTY) as *mut RawThinSlice<(), T>) }
     }
 }
 
@@ -253,5 +253,23 @@ impl<'a, H, T> IntoIterator for &'a mut RawThinSlice<H, T> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty() {
+        let thin_slice = <&ThinSlice<u64>>::default();
+        assert_eq!(thin_slice.len(), 0);
+        assert_eq!(thin_slice.as_slice().len(), 0);
+        assert!(thin_slice.is_empty());
+
+        let thin_slice = <&mut ThinSlice<u64>>::default();
+        assert_eq!(thin_slice.len(), 0);
+        assert_eq!(thin_slice.as_slice().len(), 0);
+        assert!(thin_slice.is_empty());
     }
 }
