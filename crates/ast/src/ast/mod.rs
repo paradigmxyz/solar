@@ -239,12 +239,12 @@ mod tests {
         assert_size::<Block<'_>>(str!["16"]);
 
         assert_size::<yul::ExprCall<'_>>(str!["24"]);
-        assert_size::<yul::ExprKind<'_>>(str!["24"]);
-        assert_size::<yul::Expr<'_>>(str!["32"]);
+        assert_size::<yul::ExprKind<'_>>(str!["32"]);
+        assert_size::<yul::Expr<'_>>(str!["40"]);
 
         assert_size::<yul::StmtKind<'_>>(str!["56"]);
         assert_size::<yul::Stmt<'_>>(str!["72"]);
         assert_size::<yul::Block<'_>>(str!["16"]);
-        assert_size::<yul::StmtFor<'_>>(str!["80"]);
+        assert_size::<yul::StmtFor<'_>>(str!["88"]);
     }
 }
