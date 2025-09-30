@@ -1,6 +1,6 @@
 use crate::{PResult, Parser};
 use solar_ast::{token::*, *};
-use solar_interface::kw;
+use solar_interface::{SpannedOption, kw};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
@@ -199,15 +199,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let is_array = close_delim == Delimiter::Bracket;
             let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
             if is_array {
-                if !list.iter().all(|item| item.data.is_some()) {
+                if !list.iter().all(|item| item.is_some()) {
                     let msg = "array expression components cannot be empty";
                     let span = lo.to(self.prev_token.span);
                     return Err(self.dcx().err(msg).span(span));
                 }
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe {
-                    spanned_option_boxes_unwrap_unchecked(list, |v| self.alloc_vec(v))
-                })
+                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list) })
             } else {
                 ExprKind::Tuple(list)
             }
@@ -318,7 +316,7 @@ fn token_precedence(t: Token) -> usize {
     }
 }
 
-/// Converts a list of `Spanned<Option<Box<'ast, T>>>` into a list of `Box<'ast, T>`.
+/// Converts a list of `SpannedOption<Box<'ast, T>>` into a list of `Box<'ast, T>`.
 ///
 /// This only works because `Option<Box<'ast, T>>` is guaranteed to be a valid `Box<'ast, T>` when
 /// `Some` when `T: Sized`.
@@ -327,22 +325,10 @@ fn token_precedence(t: Token) -> usize {
 ///
 /// All elements of the list must be `Some`.
 #[inline]
-unsafe fn spanned_option_boxes_unwrap_unchecked<'a, 'b, T, F>(
-    list: Box<'a, [Spanned<Option<Box<'b, T>>>]>,
-    alloc_fn: F,
-) -> Box<'a, [Box<'b, T>]>
-where
-    F: FnOnce(Vec<Box<'b, T>>) -> Box<'a, [Box<'b, T>]>,
-{
-    debug_assert!(list.iter().all(|item| item.data.is_some()));
-
-    let vec = list
-        .iter_mut()
-        .map(|spanned_item| {
-            // SAFETY: Caller must ensure that all elements are `Some`.
-            unsafe { spanned_item.data.take().unwrap_unchecked() }
-        })
-        .collect::<Vec<_>>();
-
-    alloc_fn(vec)
+unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
+    list: Box<'a, [SpannedOption<Box<'b, T>>]>,
+) -> Box<'a, [Box<'b, T>]> {
+    debug_assert!(list.iter().all(SpannedOption::is_some));
+    // SAFETY: Caller must ensure that all elements are `Some`.
+    unsafe { std::mem::transmute(list) }
 }

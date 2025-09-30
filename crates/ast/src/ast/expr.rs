@@ -1,6 +1,6 @@
 use super::{Box, Lit, SubDenomination, Type};
 use either::Either;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, SpannedOption};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
@@ -27,7 +27,7 @@ impl<'ast> Expr<'ast> {
     /// Peels off unnecessary parentheses from the expression.
     pub fn peel_parens(&self) -> &Self {
         let mut expr = self;
-        while let ExprKind::Tuple([Spanned { data: Some(inner), .. }]) = &expr.kind {
+        while let ExprKind::Tuple([SpannedOption::Some(inner)]) = &expr.kind {
             expr = inner;
         }
         expr
@@ -36,7 +36,7 @@ impl<'ast> Expr<'ast> {
     /// Peels off unnecessary parentheses from the expression.
     pub fn peel_parens_mut(&mut self) -> &mut Self {
         let mut expr = self;
-        while let ExprKind::Tuple([Spanned { data: Some(inner), .. }]) = expr.kind {
+        while let ExprKind::Tuple([SpannedOption::Some(inner)]) = expr.kind {
             expr = inner;
         }
         expr
@@ -99,7 +99,7 @@ pub enum ExprKind<'ast> {
     Ternary(Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(Box<'ast, [Spanned<Option<Box<'ast, Expr<'ast>>>>]>),
+    Tuple(Box<'ast, [SpannedOption<Box<'ast, Expr<'ast>>>]>),
 
     /// A `type()` expression: `type(uint256)`.
     TypeCall(Type<'ast>),

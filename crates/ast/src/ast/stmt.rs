@@ -2,7 +2,7 @@ use super::{
     AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
     VariableDefinition, yul,
 };
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, SpannedOption};
 
 /// A block of statements.
 #[derive(Debug)]
@@ -49,7 +49,7 @@ pub enum StmtKind<'ast> {
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Box<'ast, [Spanned<Option<VariableDefinition<'ast>>>]>, Box<'ast, Expr<'ast>>),
+    DeclMulti(Box<'ast, [SpannedOption<VariableDefinition<'ast>>]>, Box<'ast, Expr<'ast>>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block<'ast>),

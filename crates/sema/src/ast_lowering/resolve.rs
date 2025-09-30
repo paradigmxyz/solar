@@ -756,7 +756,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
-                    var.data.as_ref().map(|var| self.lower_variable(var, hir::VarKind::Statement).0)
+                    var.as_ref().map(|var| self.lower_variable(var, hir::VarKind::Statement).0)
                 })),
                 self.lower_expr(expr),
             ),

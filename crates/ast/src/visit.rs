@@ -1,7 +1,7 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, SpannedOption};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -305,10 +305,9 @@ declare_visitors! {
                 }
                 StmtKind::DeclMulti(vars, expr) => {
                     for spanned_var in vars.iter #_mut() {
-                        let Spanned{span, data} = spanned_var;
-                        self.visit_span #_mut(span)?;
-                        if let Some(var) = data {
-                            self.visit_variable_definition #_mut(var)?;
+                        match spanned_var {
+                            SpannedOption::Some(var) => self.visit_variable_definition #_mut(var)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
                         }
                     }
                     self.visit_expr #_mut(expr)?;
@@ -476,10 +475,9 @@ declare_visitors! {
                 }
                 ExprKind::Tuple(exprs) => {
                     for spanned_expr in exprs.iter #_mut() {
-                        let Spanned { span, data } = spanned_expr;
-                        self.visit_span #_mut(span)?;
-                        if let Some(expr) = data {
-                            self.visit_expr #_mut(expr)?;
+                        match spanned_expr {
+                            SpannedOption::Some(expr) => self.visit_expr #_mut(expr)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
                         }
                     }
                 }
