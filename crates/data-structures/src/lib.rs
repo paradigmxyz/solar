@@ -9,6 +9,7 @@
 #![cfg_attr(feature = "nightly", feature(debug_closure_helpers))]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
 #![cfg_attr(feature = "nightly", feature(likely_unlikely))]
+#![cfg_attr(feature = "nightly", feature(extern_types))]
 #![cfg_attr(feature = "nightly", allow(internal_features))]
 
 pub mod cycle;
@@ -33,6 +34,9 @@ pub use drop_guard::{DropGuard, defer};
 
 mod interned;
 pub use interned::Interned;
+
+mod thin_slice;
+pub use thin_slice::{RawThinSlice, ThinSlice};
 
 pub use smallvec;
 
