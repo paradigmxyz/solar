@@ -162,7 +162,7 @@ impl super::LoweringContext<'_> {
                 let name = &base.name;
                 let Ok(base_id) = self
                     .resolver
-                    .resolve_path_as::<hir::ContractId>(base.name, &scopes, "contract")
+                    .resolve_path_as::<hir::ContractId>(&base.name, &scopes, "contract")
                 else {
                     continue;
                 };
@@ -365,7 +365,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     } else {
                         "modifier"
                     };
-                    let Ok(id) = self.resolve_path_as(modifier.name, expected) else {
+                    let Ok(id) = self.resolve_path_as(&modifier.name, expected) else {
                         continue;
                     };
                     match id {

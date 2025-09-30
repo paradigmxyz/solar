@@ -1,7 +1,7 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    self as ast, AstPath, Box, DocComment, DocComments, PathSlice,
+    self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
     token::{Delimiter, Token, TokenKind},
 };
 use solar_data_structures::{BumpExt, fmt::or_list};
@@ -227,18 +227,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// # Panics
     ///
     /// Panics if the list is empty.
-    pub fn alloc_path(&self, values: &[Ident]) -> AstPath<'ast> {
-        PathSlice::from_mut_slice(self.arena.alloc_slice_copy(values))
+    pub fn alloc_path(&self, segments: &[Ident]) -> AstPath<'ast> {
+        // SAFETY: `Ident` is `Copy`.
+        AstPath::new_in(self.arena.bump(), segments)
     }
 
     /// Allocates a list of objects on the AST arena.
-    pub fn alloc_vec<T>(&self, values: Vec<T>) -> Box<'ast, [T]> {
-        self.arena.alloc_vec(values)
+    pub fn alloc_vec<T>(&self, values: Vec<T>) -> BoxSlice<'ast, T> {
+        self.arena.alloc_vec_thin((), values)
     }
 
     /// Allocates a list of objects on the AST arena.
-    pub fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> Box<'ast, [A::Item]> {
-        self.arena.alloc_smallvec(values)
+    pub fn alloc_smallvec<A: smallvec::Array>(
+        &self,
+        values: SmallVec<A>,
+    ) -> BoxSlice<'ast, A::Item> {
+        self.arena.alloc_smallvec_thin((), values)
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -523,7 +527,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.parse_delim_comma_seq(Delimiter::Parenthesis, allow_empty, f)
     }
 
@@ -537,7 +541,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.parse_delim_seq(delim, SeqSep::trailing_disallowed(TokenKind::Comma), allow_empty, f)
     }
 
@@ -550,7 +554,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         stop: TokenKind,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.parse_seq_to_before_end(
             stop,
             SeqSep::trailing_disallowed(TokenKind::Comma),
@@ -571,7 +575,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.parse_unspanned_seq(
             TokenKind::OpenDelim(delim),
             TokenKind::CloseDelim(delim),
@@ -593,7 +597,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         self.expect(bra)?;
         self.parse_seq_to_end(ket, sep, allow_empty, f)
     }
@@ -609,7 +613,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [T]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, T>> {
         let (val, recovered) = self.parse_seq_to_before_end(ket, sep, allow_empty, f)?;
         if recovered == Recovered::No {
             self.expect(ket)?;
@@ -628,7 +632,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
+    ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
         self.parse_seq_to_before_tokens(ket, sep, allow_empty, f)
     }
 
@@ -642,7 +646,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         sep: SeqSep,
         allow_empty: bool,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, (Box<'ast, [T]>, Recovered)> {
+    ) -> PResult<'sess, (BoxSlice<'ast, T>, Recovered)> {
         let mut first = true;
         let mut recovered = Recovered::No;
         let mut trailing = false;
@@ -864,7 +868,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        let docs = self.arena.alloc_slice_copy(&self.docs);
+        // SAFETY: `DocComment` is `Copy`.
+        let docs = unsafe { self.arena.alloc_thin_slice_unchecked((), &self.docs) };
         self.docs.clear();
         docs.into()
     }

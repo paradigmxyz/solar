@@ -24,9 +24,9 @@ struct ThinSliceSkeleton<H, T> {
     data: [T; 0],
 }
 
+// Makes `RawThinSlice` unsized. Unfortunately only available on nightly.
 #[cfg(not(feature = "nightly"))]
 type OpaqueListContents = ();
-
 #[cfg(feature = "nightly")]
 unsafe extern "C" {
     type OpaqueListContents;
@@ -141,6 +141,9 @@ impl<H, T> RawThinSlice<H, T> {
     }
 }
 
+unsafe impl<H: Send, T: Send> Send for RawThinSlice<H, T> {}
+unsafe impl<H: Sync, T: Sync> Sync for RawThinSlice<H, T> {}
+
 impl<H, T> std::ops::Deref for RawThinSlice<H, T> {
     type Target = [T];
 
@@ -164,29 +167,37 @@ impl<H, T> std::ops::DerefMut for RawThinSlice<H, T> {
     }
 }
 
-macro_rules! impl_default {
-    ($header_ty:ty, $header_init:expr) => {
-        impl<T> Default for &RawThinSlice<$header_ty, T> {
-            /// Returns a reference to the (per header unique, static) empty slice.
-            #[inline(always)]
-            fn default() -> Self {
-                #[repr(align(64))]
-                struct MaxAlign;
+impl<T> Default for &RawThinSlice<(), T> {
+    /// Returns a reference to the (per header unique, static) empty slice.
+    #[inline(always)]
+    fn default() -> Self {
+        assert!(align_of::<T>() <= align_of::<MaxAlign>());
 
-                static EMPTY: ThinSliceSkeleton<$header_ty, MaxAlign> =
-                    ThinSliceSkeleton { header: $header_init, len: 0, data: [] };
-
-                assert!(align_of::<T>() <= align_of::<MaxAlign>());
-
-                // SAFETY: `EMPTY` is sufficiently aligned to be an empty slice for all
-                // types with `align_of(T) <= align_of(MaxAlign)`, which we checked above.
-                unsafe { &*((&raw const EMPTY) as *const Self) }
-            }
-        }
-    };
+        // SAFETY: `EMPTY` is sufficiently aligned to be an empty slice for all
+        // types with `align_of(T) <= align_of(MaxAlign)`, which we checked above.
+        unsafe { &*((&raw const EMPTY) as *const Self) }
+    }
 }
 
-impl_default!((), ());
+impl<T> Default for &mut RawThinSlice<(), T> {
+    /// Returns a reference to the (per header unique, static) empty slice.
+    #[inline(always)]
+    fn default() -> Self {
+        assert!(align_of::<T>() <= align_of::<MaxAlign>());
+
+        // SAFETY: `EMPTY` is sufficiently aligned to be an empty slice for all
+        // types with `align_of(T) <= align_of(MaxAlign)`, which we checked above.
+        unsafe { &mut *((&raw mut EMPTY) as *mut Self) }
+    }
+}
+
+#[repr(align(64))]
+struct MaxAlign;
+
+// `mut` but nothing inside can ever be mutated. `header` is ZST, `len` and `data` are exposed as an
+// empty `&mut []`.
+static mut EMPTY: ThinSliceSkeleton<(), MaxAlign> =
+    ThinSliceSkeleton { header: (), len: 0, data: [] };
 
 impl<H, T: fmt::Debug> fmt::Debug for RawThinSlice<H, T> {
     #[inline]

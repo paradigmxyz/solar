@@ -2,7 +2,7 @@ use super::item::VarFlags;
 use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::BumpExt;
+use solar_data_structures::CollectAndApply;
 use solar_interface::{Ident, Span, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -258,7 +258,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [Option<T>]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, Option<T>>> {
         self.expect(TokenKind::OpenDelim(delim))?;
         let mut out = SmallVec::<[_; 8]>::new();
         while self.eat(TokenKind::Comma) {
@@ -417,7 +417,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                     kind => unreachable!("{kind:?}"),
                 })
                 .take(self.n_idents);
-            let path = PathSlice::from_mut_slice(parser.arena.alloc_from_iter(path));
+            let path = CollectAndApply::collect_and_apply(path, |path| parser.alloc_path(path));
             Type { span: path.span(), kind: TypeKind::Custom(path) }
         };
 

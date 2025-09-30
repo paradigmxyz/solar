@@ -1,10 +1,48 @@
-use super::Box;
-use solar_data_structures::smallvec::SmallVec;
+use crate::BoxSlice;
+use bumpalo::Bump;
+use solar_data_structures::{BumpExt, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
 use std::fmt;
 
 /// A boxed [`PathSlice`].
-pub type AstPath<'ast> = Box<'ast, PathSlice>;
+#[derive(Debug)]
+pub struct AstPath<'ast>(BoxSlice<'ast, Ident>);
+
+impl std::ops::Deref for AstPath<'_> {
+    type Target = PathSlice;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        unsafe { PathSlice::from_slice_unchecked(&self.0) }
+    }
+}
+
+impl std::ops::DerefMut for AstPath<'_> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { PathSlice::from_mut_slice_unchecked(&mut self.0) }
+    }
+}
+
+impl<'ast> AstPath<'ast> {
+    /// Creates a new path from a slice of segments by allocating them on the given arena.
+    #[inline]
+    pub fn new_in(arena: &'ast Bump, segments: &[Ident]) -> Self {
+        Self(arena.alloc_thin_slice_copy((), segments))
+    }
+
+    /// Returns the path as a slice.
+    #[inline]
+    pub fn as_slice(&self) -> &PathSlice {
+        self
+    }
+
+    /// Returns the path as a mutable slice.
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut PathSlice {
+        self
+    }
+}
 
 /// A qualified identifier: `foo.bar.baz`.
 ///

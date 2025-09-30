@@ -277,7 +277,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a list of expressions: `(a, b, c, ...)`.
     #[allow(clippy::vec_box)]
     #[track_caller]
-    fn parse_unnamed_args(&mut self) -> PResult<'sess, Box<'ast, [Box<'ast, Expr<'ast>>]>> {
+    fn parse_unnamed_args(&mut self) -> PResult<'sess, BoxSlice<'ast, Box<'ast, Expr<'ast>>>> {
         self.parse_paren_comma_seq(true, Self::parse_expr)
     }
 }
@@ -326,8 +326,8 @@ fn token_precedence(t: Token) -> usize {
 /// All elements of the list must be `Some`.
 #[inline]
 unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
-    list: Box<'a, [Option<Box<'b, T>>]>,
-) -> Box<'a, [Box<'b, T>]> {
+    list: BoxSlice<'a, Option<Box<'b, T>>>,
+) -> BoxSlice<'a, Box<'b, T>> {
     debug_assert!(list.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
     unsafe { std::mem::transmute(list) }

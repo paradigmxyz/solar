@@ -1,6 +1,6 @@
 //! Solidity AST.
 
-use solar_data_structures::{BumpExt, index::IndexSlice, newtype_index};
+use solar_data_structures::{BumpExt, ThinSlice, index::IndexSlice, newtype_index};
 use std::fmt;
 
 pub use crate::token::CommentKind;
@@ -30,7 +30,11 @@ pub use ty::*;
 
 pub mod yul;
 
+/// AST box. Allocated on the AST arena.
 pub type Box<'ast, T> = &'ast mut T;
+
+/// AST box slice. Allocated on the AST arena.
+pub type BoxSlice<'ast, T> = Box<'ast, ThinSlice<T>>;
 
 /// AST arena allocator.
 pub struct Arena {
@@ -81,10 +85,10 @@ impl std::ops::Deref for Arena {
 
 /// A list of doc-comments.
 #[derive(Default)]
-pub struct DocComments<'ast>(pub Box<'ast, [DocComment]>);
+pub struct DocComments<'ast>(pub BoxSlice<'ast, DocComment>);
 
 impl<'ast> std::ops::Deref for DocComments<'ast> {
-    type Target = Box<'ast, [DocComment]>;
+    type Target = BoxSlice<'ast, DocComment>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -99,8 +103,8 @@ impl std::ops::DerefMut for DocComments<'_> {
     }
 }
 
-impl<'ast> From<Box<'ast, [DocComment]>> for DocComments<'ast> {
-    fn from(comments: Box<'ast, [DocComment]>) -> Self {
+impl<'ast> From<BoxSlice<'ast, DocComment>> for DocComments<'ast> {
+    fn from(comments: BoxSlice<'ast, DocComment>) -> Self {
         Self(comments)
     }
 }
@@ -146,7 +150,7 @@ impl fmt::Debug for SourceUnit<'_> {
 
 impl<'ast> SourceUnit<'ast> {
     /// Creates a new source unit from the given items.
-    pub fn new(items: Box<'ast, [Item<'ast>]>) -> Self {
+    pub fn new(items: BoxSlice<'ast, Item<'ast>>) -> Self {
         Self { items: IndexSlice::from_slice_mut(items) }
     }
 
@@ -202,45 +206,45 @@ mod tests {
         }
 
         assert_size::<Span>(str!["8"]);
-        assert_size::<DocComments<'_>>(str!["16"]);
+        assert_size::<DocComments<'_>>(str!["8"]);
 
         assert_size::<SourceUnit<'_>>(str!["16"]);
 
-        assert_size::<PragmaDirective<'_>>(str!["40"]);
-        assert_size::<ImportDirective<'_>>(str!["40"]);
-        assert_size::<UsingDirective<'_>>(str!["64"]);
-        assert_size::<ItemContract<'_>>(str!["64"]);
-        assert_size::<ItemFunction<'_>>(str!["184"]);
-        assert_size::<VariableDefinition<'_>>(str!["88"]);
-        assert_size::<ItemStruct<'_>>(str!["32"]);
-        assert_size::<ItemEnum<'_>>(str!["32"]);
-        assert_size::<ItemUdvt<'_>>(str!["48"]);
-        assert_size::<ItemError<'_>>(str!["40"]);
-        assert_size::<ItemEvent<'_>>(str!["40"]);
-        assert_size::<ItemKind<'_>>(str!["184"]);
-        assert_size::<Item<'_>>(str!["208"]);
+        assert_size::<PragmaDirective<'_>>(str!["32"]);
+        assert_size::<ImportDirective<'_>>(str!["32"]);
+        assert_size::<UsingDirective<'_>>(str!["48"]);
+        assert_size::<ItemContract<'_>>(str!["48"]);
+        assert_size::<ItemFunction<'_>>(str!["144"]);
+        assert_size::<VariableDefinition<'_>>(str!["72"]);
+        assert_size::<ItemStruct<'_>>(str!["24"]);
+        assert_size::<ItemEnum<'_>>(str!["24"]);
+        assert_size::<ItemUdvt<'_>>(str!["40"]);
+        assert_size::<ItemError<'_>>(str!["32"]);
+        assert_size::<ItemEvent<'_>>(str!["32"]);
+        assert_size::<ItemKind<'_>>(str!["144"]);
+        assert_size::<Item<'_>>(str!["160"]);
 
-        assert_size::<FunctionHeader<'_>>(str!["144"]);
-        assert_size::<ParameterList<'_>>(str!["24"]);
+        assert_size::<FunctionHeader<'_>>(str!["112"]);
+        assert_size::<ParameterList<'_>>(str!["16"]);
 
         assert_size::<ElementaryType>(str!["3"]);
-        assert_size::<TypeKind<'_>>(str!["24"]);
-        assert_size::<Type<'_>>(str!["32"]);
+        assert_size::<TypeKind<'_>>(str!["16"]);
+        assert_size::<Type<'_>>(str!["24"]);
 
         assert_size::<ExprKind<'_>>(str!["40"]);
         assert_size::<Expr<'_>>(str!["48"]);
 
-        assert_size::<StmtKind<'_>>(str!["64"]);
-        assert_size::<Stmt<'_>>(str!["88"]);
-        assert_size::<Block<'_>>(str!["24"]);
+        assert_size::<StmtKind<'_>>(str!["48"]);
+        assert_size::<Stmt<'_>>(str!["64"]);
+        assert_size::<Block<'_>>(str!["16"]);
 
-        assert_size::<yul::ExprCall<'_>>(str!["32"]);
-        assert_size::<yul::ExprKind<'_>>(str!["40"]);
-        assert_size::<yul::Expr<'_>>(str!["48"]);
+        assert_size::<yul::ExprCall<'_>>(str!["24"]);
+        assert_size::<yul::ExprKind<'_>>(str!["24"]);
+        assert_size::<yul::Expr<'_>>(str!["32"]);
 
-        assert_size::<yul::StmtKind<'_>>(str!["80"]);
-        assert_size::<yul::Stmt<'_>>(str!["104"]);
-        assert_size::<yul::Block<'_>>(str!["24"]);
-        assert_size::<yul::StmtFor<'_>>(str!["120"]);
+        assert_size::<yul::StmtKind<'_>>(str!["56"]);
+        assert_size::<yul::Stmt<'_>>(str!["72"]);
+        assert_size::<yul::Block<'_>>(str!["16"]);
+        assert_size::<yul::StmtFor<'_>>(str!["80"]);
     }
 }
