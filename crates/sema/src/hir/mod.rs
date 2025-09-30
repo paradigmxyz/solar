@@ -517,6 +517,11 @@ impl ItemId {
         if let Self::Function(v) = *self { Some(v) } else { None }
     }
 
+    /// Returns the struct ID if this is a struct.
+    pub fn as_struct(&self) -> Option<StructId> {
+        if let Self::Struct(v) = *self { Some(v) } else { None }
+    }
+
     /// Returns the variable ID if this is a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }

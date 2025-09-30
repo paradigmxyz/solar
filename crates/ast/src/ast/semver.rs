@@ -1,4 +1,4 @@
-use super::Box;
+use crate::BoxSlice;
 use semver::Op;
 use solar_data_structures::smallvec::{SmallVec, smallvec};
 use solar_interface::Span;
@@ -202,7 +202,7 @@ pub struct SemverReq<'ast> {
     /// Or-ed list of and-ed components, meaning that `matches` is evaluated as
     /// `any([all(c) for c in dis])`.
     /// E.g.: `^0 <=1 || 0.5.0 - 0.6.0 ... || ...` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...], ...]`
-    pub dis: Box<'ast, [SemverReqCon<'ast>]>,
+    pub dis: BoxSlice<'ast, SemverReqCon<'ast>>,
 }
 
 impl fmt::Display for SemverReq<'_> {
@@ -249,7 +249,7 @@ impl SemverVersionReqCompat {
 pub struct SemverReqCon<'ast> {
     pub span: Span,
     /// The list of components. See [`SemverReq::dis`] for more details.
-    pub components: Box<'ast, [SemverReqComponent]>,
+    pub components: BoxSlice<'ast, SemverReqComponent>,
 }
 
 impl fmt::Display for SemverReqCon<'_> {
