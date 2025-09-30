@@ -321,7 +321,7 @@ pub enum SpannedOption<T> {
 
 impl<T> SpannedOption<T> {
     pub fn is_some(&self) -> bool {
-        matches!(&self, SpannedOption::Some(..))
+        matches!(&self, Self::Some(..))
     }
 
     pub fn map<U, F>(self, f: F) -> Option<U>

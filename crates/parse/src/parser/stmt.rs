@@ -210,7 +210,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 LookAheadInfo::VariableDeclaration => {
                     let mut variables = none_elements
                         .into_iter()
-                        .map(|span| SpannedOption::None(span))
+                        .map(SpannedOption::None)
                         .collect::<SmallVec<[_; 8]>>();
                     let ty = iap.into_ty(self);
                     variables.push(SpannedOption::Some(
@@ -229,7 +229,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 LookAheadInfo::Expression => {
                     let mut components = none_elements
                         .into_iter()
-                        .map(|span| SpannedOption::None(span))
+                        .map(SpannedOption::None)
                         .collect::<SmallVec<[_; 8]>>();
                     let expr = iap.into_expr(self);
                     components.push(SpannedOption::Some(self.parse_expr_with(expr)?));
