@@ -304,8 +304,12 @@ declare_visitors! {
                     self.visit_variable_definition #_mut(var)?;
                 }
                 StmtKind::DeclMulti(vars, expr) => {
-                    for var in vars.iter #_mut().flatten() {
-                        self.visit_variable_definition #_mut(var)?;
+                    for spanned_var in vars.iter #_mut() {
+                        let Spanned{span, data} = spanned_var;
+                        self.visit_span #_mut(span)?;
+                        if let Some(var) = data {
+                            self.visit_variable_definition #_mut(var)?;
+                        }
                     }
                     self.visit_expr #_mut(expr)?;
                 }
@@ -471,8 +475,12 @@ declare_visitors! {
                     self.visit_expr #_mut(false_)?;
                 }
                 ExprKind::Tuple(exprs) => {
-                    for expr in exprs.iter #_mut().flatten() {
-                        self.visit_expr #_mut(expr)?;
+                    for spanned_expr in exprs.iter #_mut() {
+                        let Spanned { span, data } = spanned_expr;
+                        self.visit_span #_mut(span)?;
+                        if let Some(expr) = data {
+                            self.visit_expr #_mut(expr)?;
+                        }
                     }
                 }
                 ExprKind::TypeCall(ty) => {
