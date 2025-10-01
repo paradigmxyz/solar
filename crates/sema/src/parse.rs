@@ -444,7 +444,10 @@ impl<'ast> Sources<'ast> {
 
     /// Returns the ID of the source file, if it exists.
     pub fn get_file(&self, file: &Arc<SourceFile>) -> Option<(SourceId, &Source<'ast>)> {
-        self.file_to_id.get(file).map(|&id| (id, &self.sources[id]))
+        self.file_to_id.get(file).map(|&id| {
+            debug_assert_eq!(self.sources[id].file, *file, "file_to_id is inconsistent");
+            (id, &self.sources[id])
+        })
     }
 
     /// Returns the ID of the source file, if it exists.
@@ -452,7 +455,10 @@ impl<'ast> Sources<'ast> {
         &mut self,
         file: &Arc<SourceFile>,
     ) -> Option<(SourceId, &mut Source<'ast>)> {
-        self.file_to_id.get(file).map(|&id| (id, &mut self.sources[id]))
+        self.file_to_id.get(file).map(|&id| {
+            debug_assert_eq!(self.sources[id].file, *file, "file_to_id is inconsistent");
+            (id, &mut self.sources[id])
+        })
     }
 
     /// Returns the ID of the given file, or inserts it if it doesn't exist.
@@ -653,5 +659,61 @@ fn sort_by_indices<I: Idx, T>(data: &mut IndexVec<I, T>, mut indices: IndexVec<I
                 current_idx = target_idx;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use solar_ast::ItemId;
+
+    use super::*;
+
+    #[test]
+    fn sources_consistency() {
+        let sess = Session::builder().with_test_emitter().build();
+        sess.enter_sequential(|| {
+            let mut sources = Sources::new();
+
+            let (aid, new) = sources.get_or_insert_file(
+                sess.source_map().new_source_file(PathBuf::from("a.sol"), "abcd").unwrap(),
+            );
+            assert!(new);
+
+            let (bid, new) = sources.get_or_insert_file(
+                sess.source_map().new_source_file(PathBuf::from("b.sol"), "aaaaa").unwrap(),
+            );
+            assert!(new);
+
+            let (cid, new) = sources.get_or_insert_file(
+                sess.source_map().new_source_file(PathBuf::from("c.sol"), "cccccc").unwrap(),
+            );
+            assert!(new);
+
+            let files = vec![
+                (aid, PathBuf::from("a.sol")),
+                (bid, PathBuf::from("b.sol")),
+                (cid, PathBuf::from("c.sol")),
+            ];
+
+            sources[aid].imports.push((ItemId::new(0), cid));
+
+            for (id, path) in &files {
+                assert_eq!(sources[*id].file.name, FileName::Real(path.clone()));
+            }
+
+            let assert_maps = |sources: &mut Sources<'_>| {
+                for (_, path) in &files {
+                    let file = sess.source_map().get_file(path).unwrap();
+                    let id = sources.get_file(&file).unwrap().0;
+                    assert_eq!(sources[id].file, file);
+                }
+            };
+
+            assert_maps(&mut sources);
+            sources.topo_sort();
+            assert_maps(&mut sources);
+        });
     }
 }
