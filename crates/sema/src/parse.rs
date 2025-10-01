@@ -699,6 +699,10 @@ mod tests {
 
             sources[aid].imports.push((ItemId::new(0), cid));
 
+            for (id, path) in &files {
+                assert_eq!(sources[*id].file.name, FileName::Real(path.clone()));
+            }
+
             let assert_maps = |sources: &mut Sources<'_>| {
                 for (_, path) in &files {
                     let file = sess.source_map().get_file(path).unwrap();
@@ -708,9 +712,7 @@ mod tests {
             };
 
             assert_maps(&mut sources);
-            dbg!(&sources);
             sources.topo_sort();
-            dbg!(&sources);
             assert_maps(&mut sources);
         });
     }
