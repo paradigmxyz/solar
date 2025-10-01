@@ -511,7 +511,7 @@ mod tests {
     #[test]
     fn optional_items_seq() {
         #[allow(clippy::type_complexity)]
-        fn check(tests: &[(&str, &[(Option<&str>, &str)])]) {
+        fn check(tests: &[(&str, &[Option<&str>])]) {
             let sess = Session::builder().with_test_emitter().single_threaded().build();
             sess.enter_sequential(|| -> Result {
                 for &(s, results) in tests.iter() {
@@ -543,8 +543,10 @@ mod tests {
                         .collect();
 
                     // Format the expected results for comparison
-                    let expected: Vec<_> =
-                        results.iter().map(|(data, snip)| (*data, snip.to_string())).collect();
+                    let expected: Vec<_> = results
+                        .iter()
+                        .map(|&data| (data, data.unwrap_or("").to_string()))
+                        .collect();
 
                     assert_eq!(formatted, expected, "{s:?}");
                 }
@@ -555,20 +557,20 @@ mod tests {
 
         check(&[
             ("()", &[]),
-            ("(a)", &[(Some("a"), "a")]),
+            ("(a)", &[Some("a")]),
             // invalid syntax
-            // ("(,)", &[(None, ""), (None, "")]),
-            ("(a,)", &[(Some("a"), "a"), (None, "")]),
-            ("(,b)", &[(None, ""), (Some("b"), "b")]),
-            ("(a,b)", &[(Some("a"), "a"), (Some("b"), "b")]),
-            ("(a,b,)", &[(Some("a"), "a"), (Some("b"), "b"), (None, "")]),
+            // ("(,)", &[None, None]),
+            ("(a,)", &[Some("a"), None]),
+            ("(,b)", &[None, Some("b")]),
+            ("(a,b)", &[Some("a"), Some("b")]),
+            ("(a,b,)", &[Some("a"), Some("b"), None]),
             // invalid syntax
-            // ("(,,)", &[(None, ""), (None, ""), (None, "")]),
-            ("(a,,)", &[(Some("a"), "a"), (None, ""), (None, "")]),
-            ("(a,b,c)", &[(Some("a"), "a"), (Some("b"), "b"), (Some("c"), "c")]),
-            ("(,b,c)", &[(None, ""), (Some("b"), "b"), (Some("c"), "c")]),
-            ("(,,c)", &[(None, ""), (None, ""), (Some("c"), "c")]),
-            ("(a,,c)", &[(Some("a"), "a"), (None, ""), (Some("c"), "c")]),
+            // ("(,,)", &[None, None, None]),
+            ("(a,,)", &[Some("a"), None, None]),
+            ("(a,b,c)", &[Some("a"), Some("b"), Some("c")]),
+            ("(,b,c)", &[None, Some("b"), Some("c")]),
+            ("(,,c)", &[None, None, Some("c")]),
+            ("(a,,c)", &[Some("a"), None, Some("c")]),
         ]);
     }
 }
