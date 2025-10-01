@@ -320,6 +320,10 @@ pub enum SpannedOption<T> {
 }
 
 impl<T> SpannedOption<T> {
+    pub fn is_none(&self) -> bool {
+        matches!(&self, Self::None(..))
+    }
+
     pub fn is_some(&self) -> bool {
         matches!(&self, Self::Some(..))
     }
@@ -338,6 +342,15 @@ impl<T> SpannedOption<T> {
         match &self {
             Self::Some(value) => SpannedOption::Some(value),
             Self::None(span) => SpannedOption::None(*span),
+        }
+    }
+}
+
+impl<T> From<SpannedOption<T>> for Option<T> {
+    fn from(spanned: SpannedOption<T>) -> Self {
+        match spanned {
+            SpannedOption::Some(value) => Some(value),
+            SpannedOption::None(_) => None,
         }
     }
 }

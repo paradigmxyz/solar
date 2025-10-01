@@ -1,7 +1,8 @@
 use crate::{PResult, Parser};
+use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::BumpExt;
-use solar_interface::{SpannedOption, kw};
+
+use solar_interface::kw;
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
@@ -200,15 +201,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let is_array = close_delim == Delimiter::Bracket;
             let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
             if is_array {
-                if !list.iter().all(|item| item.is_some()) {
-                    let msg = "array expression components cannot be empty";
-                    let span = lo.to(self.prev_token.span);
-                    return Err(self.dcx().err(msg).span(span));
-                }
+                let list = list
+                    .into_iter()
+                    .map(|item| match item.into() {
+                        Some(expr) => Ok(Some(expr)),
+                        None => {
+                            let msg = "array expression components cannot be empty";
+                            let span = lo.to(self.prev_token.span);
+                            Err(self.dcx().err(msg).span(span))
+                        }
+                    })
+                    .collect::<Result<SmallVec<[Option<_>; 8]>, _>>()?;
+
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list, self.arena) })
+                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(self.alloc_smallvec(list)) })
             } else {
-                ExprKind::Tuple(list)
+                ExprKind::Tuple(self.alloc_smallvec(list))
             }
         } else {
             return self.unexpected();
@@ -327,21 +335,9 @@ fn token_precedence(t: Token) -> usize {
 /// All elements of the list must be `Some`.
 #[inline]
 unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
-    list: BoxSlice<'a, SpannedOption<Box<'b, T>>>,
-    arena: &'a solar_ast::Arena,
+    list: BoxSlice<'a, Option<Box<'b, T>>>,
 ) -> BoxSlice<'a, Box<'b, T>> {
-    debug_assert!(list.iter().all(SpannedOption::is_some));
-
-    let items = list
-        .into_iter()
-        .map(|item| {
-            match std::mem::take(item) {
-                // SAFETY: Caller ensures all items are `Some`.
-                SpannedOption::Some(value) => value,
-                SpannedOption::None(_) => unsafe { std::hint::unreachable_unchecked() },
-            }
-        })
-        .collect::<Vec<_>>();
-
-    arena.alloc_vec_thin((), items)
+    debug_assert!(list.iter().all(Option::is_some));
+    // SAFETY: Caller must ensure that all elements are `Some`.
+    unsafe { std::mem::transmute(list) }
 }

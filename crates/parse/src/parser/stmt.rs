@@ -270,7 +270,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, BoxSlice<'ast, SpannedOption<T>>> {
+    ) -> PResult<'sess, SmallVec<[SpannedOption<T>; 8]>> {
         let mut prev_sep_span = self.token.span;
         self.expect(TokenKind::OpenDelim(delim))?;
 
@@ -289,8 +289,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // Call the helper to parse the rest of the sequence.
-        self.parse_optional_items_seq_required(delim, &mut out, f)
-            .map(|()| self.alloc_smallvec(out))
+        self.parse_optional_items_seq_required(delim, &mut out, f)?;
+        Ok(out)
     }
 
     fn parse_optional_items_seq_required<T>(
@@ -302,7 +302,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let (comma, close) = (TokenKind::Comma, TokenKind::CloseDelim(delim));
 
         // Handle early close delimiter.
-        if self.eat(close) && !matches!(out.last(), Some(SpannedOption::None(..))) {
+        if self.eat(close) {
             return Ok(());
         }
 
