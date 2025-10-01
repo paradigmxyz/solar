@@ -2,7 +2,7 @@ use crate::BoxSlice;
 use bumpalo::Bump;
 use solar_data_structures::{BumpExt, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 /// A boxed [`PathSlice`].
 #[derive(Debug)]
@@ -21,6 +21,36 @@ impl std::ops::DerefMut for AstPath<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { PathSlice::from_mut_slice_unchecked(self.0) }
+    }
+}
+
+impl PartialEq for AstPath<'_> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for AstPath<'_> {}
+
+impl PartialOrd for AstPath<'_> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for AstPath<'_> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.as_slice().cmp(other.as_slice())
+    }
+}
+
+impl std::hash::Hash for AstPath<'_> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_slice().hash(state)
     }
 }
 
