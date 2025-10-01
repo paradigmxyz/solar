@@ -197,11 +197,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            let mut prev_sep_span = self.prev_token.span;
             let mut none_elements = SmallVec::<[_; 8]>::new();
             while self.eat(TokenKind::Comma) {
-                none_elements.push(prev_sep_span.shrink_to_hi());
-                prev_sep_span = self.prev_token.span;
+                none_elements.push(self.prev_token.span.shrink_to_hi());
             }
 
             let (statement_type, iap) = self.try_parse_iap()?;
@@ -271,15 +269,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, SmallVec<[SpannedOption<T>; 8]>> {
-        let mut prev_sep_span = self.token.span;
         self.expect(TokenKind::OpenDelim(delim))?;
 
         let mut out = SmallVec::<[_; 8]>::new();
 
         // Handle leading commas, e.g., `(, a, b)`.
         while self.eat(TokenKind::Comma) {
-            out.push(SpannedOption::None(prev_sep_span.shrink_to_hi()));
-            prev_sep_span = self.prev_token.span;
+            out.push(SpannedOption::None(self.prev_token.span.shrink_to_lo()));
         }
 
         // Handle the first potential item. If the list is not closing,
@@ -308,7 +304,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         // Expect comma separator.
         self.expect(comma)?;
-        let mut prev_sep_span = self.prev_token.span;
 
         // Handle subsequent elements until finding the close token.
         loop {
@@ -316,14 +311,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if self.eat(comma) {
                 let element = match item {
                     Some(val) => SpannedOption::Some(val),
-                    None => SpannedOption::None(prev_sep_span.shrink_to_hi()),
+                    None => SpannedOption::None(self.prev_token.span.shrink_to_lo()),
                 };
                 out.push(element);
-                prev_sep_span = self.prev_token.span;
             } else if self.eat(close) {
                 let element = match item {
                     Some(val) => SpannedOption::Some(val),
-                    None => SpannedOption::None(prev_sep_span.shrink_to_hi()),
+                    None => SpannedOption::None(self.prev_token.span.shrink_to_lo()),
                 };
                 out.push(element);
                 return Ok(());

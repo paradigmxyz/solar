@@ -355,12 +355,6 @@ impl<T> From<SpannedOption<T>> for Option<T> {
     }
 }
 
-impl<T> Default for SpannedOption<T> {
-    fn default() -> Self {
-        Self::None(Span::DUMMY)
-    }
-}
-
 impl<T: Deref> SpannedOption<T> {
     pub fn as_deref(&self) -> Option<&<T as Deref>::Target> {
         match self {
