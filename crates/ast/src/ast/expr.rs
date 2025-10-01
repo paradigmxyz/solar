@@ -2,7 +2,7 @@ use super::{Box, Lit, SubDenomination, Type};
 use crate::BoxSlice;
 use either::Either;
 use solar_data_structures::trustme;
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, SpannedOption};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
@@ -30,7 +30,7 @@ impl<'ast> Expr<'ast> {
     pub fn peel_parens(&self) -> &Self {
         let mut expr = self;
         while let ExprKind::Tuple(x) = &expr.kind
-            && let [Some(inner)] = x.as_slice()
+            && let [SpannedOption::Some(inner)] = x.as_slice()
         {
             expr = inner;
         }
@@ -43,7 +43,7 @@ impl<'ast> Expr<'ast> {
         // SAFETY: This is a bug in the compiler. This works when `x` is a slice and we can inline
         // into one pattern.
         while let ExprKind::Tuple(x) = &mut unsafe { trustme::decouple_lt_mut(expr) }.kind
-            && let [Some(inner)] = x.as_mut_slice()
+            && let [SpannedOption::Some(inner)] = x.as_mut_slice()
         {
             expr = inner;
         }
@@ -107,7 +107,7 @@ pub enum ExprKind<'ast> {
     Ternary(Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(BoxSlice<'ast, Option<Box<'ast, Expr<'ast>>>>),
+    Tuple(BoxSlice<'ast, SpannedOption<Box<'ast, Expr<'ast>>>>),
 
     /// A `type()` expression: `type(uint256)`.
     TypeCall(Type<'ast>),

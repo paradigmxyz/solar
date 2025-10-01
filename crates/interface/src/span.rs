@@ -305,3 +305,68 @@ impl<T> Spanned<T> {
         self.data
     }
 }
+
+/// An `Option`-like enum that tracks the source location of an absent value.
+///
+/// This type is used to represent comma-separated items that can be omitted.
+/// - The [`Some`](Self::Some) variant holds the parsed item `T`. The item `T` itself is expected to
+///   be a spanned type.
+/// - The [`None`](Self::None) variant holds the [`Span`] of the empty slot, typically the location
+///   of the comma separator.
+#[derive(Clone, Copy, Debug)]
+pub enum SpannedOption<T> {
+    Some(T),
+    None(Span),
+}
+
+impl<T> SpannedOption<T> {
+    /// Returns `true` if the `SpannedOption` is `None`.
+    pub fn is_none(&self) -> bool {
+        matches!(&self, Self::None(_))
+    }
+
+    /// Returns `true` if the `SpannedOption` is `Some`.
+    pub fn is_some(&self) -> bool {
+        matches!(&self, Self::Some(_))
+    }
+
+    /// Converts the `SpannedOption` into an `Option`.
+    pub fn unspan(self) -> Option<T> {
+        match self {
+            Self::Some(value) => Some(value),
+            Self::None(_) => None,
+        }
+    }
+
+    /// Maps the `SpannedOption` to a new `SpannedOption`.
+    pub fn map<U, F>(self, f: F) -> SpannedOption<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Some(value) => SpannedOption::Some(f(value)),
+            Self::None(span) => SpannedOption::None(span),
+        }
+    }
+
+    /// Converts from `&SpannedOption<T>` to `SpannedOption<&T>`.
+    pub fn as_ref(&self) -> SpannedOption<&T> {
+        match &self {
+            Self::Some(value) => SpannedOption::Some(value),
+            Self::None(span) => SpannedOption::None(*span),
+        }
+    }
+}
+
+impl<T: Deref> SpannedOption<T> {
+    /// Converts from `SpannedOption<T>` (or `&SpannedOption<T>`) to `SpannedOption<&T::Target>`.
+    pub fn as_deref(&self) -> SpannedOption<&<T as Deref>::Target> {
+        self.as_ref().map(Deref::deref)
+    }
+}
+
+impl<T> From<SpannedOption<T>> for Option<T> {
+    fn from(spanned: SpannedOption<T>) -> Self {
+        spanned.unspan()
+    }
+}

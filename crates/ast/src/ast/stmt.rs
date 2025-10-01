@@ -2,7 +2,7 @@ use crate::{
     AstPath, Box, BoxSlice, CallArgs, DocComments, Expr, ParameterList, StrLit, VariableDefinition,
     yul,
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, SpannedOption};
 
 /// A block of statements.
 #[derive(Debug)]
@@ -49,7 +49,7 @@ pub enum StmtKind<'ast> {
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(BoxSlice<'ast, Option<VariableDefinition<'ast>>>, Box<'ast, Expr<'ast>>),
+    DeclMulti(BoxSlice<'ast, SpannedOption<VariableDefinition<'ast>>>, Box<'ast, Expr<'ast>>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block<'ast>),

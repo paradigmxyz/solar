@@ -25,7 +25,7 @@ pub mod source_map;
 pub use source_map::SourceMap;
 
 mod span;
-pub use span::{Span, Spanned};
+pub use span::{Span, Spanned, SpannedOption};
 
 mod symbol;
 pub use symbol::{ByteSymbol, Ident, Symbol, kw, sym};
