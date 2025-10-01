@@ -757,7 +757,8 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
                     var.as_ref()
-                        .map_unspanned(|var| self.lower_variable(var, hir::VarKind::Statement).0)
+                        .unspan()
+                        .map(|var| self.lower_variable(var, hir::VarKind::Statement).0)
                 })),
                 self.lower_expr(expr),
             ),
@@ -1061,7 +1062,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.lower_expr(r#else),
             ),
             ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
-                exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref())),
+                exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
             )),
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),

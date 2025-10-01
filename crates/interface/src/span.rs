@@ -320,14 +320,25 @@ pub enum SpannedOption<T> {
 }
 
 impl<T> SpannedOption<T> {
+    /// Returns `true` if the `SpannedOption` is `None`.
     pub fn is_none(&self) -> bool {
-        matches!(&self, Self::None(..))
+        matches!(&self, Self::None(_))
     }
 
+    /// Returns `true` if the `SpannedOption` is `Some`.
     pub fn is_some(&self) -> bool {
-        matches!(&self, Self::Some(..))
+        matches!(&self, Self::Some(_))
     }
 
+    /// Converts the `SpannedOption` into an `Option`.
+    pub fn unspan(self) -> Option<T> {
+        match self {
+            Self::Some(value) => Some(value),
+            Self::None(_) => None,
+        }
+    }
+
+    /// Maps the `SpannedOption` to a new `SpannedOption`.
     pub fn map<U, F>(self, f: F) -> SpannedOption<U>
     where
         F: FnOnce(T) -> U,
@@ -338,16 +349,7 @@ impl<T> SpannedOption<T> {
         }
     }
 
-    pub fn map_unspanned<U, F>(self, f: F) -> Option<U>
-    where
-        F: FnOnce(T) -> U,
-    {
-        match self {
-            Self::Some(value) => Option::Some(f(value)),
-            Self::None(..) => Option::None,
-        }
-    }
-
+    /// Converts from `&SpannedOption<T>` to `SpannedOption<&T>`.
     pub fn as_ref(&self) -> SpannedOption<&T> {
         match &self {
             Self::Some(value) => SpannedOption::Some(value),
@@ -356,20 +358,15 @@ impl<T> SpannedOption<T> {
     }
 }
 
-impl<T> From<SpannedOption<T>> for Option<T> {
-    fn from(spanned: SpannedOption<T>) -> Self {
-        match spanned {
-            SpannedOption::Some(value) => Some(value),
-            SpannedOption::None(_) => None,
-        }
+impl<T: Deref> SpannedOption<T> {
+    /// Converts from `SpannedOption<T>` (or `&SpannedOption<T>`) to `SpannedOption<&T::Target>`.
+    pub fn as_deref(&self) -> SpannedOption<&<T as Deref>::Target> {
+        self.as_ref().map(Deref::deref)
     }
 }
 
-impl<T: Deref> SpannedOption<T> {
-    pub fn as_deref(&self) -> Option<&<T as Deref>::Target> {
-        match self {
-            Self::Some(value) => Option::Some(value.deref()),
-            Self::None(..) => Option::None,
-        }
+impl<T> From<SpannedOption<T>> for Option<T> {
+    fn from(spanned: SpannedOption<T>) -> Self {
+        spanned.unspan()
     }
 }
