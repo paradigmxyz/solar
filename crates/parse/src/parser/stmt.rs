@@ -200,9 +200,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let mut prev_sep_span = self.prev_token.span;
             let mut none_elements = SmallVec::<[_; 8]>::new();
             while self.eat(TokenKind::Comma) {
-                let sep_span = self.prev_token.span;
-                none_elements.push(prev_sep_span.to(sep_span));
-                prev_sep_span = sep_span;
+                none_elements.push(prev_sep_span.shrink_to_hi());
+                prev_sep_span = self.prev_token.span;
             }
 
             let (statement_type, iap) = self.try_parse_iap()?;
@@ -219,7 +218,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parse_optional_items_seq_required(
                         Delimiter::Parenthesis,
                         &mut variables,
-                        prev_sep_span,
                         |this| this.parse_variable_definition(VarFlags::FUNCTION),
                     )?;
                     self.expect(TokenKind::Eq)?;
@@ -236,7 +234,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.parse_optional_items_seq_required(
                         Delimiter::Parenthesis,
                         &mut components,
-                        prev_sep_span,
                         Self::parse_expr,
                     )?;
                     let partially_parsed = Expr {
@@ -281,9 +278,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         // Handle leading commas, e.g., `(, a, b)`.
         while self.eat(TokenKind::Comma) {
-            let sep_span = self.prev_token.span;
-            out.push(SpannedOption::None(prev_sep_span.to(sep_span)));
-            prev_sep_span = sep_span;
+            out.push(SpannedOption::None(prev_sep_span.shrink_to_hi()));
+            prev_sep_span = self.prev_token.span;
         }
 
         // Handle the first potential item. If the list is not closing,
@@ -293,7 +289,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // Call the helper to parse the rest of the sequence.
-        self.parse_optional_items_seq_required(delim, &mut out, prev_sep_span, f)
+        self.parse_optional_items_seq_required(delim, &mut out, f)
             .map(|()| self.alloc_smallvec(out))
     }
 
@@ -301,42 +297,33 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &mut self,
         delim: Delimiter,
         out: &mut SmallVec<[SpannedOption<T>; 8]>,
-        mut prev_sep_span: Span,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, ()> {
         let (comma, close) = (TokenKind::Comma, TokenKind::CloseDelim(delim));
 
-        // Handle close delimiter and update last element's span if not empty.
-        if self.eat(close) {
-            if let Some(SpannedOption::None(..)) = out.last() {
-                out.push(SpannedOption::None(prev_sep_span.to(self.prev_token.span)));
-            }
+        // Handle early close delimiter.
+        if self.eat(close) && !matches!(out.last(), Some(SpannedOption::None(..))) {
             return Ok(());
         }
 
-        // Expect comma separator and update last element's span.
+        // Expect comma separator.
         self.expect(comma)?;
-        if let Some(SpannedOption::None(span)) = out.last_mut() {
-            *span = prev_sep_span.to(self.prev_token.span);
-        }
-        prev_sep_span = self.prev_token.span;
+        let mut prev_sep_span = self.prev_token.span;
 
         // Handle subsequent elements until finding the close token.
         loop {
             let item = if self.check(comma) || self.check(close) { None } else { Some(f(self)?) };
             if self.eat(comma) {
-                let sep_span = self.prev_token.span;
                 let element = match item {
                     Some(val) => SpannedOption::Some(val),
-                    None => SpannedOption::None(prev_sep_span.to(sep_span)),
+                    None => SpannedOption::None(prev_sep_span.shrink_to_hi()),
                 };
                 out.push(element);
-                prev_sep_span = sep_span;
+                prev_sep_span = self.prev_token.span;
             } else if self.eat(close) {
-                let sep_span = self.prev_token.span;
                 let element = match item {
                     Some(val) => SpannedOption::Some(val),
-                    None => SpannedOption::None(prev_sep_span.to(sep_span)),
+                    None => SpannedOption::None(prev_sep_span.shrink_to_hi()),
                 };
                 out.push(element);
                 return Ok(());
@@ -545,7 +532,6 @@ mod tests {
                         .unwrap_or_else(|_| panic!("src: {s:?}"));
                     sess.dcx.has_errors().unwrap();
 
-                    // Updated mapping logic for SpannedOption<T>
                     let formatted: Vec<_> = list
                         .iter()
                         .map(|item| match item {
@@ -573,21 +559,22 @@ mod tests {
             .unwrap();
         }
 
-        // Updated test cases with correct expected spans
         check(&[
             ("()", &[]),
             ("(a)", &[(Some("a"), "a")]),
-            ("(,)", &[(None, "(,"), (None, ",)")]),
-            ("(a,)", &[(Some("a"), "a"), (None, ",)")]),
-            ("(,b)", &[(None, "(,"), (Some("b"), "b")]),
+            // invalid syntax
+            // ("(,)", &[(None, ""), (None, "")]),
+            ("(a,)", &[(Some("a"), "a"), (None, "")]),
+            ("(,b)", &[(None, ""), (Some("b"), "b")]),
             ("(a,b)", &[(Some("a"), "a"), (Some("b"), "b")]),
-            ("(a,b,)", &[(Some("a"), "a"), (Some("b"), "b"), (None, ",)")]),
-            ("(,,)", &[(None, "(,"), (None, ",,"), (None, ",)")]),
-            ("(a,,)", &[(Some("a"), "a"), (None, ",,"), (None, ",)")]),
+            ("(a,b,)", &[(Some("a"), "a"), (Some("b"), "b"), (None, "")]),
+            // invalid syntax
+            // ("(,,)", &[(None, ""), (None, ""), (None, "")]),
+            ("(a,,)", &[(Some("a"), "a"), (None, ""), (None, "")]),
             ("(a,b,c)", &[(Some("a"), "a"), (Some("b"), "b"), (Some("c"), "c")]),
-            ("(,b,c)", &[(None, "(,"), (Some("b"), "b"), (Some("c"), "c")]),
-            ("(,,c)", &[(None, "(,"), (None, ",,"), (Some("c"), "c")]),
-            ("(a,,c)", &[(Some("a"), "a"), (None, ",,"), (Some("c"), "c")]),
+            ("(,b,c)", &[(None, ""), (Some("b"), "b"), (Some("c"), "c")]),
+            ("(,,c)", &[(None, ""), (None, ""), (Some("c"), "c")]),
+            ("(a,,c)", &[(Some("a"), "a"), (None, ""), (Some("c"), "c")]),
         ]);
     }
 }
