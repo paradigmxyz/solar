@@ -545,11 +545,15 @@ impl<'ast> Sources<'ast> {
             "topo_order did not visit all sources"
         );
 
-        debug_span!("remap_imports").in_scope(|| {
+        debug_span!("remap_state").in_scope(|| {
             for source in &mut self.sources {
                 for (_, import) in &mut source.imports {
                     *import = map[*import];
                 }
+            }
+
+            for id in self.file_to_id.values_mut() {
+                *id = map[*id];
             }
         });
 
