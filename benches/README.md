@@ -29,7 +29,7 @@ The following results were achieved on:
 - CPU: AMD Ryzen 9 5950X
 - Versions:
   - [`solc 0.8.30`](https://github.com/argotorg/solidity)
-  - [`solar 0.1.7`](../README.md)
+  - [`solar 0.1.8`](../README.md)
   - [`solang-parser 0.3.4`](https://crates.io/crates/solang-parser)
   - [`slang 0.18.3`](https://crates.io/crates/slang)
   - [`tree-sitter 0.25.4`](https://crates.io/crates/tree-sitter), [`tree-sitter-solidity 1.2.11`](https://crates.io/crates/tree-sitter-solidity)
