@@ -1,5 +1,6 @@
 use crate::{PResult, Parser};
 use solar_ast::{token::*, *};
+use solar_data_structures::BumpExt;
 use solar_interface::{SpannedOption, kw};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -205,7 +206,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     return Err(self.dcx().err(msg).span(span));
                 }
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list) })
+                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list, self.arena) })
             } else {
                 ExprKind::Tuple(list)
             }
@@ -327,8 +328,20 @@ fn token_precedence(t: Token) -> usize {
 #[inline]
 unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
     list: BoxSlice<'a, SpannedOption<Box<'b, T>>>,
+    arena: &'a solar_ast::Arena,
 ) -> BoxSlice<'a, Box<'b, T>> {
     debug_assert!(list.iter().all(SpannedOption::is_some));
-    // SAFETY: Caller must ensure that all elements are `Some`.
-    unsafe { std::mem::transmute(list) }
+
+    let items = list
+        .into_iter()
+        .map(|item| {
+            match std::mem::take(item) {
+                // SAFETY: Caller ensures all items are `Some`.
+                SpannedOption::Some(value) => value,
+                SpannedOption::None(_) => unsafe { std::hint::unreachable_unchecked() },
+            }
+        })
+        .collect::<Vec<_>>();
+
+    arena.alloc_vec_thin((), items)
 }

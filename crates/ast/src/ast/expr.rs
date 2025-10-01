@@ -32,7 +32,7 @@ impl<'ast> Expr<'ast> {
         while let ExprKind::Tuple(x) = &expr.kind
             && let [SpannedOption::Some(inner)] = x.as_slice()
         {
-            expr = *inner;
+            expr = inner;
         }
         expr
     }
@@ -45,7 +45,7 @@ impl<'ast> Expr<'ast> {
         while let ExprKind::Tuple(x) = &mut unsafe { trustme::decouple_lt_mut(expr) }.kind
             && let [SpannedOption::Some(inner)] = x.as_mut_slice()
         {
-            expr = *inner;
+            expr = inner;
         }
         expr
     }
