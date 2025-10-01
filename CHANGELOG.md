@@ -5,6 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+Notable changes:
+- Reduced size of AST for lower memory usage and better performance ([#500](https://github.com/paradigmxyz/solar/issues/500), [#546](https://github.com/paradigmxyz/solar/issues/546, [#497](https://github.com/paradigmxyz/solar/issues/497))
+- Faster parsing, lexing ([#516](https://github.com/paradigmxyz/solar/issues/516), [#502](https://github.com/paradigmxyz/solar/issues/502), [#533](https://github.com/paradigmxyz/solar/issues/533))
+- Implemented fmt::Debug for more types ([#537](https://github.com/paradigmxyz/solar/issues/537))
+
+### Bug Fixes
+
+- [sema] Remap Sources::file_to_id when sorting ([#548](https://github.com/paradigmxyz/solar/issues/548))
+- [sema] Do not expose mutable Session access while entered ([#542](https://github.com/paradigmxyz/solar/issues/542))
+- [diagnostics] Render footers at the bottom ([#538](https://github.com/paradigmxyz/solar/issues/538))
+- [lexer] Str_from_to_end ([#532](https://github.com/paradigmxyz/solar/issues/532))
+- [interface] Check longest context matches ([#529](https://github.com/paradigmxyz/solar/issues/529))
+- [ast] Debug for Token ([#512](https://github.com/paradigmxyz/solar/issues/512))
+- [CONTRIBUTING.md] Fmt check needs nightly toolchain ([#501](https://github.com/paradigmxyz/solar/issues/501))
+- [ast] Store yul::Expr even if only Call is allowed ([#496](https://github.com/paradigmxyz/solar/issues/496))
+- [sema] Peel parens when lowering call args ([#495](https://github.com/paradigmxyz/solar/issues/495))
+
+### Dependencies
+
+- [deps] Weekly `cargo update` ([#539](https://github.com/paradigmxyz/solar/issues/539))
+- [deps] Weekly `cargo update` ([#534](https://github.com/paradigmxyz/solar/issues/534))
+- Bump codspeed 4 ([#522](https://github.com/paradigmxyz/solar/issues/522))
+- [deps] Weekly `cargo update` ([#511](https://github.com/paradigmxyz/solar/issues/511))
+
+### Features
+
+- [ast] Spanned optional commasep elements ([#543](https://github.com/paradigmxyz/solar/issues/543))
+- [data-structures] Add ThinSlice ([#545](https://github.com/paradigmxyz/solar/issues/545))
+- Add `ItemId::as_struct` ([#544](https://github.com/paradigmxyz/solar/issues/544))
+- [sema] Allow delaying/manual import resolution ([#531](https://github.com/paradigmxyz/solar/issues/531))
+- [sema] Add sources getters ([#528](https://github.com/paradigmxyz/solar/issues/528))
+- Checks on upper bounds of contract storage sizes ([#169](https://github.com/paradigmxyz/solar/issues/169))
+- [sema] Add validation for assembly memory-safe flags ([#263](https://github.com/paradigmxyz/solar/issues/263))
+- Configurable logging destination ([#498](https://github.com/paradigmxyz/solar/issues/498))
+- [parser] Introduce `Recovered` enum to improve code readability ([#517](https://github.com/paradigmxyz/solar/issues/517))
+
+### Miscellaneous Tasks
+
+- Add some traits to AstPath ([#549](https://github.com/paradigmxyz/solar/issues/549))
+- Simplify pointer projection ([#541](https://github.com/paradigmxyz/solar/issues/541))
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+- [sema] Simplify perform_imports ([#530](https://github.com/paradigmxyz/solar/issues/530))
+- [sema] Fix parse dbg log ([#527](https://github.com/paradigmxyz/solar/issues/527))
+- Update benchmarks ([#523](https://github.com/paradigmxyz/solar/issues/523))
+- [interface] Make SessionGlobals private ([#506](https://github.com/paradigmxyz/solar/issues/506))
+
+### Other
+
+- Use meta crate ([#526](https://github.com/paradigmxyz/solar/issues/526))
+- Lowering benchmarks ([#521](https://github.com/paradigmxyz/solar/issues/521))
+- Add source & parser capabilities ([#519](https://github.com/paradigmxyz/solar/issues/519))
+- Update benchmarks ([#504](https://github.com/paradigmxyz/solar/issues/504))
+
+### Performance
+
+- [ast] Use ThinSlice ([#546](https://github.com/paradigmxyz/solar/issues/546))
+- [sema] Pre-compute topo_sort map ([#533](https://github.com/paradigmxyz/solar/issues/533))
+- [sema] Use a map in AST Sources ([#535](https://github.com/paradigmxyz/solar/issues/535))
+- [parser] General improvements ([#516](https://github.com/paradigmxyz/solar/issues/516))
+- [interface] Estimate capacity for SourceFile::lines ([#515](https://github.com/paradigmxyz/solar/issues/515))
+- [parser] Pass Token in registers ([#509](https://github.com/paradigmxyz/solar/issues/509))
+- [lexer] Avoid thread locals when we have a Session ([#507](https://github.com/paradigmxyz/solar/issues/507))
+- [lexer] Use eat_until_either in eat_string ([#505](https://github.com/paradigmxyz/solar/issues/505))
+- [lexer] Use lookup tables for char info ([#502](https://github.com/paradigmxyz/solar/issues/502))
+
+### Refactor
+
+- [ast] Boxed `yul::StmtKind::For` to reduce the size of `yul::Stmt` ([#500](https://github.com/paradigmxyz/solar/issues/500))
+
+### Styling
+
+- Implement fmt::Debug for more types ([#537](https://github.com/paradigmxyz/solar/issues/537))
+
+### Testing
+
+- Add unit test and debug assertion for sources inconsistency ([#550](https://github.com/paradigmxyz/solar/issues/550))
+- Track node sizes ([#497](https://github.com/paradigmxyz/solar/issues/497))
+
 ## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
 
 ### Bug Fixes

@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Bug Fixes
+
+- [diagnostics] Render footers at the bottom ([#538](https://github.com/paradigmxyz/solar/issues/538))
+- [interface] Check longest context matches ([#529](https://github.com/paradigmxyz/solar/issues/529))
+
+### Features
+
+- [ast] Spanned optional commasep elements ([#543](https://github.com/paradigmxyz/solar/issues/543))
+- [sema] Add validation for assembly memory-safe flags ([#263](https://github.com/paradigmxyz/solar/issues/263))
+
+### Miscellaneous Tasks
+
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+- [interface] Make SessionGlobals private ([#506](https://github.com/paradigmxyz/solar/issues/506))
+
+### Performance
+
+- [parser] General improvements ([#516](https://github.com/paradigmxyz/solar/issues/516))
+- [interface] Estimate capacity for SourceFile::lines ([#515](https://github.com/paradigmxyz/solar/issues/515))
+- [lexer] Avoid thread locals when we have a Session ([#507](https://github.com/paradigmxyz/solar/issues/507))
+
+### Styling
+
+- Implement fmt::Debug for more types ([#537](https://github.com/paradigmxyz/solar/issues/537))
+
 ## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
 
 ### Features
