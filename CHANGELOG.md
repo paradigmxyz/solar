@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 Notable changes:
-- Reduced size of AST for lower memory usage and better performance ([#500](https://github.com/paradigmxyz/solar/issues/500), [#546](https://github.com/paradigmxyz/solar/issues/546, [#497](https://github.com/paradigmxyz/solar/issues/497))
+- Reduced size of AST for lower memory usage and better performance ([#500](https://github.com/paradigmxyz/solar/issues/500), [#546](https://github.com/paradigmxyz/solar/issues/546), [#497](https://github.com/paradigmxyz/solar/issues/497))
 - Faster parsing, lexing ([#516](https://github.com/paradigmxyz/solar/issues/516), [#502](https://github.com/paradigmxyz/solar/issues/502), [#533](https://github.com/paradigmxyz/solar/issues/533))
 - Implemented fmt::Debug for more types ([#537](https://github.com/paradigmxyz/solar/issues/537))
 
