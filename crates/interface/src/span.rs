@@ -328,7 +328,17 @@ impl<T> SpannedOption<T> {
         matches!(&self, Self::Some(..))
     }
 
-    pub fn map<U, F>(self, f: F) -> Option<U>
+    pub fn map<U, F>(self, f: F) -> SpannedOption<U>
+    where
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::Some(value) => SpannedOption::Some(f(value)),
+            Self::None(span) => SpannedOption::None(span),
+        }
+    }
+
+    pub fn map_unspanned<U, F>(self, f: F) -> Option<U>
     where
         F: FnOnce(T) -> U,
     {

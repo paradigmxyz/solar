@@ -567,6 +567,7 @@ mod tests {
             // invalid syntax
             // ("(,,)", &[None, None, None]),
             ("(a,,)", &[Some("a"), None, None]),
+            ("(a,b,)", &[Some("a"), Some("b"), None]),
             ("(a,b,c)", &[Some("a"), Some("b"), Some("c")]),
             ("(,b,c)", &[None, Some("b"), Some("c")]),
             ("(,,c)", &[None, None, Some("c")]),
