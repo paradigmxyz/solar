@@ -316,9 +316,9 @@ impl<'a> FileResolver<'a> {
         self.get_file_inner(path, true)
     }
 
-    fn get_file_inner<'b>(
+    fn get_file_inner(
         &self,
-        path: &'b Path,
+        path: &Path,
         load: bool,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         // Normalize unnecessary components.
