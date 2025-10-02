@@ -625,7 +625,7 @@ impl fmt::Debug for Source<'_> {
         f.debug_struct("Source")
             .field("file", &self.file.name)
             .field("imports", &self.imports)
-            .field("ast", &self.ast.as_ref().map(|ast| format!("{} items", ast.items.len())))
+            .field("ast", &self.ast)
             .finish()
     }
 }
