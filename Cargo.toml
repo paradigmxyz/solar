@@ -142,7 +142,7 @@ tracing-subscriber = "0.3"
 tracing = "0.1"
 
 # testing
-criterion = { package = "codspeed-criterion-compat", version = "3", git = "https://github.com/DaniPopes/codspeed-rust.git", rev = "1f8a7540e78f9a5a49fddff0dfee58513ba6859e", default-features = false, features = [
+criterion = { package = "codspeed-criterion-compat", version = "4", default-features = false, features = [
     "cargo_bench_support",
 ] }
 rand = "0.9"
