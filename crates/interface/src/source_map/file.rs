@@ -87,6 +87,13 @@ impl From<&Self> for FileName {
 }
 
 impl FileName {
+    /// Parses a file name from a string.
+    ///
+    /// See [`SourceMap::parse_file_name`](crate::SourceMap::parse_file_name).
+    pub fn parse(sm: &crate::SourceMap, s: &str) -> Self {
+        sm.parse_file_name(s)
+    }
+
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
         Self::Real(path.into())

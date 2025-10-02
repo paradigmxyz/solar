@@ -305,9 +305,22 @@ impl<'a> FileResolver<'a> {
         self.source_map().load_stdin().map_err(ResolveError::ReadStdin)
     }
 
+    /// Returns the source file with the given path, if it exists, without loading it.
+    pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        self.get_file_inner(path, false).ok().flatten()
+    }
+
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+        self.get_file_inner(path, true)
+    }
+
+    fn get_file_inner<'b>(
+        &self,
+        path: &'b Path,
+        load: bool,
+    ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         // Normalize unnecessary components.
         let rpath = &*self.normalize(path);
         if let Some(file) = self.source_map().get_file(rpath) {
@@ -325,7 +338,7 @@ impl<'a> FileResolver<'a> {
         }
 
         // Canonicalize, checking symlinks and if it exists.
-        if let Ok(path) = self.canonicalize_unchecked(apath) {
+        if load && let Ok(path) = self.canonicalize_unchecked(apath) {
             return self
                 .source_map()
                 // Store the file with `apath` as the name instead of `path`.
