@@ -26,7 +26,6 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
         TyKind::IntLiteral(_negative, _size) => Default::default(),
-        TyKind::ArrayLiteral(_ty, _size) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),

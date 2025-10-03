@@ -261,8 +261,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
-            TyKind::ArrayLiteral(ty, _)
-            | TyKind::Ref(ty, _)
+            TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
@@ -398,7 +397,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn base_type(self, gcx: Gcx<'gcx>) -> Option<Self> {
         let loc = self.loc();
         match self.peel_refs().kind {
-            TyKind::Array(base, _) | TyKind::ArrayLiteral(base, _) | TyKind::DynArray(base) => {
+            TyKind::Array(base, _) | TyKind::DynArray(base) => {
                 Some(base.with_loc_if_ref_opt(gcx, loc))
             }
             TyKind::Slice(arr) => arr.with_loc_if_ref_opt(gcx, loc).base_type(gcx),
@@ -519,10 +518,6 @@ pub enum TyKind<'gcx> {
     /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
     IntLiteral(bool, TypeSize),
 
-    // TODO: Can we merge this into `Array`?
-    /// Type of an array literal expression: `[a, 0, 1]`.
-    ArrayLiteral(Ty<'gcx>, usize),
-
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
 
@@ -629,8 +624,7 @@ impl TyFlags {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
 
-            TyKind::ArrayLiteral(ty, _)
-            | TyKind::Ref(ty, _)
+            TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
