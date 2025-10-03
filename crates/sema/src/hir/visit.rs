@@ -24,7 +24,7 @@ pub trait Visit<'hir> {
             ItemId::Struct(id) => self.visit_nested_struct(id),
             ItemId::Enum(id) => self.visit_nested_enum(id),
             ItemId::Udvt(id) => self.visit_nested_udvt(id),
-            ItemId::Error(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Error(id) => self.visit_nested_error(id),
             ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
             ItemId::Variable(id) => self.visit_nested_var(id),
         }
@@ -37,7 +37,7 @@ pub trait Visit<'hir> {
             Item::Struct(item) => self.visit_struct(item),
             Item::Enum(item) => self.visit_enum(item),
             Item::Udvt(item) => self.visit_udvt(item),
-            Item::Error(_item) => ControlFlow::Continue(()), // TODO
+            Item::Error(item) => self.visit_error(item),
             Item::Event(_item) => ControlFlow::Continue(()), // TODO
             Item::Variable(item) => self.visit_var(item),
         }
@@ -108,6 +108,18 @@ pub trait Visit<'hir> {
     fn visit_udvt(&mut self, udvt: &'hir Udvt<'hir>) -> ControlFlow<Self::BreakValue> {
         self.visit_ty(&udvt.ty)
     }
+
+    fn visit_nested_error(&mut self, id: ErrorId) -> ControlFlow<Self::BreakValue> {
+        self.visit_error(self.hir().error(id))
+    }
+
+    fn visit_error(&mut self, error: &'hir Error<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &param in error.parameters {
+            self.visit_nested_var(param)?;
+        }
+        ControlFlow::Continue(())
+    }
+
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
         self.visit_var(self.hir().variable(id))
