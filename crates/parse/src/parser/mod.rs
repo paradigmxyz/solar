@@ -966,10 +966,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return None;
         }
 
-        Some(ast::NatSpec {
-            span: Span::join_first_last(items.iter().map(|i| i.span)),
-            items: self.alloc_smallvec(items),
-        })
+        // The natspec span should encompass all doc comments, from the start of the first
+        // comment (including its '///' or '/**' prefix) to the end of the last comment.
+        let natspec_span = Span::join_first_last(comments.iter().map(|c| c.span));
+
+        Some(ast::NatSpec { span: natspec_span, items: self.alloc_smallvec(items) })
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
