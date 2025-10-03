@@ -1,9 +1,9 @@
 use super::{
     AstPath, BinOpKind, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type, UnOpKind,
 };
-use crate::token::Token;
+use crate::{BoxSlice, token::Token};
 use either::Either;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, Symbol};
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -16,11 +16,11 @@ use strum::EnumIs;
 #[derive(Debug, Default)]
 pub struct ParameterList<'ast> {
     pub span: Span,
-    pub vars: Box<'ast, [VariableDefinition<'ast>]>,
+    pub vars: BoxSlice<'ast, VariableDefinition<'ast>>,
 }
 
 impl<'ast> Deref for ParameterList<'ast> {
-    type Target = Box<'ast, [VariableDefinition<'ast>]>;
+    type Target = BoxSlice<'ast, VariableDefinition<'ast>>;
 
     fn deref(&self) -> &Self::Target {
         &self.vars
@@ -187,7 +187,7 @@ pub enum PragmaTokens<'ast> {
     /// `pragma <name> [value];`.
     Custom(IdentOrStrLit, Option<IdentOrStrLit>),
     /// Unparsed tokens: `pragma <tokens...>;`.
-    Verbatim(Box<'ast, [Token]>),
+    Verbatim(BoxSlice<'ast, Token>),
 }
 
 impl PragmaTokens<'_> {
@@ -230,6 +230,14 @@ pub enum IdentOrStrLit {
 }
 
 impl IdentOrStrLit {
+    /// Returns the value of the identifier or literal.
+    pub fn value(&self) -> Symbol {
+        match self {
+            Self::Ident(ident) => ident.name,
+            Self::StrLit(str_lit) => str_lit.value,
+        }
+    }
+
     /// Returns the string value of the identifier or literal.
     pub fn as_str(&self) -> &str {
         match self {
@@ -272,7 +280,7 @@ pub enum ImportItems<'ast> {
     /// A plain import directive: `import "foo.sol" as Foo;`.
     Plain(Option<Ident>),
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
-    Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
+    Aliases(BoxSlice<'ast, (Ident, Option<Ident>)>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
     Glob(Ident),
 }
@@ -306,7 +314,7 @@ pub enum UsingList<'ast> {
     /// `A.B`
     Single(AstPath<'ast>),
     /// `{ A, B.add as + }`
-    Multiple(Box<'ast, [(AstPath<'ast>, Option<UserDefinableOperator>)]>),
+    Multiple(BoxSlice<'ast, (AstPath<'ast>, Option<UserDefinableOperator>)>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -386,8 +394,8 @@ pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
     pub layout: Option<StorageLayoutSpecifier<'ast>>,
-    pub bases: Box<'ast, [Modifier<'ast>]>,
-    pub body: Box<'ast, [Item<'ast>]>,
+    pub bases: BoxSlice<'ast, Modifier<'ast>>,
+    pub body: BoxSlice<'ast, Item<'ast>>,
 }
 
 /// The kind of contract.
@@ -473,7 +481,7 @@ pub struct FunctionHeader<'ast> {
     pub state_mutability: Option<Spanned<StateMutability>>,
 
     /// The function modifiers.
-    pub modifiers: Box<'ast, [Modifier<'ast>]>,
+    pub modifiers: BoxSlice<'ast, Modifier<'ast>>,
 
     /// The span of the `virtual` keyword.
     pub virtual_: Option<Span>,
@@ -570,7 +578,7 @@ impl Modifier<'_> {
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Box<'ast, [AstPath<'ast>]>,
+    pub paths: BoxSlice<'ast, AstPath<'ast>>,
 }
 
 /// A storage location.
@@ -732,7 +740,7 @@ impl VarMut {
 #[derive(Debug)]
 pub struct ItemStruct<'ast> {
     pub name: Ident,
-    pub fields: Box<'ast, [VariableDefinition<'ast>]>,
+    pub fields: BoxSlice<'ast, VariableDefinition<'ast>>,
 }
 
 /// An enum definition: `enum Foo { A, B, C }`.
@@ -741,7 +749,7 @@ pub struct ItemStruct<'ast> {
 #[derive(Debug)]
 pub struct ItemEnum<'ast> {
     pub name: Ident,
-    pub variants: Box<'ast, [Ident]>,
+    pub variants: BoxSlice<'ast, Ident>,
 }
 
 /// A user-defined value type definition: `type Foo is uint256;`.

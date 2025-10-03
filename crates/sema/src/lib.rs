@@ -4,7 +4,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs), allow(internal_features))]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[macro_use]
 extern crate tracing;
@@ -133,10 +133,13 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
 fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {
     if let Some(paths) = paths {
         for path in paths {
-            if let Some(source) = sources.iter().find(|&s| match_file_name(&s.file.name, path)) {
+            let sm = sess.source_map();
+            if let Some(file) = sm.get_file(sm.parse_file_name(path))
+                && let Some((_, source)) = sources.get_file(&file)
+            {
                 println!("{source:#?}");
             } else {
-                let msg = format!("`-Zdump=ast={path:?}` did not match any source file");
+                let msg = format!("`-Zdump=ast={path}` did not match any source file");
                 let note = format!(
                     "available source files: {}",
                     sources
@@ -161,16 +164,6 @@ fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
         println!("\nPaths not yet implemented: {paths:#?}");
     }
     Ok(())
-}
-
-fn match_file_name(name: &solar_interface::source_map::FileName, path: &str) -> bool {
-    match name {
-        solar_interface::source_map::FileName::Real(path_buf) => {
-            path_buf.as_os_str() == path || path_buf.file_stem() == Some(path.as_ref())
-        }
-        solar_interface::source_map::FileName::Stdin => path == "stdin" || path == "<stdin>",
-        solar_interface::source_map::FileName::Custom(name) => path == name,
-    }
 }
 
 fn fmt_bytes(bytes: usize) -> impl std::fmt::Display {

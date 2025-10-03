@@ -3,7 +3,6 @@ error: modifier must have a `_;` placeholder statement
    |
 LL |     modifier P() {}
    |              ^
-   |
 
 error: aborting due to 1 previous error
 

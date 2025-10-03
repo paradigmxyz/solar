@@ -19,7 +19,6 @@ error: using "years" as a unit denomination is deprecated
    |
 LL |     uint256 public h = 1 years;
    |                        ^^^^^^^
-   |
 
 error: aborting due to 3 previous errors
 

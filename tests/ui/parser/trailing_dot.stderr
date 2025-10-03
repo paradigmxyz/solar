@@ -3,7 +3,6 @@ error: empty rational
    |
 LL | uint256 constant a = 2 + 2.;
    |                          ^^
-   |
 
 error: aborting due to 1 previous error
 

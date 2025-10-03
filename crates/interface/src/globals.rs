@@ -11,7 +11,7 @@ scoped_tls::scoped_thread_local!(static SESSION_GLOBALS: SessionGlobals);
 ///
 /// These should only be used when `Session` is truly not available, such as `Symbol::intern` and
 /// `<Span as Debug>::fmt`.
-pub struct SessionGlobals {
+pub(crate) struct SessionGlobals {
     pub(crate) symbol_interner: crate::symbol::Interner,
     pub(crate) source_map: Arc<SourceMap>,
 }
@@ -24,12 +24,12 @@ impl Default for SessionGlobals {
 
 impl SessionGlobals {
     /// Creates a new session globals object.
-    pub fn new(source_map: Arc<SourceMap>) -> Self {
+    pub(crate) fn new(source_map: Arc<SourceMap>) -> Self {
         Self { symbol_interner: crate::symbol::Interner::fresh(), source_map }
     }
 
     /// Sets this instance as the global instance for the duration of the closure.
-    pub fn set<R>(&self, f: impl FnOnce() -> R) -> R {
+    pub(crate) fn set<R>(&self, f: impl FnOnce() -> R) -> R {
         self.check_overwrite();
         SESSION_GLOBALS.set(self, f)
     }
@@ -51,7 +51,7 @@ impl SessionGlobals {
     /// Panics if `set` has not previously been called.
     #[inline]
     #[track_caller]
-    pub fn with<R>(f: impl FnOnce(&Self) -> R) -> R {
+    pub(crate) fn with<R>(f: impl FnOnce(&Self) -> R) -> R {
         debug_assert!(
             SESSION_GLOBALS.is_set(),
             "cannot access a scoped thread local variable without calling `set` first; \
@@ -64,13 +64,13 @@ impl SessionGlobals {
     /// creates a new instance, sets it, and calls the closure with it.
     #[inline]
     #[track_caller]
-    pub fn with_or_default<R>(f: impl FnOnce(&Self) -> R) -> R {
+    pub(crate) fn with_or_default<R>(f: impl FnOnce(&Self) -> R) -> R {
         if Self::is_set() { Self::with(f) } else { Self::default().set(|| Self::with(f)) }
     }
 
     /// Returns `true` if the session globals have been set.
     #[inline]
-    pub fn is_set() -> bool {
+    pub(crate) fn is_set() -> bool {
         SESSION_GLOBALS.is_set()
     }
 

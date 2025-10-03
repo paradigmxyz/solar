@@ -1,13 +1,13 @@
 //! Solar CLI arguments.
 
 use crate::{
-    CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, ImportRemapping, Language,
-    Threads,
+    ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
+    ImportRemapping, Language, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
 #[cfg(feature = "clap")]
-use clap::{ColorChoice, Parser, ValueHint};
+use clap::{Parser, ValueHint};
 
 // TODO: implement `allow_paths`.
 
@@ -101,10 +101,9 @@ pub struct Opts {
     pub emit: Vec<CompilerOutput>,
 
     /// Coloring.
-    #[cfg(feature = "clap")] // TODO
     #[cfg_attr(
         feature = "clap",
-        arg(help_heading = "Display options", long, value_enum, default_value = "auto")
+        arg(help_heading = "Display options", long, value_parser = ColorChoiceValueParser::default(), default_value = "auto")
     )]
     pub color: ColorChoice,
     /// Use verbose output.
@@ -124,6 +123,24 @@ pub struct Opts {
         arg(help_heading = "Display options", long, value_enum, default_value_t)
     )]
     pub error_format: ErrorFormat,
+    /// Human-readable error message style.
+    #[cfg_attr(
+        feature = "clap",
+        arg(
+            help_heading = "Display options",
+            long,
+            value_name = "VALUE",
+            value_enum,
+            default_value_t
+        )
+    )]
+    pub error_format_human: HumanEmitterKind,
+    /// Terminal width for error message formatting.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_name = "WIDTH")
+    )]
+    pub diagnostic_width: Option<usize>,
     /// Whether to disable warnings.
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,
@@ -197,6 +214,39 @@ fn make_clap_error(kind: clap::error::ErrorKind, message: impl std::fmt::Display
     <Opts as clap::CommandFactory>::command().error(kind, message)
 }
 
+#[cfg(feature = "clap")]
+#[derive(Clone, Default)]
+struct ColorChoiceValueParser(clap::builder::EnumValueParser<clap::ColorChoice>);
+
+#[cfg(feature = "clap")]
+impl clap::builder::TypedValueParser for ColorChoiceValueParser {
+    type Value = ColorChoice;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        arg: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        self.0.parse_ref(cmd, arg, value).map(map_color_choice)
+    }
+
+    fn possible_values(
+        &self,
+    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        self.0.possible_values()
+    }
+}
+
+#[cfg(feature = "clap")]
+fn map_color_choice(c: clap::ColorChoice) -> ColorChoice {
+    match c {
+        clap::ColorChoice::Auto => ColorChoice::Auto,
+        clap::ColorChoice::Always => ColorChoice::Always,
+        clap::ColorChoice::Never => ColorChoice::Never,
+    }
+}
+
 /// Internal options.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
@@ -242,6 +292,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub span_visitor: bool,
 
+    /// Print contracts' max storage sizes.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub print_max_storage_sizes: bool,
+
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),
@@ -254,6 +308,7 @@ pub struct UnstableOpts {
     #[cfg(test)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub test_bool: bool,
+
     #[cfg(test)]
     #[cfg_attr(feature = "clap", arg(long))]
     pub test_value: Option<usize>,

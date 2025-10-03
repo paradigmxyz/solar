@@ -3,14 +3,12 @@ error: unresolved symbol `Unknown`
    |
 LL |         self.C.Unknown memory d
    |                ^^^^^^^
-   |
 
 error: unresolved symbol `Unknown`
   --> ROOT/tests/ui/resolve/type_paths.sol:LL:CC
    |
 LL |         self.C.Unknown memory h = self.C.Unknown(3);
    |                ^^^^^^^
-   |
 
 error: aborting due to 2 previous errors
 

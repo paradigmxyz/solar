@@ -1,9 +1,8 @@
 error: expected identifier, found `{`
-  --> ROOT/tests/ui/parser/yul/function_arrow.yul:LL:CC
+  --> ROOT/tests/ui/parser/yul/samples/function_arrow.yul:LL:CC
    |
 LL |     function f() -> {}
    |                     ^
-   |
 
 error: aborting due to 1 previous error
 

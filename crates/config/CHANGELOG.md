@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Features
+
+- Checks on upper bounds of contract storage sizes ([#169](https://github.com/paradigmxyz/solar/issues/169))
+
+### Miscellaneous Tasks
+
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Features
+
+- Add error format options for human-readable diagnostics ([#473](https://github.com/paradigmxyz/solar/issues/473))
+- [interface] Impl Default for Session, create dcx from opts ([#471](https://github.com/paradigmxyz/solar/issues/471))
+
+### Miscellaneous Tasks
+
+- Move VERSION to config::version::SEMVER_VERSION and log it ([#454](https://github.com/paradigmxyz/solar/issues/454))
+- Cap default threads at available_parallelism ([#445](https://github.com/paradigmxyz/solar/issues/445))
+
+### Testing
+
+- Add CLI test suite ([#453](https://github.com/paradigmxyz/solar/issues/453))
+
 ## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
 
 ### Features

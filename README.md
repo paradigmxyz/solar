@@ -44,13 +44,13 @@ You can add Solar to your Rust project by adding the following to your `Cargo.to
 
 ```toml
 [dependencies]
-solar = { version = "=0.1.6", package = "solar-compiler", default-features = false }
+solar = { version = "=0.1.8", package = "solar-compiler", default-features = false }
 ```
 
 Or through the CLI:
 
 ```bash
-cargo add "solar-compiler@=0.1.6" --rename solar --no-default-features
+cargo add "solar-compiler@=0.1.8" --rename solar --no-default-features
 ```
 
 You can see examples of how to use Solar as a library in the [examples](/examples) directory.
@@ -69,8 +69,8 @@ and can be installed with the following commands:
     ```
 - For a specific version:
     ```bash
-    curl -LsSf https://paradigm.xyz/solar/v0.1.0/install.sh | sh
-    powershell -c "irm https://paradigm.xyz/solar/v0.1.0/install.ps1 | iex"
+    curl -LsSf https://paradigm.xyz/solar/v0.1.8/install.sh | sh
+    powershell -c "irm https://paradigm.xyz/solar/v0.1.8/install.ps1 | iex"
     ```
 
 You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall):
@@ -80,7 +80,7 @@ You can also use [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall
     ```
 - For a specific version:
     ```bash
-    cargo binstall solar-compiler@0.1.0
+    cargo binstall solar-compiler@0.1.8
     ```
 
 Or build Solar from source:

@@ -301,6 +301,10 @@ newtype_index! {
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
+    /// The individual imports with their resolved source IDs.
+    ///
+    /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
+    /// source.
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
@@ -513,6 +517,11 @@ impl ItemId {
         if let Self::Function(v) = *self { Some(v) } else { None }
     }
 
+    /// Returns the struct ID if this is a struct.
+    pub fn as_struct(&self) -> Option<StructId> {
+        if let Self::Struct(v) = *self { Some(v) } else { None }
+    }
+
     /// Returns the variable ID if this is a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }
@@ -536,7 +545,9 @@ pub struct Contract<'hir> {
     pub bases_args: &'hir [Modifier<'hir>],
     /// The linearized contract bases.
     ///
-    /// The first element is the contract itself, followed by its bases in order of inheritance.
+    /// The first element is always the contract itself, followed by its bases in order of
+    /// inheritance. The bases may not be present if the inheritance linearization failed. See
+    /// [`Contract::linearization_failed`].
     pub linearized_bases: &'hir [ContractId],
     /// The constructor base arguments (if any).
     ///
@@ -559,6 +570,12 @@ pub struct Contract<'hir> {
 }
 
 impl Contract<'_> {
+    /// Returns `true` if the inheritance linearization failed.
+    pub fn linearization_failed(&self) -> bool {
+        self.linearized_bases.is_empty()
+            || (!self.bases.is_empty() && self.linearized_bases.len() == 1)
+    }
+
     /// Returns an iterator over functions declared in the contract.
     ///
     /// Note that this does not include the constructor and fallback functions, as they are stored
@@ -1463,4 +1480,47 @@ pub struct TypeMapping<'hir> {
     pub key_name: Option<Ident>,
     pub value: Type<'hir>,
     pub value_name: Option<Ident>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Ensure that we track the size of individual HIR nodes.
+    #[test]
+    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
+    #[cfg_attr(feature = "nightly", ignore = "stable only")]
+    fn sizes() {
+        use snapbox::{assert_data_eq, str};
+        #[track_caller]
+        fn assert_size<T>(size: impl snapbox::IntoData) {
+            assert_size_(std::mem::size_of::<T>(), size.into_data());
+        }
+        #[track_caller]
+        fn assert_size_(actual: usize, expected: snapbox::Data) {
+            assert_data_eq!(actual.to_string(), expected);
+        }
+
+        assert_size::<Hir<'_>>(str!["216"]);
+
+        assert_size::<Item<'_, '_>>(str!["16"]);
+        assert_size::<Contract<'_>>(str!["120"]);
+        assert_size::<Function<'_>>(str!["136"]);
+        assert_size::<Struct<'_>>(str!["48"]);
+        assert_size::<Enum<'_>>(str!["48"]);
+        assert_size::<Udvt<'_>>(str!["56"]);
+        assert_size::<Error<'_>>(str!["48"]);
+        assert_size::<Event<'_>>(str!["48"]);
+        assert_size::<Variable<'_>>(str!["96"]);
+
+        assert_size::<TypeKind<'_>>(str!["16"]);
+        assert_size::<Type<'_>>(str!["24"]);
+
+        assert_size::<ExprKind<'_>>(str!["56"]);
+        assert_size::<Expr<'_>>(str!["72"]);
+
+        assert_size::<StmtKind<'_>>(str!["32"]);
+        assert_size::<Stmt<'_>>(str!["40"]);
+        assert_size::<Block<'_>>(str!["24"]);
+    }
 }

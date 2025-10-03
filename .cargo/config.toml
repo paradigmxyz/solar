@@ -16,3 +16,11 @@ linker = "aarch64-linux-gnu-gcc"
 
 [target.aarch64-unknown-linux-musl]
 linker = "aarch64-linux-gnu-gcc"
+
+# Increase the stack size to 10MB for Windows targets, which is in line with Linux
+# (whereas default for Windows is 1MB).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-Clink-arg=/STACK:10000000"]
+
+[target.i686-pc-windows-msvc]
+rustflags = ["-Clink-arg=/STACK:10000000"]

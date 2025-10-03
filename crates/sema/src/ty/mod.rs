@@ -143,6 +143,12 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+impl<'gcx> fmt::Debug for Gcx<'gcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
 ///
 /// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
@@ -223,6 +229,16 @@ pub struct GlobalCtxt<'gcx> {
     cache: Cache<'gcx>,
 }
 
+impl fmt::Debug for GlobalCtxt<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GlobalCtxt")
+            .field("stage", &self.stage.get())
+            .field("sess", self.sess)
+            .field("sources", &self.sources.len())
+            .finish_non_exhaustive()
+    }
+}
+
 impl<'gcx> GlobalCtxt<'gcx> {
     pub(crate) fn new(sess: &'gcx Session) -> Self {
         let interner = Interner::new();
@@ -253,14 +269,20 @@ impl<'gcx> Gcx<'gcx> {
         Self(gcx)
     }
 
+    /// Returns the current compiler stage.
+    pub fn stage(&self) -> Option<CompilerStage> {
+        self.stage.get()
+    }
+
     pub(crate) fn advance_stage(&self, to: CompilerStage) -> ControlFlow<()> {
+        let from = self.stage();
         let result = self.advance_stage_(to);
-        trace!(from=?self.stage.get(), ?to, ?result, "advance stage");
+        trace!(?from, ?to, ?result, "advance stage");
         result
     }
 
     fn advance_stage_(&self, to: CompilerStage) -> ControlFlow<()> {
-        let current = self.stage.get();
+        let current = self.stage();
 
         // Special case: allow calling `parse` multiple times while currently parsing.
         if to == CompilerStage::Parsing && current == Some(to) {

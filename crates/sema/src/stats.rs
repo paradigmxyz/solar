@@ -474,11 +474,8 @@ impl<'ast> Visit<'ast> for StatCollector {
     ) -> ControlFlow<Self::BreakValue> {
         self.record("YulStmtSwitch", None, switch);
         // Don't visit selector field since it isn't boxed
-        for case in switch.branches.iter() {
+        for case in switch.cases.iter() {
             self.visit_yul_stmt_case(case)?;
-        }
-        if let Some(case) = &switch.default_case {
-            self.visit_yul_block(case)?;
         }
         ControlFlow::Continue(())
     }

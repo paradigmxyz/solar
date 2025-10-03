@@ -2,24 +2,21 @@ warning[6162]: named function type parameters are deprecated
   --> ROOT/tests/ui/resolve/func_ty_named_params.sol:LL:CC
    |
 LL |         function(uint256) view returns (uint256 j) c;
-   |                                                 -
-   |
+   |                                                 ^
 
 warning[6162]: named function type parameters are deprecated
   --> ROOT/tests/ui/resolve/func_ty_named_params.sol:LL:CC
    |
 LL |         function(uint256 k) view returns (uint256) d;
-   |                          -
-   |
+   |                          ^
 
 error: return parameters in function types may not be named
   --> ROOT/tests/ui/resolve/func_ty_named_params.sol:LL:CC
    |
 LL |         function(uint256) view returns (uint256 j) c;
-   |                                         ^^^^^^^^-
-   |                                                 |
-   |                                                 help: remove `j`
-   |
+   |                                         ^^^^^^^--
+   |                                                |
+   |                                                help: remove `j`
 
 error: aborting due to 1 previous error; 2 warnings emitted
 

@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Bug Fixes
+
+- [lexer] Str_from_to_end ([#532](https://github.com/paradigmxyz/solar/issues/532))
+- [ast] Debug for Token ([#512](https://github.com/paradigmxyz/solar/issues/512))
+- [ast] Store yul::Expr even if only Call is allowed ([#496](https://github.com/paradigmxyz/solar/issues/496))
+
+### Features
+
+- [ast] Spanned optional commasep elements ([#543](https://github.com/paradigmxyz/solar/issues/543))
+- [parser] Introduce `Recovered` enum to improve code readability ([#517](https://github.com/paradigmxyz/solar/issues/517))
+
+### Miscellaneous Tasks
+
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+
+### Performance
+
+- [ast] Use ThinSlice ([#546](https://github.com/paradigmxyz/solar/issues/546))
+- [parser] General improvements ([#516](https://github.com/paradigmxyz/solar/issues/516))
+- [parser] Pass Token in registers ([#509](https://github.com/paradigmxyz/solar/issues/509))
+- [lexer] Avoid thread locals when we have a Session ([#507](https://github.com/paradigmxyz/solar/issues/507))
+- [lexer] Use eat_until_either in eat_string ([#505](https://github.com/paradigmxyz/solar/issues/505))
+- [lexer] Use lookup tables for char info ([#502](https://github.com/paradigmxyz/solar/issues/502))
+
+### Refactor
+
+- [ast] Boxed `yul::StmtKind::For` to reduce the size of `yul::Stmt` ([#500](https://github.com/paradigmxyz/solar/issues/500))
+
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Dependencies
+
+- [lexer] Inline token glueing into Cursor ([#479](https://github.com/paradigmxyz/solar/issues/479))
+
+### Features
+
+- [parser] Implement recursion depth limit for `expr`, `stmt`, and `yul_stmt` ([#464](https://github.com/paradigmxyz/solar/issues/464))
+- Bump to annotate-snippets 0.12, diagnostic tweaks ([#465](https://github.com/paradigmxyz/solar/issues/465))
+
+### Miscellaneous Tasks
+
+- Rename lexer methods to slop ([#481](https://github.com/paradigmxyz/solar/issues/481))
+- Remove deprecated items ([#449](https://github.com/paradigmxyz/solar/issues/449))
+- [meta] Update solidity links ([#448](https://github.com/paradigmxyz/solar/issues/448))
+
+### Performance
+
+- [lexer] Minor improvements ([#480](https://github.com/paradigmxyz/solar/issues/480))
+
 ## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
 
 ### Features

@@ -87,6 +87,13 @@ impl From<&Self> for FileName {
 }
 
 impl FileName {
+    /// Parses a file name from a string.
+    ///
+    /// See [`SourceMap::parse_file_name`](crate::SourceMap::parse_file_name).
+    pub fn parse(sm: &crate::SourceMap, s: &str) -> Self {
+        sm.parse_file_name(s)
+    }
+
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
         Self::Real(path.into())
@@ -100,9 +107,8 @@ impl FileName {
     /// Displays the filename.
     #[inline]
     pub fn display(&self) -> FileNameDisplay<'_> {
-        let base_path = crate::SessionGlobals::try_with(|g| {
-            g.and_then(|g| g.source_map.base_path.get().cloned())
-        });
+        let base_path =
+            crate::SessionGlobals::try_with(|g| g.and_then(|g| g.source_map.base_path()));
         FileNameDisplay { inner: self, base_path }
     }
 
@@ -194,14 +200,11 @@ pub struct SourceFile {
     /// Locations of multi-byte characters in the source code.
     #[debug(skip)]
     pub multibyte_chars: Vec<MultiByteChar>,
-    /// A hash of the filename for faster equality checks.
-    #[debug(skip)]
-    pub(crate) id: SourceFileId,
 }
 
 impl PartialEq for SourceFile {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.start_pos == other.start_pos
     }
 }
 
@@ -209,7 +212,7 @@ impl Eq for SourceFile {}
 
 impl std::hash::Hash for SourceFile {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
+        self.start_pos.hash(state);
     }
 }
 
@@ -239,7 +242,6 @@ impl SourceFile {
             source_len: RelativeBytePos::from_u32(source_len),
             lines,
             multibyte_chars,
-            id,
         })
     }
 

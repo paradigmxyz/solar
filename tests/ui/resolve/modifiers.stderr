@@ -3,14 +3,12 @@ error: expected modifier, found function
    |
 LL |     function bad1() public f1_2 {}
    |                            ^^^^
-   |
 
 error: expected modifier, found function
   --> ROOT/tests/ui/resolve/modifiers.sol:LL:CC
    |
 LL |     function bad2() public f1_2() {}
    |                            ^^^^
-   |
 
 error: aborting due to 2 previous errors
 

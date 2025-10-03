@@ -9,6 +9,7 @@ use solar_data_structures::{
 };
 use std::{
     io::{self, Read},
+    ops::Range,
     path::{Path, PathBuf},
     sync::{Arc, OnceLock},
 };
@@ -23,8 +24,6 @@ pub use file_resolver::{FileResolver, ResolveError};
 
 #[cfg(test)]
 mod tests;
-
-pub type FileLinesResult = Result<FileLines, SpanLinesError>;
 
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum SpanLinesError {
@@ -57,17 +56,56 @@ pub struct MalformedSourceMapPositions {
     pub end_pos: BytePos,
 }
 
+/// A value paired with a source file.
+#[derive(Clone, Debug)]
+pub struct WithSourceFile<T> {
+    pub file: Arc<SourceFile>,
+    pub data: T,
+}
+
+impl<T> std::ops::Deref for WithSourceFile<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.data
+    }
+}
+
+impl<T> std::ops::DerefMut for WithSourceFile<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.data
+    }
+}
+
 /// A source code location used for error reporting.
 #[derive(Clone, Debug)]
 pub struct Loc {
-    /// Information about the original source.
-    pub file: Arc<SourceFile>,
     /// The (1-based) line number.
     pub line: usize,
     /// The (0-based) column offset.
     pub col: CharPos,
     /// The (0-based) column offset when displayed.
     pub col_display: usize,
+}
+
+impl Default for Loc {
+    fn default() -> Self {
+        Self { line: 0, col: CharPos(0), col_display: 0 }
+    }
+}
+
+/// A source code location used for error reporting.
+///
+/// This is like [`Loc`], but it includes the line and column offsets of the start and end of the
+/// span.
+#[derive(Clone, Debug, Default)]
+pub struct SpanLoc {
+    /// The location of the start of the span.
+    pub lo: Loc,
+    /// The location of the end of the span.
+    pub hi: Loc,
 }
 
 // Used to be structural records.
@@ -96,10 +134,7 @@ pub struct LineInfo {
     pub end_col: CharPos,
 }
 
-pub struct FileLines {
-    pub file: Arc<SourceFile>,
-    pub lines: Vec<LineInfo>,
-}
+pub type FileLines = WithSourceFile<Vec<LineInfo>>;
 
 /// Abstraction over IO operations.
 ///
@@ -145,7 +180,7 @@ pub struct SourceMap {
     #[debug(skip)]
     id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
-    base_path: OnceLock<PathBuf>,
+    base_path: RwLock<Option<PathBuf>>,
     #[debug(skip)]
     file_loader: OnceLock<Box<dyn FileLoader>>,
 }
@@ -180,10 +215,13 @@ impl SourceMap {
     }
 
     /// Sets the file loader for the source map.
+    /// This may only be called once. Further calls will do nothing.
     ///
     /// See [its documentation][FileLoader] for more details.
     pub fn set_file_loader(&self, file_loader: impl FileLoader) {
-        let _ = self.file_loader.set(Box::new(file_loader));
+        if let Err(_prev) = self.file_loader.set(Box::new(file_loader)) {
+            warn!("file loader already set");
+        }
     }
 
     /// Returns the file loader for the source map.
@@ -194,13 +232,36 @@ impl SourceMap {
     }
 
     /// Sets the base path for the source map.
-    pub(crate) fn set_base_path(&self, base_path: PathBuf) {
-        let _ = self.base_path.set(base_path);
+    ///
+    /// This is currently only used for trimming diagnostics' paths.
+    pub(crate) fn set_base_path(&self, base_path: Option<PathBuf>) {
+        *self.base_path.write() = base_path;
+    }
+
+    pub(crate) fn base_path(&self) -> Option<PathBuf> {
+        self.base_path.read().as_ref().cloned()
     }
 
     /// Returns `true` if the source map is empty.
     pub fn is_empty(&self) -> bool {
         self.files().is_empty()
+    }
+
+    /// Parses a file name from a string.
+    pub fn parse_file_name(&self, s: &str) -> FileName {
+        match s {
+            "stdin" | "<stdin>" => FileName::Stdin,
+            s if s.starts_with('<') && s.ends_with('>') => {
+                FileName::Custom(s[1..s.len() - 1].to_string())
+            }
+            s => {
+                if let Some(file) = FileResolver::new(self).get_file(s.as_ref()) {
+                    file.name.clone()
+                } else {
+                    FileName::Custom(s.to_string())
+                }
+            }
+        }
     }
 
     /// Returns the source file with the given path, if it exists.
@@ -288,7 +349,7 @@ impl SourceMap {
 
     /// Display the filename for diagnostics.
     pub fn filename_for_diagnostics<'a>(&self, filename: &'a FileName) -> FileNameDisplay<'a> {
-        FileNameDisplay { inner: filename, base_path: self.base_path.get().cloned() }
+        FileNameDisplay { inner: filename, base_path: self.base_path() }
     }
 
     /// Returns `true` if the given span is multi-line.
@@ -306,14 +367,14 @@ impl SourceMap {
 
     /// Returns the source snippet as `String` corresponding to the given `Span`.
     pub fn span_to_snippet(&self, span: Span) -> Result<String, SpanSnippetError> {
-        let (sf, range) = self.span_to_source(span)?;
-        sf.src.get(range).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(span))
+        let WithSourceFile { file, data } = self.span_to_source(span)?;
+        file.src.get(data).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(span))
     }
 
     /// Returns the source snippet as `String` before the given `Span`.
     pub fn span_to_prev_source(&self, sp: Span) -> Result<String, SpanSnippetError> {
-        let (sf, range) = self.span_to_source(sp)?;
-        sf.src.get(..range.start).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(sp))
+        let WithSourceFile { file, data } = self.span_to_source(sp)?;
+        file.src.get(..data.start).map(|s| s.to_string()).ok_or(SpanSnippetError::IllFormedSpan(sp))
     }
 
     /// For a global `BytePos`, computes the local offset within the containing `SourceFile`.
@@ -343,10 +404,10 @@ impl SourceMap {
     }
 
     /// Looks up source information about a `BytePos`.
-    pub fn lookup_char_pos(&self, pos: BytePos) -> Loc {
+    pub fn lookup_char_pos(&self, pos: BytePos) -> WithSourceFile<Loc> {
         let sf = self.lookup_source_file(pos);
         let (line, col, col_display) = sf.lookup_file_pos_with_col_display(pos);
-        Loc { file: sf, line, col, col_display }
+        WithSourceFile { file: sf, data: Loc { line, col, col_display } }
     }
 
     /// If the corresponding `SourceFile` is empty, does not return a line number.
@@ -359,7 +420,7 @@ impl SourceMap {
         }
     }
 
-    pub fn is_valid_span(&self, sp: Span) -> Result<(Loc, Loc), SpanLinesError> {
+    pub fn is_valid_span(&self, sp: Span) -> Result<WithSourceFile<SpanLoc>, SpanLinesError> {
         let lo = self.lookup_char_pos(sp.lo());
         let hi = self.lookup_char_pos(sp.hi());
         if lo.file.start_pos != hi.file.start_pos {
@@ -368,7 +429,7 @@ impl SourceMap {
                 end: (hi.file.name.clone(), hi.file.start_pos),
             })));
         }
-        Ok((lo, hi))
+        Ok(WithSourceFile { file: lo.file, data: SpanLoc { lo: lo.data, hi: hi.data } })
     }
 
     pub fn is_line_before_span_empty(&self, sp: Span) -> bool {
@@ -378,12 +439,13 @@ impl SourceMap {
         }
     }
 
-    pub fn span_to_lines(&self, sp: Span) -> FileLinesResult {
-        let (lo, hi) = self.is_valid_span(sp)?;
+    /// Computes the [`FileLines`] for the given span.
+    pub fn span_to_lines(&self, sp: Span) -> Result<FileLines, SpanLinesError> {
+        let WithSourceFile { file, data: SpanLoc { lo, hi } } = self.is_valid_span(sp)?;
         assert!(hi.line >= lo.line);
 
         if sp.is_dummy() {
-            return Ok(FileLines { file: lo.file, lines: Vec::new() });
+            return Ok(FileLines { file, data: Vec::new() });
         }
 
         let mut lines = Vec::with_capacity(hi.line - lo.line + 1);
@@ -401,7 +463,7 @@ impl SourceMap {
         // asserting that the line numbers here are all indeed 1-based.
         let hi_line = hi.line.saturating_sub(1);
         for line_index in lo.line.saturating_sub(1)..hi_line {
-            let line_len = lo.file.get_line(line_index).map_or(0, |s| s.chars().count());
+            let line_len = file.get_line(line_index).map_or(0, |s| s.chars().count());
             lines.push(LineInfo { line_index, start_col, end_col: CharPos::from_usize(line_len) });
             start_col = CharPos::from_usize(0);
         }
@@ -409,21 +471,21 @@ impl SourceMap {
         // For the last line, it extends from `start_col` to `hi.col`:
         lines.push(LineInfo { line_index: hi_line, start_col, end_col: hi.col });
 
-        Ok(FileLines { file: lo.file, lines })
+        Ok(FileLines { file, data: lines })
     }
 
     /// Returns the source file and the range of text corresponding to the given span.
     ///
     /// See [`span_to_source`](Self::span_to_source).
-    pub fn span_to_range(&self, sp: Span) -> Result<std::ops::Range<usize>, SpanSnippetError> {
-        self.span_to_source(sp).map(|(_, range)| range)
+    pub fn span_to_range(&self, sp: Span) -> Result<Range<usize>, SpanSnippetError> {
+        self.span_to_source(sp).map(|s| s.data)
     }
 
     /// Returns the source file and the range of text corresponding to the given span.
     pub fn span_to_source(
         &self,
         sp: Span,
-    ) -> Result<(Arc<SourceFile>, std::ops::Range<usize>), SpanSnippetError> {
+    ) -> Result<WithSourceFile<Range<usize>>, SpanSnippetError> {
         let local_begin = self.lookup_byte_offset(sp.lo());
         let local_end = self.lookup_byte_offset(sp.hi());
 
@@ -447,34 +509,37 @@ impl SourceMap {
             }));
         }
 
-        Ok((local_begin.sf, start_index..end_index))
+        Ok(WithSourceFile { file: local_begin.sf, data: start_index..end_index })
     }
 
     /// Format the span location to be printed in diagnostics.
     ///
     /// Must not be emitted to build artifacts as this may leak local file paths.
     pub fn span_to_diagnostic_string(&self, sp: Span) -> impl fmt::Display {
-        let (source_file, lo_line, lo_col, hi_line, hi_col) = self.span_to_location_info(sp);
+        let (source_file, loc) = self.span_to_location_info(sp);
         fmt::from_fn(move |f| {
             let file_name = match &source_file {
                 Some(sf) => self.filename_for_diagnostics(&sf.name),
                 None => return f.write_str("no-location"),
             };
+            let lo_line = loc.lo.line;
+            let lo_col = loc.lo.col.0 + 1;
+            let hi_line = loc.hi.line;
+            let hi_col = loc.hi.col.0 + 1;
             write!(f, "{file_name}:{lo_line}:{lo_col}: {hi_line}:{hi_col}")
         })
     }
 
     /// Returns the source file, line, and column information for the given span.
-    pub fn span_to_location_info(
-        &self,
-        sp: Span,
-    ) -> (Option<Arc<SourceFile>>, usize, usize, usize, usize) {
+    ///
+    /// This is similar to [`is_valid_span`](Self::is_valid_span).
+    pub fn span_to_location_info(&self, sp: Span) -> (Option<Arc<SourceFile>>, SpanLoc) {
         if self.files().is_empty() || sp.is_dummy() {
-            return (None, 0, 0, 0, 0);
+            return Default::default();
         }
-
-        let lo = self.lookup_char_pos(sp.lo());
-        let hi = self.lookup_char_pos(sp.hi());
-        (Some(lo.file), lo.line, lo.col.to_usize() + 1, hi.line, hi.col.to_usize() + 1)
+        let Ok(WithSourceFile { file, data }) = self.is_valid_span(sp) else {
+            return Default::default();
+        };
+        (Some(file), data)
     }
 }

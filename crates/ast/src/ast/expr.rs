@@ -1,12 +1,14 @@
 use super::{Box, Lit, SubDenomination, Type};
+use crate::BoxSlice;
 use either::Either;
-use solar_interface::{Ident, Span};
+use solar_data_structures::trustme;
+use solar_interface::{Ident, Span, SpannedOption};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
 ///
 /// Present in [`CallArgsKind::Named`] and [`ExprKind::CallOptions`].
-pub type NamedArgList<'ast> = Box<'ast, [NamedArg<'ast>]>;
+pub type NamedArgList<'ast> = BoxSlice<'ast, NamedArg<'ast>>;
 
 /// An expression.
 ///
@@ -24,6 +26,30 @@ impl AsRef<Self> for Expr<'_> {
 }
 
 impl<'ast> Expr<'ast> {
+    /// Peels off unnecessary parentheses from the expression.
+    pub fn peel_parens(&self) -> &Self {
+        let mut expr = self;
+        while let ExprKind::Tuple(x) = &expr.kind
+            && let [SpannedOption::Some(inner)] = x.as_slice()
+        {
+            expr = inner;
+        }
+        expr
+    }
+
+    /// Peels off unnecessary parentheses from the expression.
+    pub fn peel_parens_mut(&mut self) -> &mut Self {
+        let mut expr = self;
+        // SAFETY: This is a bug in the compiler. This works when `x` is a slice and we can inline
+        // into one pattern.
+        while let ExprKind::Tuple(x) = &mut unsafe { trustme::decouple_lt_mut(expr) }.kind
+            && let [SpannedOption::Some(inner)] = x.as_mut_slice()
+        {
+            expr = inner;
+        }
+        expr
+    }
+
     /// Creates a new expression from an identifier.
     pub fn from_ident(ident: Ident) -> Self {
         Self { span: ident.span, kind: ExprKind::Ident(ident) }
@@ -39,7 +65,7 @@ impl<'ast> Expr<'ast> {
 #[derive(Debug)]
 pub enum ExprKind<'ast> {
     /// An array literal expression: `[a, b, c, d]`.
-    Array(Box<'ast, [Box<'ast, Expr<'ast>>]>),
+    Array(BoxSlice<'ast, Box<'ast, Expr<'ast>>>),
 
     /// An assignment: `a = b`, `a += b`.
     Assign(Box<'ast, Expr<'ast>>, Option<BinOp>, Box<'ast, Expr<'ast>>),
@@ -81,7 +107,7 @@ pub enum ExprKind<'ast> {
     Ternary(Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// A tuple expression: `(a,,, b, c, d)`.
-    Tuple(Box<'ast, [Option<Box<'ast, Expr<'ast>>>]>),
+    Tuple(BoxSlice<'ast, SpannedOption<Box<'ast, Expr<'ast>>>>),
 
     /// A `type()` expression: `type(uint256)`.
     TypeCall(Type<'ast>),
@@ -326,7 +352,7 @@ impl<'ast> CallArgs<'ast> {
 #[derive(Debug)]
 pub enum CallArgsKind<'ast> {
     /// A list of unnamed arguments: `(1, 2, 3)`.
-    Unnamed(Box<'ast, [Box<'ast, Expr<'ast>>]>),
+    Unnamed(BoxSlice<'ast, Box<'ast, Expr<'ast>>>),
 
     /// A list of named arguments: `({x: 1, y: 2, z: 3})`.
     Named(NamedArgList<'ast>),
@@ -341,7 +367,7 @@ impl Default for CallArgsKind<'_> {
 impl<'ast> CallArgsKind<'ast> {
     /// Creates a new empty list of unnamed arguments.
     pub fn empty() -> Self {
-        Self::Unnamed(Box::default())
+        Self::Unnamed(BoxSlice::default())
     }
 
     /// Returns the length of the arguments.

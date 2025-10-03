@@ -2,7 +2,7 @@ use super::SeqSep;
 use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{
-    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, token::*, yul::*,
+    AstPath, Box, DocComments, Lit, LitKind, PathSlice, StrKind, StrLit, Symbol, token::*, yul::*,
 };
 use solar_interface::{Ident, error_code, kw, sym};
 
@@ -90,13 +90,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul statement.
     pub fn parse_yul_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        self.in_yul(Self::parse_yul_stmt)
+        self.in_yul(Self::parse_yul_stmt_unchecked)
     }
 
     /// Parses a Yul statement, without setting `in_yul`.
     pub fn parse_yul_stmt_unchecked(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt { docs, span, kind })
+        self.with_recursion_limit("Yul statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_yul_stmt_kind).map(|(span, kind)| Stmt {
+                docs,
+                span,
+                kind,
+            })
+        })
     }
 
     /// Parses a Yul block.
@@ -135,16 +141,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Leave) {
             Ok(StmtKind::Leave)
         } else if self.check_ident() {
+            let lo = self.token.span;
             let path = self.parse_path_any()?;
             if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 let name = self.expect_single_ident_path(path);
-                self.parse_yul_expr_call_with(name).map(StmtKind::Expr)
+                let (hi, call) = self.parse_spanned(|this| this.parse_yul_expr_call_with(name))?;
+                let span = lo.to(hi);
+                Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Call(call) }))
             } else if self.eat(TokenKind::Walrus) {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
             } else if self.check(TokenKind::Comma) {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
                 while self.eat(TokenKind::Comma) {
@@ -153,7 +162,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let paths = self.alloc_smallvec(paths);
                 self.expect(TokenKind::Walrus)?;
                 let expr = self.parse_yul_expr()?;
-                let ExprKind::Call(expr) = expr.kind else {
+                let ExprKind::Call(_expr) = &expr.kind else {
                     let msg = "only function calls are allowed in multi-assignment";
                     return Err(self.dcx().err(msg).span(expr.span));
                 };
@@ -208,20 +217,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_yul_stmt_switch(&mut self) -> PResult<'sess, StmtSwitch<'ast>> {
         let lo = self.prev_token.span;
         let selector = self.parse_yul_expr()?;
-        let mut branches = Vec::new();
-        while self.eat_keyword(kw::Case) {
-            let constant = self.parse_yul_lit()?;
-            self.expect_no_subdenomination();
-            let body = self.parse_yul_block_unchecked()?;
-            branches.push(StmtSwitchCase { constant, body });
+        let mut cases = Vec::new();
+        while self.check_keyword(kw::Case) {
+            cases.push(self.parse_yul_stmt_switch_case(kw::Case)?);
         }
-        let branches = self.alloc_vec(branches);
-        let default_case = if self.eat_keyword(kw::Default) {
-            Some(self.parse_yul_block_unchecked()?)
+        let default_case = if self.check_keyword(kw::Default) {
+            Some(self.parse_yul_stmt_switch_case(kw::Default)?)
         } else {
             None
         };
-        if branches.is_empty() {
+        if cases.is_empty() {
             let span = lo.to(self.prev_token.span);
             if default_case.is_none() {
                 self.dcx().err("`switch` statement has no cases").span(span).emit();
@@ -233,7 +238,28 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     .emit();
             }
         }
-        Ok(StmtSwitch { selector, branches, default_case })
+        if let Some(default_case) = default_case {
+            cases.push(default_case);
+        }
+        let cases = self.alloc_vec(cases);
+        Ok(StmtSwitch { selector, cases })
+    }
+
+    fn parse_yul_stmt_switch_case(&mut self, kw: Symbol) -> PResult<'sess, StmtSwitchCase<'ast>> {
+        self.parse_spanned(|this| {
+            debug_assert!(this.token.is_keyword(kw));
+            this.bump();
+            let constant = if kw == kw::Case {
+                let lit = this.parse_yul_lit()?;
+                this.expect_no_subdenomination();
+                Some(lit)
+            } else {
+                None
+            };
+            let body = this.parse_yul_block_unchecked()?;
+            Ok((constant, body))
+        })
+        .map(|(span, (constant, body))| StmtSwitchCase { span, constant, body })
     }
 
     /// Parses a Yul for statement.
@@ -242,7 +268,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let cond = self.parse_yul_expr()?;
         let step = self.parse_yul_block_unchecked()?;
         let body = self.parse_yul_block_unchecked()?;
-        Ok(StmtKind::For { init, cond, step, body })
+        Ok(StmtKind::For(self.alloc(StmtFor { init, cond, step, body })))
     }
 
     /// Parses a Yul expression.
@@ -262,7 +288,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
             }
         } else {
@@ -290,7 +316,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_yul_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let path = self.parse_path_any()?;
-        self.check_valid_path(path);
+        self.check_valid_path(&path);
         Ok(path)
     }
 

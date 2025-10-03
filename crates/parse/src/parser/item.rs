@@ -13,7 +13,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a list of items until the given token is encountered.
-    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, Box<'ast, [Item<'ast>]>> {
+    fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, BoxSlice<'ast, Item<'ast>>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -129,7 +129,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     ///
     /// Expects the current token to be a function-like keyword.
     fn parse_function(&mut self) -> PResult<'sess, ItemFunction<'ast>> {
-        let Token { span: lo, kind: TokenKind::Ident(kw) } = self.token else {
+        let TokenRepr { span: lo, kind: TokenKind::Ident(kw) } = *self.token else {
             unreachable!("parse_function called without function-like keyword");
         };
         self.bump(); // kw
@@ -224,7 +224,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     let mut v = Some(visibility);
@@ -243,7 +243,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     let mut sm = Some(state_mutability);
@@ -263,7 +263,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx().err(msg).span(span).emit();
                 } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
-                    self.dcx().err(msg).span(span).span_note(prev, "previous definition").emit();
+                    self.dcx().err(msg).span(span).span_label(prev, "previous definition").emit();
                 } else {
                     header.virtual_ = Some(span);
                 }
@@ -278,7 +278,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     header.override_ = Some(o);
@@ -353,7 +353,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         let name = self.parse_ident()?;
 
-        let mut bases = None::<Box<'_, [Modifier<'_>]>>;
+        let mut bases = None::<BoxSlice<'_, Modifier<'_>>>;
         let mut layout = None::<StorageLayoutSpecifier<'_>>;
         loop {
             if self.eat_keyword(kw::Is) {
@@ -366,7 +366,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(span(new_bases))
-                        .span_note(span(prev), "previous definition")
+                        .span_label(span(prev), "previous definition")
                         .emit();
                 } else if !new_bases.is_empty() {
                     bases = Some(new_bases);
@@ -378,7 +378,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     self.dcx()
                         .err(msg)
                         .span(new_layout.span)
-                        .span_note(prev.span, "previous definition")
+                        .span_label(prev.span, "previous definition")
                         .emit();
                 } else {
                     layout = Some(new_layout);
@@ -485,7 +485,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// `any(c)`
     fn parse_semver_req_components_dis(
         &mut self,
-    ) -> PResult<'sess, Box<'ast, [SemverReqCon<'ast>]>> {
+    ) -> PResult<'sess, BoxSlice<'ast, SemverReqCon<'ast>>> {
         // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L170
         let mut dis = Vec::new();
         loop {
@@ -500,7 +500,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             // or all the values until `||`.
             debug_assert!(
                 matches!(
-                    dis.last().map(|x| &x.components),
+                    dis.last().map(|x| x.components.as_slice()),
                     Some([
                         ..,
                         SemverReqComponent { span: _, kind: SemverReqComponentKind::Range(..) }
@@ -869,7 +869,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses a list of inheritance specifiers.
-    fn parse_inheritance(&mut self) -> PResult<'sess, Box<'ast, [Modifier<'ast>]>> {
+    fn parse_inheritance(&mut self) -> PResult<'sess, BoxSlice<'ast, Modifier<'ast>>> {
         let mut list = SmallVec::<[_; 8]>::new();
         loop {
             list.push(self.parse_modifier()?);
@@ -930,7 +930,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if !self.check_str_lit() {
             return None;
         }
-        let Token { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = self.token else {
+        let TokenRepr { kind: TokenKind::Literal(TokenLitKind::Str, symbol), span } = *self.token
+        else {
             unreachable!()
         };
         self.bump();
@@ -1385,8 +1386,12 @@ mod tests {
     use super::*;
     use solar_interface::{Result, Session, source_map::FileName};
 
+    fn session() -> Session {
+        Session::builder().with_test_emitter().single_threaded().build()
+    }
+
     fn assert_version_matches(tests: &[(&str, &str, bool)]) {
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (i, &(v, req_s, res)) in tests.iter().enumerate() {
                 let name = i.to_string();
@@ -1608,7 +1613,7 @@ mod tests {
         ];
 
         for (idx, src) in test_functions.iter().enumerate() {
-            let sess = Session::builder().with_test_emitter().build();
+            let sess = session();
             sess.enter(|| -> Result {
                 let arena = Arena::new();
                 let mut parser = Parser::from_source_code(
@@ -1703,7 +1708,7 @@ mod tests {
             ),
         ];
 
-        let sess = Session::builder().with_test_emitter().build();
+        let sess = session();
         sess.enter(|| -> Result {
             for (idx, (src, vis, sm, virt, params, returns)) in test_cases.iter().enumerate() {
                 let arena = Arena::new();

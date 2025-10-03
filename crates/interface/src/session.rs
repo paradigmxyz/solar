@@ -1,9 +1,10 @@
 use crate::{
-    ColorChoice, SessionGlobals, SourceMap,
+    ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
 use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
 use std::{
+    fmt,
     path::Path,
     sync::{Arc, OnceLock},
 };
@@ -22,6 +23,21 @@ pub struct Session {
     thread_pool: OnceLock<rayon::ThreadPool>,
 }
 
+impl Default for Session {
+    fn default() -> Self {
+        Self::new(Opts::default())
+    }
+}
+
+impl fmt::Debug for Session {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Session")
+            .field("opts", &self.opts)
+            .field("dcx", &self.dcx)
+            .finish_non_exhaustive()
+    }
+}
+
 /// [`Session`] builder.
 #[derive(Default)]
 #[must_use = "builders don't do anything unless you call `build`"]
@@ -32,7 +48,9 @@ pub struct SessionBuilder {
 }
 
 impl SessionBuilder {
-    /// Sets the diagnostic context. This is required.
+    /// Sets the diagnostic context.
+    ///
+    /// If `opts` is set this will default to [`DiagCtxt::from_opts`], otherwise this is required.
     ///
     /// See also the `with_*_emitter*` methods.
     pub fn dcx(mut self, dcx: DiagCtxt) -> Self {
@@ -126,7 +144,12 @@ impl SessionBuilder {
     /// - the source map in the diagnostics context does not match the one set in the builder
     #[track_caller]
     pub fn build(mut self) -> Session {
-        let mut dcx = self.dcx.take().unwrap_or_else(|| panic!("diagnostics context not set"));
+        let opts = self.opts.take();
+        let mut dcx = self.dcx.take().unwrap_or_else(|| {
+            opts.as_ref()
+                .map(DiagCtxt::from_opts)
+                .unwrap_or_else(|| panic!("either diagnostics context or options must be set"))
+        });
         let sess = Session {
             globals: Arc::new(match self.globals.take() {
                 Some(globals) => {
@@ -146,38 +169,27 @@ impl SessionBuilder {
                 }
             }),
             dcx,
-            opts: self.opts.take().unwrap_or_default(),
+            opts: opts.unwrap_or_default(),
             thread_pool: OnceLock::new(),
         };
-
-        if let Some(base_path) =
-            sess.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
-            && let Ok(base_path) = sess.source_map().file_loader().canonicalize_path(&base_path)
-        {
-            sess.source_map().set_base_path(base_path);
-        }
-
+        sess.reconfigure();
         debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
-
         sess
     }
 }
 
 impl Session {
-    /// Creates a new session with the given diagnostics context and source map.
-    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
-        Self::builder().dcx(dcx).source_map(source_map).build()
-    }
-
-    /// Creates a new session with the given diagnostics context and an empty source map.
-    pub fn empty(dcx: DiagCtxt) -> Self {
-        Self::builder().dcx(dcx).build()
-    }
-
     /// Creates a new session builder.
     #[inline]
     pub fn builder() -> SessionBuilder {
         SessionBuilder::default()
+    }
+
+    /// Creates a new session from the given options.
+    ///
+    /// See [`builder`](Self::builder) for a more flexible way to create a session.
+    pub fn new(opts: Opts) -> Self {
+        Self::builder().opts(opts).build()
     }
 
     /// Infers the language from the input files.
@@ -194,6 +206,26 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result
+    }
+
+    /// Reconfigures inner state to match any new options.
+    ///
+    /// Call this after updating options.
+    pub fn reconfigure(&self) {
+        'bp: {
+            let new_base_path = if self.opts.unstable.ui_testing {
+                // `ui_test` relies on absolute paths.
+                None
+            } else if let Some(base_path) =
+                self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
+                && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)
+            {
+                Some(base_path)
+            } else {
+                break 'bp;
+            };
+            self.source_map().set_base_path(new_base_path);
+        }
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
@@ -357,7 +389,7 @@ impl Session {
                 return self.enter_sequential(f);
             }
             // Avoid creating a new thread pool if it's already set up with the same globals.
-            if self.is_set() {
+            if self.is_entered() {
                 // No need to set again.
                 return f();
             }
@@ -379,8 +411,44 @@ impl Session {
         self.globals.set(f)
     }
 
-    /// Returns `true` if the session globals are already set to this instance's.
-    fn is_set(&self) -> bool {
+    /// Interns a string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern(&self, s: &str) -> Symbol {
+        self.globals.symbol_interner.intern(s)
+    }
+
+    /// Resolves a symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_symbol(&self, s: Symbol) -> &str {
+        self.globals.symbol_interner.get(s)
+    }
+
+    /// Interns a byte string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern_byte_str(&self, s: &[u8]) -> ByteSymbol {
+        self.globals.symbol_interner.intern_byte_str(s)
+    }
+
+    /// Resolves a byte symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_byte_str(&self, s: ByteSymbol) -> &[u8] {
+        self.globals.symbol_interner.get_byte_str(s)
+    }
+
+    /// Returns `true` if this session has been entered.
+    pub fn is_entered(&self) -> bool {
         SessionGlobals::try_with(|g| g.is_some_and(|g| g.maybe_eq(&self.globals)))
     }
 
@@ -491,9 +559,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "diagnostics context not set"]
-    fn no_dcx() {
-        Session::builder().build();
+    fn builder() {
+        let _ = Session::builder().with_stderr_emitter().build();
+    }
+
+    #[test]
+    fn not_builder() {
+        let _ = Session::new(Opts::default());
+        let _ = Session::default();
     }
 
     #[test]
@@ -506,23 +579,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "session source map does not match the one in the diagnostics context"]
-    fn sm_mismatch_non_builder() {
-        let sm1 = Arc::<SourceMap>::default();
-        let sm2 = Arc::<SourceMap>::default();
-        assert!(!Arc::ptr_eq(&sm1, &sm2));
-        Session::new(DiagCtxt::with_stderr_emitter(Some(sm2)), sm1);
+    #[should_panic = "either diagnostics context or options must be set"]
+    fn no_dcx() {
+        Session::builder().build();
     }
 
     #[test]
-    fn builder() {
-        let _ = Session::builder().with_stderr_emitter().build();
-    }
-
-    #[test]
-    fn empty() {
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(None));
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(Some(Default::default())));
+    fn dcx() {
+        let _ = Session::builder().dcx(DiagCtxt::with_stderr_emitter(None)).build();
+        let _ =
+            Session::builder().dcx(DiagCtxt::with_stderr_emitter(Some(Default::default()))).build();
     }
 
     #[test]

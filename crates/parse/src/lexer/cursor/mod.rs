@@ -3,91 +3,21 @@
 //! Modified from Rust's [`rustc_lexer`](https://github.com/rust-lang/rust/blob/45749b21b7fd836f6c4f11dd40376f7c83e2791b/compiler/rustc_lexer/src/lib.rs).
 
 use memchr::memmem;
-use solar_ast::{Base, StrKind};
-use solar_data_structures::hint::unlikely;
+use solar_ast::{
+    Base, StrKind,
+    token::{BinOpToken, Delimiter},
+};
+use solar_data_structures::hint::{likely, unlikely};
 use std::sync::OnceLock;
 
 pub mod token;
 use token::{RawLiteralKind, RawToken, RawTokenKind};
 
+mod char_info;
+pub use char_info::*;
+
 #[cfg(test)]
 mod tests;
-
-/// Returns `true` if the given character is considered a whitespace.
-#[inline]
-pub const fn is_whitespace(c: char) -> bool {
-    is_whitespace_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is considered a whitespace.
-#[inline]
-pub const fn is_whitespace_byte(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r')
-}
-
-/// Returns `true` if the given character is valid at the start of a Solidity identifier.
-#[inline]
-pub const fn is_id_start(c: char) -> bool {
-    is_id_start_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is valid at the start of a Solidity identifier.
-#[inline]
-pub const fn is_id_start_byte(c: u8) -> bool {
-    matches!(c, b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'$')
-}
-
-/// Returns `true` if the given character is valid in a Solidity identifier.
-#[inline]
-pub const fn is_id_continue(c: char) -> bool {
-    is_id_continue_byte(ch2u8(c))
-}
-/// Returns `true` if the given character is valid in a Solidity identifier.
-#[inline]
-pub const fn is_id_continue_byte(c: u8) -> bool {
-    let is_number = (c >= b'0') & (c <= b'9');
-    is_id_start_byte(c) || is_number
-}
-
-/// Returns `true` if the given string is a valid Solidity identifier.
-///
-/// An identifier in Solidity has to start with a letter, a dollar-sign or an underscore and may
-/// additionally contain numbers after the first symbol.
-///
-/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier>
-#[inline]
-pub const fn is_ident(s: &str) -> bool {
-    is_ident_bytes(s.as_bytes())
-}
-
-/// Returns `true` if the given byte slice is a valid Solidity identifier.
-///
-/// See [`is_ident`] for more details.
-pub const fn is_ident_bytes(s: &[u8]) -> bool {
-    let [first, ref rest @ ..] = *s else {
-        return false;
-    };
-
-    if !is_id_start_byte(first) {
-        return false;
-    }
-
-    let mut i = 0;
-    while i < rest.len() {
-        if !is_id_continue_byte(rest[i]) {
-            return false;
-        }
-        i += 1;
-    }
-
-    true
-}
-
-/// Converts a `char` to a `u8`.
-#[inline(always)]
-const fn ch2u8(c: char) -> u8 {
-    c as u32 as u8
-}
-
-const EOF: u8 = b'\0';
 
 /// Peekable iterator over a char sequence.
 ///
@@ -115,8 +45,11 @@ impl<'a> Cursor<'a> {
         CursorWithPosition::new(self)
     }
 
-    /// Parses a token from the input string.
-    pub fn advance_token(&mut self) -> RawToken {
+    /// Slops up a token from the input string.
+    ///
+    /// Advances the cursor by the length of the token.
+    /// Prefer using `Cursor::with_position`, or using it as an iterator instead.
+    pub fn slop(&mut self) -> RawToken {
         // Use the pointer instead of the length to track how many bytes were consumed, since
         // internally the iterator is a pair of `start` and `end` pointers.
         let start = self.as_ptr();
@@ -137,13 +70,17 @@ impl<'a> Cursor<'a> {
             b'/' => match self.first() {
                 b'/' => self.line_comment(),
                 b'*' => self.block_comment(),
-                _ => RawTokenKind::Slash,
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Slash)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Slash),
             },
 
             // Whitespace sequence.
             c if is_whitespace_byte(c) => self.whitespace(),
 
-            // Identifier (this should be checked after other variant that can start as identifier).
+            // Identifier. This should be checked after other variants that can start as identifier.
             c if is_id_start_byte(c) => self.ident_or_prefixed_literal(c),
 
             // Numeric literal.
@@ -160,26 +97,169 @@ impl<'a> Cursor<'a> {
             b';' => RawTokenKind::Semi,
             b',' => RawTokenKind::Comma,
             b'.' => RawTokenKind::Dot,
-            b'(' => RawTokenKind::OpenParen,
-            b')' => RawTokenKind::CloseParen,
-            b'{' => RawTokenKind::OpenBrace,
-            b'}' => RawTokenKind::CloseBrace,
-            b'[' => RawTokenKind::OpenBracket,
-            b']' => RawTokenKind::CloseBracket,
+            b'(' => RawTokenKind::OpenDelim(Delimiter::Parenthesis),
+            b')' => RawTokenKind::CloseDelim(Delimiter::Parenthesis),
+            b'{' => RawTokenKind::OpenDelim(Delimiter::Brace),
+            b'}' => RawTokenKind::CloseDelim(Delimiter::Brace),
+            b'[' => RawTokenKind::OpenDelim(Delimiter::Bracket),
+            b']' => RawTokenKind::CloseDelim(Delimiter::Bracket),
             b'~' => RawTokenKind::Tilde,
             b'?' => RawTokenKind::Question,
-            b':' => RawTokenKind::Colon,
-            b'=' => RawTokenKind::Eq,
-            b'!' => RawTokenKind::Bang,
-            b'<' => RawTokenKind::Lt,
-            b'>' => RawTokenKind::Gt,
-            b'-' => RawTokenKind::Minus,
-            b'&' => RawTokenKind::And,
-            b'|' => RawTokenKind::Or,
-            b'+' => RawTokenKind::Plus,
-            b'*' => RawTokenKind::Star,
-            b'^' => RawTokenKind::Caret,
-            b'%' => RawTokenKind::Percent,
+
+            // Multi-character tokens.
+            // : :=
+            b':' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Walrus
+                }
+                _ => RawTokenKind::Colon,
+            },
+            // = == =>
+            b'=' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::EqEq
+                }
+                b'>' => {
+                    self.bump();
+                    RawTokenKind::FatArrow
+                }
+                _ => RawTokenKind::Eq,
+            },
+            // ! !=
+            b'!' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Ne
+                }
+                _ => RawTokenKind::Not,
+            },
+            // < <= << <<=
+            b'<' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Le
+                }
+                b'<' => {
+                    self.bump();
+                    if self.first() == b'=' {
+                        self.bump();
+                        RawTokenKind::BinOpEq(BinOpToken::Shl)
+                    } else {
+                        RawTokenKind::BinOp(BinOpToken::Shl)
+                    }
+                }
+                _ => RawTokenKind::Lt,
+            },
+            // https://github.com/rust-lang/rustfmt/issues/6660
+            // `> >= >> >>= >>> >>>=`
+            b'>' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::Ge
+                }
+                b'>' => {
+                    self.bump();
+                    match self.first() {
+                        b'>' => {
+                            self.bump();
+                            if self.first() == b'=' {
+                                self.bump();
+                                RawTokenKind::BinOpEq(BinOpToken::Sar)
+                            } else {
+                                RawTokenKind::BinOp(BinOpToken::Sar)
+                            }
+                        }
+                        b'=' => {
+                            self.bump();
+                            RawTokenKind::BinOpEq(BinOpToken::Shr)
+                        }
+                        _ => RawTokenKind::BinOp(BinOpToken::Shr),
+                    }
+                }
+                _ => RawTokenKind::Gt,
+            },
+            // - -- -= ->
+            b'-' => match self.first() {
+                b'-' => {
+                    self.bump();
+                    RawTokenKind::MinusMinus
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Minus)
+                }
+                b'>' => {
+                    self.bump();
+                    RawTokenKind::Arrow
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Minus),
+            },
+            // & && &=
+            b'&' => match self.first() {
+                b'&' => {
+                    self.bump();
+                    RawTokenKind::AndAnd
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::And)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::And),
+            },
+            // | || |=
+            b'|' => match self.first() {
+                b'|' => {
+                    self.bump();
+                    RawTokenKind::OrOr
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Or)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Or),
+            },
+            // + ++ +=
+            b'+' => match self.first() {
+                b'+' => {
+                    self.bump();
+                    RawTokenKind::PlusPlus
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Plus)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Plus),
+            },
+            // * ** *=
+            b'*' => match self.first() {
+                b'*' => {
+                    self.bump();
+                    RawTokenKind::StarStar
+                }
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Star)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Star),
+            },
+            // ^ ^=
+            b'^' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Caret)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Caret),
+            },
+            // % %=
+            b'%' => match self.first() {
+                b'=' => {
+                    self.bump();
+                    RawTokenKind::BinOpEq(BinOpToken::Percent)
+                }
+                _ => RawTokenKind::BinOp(BinOpToken::Percent),
+            },
 
             // String literal.
             b'\'' | b'"' => {
@@ -335,30 +415,33 @@ impl<'a> Cursor<'a> {
     /// Eats a string until the given quote character. Returns `true` if the string was terminated.
     fn eat_string(&mut self, quote: u8) -> bool {
         debug_assert_eq!(self.prev(), quote);
-        while let Some(c) = self.bump_ret() {
-            if c == quote {
+        loop {
+            if unlikely(!self.eat_until_either(quote, b'\\')) {
+                return false;
+            }
+            // SAFETY: `eat_until_either` returns `true` if `quote` or `b'\\'` was found.
+            let c = unsafe { self.bump_ret().unwrap_unchecked() };
+            if likely(c == quote) {
                 return true;
             }
-            if c == b'\\' {
-                let first = self.first();
-                if first == b'\\' || first == quote {
-                    // Bump again to skip escaped character.
-                    self.bump();
-                }
+            // `\\` or `\"`: skip the escaped character.
+            debug_assert_eq!(c, b'\\');
+            let next = self.first();
+            if next == b'\\' || next == quote {
+                // Bump again to skip escaped character.
+                self.bump();
             }
         }
-        // End of file reached.
-        false
     }
 
     /// Eats characters for a decimal number. Returns `true` if any digits were encountered.
     fn eat_decimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_digit())
+        self.eat_digits(is_decimal_digit)
     }
 
     /// Eats characters for a hexadecimal number. Returns `true` if any digits were encountered.
     fn eat_hexadecimal_digits(&mut self) -> bool {
-        self.eat_digits(|x| x.is_ascii_hexdigit())
+        self.eat_digits(is_hex_digit)
     }
 
     fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
@@ -494,7 +577,7 @@ impl Iterator for Cursor<'_> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let token = self.advance_token();
+        let token = self.slop();
         if token.kind == RawTokenKind::Eof { None } else { Some(token) }
     }
 }

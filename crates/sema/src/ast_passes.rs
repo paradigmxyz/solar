@@ -266,6 +266,26 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .emit();
                 }
             }
+            ast::StmtKind::Assembly(assembly) => {
+                let mut memory_safe = false;
+
+                // TODO: Move to Yul lowering
+                for flag in assembly.flags.iter() {
+                    let span = flag.span;
+                    match flag.value {
+                        sym::memory_dash_safe => {
+                            if memory_safe {
+                                self.dcx()
+                                    .err("inline assembly marked memory-safe multiple times")
+                                    .span(span)
+                                    .emit();
+                            }
+                            memory_safe = true;
+                        }
+                        _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
+                    }
+                }
+            }
             _ => {}
         }
 
@@ -450,7 +470,12 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.dcx()
                         .err("return parameters in function types may not be named")
                         .span(ret.span)
-                        .span_help(ret_name.span, format!("remove `{ret_name}`"))
+                        .span_suggestion(
+                            ret_name.span.with_lo(ret.ty.span.hi()),
+                            format!("remove `{ret_name}`"),
+                            "",
+                            solar_interface::diagnostics::Applicability::MachineApplicable,
+                        )
                         .emit();
                 }
             }

@@ -1,7 +1,7 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, SpannedOption};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -304,8 +304,11 @@ declare_visitors! {
                     self.visit_variable_definition #_mut(var)?;
                 }
                 StmtKind::DeclMulti(vars, expr) => {
-                    for var in vars.iter #_mut().flatten() {
-                        self.visit_variable_definition #_mut(var)?;
+                    for spanned_var in vars.iter #_mut() {
+                        match spanned_var {
+                            SpannedOption::Some(var) => self.visit_variable_definition #_mut(var)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
                     }
                     self.visit_expr #_mut(expr)?;
                 }
@@ -471,8 +474,11 @@ declare_visitors! {
                     self.visit_expr #_mut(false_)?;
                 }
                 ExprKind::Tuple(exprs) => {
-                    for expr in exprs.iter #_mut().flatten() {
-                        self.visit_expr #_mut(expr)?;
+                    for spanned_expr in exprs.iter #_mut() {
+                        match spanned_expr {
+                            SpannedOption::Some(expr) => self.visit_expr #_mut(expr)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
                     }
                 }
                 ExprKind::TypeCall(ty) => {
@@ -515,20 +521,20 @@ declare_visitors! {
                     self.visit_path #_mut(path)?;
                     self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::AssignMulti(paths, call) => {
+                yul::StmtKind::AssignMulti(paths, expr) => {
                     for path in paths.iter #_mut() {
                         self.visit_path #_mut(path)?;
                     }
-                    self.visit_yul_expr_call #_mut(call)?;
+                    self.visit_yul_expr #_mut(expr)?;
                 }
-                yul::StmtKind::Expr(call) => {
-                    self.visit_yul_expr_call #_mut(call)?;
+                yul::StmtKind::Expr(expr) => {
+                    self.visit_yul_expr #_mut(expr)?;
                 }
                 yul::StmtKind::If(expr, block) => {
                     self.visit_yul_expr #_mut(expr)?;
                     self.visit_yul_block #_mut(block)?;
                 }
-                yul::StmtKind::For { init, cond, step, body } => {
+                yul::StmtKind::For(yul::StmtFor { init, cond, step, body }) => {
                     self.visit_yul_block #_mut(init)?;
                     self.visit_yul_expr #_mut(cond)?;
                     self.visit_yul_block #_mut(step)?;
@@ -565,20 +571,20 @@ declare_visitors! {
         }
 
         fn visit_yul_stmt_switch(&mut self, switch: &'ast #mut yul::StmtSwitch<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitch { selector, branches, default_case } = switch;
+            let yul::StmtSwitch { selector, cases } = switch;
             self.visit_yul_expr #_mut(selector)?;
-            for case in branches.iter #_mut() {
+            for case in cases.iter #_mut() {
                 self.visit_yul_stmt_case #_mut(case)?;
-            }
-            if let Some(case) = default_case {
-                self.visit_yul_block #_mut(case)?;
             }
             ControlFlow::Continue(())
         }
 
         fn visit_yul_stmt_case(&mut self, case: &'ast #mut yul::StmtSwitchCase<'ast>) -> ControlFlow<Self::BreakValue> {
-            let yul::StmtSwitchCase { constant, body } = case;
-            self.visit_lit #_mut(constant)?;
+            let yul::StmtSwitchCase { span, constant, body } = case;
+            self.visit_span #_mut(span)?;
+            if let Some(constant) = constant {
+                self.visit_lit #_mut(constant)?;
+            }
             self.visit_yul_block #_mut(body)?;
             ControlFlow::Continue(())
         }
