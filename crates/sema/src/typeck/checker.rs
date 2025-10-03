@@ -434,7 +434,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, expr) => {
-                let ty = if op.kind.is_modifying() {
+                let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(expr)
                 } else {
                     self.check_expr_with(expr, expected)
