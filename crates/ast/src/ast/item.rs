@@ -582,7 +582,7 @@ pub struct Override<'ast> {
 }
 
 /// A storage location.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnumIs)]
 pub enum DataLocation {
     /// `storage`
     Storage,
