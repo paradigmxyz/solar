@@ -1111,7 +1111,41 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::Session;
+    use solar_interface::{Session, SourceMap};
+
+    fn check_natspec_item(
+        sm: &SourceMap,
+        item: &ast::NatSpecItem,
+        expected_kind: &str,
+        expected_span: &str,
+        expected_tag_name: Option<&str>,
+    ) {
+        let snippet = sm.span_to_snippet(item.span).unwrap();
+        assert_eq!(snippet, expected_span);
+
+        match (&item.kind, expected_kind) {
+            (ast::NatSpecKind::Title, "title") => {}
+            (ast::NatSpecKind::Author, "author") => {}
+            (ast::NatSpecKind::Notice, "notice") => {}
+            (ast::NatSpecKind::Dev, "dev") => {}
+            (ast::NatSpecKind::Param { tag }, "param") => {
+                assert_eq!(tag.name.as_str(), expected_tag_name.unwrap());
+            }
+            (ast::NatSpecKind::Return { tag }, "return") => {
+                assert_eq!(tag.name.as_str(), expected_tag_name.unwrap());
+            }
+            (ast::NatSpecKind::Inheritdoc { tag }, "inheritdoc") => {
+                assert_eq!(tag.name.as_str(), expected_tag_name.unwrap());
+            }
+            (ast::NatSpecKind::Custom { tag }, "custom") => {
+                assert_eq!(tag.name.as_str(), expected_tag_name.unwrap());
+            }
+            (ast::NatSpecKind::Internal { tag }, "internal") => {
+                assert_eq!(tag.name.as_str(), expected_tag_name.unwrap());
+            }
+            _ => panic!("expected {expected_kind} kind"),
+        }
+    }
 
     #[test]
     fn parse_natspec() {
@@ -1136,86 +1170,24 @@ mod tests {
             let mut parser = Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                 .expect("failed to create parser");
 
-            let doc_comments = parser.parse_doc_comments();
-            let natspec = doc_comments.natspec.expect("natspec should be parsed");
-
-            // Should have 9 items
-            assert_eq!(natspec.items.len(), 9, "expected 9 natspec items");
-
-            // Validate each item's kind and span
+            let natspec = parser.parse_doc_comments().natspec.expect("natspec should be parsed");
             let items = &natspec.items[..];
             let sm = sess.source_map();
 
-            // @title - span now points to just the tag
-            assert!(matches!(items[0].kind, ast::NatSpecKind::Title));
-            let snippet = sm.span_to_snippet(items[0].span).unwrap();
-            assert_eq!(snippet, "@title");
+            assert_eq!(items.len(), 9);
+            check_natspec_item(sm, &items[0], "title", "@title", None);
+            check_natspec_item(sm, &items[1], "author", "@author", None);
+            check_natspec_item(sm, &items[2], "notice", "@notice", None);
+            check_natspec_item(sm, &items[3], "dev", "@dev", None);
+            check_natspec_item(sm, &items[4], "param", "@param", Some("x"));
+            check_natspec_item(sm, &items[5], "return", "@return", Some("result"));
+            check_natspec_item(sm, &items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
+            check_natspec_item(sm, &items[7], "custom", "@custom:security", Some("security"));
+            check_natspec_item(sm, &items[8], "internal", "@solidity", Some("solidity"));
 
-            // @author - span now points to just the tag
-            assert!(matches!(items[1].kind, ast::NatSpecKind::Author));
-            let snippet = sm.span_to_snippet(items[1].span).unwrap();
-            assert_eq!(snippet, "@author");
-
-            // @notice - span now points to just the tag
-            assert!(matches!(items[2].kind, ast::NatSpecKind::Notice));
-            let snippet = sm.span_to_snippet(items[2].span).unwrap();
-            assert_eq!(snippet, "@notice");
-
-            // @dev - span now points to just the tag
-            assert!(matches!(items[3].kind, ast::NatSpecKind::Dev));
-            let snippet = sm.span_to_snippet(items[3].span).unwrap();
-            assert_eq!(snippet, "@dev");
-
-            // @param - span now points to just the tag
-            if let ast::NatSpecKind::Param { tag } = items[4].kind {
-                assert_eq!(tag.name.as_str(), "x");
-                let snippet = sm.span_to_snippet(items[4].span).unwrap();
-                assert_eq!(snippet, "@param");
-            } else {
-                panic!("expected Param kind");
-            }
-
-            // @return - span now points to just the tag
-            if let ast::NatSpecKind::Return { tag } = items[5].kind {
-                assert_eq!(tag.name.as_str(), "result");
-                let snippet = sm.span_to_snippet(items[5].span).unwrap();
-                assert_eq!(snippet, "@return");
-            } else {
-                panic!("expected Return kind");
-            }
-
-            // @inheritdoc - span now points to just the tag
-            if let ast::NatSpecKind::Inheritdoc { tag } = items[6].kind {
-                assert_eq!(tag.name.as_str(), "BaseContract");
-                let snippet = sm.span_to_snippet(items[6].span).unwrap();
-                assert_eq!(snippet, "@inheritdoc");
-            } else {
-                panic!("expected Inheritdoc kind");
-            }
-
-            // @custom:security - span now points to the full custom tag
-            if let ast::NatSpecKind::Custom { tag } = items[7].kind {
-                assert_eq!(tag.name.as_str(), "security");
-                let snippet = sm.span_to_snippet(items[7].span).unwrap();
-                assert_eq!(snippet, "@custom:security");
-            } else {
-                panic!("expected Custom kind");
-            }
-
-            // @solidity - span now points to just the tag
-            if let ast::NatSpecKind::Internal { tag } = items[8].kind {
-                assert_eq!(tag.name.as_str(), "solidity");
-                let snippet = sm.span_to_snippet(items[8].span).unwrap();
-                assert_eq!(snippet, "@solidity");
-            } else {
-                panic!("expected Internal kind");
-            }
-
-            // Verify the overall natspec span encompasses all doc comments (including continuation lines)
-            let natspec_snippet = sm.span_to_snippet(natspec.span).unwrap();
-            // The overall span includes all lines, even those without tags (continuation lines)
-            let expected_full = "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe";
-            assert_eq!(natspec_snippet, expected_full, "natspec span should encompass all doc comment lines");
+            let snippet = sm.span_to_snippet(natspec.span).unwrap();
+            let expected = "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe";
+            assert_eq!(snippet, expected);
         });
     }
 
@@ -1245,85 +1217,24 @@ mod tests {
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
 
-            let doc_comments = parser.parse_doc_comments();
-            let natspec = doc_comments.natspec.expect("natspec should be parsed");
-
-            // Should have 9 items
-            assert_eq!(natspec.items.len(), 9, "expected 9 natspec items");
-
-            // Validate each item's kind and span
+            let natspec = parser.parse_doc_comments().natspec.expect("natspec should be parsed");
             let items = &natspec.items[..];
             let sm = sess.source_map();
 
-            // @title - Now spans point to just the tag, even in block comments
-            assert!(matches!(items[0].kind, ast::NatSpecKind::Title));
-            let snippet = sm.span_to_snippet(items[0].span).unwrap();
-            assert_eq!(snippet, "@title", "span should point to just the tag");
+            assert_eq!(items.len(), 9);
+            check_natspec_item(sm, &items[0], "title", "@title", None);
+            check_natspec_item(sm, &items[1], "author", "@author", None);
+            check_natspec_item(sm, &items[2], "notice", "@notice", None);
+            check_natspec_item(sm, &items[3], "dev", "@dev", None);
+            check_natspec_item(sm, &items[4], "param", "@param", Some("x"));
+            check_natspec_item(sm, &items[5], "return", "@return", Some("result"));
+            check_natspec_item(sm, &items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
+            check_natspec_item(sm, &items[7], "custom", "@custom:security", Some("security"));
+            check_natspec_item(sm, &items[8], "internal", "@src", Some("src"));
 
-            // @author - Now spans point to just the tag
-            assert!(matches!(items[1].kind, ast::NatSpecKind::Author));
-            let snippet = sm.span_to_snippet(items[1].span).unwrap();
-            assert_eq!(snippet, "@author", "span should point to just the tag");
-
-            // @notice - Now spans point to just the tag
-            assert!(matches!(items[2].kind, ast::NatSpecKind::Notice));
-            let snippet = sm.span_to_snippet(items[2].span).unwrap();
-            assert_eq!(snippet, "@notice", "span should point to just the tag");
-
-            // @dev - Now spans point to just the tag
-            assert!(matches!(items[3].kind, ast::NatSpecKind::Dev));
-            let snippet = sm.span_to_snippet(items[3].span).unwrap();
-            assert_eq!(snippet, "@dev", "span should point to just the tag");
-
-            // @param - Now spans point to just the tag
-            if let ast::NatSpecKind::Param { tag } = items[4].kind {
-                assert_eq!(tag.name.as_str(), "x");
-                let snippet = sm.span_to_snippet(items[4].span).unwrap();
-                assert_eq!(snippet, "@param", "span should point to just the tag");
-            } else {
-                panic!("expected Param kind");
-            }
-
-            // @return - Now spans point to just the tag
-            if let ast::NatSpecKind::Return { tag } = items[5].kind {
-                assert_eq!(tag.name.as_str(), "result");
-                let snippet = sm.span_to_snippet(items[5].span).unwrap();
-                assert_eq!(snippet, "@return", "span should point to just the tag");
-            } else {
-                panic!("expected Return kind");
-            }
-
-            // @inheritdoc - Now spans point to just the tag
-            if let ast::NatSpecKind::Inheritdoc { tag } = items[6].kind {
-                assert_eq!(tag.name.as_str(), "BaseContract");
-                let snippet = sm.span_to_snippet(items[6].span).unwrap();
-                assert_eq!(snippet, "@inheritdoc", "span should point to just the tag");
-            } else {
-                panic!("expected Inheritdoc kind");
-            }
-
-            // @custom:security - Now spans point to the full custom tag
-            if let ast::NatSpecKind::Custom { tag } = items[7].kind {
-                assert_eq!(tag.name.as_str(), "security");
-                let snippet = sm.span_to_snippet(items[7].span).unwrap();
-                assert_eq!(snippet, "@custom:security", "span should point to the full custom tag");
-            } else {
-                panic!("expected Custom kind");
-            }
-
-            // @src - Now spans point to just the tag
-            if let ast::NatSpecKind::Internal { tag } = items[8].kind {
-                assert_eq!(tag.name.as_str(), "src");
-                let snippet = sm.span_to_snippet(items[8].span).unwrap();
-                assert_eq!(snippet, "@src", "span should point to just the tag");
-            } else {
-                panic!("expected Internal kind");
-            }
-
-            // Verify the overall natspec span is valid
-            let natspec_snippet = sm.span_to_snippet(natspec.span).unwrap();
-            assert!(natspec_snippet.contains("@title"), "natspec span should contain first tag");
-            assert!(natspec_snippet.contains("@src"), "natspec span should contain last tag");
+            let snippet = sm.span_to_snippet(natspec.span).unwrap();
+            let expected = "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */";
+            assert_eq!(snippet, expected);
         });
     }
 }
