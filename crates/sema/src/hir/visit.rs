@@ -23,7 +23,7 @@ pub trait Visit<'hir> {
             ItemId::Function(id) => self.visit_nested_function(id),
             ItemId::Struct(id) => self.visit_nested_struct(id),
             ItemId::Enum(id) => self.visit_nested_enum(id),
-            ItemId::Udvt(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Udvt(id) => self.visit_nested_udvt(id),
             ItemId::Error(_id) => ControlFlow::Continue(()), // TODO
             ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
             ItemId::Variable(id) => self.visit_nested_var(id),
@@ -36,7 +36,7 @@ pub trait Visit<'hir> {
             Item::Function(item) => self.visit_function(item),
             Item::Struct(item) => self.visit_struct(item),
             Item::Enum(item) => self.visit_enum(item),
-            Item::Udvt(_item) => ControlFlow::Continue(()), // TODO
+            Item::Udvt(item) => self.visit_udvt(item),
             Item::Error(_item) => ControlFlow::Continue(()), // TODO
             Item::Event(_item) => ControlFlow::Continue(()), // TODO
             Item::Variable(item) => self.visit_var(item),
@@ -99,6 +99,14 @@ pub trait Visit<'hir> {
 
     fn visit_enum(&mut self, _enumm: &'hir Enum<'hir>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+
+    fn visit_nested_udvt(&mut self, id: UdvtId) -> ControlFlow<Self::BreakValue> {
+        self.visit_udvt(self.hir().udvt(id))
+    }
+
+    fn visit_udvt(&mut self, udvt: &'hir Udvt<'hir>) -> ControlFlow<Self::BreakValue> {
+        self.visit_ty(&udvt.ty)
     }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
