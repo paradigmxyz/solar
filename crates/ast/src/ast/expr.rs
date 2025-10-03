@@ -209,29 +209,20 @@ impl BinOpKind {
     /// Returns `true` if the operator is able to be used in an assignment.
     pub const fn assignable(self) -> bool {
         // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.expression
-        match self {
-            Self::BitOr
-            | Self::BitXor
-            | Self::BitAnd
-            | Self::Shl
-            | Self::Shr
-            | Self::Sar
-            | Self::Add
-            | Self::Sub
-            | Self::Mul
-            | Self::Div
-            | Self::Rem => true,
+        use BinOpKind::*;
+        matches!(self, BitOr | BitXor | BitAnd | Shl | Shr | Sar | Add | Sub | Mul | Div | Rem)
+    }
 
-            Self::Lt
-            | Self::Le
-            | Self::Gt
-            | Self::Ge
-            | Self::Eq
-            | Self::Ne
-            | Self::Or
-            | Self::And
-            | Self::Pow => false,
-        }
+    /// Returns `true` if the operator is a comparison operator.
+    pub const fn is_cmp(self) -> bool {
+        use BinOpKind::*;
+        matches!(self, Lt | Le | Gt | Ge | Eq | Ne)
+    }
+
+    /// Returns `true` if the operator is a shift operator.
+    pub const fn is_shift(self) -> bool {
+        use BinOpKind::*;
+        matches!(self, Shl | Shr | Sar)
     }
 }
 
@@ -272,13 +263,11 @@ impl UnOpKind {
     /// Returns the string representation of the operator.
     pub const fn to_str(self) -> &'static str {
         match self {
-            Self::PreInc => "++",
-            Self::PreDec => "--",
+            Self::PreInc | Self::PostInc => "++",
+            Self::PreDec | Self::PostDec => "--",
             Self::Not => "!",
             Self::Neg => "-",
             Self::BitNot => "~",
-            Self::PostInc => "++",
-            Self::PostDec => "--",
         }
     }
 
@@ -293,6 +282,14 @@ impl UnOpKind {
     /// Returns `true` if the operator is a postfix operator.
     pub const fn is_postfix(self) -> bool {
         !self.is_prefix()
+    }
+
+    /// Returns `true` if the operator has side effects.
+    pub const fn has_side_effects(self) -> bool {
+        match self {
+            Self::PreInc | Self::PreDec | Self::PostInc | Self::PostDec => true,
+            Self::Not | Self::Neg | Self::BitNot => false,
+        }
     }
 }
 
