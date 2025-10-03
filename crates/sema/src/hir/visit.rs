@@ -93,6 +93,13 @@ pub trait Visit<'hir> {
         ControlFlow::Continue(())
     }
 
+    fn visit_nested_enum(&mut self, id: EnumId) -> ControlFlow<Self::BreakValue> {
+        self.visit_enum(self.hir().enumm(id))
+    }
+
+    fn visit_enum(&mut self, _enumm: &'hir Enum<'hir>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
         self.visit_var(self.hir().variable(id))
