@@ -14,7 +14,11 @@ categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
 
 [lints]
 workspace = true
@@ -28,10 +32,11 @@ alloy-primitives.workspace = true
 bumpalo = { workspace = true, features = ["std", "boxed"] }
 either.workspace = true
 semver.workspace = true
-num-bigint.workspace = true
 num-rational.workspace = true
 strum.workspace = true
-typed-arena.workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true
 
 [features]
 nightly = ["solar-data-structures/nightly", "solar-interface/nightly"]

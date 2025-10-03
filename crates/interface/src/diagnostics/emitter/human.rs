@@ -1,31 +1,36 @@
-use super::{io_panic, rustc::FileWithAnnotatedLines, Diag, Emitter};
+use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
-    diagnostics::{Level, MultiSpan, Style, SubDiagnostic},
-    source_map::SourceFile,
     SourceMap,
+    diagnostics::{Level, MultiSpan, Style, SubDiagnostic, SuggestionStyle},
+    source_map::SourceFile,
 };
-use annotate_snippets::{Annotation, Level as ASLevel, Message, Renderer, Snippet};
+use annotate_snippets::{
+    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Patch, Renderer, Report, Snippet,
+    Title, renderer::DecorStyle,
+};
 use anstream::{AutoStream, ColorChoice};
+use solar_config::HumanEmitterKind;
 use std::{
     any::Any,
+    borrow::Cow,
+    collections::BTreeMap,
     io::{self, Write},
-    ops::Range,
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 // TODO: Tabs are not formatted correctly: https://github.com/rust-lang/annotate-snippets-rs/issues/25
 
 type Writer = dyn Write + Send + 'static;
 
-const DEFAULT_RENDERER: Renderer = Renderer::plain()
+const DEFAULT_RENDERER: Renderer = Renderer::styled()
     .error(Level::Error.style())
     .warning(Level::Warning.style())
-    .info(Level::Note.style())
     .note(Level::Note.style())
     .help(Level::Help.style())
-    .line_no(Style::LineNumber.to_color_spec(Level::Note))
-    .emphasis(anstyle::Style::new().bold())
-    .none(anstyle::Style::new());
+    .line_num(Style::LineNumber.to_color_spec(Level::Note))
+    .addition(Style::Addition.to_color_spec(Level::Note))
+    .removal(Style::Removal.to_color_spec(Level::Note))
+    .context(Style::LabelSecondary.to_color_spec(Level::Note));
 
 /// Diagnostic emitter that emits to an arbitrary [`io::Write`] writer in human-readable format.
 pub struct HumanEmitter {
@@ -40,7 +45,7 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.snippet(diagnostic, |this, snippet| {
             writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
             this.writer.flush()
@@ -67,7 +72,6 @@ impl HumanEmitter {
     /// at this point. Prefer calling [`AutoStream::choice`] on the writer if it is known
     /// before-hand.
     pub fn new<W: Write + Send + 'static>(writer: W, color: ColorChoice) -> Self {
-        // TODO: Clean this up on next anstream release
         let writer_type_id = writer.type_id();
         let mut real_writer = Box::new(writer) as Box<Writer>;
         Self {
@@ -81,7 +85,7 @@ impl HumanEmitter {
 
     /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
     pub fn test() -> Self {
-        struct TestWriter(io::Stderr);
+        struct TestWriter;
 
         impl Write for TestWriter {
             fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
@@ -96,22 +100,17 @@ impl HumanEmitter {
             }
 
             fn flush(&mut self) -> io::Result<()> {
-                self.0.flush()
+                io::stderr().flush()
             }
         }
 
-        Self::new(TestWriter(io::stderr()), ColorChoice::Always)
+        Self::new(TestWriter, ColorChoice::Always)
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr.
-    pub fn stderr(mut color_choice: ColorChoice) -> Self {
-        let stderr = io::stderr();
-        // Call `AutoStream::choice` on `io::Stderr` rather than later on `Box<dyn Write>`.
-        if color_choice == ColorChoice::Auto {
-            color_choice = AutoStream::choice(&stderr);
-        }
+    pub fn stderr(color_choice: ColorChoice) -> Self {
         // `io::Stderr` is not buffered.
-        Self::new(io::BufWriter::new(stderr), color_choice)
+        Self::new(io::BufWriter::new(io::stderr()), stderr_choice(color_choice))
     }
 
     /// Sets the source map.
@@ -137,6 +136,31 @@ impl HumanEmitter {
             std::mem::replace(&mut self.renderer, DEFAULT_RENDERER).anonymized_line_numbers(yes);
     }
 
+    /// Sets the human emitter kind (unicode vs short).
+    pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
+        match kind {
+            HumanEmitterKind::Ascii => {
+                self.renderer = self.renderer.decor_style(DecorStyle::Ascii);
+            }
+            HumanEmitterKind::Unicode => {
+                self.renderer = self.renderer.decor_style(DecorStyle::Unicode);
+            }
+            HumanEmitterKind::Short => {
+                self.renderer = self.renderer.short_message(true);
+            }
+            _ => unimplemented!("{kind:?}"),
+        }
+        self
+    }
+
+    /// Sets the terminal width for formatting.
+    pub fn terminal_width(mut self, width: Option<usize>) -> Self {
+        if let Some(w) = width {
+            self.renderer = self.renderer.term_width(w);
+        }
+        self
+    }
+
     /// Downcasts the underlying writer to the specified type.
     fn downcast_writer<T: Any>(&self) -> Option<&T> {
         if self.writer_type_id == std::any::TypeId::of::<T>() {
@@ -156,47 +180,111 @@ impl HumanEmitter {
     }
 
     /// Formats the given `diagnostic` into a [`Message`] suitable for use with the renderer.
-    fn snippet<R>(&mut self, diagnostic: &Diag, f: impl FnOnce(&mut Self, Message<'_>) -> R) -> R {
-        // Current format (annotate-snippets 0.10.0) (comments in <...>):
+    fn snippet<R>(
+        &mut self,
+        diagnostic: &mut Diag,
+        f: impl FnOnce(&mut Self, Report<'_>) -> R,
+    ) -> R {
+        // Current format (annotate-snippets 0.12.0) (comments in <...>):
         /*
         title.level[title.id]: title.label
-           --> snippets[0].origin
+           --> snippets[0].path:ll:cc
             |
-         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations>
-            | ^^^^^^^^^^^^^^^^ ann[0].level: ann[0].label <type is skipped for error, warning>
+         LL | snippets[0].source[ann[0].range] <ann = snippets[0].annotations; these are diag.span_label()s>
+            | ^^^^^^^^^^^^^^^^ ann[0].label <primary>
          LL | snippets[0].source[ann[1].range]
-            | ---------------- ann[1].level: ann[1].label
+            | ---------------- ann[1].label <secondary>
             |
-           ::: snippets[1].origin
+           ::: snippets[1].path:ll:cc
             |
         etc...
             |
-            = footer[0].level: footer[0].label <I believe the .id here is always ignored>
+            = footer[0].level: footer[0].label
             = footer[1].level: footer[1].label
             = ...
+        <other groups for subdiagnostics, same as above without footers>
         */
 
-        let title = OwnedMessage::from_diagnostic(diagnostic);
+        // Process suggestions. Inline primary span if necessary.
+        let mut primary_span = Cow::Borrowed(&diagnostic.span);
+        self.primary_span_formatted(&mut primary_span, &mut diagnostic.suggestions);
 
-        let owned_snippets = self
-            .source_map
-            .as_deref()
-            .map(|sm| OwnedSnippet::collect(sm, diagnostic))
-            .unwrap_or_default();
-
-        // Dummy subdiagnostics go in the footer, while non-dummy ones go in the slices.
-        let owned_footers: Vec<_> = diagnostic
-            .children
+        // Render suggestions unless style is `HideCodeAlways`.
+        // Note that if the span was previously inlined, suggestions will be empty.
+        let children = diagnostic
+            .suggestions
             .iter()
-            .filter(|sub| sub.span.is_dummy())
-            .map(OwnedMessage::from_subdiagnostic)
-            .collect();
+            .filter(|sugg| sugg.style != SuggestionStyle::HideCodeAlways)
+            .collect::<Vec<_>>();
 
-        let snippet = title
-            .as_ref()
-            .snippets(owned_snippets.iter().map(OwnedSnippet::as_ref))
-            .footers(owned_footers.iter().map(OwnedMessage::as_ref));
-        f(self, snippet)
+        let sm = self.source_map.as_deref();
+        let title = title_from_diagnostic(diagnostic);
+        let snippets = sm.map(|sm| iter_snippets(sm, &primary_span)).into_iter().flatten();
+
+        // Dummy subdiagnostics go in the main group's footer, non-dummy ones go as separate groups.
+        let subs = |d| diagnostic.children.iter().filter(move |sub| sub.span.is_dummy() == d);
+        let sub_groups = subs(false).map(|sub| {
+            let mut g = Group::with_title(title_from_subdiagnostic(sub, self.supports_color()));
+            if let Some(sm) = sm {
+                g = g.elements(iter_snippets(sm, &sub.span));
+            }
+            g
+        });
+
+        let mut footers =
+            subs(true).map(|sub| message_from_subdiagnostic(sub, self.supports_color())).peekable();
+        let footer_group =
+            footers.peek().is_some().then(|| Group::with_level(ASLevel::NOTE).elements(footers));
+
+        // Create suggestion groups for non-inline suggestions
+        let suggestion_groups = children.iter().flat_map(|suggestion| {
+            let sm = self.source_map.as_deref()?;
+
+            // For each substitution, create a separate group
+            // Currently we typically only have one substitution per suggestion
+            for substitution in &suggestion.substitutions {
+                // Group parts by file
+                let mut parts_by_file: BTreeMap<_, Vec<_>> = BTreeMap::new();
+                for part in &substitution.parts {
+                    let file = sm.lookup_source_file(part.span.lo());
+                    parts_by_file.entry(file.name.clone()).or_default().push(part);
+                }
+
+                if parts_by_file.is_empty() {
+                    continue;
+                }
+
+                let mut snippets = vec![];
+                for (filename, parts) in parts_by_file {
+                    let file = sm.get_file_ref(&filename)?;
+                    let mut snippet = Snippet::source(file.src.to_string())
+                        .path(sm.filename_for_diagnostics(&file.name).to_string())
+                        .fold(true);
+
+                    for part in parts {
+                        if let Ok(range) = sm.span_to_range(part.span) {
+                            snippet = snippet.patch(Patch::new(range, part.snippet.as_str()));
+                        }
+                    }
+                    snippets.push(snippet);
+                }
+
+                if !snippets.is_empty() {
+                    let title = ASLevel::HELP.secondary_title(suggestion.msg.as_str());
+                    return Some(Group::with_title(title).elements(snippets));
+                }
+            }
+
+            None
+        });
+
+        let main_group = Group::with_title(title).elements(snippets);
+        let report = std::iter::once(main_group)
+            .chain(suggestion_groups)
+            .chain(footer_group)
+            .chain(sub_groups)
+            .collect::<Vec<_>>();
+        f(self, &report)
     }
 }
 
@@ -207,7 +295,7 @@ pub struct HumanBufferEmitter {
 
 impl Emitter for HumanBufferEmitter {
     #[inline]
-    fn emit_diagnostic(&mut self, diagnostic: &Diag) {
+    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.inner.emit_diagnostic(diagnostic);
     }
 
@@ -224,11 +312,8 @@ impl Emitter for HumanBufferEmitter {
 
 impl HumanBufferEmitter {
     /// Creates a new `BufferEmitter` that writes to a local buffer.
-    pub fn new(mut color: ColorChoice) -> Self {
-        if color == ColorChoice::Auto {
-            color = anstream::AutoStream::choice(&std::io::stderr());
-        }
-        Self { inner: HumanEmitter::new(Vec::<u8>::new(), color) }
+    pub fn new(color_choice: ColorChoice) -> Self {
+        Self { inner: HumanEmitter::new(Vec::<u8>::new(), stderr_choice(color_choice)) }
     }
 
     /// Sets the source map.
@@ -240,6 +325,18 @@ impl HumanBufferEmitter {
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
         self.inner = self.inner.ui_testing(yes);
+        self
+    }
+
+    /// Sets the human emitter kind (unicode vs short).
+    pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
+        self.inner = self.inner.human_kind(kind);
+        self
+    }
+
+    /// Sets the terminal width for formatting.
+    pub fn terminal_width(mut self, width: Option<usize>) -> Self {
+        self.inner = self.inner.terminal_width(width);
         self
     }
 
@@ -270,132 +367,68 @@ impl HumanBufferEmitter {
     }
 }
 
-#[derive(Debug)]
-struct OwnedMessage {
-    id: Option<String>,
-    label: String,
-    level: ASLevel,
+fn title_from_diagnostic(diag: &Diag) -> Title<'_> {
+    let mut title = to_as_level(diag.level).primary_title(diag.label());
+    if let Some(id) = diag.id() {
+        title = title.id(id);
+    }
+    title
 }
 
-impl OwnedMessage {
-    fn from_diagnostic(diag: &Diag) -> Self {
-        Self { id: diag.id(), label: diag.label().into_owned(), level: to_as_level(diag.level) }
-    }
+fn title_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Title<'_> {
+    to_as_level(sub.level).secondary_title(sub.label_with_style(supports_color))
+}
 
-    fn from_subdiagnostic(sub: &SubDiagnostic) -> Self {
-        Self { id: None, label: sub.label().into_owned(), level: to_as_level(sub.level) }
-    }
+fn message_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Message<'_> {
+    to_as_level(sub.level).message(sub.label_with_style(supports_color))
+}
 
-    fn as_ref(&self) -> Message<'_> {
-        let mut msg = self.level.title(&self.label);
-        if let Some(id) = &self.id {
-            msg = msg.id(id);
+fn iter_snippets<'a>(
+    sm: &SourceMap,
+    msp: &MultiSpan,
+) -> impl Iterator<Item = Snippet<'a, Annotation<'a>>> {
+    collect_files(sm, msp).into_iter().map(|file| file_to_snippet(sm, &file.file, &file.lines))
+}
+
+fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines> {
+    let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
+    // Make sure our primary file comes first
+    if let Some(primary_span) = msp.primary_span()
+        && !primary_span.is_dummy()
+        && annotated_files.len() > 1
+    {
+        let primary_lo = sm.lookup_char_pos(primary_span.lo());
+        if let Ok(pos) =
+            annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
+        {
+            annotated_files.swap(0, pos);
         }
-        msg
     }
-}
-
-#[derive(Debug)]
-struct OwnedAnnotation {
-    range: Range<usize>,
-    label: String,
-    level: ASLevel,
-}
-
-impl OwnedAnnotation {
-    fn as_ref(&self) -> Annotation<'_> {
-        self.level.span(self.range.clone()).label(&self.label)
-    }
-}
-
-#[derive(Debug)]
-struct OwnedSnippet {
-    origin: String,
-    source: String,
-    line_start: usize,
-    fold: bool,
-    annotations: Vec<OwnedAnnotation>,
-}
-
-impl OwnedSnippet {
-    fn collect(sm: &SourceMap, diagnostic: &Diag) -> Vec<Self> {
-        // Collect main diagnostic.
-        let mut files = Self::collect_files(sm, &diagnostic.span);
-        files.iter_mut().for_each(|file| file.set_level(diagnostic.level));
-
-        // Collect subdiagnostics.
-        for sub in &diagnostic.children {
-            let label = sub.label();
-            for mut sub_file in Self::collect_files(sm, &sub.span) {
-                for line in &mut sub_file.lines {
-                    for ann in &mut line.annotations {
-                        ann.level = Some(sub.level);
-                        if ann.is_primary && ann.label.is_none() {
-                            ann.label = Some(label.to_string());
-                        }
-                    }
-                }
-
-                if let Some(main_file) =
-                    files.iter_mut().find(|main_file| Arc::ptr_eq(&main_file.file, &sub_file.file))
-                {
-                    main_file.add_lines(sub_file.lines);
-                } else {
-                    files.push(sub_file);
-                }
-            }
-        }
-
-        files
-            .iter()
-            .map(|file| file_to_snippet(sm, &file.file, &file.lines, diagnostic.level))
-            .collect()
-    }
-
-    fn collect_files(sm: &SourceMap, msp: &MultiSpan) -> Vec<FileWithAnnotatedLines> {
-        let mut annotated_files = FileWithAnnotatedLines::collect_annotations(sm, msp);
-        if let Some(primary_span) = msp.primary_span() {
-            if !primary_span.is_dummy() && annotated_files.len() > 1 {
-                let primary_lo = sm.lookup_char_pos(primary_span.lo());
-                if let Ok(pos) =
-                    annotated_files.binary_search_by(|x| x.file.name.cmp(&primary_lo.file.name))
-                {
-                    annotated_files.swap(0, pos);
-                }
-            }
-        }
-        annotated_files
-    }
-
-    fn as_ref(&self) -> Snippet<'_> {
-        Snippet::source(&self.source)
-            .line_start(self.line_start)
-            .origin(&self.origin)
-            .fold(self.fold)
-            .annotations(self.annotations.iter().map(OwnedAnnotation::as_ref))
-    }
-}
-
-type MultiLine<'a> = (Option<&'a String>, usize);
-
-fn multi_line_at<'a, 'b>(mls: &'a mut Vec<MultiLine<'b>>, depth: usize) -> &'a mut MultiLine<'b> {
-    assert!(depth > 0);
-    if mls.len() < depth {
-        mls.resize_with(depth, || (None, 0));
-    }
-    &mut mls[depth - 1]
+    annotated_files
 }
 
 /// Merges back multi-line annotations that were split across multiple lines into a single
 /// annotation that's suitable for `annotate-snippets`.
 ///
 /// Expects that lines are sorted.
-fn file_to_snippet(
+fn file_to_snippet<'a>(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
-    default_level: Level,
-) -> OwnedSnippet {
+) -> Snippet<'a, Annotation<'a>> {
+    /// `label, start_idx`
+    type MultiLine<'a> = (Option<&'a String>, usize);
+    fn multi_line_at<'a, 'b>(
+        mls: &'a mut Vec<MultiLine<'b>>,
+        depth: usize,
+    ) -> &'a mut MultiLine<'b> {
+        assert!(depth > 0);
+        if mls.len() < depth {
+            mls.resize_with(depth, || (None, 0));
+        }
+        &mut mls[depth - 1]
+    }
+
     debug_assert!(!lines.is_empty());
 
     let first_line = lines.first().unwrap().line_index;
@@ -405,13 +438,15 @@ fn file_to_snippet(
     debug_assert!(lines.is_sorted());
     let snippet_base = file.line_position(first_line - 1).unwrap();
 
-    let mut snippet = OwnedSnippet {
-        origin: sm.filename_for_diagnostics(&file.name).to_string(),
-        source: file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default().into(),
-        line_start: first_line,
-        fold: true,
-        annotations: Vec::new(),
+    let source = file.get_lines(first_line - 1..=last_line - 1).unwrap_or_default();
+    let mut annotations = Vec::new();
+    let mut push_annotation = |kind: AnnotationKind, span, label| {
+        annotations.push(kind.span(span).label(label));
     };
+    let annotation_kind = |is_primary: bool| {
+        if is_primary { AnnotationKind::Primary } else { AnnotationKind::Context }
+    };
+
     let mut mls = Vec::new();
     for line in lines {
         let line_abs_pos = file.line_position(line.line_index - 1).unwrap();
@@ -419,48 +454,69 @@ fn file_to_snippet(
         // Returns the position of the given column in the local snippet.
         // We have to convert the column char position to byte position.
         let rel_pos = |c: &super::rustc::AnnotationColumn| {
-            line_rel_pos + char_to_byte_pos(&snippet.source[line_rel_pos..], c.file)
+            line_rel_pos + char_to_byte_pos(&source[line_rel_pos..], c.file)
         };
 
         for ann in &line.annotations {
             match ann.annotation_type {
                 super::rustc::AnnotationType::Singleline => {
-                    snippet.annotations.push(OwnedAnnotation {
-                        range: rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
-                        label: ann.label.clone().unwrap_or_default(),
-                        level: to_as_level(ann.level.unwrap_or(default_level)),
-                    });
+                    push_annotation(
+                        annotation_kind(ann.is_primary),
+                        rel_pos(&ann.start_col)..rel_pos(&ann.end_col),
+                        ann.label.clone().unwrap_or_default(),
+                    );
                 }
                 super::rustc::AnnotationType::MultilineStart(depth) => {
                     *multi_line_at(&mut mls, depth) = (ann.label.as_ref(), rel_pos(&ann.start_col));
                 }
-                super::rustc::AnnotationType::MultilineLine(_) => {}
+                super::rustc::AnnotationType::MultilineLine(_depth) => {
+                    // TODO: unvalidated
+                    push_annotation(
+                        AnnotationKind::Visible,
+                        line_rel_pos..line_rel_pos,
+                        String::new(),
+                    );
+                }
                 super::rustc::AnnotationType::MultilineEnd(depth) => {
                     let (label, multiline_start_idx) = *multi_line_at(&mut mls, depth);
                     let end_idx = rel_pos(&ann.end_col);
                     debug_assert!(end_idx >= multiline_start_idx);
-                    snippet.annotations.push(OwnedAnnotation {
-                        range: multiline_start_idx..end_idx,
-                        label: label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
-                        level: to_as_level(ann.level.unwrap_or(default_level)),
-                    });
+                    push_annotation(
+                        annotation_kind(ann.is_primary),
+                        multiline_start_idx..end_idx,
+                        label.or(ann.label.as_ref()).cloned().unwrap_or_default(),
+                    );
                 }
             }
         }
     }
-    snippet
+    Snippet::source(source.to_string())
+        .path(sm.filename_for_diagnostics(&file.name).to_string())
+        .line_start(first_line)
+        .fold(true)
+        .annotations(annotations)
 }
 
-fn to_as_level(level: Level) -> ASLevel {
+fn to_as_level<'a>(level: Level) -> ASLevel<'a> {
     match level {
-        Level::Bug | Level::Fatal | Level::Error => ASLevel::Error,
-        Level::Warning => ASLevel::Warning,
-        Level::Note | Level::OnceNote | Level::FailureNote => ASLevel::Note,
-        Level::Help | Level::OnceHelp => ASLevel::Help,
-        Level::Allow => ASLevel::Info,
+        Level::Bug | Level::Fatal | Level::Error | Level::FailureNote => ASLevel::ERROR,
+        Level::Warning => ASLevel::WARNING,
+        Level::Note | Level::OnceNote => ASLevel::NOTE,
+        Level::Help | Level::OnceHelp => ASLevel::HELP,
+        Level::Allow => ASLevel::INFO,
     }
+    .with_name(if level == Level::FailureNote { None } else { Some(level.to_str()) })
 }
 
 fn char_to_byte_pos(s: &str, char_pos: usize) -> usize {
     s.chars().take(char_pos).map(char::len_utf8).sum()
+}
+
+fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
+    static AUTO: OnceLock<ColorChoice> = OnceLock::new();
+    if color_choice == ColorChoice::Auto {
+        *AUTO.get_or_init(|| anstream::AutoStream::choice(&std::io::stderr()))
+    } else {
+        color_choice
+    }
 }

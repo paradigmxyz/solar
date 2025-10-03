@@ -7,7 +7,7 @@
 
 #![allow(unreachable_pub, unexpected_cfgs)]
 
-use xshell::{cmd, Shell};
+use xshell::{Shell, cmd};
 
 mod flags;
 

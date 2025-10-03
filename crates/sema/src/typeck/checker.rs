@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
-use solar_data_structures::{map::FxHashMap, smallvec::SmallVec, Never};
+use solar_data_structures::{Never, map::FxHashMap, smallvec::SmallVec};
 use solar_interface::{diagnostics::DiagCtxt, pluralize};
 use std::ops::ControlFlow;
 
@@ -362,11 +362,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Payable(expr) => {
                 let ty = self.expect_ty(expr, self.gcx.types.address);
-                if ty.references_error() {
-                    ty
-                } else {
-                    self.gcx.types.address_payable
-                }
+                if ty.references_error() { ty } else { self.gcx.types.address_payable }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -413,11 +409,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             self.check_expr(expr)
                         };
-                        if ty.is_unit() {
-                            empty_err(self, expr.span)
-                        } else {
-                            ty
-                        }
+                        if ty.is_unit() { empty_err(self, expr.span) } else { ty }
                     } else {
                         // TODO: allow lvalue empty tuple component with a placeholder type
                         empty_err(self, expr.span)

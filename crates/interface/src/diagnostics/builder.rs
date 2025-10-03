@@ -1,8 +1,7 @@
 use super::{
-    BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug, FatalAbort, Level,
-    MultiSpan, Style,
+    Applicability, BugAbort, Diag, DiagCtxt, DiagId, DiagMsg, ErrorGuaranteed, ExplicitBug,
+    FatalAbort, Level, MultiSpan, Span, Style, SuggestionStyle,
 };
-use crate::Span;
 use solar_data_structures::Never;
 use std::{
     fmt,
@@ -11,6 +10,9 @@ use std::{
     ops::{Deref, DerefMut},
     panic::Location,
 };
+
+// Since diagnostics are usually at the cold path, methods in this file are marked with
+// `#[inline(never)]` to prevent code bloat at callsites.
 
 /// Trait for types that `DiagBuilder::emit` can return as a "guarantee" (or "proof") token
 /// that the emission happened.
@@ -36,9 +38,9 @@ impl EmissionGuarantee for ErrorGuaranteed {
         // non-error - the field isn't `pub`, but the whole `Diag`
         // can be overwritten with a new one, thanks to `DerefMut`.
         assert!(
-            db.diagnostic.is_error(),
+            db.is_error(),
             "emitted non-error ({:?}) diagnostic from `DiagBuilder<ErrorGuaranteed>`",
-            db.diagnostic.level,
+            db.level,
         );
 
         guar.unwrap_err()
@@ -77,13 +79,11 @@ impl EmissionGuarantee for FatalAbort {
 /// This is to ensure that all errors are either emitted or cancelled.
 #[must_use = "diagnostics must be emitted or cancelled"]
 pub struct DiagBuilder<'a, G: EmissionGuarantee> {
-    dcx: &'a DiagCtxt,
-
     /// `Diag` is a large type, and `DiagBuilder` is often used as a
     /// return value, especially within the frequently-used `PResult` type.
     /// In theory, return value optimization (RVO) should avoid unnecessary
     /// copying. In practice, it does not (at the time of writing).
-    diagnostic: Box<Diag>,
+    diagnostic: Box<(Diag, &'a DiagCtxt)>,
 
     _marker: PhantomData<G>,
 }
@@ -91,13 +91,13 @@ pub struct DiagBuilder<'a, G: EmissionGuarantee> {
 impl<G: EmissionGuarantee> Clone for DiagBuilder<'_, G> {
     #[inline]
     fn clone(&self) -> Self {
-        Self { dcx: self.dcx, diagnostic: self.diagnostic.clone(), _marker: PhantomData }
+        Self { diagnostic: self.diagnostic.clone(), _marker: PhantomData }
     }
 }
 
 impl<G: EmissionGuarantee> fmt::Debug for DiagBuilder<'_, G> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.diagnostic.fmt(f)
+        self.diagnostic.0.fmt(f)
     }
 }
 
@@ -106,14 +106,14 @@ impl<G: EmissionGuarantee> Deref for DiagBuilder<'_, G> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.diagnostic
+        &self.diagnostic.0
     }
 }
 
 impl<G: EmissionGuarantee> DerefMut for DiagBuilder<'_, G> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.diagnostic
+        &mut self.diagnostic.0
     }
 }
 
@@ -124,33 +124,36 @@ impl<G: EmissionGuarantee> Drop for DiagBuilder<'_, G> {
             return;
         }
 
-        let _ = self.dcx.emit_diagnostic(Diag::new(
+        let (diag, dcx) = &mut *self.diagnostic;
+        let _ = dcx.emit_diagnostic(Diag::new(
             Level::Bug,
             "the following error was constructed but not emitted",
         ));
-        let _ = self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic);
+        let _ = dcx.emit_diagnostic_without_consuming(diag);
         panic!("error was constructed but not emitted");
     }
 }
 
 impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
     /// Creates a new `DiagBuilder`.
+    #[inline(never)]
     #[track_caller]
     pub fn new<M: Into<DiagMsg>>(dcx: &'a DiagCtxt, level: Level, msg: M) -> Self {
-        Self { dcx, diagnostic: Box::new(Diag::new(level, msg)), _marker: PhantomData }
+        Self { diagnostic: Box::new((Diag::new(level, msg), dcx)), _marker: PhantomData }
     }
 
     /// Returns the [`DiagCtxt`].
     #[inline]
     pub fn dcx(&self) -> &DiagCtxt {
-        self.dcx
+        self.diagnostic.1
     }
 
     /// Emits the diagnostic.
     #[track_caller]
+    #[inline(never)]
     pub fn emit(mut self) -> G::EmitResult {
-        if self.dcx.track_diagnostics() {
-            self.diagnostic.locations_note(Location::caller());
+        if self.dcx().track_diagnostics() {
+            self.locations_note(Location::caller());
         }
         self.consume_no_panic(G::emit_producing_guarantee)
     }
@@ -160,7 +163,8 @@ impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
     }
 
     fn emit_producing_error_guaranteed(&mut self) -> Result<(), ErrorGuaranteed> {
-        self.dcx.emit_diagnostic_without_consuming(&mut self.diagnostic)
+        let (diag, dcx) = &mut *self.diagnostic;
+        dcx.emit_diagnostic_without_consuming(diag)
     }
 
     /// Cancel the diagnostic (a structured diagnostic must either be emitted or cancelled or it
@@ -189,8 +193,9 @@ macro_rules! forward {
         $(
             $(#[$attrs])*
             #[doc = concat!("See [`Diag::", stringify!($n), "()`].")]
+            #[inline(never)]
             $vis fn $n(mut self, $($name: $ty),*) -> Self {
-                self.diagnostic.$n($($name),*);
+                self.diagnostic.0.$n($($name),*);
                 self
             }
         )*
@@ -219,5 +224,30 @@ impl<G: EmissionGuarantee> DiagBuilder<'_, G> {
         pub fn help_once(msg: impl Into<DiagMsg>);
         pub fn highlighted_help(messages: Vec<(impl Into<DiagMsg>, Style)>);
         pub fn span_help(span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>);
+
+        pub fn span_suggestion(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+        );
+        pub fn span_suggestion_with_style(
+            span: Span,
+            msg: impl Into<DiagMsg>,
+            suggestion: impl Into<DiagMsg>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
+        pub fn multipart_suggestion(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+        );
+        pub fn multipart_suggestion_with_style(
+            msg: impl Into<DiagMsg>,
+            substitutions: Vec<(Span, DiagMsg)>,
+            applicability: Applicability,
+            style: SuggestionStyle
+        );
     }
 }

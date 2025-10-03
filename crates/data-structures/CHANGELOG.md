@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Features
+
+- [data-structures] Add ThinSlice ([#545](https://github.com/paradigmxyz/solar/issues/545))
+
+### Miscellaneous Tasks
+
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+
+### Performance
+
+- [ast] Use ThinSlice ([#546](https://github.com/paradigmxyz/solar/issues/546))
+
+## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
+
+### Miscellaneous Tasks
+
+- Chore!(data-structures): remove aliases in sync re-exports ([#452](https://github.com/paradigmxyz/solar/issues/452))
+- Remove deprecated items ([#449](https://github.com/paradigmxyz/solar/issues/449))
+
+## [0.1.6](https://github.com/paradigmxyz/solar/releases/tag/v0.1.6)
+
+### Bug Fixes
+
+- OnDrop drops, rename to DropGuard ([#399](https://github.com/paradigmxyz/solar/issues/399))
+
+### Features
+
+- Add Compiler ([#397](https://github.com/paradigmxyz/solar/issues/397))
+
+### Miscellaneous Tasks
+
+- Add some more `#[track_caller]` ([#409](https://github.com/paradigmxyz/solar/issues/409))
+- Update docs, fix ci ([#403](https://github.com/paradigmxyz/solar/issues/403))
+
+### Performance
+
+- Implement likely/unlikely with `#[cold]` ([#386](https://github.com/paradigmxyz/solar/issues/386))
+
+## [0.1.5](https://github.com/paradigmxyz/solar/releases/tag/v0.1.5)
+
+### Dependencies
+
+- Bump to edition 2024, MSRV 1.88 ([#375](https://github.com/paradigmxyz/solar/issues/375))
+
+## [0.1.4](https://github.com/paradigmxyz/solar/releases/tag/v0.1.4)
+
+### Dependencies
+
+- [lexer] Rewrite prefixed literal lexing ([#325](https://github.com/paradigmxyz/solar/issues/325))
+
+### Features
+
+- [sema] Display more types, add Ty::display ([#328](https://github.com/paradigmxyz/solar/issues/328))
+
+## [0.1.3](https://github.com/paradigmxyz/solar/releases/tag/v0.1.3)
+
+### Dependencies
+
+- [deps] Bump breaking deps ([#253](https://github.com/paradigmxyz/solar/issues/253))
+
+### Documentation
+
+- Fix `newtype_index!` generated doc comments ([#288](https://github.com/paradigmxyz/solar/issues/288))
+
+### Miscellaneous Tasks
+
+- Update hint fns ([#289](https://github.com/paradigmxyz/solar/issues/289))
+
 ## [0.1.1](https://github.com/paradigmxyz/solar/releases/tag/v0.1.1)
 
 ### Bug Fixes

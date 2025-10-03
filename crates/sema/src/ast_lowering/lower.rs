@@ -1,17 +1,11 @@
-use crate::{
-    hir::{self, ContractId, SourceId},
-    ParsedSource,
-};
+use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
-use solar_data_structures::{index::IndexVec, smallvec::SmallVec};
+use solar_data_structures::smallvec::SmallVec;
 
-impl<'ast> super::LoweringContext<'_, 'ast, '_> {
+impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
-    pub(super) fn lower_sources(
-        &mut self,
-        parsed_sources: &'ast IndexVec<hir::SourceId, ParsedSource<'ast>>,
-    ) {
-        let hir_sources = parsed_sources.iter_enumerated().map(|(id, source)| {
+    pub(super) fn lower_sources(&mut self) {
+        let hir_sources = self.sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
@@ -45,7 +39,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
     fn lower_contract(
         &mut self,
         item: &ast::Item<'_>,
-        contract: &'ast ast::ItemContract<'ast>,
+        contract: &'gcx ast::ItemContract<'gcx>,
     ) -> hir::ContractId {
         let id = self.hir.contracts.push(hir::Contract {
             source: self.current_source_id,
@@ -54,8 +48,10 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind: contract.kind,
 
             // Set later.
-            bases: &[],
+            bases: &mut [],
+            bases_args: &[],
             linearized_bases: &[],
+            linearized_bases_args: &[],
 
             ctor: None,
             fallback: None,
@@ -96,7 +92,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         id
     }
 
-    fn lower_item(&mut self, item: &'ast ast::Item<'ast>) -> hir::ItemId {
+    fn lower_item(&mut self, item: &'gcx ast::Item<'gcx>) -> hir::ItemId {
         let item_id = match &item.kind {
             ast::ItemKind::Pragma(_) | ast::ItemKind::Import(_) | ast::ItemKind::Using(_) => {
                 unreachable!()
@@ -129,6 +125,7 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
         // handled later: parameters, body, modifiers, override_, returns
         let ast::ItemFunction { kind, ref header, body: _, body_span } = *i;
         let ast::FunctionHeader {
+            span: _,
             name,
             parameters: _,
             visibility,
@@ -146,14 +143,14 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
             kind,
             gettee: None,
             modifiers: &[],
-            marked_virtual: virtual_,
-            virtual_: virtual_
+            marked_virtual: virtual_.is_some(),
+            virtual_: virtual_.is_some()
                 || self
                     .current_contract_id
                     .is_some_and(|id| self.hir.contract(id).kind.is_interface()),
             override_: override_.is_some(),
             overrides: &[],
-            visibility: visibility.unwrap_or_else(|| {
+            visibility: visibility.map(|vis| vis.data).unwrap_or_else(|| {
                 let is_free = self.current_contract_id.is_none();
                 if kind.is_modifier() || is_free {
                     ast::Visibility::Internal
@@ -161,7 +158,9 @@ impl<'ast> super::LoweringContext<'_, 'ast, '_> {
                     ast::Visibility::Public
                 }
             }),
-            state_mutability,
+            state_mutability: state_mutability
+                .map(|s| s.data)
+                .unwrap_or(ast::StateMutability::NonPayable),
             parameters: &[],
             returns: &[],
             body: None,

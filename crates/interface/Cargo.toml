@@ -14,7 +14,11 @@ categories.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+rustdoc-args = [
+    "-Zunstable-options",
+    "--generate-link-to-definition",
+    "--show-type-layout",
+]
 
 [lints]
 workspace = true
@@ -24,19 +28,16 @@ solar-config.workspace = true
 solar-data-structures.workspace = true
 solar-macros.workspace = true
 
-derive_builder.workspace = true
 derive_more.workspace = true
-match_cfg.workspace = true
 thiserror.workspace = true
 
 dunce = "1"
-hex.workspace = true
+inturn.workspace = true
 itertools.workspace = true
 itoa.workspace = true
-lasso = { workspace = true, features = ["multi-threaded", "inline-more"] }
 normalize-path = "0.2.1"
+once_map.workspace = true
 rayon.workspace = true
-scc.workspace = true
 scoped-tls.workspace = true
 tracing.workspace = true
 unicode-width.workspace = true

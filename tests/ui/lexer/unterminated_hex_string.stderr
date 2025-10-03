@@ -1,11 +1,10 @@
-error: unterminated hex string
+error: unterminated string
   --> ROOT/tests/ui/lexer/unterminated_hex_string.sol:LL:CC
    |
 LL | / hex"
 LL | |
 LL | |
    | |_________________________________^
-   |
 
 error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `<error>`
   --> ROOT/tests/ui/lexer/unterminated_hex_string.sol:LL:CC

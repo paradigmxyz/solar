@@ -1,14 +1,37 @@
 use super::{
     AstPath, BinOpKind, Block, Box, CallArgs, DocComments, Expr, SemverReq, StrLit, Type, UnOpKind,
 };
-use crate::token::Token;
+use crate::{BoxSlice, token::Token};
 use either::Either;
-use solar_interface::{Ident, Span};
-use std::fmt;
+use solar_interface::{Ident, Span, Spanned, Symbol};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 use strum::EnumIs;
 
-/// A list of variable declarations.
-pub type ParameterList<'ast> = Box<'ast, [VariableDefinition<'ast>]>;
+/// A list of variable declarations and its span, which includes the brackets.
+///
+/// Implements `Deref` and `DerefMut` for transparent access to the parameter list.
+#[derive(Debug, Default)]
+pub struct ParameterList<'ast> {
+    pub span: Span,
+    pub vars: BoxSlice<'ast, VariableDefinition<'ast>>,
+}
+
+impl<'ast> Deref for ParameterList<'ast> {
+    type Target = BoxSlice<'ast, VariableDefinition<'ast>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.vars
+    }
+}
+
+impl<'ast> DerefMut for ParameterList<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.vars
+    }
+}
 
 /// A top-level item in a Solidity source file.
 #[derive(Debug)]
@@ -164,7 +187,7 @@ pub enum PragmaTokens<'ast> {
     /// `pragma <name> [value];`.
     Custom(IdentOrStrLit, Option<IdentOrStrLit>),
     /// Unparsed tokens: `pragma <tokens...>;`.
-    Verbatim(Box<'ast, [Token]>),
+    Verbatim(BoxSlice<'ast, Token>),
 }
 
 impl PragmaTokens<'_> {
@@ -195,9 +218,9 @@ impl PragmaTokens<'_> {
 /// This is used in `pragma` declaration because Solc for some reason accepts and treats both as
 /// identical.
 ///
-/// Parsed in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
+/// Parsed in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L235>
 ///
-/// Syntax-checked in: <https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
+/// Syntax-checked in: <https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/analysis/SyntaxChecker.cpp#L77>
 #[derive(Clone, Debug)]
 pub enum IdentOrStrLit {
     /// An identifier.
@@ -207,6 +230,14 @@ pub enum IdentOrStrLit {
 }
 
 impl IdentOrStrLit {
+    /// Returns the value of the identifier or literal.
+    pub fn value(&self) -> Symbol {
+        match self {
+            Self::Ident(ident) => ident.name,
+            Self::StrLit(str_lit) => str_lit.value,
+        }
+    }
+
     /// Returns the string value of the identifier or literal.
     pub fn as_str(&self) -> &str {
         match self {
@@ -249,7 +280,7 @@ pub enum ImportItems<'ast> {
     /// A plain import directive: `import "foo.sol" as Foo;`.
     Plain(Option<Ident>),
     /// A list of import aliases: `import { Foo as Bar, Baz } from "foo.sol";`.
-    Aliases(Box<'ast, [(Ident, Option<Ident>)]>),
+    Aliases(BoxSlice<'ast, (Ident, Option<Ident>)>),
     /// A glob import directive: `import * as Foo from "foo.sol";`.
     Glob(Ident),
 }
@@ -283,7 +314,7 @@ pub enum UsingList<'ast> {
     /// `A.B`
     Single(AstPath<'ast>),
     /// `{ A, B.add as + }`
-    Multiple(Box<'ast, [(AstPath<'ast>, Option<UserDefinableOperator>)]>),
+    Multiple(BoxSlice<'ast, (AstPath<'ast>, Option<UserDefinableOperator>)>),
 }
 
 /// A user-definable operator: `+`, `*`, `|`, etc.
@@ -363,8 +394,8 @@ pub struct ItemContract<'ast> {
     pub kind: ContractKind,
     pub name: Ident,
     pub layout: Option<StorageLayoutSpecifier<'ast>>,
-    pub bases: Box<'ast, [Modifier<'ast>]>,
-    pub body: Box<'ast, [Item<'ast>]>,
+    pub bases: BoxSlice<'ast, Modifier<'ast>>,
+    pub body: BoxSlice<'ast, Item<'ast>>,
 }
 
 /// The kind of contract.
@@ -433,20 +464,53 @@ impl ItemFunction<'_> {
 /// A function header: `function helloWorld() external pure returns(string memory)`.
 #[derive(Debug, Default)]
 pub struct FunctionHeader<'ast> {
+    /// The span of the function header.
+    pub span: Span,
+
     /// The name of the function.
     /// Only `None` if this is a constructor, fallback, or receive function.
     pub name: Option<Ident>,
+
     /// The parameters of the function.
     pub parameters: ParameterList<'ast>,
 
-    pub visibility: Option<Visibility>,
-    pub state_mutability: StateMutability,
-    pub modifiers: Box<'ast, [Modifier<'ast>]>,
-    pub virtual_: bool,
+    /// The visibility keyword.
+    pub visibility: Option<Spanned<Visibility>>,
+
+    /// The state mutability.
+    pub state_mutability: Option<Spanned<StateMutability>>,
+
+    /// The function modifiers.
+    pub modifiers: BoxSlice<'ast, Modifier<'ast>>,
+
+    /// The span of the `virtual` keyword.
+    pub virtual_: Option<Span>,
+
+    /// The `override` keyword.
     pub override_: Option<Override<'ast>>,
 
     /// The returns parameter list.
-    pub returns: ParameterList<'ast>,
+    ///
+    /// If `Some`, it's always non-empty.
+    pub returns: Option<ParameterList<'ast>>,
+}
+
+impl<'ast> FunctionHeader<'ast> {
+    pub fn visibility(&self) -> Option<Visibility> {
+        self.visibility.map(Spanned::into_inner)
+    }
+
+    pub fn state_mutability(&self) -> StateMutability {
+        self.state_mutability.map(Spanned::into_inner).unwrap_or(StateMutability::NonPayable)
+    }
+
+    pub fn virtual_(&self) -> bool {
+        self.virtual_.is_some()
+    }
+
+    pub fn returns(&self) -> &[VariableDefinition<'ast>] {
+        self.returns.as_ref().map(|pl| &pl.vars[..]).unwrap_or(&[])
+    }
 }
 
 /// A kind of function.
@@ -514,7 +578,7 @@ impl Modifier<'_> {
 #[derive(Debug)]
 pub struct Override<'ast> {
     pub span: Span,
-    pub paths: Box<'ast, [AstPath<'ast>]>,
+    pub paths: BoxSlice<'ast, AstPath<'ast>>,
 }
 
 /// A storage location.
@@ -557,7 +621,7 @@ impl DataLocation {
 }
 
 // How a function can mutate the EVM state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, EnumIs, PartialOrd, Ord)]
 pub enum StateMutability {
     /// `pure`
     Pure,
@@ -676,7 +740,7 @@ impl VarMut {
 #[derive(Debug)]
 pub struct ItemStruct<'ast> {
     pub name: Ident,
-    pub fields: Box<'ast, [VariableDefinition<'ast>]>,
+    pub fields: BoxSlice<'ast, VariableDefinition<'ast>>,
 }
 
 /// An enum definition: `enum Foo { A, B, C }`.
@@ -685,7 +749,7 @@ pub struct ItemStruct<'ast> {
 #[derive(Debug)]
 pub struct ItemEnum<'ast> {
     pub name: Ident,
-    pub variants: Box<'ast, [Ident]>,
+    pub variants: BoxSlice<'ast, Ident>,
 }
 
 /// A user-defined value type definition: `type Foo is uint256;`.

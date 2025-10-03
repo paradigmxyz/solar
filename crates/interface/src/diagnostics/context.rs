@@ -1,14 +1,15 @@
 use super::{
-    emitter::HumanEmitter, BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee,
-    EmittedDiagnostics, ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter,
+    BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
+    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter, emitter::HumanEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
-use solar_data_structures::{map::FxHashSet, sync::Lock};
-use std::{borrow::Cow, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
+use solar_config::{ErrorFormat, Opts};
+use solar_data_structures::{map::FxHashSet, sync::Mutex};
+use std::{borrow::Cow, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 
 /// Flags that control the behaviour of a [`DiagCtxt`].
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct DiagCtxtFlags {
     /// If false, warning-level lints are suppressed.
     pub can_emit_warnings: bool,
@@ -32,11 +33,41 @@ impl Default for DiagCtxtFlags {
     }
 }
 
-/// A handler deals with errors and other compiler output.
-/// Certain errors (fatal, bug, unimpl) may cause immediate exit,
-/// others log errors for later reporting.
+impl DiagCtxtFlags {
+    /// Updates the flags from the given options.
+    ///
+    /// Looks at the following options:
+    /// - `unstable.ui_testing`
+    /// - `unstable.track_diagnostics`
+    /// - `no_warnings`
+    pub fn update_from_opts(&mut self, opts: &Opts) {
+        self.deduplicate_diagnostics &= !opts.unstable.ui_testing;
+        self.track_diagnostics &= !opts.unstable.ui_testing;
+        self.track_diagnostics |= opts.unstable.track_diagnostics;
+        self.can_emit_warnings |= !opts.no_warnings;
+    }
+}
+
+/// A handler that deals with errors and other compiler output.
+///
+/// Certain errors (fatal, bug) may cause immediate exit, others log errors for later reporting.
 pub struct DiagCtxt {
-    inner: Lock<DiagCtxtInner>,
+    inner: Mutex<DiagCtxtInner>,
+}
+
+impl fmt::Debug for DiagCtxt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("DiagCtxt");
+        if let Some(inner) = self.inner.try_lock() {
+            s.field("flags", &inner.flags)
+                .field("err_count", &inner.err_count)
+                .field("warn_count", &inner.warn_count)
+                .field("note_count", &inner.note_count);
+        } else {
+            s.field("inner", &format_args!("<locked>"));
+        }
+        s.finish_non_exhaustive()
+    }
 }
 
 struct DiagCtxtInner {
@@ -50,9 +81,12 @@ struct DiagCtxtInner {
     /// compilation ends.
     err_count: usize,
     deduplicated_err_count: usize,
-    warn_count: usize,
     /// The warning count, used for a recap upon finishing
+    warn_count: usize,
     deduplicated_warn_count: usize,
+    /// The note count, used for a recap upon finishing
+    note_count: usize,
+    deduplicated_note_count: usize,
 
     /// This set contains a hash of every diagnostic that has been emitted by this `DiagCtxt`.
     /// These hashes are used to avoid emitting the same error twice.
@@ -63,13 +97,15 @@ impl DiagCtxt {
     /// Creates a new `DiagCtxt` with the given diagnostics emitter.
     pub fn new(emitter: Box<DynEmitter>) -> Self {
         Self {
-            inner: Lock::new(DiagCtxtInner {
+            inner: Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
                 deduplicated_warn_count: 0,
+                note_count: 0,
+                deduplicated_note_count: 0,
                 emitted_diagnostics: FxHashSet::default(),
             }),
         }
@@ -78,7 +114,7 @@ impl DiagCtxt {
     /// Creates a new `DiagCtxt` with a stderr emitter for emitting one-off/early fatal errors that
     /// contain no source information.
     pub fn new_early() -> Self {
-        Self::with_stderr_emitter(None).set_flags(|flags| flags.track_diagnostics = false)
+        Self::with_stderr_emitter(None).with_flags(|flags| flags.track_diagnostics = false)
     }
 
     /// Creates a new `DiagCtxt` with a test emitter.
@@ -116,6 +152,49 @@ impl DiagCtxt {
         Self::new(Box::new(HumanBufferEmitter::new(color_choice).source_map(source_map)))
     }
 
+    /// Creates a new `DiagCtxt` from the given options.
+    ///
+    /// This is the default `DiagCtxt` used by the `Session` if one is not provided manually.
+    /// It looks at the following options:
+    /// - `error_format`
+    /// - `color`
+    /// - `unstable.ui_testing`
+    /// - `unstable.track_diagnostics`
+    /// - `no_warnings`
+    /// - `error_format_human`
+    /// - `diagnostic_width`
+    ///
+    /// The default is human emitter to stderr.
+    ///
+    /// See also [`DiagCtxtFlags::update_from_opts`].
+    pub fn from_opts(opts: &solar_config::Opts) -> Self {
+        let source_map = Arc::new(SourceMap::empty());
+        let emitter: Box<DynEmitter> = match opts.error_format {
+            ErrorFormat::Human => {
+                let human = HumanEmitter::stderr(opts.color)
+                    .source_map(Some(source_map))
+                    .ui_testing(opts.unstable.ui_testing)
+                    .human_kind(opts.error_format_human)
+                    .terminal_width(opts.diagnostic_width);
+                Box::new(human)
+            }
+            #[cfg(feature = "json")]
+            ErrorFormat::Json | ErrorFormat::RustcJson => {
+                // `io::Stderr` is not buffered.
+                let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
+                let json = crate::diagnostics::JsonEmitter::new(writer, source_map)
+                    .pretty(opts.pretty_json_err)
+                    .rustc_like(matches!(opts.error_format, ErrorFormat::RustcJson))
+                    .ui_testing(opts.unstable.ui_testing)
+                    .human_kind(opts.error_format_human)
+                    .terminal_width(opts.diagnostic_width);
+                Box::new(json)
+            }
+            format => unimplemented!("{format:?}"),
+        };
+        Self::new(emitter).with_flags(|flags| flags.update_from_opts(opts))
+    }
+
     /// Sets the emitter to [`SilentEmitter`].
     pub fn make_silent(&self, fatal_note: Option<String>, emit_fatal: bool) {
         self.wrap_emitter(|prev| {
@@ -123,10 +202,16 @@ impl DiagCtxt {
         });
     }
 
-    fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
+    /// Sets the inner emitter. Returns the previous emitter.
+    pub fn set_emitter(&self, emitter: Box<DynEmitter>) -> Box<DynEmitter> {
+        std::mem::replace(&mut self.inner.lock().emitter, emitter)
+    }
+
+    /// Wraps the current emitter with the given closure.
+    pub fn wrap_emitter(&self, f: impl FnOnce(Box<DynEmitter>) -> Box<DynEmitter>) {
         struct FakeEmitter;
         impl crate::diagnostics::Emitter for FakeEmitter {
-            fn emit_diagnostic(&mut self, _diagnostic: &Diag) {}
+            fn emit_diagnostic(&mut self, _diagnostic: &mut Diag) {}
         }
 
         let mut inner = self.inner.lock();
@@ -144,15 +229,25 @@ impl DiagCtxt {
         self.inner.get_mut().emitter.source_map()
     }
 
-    /// Sets whether to include created and emitted locations in diagnostics.
-    pub fn set_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
-        f(&mut self.inner.get_mut().flags);
+    /// Sets flags.
+    pub fn with_flags(mut self, f: impl FnOnce(&mut DiagCtxtFlags)) -> Self {
+        self.set_flags_mut(f);
         self
+    }
+
+    /// Sets flags.
+    pub fn set_flags(&self, f: impl FnOnce(&mut DiagCtxtFlags)) {
+        f(&mut self.inner.lock().flags);
+    }
+
+    /// Sets flags.
+    pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
+        f(&mut self.inner.get_mut().flags);
     }
 
     /// Disables emitting warnings.
     pub fn disable_warnings(self) -> Self {
-        self.set_flags(|f| f.can_emit_warnings = false)
+        self.with_flags(|f| f.can_emit_warnings = false)
     }
 
     /// Returns `true` if diagnostics are being tracked.
@@ -184,11 +279,43 @@ impl DiagCtxt {
 
     /// Returns `Err` if any errors have been emitted.
     pub fn has_errors(&self) -> Result<(), ErrorGuaranteed> {
-        if self.inner.lock().has_errors() {
-            Err(ErrorGuaranteed::new_unchecked())
-        } else {
-            Ok(())
-        }
+        if self.inner.lock().has_errors() { Err(ErrorGuaranteed::new_unchecked()) } else { Ok(()) }
+    }
+
+    /// Returns the number of warnings that have been emitted, including duplicates.
+    pub fn warn_count(&self) -> usize {
+        self.inner.lock().warn_count
+    }
+
+    /// Returns the number of notes that have been emitted, including duplicates.
+    pub fn note_count(&self) -> usize {
+        self.inner.lock().note_count
+    }
+
+    /// Returns the emitted diagnostics as a result. Can be empty.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](Self::with_buffer_emitter).
+    ///
+    /// Results `Ok` if there are no errors, `Err` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// Print diagnostics to `stdout` if there are no errors, otherwise propagate with `?`:
+    ///
+    /// ```no_run
+    /// # fn f(dcx: solar_interface::diagnostics::DiagCtxt) -> Result<(), Box<dyn std::error::Error>> {
+    /// println!("{}", dcx.emitted_diagnostics_result().unwrap()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn emitted_diagnostics_result(
+        &self,
+    ) -> Option<Result<EmittedDiagnostics, EmittedDiagnostics>> {
+        let inner = self.inner.lock();
+        let diags = EmittedDiagnostics(inner.emitter.local_buffer()?.to_string());
+        Some(if inner.has_errors() { Err(diags) } else { Ok(diags) })
     }
 
     /// Returns the emitted diagnostics. Can be empty.
@@ -232,12 +359,14 @@ impl DiagCtxt {
 
     /// Creates a builder at the `Bug` level with the given `msg`.
     #[track_caller]
+    #[cold]
     pub fn bug(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, BugAbort> {
         self.diag(Level::Bug, msg)
     }
 
     /// Creates a builder at the `Fatal` level with the given `msg`.
     #[track_caller]
+    #[cold]
     pub fn fatal(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, FatalAbort> {
         self.diag(Level::Fatal, msg)
     }
@@ -312,6 +441,8 @@ impl DiagCtxtInner {
                 self.deduplicated_err_count += 1;
             } else if diagnostic.level == Level::Warning {
                 self.deduplicated_warn_count += 1;
+            } else if diagnostic.is_note() {
+                self.deduplicated_note_count += 1;
             }
         }
 
@@ -319,7 +450,12 @@ impl DiagCtxtInner {
             self.bump_err_count();
             Err(ErrorGuaranteed::new_unchecked())
         } else {
-            self.bump_warn_count();
+            if diagnostic.level == Level::Warning {
+                self.bump_warn_count();
+            } else if diagnostic.is_note() {
+                self.bump_note_count();
+            }
+            // Don't bump any counters for `Help`, `OnceHelp`, or `Allow`
             Ok(())
         }
     }
@@ -331,28 +467,37 @@ impl DiagCtxtInner {
             return Ok(());
         }
 
-        let warnings = |count| match count {
-            0 => unreachable!(),
-            1 => Cow::from("1 warning emitted"),
-            count => Cow::from(format!("{count} warnings emitted")),
-        };
-        let errors = |count| match count {
-            0 => unreachable!(),
-            1 => Cow::from("aborting due to 1 previous error"),
-            count => Cow::from(format!("aborting due to {count} previous errors")),
+        let errors = match self.deduplicated_err_count {
+            0 => None,
+            1 => Some(Cow::from("aborting due to 1 previous error")),
+            count => Some(Cow::from(format!("aborting due to {count} previous errors"))),
         };
 
-        match (self.deduplicated_err_count, self.deduplicated_warn_count) {
-            (0, 0) => Ok(()),
-            (0, w) => {
-                self.emitter.emit_diagnostic(&Diag::new(Level::Warning, warnings(w)));
+        let mut others = Vec::with_capacity(2);
+        match self.deduplicated_warn_count {
+            1 => others.push(Cow::from("1 warning emitted")),
+            count if count > 1 => others.push(Cow::from(format!("{count} warnings emitted"))),
+            _ => {}
+        }
+        match self.deduplicated_note_count {
+            1 => others.push(Cow::from("1 note emitted")),
+            count if count > 1 => others.push(Cow::from(format!("{count} notes emitted"))),
+            _ => {}
+        }
+
+        match (errors, others.is_empty()) {
+            (None, true) => Ok(()),
+            (None, false) => {
+                // TODO: Don't emit in tests since it's not handled by `ui_test`: https://github.com/oli-obk/ui_test/issues/324
+                if self.flags.track_diagnostics {
+                    let msg = others.join(", ");
+                    self.emitter.emit_diagnostic(&mut Diag::new(Level::Warning, msg));
+                }
                 Ok(())
             }
-            (e, 0) => self.emit_diagnostic(Diag::new(Level::Error, errors(e))),
-            (e, w) => self.emit_diagnostic(Diag::new(
-                Level::Error,
-                format!("{}; {}", errors(e), warnings(w)),
-            )),
+            (Some(e), true) => self.emit_diagnostic(Diag::new(Level::Error, e)),
+            (Some(e), false) => self
+                .emit_diagnostic(Diag::new(Level::Error, format!("{}; {}", e, others.join(", ")))),
         }
     }
 
@@ -374,6 +519,10 @@ impl DiagCtxtInner {
 
     fn bump_warn_count(&mut self) {
         self.warn_count += 1;
+    }
+
+    fn bump_note_count(&mut self) {
+        self.note_count += 1;
     }
 
     fn has_errors(&self) -> bool {

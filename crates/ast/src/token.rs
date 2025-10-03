@@ -1,11 +1,11 @@
 //! Solidity source code token.
 
 use crate::{
+    DocComment, StrKind,
     ast::{BinOp, BinOpKind, UnOp, UnOpKind},
-    DocComment,
 };
-use solar_interface::{diagnostics::ErrorGuaranteed, Ident, Span, Symbol};
-use std::{borrow::Cow, fmt};
+use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
+use std::{borrow::Cow, fmt, mem::MaybeUninit};
 
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -117,6 +117,26 @@ pub enum Delimiter {
     Bracket,
 }
 
+impl Delimiter {
+    /// Returns the string representation of the opening delimiter.
+    pub const fn to_open_str(self) -> &'static str {
+        match self {
+            Self::Parenthesis => "(",
+            Self::Brace => "{",
+            Self::Bracket => "[",
+        }
+    }
+
+    /// Returns the string representation of the closing delimiter.
+    pub const fn to_close_str(self) -> &'static str {
+        match self {
+            Self::Parenthesis => ")",
+            Self::Brace => "}",
+            Self::Bracket => "]",
+        }
+    }
+}
+
 /// A literal token. Different from an AST literal as this is unparsed and only contains the raw
 /// contents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -169,6 +189,16 @@ pub enum TokenLitKind {
     HexStr,
     /// An error occurred while lexing the literal token.
     Err(ErrorGuaranteed),
+}
+
+impl From<StrKind> for TokenLitKind {
+    fn from(str_kind: StrKind) -> Self {
+        match str_kind {
+            StrKind::Str => Self::Str,
+            StrKind::Unicode => Self::UnicodeStr,
+            StrKind::Hex => Self::HexStr,
+        }
+    }
 }
 
 impl TokenLitKind {
@@ -309,12 +339,8 @@ impl TokenKind {
             Self::Arrow => "->",
             Self::FatArrow => "=>",
             Self::Question => "?",
-            Self::OpenDelim(Delimiter::Parenthesis) => "(",
-            Self::CloseDelim(Delimiter::Parenthesis) => ")",
-            Self::OpenDelim(Delimiter::Brace) => "{",
-            Self::CloseDelim(Delimiter::Brace) => "}",
-            Self::OpenDelim(Delimiter::Bracket) => "[",
-            Self::CloseDelim(Delimiter::Bracket) => "]",
+            Self::OpenDelim(d) => d.to_open_str(),
+            Self::CloseDelim(d) => d.to_close_str(),
 
             Self::Literal(.., symbol) | Self::Ident(.., symbol) | Self::Comment(.., symbol) => {
                 symbol.as_str()
@@ -413,69 +439,77 @@ impl TokenKind {
     pub const fn is_comment_or_doc(&self) -> bool {
         matches!(self, Self::Comment(..))
     }
-
-    /// Glues two token kinds together.
-    pub const fn glue(self, other: Self) -> Option<Self> {
-        use BinOpToken::*;
-        use TokenKind::*;
-        Some(match self {
-            Eq => match other {
-                Eq => EqEq,
-                Gt => FatArrow,
-                _ => return None,
-            },
-            Lt => match other {
-                Eq => Le,
-                Lt => BinOp(Shl),
-                Le => BinOpEq(Shl),
-                _ => return None,
-            },
-            Gt => match other {
-                Eq => Ge,
-                Gt => BinOp(Shr),
-                Ge => BinOpEq(Shr),
-                BinOp(Shr) => BinOp(Sar),
-                BinOpEq(Shr) => BinOpEq(Sar),
-                _ => return None,
-            },
-            Not => match other {
-                Eq => Ne,
-                _ => return None,
-            },
-            Colon => match other {
-                Eq => Walrus,
-                _ => return None,
-            },
-            BinOp(op) => match (op, other) {
-                (op, Eq) => BinOpEq(op),
-                (And, BinOp(And)) => AndAnd,
-                (Or, BinOp(Or)) => OrOr,
-                (Minus, Gt) => Arrow,
-                (Shr, Gt) => BinOp(Sar),
-                (Shr, Ge) => BinOpEq(Sar),
-                (Plus, BinOp(Plus)) => PlusPlus,
-                (Minus, BinOp(Minus)) => MinusMinus,
-                (Star, BinOp(Star)) => StarStar,
-                _ => return None,
-            },
-
-            Le | EqEq | Ne | Ge | AndAnd | OrOr | Tilde | Walrus | PlusPlus | MinusMinus
-            | StarStar | BinOpEq(_) | At | Dot | Comma | Semi | Arrow | FatArrow | Question
-            | OpenDelim(_) | CloseDelim(_) | Literal(..) | Ident(_) | Comment(..) | Eof => {
-                return None
-            }
-        })
-    }
 }
 
 /// A single token.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// This struct is written in such a way that it can be passed in registers.
+/// The actual representation is [`TokenRepr`], but it should not be accessed directly.
+#[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Token {
+    _kind: MaybeUninit<u64>,
+    _span: u64,
+}
+
+/// Actual representation of [`Token`].
+///
+/// Do not use this struct directly. Use [`Token`] instead.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct TokenRepr {
     /// The kind of the token.
     pub kind: TokenKind,
     /// The full span of the token.
     pub span: Span,
 }
+
+const _: () = {
+    assert!(size_of::<Token>() == size_of::<TokenRepr>());
+    assert!(align_of::<Token>() >= align_of::<TokenRepr>());
+    assert!(std::mem::offset_of!(Token, _kind) == std::mem::offset_of!(TokenRepr, kind));
+    assert!(std::mem::offset_of!(Token, _span) == std::mem::offset_of!(TokenRepr, span));
+};
+
+impl std::ops::Deref for Token {
+    type Target = TokenRepr;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl std::ops::DerefMut for Token {
+    #[inline(always)]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+impl fmt::Debug for Token {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for TokenRepr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Token").field("kind", &self.kind).field("span", &self.span).finish()
+    }
+}
+
+impl PartialEq for Token {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for Token {}
 
 impl From<Ident> for Token {
     #[inline]
@@ -494,7 +528,8 @@ impl Token {
     /// Creates a new token.
     #[inline]
     pub const fn new(kind: TokenKind, span: Span) -> Self {
-        Self { kind, span }
+        // SAFETY: transparent wrapper.
+        unsafe { std::mem::transmute(TokenRepr { kind, span }) }
     }
 
     /// Recovers a `Token` from an `Ident`.
@@ -505,7 +540,7 @@ impl Token {
 
     /// Creates a new identifier if the kind is [`TokenKind::Ident`].
     #[inline]
-    pub const fn ident(&self) -> Option<Ident> {
+    pub fn ident(&self) -> Option<Ident> {
         match self.kind {
             TokenKind::Ident(ident) => Some(Ident::new(ident, self.span)),
             _ => None,
@@ -514,7 +549,7 @@ impl Token {
 
     /// Returns the literal if the kind is [`TokenKind::Literal`].
     #[inline]
-    pub const fn lit(&self) -> Option<TokenLit> {
+    pub fn lit(&self) -> Option<TokenLit> {
         match self.kind {
             TokenKind::Literal(kind, symbol) => Some(TokenLit::new(kind, symbol)),
             _ => None,
@@ -523,7 +558,7 @@ impl Token {
 
     /// Returns this token's literal kind, if any.
     #[inline]
-    pub const fn lit_kind(&self) -> Option<TokenLitKind> {
+    pub fn lit_kind(&self) -> Option<TokenLitKind> {
         match self.kind {
             TokenKind::Literal(kind, _) => Some(kind),
             _ => None,
@@ -532,7 +567,7 @@ impl Token {
 
     /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
     #[inline]
-    pub const fn comment(&self) -> Option<(bool, DocComment)> {
+    pub fn comment(&self) -> Option<(bool, DocComment)> {
         match self.kind {
             TokenKind::Comment(is_doc, kind, symbol) => {
                 Some((is_doc, DocComment { span: self.span, kind, symbol }))
@@ -545,7 +580,7 @@ impl Token {
     ///
     /// Does not check that `is_doc` is `true`.
     #[inline]
-    pub const fn doc(&self) -> Option<DocComment> {
+    pub fn doc(&self) -> Option<DocComment> {
         match self.kind {
             TokenKind::Comment(_, kind, symbol) => {
                 Some(DocComment { span: self.span, kind, symbol })
@@ -556,7 +591,7 @@ impl Token {
 
     /// Returns `true` if the token is an operator.
     #[inline]
-    pub const fn is_op(&self) -> bool {
+    pub fn is_op(&self) -> bool {
         self.kind.is_op()
     }
 
@@ -580,7 +615,7 @@ impl Token {
 
     /// Returns `true` if the token is an identifier.
     #[inline]
-    pub const fn is_ident(&self) -> bool {
+    pub fn is_ident(&self) -> bool {
         matches!(self.kind, TokenKind::Ident(_))
     }
 
@@ -667,12 +702,12 @@ impl Token {
     /// Returns `true` if the token is an identifier for which `pred` holds.
     #[inline]
     pub fn is_ident_where(&self, pred: impl FnOnce(Ident) -> bool) -> bool {
-        self.ident().map(pred).unwrap_or(false)
+        self.ident().is_some_and(pred)
     }
 
     /// Returns `true` if the token is an end-of-file marker.
     #[inline]
-    pub const fn is_eof(&self) -> bool {
+    pub fn is_eof(&self) -> bool {
         matches!(self.kind, TokenKind::Eof)
     }
 
@@ -690,13 +725,13 @@ impl Token {
 
     /// Returns `true` if the token is a normal comment (not a doc-comment).
     #[inline]
-    pub const fn is_comment(&self) -> bool {
+    pub fn is_comment(&self) -> bool {
         self.kind.is_comment()
     }
 
     /// Returns `true` if the token is a comment or doc-comment.
     #[inline]
-    pub const fn is_comment_or_doc(&self) -> bool {
+    pub fn is_comment_or_doc(&self) -> bool {
         self.kind.is_comment_or_doc()
     }
 
@@ -737,11 +772,6 @@ impl Token {
     #[inline]
     pub fn description(self) -> Option<TokenDescription> {
         TokenDescription::from_token(self)
-    }
-
-    /// Glues two tokens together.
-    pub fn glue(self, other: Self) -> Option<Self> {
-        self.kind.glue(other.kind).map(|kind| Self::new(kind, self.span.to(other.span)))
     }
 }
 

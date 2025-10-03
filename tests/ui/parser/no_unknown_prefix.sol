@@ -1,4 +1,4 @@
-//@compile-flags: --stop-after parsing
+//@compile-flags: --stop-after parsing -Zno-resolve-imports
 
 // This used to fail with an "unknown string prefix" error.
 

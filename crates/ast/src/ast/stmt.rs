@@ -1,11 +1,31 @@
-use super::{
-    yul, AstPath, Box, CallArgs, DocComments, Expr, ParameterList, PathSlice, StrLit,
-    VariableDefinition,
+use crate::{
+    AstPath, Box, BoxSlice, CallArgs, DocComments, Expr, ParameterList, StrLit, VariableDefinition,
+    yul,
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, SpannedOption};
 
 /// A block of statements.
-pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
+#[derive(Debug)]
+pub struct Block<'ast> {
+    /// The span of the block, including the `{` and `}`.
+    pub span: Span,
+    /// The statements in the block.
+    pub stmts: BoxSlice<'ast, Stmt<'ast>>,
+}
+
+impl<'ast> std::ops::Deref for Block<'ast> {
+    type Target = [Stmt<'ast>];
+
+    fn deref(&self) -> &Self::Target {
+        self.stmts
+    }
+}
+
+impl<'ast> std::ops::DerefMut for Block<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.stmts
+    }
+}
 
 /// A statement, usually ending in a semicolon.
 ///
@@ -29,7 +49,7 @@ pub enum StmtKind<'ast> {
     /// A multi-variable declaration statement: `(bool success, bytes memory value) = ...;`.
     ///
     /// Multi-assignments require an expression on the right-hand side.
-    DeclMulti(Box<'ast, [Option<VariableDefinition<'ast>>]>, Box<'ast, Expr<'ast>>),
+    DeclMulti(BoxSlice<'ast, SpannedOption<VariableDefinition<'ast>>>, Box<'ast, Expr<'ast>>),
 
     /// A blocked scope: `{ ... }`.
     Block(Block<'ast>),
@@ -44,7 +64,7 @@ pub enum StmtKind<'ast> {
     DoWhile(Box<'ast, Stmt<'ast>>, Box<'ast, Expr<'ast>>),
 
     /// An emit statement: `emit Foo.bar(42);`.
-    Emit(Box<'ast, PathSlice>, CallArgs<'ast>),
+    Emit(AstPath<'ast>, CallArgs<'ast>),
 
     /// An expression with a trailing semicolon.
     Expr(Box<'ast, Expr<'ast>>),
@@ -85,7 +105,7 @@ pub struct StmtAssembly<'ast> {
     /// The assembly block dialect.
     pub dialect: Option<StrLit>,
     /// Additional flags.
-    pub flags: Box<'ast, [StrLit]>,
+    pub flags: BoxSlice<'ast, StrLit>,
     /// The assembly block.
     pub block: yul::Block<'ast>,
 }
@@ -98,7 +118,7 @@ pub struct StmtTry<'ast> {
     /// The call expression.
     pub expr: Box<'ast, Expr<'ast>>,
     /// The list of clauses. Never empty.
-    pub clauses: Box<'ast, [TryCatchClause<'ast>]>,
+    pub clauses: BoxSlice<'ast, TryCatchClause<'ast>>,
 }
 
 /// Clause of a try/catch block: `returns/catch (...) { ... }`.
@@ -109,7 +129,13 @@ pub struct StmtTry<'ast> {
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.catchClause>
 #[derive(Debug)]
 pub struct TryCatchClause<'ast> {
+    /// The span of the entire clause, from the `returns` and `catch`
+    /// keywords, to the closing brace of the block.
+    pub span: Span,
+    /// The catch clause name: `Error`, `Panic`, or custom.
     pub name: Option<Ident>,
+    /// The parameter list for the clause.
     pub args: ParameterList<'ast>,
+    /// A block of statements
     pub block: Block<'ast>,
 }

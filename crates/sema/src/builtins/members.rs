@@ -47,17 +47,15 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             }
         }
         TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
-            .declarations
             .iter()
-            .flat_map(|(&name, decls)| {
+            .flat_map(|(name, decls)| {
                 decls.iter().map(move |decl| Member::new(name, gcx.type_of_res(decl.res)))
             })
             .collect(),
         TyKind::BuiltinModule(builtin) => builtin
             .members()
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
-            .iter()
-            .map(|&b| Member::of_builtin(gcx, b))
+            .map(|b| Member::of_builtin(gcx, b))
             .collect(),
         TyKind::Type(ty) => type_type(gcx, ty),
         TyKind::Meta(ty) => meta(gcx, ty),
@@ -207,7 +205,7 @@ fn reference<'gcx>(
 // `Enum.Variant`, `Udvt.wrap`
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
+        // TODO: https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
         TyKind::Contract(_) => Default::default(),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()

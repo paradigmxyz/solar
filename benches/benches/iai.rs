@@ -1,13 +1,13 @@
 #![allow(unused_imports)]
 
 use iai_callgrind::{library_benchmark, library_benchmark_group};
-use solar_bench::{get_srcs, Parser, Slang, Solang, Solar, Source};
+use solar_bench::{Parser, Slang, Solang, Solar, Source, get_src};
 use std::hint::black_box;
 
 #[library_benchmark]
 fn solar_enter() -> usize {
     let f: fn() -> usize = || 42usize;
-    solar_parse::interface::enter(black_box(f))
+    solar::parse::interface::enter(black_box(f))
 }
 
 #[cfg(feature = "ci")]
@@ -101,24 +101,24 @@ mk_groups!(
     "console",
     "Vm",
     "safeconsole",
+    "Seaport",
+    "Solady",
+    "Optimism",
 );
 
 #[inline]
 fn run_lex(name: &str, parser: &dyn Parser) {
-    assert!(parser.can_lex(), "{} can't lex", parser.name());
-    let Source { name: _, path: _, src } = get_source(name);
-    solar_parse::interface::enter(|| parser.lex(black_box(src)))
+    assert!(parser.capabilities().can_lex(), "{} can't lex", parser.name());
+    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
+    let setup = &mut *parser.setup(src);
+    parser.lex(black_box(src), setup)
 }
 
 #[inline]
 fn run_parse(name: &str, parser: &dyn Parser) {
-    let Source { name: _, path: _, src } = get_source(name);
-    solar_parse::interface::enter(|| parser.parse(black_box(src)))
-}
-
-#[inline]
-fn get_source(name: &str) -> &'static Source {
-    get_srcs().iter().find(|s| s.name == name).unwrap()
+    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
+    let setup = &mut *parser.setup(src);
+    parser.parse(black_box(src), setup)
 }
 
 // use lex_::lex;

@@ -1,2 +1,9 @@
-msrv = "1.83"
 allow-dbg-in-tests = true
+
+disallowed-methods = [
+    { path = "std::fs::read", reason = "use `SourceMap::file_loader` instead" },
+    { path = "std::fs::read_to_string", reason = "use `SourceMap::file_loader` instead" },
+    { path = "std::fs::canonicalize", reason = "use `SourceMap::file_loader` instead" },
+    { path = "std::path::Path::canonicalize", reason = "use `SourceMap::file_loader` instead" },
+    { path = "solar_interface::canonicalize", reason = "use `SourceMap::file_loader` instead" },
+]

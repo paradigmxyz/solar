@@ -1,10 +1,10 @@
-use super::{Gcx, Recursiveness};
+use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
-use solar_data_structures::Interned;
+use solar_data_structures::{Interned, fmt};
 use solar_interface::diagnostics::ErrorGuaranteed;
-use std::{borrow::Borrow, fmt, hash::Hash, ops::ControlFlow};
+use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -21,7 +21,7 @@ impl<'gcx> std::ops::Deref for Ty<'gcx> {
 
     #[inline(always)]
     fn deref(&self) -> &Self::Target {
-        &self.0 .0
+        &self.0.0
     }
 }
 
@@ -31,10 +31,8 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Displays the type for human-readable diagnostics.
-    pub fn display(self, gcx: Gcx<'gcx>) -> impl std::fmt::Display + use<'gcx> {
-        solar_data_structures::fmt::from_fn(move |f| {
-            super::print::TySolcPrinter::new(gcx, f).print(self)
-        })
+    pub fn display(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
+        fmt::from_fn(move |f| TySolcPrinter::new(gcx, f).data_locations(true).print(self))
     }
 
     #[doc(alias = "with_location")]
@@ -106,16 +104,12 @@ impl<'gcx> Ty<'gcx> {
             },
             returns: if any_return {
                 gcx.mk_ty_iter(returns.iter().map(|ret| {
-                    if is_calldata(ret) {
-                        ret.with_loc(gcx, DataLocation::Memory)
-                    } else {
-                        *ret
-                    }
+                    if is_calldata(ret) { ret.with_loc(gcx, DataLocation::Memory) } else { *ret }
                 }))
             } else {
                 returns
             },
-            state_mutability: self.state_mutability().unwrap_or_default(),
+            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
         })
     }
@@ -200,11 +194,7 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `Err(guar)` if this type contains an error.
     #[inline]
     pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
-        if self.references_error() {
-            Err(ErrorGuaranteed::new_unchecked())
-        } else {
-            Ok(())
-        }
+        if self.references_error() { Err(ErrorGuaranteed::new_unchecked()) } else { Ok(()) }
     }
 
     /// Returns `true` if this type contains an error.
@@ -281,7 +271,10 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Meta(ty) => ty.visit(f),
 
             TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
-                list.iter().copied().try_for_each(f)
+                for ty in list {
+                    ty.visit(f)?;
+                }
+                ControlFlow::Continue(())
             }
 
             TyKind::Mapping(k, v) => {
@@ -476,15 +469,31 @@ impl<'gcx> Ty<'gcx> {
 }
 
 /// The interned data of a type.
-#[derive(PartialEq, Eq, Hash)]
 pub struct TyData<'gcx> {
     pub kind: TyKind<'gcx>,
     pub flags: TyFlags,
 }
 
 impl<'gcx> Borrow<TyKind<'gcx>> for &TyData<'gcx> {
+    #[inline]
     fn borrow(&self) -> &TyKind<'gcx> {
         &self.kind
+    }
+}
+
+impl PartialEq for TyData<'_> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+impl Eq for TyData<'_> {}
+
+impl std::hash::Hash for TyData<'_> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.kind.hash(state);
     }
 }
 

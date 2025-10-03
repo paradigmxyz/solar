@@ -6,7 +6,7 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
@@ -36,6 +36,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         } else if self.eat_keyword(kw::Function) {
             self.parse_function_header(FunctionFlags::FUNCTION_TY).map(|f| {
                 let FunctionHeader {
+                    span: _,
                     name: _,
                     parameters,
                     visibility,
@@ -72,10 +73,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Bool => ElementaryType::Bool,
             kw::String => ElementaryType::String,
             kw::Bytes => ElementaryType::Bytes,
-            kw::Fixed => ElementaryType::Fixed(TypeSize::default(), TypeFixedSize::default()),
-            kw::UFixed => ElementaryType::UFixed(TypeSize::default(), TypeFixedSize::default()),
-            kw::Int => ElementaryType::Int(TypeSize::default()),
-            kw::UInt => ElementaryType::UInt(TypeSize::default()),
+            kw::Fixed => ElementaryType::Fixed(TypeSize::ZERO, TypeFixedSize::ZERO),
+            kw::UFixed => ElementaryType::UFixed(TypeSize::ZERO, TypeFixedSize::ZERO),
+            kw::Int => ElementaryType::Int(TypeSize::ZERO),
+            kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
                 let bytes = s.as_u32() - kw::UInt8.as_u32() + 1;
                 ElementaryType::UInt(TypeSize::new(bytes as u8).unwrap())
@@ -215,7 +216,7 @@ fn parse_ty_size_u8(
     let mut n = s.parse::<u16>().map_err(ParseTySizeError::Parse)?;
 
     if to_bytes {
-        if n % 8 != 0 {
+        if !n.is_multiple_of(8) {
             return Err(ParseTySizeError::NotMultipleOf8);
         }
         n /= 8;

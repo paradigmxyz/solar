@@ -1,25 +1,34 @@
-#[cfg(feature = "nightly")]
-pub use std::intrinsics::{likely, unlikely};
-
-#[cfg(not(feature = "nightly"))]
 #[inline(always)]
-#[cold]
-fn cold() {}
-
-#[cfg(not(feature = "nightly"))]
-#[inline(always)]
-pub fn likely(b: bool) -> bool {
-    if !b {
-        cold();
-    }
-    b
+#[cfg_attr(not(feature = "nightly"), cold)]
+pub const fn cold_path() {
+    #[cfg(feature = "nightly")]
+    core::intrinsics::cold_path();
 }
 
-#[cfg(not(feature = "nightly"))]
 #[inline(always)]
-pub fn unlikely(b: bool) -> bool {
+pub const fn likely(b: bool) -> bool {
+    #[cfg(feature = "nightly")]
+    return core::intrinsics::likely(b);
+
+    #[cfg(not(feature = "nightly"))]
     if b {
-        cold();
+        true
+    } else {
+        cold_path();
+        false
     }
-    b
+}
+
+#[inline(always)]
+pub const fn unlikely(b: bool) -> bool {
+    #[cfg(feature = "nightly")]
+    return core::intrinsics::unlikely(b);
+
+    #[cfg(not(feature = "nightly"))]
+    if b {
+        cold_path();
+        true
+    } else {
+        false
+    }
 }

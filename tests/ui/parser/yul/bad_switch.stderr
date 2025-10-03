@@ -1,0 +1,15 @@
+error: `switch` statement has no cases
+  --> ROOT/tests/ui/parser/yul/bad_switch.sol:LL:CC
+   |
+LL |         switch 42
+   |         ^^^^^^^^^
+
+warning[9592]: `switch` statement has only a default case
+  --> ROOT/tests/ui/parser/yul/bad_switch.sol:LL:CC
+   |
+LL | /         switch 42
+LL | |         default {}
+   | |__________________^
+
+error: aborting due to 1 previous error; 1 warning emitted
+

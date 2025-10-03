@@ -1,16 +1,18 @@
 use super::item::VarFlags;
-use crate::{parser::SeqSep, PResult, Parser};
+use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
-use solar_data_structures::BumpExt;
-use solar_interface::{kw, sym, Ident, Span};
+use solar_data_structures::CollectAndApply;
+use solar_interface::{Ident, Span, SpannedOption, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
-        let docs = self.parse_doc_comments();
-        self.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        self.with_recursion_limit("statement", |this| {
+            let docs = this.parse_doc_comments();
+            this.parse_spanned(Self::parse_stmt_kind).map(|(span, kind)| Stmt { docs, kind, span })
+        })
     }
 
     /// Parses a statement into a new allocation.
@@ -74,7 +76,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a block of statements.
     pub(super) fn parse_block(&mut self) -> PResult<'sess, Block<'ast>> {
+        let lo = self.token.span;
         self.parse_delim_seq(Delimiter::Brace, SeqSep::none(), true, Self::parse_stmt)
+            .map(|stmts| Block { span: lo.to(self.prev_token.span), stmts })
     }
 
     /// Parses an if statement.
@@ -131,16 +135,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a try statement.
     fn parse_stmt_try(&mut self) -> PResult<'sess, StmtTry<'ast>> {
         let expr = self.parse_expr()?;
-
         let mut clauses = SmallVec::<[_; 4]>::new();
+
+        let mut lo = self.token.span;
         let returns = if self.eat_keyword(kw::Returns) {
             self.parse_parameter_list(false, VarFlags::FUNCTION)?
         } else {
             Default::default()
         };
         let block = self.parse_block()?;
-        clauses.push(TryCatchClause { name: None, args: returns, block });
+        let span = lo.to(self.prev_token.span);
+        clauses.push(TryCatchClause { name: None, args: returns, block, span });
 
+        lo = self.token.span;
         self.expect_keyword(kw::Catch)?;
         loop {
             let name = self.parse_ident_opt()?;
@@ -150,7 +157,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 Default::default()
             };
             let block = self.parse_block()?;
-            clauses.push(TryCatchClause { name, args, block });
+            let span = lo.to(self.prev_token.span);
+            clauses.push(TryCatchClause { name, args, block, span });
+            lo = self.token.span;
             if !self.eat_keyword(kw::Catch) {
                 break;
             }
@@ -188,18 +197,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_simple_stmt_kind(&mut self) -> PResult<'sess, StmtKind<'ast>> {
         let lo = self.token.span;
         if self.eat(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
-            let mut empty_components = 0usize;
+            let mut none_elements = SmallVec::<[_; 8]>::new();
             while self.eat(TokenKind::Comma) {
-                empty_components += 1;
+                none_elements.push(self.prev_token.span.shrink_to_hi());
             }
 
             let (statement_type, iap) = self.try_parse_iap()?;
             match statement_type {
                 LookAheadInfo::VariableDeclaration => {
-                    let mut variables = smallvec_repeat_none(empty_components);
+                    let mut variables = none_elements
+                        .into_iter()
+                        .map(SpannedOption::None)
+                        .collect::<SmallVec<[_; 8]>>();
                     let ty = iap.into_ty(self);
-                    variables
-                        .push(Some(self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?));
+                    variables.push(SpannedOption::Some(
+                        self.parse_variable_definition_with(VarFlags::FUNCTION, ty)?,
+                    ));
                     self.parse_optional_items_seq_required(
                         Delimiter::Parenthesis,
                         &mut variables,
@@ -210,9 +223,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     Ok(StmtKind::DeclMulti(self.alloc_smallvec(variables), expr))
                 }
                 LookAheadInfo::Expression => {
-                    let mut components = smallvec_repeat_none(empty_components);
+                    let mut components = none_elements
+                        .into_iter()
+                        .map(SpannedOption::None)
+                        .collect::<SmallVec<[_; 8]>>();
                     let expr = iap.into_expr(self);
-                    components.push(Some(self.parse_expr_with(expr)?));
+                    components.push(SpannedOption::Some(self.parse_expr_with(expr)?));
                     self.parse_optional_items_seq_required(
                         Delimiter::Parenthesis,
                         &mut components,
@@ -245,39 +261,70 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a `delim`-delimited, comma-separated list of maybe-optional items.
     /// E.g. `(a, b) => [Some, Some]`, `(, a,, b,) => [None, Some, None, Some, None]`.
+    ///
+    /// All elements are wrapped in a `SpannedOption<T>`, so that even for uninformed elements,
+    /// AST consumers can be aware of the location of the separators.
     pub(super) fn parse_optional_items_seq<T>(
         &mut self,
         delim: Delimiter,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
-    ) -> PResult<'sess, Box<'ast, [Option<T>]>> {
+    ) -> PResult<'sess, SmallVec<[SpannedOption<T>; 8]>> {
         self.expect(TokenKind::OpenDelim(delim))?;
+
         let mut out = SmallVec::<[_; 8]>::new();
+
+        // Handle leading commas, e.g., `(, a, b)`.
         while self.eat(TokenKind::Comma) {
-            out.push(None);
+            out.push(SpannedOption::None(self.prev_token.span.shrink_to_lo()));
         }
+
+        // Handle the first potential item. If the list is not closing,
+        // we assume there's at least one item.
         if !self.check(TokenKind::CloseDelim(delim)) {
-            out.push(Some(f(self)?));
+            out.push(SpannedOption::Some(f(self)?));
         }
-        self.parse_optional_items_seq_required(delim, &mut out, f)
-            .map(|()| self.alloc_smallvec(out))
+
+        // Call the helper to parse the rest of the sequence.
+        self.parse_optional_items_seq_required(delim, &mut out, f)?;
+        Ok(out)
     }
 
     fn parse_optional_items_seq_required<T>(
         &mut self,
         delim: Delimiter,
-        out: &mut SmallVec<[Option<T>; 8]>,
+        out: &mut SmallVec<[SpannedOption<T>; 8]>,
         mut f: impl FnMut(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, ()> {
-        let close = TokenKind::CloseDelim(delim);
-        while !self.eat(close) {
-            self.expect(TokenKind::Comma)?;
-            if self.check(TokenKind::Comma) || self.check(close) {
-                out.push(None);
+        let (comma, close) = (TokenKind::Comma, TokenKind::CloseDelim(delim));
+
+        // Handle early close delimiter.
+        if self.eat(close) {
+            return Ok(());
+        }
+
+        // Expect comma separator.
+        self.expect(comma)?;
+
+        // Handle subsequent elements until finding the close token.
+        loop {
+            let item = if self.check(comma) || self.check(close) { None } else { Some(f(self)?) };
+            if self.eat(comma) {
+                let element = match item {
+                    Some(val) => SpannedOption::Some(val),
+                    None => SpannedOption::None(self.prev_token.span.shrink_to_lo()),
+                };
+                out.push(element);
+            } else if self.eat(close) {
+                let element = match item {
+                    Some(val) => SpannedOption::Some(val),
+                    None => SpannedOption::None(self.prev_token.span.shrink_to_lo()),
+                };
+                out.push(element);
+                return Ok(());
             } else {
-                out.push(Some(f(self)?));
+                return self.unexpected();
             }
         }
-        Ok(())
     }
 
     /// Parses a path and a list of call arguments.
@@ -289,7 +336,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Never returns `LookAheadInfo::IndexAccessStructure`.
     fn try_parse_iap(&mut self) -> PResult<'sess, (LookAheadInfo, IndexAccessedPath<'ast>)> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L1961
         if let ty @ (LookAheadInfo::VariableDeclaration | LookAheadInfo::Expression) =
             self.peek_statement_type()
         {
@@ -309,7 +356,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn peek_statement_type(&mut self) -> LookAheadInfo {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2528
         if self.token.is_keyword_any(&[kw::Mapping, kw::Function]) {
             return LookAheadInfo::VariableDeclaration;
         }
@@ -335,7 +382,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     fn parse_iap(&mut self) -> PResult<'sess, IndexAccessedPath<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2559
         let mut path = SmallVec::<[_; 4]>::new();
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
@@ -391,7 +438,7 @@ struct IndexAccessedPath<'ast> {
 
 impl<'ast> IndexAccessedPath<'ast> {
     fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
 
@@ -408,7 +455,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                     kind => unreachable!("{kind:?}"),
                 })
                 .take(self.n_idents);
-            let path = PathSlice::from_mut_slice(parser.arena.alloc_from_iter(path));
+            let path = CollectAndApply::collect_and_apply(path, |path| parser.alloc_path(path));
             Type { span: path.span(), kind: TypeKind::Custom(path) }
         };
 
@@ -431,7 +478,7 @@ impl<'ast> IndexAccessedPath<'ast> {
     }
 
     fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
-        // https://github.com/ethereum/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
+        // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 
         let mut expr = parser.alloc(match path.next()? {
@@ -456,25 +503,19 @@ impl<'ast> IndexAccessedPath<'ast> {
     }
 }
 
-/// `T: !Clone`
-fn smallvec_repeat_none<T>(n: usize) -> SmallVec<[Option<T>; 8]> {
-    let mut v = SmallVec::with_capacity(n);
-    v.extend(std::iter::repeat_with(|| None).take(n));
-    v
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solar_interface::{source_map::FileName, Result, Session};
+    use solar_interface::{Result, Session, source_map::FileName};
 
     #[test]
     fn optional_items_seq() {
+        #[allow(clippy::type_complexity)]
         fn check(tests: &[(&str, &[Option<&str>])]) {
-            solar_interface::enter(|| -> Result {
-                let sess = Session::builder().with_test_emitter().build();
-                for (i, &(s, results)) in tests.iter().enumerate() {
-                    let name = i.to_string();
+            let sess = Session::builder().with_test_emitter().single_threaded().build();
+            sess.enter_sequential(|| -> Result {
+                for &(s, results) in tests.iter() {
+                    let name = s.to_string();
                     let arena = Arena::new();
                     let mut parser =
                         Parser::from_source_code(&sess, &arena, FileName::Custom(name), s)?;
@@ -484,9 +525,30 @@ mod tests {
                         .map_err(|e| e.emit())
                         .unwrap_or_else(|_| panic!("src: {s:?}"));
                     sess.dcx.has_errors().unwrap();
-                    let formatted: Vec<_> =
-                        list.iter().map(|o| o.as_ref().map(|i| i.as_str())).collect();
-                    assert_eq!(formatted.as_slice(), results, "{s:?}");
+
+                    let formatted: Vec<_> = list
+                        .iter()
+                        .map(|item| match item {
+                            SpannedOption::Some(ident) => {
+                                let data = Some(ident.as_str());
+                                let snip = sess.source_map().span_to_snippet(ident.span).unwrap();
+                                (data, snip)
+                            }
+                            SpannedOption::None(span) => {
+                                let data = None;
+                                let snip = sess.source_map().span_to_snippet(*span).unwrap();
+                                (data, snip)
+                            }
+                        })
+                        .collect();
+
+                    // Format the expected results for comparison
+                    let expected: Vec<_> = results
+                        .iter()
+                        .map(|&data| (data, data.unwrap_or("").to_string()))
+                        .collect();
+
+                    assert_eq!(formatted, expected, "{s:?}");
                 }
                 Ok(())
             })
@@ -496,11 +558,13 @@ mod tests {
         check(&[
             ("()", &[]),
             ("(a)", &[Some("a")]),
+            // invalid syntax
             // ("(,)", &[None, None]),
             ("(a,)", &[Some("a"), None]),
             ("(,b)", &[None, Some("b")]),
             ("(a,b)", &[Some("a"), Some("b")]),
             ("(a,b,)", &[Some("a"), Some("b"), None]),
+            // invalid syntax
             // ("(,,)", &[None, None, None]),
             ("(a,,)", &[Some("a"), None, None]),
             ("(a,b,)", &[Some("a"), Some("b"), None]),

@@ -1,6 +1,6 @@
-use super::Box;
+use crate::BoxSlice;
 use semver::Op;
-use solar_data_structures::smallvec::{smallvec, SmallVec};
+use solar_data_structures::smallvec::{SmallVec, smallvec};
 use solar_interface::Span;
 use std::{cmp::Ordering, fmt};
 
@@ -10,9 +10,9 @@ pub use semver::Op as SemverOp;
 // See [`SemverReq::dis`] field docs for more details on how the requirements are treated.
 
 // Solc implementation notes:
-// - uses `unsigned` (`u32`) for version integers: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L258
-// - version numbers can be `*/x/X`, which are represented as `u32::MAX`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L263
-// - ranges are parsed as `>=start, <=end`: https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
+// - uses `unsigned` (`u32`) for version integers: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L258
+// - version numbers can be `*/x/X`, which are represented as `u32::MAX`: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L263
+// - ranges are parsed as `>=start, <=end`: https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L209
 //   we however dedicate a separate node for this: [`SemverReqComponentKind::Range`]
 
 /// A SemVer version number.
@@ -202,7 +202,7 @@ pub struct SemverReq<'ast> {
     /// Or-ed list of and-ed components, meaning that `matches` is evaluated as
     /// `any([all(c) for c in dis])`.
     /// E.g.: `^0 <=1 || 0.5.0 - 0.6.0 ... || ...` -> `[[^0, <=1], [0.5.0 - 0.6.0, ...], ...]`
-    pub dis: Box<'ast, [SemverReqCon<'ast>]>,
+    pub dis: BoxSlice<'ast, SemverReqCon<'ast>>,
 }
 
 impl fmt::Display for SemverReq<'_> {
@@ -249,7 +249,7 @@ impl SemverVersionReqCompat {
 pub struct SemverReqCon<'ast> {
     pub span: Span,
     /// The list of components. See [`SemverReq::dis`] for more details.
-    pub components: Box<'ast, [SemverReqComponent]>,
+    pub components: BoxSlice<'ast, SemverReqComponent>,
 }
 
 impl fmt::Display for SemverReqCon<'_> {
@@ -382,7 +382,7 @@ fn matches_op(op: Op, a: &SemverVersion, b: &SemverVersion) -> bool {
 }
 
 fn matches_tilde(a: &SemverVersion, b: &SemverVersion) -> bool {
-    // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L80
+    // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L80
     if !matches_op(Op::GreaterEq, a, b) {
         return false;
     }
@@ -393,7 +393,7 @@ fn matches_tilde(a: &SemverVersion, b: &SemverVersion) -> bool {
 }
 
 fn matches_caret(a: &SemverVersion, b: &SemverVersion) -> bool {
-    // https://github.com/ethereum/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L95
+    // https://github.com/argotorg/solidity/blob/e81f2bdbd66e9c8780f74b8a8d67b4dc2c87945e/liblangutil/SemVerHandler.cpp#L95
     if !matches_op(Op::GreaterEq, a, b) {
         return false;
     }

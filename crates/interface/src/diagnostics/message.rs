@@ -1,11 +1,20 @@
 //! Modified from [`rustc_error_messages`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_error_messages/src/lib.rs).
 
 use crate::Span;
-use std::borrow::Cow;
+use std::{borrow::Cow, ops::Deref};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DiagMsg {
     inner: Cow<'static, str>,
+}
+
+impl Deref for DiagMsg {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl From<&'static str> for DiagMsg {
@@ -178,11 +187,7 @@ impl From<Span> for MultiSpan {
 
 impl From<Option<Span>> for MultiSpan {
     fn from(span: Option<Span>) -> Self {
-        if let Some(span) = span {
-            Self::from_span(span)
-        } else {
-            Self::new()
-        }
+        if let Some(span) = span { Self::from_span(span) } else { Self::new() }
     }
 }
 

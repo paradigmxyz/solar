@@ -3,7 +3,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(panic_update_hook))]
 
 #[macro_use]
@@ -13,7 +13,7 @@ pub mod diagnostics;
 use diagnostics::ErrorGuaranteed;
 
 mod globals;
-pub use globals::SessionGlobals;
+use globals::SessionGlobals;
 
 mod pos;
 pub use pos::{BytePos, CharPos, RelativeBytePos};
@@ -25,20 +25,17 @@ pub mod source_map;
 pub use source_map::SourceMap;
 
 mod span;
-pub use span::Span;
+pub use span::{Span, Spanned, SpannedOption};
 
 mod symbol;
-pub use symbol::{kw, sym, Ident, Symbol};
+pub use symbol::{ByteSymbol, Ident, Symbol, kw, sym};
 
 pub mod panic_hook;
 
-pub use anstream::ColorChoice;
+pub use config::ColorChoice;
 pub use dunce::canonicalize;
 pub use solar_config as config;
 pub use solar_data_structures as data_structures;
-
-/// The current version of the Solar compiler.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
@@ -72,6 +69,8 @@ macro_rules! pluralize {
 /// pool.
 ///
 /// Using this instead of [`Session::enter`] may cause unexpected panics.
+///
+/// See [`Session::enter`] for more details.
 #[inline]
 pub fn enter<R>(f: impl FnOnce() -> R) -> R {
     SessionGlobals::with_or_default(|_| f())

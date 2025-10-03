@@ -3,7 +3,10 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+// Feature flag.
+use ruint as _;
 
 #[macro_use]
 extern crate tracing;
@@ -11,10 +14,10 @@ extern crate tracing;
 use solar_interface::diagnostics::{DiagBuilder, ErrorGuaranteed};
 
 pub mod lexer;
-pub use lexer::{unescape, Cursor, Lexer};
+pub use lexer::{Cursor, Lexer, unescape};
 
 mod parser;
-pub use parser::Parser;
+pub use parser::{Parser, Recovered};
 
 // Convenience re-exports.
 pub use bumpalo;

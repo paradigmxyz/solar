@@ -1,15 +1,17 @@
 use crate::{PResult, Parser};
+use smallvec::SmallVec;
 use solar_ast::{token::*, *};
+
 use solar_interface::kw;
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
-        self.parse_expr_with(None)
+        self.with_recursion_limit("expression", |this| this.parse_expr_with(None))
     }
 
-    #[instrument(name = "parse_expr", level = "debug", skip_all)]
+    #[instrument(name = "parse_expr", level = "trace", skip_all)]
     pub(super) fn parse_expr_with(
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
@@ -156,7 +158,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 }
 
                 // expr{args}
-                let args = self.parse_named_args()?;
+                let args = self.parse_named_args(false)?;
                 ExprKind::CallOptions(expr, args)
             } else {
                 break;
@@ -171,8 +173,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
         let kind = if self.check_lit() {
-            let (lit, sub) = self.parse_lit_with_subdenomination()?;
-            ExprKind::Lit(lit, sub)
+            let (lit, sub) = self.parse_lit(true)?;
+            ExprKind::Lit(self.alloc(lit), sub)
         } else if self.eat_keyword(kw::Type) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;
@@ -180,12 +182,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             ExprKind::TypeCall(ty)
         } else if self.check_elementary_type() {
             let mut ty = self.parse_type()?;
-            if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind {
-                if *payable {
-                    let msg = "`address payable` cannot be used in an expression";
-                    self.dcx().err(msg).span(ty.span).emit();
-                    *payable = false;
-                }
+            if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind
+                && *payable
+            {
+                let msg = "`address payable` cannot be used in an expression";
+                self.dcx().err(msg).span(ty.span).emit();
+                *payable = false;
             }
             ExprKind::Type(ty)
         } else if self.check_nr_ident() {
@@ -199,15 +201,22 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             let is_array = close_delim == Delimiter::Bracket;
             let list = self.parse_optional_items_seq(close_delim, Self::parse_expr)?;
             if is_array {
-                if !list.iter().all(Option::is_some) {
-                    let msg = "array expression components cannot be empty";
-                    let span = lo.to(self.prev_token.span);
-                    return Err(self.dcx().err(msg).span(span));
-                }
+                let list = list
+                    .into_iter()
+                    .map(|item| match item.into() {
+                        Some(expr) => Ok(Some(expr)),
+                        None => {
+                            let msg = "array expression components cannot be empty";
+                            let span = lo.to(self.prev_token.span);
+                            Err(self.dcx().err(msg).span(span))
+                        }
+                    })
+                    .collect::<Result<SmallVec<[Option<_>; 8]>, _>>()?;
+
                 // SAFETY: All elements are checked to be `Some` above.
-                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(list) })
+                ExprKind::Array(unsafe { option_boxes_unwrap_unchecked(self.alloc_smallvec(list)) })
             } else {
-                ExprKind::Tuple(list)
+                ExprKind::Tuple(self.alloc_smallvec(list))
             }
         } else {
             return self.unexpected();
@@ -226,7 +235,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_call_args_kind(&mut self) -> PResult<'sess, CallArgsKind<'ast>> {
         if self.look_ahead(1).kind == TokenKind::OpenDelim(Delimiter::Brace) {
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
-            let args = self.parse_named_args().map(CallArgsKind::Named)?;
+            let args = self.parse_named_args(true).map(CallArgsKind::Named)?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             Ok(args)
         } else {
@@ -261,8 +270,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a list of named arguments: `{a: b, c: d, ...}`
     #[track_caller]
-    fn parse_named_args(&mut self) -> PResult<'sess, NamedArgList<'ast>> {
-        self.parse_delim_comma_seq(Delimiter::Brace, false, Self::parse_named_arg)
+    fn parse_named_args(&mut self, allow_empty: bool) -> PResult<'sess, NamedArgList<'ast>> {
+        self.parse_delim_comma_seq(Delimiter::Brace, allow_empty, Self::parse_named_arg)
     }
 
     /// Parses a single named argument: `a: b`.
@@ -277,13 +286,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a list of expressions: `(a, b, c, ...)`.
     #[allow(clippy::vec_box)]
     #[track_caller]
-    fn parse_unnamed_args(&mut self) -> PResult<'sess, Box<'ast, [Box<'ast, Expr<'ast>>]>> {
+    fn parse_unnamed_args(&mut self) -> PResult<'sess, BoxSlice<'ast, Box<'ast, Expr<'ast>>>> {
         self.parse_paren_comma_seq(true, Self::parse_expr)
     }
 }
 
 fn token_precedence(t: Token) -> usize {
-    // https://github.com/ethereum/solidity/blob/78ec8dd6f93bf5a5b4ca7582f9d491a4f66c3610/liblangutil/Token.h#L68
+    // https://github.com/argotorg/solidity/blob/78ec8dd6f93bf5a5b4ca7582f9d491a4f66c3610/liblangutil/Token.h#L68
     use BinOpToken::*;
     use TokenKind::*;
     match t.kind {
@@ -316,7 +325,7 @@ fn token_precedence(t: Token) -> usize {
     }
 }
 
-/// Converts a list of `Option<Box<'ast, T>>` into a list of `Box<'ast, T>`.
+/// Converts a list of `SpannedOption<Box<'ast, T>>` into a list of `Box<'ast, T>`.
 ///
 /// This only works because `Option<Box<'ast, T>>` is guaranteed to be a valid `Box<'ast, T>` when
 /// `Some` when `T: Sized`.
@@ -326,8 +335,8 @@ fn token_precedence(t: Token) -> usize {
 /// All elements of the list must be `Some`.
 #[inline]
 unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
-    list: Box<'a, [Option<Box<'b, T>>]>,
-) -> Box<'a, [Box<'b, T>]> {
+    list: BoxSlice<'a, Option<Box<'b, T>>>,
+) -> BoxSlice<'a, Box<'b, T>> {
     debug_assert!(list.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
     unsafe { std::mem::transmute(list) }

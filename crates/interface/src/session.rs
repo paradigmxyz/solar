@@ -1,26 +1,75 @@
 use crate::{
+    ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
-    ColorChoice, SessionGlobals, SourceMap,
 };
-use solar_config::{CompilerOutput, CompilerStage, Opts, UnstableOpts, SINGLE_THREADED_TARGET};
-use std::{path::Path, sync::Arc};
+use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
+use std::{
+    fmt,
+    path::Path,
+    sync::{Arc, OnceLock},
+};
 
 /// Information about the current compiler session.
-#[derive(derive_builder::Builder)]
-#[builder(pattern = "owned", build_fn(name = "try_build", private), setter(strip_option))]
 pub struct Session {
+    /// The compiler options.
+    pub opts: Opts,
+
     /// The diagnostics context.
     pub dcx: DiagCtxt,
-    /// The source map.
-    #[builder(default)]
-    source_map: Arc<SourceMap>,
+    /// The globals.
+    globals: Arc<SessionGlobals>,
+    /// The rayon thread pool. This is spawned lazily on first use, rather than always constructing
+    /// one with `SessionBuilder`.
+    thread_pool: OnceLock<rayon::ThreadPool>,
+}
 
-    /// The compiler options.
-    #[builder(default)]
-    pub opts: Opts,
+impl Default for Session {
+    fn default() -> Self {
+        Self::new(Opts::default())
+    }
+}
+
+impl fmt::Debug for Session {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Session")
+            .field("opts", &self.opts)
+            .field("dcx", &self.dcx)
+            .finish_non_exhaustive()
+    }
+}
+
+/// [`Session`] builder.
+#[derive(Default)]
+#[must_use = "builders don't do anything unless you call `build`"]
+pub struct SessionBuilder {
+    dcx: Option<DiagCtxt>,
+    globals: Option<SessionGlobals>,
+    opts: Option<Opts>,
 }
 
 impl SessionBuilder {
+    /// Sets the diagnostic context.
+    ///
+    /// If `opts` is set this will default to [`DiagCtxt::from_opts`], otherwise this is required.
+    ///
+    /// See also the `with_*_emitter*` methods.
+    pub fn dcx(mut self, dcx: DiagCtxt) -> Self {
+        self.dcx = Some(dcx);
+        self
+    }
+
+    /// Sets the source map.
+    pub fn source_map(mut self, source_map: Arc<SourceMap>) -> Self {
+        self.get_globals().source_map = source_map;
+        self
+    }
+
+    /// Sets the compiler options.
+    pub fn opts(mut self, opts: Opts) -> Self {
+        self.opts = Some(opts);
+        self
+    }
+
     /// Sets the diagnostic context to a test emitter.
     #[inline]
     pub fn with_test_emitter(mut self) -> Self {
@@ -70,7 +119,11 @@ impl SessionBuilder {
 
     /// Gets the source map from the diagnostics context.
     fn get_source_map(&mut self) -> Arc<SourceMap> {
-        self.source_map.get_or_insert_default().clone()
+        self.get_globals().source_map.clone()
+    }
+
+    fn get_globals(&mut self) -> &mut SessionGlobals {
+        self.globals.get_or_insert_default()
     }
 
     /// Returns a mutable reference to the options.
@@ -91,38 +144,52 @@ impl SessionBuilder {
     /// - the source map in the diagnostics context does not match the one set in the builder
     #[track_caller]
     pub fn build(mut self) -> Session {
-        // Set the source map from the diagnostics context if it's not set.
-        let dcx = self.dcx.as_mut().unwrap_or_else(|| panic!("diagnostics context not set"));
-        if self.source_map.is_none() {
-            self.source_map = dcx.source_map_mut().cloned();
-        }
-
-        let mut sess = self.try_build().unwrap();
-        if let Some(sm) = sess.dcx.source_map_mut() {
-            assert!(
-                Arc::ptr_eq(&sess.source_map, sm),
-                "session source map does not match the one in the diagnostics context"
-            );
-        }
+        let opts = self.opts.take();
+        let mut dcx = self.dcx.take().unwrap_or_else(|| {
+            opts.as_ref()
+                .map(DiagCtxt::from_opts)
+                .unwrap_or_else(|| panic!("either diagnostics context or options must be set"))
+        });
+        let sess = Session {
+            globals: Arc::new(match self.globals.take() {
+                Some(globals) => {
+                    // Check that the source map matches the one in the diagnostics context.
+                    if let Some(sm) = dcx.source_map_mut() {
+                        assert!(
+                            Arc::ptr_eq(&globals.source_map, sm),
+                            "session source map does not match the one in the diagnostics context"
+                        );
+                    }
+                    globals
+                }
+                None => {
+                    // Set the source map from the diagnostics context.
+                    let sm = dcx.source_map_mut().cloned().unwrap_or_default();
+                    SessionGlobals::new(sm)
+                }
+            }),
+            dcx,
+            opts: opts.unwrap_or_default(),
+            thread_pool: OnceLock::new(),
+        };
+        sess.reconfigure();
+        debug!(version = %solar_config::version::SEMVER_VERSION, "created new session");
         sess
     }
 }
 
 impl Session {
-    /// Creates a new session with the given diagnostics context and source map.
-    pub fn new(dcx: DiagCtxt, source_map: Arc<SourceMap>) -> Self {
-        Self::builder().dcx(dcx).source_map(source_map).build()
-    }
-
-    /// Creates a new session with the given diagnostics context and an empty source map.
-    pub fn empty(dcx: DiagCtxt) -> Self {
-        Self::builder().dcx(dcx).build()
-    }
-
     /// Creates a new session builder.
     #[inline]
     pub fn builder() -> SessionBuilder {
         SessionBuilder::default()
+    }
+
+    /// Creates a new session from the given options.
+    ///
+    /// See [`builder`](Self::builder) for a more flexible way to create a session.
+    pub fn new(opts: Opts) -> Self {
+        Self::builder().opts(opts).build()
     }
 
     /// Infers the language from the input files.
@@ -139,6 +206,26 @@ impl Session {
         let mut result = Ok(());
         result = result.and(self.check_unique("emit", &self.opts.emit));
         result
+    }
+
+    /// Reconfigures inner state to match any new options.
+    ///
+    /// Call this after updating options.
+    pub fn reconfigure(&self) {
+        'bp: {
+            let new_base_path = if self.opts.unstable.ui_testing {
+                // `ui_test` relies on absolute paths.
+                None
+            } else if let Some(base_path) =
+                self.opts.base_path.clone().or_else(|| std::env::current_dir().ok())
+                && let Ok(base_path) = self.source_map().file_loader().canonicalize_path(&base_path)
+            {
+                Some(base_path)
+            } else {
+                break 'bp;
+            };
+            self.source_map().set_base_path(new_base_path);
+        }
     }
 
     fn check_unique<T: Eq + std::hash::Hash + std::fmt::Display>(
@@ -163,6 +250,30 @@ impl Session {
         &self.opts.unstable
     }
 
+    /// Returns the emitted diagnostics as a result. Can be empty.
+    ///
+    /// Returns `None` if the underlying emitter is not a human buffer emitter created with
+    /// [`with_buffer_emitter`](SessionBuilder::with_buffer_emitter).
+    ///
+    /// Results `Ok` if there are no errors, `Err` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// Print diagnostics to `stdout` if there are no errors, otherwise propagate with `?`:
+    ///
+    /// ```no_run
+    /// # fn f(dcx: solar_interface::diagnostics::DiagCtxt) -> Result<(), Box<dyn std::error::Error>> {
+    /// println!("{}", dcx.emitted_diagnostics_result().unwrap()?);
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn emitted_diagnostics_result(
+        &self,
+    ) -> Option<Result<EmittedDiagnostics, EmittedDiagnostics>> {
+        self.dcx.emitted_diagnostics_result()
+    }
+
     /// Returns the emitted diagnostics. Can be empty.
     ///
     /// Returns `None` if the underlying emitter is not a human buffer emitter created with
@@ -184,13 +295,13 @@ impl Session {
     /// Returns a reference to the source map.
     #[inline]
     pub fn source_map(&self) -> &SourceMap {
-        &self.source_map
+        &self.globals.source_map
     }
 
     /// Clones the source map.
     #[inline]
     pub fn clone_source_map(&self) -> Arc<SourceMap> {
-        self.source_map.clone()
+        self.globals.source_map.clone()
     }
 
     /// Returns `true` if compilation should stop after the given stage.
@@ -225,8 +336,9 @@ impl Session {
 
     /// Spawns the given closure on the thread pool or executes it immediately if parallelism is not
     /// enabled.
-    // NOTE: This only exists because on a `use_current_thread` thread pool `rayon::spawn` will
-    // never execute.
+    ///
+    /// NOTE: on a `use_current_thread` thread pool `rayon::spawn` will never execute without
+    /// yielding to rayon, so prefer using this method over `rayon::spawn`.
     #[inline]
     pub fn spawn(&self, f: impl FnOnce() + Send + 'static) {
         if self.is_sequential() {
@@ -238,6 +350,9 @@ impl Session {
 
     /// Takes two closures and potentially runs them in parallel. It returns a pair of the results
     /// from those closures.
+    ///
+    /// NOTE: on a `use_current_thread` thread pool `rayon::join` will never execute without
+    /// yielding to rayon, so prefer using this method over `rayon::join`.
     #[inline]
     pub fn join<A, B, RA, RB>(&self, oper_a: A, oper_b: B) -> (RA, RB)
     where
@@ -246,11 +361,7 @@ impl Session {
         RA: Send,
         RB: Send,
     {
-        if self.is_sequential() {
-            (oper_a(), oper_b())
-        } else {
-            rayon::join(oper_a, oper_b)
-        }
+        if self.is_sequential() { (oper_a(), oper_b()) } else { rayon::join(oper_a, oper_b) }
     }
 
     /// Executes the given closure in a fork-join scope.
@@ -265,87 +376,197 @@ impl Session {
         solar_data_structures::sync::scope(self.is_parallel(), op)
     }
 
-    /// Sets up the session globals if they doesn't exist already and then executes the given
-    /// closure.
+    /// Sets up the session globals and executes the given closure in the thread pool.
+    ///
+    /// The thread pool and globals are stored in this [`Session`] itself, meaning multiple
+    /// consecutive calls to [`enter`](Self::enter) will share the same globals and resources.
+    #[track_caller]
+    pub fn enter<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
+        if in_rayon() {
+            // Avoid panicking if we were to build a `current_thread` thread pool.
+            if self.is_sequential() {
+                reentrant_log();
+                return self.enter_sequential(f);
+            }
+            // Avoid creating a new thread pool if it's already set up with the same globals.
+            if self.is_entered() {
+                // No need to set again.
+                return f();
+            }
+        }
+
+        self.enter_sequential(|| self.thread_pool().install(f))
+    }
+
+    /// Sets up the session globals and executes the given closure in the current thread.
     ///
     /// Note that this does not set up the rayon thread pool. This is only useful when parsing
-    /// sequentially, like manually using `Parser`.
+    /// sequentially, like manually using `Parser`. Otherwise, it might cause panics later on if a
+    /// thread pool is expected to be set up correctly.
     ///
-    /// This also calls [`SessionGlobals::with_source_map`].
+    /// See [`enter`](Self::enter) for more details.
     #[inline]
-    pub fn enter<R>(&self, f: impl FnOnce() -> R) -> R {
-        SessionGlobals::with_or_default(|_| {
-            SessionGlobals::with_source_map(self.clone_source_map(), f)
+    #[track_caller]
+    pub fn enter_sequential<R>(&self, f: impl FnOnce() -> R) -> R {
+        self.globals.set(f)
+    }
+
+    /// Interns a string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern(&self, s: &str) -> Symbol {
+        self.globals.symbol_interner.intern(s)
+    }
+
+    /// Resolves a symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_symbol(&self, s: Symbol) -> &str {
+        self.globals.symbol_interner.get(s)
+    }
+
+    /// Interns a byte string in this session's symbol interner.
+    ///
+    /// The symbol may not be usable on its own if the session has not been [entered](Self::enter).
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn intern_byte_str(&self, s: &[u8]) -> ByteSymbol {
+        self.globals.symbol_interner.intern_byte_str(s)
+    }
+
+    /// Resolves a byte symbol to its string representation.
+    ///
+    /// The given symbol must have been interned in this session.
+    #[inline]
+    #[cfg_attr(debug_assertions, track_caller)]
+    pub fn resolve_byte_str(&self, s: ByteSymbol) -> &[u8] {
+        self.globals.symbol_interner.get_byte_str(s)
+    }
+
+    /// Returns `true` if this session has been entered.
+    pub fn is_entered(&self) -> bool {
+        SessionGlobals::try_with(|g| g.is_some_and(|g| g.maybe_eq(&self.globals)))
+    }
+
+    fn thread_pool(&self) -> &rayon::ThreadPool {
+        self.thread_pool.get_or_init(|| {
+            trace!(threads = self.threads(), "building rayon thread pool");
+            self.thread_pool_builder()
+                .spawn_handler(|thread| {
+                    let mut builder = std::thread::Builder::new();
+                    if let Some(name) = thread.name() {
+                        builder = builder.name(name.to_string());
+                    }
+                    if let Some(size) = thread.stack_size() {
+                        builder = builder.stack_size(size);
+                    }
+                    let globals = self.globals.clone();
+                    builder.spawn(move || globals.set(|| thread.run()))?;
+                    Ok(())
+                })
+                .build()
+                .unwrap_or_else(|e| self.handle_thread_pool_build_error(e))
         })
     }
 
-    /// Sets up the thread pool and session globals if they doesn't exist already and then executes
-    /// the given closure.
-    ///
-    /// This also calls [`SessionGlobals::with_source_map`].
-    #[inline]
-    pub fn enter_parallel<R: Send>(&self, f: impl FnOnce() -> R + Send) -> R {
-        SessionGlobals::with_or_default(|session_globals| {
-            SessionGlobals::with_source_map(self.clone_source_map(), || {
-                run_in_thread_pool_with_globals(self, session_globals, f)
-            })
-        })
+    fn thread_pool_builder(&self) -> rayon::ThreadPoolBuilder {
+        let threads = self.threads();
+        debug_assert!(threads > 0, "number of threads must already be resolved");
+        let mut builder = rayon::ThreadPoolBuilder::new()
+            .thread_name(|i| format!("solar-{i}"))
+            .num_threads(threads);
+        // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
+        // install and run in the default global thread pool.
+        if threads == 1 {
+            builder = builder.use_current_thread();
+        }
+        builder
+    }
+
+    #[cold]
+    fn handle_thread_pool_build_error(&self, e: rayon::ThreadPoolBuildError) -> ! {
+        let mut err = self.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
+        if self.is_parallel() {
+            if SINGLE_THREADED_TARGET {
+                err = err.note("the current target might not support multi-threaded execution");
+            }
+            err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
+        }
+        err.emit()
     }
 }
 
-/// Runs the given closure in a thread pool with the given number of threads.
-fn run_in_thread_pool_with_globals<R: Send>(
-    sess: &Session,
-    session_globals: &SessionGlobals,
-    f: impl FnOnce() -> R + Send,
-) -> R {
-    // Avoid panicking below if this is a recursive call.
-    if rayon::current_thread_index().is_some() {
-        debug!(
-            "running in the current thread's rayon thread pool; \
-             this could cause panics later on if it was created without setting the session globals!"
-        );
-        return f();
-    }
+fn reentrant_log() {
+    debug!(
+        "running in the current thread's rayon thread pool; \
+         this could cause panics later on if it was created without setting the session globals!"
+    );
+}
 
-    let threads = sess.threads();
-    debug_assert!(threads > 0, "number of threads must already be resolved");
-    let mut builder =
-        rayon::ThreadPoolBuilder::new().thread_name(|i| format!("solar-{i}")).num_threads(threads);
-    // We still want to use a rayon thread pool with 1 thread so that `ParallelIterator`s don't
-    // install and run in the default global thread pool.
-    if threads == 1 {
-        builder = builder.use_current_thread();
-    }
-    match builder.build_scoped(
-        // Initialize each new worker thread when created.
-        // Note that this is not called on the current thread, so `set` can't panic.
-        move |thread| session_globals.set(|| thread.run()),
-        // Run `f` on the first thread in the thread pool.
-        move |pool| pool.install(f),
-    ) {
-        Ok(r) => r,
-        Err(e) => {
-            let mut err = sess.dcx.fatal(format!("failed to build the rayon thread pool: {e}"));
-            if threads > 1 {
-                if SINGLE_THREADED_TARGET {
-                    err = err.note("the current target might not support multi-threaded execution");
-                }
-                err = err.help("try running with `--threads 1` / `-j1` to disable parallelism");
-            }
-            err.emit();
-        }
-    }
+#[inline]
+fn in_rayon() -> bool {
+    rayon::current_thread_index().is_some()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    /// Session to test `enter`.
+    fn enter_tests_session() -> Session {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.source_map().new_source_file(PathBuf::from("test"), "abcd").unwrap();
+        sess
+    }
+
+    #[track_caller]
+    fn use_globals_parallel(sess: &Session) {
+        use rayon::prelude::*;
+
+        use_globals();
+        sess.spawn(|| use_globals());
+        sess.join(|| use_globals(), || use_globals());
+        [1, 2, 3].par_iter().for_each(|_| use_globals());
+        use_globals();
+    }
+
+    #[track_caller]
+    fn use_globals() {
+        use_globals_no_sm();
+
+        let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
+        assert_eq!(format!("{span:?}"), "test:1:1: 1:2");
+        assert_eq!(format!("{span:#?}"), "test:1:1: 1:2");
+    }
+
+    #[track_caller]
+    fn use_globals_no_sm() {
+        SessionGlobals::with(|_globals| {});
+
+        let s = "hello";
+        let sym = crate::Symbol::intern(s);
+        assert_eq!(sym.as_str(), s);
+    }
+
+    #[track_caller]
+    fn cant_use_globals() {
+        std::panic::catch_unwind(|| use_globals()).unwrap_err();
+    }
 
     #[test]
-    #[should_panic = "diagnostics context not set"]
-    fn no_dcx() {
-        Session::builder().build();
+    fn builder() {
+        let _ = Session::builder().with_stderr_emitter().build();
+    }
+
+    #[test]
+    fn not_builder() {
+        let _ = Session::new(Opts::default());
+        let _ = Session::default();
     }
 
     #[test]
@@ -358,23 +579,16 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "session source map does not match the one in the diagnostics context"]
-    fn sm_mismatch_non_builder() {
-        let sm1 = Arc::<SourceMap>::default();
-        let sm2 = Arc::<SourceMap>::default();
-        assert!(!Arc::ptr_eq(&sm1, &sm2));
-        Session::new(DiagCtxt::with_stderr_emitter(Some(sm2)), sm1);
+    #[should_panic = "either diagnostics context or options must be set"]
+    fn no_dcx() {
+        Session::builder().build();
     }
 
     #[test]
-    fn builder() {
-        let _ = Session::builder().with_stderr_emitter().build();
-    }
-
-    #[test]
-    fn empty() {
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(None));
-        let _ = Session::empty(DiagCtxt::with_stderr_emitter(Some(Default::default())));
+    fn dcx() {
+        let _ = Session::builder().dcx(DiagCtxt::with_stderr_emitter(None)).build();
+        let _ =
+            Session::builder().dcx(DiagCtxt::with_stderr_emitter(Some(Default::default()))).build();
     }
 
     #[test]
@@ -392,48 +606,31 @@ mod tests {
 
     #[test]
     fn enter() {
-        #[track_caller]
-        fn use_globals_no_sm() {
-            SessionGlobals::with(|_globals| {});
-
-            let s = "hello";
-            let sym = crate::Symbol::intern(s);
-            assert_eq!(sym.as_str(), s);
-        }
-
-        #[track_caller]
-        fn use_globals() {
+        crate::enter(|| {
             use_globals_no_sm();
+            cant_use_globals();
+        });
 
-            let span = crate::Span::new(crate::BytePos(0), crate::BytePos(1));
-            let s = format!("{span:?}");
-            assert!(!s.contains("Span("), "{s}");
-            let s = format!("{span:#?}");
-            assert!(!s.contains("Span("), "{s}");
-
-            assert!(rayon::current_thread_index().is_some());
-        }
-
-        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
-        sess.enter_parallel(use_globals);
+        let sess = enter_tests_session();
+        sess.enter(|| use_globals());
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             use_globals();
-            sess.enter_parallel(use_globals);
+            sess.enter(|| use_globals());
             use_globals();
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
 
-        SessionGlobals::new().set(|| {
-            use_globals_no_sm();
-            sess.enter_parallel(|| {
-                use_globals();
-                sess.enter_parallel(use_globals);
-                use_globals();
+        sess.enter_sequential(|| {
+            use_globals();
+            sess.enter(|| {
+                use_globals_parallel(&sess);
+                sess.enter(|| use_globals_parallel(&sess));
+                use_globals_parallel(&sess);
             });
-            use_globals_no_sm();
+            use_globals();
         });
         assert!(sess.dcx.emitted_diagnostics().unwrap().is_empty());
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
@@ -443,17 +640,69 @@ mod tests {
     fn enter_diags() {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         assert!(sess.dcx.emitted_errors().unwrap().is_ok());
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             sess.dcx.err("test1").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
-        sess.enter_parallel(|| {
+        sess.enter(|| {
             sess.dcx.err("test2").emit();
             assert!(sess.dcx.emitted_errors().unwrap().is_err());
         });
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test1"));
         assert!(sess.dcx.emitted_errors().unwrap().unwrap_err().to_string().contains("test2"));
+    }
+
+    #[test]
+    fn enter_thread_pool() {
+        let sess = enter_tests_session();
+
+        assert!(!in_rayon());
+        sess.enter(|| {
+            assert!(in_rayon());
+            sess.enter(|| {
+                assert!(in_rayon());
+            });
+            assert!(in_rayon());
+        });
+        sess.enter_sequential(|| {
+            assert!(!in_rayon());
+            sess.enter(|| {
+                assert!(in_rayon());
+            });
+            assert!(!in_rayon());
+            sess.enter_sequential(|| {
+                assert!(!in_rayon());
+            });
+            assert!(!in_rayon());
+        });
+        assert!(!in_rayon());
+
+        let pool = rayon::ThreadPoolBuilder::new().build().unwrap();
+        pool.install(|| {
+            assert!(in_rayon());
+            cant_use_globals();
+            sess.enter(|| use_globals_parallel(&sess));
+            assert!(in_rayon());
+            cant_use_globals();
+        });
+        assert!(!in_rayon());
+    }
+
+    #[test]
+    fn enter_different_nested_sessions() {
+        let sess1 = enter_tests_session();
+        let sess2 = enter_tests_session();
+        assert!(!sess1.globals.maybe_eq(&sess2.globals));
+        sess1.enter(|| {
+            SessionGlobals::with(|g| assert!(g.maybe_eq(&sess1.globals)));
+            use_globals();
+            sess2.enter(|| {
+                SessionGlobals::with(|g| assert!(g.maybe_eq(&sess2.globals)));
+                use_globals();
+            });
+            use_globals();
+        });
     }
 
     #[test]

@@ -4,7 +4,7 @@
 
 #![allow(unreachable_pub)]
 
-use eyre::{eyre, Result};
+use eyre::{Result, eyre};
 use std::path::Path;
 use ui_test::{color_eyre::eyre, spanned::Spanned};
 
@@ -46,11 +46,8 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         let cfg = MyConfig::<'static> { mode, tmp_dir };
         let config = config(cmd, &args, mode);
 
-        let text_emitter = match args.format {
-            ui_test::Format::Terse => ui_test::status_emitter::Text::quiet(),
-            ui_test::Format::Pretty => ui_test::status_emitter::Text::verbose(),
-        };
-        let gha_emitter = ui_test::status_emitter::Gha::<true> { name: mode.to_string() };
+        let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
+        let gha_emitter = ui_test::status_emitter::Gha { name: mode.to_string(), group: true };
         let status_emitter = (text_emitter, gha_emitter);
 
         ui_test::run_tests_generic(
@@ -90,7 +87,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 let mut args =
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
                 if mode.is_solc() {
-                    args.push("--stop-after=parsed-and-imported");
+                    args.push("--stop-after=parsing");
                 }
                 args.into_iter().map(Into::into).collect()
             },
@@ -202,8 +199,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
-    config.comment_defaults.base().require_annotations = Spanned::dummy(has_annotations).into();
-    let code = if has_annotations && src.contains("ERROR:") { 1 } else { 0 };
+    // TODO: https://github.com/oli-obk/ui_test/issues/341
+    let is_check_fail = src.contains("check-fail");
+    config.comment_defaults.base().require_annotations =
+        Spanned::dummy(is_check_fail || has_annotations).into();
+    let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
 }
 

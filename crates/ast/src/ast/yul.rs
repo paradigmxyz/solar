@@ -1,12 +1,32 @@
 //! Yul AST.
 
-use super::{AstPath, Box, DocComments, Lit, StrLit};
+use crate::{AstPath, Box, BoxSlice, DocComments, Lit, StrLit};
 use solar_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulBlock>
-pub type Block<'ast> = Box<'ast, [Stmt<'ast>]>;
+#[derive(Debug)]
+pub struct Block<'ast> {
+    /// The span of the block, including the `{` and `}`.
+    pub span: Span,
+    /// The statements in the block.
+    pub stmts: BoxSlice<'ast, Stmt<'ast>>,
+}
+
+impl<'ast> std::ops::Deref for Block<'ast> {
+    type Target = [Stmt<'ast>];
+
+    fn deref(&self) -> &Self::Target {
+        self.stmts
+    }
+}
+
+impl<'ast> std::ops::DerefMut for Block<'ast> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.stmts
+    }
+}
 
 /// A Yul object.
 ///
@@ -22,9 +42,9 @@ pub struct Object<'ast> {
     /// The `code` block.
     pub code: CodeBlock<'ast>,
     /// Sub-objects, if any.
-    pub children: Box<'ast, [Object<'ast>]>,
+    pub children: BoxSlice<'ast, Object<'ast>>,
     /// `data` segments, if any.
-    pub data: Box<'ast, [Data<'ast>]>,
+    pub data: BoxSlice<'ast, Data<'ast>>,
 }
 
 /// A Yul `code` block. See [`Object`].
@@ -47,7 +67,7 @@ pub struct Data<'ast> {
     /// The name of the data segment.
     pub name: StrLit,
     /// The data. Can only be a `Str` or `HexStr` literal.
-    pub data: &'ast mut Lit,
+    pub data: Lit<'ast>,
 }
 
 /// A Yul statement.
@@ -81,10 +101,10 @@ pub enum StmtKind<'ast> {
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Box<'ast, [AstPath<'ast>]>, ExprCall<'ast>),
+    AssignMulti(BoxSlice<'ast, AstPath<'ast>>, Expr<'ast>),
 
     /// An expression statement. This can only be a function call.
-    Expr(ExprCall<'ast>),
+    Expr(Expr<'ast>),
 
     /// An if statement: `if lt(a, b) { ... }`.
     ///
@@ -96,7 +116,7 @@ pub enum StmtKind<'ast> {
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulForStatement>
     ///
     /// Breakdown of parts: <https://docs.soliditylang.org/en/latest/yul.html#loops>
-    For { init: Block<'ast>, cond: Expr<'ast>, step: Block<'ast>, body: Block<'ast> },
+    For(Box<'ast, StmtFor<'ast>>),
 
     /// A switch statement: `switch expr case 0 { ... } default { ... }`.
     ///
@@ -118,7 +138,20 @@ pub enum StmtKind<'ast> {
     /// A variable declaration statement: `let x := 0`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
-    VarDecl(Box<'ast, [Ident]>, Option<Expr<'ast>>),
+    VarDecl(BoxSlice<'ast, Ident>, Option<Expr<'ast>>),
+}
+
+/// A Yul for statement: `for {let i := 0} lt(i,10) {i := add(i,1)} { ... }`.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulForStatement>
+///
+/// Breakdown of parts: <https://docs.soliditylang.org/en/latest/yul.html#loops>
+#[derive(Debug)]
+pub struct StmtFor<'ast> {
+    pub init: Block<'ast>,
+    pub cond: Expr<'ast>,
+    pub step: Block<'ast>,
+    pub body: Block<'ast>,
 }
 
 /// A Yul switch statement can consist of only a default-case or one
@@ -137,8 +170,15 @@ pub enum StmtKind<'ast> {
 #[derive(Debug)]
 pub struct StmtSwitch<'ast> {
     pub selector: Expr<'ast>,
-    pub branches: Box<'ast, [StmtSwitchCase<'ast>]>,
-    pub default_case: Option<Block<'ast>>,
+    /// The cases of the switch statement. Includes the default case in the last position, if any.
+    pub cases: BoxSlice<'ast, StmtSwitchCase<'ast>>,
+}
+
+impl<'ast> StmtSwitch<'ast> {
+    /// Returns the default case of the switch statement, if any.
+    pub fn default_case(&self) -> Option<&StmtSwitchCase<'ast>> {
+        self.cases.last().filter(|case| case.constant.is_none())
+    }
 }
 
 /// Represents a non-default case of a Yul switch statement.
@@ -146,7 +186,9 @@ pub struct StmtSwitch<'ast> {
 /// See [`StmtSwitch`] for more information.
 #[derive(Debug)]
 pub struct StmtSwitchCase<'ast> {
-    pub constant: &'ast mut Lit,
+    pub span: Span,
+    /// The constant of the case, if any. `None` for the default case.
+    pub constant: Option<Lit<'ast>>,
     pub body: Block<'ast>,
 }
 
@@ -156,8 +198,8 @@ pub struct StmtSwitchCase<'ast> {
 #[derive(Debug)]
 pub struct Function<'ast> {
     pub name: Ident,
-    pub parameters: Box<'ast, [Ident]>,
-    pub returns: Box<'ast, [Ident]>,
+    pub parameters: BoxSlice<'ast, Ident>,
+    pub returns: BoxSlice<'ast, Ident>,
     pub body: Block<'ast>,
 }
 
@@ -178,7 +220,7 @@ pub enum ExprKind<'ast> {
     /// A function call: `foo(a, b)`.
     Call(ExprCall<'ast>),
     /// A literal.
-    Lit(&'ast mut Lit),
+    Lit(Box<'ast, Lit<'ast>>),
 }
 
 /// A Yul function call expression: `foo(a, b)`.
@@ -187,5 +229,5 @@ pub enum ExprKind<'ast> {
 #[derive(Debug)]
 pub struct ExprCall<'ast> {
     pub name: Ident,
-    pub arguments: Box<'ast, [Expr<'ast>]>,
+    pub arguments: BoxSlice<'ast, Expr<'ast>>,
 }
