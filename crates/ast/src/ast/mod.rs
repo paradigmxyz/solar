@@ -174,7 +174,13 @@ pub enum NatSpecKind {
     Return { tag: Ident },
     Inheritdoc { tag: Ident },
     Custom { tag: Ident },
+
+    // Special tags reserved for internal purposes.
+    Internal { tag: Ident },
 }
+
+/// Internal tags.
+pub const INTERNAL_TAGS: [&str; 4] = ["solidity", "src", "use-src", "ast-id"];
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Clone, Copy, Debug)]

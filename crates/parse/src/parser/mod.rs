@@ -913,16 +913,15 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             for line in comment.symbol.as_str().lines() {
                 let mut trimmed = line.trim_start();
                 if trimmed.starts_with('*') {
-                    trimmed = &trimmed[1..].trim_start();
+                    trimmed = trimmed[1..].trim_start();
                 }
 
-                if trimmed.starts_with('@') {
+                if let Some(tag_line) = trimmed.strip_prefix('@') {
                     has_tags = true;
                     flush_item(&mut items, &mut kind, &mut content, &mut span);
 
                     span = Some(comment.span);
 
-                    let tag_line = &trimmed[1..];
                     let (tag, rest) =
                         tag_line.split_once(char::is_whitespace).unwrap_or((tag_line, ""));
 
@@ -945,16 +944,23 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                             };
                             (kind, content)
                         }
-                        custom_tag => match custom_tag.strip_prefix("custom:") {
-                            Some(n) => (ast::NatSpecKind::Custom { tag: make_ident(n) }, rest),
-                            None => {
+                        others => {
+                            if let Some((_, tag)) = others.split_once("custom:") {
+                                (ast::NatSpecKind::Custom { tag: make_ident(tag) }, rest)
+                            } else if ast::INTERNAL_TAGS[..].contains(&others) {
+                                (ast::NatSpecKind::Internal { tag: make_ident(others) }, rest)
+                            } else if self.in_yul {
+                                // In Yul, silently ignore unknown tags
+                                continue;
+                            } else {
+                                // In Solidity, emit error for invalid tags
                                 self.dcx()
-                                    .err(format!("invalid natspec tag '@{custom_tag}', custom tags must use format '@custom:name'"))
+                                    .err(format!("invalid natspec tag '@{others}', custom tags must use format '@custom:name'"))
                                     .span(comment.span)
                                     .emit();
                                 (ast::NatSpecKind::Custom { tag: make_ident("") }, rest)
                             }
-                        },
+                        }
                     };
 
                     kind = Some(k);
