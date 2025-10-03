@@ -1,26 +1,26 @@
 ast-stats AST STATS
 ast-stats Name                Accumulated Size         Count     Item Size
 ast-stats ----------------------------------------------------------------
-ast-stats SourceUnit                16 ( 0.7%)             1            16
-ast-stats Block                     32 ( 1.5%)             2            16
-ast-stats PragmaDirective           32 ( 1.5%)             1            32
-ast-stats Ident                     36 ( 1.6%)             3            12
-ast-stats ItemContract              48 ( 2.2%)             1            48
-ast-stats VariableDefinition        72 ( 3.3%)             1            72
-ast-stats Span                     112 ( 5.1%)            14             8
-ast-stats Stmt                     176 ( 8.0%)             2            88
-ast-stats - Expr                   176 ( 8.0%)             2
-ast-stats DocComments              224 (10.2%)             7            32
-ast-stats Expr                     240 (10.9%)             5            48
-ast-stats - Assign                  48 ( 2.2%)             1
-ast-stats - Unary                   48 ( 2.2%)             1
-ast-stats - Ident                  144 ( 6.6%)             3
-ast-stats ItemFunction             288 (13.1%)             2           144
-ast-stats Item                     920 (41.9%)             5           184
-ast-stats - Contract               184 ( 8.4%)             1
-ast-stats - Pragma                 184 ( 8.4%)             1
-ast-stats - Variable               184 ( 8.4%)             1
-ast-stats - Function               368 (16.8%)             2
+ast-stats SourceUnit                16 ( 0.9%)             1            16
+ast-stats Block                     32 ( 1.7%)             2            16
+ast-stats PragmaDirective           32 ( 1.7%)             1            32
+ast-stats Ident                     36 ( 1.9%)             3            12
+ast-stats ItemContract              48 ( 2.6%)             1            48
+ast-stats DocComments               56 ( 3.0%)             7             8
+ast-stats VariableDefinition        72 ( 3.9%)             1            72
+ast-stats Span                     112 ( 6.0%)            14             8
+ast-stats Stmt                     128 ( 6.9%)             2            64
+ast-stats - Expr                   128 ( 6.9%)             2
+ast-stats Expr                     240 (12.9%)             5            48
+ast-stats - Assign                  48 ( 2.6%)             1
+ast-stats - Unary                   48 ( 2.6%)             1
+ast-stats - Ident                  144 ( 7.7%)             3
+ast-stats ItemFunction             288 (15.5%)             2           144
+ast-stats Item                     800 (43.0%)             5           160
+ast-stats - Contract               160 ( 8.6%)             1
+ast-stats - Pragma                 160 ( 8.6%)             1
+ast-stats - Variable               160 ( 8.6%)             1
+ast-stats - Function               320 (17.2%)             2
 ast-stats ----------------------------------------------------------------
-ast-stats Total                  2_196
+ast-stats Total                  1_860
 ast-stats

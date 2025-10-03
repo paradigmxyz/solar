@@ -629,27 +629,17 @@ declare_visitors! {
         }
 
         fn visit_doc_comments(&mut self, doc_comments: &'ast #mut DocComments<'ast>) -> ControlFlow<Self::BreakValue> {
-            let DocComments { comments, natspec } = doc_comments;
-            for doc_comment in comments.iter #_mut() {
+            for doc_comment in doc_comments.iter #_mut() {
                 self.visit_doc_comment #_mut(doc_comment)?;
             }
-            if let Some(natspec) = natspec {
-                self.visit_natspec #_mut(natspec)?;
-            }
             ControlFlow::Continue(())
         }
 
-        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment) -> ControlFlow<Self::BreakValue> {
-            let DocComment { kind: _, span, symbol: _ } = doc_comment;
+        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment<'ast>) -> ControlFlow<Self::BreakValue> {
+            let DocComment { kind: _, span, symbol: _, natspec } = doc_comment;
             self.visit_span #_mut(span)?;
-            ControlFlow::Continue(())
-        }
-
-        fn visit_natspec(&mut self, natspec: &'ast #mut NatSpec<'ast>) -> ControlFlow<Self::BreakValue> {
-            let NatSpec {span, items} = natspec;
-            self.visit_span #_mut(span)?;
-            for item in items.iter #_mut() {
-            self.visit_natspec_item #_mut(item)?;
+            for item in natspec.iter #_mut() {
+                self.visit_natspec_item #_mut(item)?;
             }
             ControlFlow::Continue(())
         }

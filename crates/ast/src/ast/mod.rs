@@ -16,6 +16,9 @@ pub use item::*;
 mod lit;
 pub use lit::*;
 
+mod natspec;
+pub use natspec::*;
+
 mod path;
 pub use path::*;
 
@@ -85,41 +88,34 @@ impl std::ops::Deref for Arena {
 
 /// A list of doc-comments.
 #[derive(Default)]
-pub struct DocComments<'ast> {
-    /// The raw doc comments.
-    pub comments: BoxSlice<'ast, DocComment>,
-    /// The parsed Natspec, if it exists.
-    pub natspec: Option<NatSpec<'ast>>,
-}
+pub struct DocComments<'ast>(BoxSlice<'ast, DocComment<'ast>>);
 
 impl<'ast> std::ops::Deref for DocComments<'ast> {
-    type Target = BoxSlice<'ast, DocComment>;
+    type Target = BoxSlice<'ast, DocComment<'ast>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.comments
+        &self.0
     }
 }
 
 impl std::ops::DerefMut for DocComments<'_> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.comments
+        &mut self.0
     }
 }
 
-impl<'ast> From<BoxSlice<'ast, DocComment>> for DocComments<'ast> {
-    fn from(comments: BoxSlice<'ast, DocComment>) -> Self {
-        Self { comments, natspec: None }
+impl<'ast> From<BoxSlice<'ast, DocComment<'ast>>> for DocComments<'ast> {
+    fn from(comments: BoxSlice<'ast, DocComment<'ast>>) -> Self {
+        Self(comments)
     }
 }
 
 impl fmt::Debug for DocComments<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("DocComments")?;
-        self.comments.fmt(f)?;
-        f.write_str("\nNatSpec")?;
-        self.natspec.fmt(f)
+        self.0.fmt(f)
     }
 }
 
@@ -128,71 +124,6 @@ impl DocComments<'_> {
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
     }
-}
-
-/// A Natspec documentation block.
-#[derive(Debug, Default)]
-pub struct NatSpec<'ast> {
-    pub span: Span,
-    pub items: Box<'ast, [NatSpecItem]>,
-}
-
-impl<'ast> std::ops::Deref for NatSpec<'ast> {
-    type Target = Box<'ast, [NatSpecItem]>;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.items
-    }
-}
-
-impl std::ops::DerefMut for NatSpec<'_> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.items
-    }
-}
-
-/// A single item within a Natspec comment block.
-#[derive(Clone, Copy, Debug)]
-pub struct NatSpecItem {
-    /// The tag identifier of the item.
-    pub kind: NatSpecKind,
-    /// Span of the tag. '@' is not included.
-    pub span: Span,
-}
-
-/// The kind of a [`NatSpecItem`].
-///
-/// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
-#[derive(Clone, Copy, Debug)]
-pub enum NatSpecKind {
-    Title,
-    Author,
-    Notice,
-    Dev,
-    Param { tag: Ident },
-    Return { tag: Ident },
-    Inheritdoc { tag: Ident },
-    Custom { tag: Ident },
-
-    // Special tags reserved for internal purposes.
-    Internal { tag: Ident },
-}
-
-/// Internal tags.
-pub const INTERNAL_TAGS: [&str; 4] = ["solidity", "src", "use-src", "ast-id"];
-
-/// A single doc-comment: `/// foo`, `/** bar */`.
-#[derive(Clone, Copy, Debug)]
-pub struct DocComment {
-    /// The comment kind.
-    pub kind: CommentKind,
-    /// The comment's span including its "quotes" (`//`, `/**`).
-    pub span: Span,
-    /// The comment's contents excluding its "quotes" (`//`, `/**`)
-    /// similarly to symbols in string literal tokens.
-    pub symbol: Symbol,
 }
 
 /// A Solidity source file.
@@ -266,7 +197,7 @@ mod tests {
         }
 
         assert_size::<Span>(str!["8"]);
-        assert_size::<DocComments<'_>>(str!["32"]);
+        assert_size::<DocComments<'_>>(str!["8"]);
 
         assert_size::<SourceUnit<'_>>(str!["16"]);
 
@@ -282,7 +213,7 @@ mod tests {
         assert_size::<ItemError<'_>>(str!["32"]);
         assert_size::<ItemEvent<'_>>(str!["32"]);
         assert_size::<ItemKind<'_>>(str!["144"]);
-        assert_size::<Item<'_>>(str!["184"]);
+        assert_size::<Item<'_>>(str!["160"]);
 
         assert_size::<FunctionHeader<'_>>(str!["112"]);
         assert_size::<ParameterList<'_>>(str!["16"]);
@@ -295,7 +226,7 @@ mod tests {
         assert_size::<Expr<'_>>(str!["48"]);
 
         assert_size::<StmtKind<'_>>(str!["48"]);
-        assert_size::<Stmt<'_>>(str!["88"]);
+        assert_size::<Stmt<'_>>(str!["64"]);
         assert_size::<Block<'_>>(str!["16"]);
 
         assert_size::<yul::ExprCall<'_>>(str!["24"]);
@@ -303,7 +234,7 @@ mod tests {
         assert_size::<yul::Expr<'_>>(str!["40"]);
 
         assert_size::<yul::StmtKind<'_>>(str!["56"]);
-        assert_size::<yul::Stmt<'_>>(str!["96"]);
+        assert_size::<yul::Stmt<'_>>(str!["72"]);
         assert_size::<yul::Block<'_>>(str!["16"]);
         assert_size::<yul::StmtFor<'_>>(str!["88"]);
     }

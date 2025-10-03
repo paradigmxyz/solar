@@ -1,7 +1,7 @@
 use crate::{Lexer, PErr, PResult};
 use smallvec::SmallVec;
 use solar_ast::{
-    self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
+    self as ast, AstPath, Box, BoxSlice, DocComment, DocComments, RawDocComment,
     token::{Delimiter, Token, TokenKind},
 };
 use solar_data_structures::{BumpExt, fmt::or_list};
@@ -47,8 +47,8 @@ pub struct Parser<'sess, 'ast> {
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
-    /// The current doc-comments.
-    docs: Vec<DocComment>,
+    /// The current doc-comments (raw, unparsed).
+    docs: Vec<RawDocComment>,
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
@@ -870,24 +870,31 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        let comments = self.arena.alloc_thin_slice_copy((), &self.docs);
-        self.docs.clear();
-        let natspec = self.parse_natspec(comments);
-        DocComments { comments, natspec }
-    }
+        let mut parsed_comments = SmallVec::<[DocComment<'ast>; 4]>::new();
+        let (dcx, in_yul) = (self.dcx(), self.in_yul);
 
-    /// A naive parser implementation for `NatSpec` comments.
-    ///
-    /// Only validates that the grammar follows the NatSpec specification, but does not perform any
-    /// validation against the documented AST item.
-    #[cold]
-    fn parse_natspec(&mut self, comments: &[DocComment]) -> Option<ast::NatSpec<'ast>> {
-        if comments.is_empty() {
-            return None;
+        for doc in &self.docs {
+            let natspec_items = Self::parse_natspec_for_comment(doc, in_yul, dcx);
+            parsed_comments.push(DocComment {
+                kind: doc.kind,
+                span: doc.span,
+                symbol: doc.symbol,
+                natspec: self.alloc_smallvec(natspec_items),
+            });
         }
 
+        self.docs.clear();
+        self.alloc_smallvec(parsed_comments).into()
+    }
+
+    /// Parses NatSpec items from a single doc comment.
+    #[cold]
+    fn parse_natspec_for_comment(
+        comment: &RawDocComment,
+        in_yul: bool,
+        dcx: &DiagCtxt,
+    ) -> SmallVec<[ast::NatSpecItem; 8]> {
         let mut items = SmallVec::<[ast::NatSpecItem; 8]>::new();
-        let mut has_tags = false;
 
         let mut span: Option<Span> = None;
         let mut kind: Option<ast::NatSpecKind> = None;
@@ -902,78 +909,66 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
         }
 
-        for comment in comments {
-            // Line comments: '///', Block comments: '/**'.
-            const PREFIX_BYTES: u32 = 3;
-            let mut acc_bytes = 0u32;
+        // Line comments: '///', Block comments: '/**'.
+        const PREFIX_BYTES: u32 = 3;
+        let mut acc_bytes = 0u32;
 
-            for line in comment.symbol.as_str().lines() {
-                if let Some(tag_offset) = line.find('@') {
-                    has_tags = true;
-                    let tag_line = &line[tag_offset + 1..];
-                    flush_item(&mut items, &mut kind, &mut span);
+        for line in comment.symbol.as_str().lines() {
+            if let Some(tag_offset) = line.find('@') {
+                let tag_line = &line[tag_offset + 1..];
+                flush_item(&mut items, &mut kind, &mut span);
 
-                    let (tag, rest) =
-                        tag_line.split_once(char::is_whitespace).unwrap_or((tag_line, ""));
+                let (tag, rest) =
+                    tag_line.split_once(char::is_whitespace).unwrap_or((tag_line, ""));
 
-                    // Calculate span: from '@' to end of tag name.
-                    let tag_hi = comment.span.lo().0 + PREFIX_BYTES + acc_bytes + tag_offset as u32;
-                    let tag_lo = tag_hi + tag.len() as u32 + 1; // +1 for '@'
-                    span = Some(Span::new(BytePos(tag_hi), BytePos(tag_lo)));
+                // Calculate span: from '@' to end of tag name.
+                let tag_hi = comment.span.lo().0 + PREFIX_BYTES + acc_bytes + tag_offset as u32;
+                let tag_lo = tag_hi + tag.len() as u32 + 1; // +1 for '@'
+                span = Some(Span::new(BytePos(tag_hi), BytePos(tag_lo)));
 
-                    let tag_symbol = Symbol::intern(tag);
-                    kind = Some(match tag_symbol {
-                        sym::title => ast::NatSpecKind::Title,
-                        sym::author => ast::NatSpecKind::Author,
-                        sym::notice => ast::NatSpecKind::Notice,
-                        sym::dev => ast::NatSpecKind::Dev,
-                        sym::param | kw::Return | sym::inheritdoc => {
-                            let (name, _) =
-                                rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
-                            let ident = Ident::new(Symbol::intern(name), comment.span);
-                            match tag_symbol {
-                                sym::param => ast::NatSpecKind::Param { tag: ident },
-                                kw::Return => ast::NatSpecKind::Return { tag: ident },
-                                sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
-                                _ => unreachable!(),
-                            }
+                let tag_symbol = Symbol::intern(tag);
+                kind = Some(match tag_symbol {
+                    sym::title => ast::NatSpecKind::Title,
+                    sym::author => ast::NatSpecKind::Author,
+                    sym::notice => ast::NatSpecKind::Notice,
+                    sym::dev => ast::NatSpecKind::Dev,
+                    sym::param | kw::Return | sym::inheritdoc => {
+                        let (name, _) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+                        let ident = Ident::new(Symbol::intern(name), comment.span);
+                        match tag_symbol {
+                            sym::param => ast::NatSpecKind::Param { tag: ident },
+                            kw::Return => ast::NatSpecKind::Return { tag: ident },
+                            sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
+                            _ => unreachable!(),
                         }
-                        _ => {
-                            if let Some(custom_tag) = tag.strip_prefix("custom:") {
-                                let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
-                                ast::NatSpecKind::Custom { tag: ident }
-                            } else if ast::INTERNAL_TAGS[..].contains(&tag) {
-                                let ident = Ident::new(tag_symbol, comment.span);
-                                ast::NatSpecKind::Internal { tag: ident }
-                            } else {
-                                if !self.in_yul {
-                                    // Emit error for invalid solidity tags, but ignore in Yul.
-                                    self.dcx()
-                                    .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
-                                    .span(comment.span)
-                                    .emit();
-                                }
-                                acc_bytes += line.len() as u32 + 1; // +1 for newline
-                                continue;
+                    }
+                    _ => {
+                        if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                            let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
+                            ast::NatSpecKind::Custom { tag: ident }
+                        } else if ast::INTERNAL_TAGS[..].contains(&tag) {
+                            let ident = Ident::new(tag_symbol, comment.span);
+                            ast::NatSpecKind::Internal { tag: ident }
+                        } else {
+                            if !in_yul {
+                                // Emit error for invalid solidity tags, but ignore in Yul.
+                                dcx
+                                .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
+                                .span(comment.span)
+                                .emit();
                             }
+                            acc_bytes += line.len() as u32 + 1; // +1 for newline
+                            continue;
                         }
-                    });
-                }
-
-                acc_bytes += line.len() as u32 + 1; // +1 for newline
+                    }
+                });
             }
+
+            acc_bytes += line.len() as u32 + 1; // +1 for newline
         }
         flush_item(&mut items, &mut kind, &mut span);
 
-        if !has_tags {
-            return None;
-        }
-
-        // The natspec span should encompass all doc comments, from the start of the first
-        // comment  to the end of the last comment.
-        let natspec_span = Span::join_first_last(comments.iter().map(|c| c.span));
-
-        Some(ast::NatSpec { span: natspec_span, items: self.alloc_smallvec(items) })
+        items
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
@@ -1173,22 +1168,27 @@ mod tests {
             let mut parser = Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                 .expect("failed to create parser");
 
-            let natspec = parser.parse_doc_comments().natspec.expect("natspec should be parsed");
-            let items = &natspec.items[..];
+            let docs = parser.parse_doc_comments();
             let sm = sess.source_map();
 
-            assert_eq!(items.len(), 9);
-            check_natspec_item(sm, &items[0], "title", "@title", None);
-            check_natspec_item(sm, &items[1], "author", "@author", None);
-            check_natspec_item(sm, &items[2], "notice", "@notice", None);
-            check_natspec_item(sm, &items[3], "dev", "@dev", None);
-            check_natspec_item(sm, &items[4], "param", "@param", Some("x"));
-            check_natspec_item(sm, &items[5], "return", "@return", Some("result"));
-            check_natspec_item(sm, &items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
-            check_natspec_item(sm, &items[7], "custom", "@custom:security", Some("security"));
-            check_natspec_item(sm, &items[8], "internal", "@solidity", Some("solidity"));
+            let mut all_items = Vec::new();
+            for doc in docs.iter() {
+                all_items.extend_from_slice(&doc.natspec);
+            }
 
-            let snippet = sm.span_to_snippet(natspec.span).unwrap();
+            assert_eq!(all_items.len(), 9);
+            check_natspec_item(sm, &all_items[0], "title", "@title", None);
+            check_natspec_item(sm, &all_items[1], "author", "@author", None);
+            check_natspec_item(sm, &all_items[2], "notice", "@notice", None);
+            check_natspec_item(sm, &all_items[3], "dev", "@dev", None);
+            check_natspec_item(sm, &all_items[4], "param", "@param", Some("x"));
+            check_natspec_item(sm, &all_items[5], "return", "@return", Some("result"));
+            check_natspec_item(sm, &all_items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
+            check_natspec_item(sm, &all_items[7], "custom", "@custom:security", Some("security"));
+            check_natspec_item(sm, &all_items[8], "internal", "@solidity", Some("solidity"));
+
+            let doc_span = docs.span();
+            let snippet = sm.span_to_snippet(doc_span).unwrap();
             let expected = "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe";
             assert_eq!(snippet, expected);
         });
@@ -1220,22 +1220,27 @@ mod tests {
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
 
-            let natspec = parser.parse_doc_comments().natspec.expect("natspec should be parsed");
-            let items = &natspec.items[..];
+            let docs = parser.parse_doc_comments();
             let sm = sess.source_map();
 
-            assert_eq!(items.len(), 9);
-            check_natspec_item(sm, &items[0], "title", "@title", None);
-            check_natspec_item(sm, &items[1], "author", "@author", None);
-            check_natspec_item(sm, &items[2], "notice", "@notice", None);
-            check_natspec_item(sm, &items[3], "dev", "@dev", None);
-            check_natspec_item(sm, &items[4], "param", "@param", Some("x"));
-            check_natspec_item(sm, &items[5], "return", "@return", Some("result"));
-            check_natspec_item(sm, &items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
-            check_natspec_item(sm, &items[7], "custom", "@custom:security", Some("security"));
-            check_natspec_item(sm, &items[8], "internal", "@src", Some("src"));
+            let mut all_items = Vec::new();
+            for doc in docs.iter() {
+                all_items.extend_from_slice(&doc.natspec);
+            }
 
-            let snippet = sm.span_to_snippet(natspec.span).unwrap();
+            assert_eq!(all_items.len(), 9);
+            check_natspec_item(sm, &all_items[0], "title", "@title", None);
+            check_natspec_item(sm, &all_items[1], "author", "@author", None);
+            check_natspec_item(sm, &all_items[2], "notice", "@notice", None);
+            check_natspec_item(sm, &all_items[3], "dev", "@dev", None);
+            check_natspec_item(sm, &all_items[4], "param", "@param", Some("x"));
+            check_natspec_item(sm, &all_items[5], "return", "@return", Some("result"));
+            check_natspec_item(sm, &all_items[6], "inheritdoc", "@inheritdoc", Some("BaseContract"));
+            check_natspec_item(sm, &all_items[7], "custom", "@custom:security", Some("security"));
+            check_natspec_item(sm, &all_items[8], "internal", "@src", Some("src"));
+
+            let doc_span = docs.span();
+            let snippet = sm.span_to_snippet(doc_span).unwrap();
             let expected = "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */";
             assert_eq!(snippet, expected);
         });
