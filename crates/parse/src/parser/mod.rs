@@ -1174,7 +1174,7 @@ mod tests {
 
             let mut all_items = Vec::new();
             for doc in docs.iter() {
-                all_items.extend_from_slice(&doc.natspec);
+                all_items.extend_from_slice(doc.natspec);
             }
 
             assert_eq!(all_items.len(), 9);
@@ -1227,7 +1227,7 @@ mod tests {
 
             let mut all_items = Vec::new();
             for doc in docs.iter() {
-                all_items.extend_from_slice(&doc.natspec);
+                all_items.extend_from_slice(doc.natspec);
             }
 
             assert_eq!(all_items.len(), 9);
