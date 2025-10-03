@@ -870,7 +870,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        let mut parsed_comments = SmallVec::<[DocComment<'ast>; 4]>::new();
+        let mut parsed_comments = SmallVec::<[DocComment<'ast>; 6]>::new();
         let (dcx, in_yul) = (self.dcx(), self.in_yul);
 
         for doc in &self.docs {
@@ -893,14 +893,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         comment: &RawDocComment,
         in_yul: bool,
         dcx: &DiagCtxt,
-    ) -> SmallVec<[ast::NatSpecItem; 8]> {
-        let mut items = SmallVec::<[ast::NatSpecItem; 8]>::new();
+    ) -> SmallVec<[ast::NatSpecItem; 6]> {
+        let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
 
         let mut span: Option<Span> = None;
         let mut kind: Option<ast::NatSpecKind> = None;
 
         fn flush_item(
-            items: &mut SmallVec<[ast::NatSpecItem; 8]>,
+            items: &mut SmallVec<[ast::NatSpecItem; 6]>,
             kind: &mut Option<ast::NatSpecKind>,
             span: &mut Option<Span>,
         ) {
@@ -946,7 +946,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         if let Some(custom_tag) = tag.strip_prefix("custom:") {
                             let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
                             ast::NatSpecKind::Custom { tag: ident }
-                        } else if ast::INTERNAL_TAGS[..].contains(&tag) {
+                        } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
                             let ident = Ident::new(tag_symbol, comment.span);
                             ast::NatSpecKind::Internal { tag: ident }
                         } else {
@@ -1168,8 +1168,9 @@ mod tests {
             let mut parser = Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                 .expect("failed to create parser");
 
-            let docs = parser.parse_doc_comments();
             let sm = sess.source_map();
+            let docs = parser.parse_doc_comments();
+            assert_eq!(docs.len(), 11);
 
             let mut all_items = Vec::new();
             for doc in docs.iter() {
@@ -1220,8 +1221,9 @@ mod tests {
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
 
-            let docs = parser.parse_doc_comments();
             let sm = sess.source_map();
+            let docs = parser.parse_doc_comments();
+            assert_eq!(docs.len(), 1);
 
             let mut all_items = Vec::new();
             for doc in docs.iter() {
