@@ -1,4 +1,4 @@
-use super::{Gcx, Recursiveness, abi::TySolcPrinter};
+use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};

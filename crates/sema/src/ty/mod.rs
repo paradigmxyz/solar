@@ -31,8 +31,8 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-mod abi;
-pub use abi::{TyAbiPrinter, TyAbiPrinterMode};
+mod print;
+pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
