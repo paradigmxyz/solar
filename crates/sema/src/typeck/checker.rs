@@ -139,10 +139,10 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
                 let mut callee_ty = self.check_expr(callee);
                 // Get the function type for struct constructors.
-                if let TyKind::Type(struct_ty) = callee_ty.kind {
-                    if let TyKind::Struct(id) = struct_ty.kind {
-                        callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                    }
+                if let TyKind::Type(struct_ty) = callee_ty.kind
+                    && let TyKind::Struct(id) = struct_ty.kind
+                {
+                    callee_ty = struct_constructor(self.gcx, struct_ty, id);
                 }
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
@@ -471,10 +471,10 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
         // TODO: custom operators
-        if let Some(common) = common {
-            if !(assign && common != lhs) {
-                return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
-            }
+        if let Some(common) = common
+            && !(assign && common != lhs)
+        {
+            return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
 
         let msg = format!(
@@ -731,6 +731,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         ControlFlow::Continue(())
     }
 
+    #[allow(clippy::collapsible_else_if)]
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
@@ -947,10 +948,10 @@ fn binop_common_type<'gcx>(
             if op.is_shift() {
                 return valid_shift(ty, other, op);
             }
-            if let Some(common_type) = ty.common_type(other, gcx) {
-                if common_type.is_fixed_bytes() {
-                    return Some(common_type);
-                }
+            if let Some(common_type) = ty.common_type(other, gcx)
+                && common_type.is_fixed_bytes()
+            {
+                return Some(common_type);
             }
             None
         }

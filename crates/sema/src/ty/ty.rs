@@ -381,15 +381,15 @@ impl<'gcx> Ty<'gcx> {
     /// Returns the common type between the two types.
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;
-        if let Some(a) = a.mobile(gcx) {
-            if b.convert_implicit_to(a) {
-                return Some(a);
-            }
+        if let Some(a) = a.mobile(gcx)
+            && b.convert_implicit_to(a)
+        {
+            return Some(a);
         }
-        if let Some(b) = b.mobile(gcx) {
-            if a.convert_implicit_to(b) {
-                return Some(b);
-            }
+        if let Some(b) = b.mobile(gcx)
+            && a.convert_implicit_to(b)
+        {
+            return Some(b);
         }
         None
     }
