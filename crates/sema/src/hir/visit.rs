@@ -21,8 +21,8 @@ pub trait Visit<'hir> {
         match id {
             ItemId::Contract(id) => self.visit_nested_contract(id),
             ItemId::Function(id) => self.visit_nested_function(id),
-            ItemId::Struct(_id) => ControlFlow::Continue(()), // TODO
-            ItemId::Enum(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Struct(id) => self.visit_nested_struct(id),
+            ItemId::Enum(id) => self.visit_nested_enum(id),
             ItemId::Udvt(_id) => ControlFlow::Continue(()), // TODO
             ItemId::Error(_id) => ControlFlow::Continue(()), // TODO
             ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
@@ -34,8 +34,8 @@ pub trait Visit<'hir> {
         match item {
             Item::Contract(item) => self.visit_contract(item),
             Item::Function(item) => self.visit_function(item),
-            Item::Struct(_item) => ControlFlow::Continue(()), // TODO
-            Item::Enum(_item) => ControlFlow::Continue(()), // TODO
+            Item::Struct(item) => self.visit_struct(item),
+            Item::Enum(item) => self.visit_enum(item),
             Item::Udvt(_item) => ControlFlow::Continue(()), // TODO
             Item::Error(_item) => ControlFlow::Continue(()), // TODO
             Item::Event(_item) => ControlFlow::Continue(()), // TODO
@@ -81,6 +81,18 @@ pub trait Visit<'hir> {
         let Modifier { span: _, id: _, args } = modifier;
         self.visit_call_args(args)
     }
+
+    fn visit_nested_struct(&mut self, id: StructId) -> ControlFlow<Self::BreakValue> {
+        self.visit_struct(self.hir().strukt(id))
+    }
+
+    fn visit_struct(&mut self, strukt: &'hir Struct<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &field in strukt.fields {
+            self.visit_nested_var(field)?;
+        }
+        ControlFlow::Continue(())
+    }
+
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
         self.visit_var(self.hir().variable(id))
