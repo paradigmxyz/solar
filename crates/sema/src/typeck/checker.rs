@@ -731,7 +731,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         ControlFlow::Continue(())
     }
 
-    #[allow(clippy::collapsible_else_if)]
+    #[expect(clippy::single_match)]
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
