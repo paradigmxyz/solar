@@ -8,7 +8,9 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
+    kw,
     source_map::{FileName, SourceFile},
+    sym,
 };
 use std::{fmt, path::Path};
 
@@ -901,8 +903,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         for comment in comments {
-            let make_ident = |s: &str| Ident::new(Symbol::intern(s), comment.span);
-
             // Line comments: '///', Block comments: '/**'.
             const PREFIX_BYTES: u32 = 3;
             let mut acc_bytes = 0u32;
@@ -921,32 +921,35 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let tag_lo = tag_hi + tag.len() as u32 + 1; // +1 for '@'
                     span = Some(Span::new(BytePos(tag_hi), BytePos(tag_lo)));
 
-                    kind = Some(match tag {
-                        "title" => ast::NatSpecKind::Title,
-                        "author" => ast::NatSpecKind::Author,
-                        "notice" => ast::NatSpecKind::Notice,
-                        "dev" => ast::NatSpecKind::Dev,
-                        "param" | "return" | "inheritdoc" => {
+                    let tag_symbol = Symbol::intern(tag);
+                    kind = Some(match tag_symbol {
+                        sym::title => ast::NatSpecKind::Title,
+                        sym::author => ast::NatSpecKind::Author,
+                        sym::notice => ast::NatSpecKind::Notice,
+                        sym::dev => ast::NatSpecKind::Dev,
+                        sym::param | kw::Return | sym::inheritdoc => {
                             let (name, _) =
                                 rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
-                            let ident = make_ident(name);
-                            match tag {
-                                "param" => ast::NatSpecKind::Param { tag: ident },
-                                "return" => ast::NatSpecKind::Return { tag: ident },
-                                "inheritdoc" => ast::NatSpecKind::Inheritdoc { tag: ident },
+                            let ident = Ident::new(Symbol::intern(name), comment.span);
+                            match tag_symbol {
+                                sym::param => ast::NatSpecKind::Param { tag: ident },
+                                kw::Return => ast::NatSpecKind::Return { tag: ident },
+                                sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
                                 _ => unreachable!(),
                             }
                         }
-                        others => {
-                            if let Some((_, tag)) = others.split_once("custom:") {
-                                ast::NatSpecKind::Custom { tag: make_ident(tag) }
-                            } else if ast::INTERNAL_TAGS[..].contains(&others) {
-                                ast::NatSpecKind::Internal { tag: make_ident(others) }
+                        _ => {
+                            if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                                let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
+                                ast::NatSpecKind::Custom { tag: ident }
+                            } else if ast::INTERNAL_TAGS[..].contains(&tag) {
+                                let ident = Ident::new(tag_symbol, comment.span);
+                                ast::NatSpecKind::Internal { tag: ident }
                             } else {
                                 if !self.in_yul {
                                     // Emit error for invalid solidity tags, but ignore in Yul.
                                     self.dcx()
-                                    .err(format!("invalid natspec tag '@{others}', custom tags must use format '@custom:name'"))
+                                    .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
                                     .span(comment.span)
                                     .emit();
                                 }
@@ -967,7 +970,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         // The natspec span should encompass all doc comments, from the start of the first
-        // comment (including its '///' or '/**' prefix) to the end of the last comment.
+        // comment  to the end of the last comment.
         let natspec_span = Span::join_first_last(comments.iter().map(|c| c.span));
 
         Some(ast::NatSpec { span: natspec_span, items: self.alloc_smallvec(items) })
