@@ -156,12 +156,13 @@ impl std::ops::DerefMut for NatSpec<'_> {
 /// A single item within a Natspec comment block.
 #[derive(Clone, Copy, Debug)]
 pub struct NatSpecItem {
-    pub span: Span,
+    /// The tag identifier of the item.
     pub kind: NatSpecKind,
-    pub content: Symbol,
+    /// Span of the tag. '@' is not included.
+    pub span: Span,
 }
 
-/// The kind of a `NatSpec` item.
+/// The kind of a [`NatSpecItem`].
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
 #[derive(Clone, Copy, Debug)]
