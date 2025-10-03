@@ -25,7 +25,7 @@ pub trait Visit<'hir> {
             ItemId::Enum(id) => self.visit_nested_enum(id),
             ItemId::Udvt(id) => self.visit_nested_udvt(id),
             ItemId::Error(id) => self.visit_nested_error(id),
-            ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Event(id) => self.visit_nested_event(id),
             ItemId::Variable(id) => self.visit_nested_var(id),
         }
     }
@@ -38,7 +38,7 @@ pub trait Visit<'hir> {
             Item::Enum(item) => self.visit_enum(item),
             Item::Udvt(item) => self.visit_udvt(item),
             Item::Error(item) => self.visit_error(item),
-            Item::Event(_item) => ControlFlow::Continue(()), // TODO
+            Item::Event(item) => self.visit_event(item),
             Item::Variable(item) => self.visit_var(item),
         }
     }
@@ -120,6 +120,16 @@ pub trait Visit<'hir> {
         ControlFlow::Continue(())
     }
 
+    fn visit_nested_event(&mut self, id: EventId) -> ControlFlow<Self::BreakValue> {
+        self.visit_event(self.hir().event(id))
+    }
+
+    fn visit_event(&mut self, event: &'hir Event<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &param in event.parameters {
+            self.visit_nested_var(param)?;
+        }
+        ControlFlow::Continue(())
+    }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
         self.visit_var(self.hir().variable(id))
