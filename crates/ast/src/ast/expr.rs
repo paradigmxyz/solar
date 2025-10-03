@@ -284,8 +284,8 @@ impl UnOpKind {
         !self.is_prefix()
     }
 
-    /// Returns `true` if the operator is modifying.
-    pub const fn is_modifying(self) -> bool {
+    /// Returns `true` if the operator has side effects.
+    pub const fn has_side_effects(self) -> bool {
         match self {
             Self::PreInc | Self::PreDec | Self::PostInc | Self::PostDec => true,
             Self::Not | Self::Neg | Self::BitNot => false,
