@@ -872,7 +872,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             return DocComments::default();
         }
 
-        let mut parsed_comments = SmallVec::<[DocComment<'ast>; 6]>::new();
+        let mut parsed_comments = SmallVec::<[DocComment<'ast>; 6]>::with_capacity(self.docs.len());
         let (dcx, in_yul) = (self.dcx(), self.in_yul);
 
         for doc in &self.docs {
