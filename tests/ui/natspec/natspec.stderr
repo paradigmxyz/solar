@@ -1,0 +1,14 @@
+error: invalid natspec tag '@invalid', custom tags must use format '@custom:name'
+  --> ROOT/tests/ui/natspec/natspec.sol:LL:CC
+   |
+LL | /// @invalid This is not a valid tag
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
+  --> ROOT/tests/ui/natspec/natspec.sol:LL:CC
+   |
+LL | /// @customwrong Should use colon format
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: aborting due to 2 previous errors
+
