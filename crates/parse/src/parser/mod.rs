@@ -8,9 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
-    kw,
     source_map::{FileName, SourceFile},
-    sym,
 };
 use std::{fmt, path::Path};
 
@@ -1058,7 +1056,7 @@ fn parse_natspec(
 
     // Line comments: '///', Block comments: '/**'.
     const PREFIX_BYTES: u32 = 3;
-    let (mut pos, mut span, mut kind) = (0, None, None);
+    let (mut line_start, mut span, mut kind) = (0, None, None);
     let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
 
     fn flush_item(
@@ -1071,34 +1069,31 @@ fn parse_natspec(
         }
     }
 
-    while pos < bytes.len() {
-        let line_end =
-            memchr::memchr(b'\n', &bytes[pos..]).map(|offset| pos + offset).unwrap_or(bytes.len());
-
-        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[pos..line_end]) {
-            let tag_start = pos + tag_offset + 1;
+    // Iterate over each line and look for tags.
+    for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end]) {
+            let tag_start = line_start + tag_offset + 1;
             flush_item(&mut items, &mut kind, &mut span);
 
             let (tag, rest_start) = split_once_ws(content, bytes, tag_start, line_end);
 
             // Calculate span: from '@' to end of tag name.
-            let tag_lo = comment.span.lo().0 + PREFIX_BYTES + (pos + tag_offset) as u32;
+            let tag_lo = comment.span.lo().0 + PREFIX_BYTES + (line_start + tag_offset) as u32;
             let tag_hi = tag_lo + tag.len() as u32 + 1; // +1 for '@'
             span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
 
-            let tag_symbol = Symbol::intern(tag);
-            kind = Some(match tag_symbol {
-                sym::title => ast::NatSpecKind::Title,
-                sym::author => ast::NatSpecKind::Author,
-                sym::notice => ast::NatSpecKind::Notice,
-                sym::dev => ast::NatSpecKind::Dev,
-                sym::param | kw::Return | sym::inheritdoc => {
+            kind = Some(match tag {
+                "title" => ast::NatSpecKind::Title,
+                "author" => ast::NatSpecKind::Author,
+                "notice" => ast::NatSpecKind::Notice,
+                "dev" => ast::NatSpecKind::Dev,
+                "param" | "return" | "inheritdoc" => {
                     let (name, _) = split_once_ws(content, bytes, rest_start, line_end);
                     let ident = Ident::new(Symbol::intern(name), comment.span);
-                    match tag_symbol {
-                        sym::param => ast::NatSpecKind::Param { tag: ident },
-                        kw::Return => ast::NatSpecKind::Return { tag: ident },
-                        sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
+                    match tag {
+                        "param" => ast::NatSpecKind::Param { tag: ident },
+                        "return" => ast::NatSpecKind::Return { tag: ident },
+                        "inheritdoc" => ast::NatSpecKind::Inheritdoc { tag: ident },
                         _ => unreachable!(),
                     }
                 }
@@ -1107,7 +1102,7 @@ fn parse_natspec(
                         let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
                         ast::NatSpecKind::Custom { tag: ident }
                     } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
-                        let ident = Ident::new(tag_symbol, comment.span);
+                        let ident = Ident::new(Symbol::intern(tag), comment.span);
                         ast::NatSpecKind::Internal { tag: ident }
                     } else {
                         // Emit error for invalid solidity tags, but ignore in Yul.
@@ -1117,22 +1112,14 @@ fn parse_natspec(
                                 .span(comment.span)
                                 .emit();
                         }
-                        pos = if line_end < bytes.len() {
-                            line_end + 1 // +1 to skip '\n'
-                        } else {
-                            bytes.len()
-                        };
+                        line_start = line_end + 1;
                         continue;
                     }
                 }
             });
         }
 
-        pos = if line_end < bytes.len() {
-            line_end + 1 // +1 to skip '\n'
-        } else {
-            bytes.len()
-        };
+        line_start = line_end + 1;
     }
     flush_item(&mut items, &mut kind, &mut span);
     Some(items)
