@@ -870,105 +870,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
+        if self.docs.is_empty() {
+            return DocComments::default();
+        }
+
         let mut parsed_comments = SmallVec::<[DocComment<'ast>; 6]>::new();
         let (dcx, in_yul) = (self.dcx(), self.in_yul);
 
         for doc in &self.docs {
-            let natspec_items = Self::parse_natspec_for_comment(doc, in_yul, dcx);
+            let natspec = if let Some(items) = parse_natspec(doc, in_yul, dcx) {
+                self.alloc_smallvec(items)
+            } else {
+                BoxSlice::default()
+            };
+
             parsed_comments.push(DocComment {
                 kind: doc.kind,
                 span: doc.span,
                 symbol: doc.symbol,
-                natspec: self.alloc_smallvec(natspec_items),
+                natspec,
             });
         }
 
         self.docs.clear();
         self.alloc_smallvec(parsed_comments).into()
-    }
-
-    /// Parses NatSpec items from a single doc comment.
-    #[cold]
-    fn parse_natspec_for_comment(
-        comment: &RawDocComment,
-        in_yul: bool,
-        dcx: &DiagCtxt,
-    ) -> SmallVec<[ast::NatSpecItem; 6]> {
-        let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
-
-        let mut span: Option<Span> = None;
-        let mut kind: Option<ast::NatSpecKind> = None;
-
-        fn flush_item(
-            items: &mut SmallVec<[ast::NatSpecItem; 6]>,
-            kind: &mut Option<ast::NatSpecKind>,
-            span: &mut Option<Span>,
-        ) {
-            if let Some(k) = kind.take() {
-                items.push(ast::NatSpecItem { span: span.take().unwrap(), kind: k });
-            }
-        }
-
-        // Line comments: '///', Block comments: '/**'.
-        const PREFIX_BYTES: u32 = 3;
-        let mut acc_bytes = 0u32;
-
-        for line in comment.symbol.as_str().lines() {
-            if let Some(tag_offset) = line.find('@') {
-                let tag_line = &line[tag_offset + 1..];
-                flush_item(&mut items, &mut kind, &mut span);
-
-                let (tag, rest) =
-                    tag_line.split_once(char::is_whitespace).unwrap_or((tag_line, ""));
-
-                // Calculate span: from '@' to end of tag name.
-                let tag_hi = comment.span.lo().0 + PREFIX_BYTES + acc_bytes + tag_offset as u32;
-                let tag_lo = tag_hi + tag.len() as u32 + 1; // +1 for '@'
-                span = Some(Span::new(BytePos(tag_hi), BytePos(tag_lo)));
-
-                let tag_symbol = Symbol::intern(tag);
-                kind = Some(match tag_symbol {
-                    sym::title => ast::NatSpecKind::Title,
-                    sym::author => ast::NatSpecKind::Author,
-                    sym::notice => ast::NatSpecKind::Notice,
-                    sym::dev => ast::NatSpecKind::Dev,
-                    sym::param | kw::Return | sym::inheritdoc => {
-                        let (name, _) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
-                        let ident = Ident::new(Symbol::intern(name), comment.span);
-                        match tag_symbol {
-                            sym::param => ast::NatSpecKind::Param { tag: ident },
-                            kw::Return => ast::NatSpecKind::Return { tag: ident },
-                            sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
-                            _ => unreachable!(),
-                        }
-                    }
-                    _ => {
-                        if let Some(custom_tag) = tag.strip_prefix("custom:") {
-                            let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
-                            ast::NatSpecKind::Custom { tag: ident }
-                        } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
-                            let ident = Ident::new(tag_symbol, comment.span);
-                            ast::NatSpecKind::Internal { tag: ident }
-                        } else {
-                            if !in_yul {
-                                // Emit error for invalid solidity tags, but ignore in Yul.
-                                dcx
-                                .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
-                                .span(comment.span)
-                                .emit();
-                            }
-                            acc_bytes += line.len() as u32 + 1; // +1 for newline
-                            continue;
-                        }
-                    }
-                });
-            }
-
-            acc_bytes += line.len() as u32 + 1; // +1 for newline
-        }
-        flush_item(&mut items, &mut kind, &mut span);
-
-        items
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
@@ -1106,6 +1031,138 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 }
 
+// We use a simplified approach compared to Solc's NatSpec parsing.
+//
+// Solc implementation notes:
+// - Reference: https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/DocStringTagParser.cpp
+// - Parses, validates, and stores tag content directly when parsing.
+// - Lines without tags are treated as implicit `@notice` tags.
+//
+// Our implementation:
+// - Only tracks tag spans; content retrieval is deferred to consumers via comment symbol/content.
+// - Parses explicit `@` tags only (no implicit `@notice`).
+// - Defers validation to lowering phase
+// - Follows Solc's Yul behavior: silently ignores unknown tags in Yul context https://github.com/argotorg/solidity/blob/2ca5fb3b6adcb1a8fb2c0904fb37526121cf2c72/libyul/AsmParser.cpp#L151
+
+/// Parses NatSpec items from a single doc comment.
+fn parse_natspec(
+    comment: &RawDocComment,
+    in_yul: bool,
+    dcx: &DiagCtxt,
+) -> Option<SmallVec<[ast::NatSpecItem; 6]>> {
+    let content = comment.symbol.as_str();
+    let bytes = content.as_bytes();
+
+    // Early-exit if no tag is found.
+    memchr::memchr(b'@', bytes)?;
+
+    // Line comments: '///', Block comments: '/**'.
+    const PREFIX_BYTES: u32 = 3;
+    let (mut pos, mut span, mut kind) = (0, None, None);
+    let mut items = SmallVec::<[ast::NatSpecItem; 6]>::new();
+
+    fn flush_item(
+        items: &mut SmallVec<[ast::NatSpecItem; 6]>,
+        kind: &mut Option<ast::NatSpecKind>,
+        span: &mut Option<Span>,
+    ) {
+        if let Some(k) = kind.take() {
+            items.push(ast::NatSpecItem { span: span.take().unwrap(), kind: k });
+        }
+    }
+
+    while pos < bytes.len() {
+        let line_end =
+            memchr::memchr(b'\n', &bytes[pos..]).map(|offset| pos + offset).unwrap_or(bytes.len());
+
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[pos..line_end]) {
+            let tag_start = pos + tag_offset + 1;
+            flush_item(&mut items, &mut kind, &mut span);
+
+            let (tag, rest_start) = split_once_ws(content, bytes, tag_start, line_end);
+
+            // Calculate span: from '@' to end of tag name.
+            let tag_lo = comment.span.lo().0 + PREFIX_BYTES + (pos + tag_offset) as u32;
+            let tag_hi = tag_lo + tag.len() as u32 + 1; // +1 for '@'
+            span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
+
+            let tag_symbol = Symbol::intern(tag);
+            kind = Some(match tag_symbol {
+                sym::title => ast::NatSpecKind::Title,
+                sym::author => ast::NatSpecKind::Author,
+                sym::notice => ast::NatSpecKind::Notice,
+                sym::dev => ast::NatSpecKind::Dev,
+                sym::param | kw::Return | sym::inheritdoc => {
+                    let (name, _) = split_once_ws(content, bytes, rest_start, line_end);
+                    let ident = Ident::new(Symbol::intern(name), comment.span);
+                    match tag_symbol {
+                        sym::param => ast::NatSpecKind::Param { tag: ident },
+                        kw::Return => ast::NatSpecKind::Return { tag: ident },
+                        sym::inheritdoc => ast::NatSpecKind::Inheritdoc { tag: ident },
+                        _ => unreachable!(),
+                    }
+                }
+                _ => {
+                    if let Some(custom_tag) = tag.strip_prefix("custom:") {
+                        let ident = Ident::new(Symbol::intern(custom_tag), comment.span);
+                        ast::NatSpecKind::Custom { tag: ident }
+                    } else if ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag) {
+                        let ident = Ident::new(tag_symbol, comment.span);
+                        ast::NatSpecKind::Internal { tag: ident }
+                    } else {
+                        // Emit error for invalid solidity tags, but ignore in Yul.
+                        if !in_yul {
+                            dcx
+                                .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
+                                .span(comment.span)
+                                .emit();
+                        }
+                        pos = if line_end < bytes.len() {
+                            line_end + 1 // +1 to skip '\n'
+                        } else {
+                            bytes.len()
+                        };
+                        continue;
+                    }
+                }
+            });
+        }
+
+        pos = if line_end < bytes.len() {
+            line_end + 1 // +1 to skip '\n'
+        } else {
+            bytes.len()
+        };
+    }
+    flush_item(&mut items, &mut kind, &mut span);
+    Some(items)
+}
+
+/// Splits a string slice at the first whitespace character using the `memchr` crate.
+/// Returns the content up to the whitespace and the position of the first following non-blank char.
+#[inline]
+fn split_once_ws<'a>(
+    content: &'a str,
+    bytes: &'a [u8],
+    start: usize,
+    end: usize,
+) -> (&'a str, usize) {
+    let ws_pos = memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end])
+        .map(|offset| start + offset)
+        .unwrap_or(end);
+
+    if ws_pos < end {
+        let rest_start = bytes[ws_pos..end]
+            .iter()
+            .position(|&b| !matches!(b, b' ' | b'\t' | b'\r'))
+            .map(|offset| ws_pos + offset)
+            .unwrap_or(end);
+        (&content[start..ws_pos], rest_start)
+    } else {
+        (&content[start..ws_pos], end)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1146,7 +1203,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_natspec() {
+    fn parse_natspec_line_cmnts() {
         let src = r#"
 /// @title MyContract
 /// @author Alice
@@ -1196,7 +1253,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_natspec_block_comments() {
+    fn parse_natspec_block_cmnts() {
         let src = r#"
 /**
  * @title MyContract
