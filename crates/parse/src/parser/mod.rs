@@ -45,7 +45,7 @@ pub struct Parser<'sess, 'ast> {
     expected_tokens: Vec<ExpectedToken>,
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
-    /// The current doc-comments (raw, unparsed).
+    /// The current doc-comments.
     docs: Vec<RawDocComment>,
 
     /// The token stream.

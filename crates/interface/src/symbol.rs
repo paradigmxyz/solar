@@ -937,7 +937,6 @@ symbols! {
         codehash,
         concat,
         creationCode,
-        custom,
         data,
         decode,
         ecrecover,
