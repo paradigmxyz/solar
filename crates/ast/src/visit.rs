@@ -645,7 +645,7 @@ declare_visitors! {
         }
 
         fn visit_natspec_item(&mut self, item: &'ast #mut NatSpecItem) -> ControlFlow<Self::BreakValue> {
-            let NatSpecItem { span, kind: _, } = item;
+            let NatSpecItem { span, .. } = item;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }
