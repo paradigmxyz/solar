@@ -1524,3 +1524,50 @@ mod tests {
         assert_size::<Block<'_>>(str!["24"]);
     }
 }
+
+/// A builder for constructing HIR nodes.
+pub struct HirBuilder<'hir> {
+    arena: &'hir bumpalo::Bump,
+}
+
+impl<'hir> HirBuilder<'hir> {
+    /// Creates a new HIR builder.
+    pub fn new(arena: &'hir bumpalo::Bump) -> Self {
+        Self { arena }
+    }
+
+    /// Creates a HIR expression with the given ID, kind and span.
+    pub fn expr(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
+        self.arena.alloc(Expr { id, kind, span })
+    }
+
+    /// Creates an owned HIR expression with the given ID, kind and span.
+    pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
+        Expr { id, kind, span }
+    }
+
+    /// Creates a HIR statement with the given kind and span.
+    pub fn stmt(&self, kind: StmtKind<'hir>, span: Span) -> Stmt<'hir> {
+        Stmt { kind, span }
+    }
+
+    /// Creates an allocated HIR statement with the given kind and span.
+    pub fn stmt_alloc(&self, kind: StmtKind<'hir>, span: Span) -> &'hir Stmt<'hir> {
+        self.arena.alloc(Stmt { kind, span })
+    }
+
+    /// Creates a HIR block with the given statements and span.
+    pub fn block(&self, stmts: &'hir [Stmt<'hir>], span: Span) -> Block<'hir> {
+        Block { stmts, span }
+    }
+
+    /// Creates a break statement.
+    pub fn break_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Break, span)
+    }
+
+    /// Creates a continue statement.
+    pub fn continue_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Continue, span)
+    }
+}
