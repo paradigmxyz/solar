@@ -42,11 +42,11 @@ pub enum NatSpecKind {
     Return { name: Ident },
     /// `@inheritdoc <contract>`
     ///
-    /// Copies all missing tags from the base function. The `contract` field contains the contract name.
+    /// Copies all tags from the base function. The `contract` field contains the contract name.
     Inheritdoc { contract: Ident },
     /// `@custom:<tag>`
     ///
-    /// Custom tag with application-defined semantics. The `name` field contains the custom tag name.
+    /// Custom tag with user-defined semantics. The `name` field contains the custom tag name.
     Custom { name: Ident },
 
     /// `@<tag>`
