@@ -18,6 +18,9 @@ pub use ast::{
 mod visit;
 pub use visit::Visit;
 
+mod natspec;
+pub use natspec::*;
+
 /// HIR arena allocator.
 pub struct Arena {
     bump: bumpalo::Bump,
@@ -72,6 +75,8 @@ impl std::ops::Deref for Arena {
 pub struct Hir<'hir> {
     /// All sources.
     pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
+    /// All docummentation comments.
+    pub(crate) docs: IndexVec<DocId, Doc<'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -159,8 +164,21 @@ macro_rules! indexvec_methods {
 
 impl<'hir> Hir<'hir> {
     pub(crate) fn new() -> Self {
+        let mut docs = IndexVec::new();
+        // SAFETY: we're just changing the type wrapper, not the underlying data (which is empty).
+        let empty_comments: &ast::DocComments<'hir> =
+            unsafe { std::mem::transmute(ast::DocComments::empty()) };
+        let empty_doc_id = docs.push(Doc {
+            source: SourceId::MAX,
+            item: ItemId::Contract(ContractId::MAX),
+            ast_comments: empty_comments,
+            comments: &[],
+        });
+        debug_assert_eq!(empty_doc_id, DocId::EMPTY);
+
         Self {
             sources: IndexVec::new(),
+            docs,
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
             structs: IndexVec::new(),
@@ -174,6 +192,7 @@ impl<'hir> Hir<'hir> {
 
     indexvec_methods! {
         source => sources, SourceId => Source<'hir>;
+        doc => docs, DocId => Doc<'hir>;
         contract => contracts, ContractId => Contract<'hir>;
         function => functions, FunctionId => Function<'hir>;
         strukt => structs, StructId => Struct<'hir>;
@@ -252,7 +271,7 @@ impl<'hir> Hir<'hir> {
     pub fn contract_item_ids(
         &self,
         id: ContractId,
-    ) -> impl Iterator<Item = ItemId> + Clone + use<'_> {
+    ) -> impl Iterator<Item = ItemId> + Clone + use<'_, 'hir> {
         self.contract(id)
             .linearized_bases
             .iter()
@@ -269,6 +288,9 @@ impl<'hir> Hir<'hir> {
 newtype_index! {
     /// A [`Source`] ID.
     pub struct SourceId;
+
+    /// A [`Doc`] ID.
+    pub struct DocId;
 
     /// A [`Contract`] ID.
     pub struct ContractId;
@@ -298,6 +320,18 @@ newtype_index! {
     pub struct ExprId;
 }
 
+impl DocId {
+    /// The empty documentation id.
+    ///
+    /// This is reserved as index 0 and represents items with no documentation.
+    pub const EMPTY: Self = unsafe { Self::from_usize_unchecked(0) };
+
+    /// Whether a documentation id is empty or not.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::EMPTY
+    }
+}
+
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
@@ -308,6 +342,8 @@ pub struct Source<'hir> {
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
+    /// The source docs.
+    pub docs: &'hir [DocId],
 }
 
 impl fmt::Debug for Source<'_> {
@@ -317,6 +353,27 @@ impl fmt::Debug for Source<'_> {
             .field("imports", &self.imports)
             .field("items", &self.items)
             .finish()
+    }
+}
+
+/// The documentation of an item.
+#[derive(Debug)]
+pub struct Doc<'hir> {
+    /// The source this documentation is defined in.
+    pub source: SourceId,
+    /// The item this documentation is defined in.
+    pub item: ItemId,
+    /// Reference to the AST documentation comments.
+    pub(crate) ast_comments: &'hir ast::DocComments<'hir>,
+    /// Resolved natspec items after AST lowering and `@inheritdoc` expansion.
+    pub(crate) comments: &'hir [NatSpecItem],
+}
+
+impl<'hir> Doc<'hir> {
+    /// Returns the resolved natspec doc comments for this item.
+    #[inline]
+    pub fn comments(&self) -> &'hir [NatSpecItem] {
+        self.comments
     }
 }
 
@@ -533,6 +590,8 @@ impl ItemId {
 pub struct Contract<'hir> {
     /// The source this contract is defined in.
     pub source: SourceId,
+    /// The docummentation of this contract.
+    pub doc: DocId,
     /// The contract span.
     pub span: Span,
     /// The contract name.
@@ -626,6 +685,8 @@ pub struct Modifier<'hir> {
 pub struct Function<'hir> {
     /// The source this function is defined in.
     pub source: SourceId,
+    /// The docummentation of this function.
+    pub doc: DocId,
     /// The contract this function is defined in, if any.
     pub contract: Option<ContractId>,
     /// The function span.
@@ -716,6 +777,8 @@ impl Function<'_> {
 pub struct Struct<'hir> {
     /// The source this struct is defined in.
     pub source: SourceId,
+    /// The docummentation of this struct.
+    pub doc: DocId,
     /// The contract this struct is defined in, if any.
     pub contract: Option<ContractId>,
     /// The struct span.
@@ -730,6 +793,8 @@ pub struct Struct<'hir> {
 pub struct Enum<'hir> {
     /// The source this enum is defined in.
     pub source: SourceId,
+    /// The docummentation of this enum.
+    pub doc: DocId,
     /// The contract this enum is defined in, if any.
     pub contract: Option<ContractId>,
     /// The enum span.
@@ -745,6 +810,8 @@ pub struct Enum<'hir> {
 pub struct Udvt<'hir> {
     /// The source this UDVT is defined in.
     pub source: SourceId,
+    /// The documentation of this UDVT.
+    pub doc: DocId,
     /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
     /// The UDVT span.
@@ -760,6 +827,8 @@ pub struct Udvt<'hir> {
 pub struct Event<'hir> {
     /// The source this event is defined in.
     pub source: SourceId,
+    /// The docummentation of this event.
+    pub doc: DocId,
     /// The contract this event is defined in, if any.
     pub contract: Option<ContractId>,
     /// The event span.
@@ -776,6 +845,8 @@ pub struct Event<'hir> {
 pub struct Error<'hir> {
     /// The source this error is defined in.
     pub source: SourceId,
+    /// The docummentation of this error.
+    pub doc: DocId,
     /// The contract this error is defined in, if any.
     pub contract: Option<ContractId>,
     /// The error span.
@@ -790,10 +861,17 @@ pub struct Error<'hir> {
 pub struct Variable<'hir> {
     /// The source this variable is defined in.
     pub source: SourceId,
+    /// The docummentation of this variable.
+    pub doc: Option<DocId>,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
-    /// The function this variable is defined in, if any.
-    pub function: Option<FunctionId>,
+    /// The parent item containing this variable.
+    ///
+    /// - Struct fields → the struct
+    /// - Event/Error parameters → the event/error
+    /// - Function parameters/returns/locals → the function
+    /// - State/Global variables → `None`, as they are items themselves
+    pub parent: Option<ItemId>,
     /// The variable's span.
     pub span: Span,
     /// The kind of variable.
@@ -816,11 +894,18 @@ pub struct Variable<'hir> {
 
 impl<'hir> Variable<'hir> {
     /// Creates a new variable.
-    pub fn new(source: SourceId, ty: Type<'hir>, name: Option<Ident>, kind: VarKind) -> Self {
+    pub fn new(
+        source: SourceId,
+        doc: Option<DocId>,
+        ty: Type<'hir>,
+        name: Option<Ident>,
+        kind: VarKind,
+    ) -> Self {
         Self {
             source,
+            doc,
             contract: None,
-            function: None,
+            parent: None,
             span: Span::DUMMY,
             kind,
             ty,
@@ -839,6 +924,7 @@ impl<'hir> Variable<'hir> {
     /// Creates a new variable statement.
     pub fn new_stmt(
         source: SourceId,
+        docs: Option<DocId>,
         contract: ContractId,
         function: FunctionId,
         ty: Type<'hir>,
@@ -846,8 +932,8 @@ impl<'hir> Variable<'hir> {
     ) -> Self {
         Self {
             contract: Some(contract),
-            function: Some(function),
-            ..Self::new(source, ty, Some(name), VarKind::Statement)
+            parent: Some(ItemId::Function(function)),
+            ..Self::new(source, docs, ty, Some(name), VarKind::Statement)
         }
     }
 
@@ -1501,17 +1587,17 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["216"]);
+        assert_size::<Hir<'_>>(str!["240"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
-        assert_size::<Contract<'_>>(str!["120"]);
-        assert_size::<Function<'_>>(str!["136"]);
+        assert_size::<Contract<'_>>(str!["128"]);
+        assert_size::<Function<'_>>(str!["144"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);
         assert_size::<Udvt<'_>>(str!["56"]);
         assert_size::<Error<'_>>(str!["48"]);
-        assert_size::<Event<'_>>(str!["48"]);
-        assert_size::<Variable<'_>>(str!["96"]);
+        assert_size::<Event<'_>>(str!["56"]);
+        assert_size::<Variable<'_>>(str!["104"]);
 
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);

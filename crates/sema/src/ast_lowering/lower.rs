@@ -1,6 +1,7 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
 use solar_data_structures::smallvec::SmallVec;
+use solar_interface::{Span, Symbol};
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
@@ -10,6 +11,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
+                docs: &[],
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();
@@ -38,7 +40,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     fn lower_contract(
         &mut self,
-        item: &ast::Item<'_>,
+        item: &'gcx ast::Item<'gcx>,
         contract: &'gcx ast::ItemContract<'gcx>,
     ) -> hir::ContractId {
         let id = self.hir.contracts.push(hir::Contract {
@@ -48,6 +50,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             kind: contract.kind,
 
             // Set later.
+            doc: hir::DocId::EMPTY,
             bases: &mut [],
             bases_args: &[],
             linearized_bases: &[],
@@ -89,6 +92,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
         self.current_contract_id = prev_contract_id;
 
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Contract(id));
+        self.hir.contracts[id].doc = doc_id;
+
         id
     }
 
@@ -105,7 +112,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 } else {
                     hir::VarKind::Global
                 };
-                hir::ItemId::Variable(self.lower_variable(i, kind))
+                hir::ItemId::Variable(self.lower_variable(item, i, kind))
             }
             ast::ItemKind::Struct(i) => hir::ItemId::Struct(self.lower_struct(item, i)),
             ast::ItemKind::Enum(i) => hir::ItemId::Enum(self.lower_enum(item, i)),
@@ -119,10 +126,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     fn lower_function(
         &mut self,
-        item: &ast::Item<'_>,
+        item: &'gcx ast::Item<'gcx>,
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
-        // handled later: parameters, body, modifiers, override_, returns
+        // handled later: doc, parameters, body, modifiers, override_, returns
         let ast::ItemFunction { kind, ref header, body: _, body_span } = *i;
         let ast::FunctionHeader {
             span: _,
@@ -135,8 +142,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
             ref override_,
             returns: _,
         } = *header;
-        self.hir.functions.push(hir::Function {
+        let id = self.hir.functions.push(hir::Function {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
@@ -165,82 +173,641 @@ impl<'gcx> super::LoweringContext<'gcx> {
             returns: &[],
             body: None,
             body_span,
-        })
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Function(id));
+        self.hir.functions[id].doc = doc_id;
+
+        id
     }
 
     fn lower_variable(
         &mut self,
+        item: &'gcx ast::Item<'gcx>,
         i: &ast::VariableDefinition<'_>,
         kind: hir::VarKind,
     ) -> hir::VariableId {
-        lower_variable_partial(
+        let id = lower_variable_partial(
             &mut self.hir,
             i,
             self.current_source_id,
             self.current_contract_id,
             None,
             kind,
-        )
+        );
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Variable(id));
+        self.hir.variables[id].doc = Some(doc_id);
+        id
     }
 
-    fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
-        // handled later: fields
+    fn lower_struct(
+        &mut self,
+        item: &'gcx ast::Item<'gcx>,
+        i: &ast::ItemStruct<'_>,
+    ) -> hir::StructId {
+        // handled later: doc, fields
         let ast::ItemStruct { name, fields: _ } = *i;
-        self.hir.structs.push(hir::Struct {
+        let id = self.hir.structs.push(hir::Struct {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
             fields: &[],
-        })
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Struct(id));
+        self.hir.structs[id].doc = doc_id;
+
+        id
     }
 
-    fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
+    fn lower_enum(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
+        // handled later: doc
         let ast::ItemEnum { name, ref variants } = *i;
-        self.hir.enums.push(hir::Enum {
+        let id = self.hir.enums.push(hir::Enum {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
             variants: self.arena.alloc_slice_copy(variants),
-        })
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Enum(id));
+        self.hir.enums[id].doc = doc_id;
+
+        id
     }
 
-    fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
-        // Handled later: ty
+    fn lower_udvt(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
+        // Handled later: doc, ty
         let ast::ItemUdvt { name, ty: _ } = *i;
-        self.hir.udvts.push(hir::Udvt {
+        let id = self.hir.udvts.push(hir::Udvt {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
             ty: hir::Type::DUMMY,
-        })
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Udvt(id));
+        self.hir.udvts[id].doc = doc_id;
+
+        id
     }
 
-    fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
-        // handled later: parameters
+    fn lower_error(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemError<'_>) -> hir::ErrorId {
+        // handled later: doc, parameters
         let ast::ItemError { name, parameters: _ } = *i;
-        self.hir.errors.push(hir::Error {
+        let id = self.hir.errors.push(hir::Error {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
             parameters: &[],
-        })
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Error(id));
+        self.hir.errors[id].doc = doc_id;
+
+        id
     }
 
-    fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
-        // handled later: parameters
+    fn lower_event(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemEvent<'_>) -> hir::EventId {
+        // handled later: doc, parameters
         let ast::ItemEvent { name, parameters: _, anonymous } = *i;
-        self.hir.events.push(hir::Event {
+        let id = self.hir.events.push(hir::Event {
             source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
             contract: self.current_contract_id,
             span: item.span,
             name,
             anonymous,
             parameters: &[],
+        });
+
+        // Lower docs after `ItemId` is available
+        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Event(id));
+        self.hir.events[id].doc = doc_id;
+
+        id
+    }
+
+    /// Lowers documentation comments from AST to HIR.
+    ///
+    /// Simply stores a reference to the AST doc comments. Validation happens after parameters are
+    /// lowered.
+    fn lower_docs(
+        &mut self,
+        docs: &'gcx ast::DocComments<'gcx>,
+        item_id: hir::ItemId,
+    ) -> hir::DocId {
+        if docs.is_empty() {
+            return hir::DocId::EMPTY;
+        }
+
+        self.hir.docs.push(hir::Doc {
+            source: self.current_source_id,
+            item: item_id,
+            ast_comments: docs,
+            comments: &[],
         })
+    }
+
+    /// Validates all NatSpec tags after parameters/returns have been lowered.
+    ///
+    /// This must be called after symbol resolution, since parameter validation requires the actual
+    /// parameter lists to be populated.
+    pub(super) fn validate_natspec_tags(&mut self) {
+        for doc_id in self.hir.doc_ids() {
+            if doc_id.is_empty() {
+                continue;
+            }
+            let doc = self.hir.doc(doc_id);
+            self.validate_item_natspec(doc.ast_comments, doc.item);
+        }
+    }
+
+    /// Validates NatSpec tags for the given item.
+    ///
+    /// Checks:
+    /// - Tag applicability
+    /// - Duplicate tags
+    /// - Parameter references
+    fn validate_item_natspec(&mut self, docs: &'gcx ast::DocComments<'gcx>, item_id: hir::ItemId) {
+        use ast::NatSpecKind;
+
+        let item = self.hir.item(item_id);
+        let dcx = self.dcx();
+
+        #[derive(Default)]
+        struct ValidationHelper {
+            // Tag permissions (immutable)
+            allows_structure_tags: bool,
+            allows_callable_tags: bool,
+            allows_inheritdoc: bool,
+            allows_return: bool,
+            // Validation flags
+            seen_title: bool,
+            seen_author: bool,
+            seen_inheritdoc: bool,
+            seen_params: SmallVec<[(Symbol, Span); 6]>,
+            return_count: usize,
+        }
+
+        let mut check = ValidationHelper {
+            allows_structure_tags: matches!(
+                item_id,
+                hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_)
+            ),
+            allows_callable_tags: matches!(
+                item_id,
+                hir::ItemId::Function(_)
+                    | hir::ItemId::Variable(_)
+                    | hir::ItemId::Event(_)
+                    | hir::ItemId::Error(_)
+            ),
+            allows_inheritdoc: matches!(
+                item_id,
+                hir::ItemId::Function(_) | hir::ItemId::Variable(_)
+            ),
+            allows_return: !matches!(item_id, hir::ItemId::Event(_)),
+            ..Default::default()
+        };
+
+        // Get item parameters and returns for validation
+        let parameters = item.parameters();
+        let returns = if let hir::Item::Function(f) = item { Some(f.returns) } else { None };
+
+        for doc_comment in docs.iter() {
+            for natspec_item in doc_comment.natspec.iter() {
+                let tag_span = natspec_item.span;
+
+                match &natspec_item.kind {
+                    NatSpecKind::Notice
+                    | NatSpecKind::Dev
+                    | NatSpecKind::Custom { .. }
+                    | NatSpecKind::Internal { .. } => {
+                        // Allowed on all items, no validation needed
+                    }
+
+                    NatSpecKind::Title => {
+                        self.validate_single_tag(
+                            "@title",
+                            tag_span,
+                            check.allows_structure_tags,
+                            &mut check.seen_title,
+                            item.description(),
+                        );
+                    }
+
+                    NatSpecKind::Author => {
+                        self.validate_single_tag(
+                            "@author",
+                            tag_span,
+                            check.allows_structure_tags,
+                            &mut check.seen_author,
+                            item.description(),
+                        );
+                    }
+
+                    NatSpecKind::Inheritdoc { contract } => {
+                        self.validate_single_tag(
+                            "@inheritdoc",
+                            tag_span,
+                            check.allows_inheritdoc,
+                            &mut check.seen_inheritdoc,
+                            item.description(),
+                        );
+
+                        // Validate that the contract exists
+                        if check.allows_inheritdoc {
+                            self.validate_inheritdoc_contract(contract, tag_span, item_id);
+                        }
+                    }
+
+                    NatSpecKind::Param { name } => {
+                        if !check.allows_callable_tags {
+                            dcx.err(format!(
+                                "documentation tag `@param` not valid for {}",
+                                item.description()
+                            ))
+                            .span(tag_span)
+                            .emit();
+                            continue;
+                        }
+
+                        // Check for duplicate `@param` tags
+                        if let Some(&(_, prev_span)) =
+                            check.seen_params.iter().find(|(sym, _)| *sym == name.name)
+                        {
+                            dcx.err(format!(
+                                "duplicate documentation for parameter '{}'",
+                                name.name
+                            ))
+                            .span(tag_span)
+                            .span_note(prev_span, "previous documentation here")
+                            .emit();
+                            continue;
+                        }
+                        check.seen_params.push((name.name, tag_span));
+
+                        // Validate name exists
+                        if let Some(params) = parameters {
+                            let param_exists = params.iter().any(|&param_id| {
+                                self.hir
+                                    .variable(param_id)
+                                    .name
+                                    .is_some_and(|n| n.name == name.name)
+                            });
+
+                            if !param_exists {
+                                dcx.err(format!(
+                                    "documentation tag `@param` references non-existent parameter '{}'",
+                                    name.name
+                                ))
+                                .span(tag_span)
+                                .emit();
+                            }
+                        }
+                    }
+
+                    NatSpecKind::Return { .. } => {
+                        if !check.allows_callable_tags {
+                            dcx.err(format!(
+                                "documentation tag `@return` not valid for {}",
+                                item.description()
+                            ))
+                            .span(tag_span)
+                            .emit();
+                            continue;
+                        }
+
+                        if !check.allows_return {
+                            dcx.err("documentation tag `@return` not valid for events")
+                                .span(tag_span)
+                                .emit();
+                            continue;
+                        }
+
+                        check.return_count += 1;
+
+                        // Validate return count if this is a function
+                        if let Some(rets) = returns
+                            && check.return_count > rets.len()
+                        {
+                            dcx.err(format!(
+                                "too many `@return` tags: function has {} return value{}, found {}",
+                                rets.len(),
+                                if rets.len() == 1 { "" } else { "s" },
+                                check.return_count
+                            ))
+                            .span(tag_span)
+                            .emit();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Helper to validate tags that don't require more elements.
+    fn validate_single_tag(
+        &self,
+        tag_name: &str,
+        tag_span: Span,
+        allowed: bool,
+        seen: &mut bool,
+        item_desc: &str,
+    ) {
+        if !allowed {
+            self.dcx()
+                .err(format!("documentation tag {tag_name} not valid for {item_desc}"))
+                .span(tag_span)
+                .emit();
+        }
+        if *seen {
+            self.dcx()
+                .err(format!("documentation tag {tag_name} can only be given once"))
+                .span(tag_span)
+                .emit();
+        }
+        *seen = true;
+    }
+
+    /// Validates that a contract referenced in `@inheritdoc` exists and contains a matching item.
+    fn validate_inheritdoc_contract(
+        &self,
+        contract_ident: &solar_interface::Ident,
+        tag_span: Span,
+        item_id: hir::ItemId,
+    ) {
+        let dcx = self.dcx();
+
+        // Get the source where this item is defined
+        let source_id = match item_id {
+            hir::ItemId::Function(id) => self.hir.function(id).source,
+            hir::ItemId::Variable(id) => self.hir.variable(id).source,
+            _ => return,
+        };
+
+        // Look up the contract in the source scope
+        let Some(contract_id) = self.resolve_contract_in_source(contract_ident.name, source_id)
+        else {
+            dcx.err(format!(
+                "documentation tag `@inheritdoc` references inexistent contract \"{}\"",
+                contract_ident.name
+            ))
+            .span(tag_span)
+            .emit();
+            return;
+        };
+
+        // Verify that the contract contains a matching item that is overridden
+        let overrides = match item_id {
+            hir::ItemId::Function(id) => self.hir.function(id).overrides,
+            hir::ItemId::Variable(id) => self.hir.variable(id).overrides,
+            _ => return,
+        };
+
+        if !overrides.contains(&contract_id) {
+            dcx.err(format!(
+                "documentation tag `@inheritdoc` references contract \"{}\", but the contract does not contain an item that is overridden by this one",
+                contract_ident.name
+            ))
+            .span(tag_span)
+            .emit();
+        }
+    }
+
+    /// Resolves a contract name within a source's scope.
+    fn resolve_contract_in_source(
+        &self,
+        name: Symbol,
+        source_id: hir::SourceId,
+    ) -> Option<hir::ContractId> {
+        let source_scope = &self.resolver.source_scopes[source_id];
+
+        // Use the resolve method with an ident
+        let ident = solar_interface::Ident { name, span: Span::DUMMY };
+        source_scope.resolve(ident).and_then(|decls| {
+            decls.iter().find_map(|decl| match decl.res {
+                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
+                _ => None,
+            })
+        })
+    }
+
+    /// Resolves `@inheritdoc` tags across all documentation and converts AST natspec to HIR.
+    ///
+    /// This must be called after validation to ensure all references are valid.
+    /// Populates `doc.natspec` for all docs, making it the single source of truth for natspec in
+    /// HIR.
+    pub(super) fn resolve_inheritdoc(&mut self) {
+        for doc_id in self.hir.doc_ids() {
+            if doc_id.is_empty() {
+                continue;
+            }
+
+            let mut doc_items =
+                self.hir.doc(doc_id).ast_comments.iter().flat_map(|c| c.natspec.iter());
+            let has_inheritdoc =
+                doc_items.any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }));
+
+            if has_inheritdoc {
+                self.resolve_doc_inheritdoc(doc_id);
+            } else {
+                // No @inheritdoc - convert AST natspec directly to resolved tags
+                self.resolve_doc_simple(doc_id);
+            }
+        }
+    }
+
+    /// Converts AST natspec to resolved tags for docs without `@inheritdoc`.
+    fn resolve_doc_simple(&mut self, doc_id: hir::DocId) {
+        let doc = self.hir.doc(doc_id);
+        let mut resolved = SmallVec::<[hir::NatSpecItem; 6]>::new();
+
+        for doc_comment in doc.ast_comments.iter() {
+            for item in doc_comment.natspec.iter() {
+                if let Some(resolved_item) = hir::NatSpecItem::from_ast(*item, doc_comment.symbol) {
+                    resolved.push(resolved_item);
+                }
+            }
+        }
+
+        let resolved_slice = self.arena.alloc_slice_copy(&resolved);
+        self.hir.docs[doc_id].comments = resolved_slice;
+    }
+
+    /// Resolves `@inheritdoc` for a single doc.
+    fn resolve_doc_inheritdoc(&mut self, doc_id: hir::DocId) {
+        if !self.hir.doc(doc_id).comments().is_empty() {
+            return;
+        }
+
+        let doc = self.hir.doc(doc_id);
+        let inheritdoc_contract =
+            doc.ast_comments.iter().flat_map(|c| c.natspec.iter()).find_map(|item| {
+                match &item.kind {
+                    ast::NatSpecKind::Inheritdoc { contract } => Some(*contract),
+                    _ => None,
+                }
+            });
+
+        let Some(inheritdoc_contract) = inheritdoc_contract else {
+            return;
+        };
+
+        // Look up the contract in the source scope
+        let Some(contract_id) =
+            self.resolve_contract_in_source(inheritdoc_contract.name, doc.source)
+        else {
+            return;
+        };
+
+        // Find the matching item in the contract and get inherited doc id.
+        let inherited_item = self.find_inherited_item(doc.item, contract_id);
+        let Some(inherited_item_id) = inherited_item else {
+            return;
+        };
+        let inherited_doc_id = match inherited_item_id {
+            hir::ItemId::Function(id) => self.hir.function(id).doc,
+            hir::ItemId::Variable(id) => self.hir.variable(id).doc.unwrap_or(hir::DocId::EMPTY),
+            _ => return,
+        };
+
+        // Recursively resolve if the inherited item also has `@inheritdoc`. Previous contract
+        // linearization ensures no cycle deps.
+        if !inherited_doc_id.is_empty() {
+            let inherited_doc = self.hir.doc(inherited_doc_id);
+            if inherited_doc.comments().is_empty() {
+                let has_inheritdoc = inherited_doc
+                    .ast_comments
+                    .iter()
+                    .flat_map(|c| c.natspec.iter())
+                    .any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }));
+
+                if has_inheritdoc {
+                    self.resolve_doc_inheritdoc(inherited_doc_id);
+                }
+            }
+        }
+
+        // Merge tags and store resolved natspec.
+        let resolved = self.merge_natspec_tags(doc_id, inherited_doc_id);
+        let resolved_slice = self.arena.alloc_slice_copy(&resolved);
+        self.hir.docs[doc_id].comments = resolved_slice;
+    }
+
+    /// Finds the item in a contract that matches the given item (for inheritance).
+    fn find_inherited_item(
+        &self,
+        item_id: hir::ItemId,
+        contract_id: hir::ContractId,
+    ) -> Option<hir::ItemId> {
+        let item_name = self.hir.item(item_id).name()?;
+
+        // Search through contract items for a match
+        for base_item_id in self.hir.contract_item_ids(contract_id) {
+            if let Some(base_name) = self.hir.item(base_item_id).name()
+                && base_name.name == item_name.name
+            {
+                // For functions, we should also match signatures, but for now
+                // just matching by name is sufficient as overrides are already validated
+                return Some(base_item_id);
+            }
+        }
+
+        None
+    }
+
+    /// Merges natspec tags from the current doc and inherited doc.
+    ///
+    /// Rules:
+    /// - `@notice`, `@dev`, `@title`, `@author`: local overrides inherited
+    /// - `@param`, `@return`: inherit missing ones, keep local ones
+    /// - `@custom`: merge both
+    /// - `@inheritdoc` is removed (replaced with actual tags)
+    fn merge_natspec_tags(
+        &self,
+        doc_id: hir::DocId,
+        inherited_doc_id: hir::DocId,
+    ) -> SmallVec<[hir::NatSpecItem; 6]> {
+        use hir::NatSpecKind as HirKind;
+        use solar_data_structures::map::FxHashSet;
+
+        let doc = self.hir.doc(doc_id);
+        let mut merged = SmallVec::new();
+        let mut has_notice = false;
+        let mut has_dev = false;
+        let mut has_title = false;
+        let mut has_author = false;
+        let mut local_params = FxHashSet::<solar_interface::Symbol>::default();
+        let mut local_returns = FxHashSet::<Option<solar_interface::Symbol>>::default();
+
+        // Collect local tags, excluding `@inheritdoc`
+        for doc_comment in doc.ast_comments.iter() {
+            for item in doc_comment.natspec.iter() {
+                if let Some(resolved_item) = hir::NatSpecItem::from_ast(*item, doc_comment.symbol) {
+                    match &resolved_item.kind {
+                        // Only inherit if not locally defined
+                        HirKind::Notice => has_notice = true,
+                        HirKind::Dev => has_dev = true,
+                        HirKind::Title => has_title = true,
+                        HirKind::Author => has_author = true,
+                        HirKind::Param { name } => {
+                            local_params.insert(name.name);
+                        }
+                        HirKind::Return { name } => {
+                            local_returns.insert(name.map(|n| n.name));
+                        }
+                        // Always merge
+                        HirKind::Custom { .. } | HirKind::Internal { .. } => {}
+                    }
+                    merged.push(resolved_item);
+                }
+            }
+        }
+
+        // If nothing to inherit, return directly.
+        if inherited_doc_id.is_empty() {
+            return merged;
+        }
+
+        // Inherit tags from base
+        let inherited_doc = self.hir.doc(inherited_doc_id);
+        let inherited_items = inherited_doc.comments();
+
+        for item in inherited_items.iter() {
+            let should_inherit = match &item.kind {
+                // Only inherit if not locally defined
+                HirKind::Notice => !has_notice,
+                HirKind::Dev => !has_dev,
+                HirKind::Title => !has_title,
+                HirKind::Author => !has_author,
+                HirKind::Param { name } => !local_params.contains(&name.name),
+                HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
+                // Always merge
+                HirKind::Custom { .. } | HirKind::Internal { .. } => true,
+            };
+
+            if should_inherit {
+                merged.push(*item);
+            }
+        }
+
+        merged
     }
 }
 
@@ -250,10 +817,10 @@ pub(super) fn lower_variable_partial(
     i: &ast::VariableDefinition<'_>,
     source: SourceId,
     contract: Option<ContractId>,
-    function: Option<hir::FunctionId>,
+    parent: Option<hir::ItemId>,
     kind: hir::VarKind,
 ) -> hir::VariableId {
-    // handled later: ty, override_, initializer
+    // handled later: doc, ty, override_, initializer
     let ast::VariableDefinition {
         span,
         ty: _,
@@ -267,8 +834,9 @@ pub(super) fn lower_variable_partial(
     } = *i;
     let id = hir.variables.push(hir::Variable {
         source,
+        doc: None,
         contract,
-        function,
+        parent,
         span,
         kind,
         ty: hir::Type::DUMMY,
@@ -292,8 +860,9 @@ pub(super) fn lower_variable_partial(
 fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::FunctionId {
     let hir::Variable {
         source,
+        doc: _,
         contract,
-        function: _,
+        parent: _,
         span,
         kind,
         ty: _,
@@ -313,6 +882,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
     debug_assert!(getter.is_none());
     hir.functions.push(hir::Function {
         source,
+        doc: hir::DocId::EMPTY, // Getters don't have docs
         contract,
         span,
         name,
@@ -330,4 +900,190 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         gettee: Some(id),
         body_span: span,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Compiler;
+    use solar_interface::{ColorChoice, Session, sym};
+    use std::path::PathBuf;
+
+    #[test]
+    fn natspec_inheritdoc_comprehensive() {
+        use crate::hir::NatSpecKind;
+
+        let src = r#"
+contract Base {
+    /**
+     * @notice Base function notice
+     * @dev Base function dev
+     * @param x The x parameter from base
+     * @param y The y parameter from base
+     * @return success Whether the operation succeeded
+     * @return value The result value
+     * @custom:security Audited by Base team
+     **/
+    function foo(uint x, uint y) public virtual returns (bool success, uint value) {
+        return (true, x + y);
+    }
+}
+
+contract Child1 is Base {
+    /// @inheritdoc Base
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (true, x * y);
+    }
+}
+
+contract Child2 is Base {
+    /// @notice Child2 notice - overrides base
+    /// @dev Child2 dev - overrides base
+    /// @inheritdoc Base
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (false, 0);
+    }
+}
+
+contract Child3 is Base {
+    /**
+     * @param x The x parameter from child3
+     * @inheritdoc Base
+     **/
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (true, x);
+    }
+}
+
+contract Child4 is Base {
+    /// @return success Child4 override for success
+    /// @inheritdoc Base
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (false, x + y);
+    }
+}
+
+contract Child5 is Base {
+    /**
+    * @custom:audit Reviewed by Child5 auditor
+    * @inheritdoc Base
+    **/
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (true, y);
+    }
+}
+
+contract GrandChild is Child1 {
+    /// @inheritdoc Child1
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+        return (true, x - y);
+    }
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let gcx = c.gcx();
+
+            let get_comments = |contract_name: &str, func_name: &str| {
+                gcx.hir
+                    .functions()
+                    .find(|f| {
+                        f.contract.is_some_and(|cid| {
+                            gcx.hir.contract(cid).name.as_str() == contract_name
+                                && f.name.is_some_and(|n| n.as_str() == func_name)
+                        })
+                    })
+                    .map(|func| gcx.hir.doc(func.doc).comments())
+                    .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
+            };
+
+
+            // Base contract natspec
+            let base = get_comments("Base", "foo");
+            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Notice)), 1);
+            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Dev)), 1);
+            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Return { .. })), 2);
+            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Notice), "Base function notice", "Base @notice");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Dev), "Base function dev", "Base @dev");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Param { name } if name.name == sym::x), "x parameter from base", "Base @param x");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "y"), "y parameter from base", "Base @param y");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"), "operation succeeded", "Base @return success");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"), "result value", "Base @return value");
+            assert_tag_contains(base, |k| matches!(k, NatSpecKind::Custom { name } if name.name.as_str() == "security"), "Audited by Base team", "Base @custom:security");
+
+            // Simple inheritance (all tags)
+            let c = get_comments("Child1", "foo");
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Notice)), 1);
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Dev)), 1);
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Return { .. })), 2);
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
+
+            // Local tag override (@notice, @dev)
+            let c = get_comments("Child2", "foo");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Notice), "Child2 notice", "Child2 @notice");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Dev), "Child2 dev", "Child2 @dev");
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+
+            // Partial @param override
+            let c = get_comments("Child3", "foo");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Param { name } if name.name == sym::x), "from child3", "Child3 @param x");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "y"), "from base", "Child3 @param y");
+
+            // Partial @return override
+            let c = get_comments("Child4", "foo");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"), "Child4 override", "Child4 @return success");
+            assert_tag_contains(c, |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"), "result value", "Child4 @return value");
+
+            // @custom tag merging
+            let c = get_comments("Child5", "foo");
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 2);
+            assert!(c.iter().any(|i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "security")));
+            assert!(c.iter().any(|i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "audit")));
+
+            // Inheritance chain (`GrandChild` -> `Child` -> `Base`)
+            let g = get_comments("GrandChild", "foo");
+            assert_tag_contains(g, |k| matches!(k, NatSpecKind::Notice), "Base function notice", "GrandChild @notice");
+            assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+        });
+    }
+
+    fn lower_source(src: &str) -> Compiler {
+        let sess =
+            Session::builder().with_buffer_emitter(ColorChoice::Never).single_threaded().build();
+        let mut compiler = Compiler::new(sess);
+
+        let _ = compiler.enter_mut(|compiler| -> solar_interface::Result<_> {
+            let mut parsing_context = compiler.parse();
+            let file = compiler
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("test.sol"), src.to_string())
+                .unwrap();
+            parsing_context.add_file(file);
+            parsing_context.parse();
+            let _ = compiler.lower_asts()?;
+            Ok(())
+        });
+
+        compiler
+    }
+
+    fn count_tags(
+        comments: &[crate::hir::NatSpecItem],
+        kind: fn(&crate::hir::NatSpecKind) -> bool,
+    ) -> usize {
+        comments.iter().filter(|i| kind(&i.kind)).count()
+    }
+
+    fn assert_tag_contains(
+        comments: &[crate::hir::NatSpecItem],
+        kind_matcher: fn(&crate::hir::NatSpecKind) -> bool,
+        expected_content: &str,
+        msg: &str,
+    ) {
+        let tag = comments.iter().find(|i| kind_matcher(&i.kind)).expect(msg);
+        assert!(tag.content().contains(expected_content), "{}: Got: {}", msg, tag.content());
+    }
 }

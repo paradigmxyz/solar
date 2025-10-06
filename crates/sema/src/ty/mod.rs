@@ -880,7 +880,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         locs = SmallVec::<[_; 3]>::new();
         locs.push(Some(Memory));
         let mut is_constructor_parameter = false;
-        if let Some(f) = var.function {
+        if let Some(hir::ItemId::Function(f)) = var.parent {
             let f = gcx.hir.function(f);
             is_constructor_parameter = f.kind.is_constructor();
             if !var.is_try_catch_parameter() && !is_constructor_parameter {

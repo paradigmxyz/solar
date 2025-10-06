@@ -1105,7 +1105,9 @@ fn parse_natspec(
                     let ident = Ident::new(Symbol::intern(name), comment_span);
                     match tag {
                         "param" => ast::NatSpecKind::Param { name: ident },
-                        "return" => ast::NatSpecKind::Return { name: ident },
+                        "return" => ast::NatSpecKind::Return {
+                            name: if content_start_pos == line_end { None } else { Some(ident) },
+                        },
                         "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
                         _ => unreachable!(),
                     }
@@ -1187,7 +1189,9 @@ mod tests {
             ast::NatSpecKind::Notice if kind == "notice" => None,
             ast::NatSpecKind::Dev if kind == "dev" => None,
             ast::NatSpecKind::Param { name } if kind == "param" => Some(name.name.as_str()),
-            ast::NatSpecKind::Return { name } if kind == "return" => Some(name.name.as_str()),
+            ast::NatSpecKind::Return { name } if kind == "return" => {
+                name.as_ref().map(|n| n.name.as_str())
+            }
             ast::NatSpecKind::Inheritdoc { contract } if kind == "inheritdoc" => {
                 Some(contract.name.as_str())
             }

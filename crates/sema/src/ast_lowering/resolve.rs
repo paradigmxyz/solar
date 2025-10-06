@@ -286,8 +286,11 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Struct(ast_struct) = &ast_item.kind else { unreachable!() };
             let strukt = self.hir.strukt(id);
             init_cx!(strukt);
-            self.hir.structs[id].fields =
-                self.lower_variables(ast_struct.fields, hir::VarKind::Struct);
+            self.hir.structs[id].fields = self.lower_variables(
+                ast_struct.fields,
+                Some(hir::ItemId::Struct(id)),
+                hir::VarKind::Struct,
+            );
         }
 
         for id in self.hir.error_ids() {
@@ -295,8 +298,11 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Error(ast_error) = &ast_item.kind else { unreachable!() };
             let error = self.hir.error(id);
             init_cx!(error);
-            self.hir.errors[id].parameters =
-                self.lower_variables(*ast_error.parameters, hir::VarKind::Error);
+            self.hir.errors[id].parameters = self.lower_variables(
+                *ast_error.parameters,
+                Some(hir::ItemId::Error(id)),
+                hir::VarKind::Error,
+            );
         }
 
         for id in self.hir.event_ids() {
@@ -304,8 +310,11 @@ impl<'gcx> ResolveContext<'gcx> {
             let ast::ItemKind::Event(ast_event) = &ast_item.kind else { unreachable!() };
             let event = self.hir.event(id);
             init_cx!(event);
-            self.hir.events[id].parameters =
-                self.lower_variables(*ast_event.parameters, hir::VarKind::Event);
+            self.hir.events[id].parameters = self.lower_variables(
+                *ast_event.parameters,
+                Some(hir::ItemId::Event(id)),
+                hir::VarKind::Event,
+            );
         }
 
         // Resolve constants and state variables.
@@ -353,8 +362,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            self.hir.functions[id].parameters =
-                self.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
+            self.hir.functions[id].parameters = self.lower_variables(
+                *ast_func.header.parameters,
+                Some(hir::ItemId::Function(id)),
+                hir::VarKind::FunctionParam,
+            );
 
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
@@ -390,8 +402,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.arena.alloc_smallvec(modifiers)
             };
 
-            self.hir.functions[id].returns =
-                self.lower_variables(ast_func.header.returns(), hir::VarKind::FunctionReturn);
+            self.hir.functions[id].returns = self.lower_variables(
+                ast_func.header.returns(),
+                Some(hir::ItemId::Function(id)),
+                hir::VarKind::FunctionReturn,
+            );
 
             if let Some(body) = &ast_func.body {
                 self.hir.functions[id].body = Some(self.lower_block(body));
@@ -539,7 +554,13 @@ impl<'gcx> ResolveContext<'gcx> {
             if let Some(name) = &mut name {
                 name.span = span;
             }
-            this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionParam)
+            this.mk_var(
+                Some(hir::ItemId::Function(id)),
+                span,
+                ty,
+                name,
+                hir::VarKind::FunctionParam,
+            )
         };
         for i in 0usize.. {
             // let index_name = || Some(Ident::new(Symbol::intern(&format!("index{i}")), span));
@@ -584,7 +605,13 @@ impl<'gcx> ResolveContext<'gcx> {
                 if let Some(name) = &mut name {
                     name.span = span;
                 }
-                let mut ret = this.mk_var(Some(id), span, ty, name, hir::VarKind::FunctionReturn);
+                let mut ret = this.mk_var(
+                    Some(hir::ItemId::Function(id)),
+                    span,
+                    ty,
+                    name,
+                    hir::VarKind::FunctionReturn,
+                );
                 if ret.ty.kind.is_reference_type() {
                     ret.data_location = Some(hir::DataLocation::Memory);
                 }
@@ -675,7 +702,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn mk_var(
         &mut self,
-        function: Option<hir::FunctionId>,
+        parent: Option<hir::ItemId>,
         span: Span,
         ty: hir::Type<'gcx>,
         name: Option<Ident>,
@@ -683,9 +710,9 @@ impl<'gcx> ResolveContext<'gcx> {
     ) -> hir::Variable<'gcx> {
         hir::Variable {
             contract: self.current_contract_id,
-            function,
+            parent,
             span,
-            ..hir::Variable::new(self.current_source_id, ty, name, kind)
+            ..hir::Variable::new(self.current_source_id, None, ty, name, kind)
         }
     }
 
@@ -696,7 +723,13 @@ impl<'gcx> ResolveContext<'gcx> {
         ty: hir::Type<'gcx>,
         name: Ident,
     ) -> hir::Variable<'gcx> {
-        self.mk_var(Some(function), span, ty, Some(name), hir::VarKind::Statement)
+        self.mk_var(
+            Some(hir::ItemId::Function(function)),
+            span,
+            ty,
+            Some(name),
+            hir::VarKind::Statement,
+        )
     }
 
     fn in_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
@@ -749,7 +782,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
-                match self.lower_variable(var, hir::VarKind::Statement) {
+                match self.lower_variable(var, None, hir::VarKind::Statement) {
                     (id, Ok(())) => hir::StmtKind::DeclSingle(id),
                     (_, Err(guar)) => hir::StmtKind::Err(guar),
                 }
@@ -758,7 +791,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
                     var.as_ref()
                         .unspan()
-                        .map(|var| self.lower_variable(var, hir::VarKind::Statement).0)
+                        .map(|var| self.lower_variable(var, None, hir::VarKind::Statement).0)
                 })),
                 self.lower_expr(expr),
             ),
@@ -816,7 +849,11 @@ impl<'gcx> ResolveContext<'gcx> {
         self.in_scope(|this| hir::TryCatchClause {
             span,
             name,
-            args: this.lower_variables(args.vars, hir::VarKind::TryCatch),
+            args: this.lower_variables(
+                args.vars,
+                this.function_id.map(hir::ItemId::Function),
+                hir::VarKind::TryCatch,
+            ),
             block: this.lower_block(block),
         })
     }
@@ -847,15 +884,18 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_variables(
         &mut self,
         vars: &[ast::VariableDefinition<'_>],
+        parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> &'gcx [hir::VariableId] {
-        self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, kind).0))
+        self.arena
+            .alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, parent, kind).0))
     }
 
     /// Lowers `var` to HIR and declares it in the current scope.
     fn lower_variable(
         &mut self,
         var: &ast::VariableDefinition<'_>,
+        parent: Option<hir::ItemId>,
         kind: hir::VarKind,
     ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
         let id = super::lower::lower_variable_partial(
@@ -863,7 +903,7 @@ impl<'gcx> ResolveContext<'gcx> {
             var,
             self.scopes.source.unwrap(),
             self.scopes.contract,
-            self.function_id,
+            parent,
             kind,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
@@ -1104,13 +1144,21 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             ast::TypeKind::Function(f) => hir::TypeKind::Function(
                 self.arena.alloc(hir::TypeFunction {
-                    parameters: self.lower_variables(*f.parameters, hir::VarKind::FunctionTyParam),
+                    parameters: self.lower_variables(
+                        *f.parameters,
+                        self.function_id.map(hir::ItemId::Function),
+                        hir::VarKind::FunctionTyParam,
+                    ),
                     visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
                     state_mutability: f
                         .state_mutability
                         .map(|s| s.data)
                         .unwrap_or(ast::StateMutability::NonPayable),
-                    returns: self.lower_variables(f.returns(), hir::VarKind::FunctionTyReturn),
+                    returns: self.lower_variables(
+                        f.returns(),
+                        self.function_id.map(hir::ItemId::Function),
+                        hir::VarKind::FunctionTyReturn,
+                    ),
                 }),
             ),
             ast::TypeKind::Mapping(mapping) => {
