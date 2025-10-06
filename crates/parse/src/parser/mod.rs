@@ -871,7 +871,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
         if !self.docs.is_empty() {
-            let comments = std::mem::replace(&mut self.docs, Vec::new());
+            let comments = std::mem::take(&mut self.docs);
             self.alloc_vec(comments).into()
         } else {
             Default::default()
