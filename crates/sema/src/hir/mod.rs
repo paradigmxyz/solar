@@ -264,6 +264,88 @@ impl<'hir> Hir<'hir> {
     pub fn contract_items(&self, id: ContractId) -> impl Iterator<Item = Item<'_, 'hir>> + Clone {
         self.contract_item_ids(id).map(move |id| self.item(id))
     }
+
+    /// Creates a builder for constructing HIR nodes.
+    pub fn builder(arena: &'hir bumpalo::Bump) -> HirBuilder<'hir> {
+        HirBuilder::new(arena)
+    }
+}
+
+/// A builder for constructing HIR nodes.
+pub struct HirBuilder<'hir> {
+    arena: &'hir bumpalo::Bump,
+}
+
+impl<'hir> HirBuilder<'hir> {
+    /// Creates a new HIR builder.
+    pub fn new(arena: &'hir bumpalo::Bump) -> Self {
+        Self { arena }
+    }
+
+    /// Creates a HIR expression with ID, kind and span.
+    pub fn expr(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
+        self.arena.alloc(Expr { id, kind, span })
+    }
+
+    /// Creates a HIR expression with the given kind (as requested in GitHub issue).
+    pub fn expr_kind(&self, kind: ExprKind<'hir>) -> Expr<'hir> {
+        Expr { id: ExprId::from_usize(0), kind, span: Span::DUMMY }
+    }
+
+    /// Creates an allocated HIR expression.
+    pub fn expr_alloc(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
+        self.arena.alloc(Expr { id, kind, span })
+    }
+
+    /// Creates an allocated HIR statement.
+    pub fn stmt_alloc(&self, kind: StmtKind<'hir>, span: Span) -> &'hir Stmt<'hir> {
+        self.arena.alloc(Stmt { kind, span })
+    }
+
+    /// Creates a break statement.
+    pub fn break_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Break, span)
+    }
+
+    /// Creates a continue statement.
+    pub fn continue_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Continue, span)
+    }
+
+    /// Creates a return statement.
+    pub fn return_stmt(&self, expr: Option<&'hir Expr<'hir>>, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Return(expr), span)
+    }
+
+    /// Creates a binary expression kind.
+    pub fn binary_expr(
+        &self,
+        left: &'hir Expr<'hir>,
+        op: BinOp,
+        right: &'hir Expr<'hir>,
+    ) -> ExprKind<'hir> {
+        ExprKind::Binary(left, op, right)
+    }
+
+    /// Creates a literal expression kind.
+    pub fn lit_expr(&self, lit: &'hir Lit<'hir>) -> ExprKind<'hir> {
+        ExprKind::Lit(lit)
+    }
+
+    /// Creates an owned HIR expression with the given ID, kind and span.
+    pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
+        Expr { id, kind, span }
+    }
+
+    /// Creates a HIR statement with the given kind and span.
+    pub fn stmt(&self, kind: StmtKind<'hir>, span: Span) -> Stmt<'hir> {
+        Stmt { kind, span }
+    }
+
+    /// Creates a HIR block with the given statements and span.
+    pub fn block(&self, stmts: &'hir [Stmt<'hir>], span: Span) -> Block<'hir> {
+        Block { stmts, span }
+    }
 }
 
 newtype_index! {
@@ -1522,52 +1604,5 @@ mod tests {
         assert_size::<StmtKind<'_>>(str!["32"]);
         assert_size::<Stmt<'_>>(str!["40"]);
         assert_size::<Block<'_>>(str!["24"]);
-    }
-}
-
-/// A builder for constructing HIR nodes.
-pub struct HirBuilder<'hir> {
-    arena: &'hir bumpalo::Bump,
-}
-
-impl<'hir> HirBuilder<'hir> {
-    /// Creates a new HIR builder.
-    pub fn new(arena: &'hir bumpalo::Bump) -> Self {
-        Self { arena }
-    }
-
-    /// Creates a HIR expression with the given ID, kind and span.
-    pub fn expr(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
-        self.arena.alloc(Expr { id, kind, span })
-    }
-
-    /// Creates an owned HIR expression with the given ID, kind and span.
-    pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
-        Expr { id, kind, span }
-    }
-
-    /// Creates a HIR statement with the given kind and span.
-    pub fn stmt(&self, kind: StmtKind<'hir>, span: Span) -> Stmt<'hir> {
-        Stmt { kind, span }
-    }
-
-    /// Creates an allocated HIR statement with the given kind and span.
-    pub fn stmt_alloc(&self, kind: StmtKind<'hir>, span: Span) -> &'hir Stmt<'hir> {
-        self.arena.alloc(Stmt { kind, span })
-    }
-
-    /// Creates a HIR block with the given statements and span.
-    pub fn block(&self, stmts: &'hir [Stmt<'hir>], span: Span) -> Block<'hir> {
-        Block { stmts, span }
-    }
-
-    /// Creates a break statement.
-    pub fn break_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
-        self.stmt_alloc(StmtKind::Break, span)
-    }
-
-    /// Creates a continue statement.
-    pub fn continue_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
-        self.stmt_alloc(StmtKind::Continue, span)
     }
 }
