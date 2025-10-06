@@ -46,7 +46,7 @@ pub struct Parser<'sess, 'ast> {
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
     /// The current doc-comments.
-    docs: SmallVec<[DocComment<'ast>; 4]>,
+    docs: Vec<DocComment<'ast>>,
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
@@ -148,7 +148,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             prev_token: Token::DUMMY,
             expected_tokens: Vec::with_capacity(8),
             last_unexpected_token_span: None,
-            docs: SmallVec::with_capacity(4),
+            docs: Vec::with_capacity(4),
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
@@ -733,6 +733,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
         self.prev_token = std::mem::replace(&mut self.token, next);
         self.expected_tokens.clear();
+        self.docs.clear();
     }
 
     /// Bumps comments and docs.
@@ -870,8 +871,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
         if !self.docs.is_empty() {
-            let comments = std::mem::replace(&mut self.docs, SmallVec::new());
-            self.alloc_smallvec(comments).into()
+            let comments = std::mem::replace(&mut self.docs, Vec::new());
+            self.alloc_vec(comments).into()
         } else {
             Default::default()
         }
