@@ -1,3 +1,3 @@
 struct X {
-    uint y) //~ ERROR: `;`, found `)`
+    uint y) //~ ERROR: expected one of `;` or `}`, found `)`
 }

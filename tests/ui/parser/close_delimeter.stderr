@@ -1,8 +1,8 @@
-error: expected `;`, found `)`
+error: expected one of `;` or `}`, found `)`
   --> ROOT/tests/ui/parser/close_delimeter.sol:LL:CC
    |
 LL |     uint y)
-   |           ^ expected `;`
+   |           ^ expected one of `;` or `}`
 
 error: aborting due to 1 previous error
 

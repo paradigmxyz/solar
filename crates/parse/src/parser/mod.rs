@@ -657,8 +657,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             first = false;
         }
 
-        while !self.check_noexpect(ket) {
-            if TokenKind::Eof == self.token.kind {
+        while !self.check(ket) {
+            if self.token.kind == TokenKind::Eof {
                 break;
             }
 
@@ -678,7 +678,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                         Err(e) => return Err(e),
                     }
 
-                    if self.check_noexpect(ket) {
+                    if self.check(ket) {
                         trailing = true;
                         break;
                     }
