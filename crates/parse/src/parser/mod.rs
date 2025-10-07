@@ -659,6 +659,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         while !self.check(ket) {
             if self.token.kind == TokenKind::Eof {
+                recovered = Recovered::Yes;
                 break;
             }
 

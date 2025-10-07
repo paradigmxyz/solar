@@ -4,11 +4,5 @@ error: expected one of `;` or `}`, found `<eof>`
 LL |     uint y
    |          ^ expected one of `;` or `}`
 
-error: expected `}`, found `<eof>`
-  --> ROOT/tests/ui/parser/close_delimeter2.sol:LL:CC
-   |
-LL |     uint y
-   |          ^ expected `}`
-
-error: aborting due to 2 previous errors
+error: aborting due to 1 previous error
 
