@@ -435,7 +435,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         // Allowed on all items, no validation needed
                     }
                     NatSpecKind::Title => {
-                        self.validate_single_tag(
+                        self.validate_tag_once(
                             "@title",
                             tag_span,
                             permissions.contains(TagPermissions::TITLE_AUTHOR),
@@ -445,7 +445,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         );
                     }
                     NatSpecKind::Author => {
-                        self.validate_single_tag(
+                        self.validate_tag_once(
                             "@author",
                             tag_span,
                             permissions.contains(TagPermissions::TITLE_AUTHOR),
@@ -455,7 +455,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         );
                     }
                     NatSpecKind::Inheritdoc { contract } => {
-                        self.validate_single_tag(
+                        self.validate_tag_once(
                             "@inheritdoc",
                             tag_span,
                             permissions.contains(TagPermissions::INHERITDOC),
@@ -470,15 +470,15 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
                     }
                     NatSpecKind::Param { name } => {
-                        if !permissions.contains(TagPermissions::PARAM) {
-                            dcx.err(format!(
-                                "documentation tag `@param` not valid for {}",
-                                item.description()
-                            ))
-                            .span(tag_span)
-                            .emit();
+                        if !self.validate_tag_permission(
+                            "@param",
+                            tag_span,
+                            permissions.contains(TagPermissions::PARAM),
+                            item.description(),
+                        ) {
                             continue;
                         }
+
                         // Check for duplicate `@param` tags
                         if let Some(&(_, prev_span)) =
                             state.seen_params.iter().find(|(sym, _)| *sym == name.name)
@@ -493,41 +493,39 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             continue;
                         }
                         state.seen_params.push((name.name, tag_span));
-                        // Validate name exists
+
+                        // Validate parameter exists
                         if let Some(params) = parameters {
+                            let param_name = name.name;
                             let param_exists = params.iter().any(|&param_id| {
                                 self.hir
                                     .variable(param_id)
                                     .name
-                                    .is_some_and(|n| n.name == name.name)
+                                    .is_some_and(|n| n.name == param_name)
                             });
+
                             if !param_exists {
-                                dcx.err(format!(
-                                    "documentation tag `@param` references non-existent parameter '{}'",
-                                    name.name
-                                ))
-                                .span(tag_span)
-                                .emit();
+                                self.dcx()
+                                    .err(format!(
+                                        "documentation tag `@param` references non-existent parameter '{param_name}'"
+                                    ))
+                                    .span(tag_span)
+                                    .emit();
                             }
                         }
                     }
                     NatSpecKind::Return { .. } => {
-                        if !permissions.contains(TagPermissions::PARAM) {
-                            dcx.err(format!(
-                                "documentation tag `@return` not valid for {}",
-                                item.description()
-                            ))
-                            .span(tag_span)
-                            .emit();
+                        if !self.validate_tag_permission(
+                            "@return",
+                            tag_span,
+                            permissions.contains(TagPermissions::RETURN),
+                            item.description(),
+                        ) {
                             continue;
                         }
-                        if !permissions.contains(TagPermissions::RETURN) {
-                            dcx.err("documentation tag `@return` not valid for events")
-                                .span(tag_span)
-                                .emit();
-                            continue;
-                        }
+
                         state.return_count += 1;
+
                         // Validate return count if this is a function
                         if let Some(rets) = returns
                             && state.return_count > rets.len()
@@ -547,8 +545,28 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    /// Helper to validate singleton tags.
-    fn validate_single_tag(
+    /// Helper to validate that a tag is allowed for the item type.
+    /// Returns `true` if the tag is allowed, `false` otherwise.
+    fn validate_tag_permission(
+        &self,
+        tag_name: &str,
+        tag_span: Span,
+        allowed: bool,
+        item_desc: &str,
+    ) -> bool {
+        if !allowed {
+            self.dcx()
+                .err(format!("documentation tag `{tag_name}` not valid for {item_desc}s"))
+                .span(tag_span)
+                .emit();
+            false
+        } else {
+            true
+        }
+    }
+
+    /// Helper to validate tags that can only be defined once.
+    fn validate_tag_once(
         &self,
         tag_name: &str,
         tag_span: Span,
@@ -557,11 +575,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
         tag_flag: SeenTags,
         item_desc: &str,
     ) {
-        if !allowed {
-            self.dcx()
-                .err(format!("documentation tag {tag_name} not valid for {item_desc}"))
-                .span(tag_span)
-                .emit();
+        if !self.validate_tag_permission(tag_name, tag_span, allowed, item_desc) {
+            return;
         }
         if seen_tags.contains(tag_flag) {
             self.dcx()

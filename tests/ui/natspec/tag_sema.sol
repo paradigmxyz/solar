@@ -76,11 +76,11 @@ contract DuplicateInheritdoc is DuplicateInheritdocBase {
 
 contract InvalidTagContext {
     /// @author Invalid author on function
-    //~^ ERROR: documentation tag @author not valid for function
+    //~^ ERROR: documentation tag `@author` not valid for functions
     function invalidAuthor() public {}
 
     /// @title Invalid title on function
-    //~^ ERROR: documentation tag @title not valid for function
+    //~^ ERROR: documentation tag `@title` not valid for functions
     function invalidTitle() public {}
 
     /// @return Invalid return on event
@@ -94,7 +94,7 @@ contract InvalidInheritdocBase {
 
 contract InvalidInheritdoc is InvalidInheritdocBase {
     /// @inheritdoc InvalidInheritdocBase
-    //~^ ERROR: documentation tag @inheritdoc not valid for event
+    //~^ ERROR: documentation tag `@inheritdoc` not valid for events
     event Transfer(address from, address to);
 }
 

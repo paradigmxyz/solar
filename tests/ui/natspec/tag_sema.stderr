@@ -40,13 +40,13 @@ error: documentation tag `@inheritdoc` references contract "DuplicateInheritdocB
 LL |     /// @inheritdoc DuplicateInheritdocBase
    |         ^^^^^^^^^^^
 
-error: documentation tag @author not valid for function
+error: documentation tag `@author` not valid for functions
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @author Invalid author on function
    |         ^^^^^^^
 
-error: documentation tag @title not valid for function
+error: documentation tag `@title` not valid for functions
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @title Invalid title on function
@@ -58,7 +58,7 @@ error: documentation tag `@return` not valid for events
 LL |     /// @return Invalid return on event
    |         ^^^^^^^
 
-error: documentation tag @inheritdoc not valid for event
+error: documentation tag `@inheritdoc` not valid for events
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @inheritdoc InvalidInheritdocBase
