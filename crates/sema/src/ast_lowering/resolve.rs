@@ -11,7 +11,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     sym,
 };
-use std::fmt;
+use std::{cell::Cell, fmt};
 
 pub(crate) use crate::hir::Res;
 
@@ -1153,7 +1153,8 @@ impl<'gcx> ResolveContext<'gcx> {
 
     /// Creates a HIR builder.
     fn hir_builder(&self) -> hir::HirBuilder<'gcx> {
-        hir::HirBuilder::new(self.arena)
+        let cell = self.arena.alloc(Cell::new(self.next_id.current()));
+        hir::Hir::builder(self.arena, cell)
     }
 }
 

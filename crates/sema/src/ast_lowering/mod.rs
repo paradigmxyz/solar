@@ -9,6 +9,7 @@ use solar_data_structures::{
     map::FxHashMap,
 };
 use solar_interface::{Session, diagnostics::DiagCtxt};
+use std::cell::Cell;
 
 mod lower;
 
@@ -103,12 +104,12 @@ impl<'gcx> LoweringContext<'gcx> {
 }
 
 struct IdCounter {
-    counter: std::cell::Cell<usize>,
+    counter: Cell<usize>,
 }
 
 impl IdCounter {
     fn new() -> Self {
-        Self { counter: std::cell::Cell::new(0) }
+        Self { counter: Cell::new(0) }
     }
 
     #[inline]
@@ -121,6 +122,12 @@ impl IdCounter {
         let x = self.counter.get();
         self.counter.set(x + 1);
         x
+    }
+
+    /// Returns the current counter value.
+    #[inline]
+    fn current(&self) -> u32 {
+        self.counter.get() as u32
     }
 }
 

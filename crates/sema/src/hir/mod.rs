@@ -266,21 +266,21 @@ impl<'hir> Hir<'hir> {
     }
 
     /// Creates a builder for constructing HIR nodes.
-    pub fn builder(arena: &'hir bumpalo::Bump) -> HirBuilder<'hir> {
-        HirBuilder::new(arena)
+    pub fn builder(arena: &'hir bumpalo::Bump, next_id: &'hir Cell<u32>) -> HirBuilder<'hir> {
+        HirBuilder::new(arena, next_id)
     }
 }
 
 /// A builder for constructing HIR nodes.
 pub struct HirBuilder<'hir> {
     arena: &'hir bumpalo::Bump,
-    next_id: Cell<u32>,
+    next_id: &'hir Cell<u32>,
 }
 
 impl<'hir> HirBuilder<'hir> {
     /// Creates a new HIR builder.
-    pub fn new(arena: &'hir bumpalo::Bump) -> Self {
-        Self { arena, next_id: Cell::new(0) }
+    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'hir Cell<u32>) -> Self {
+        Self { arena, next_id }
     }
 
     /// Generates the next expression ID.
