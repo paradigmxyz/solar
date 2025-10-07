@@ -104,7 +104,7 @@ impl<'gcx> LoweringContext<'gcx> {
 }
 
 struct IdCounter {
-    counter: Cell<usize>,
+    counter: Cell<u32>,
 }
 
 impl IdCounter {
@@ -121,13 +121,13 @@ impl IdCounter {
     fn next_usize(&self) -> usize {
         let x = self.counter.get();
         self.counter.set(x + 1);
-        x
+        x as usize
     }
 
-    /// Returns the current counter value.
+    /// Returns a reference to the internal counter.
     #[inline]
-    fn current(&self) -> u32 {
-        self.counter.get() as u32
+    fn cell(&self) -> &Cell<u32> {
+        &self.counter
     }
 }
 
