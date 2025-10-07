@@ -432,7 +432,7 @@ impl<'gcx> Ty<'gcx> {
     ///
     /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
     #[inline]
-    #[doc(alias = "is_explicity_convertible_to")]
+    #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
     pub fn convert_explicit_to(self, other: Self) -> bool {
         self.try_convert_explicit_to(other).is_ok()

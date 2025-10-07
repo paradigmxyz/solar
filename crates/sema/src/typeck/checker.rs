@@ -564,7 +564,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
         if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assigment
+            // TODO: might have different logic vs assignment
             self.check_assign(ty, init);
             if expect {
                 let _ = self.expect_ty(init, ty);
