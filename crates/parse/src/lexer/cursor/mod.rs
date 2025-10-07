@@ -466,7 +466,7 @@ impl<'a> Cursor<'a> {
         debug_assert!(self.prev() == b'e' || self.prev() == b'E');
         // b'+' is not a valid prefix for an exponent, but we accept it here and let the parser
         // reject it later.
-        if self.first() == b'-' || self.first() == b'+' {
+        if matches!(self.first(), b'-' | b'+') {
             self.bump();
         }
         self.eat_decimal_digits()
