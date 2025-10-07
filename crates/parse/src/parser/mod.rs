@@ -658,7 +658,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         while !self.check(ket) {
-            if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
+            if self.token.kind == TokenKind::Eof {
+                recovered = Recovered::Yes;
                 break;
             }
 
