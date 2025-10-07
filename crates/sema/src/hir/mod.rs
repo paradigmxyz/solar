@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{BumpExt, index::IndexVec, newtype_index};
 use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
-use std::{fmt, ops::ControlFlow, sync::Arc};
+use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
 pub use ast::{
@@ -274,12 +274,20 @@ impl<'hir> Hir<'hir> {
 /// A builder for constructing HIR nodes.
 pub struct HirBuilder<'hir> {
     arena: &'hir bumpalo::Bump,
+    next_id: Cell<u32>,
 }
 
 impl<'hir> HirBuilder<'hir> {
     /// Creates a new HIR builder.
     pub fn new(arena: &'hir bumpalo::Bump) -> Self {
-        Self { arena }
+        Self { arena, next_id: Cell::new(0) }
+    }
+
+    /// Generates the next expression ID.
+    pub fn next_expr_id(&self) -> ExprId {
+        let id = self.next_id.get();
+        self.next_id.set(id + 1);
+        ExprId::from_usize(id as usize)
     }
 
     /// Creates a HIR expression with ID, kind and span.
@@ -289,7 +297,7 @@ impl<'hir> HirBuilder<'hir> {
 
     /// Creates a HIR expression with the given kind (as requested in GitHub issue).
     pub fn expr_kind(&self, kind: ExprKind<'hir>) -> Expr<'hir> {
-        Expr { id: ExprId::from_usize(0), kind, span: Span::DUMMY }
+        Expr { id: self.next_expr_id(), kind, span: Span::DUMMY }
     }
 
     /// Creates an allocated HIR expression.
@@ -335,6 +343,11 @@ impl<'hir> HirBuilder<'hir> {
     /// Creates an owned HIR expression with the given ID, kind and span.
     pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
         Expr { id, kind, span }
+    }
+
+    /// Creates an owned HIR expression with automatically generated ID.
+    pub fn expr_auto(&self, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
+        Expr { id: self.next_expr_id(), kind, span }
     }
 
     /// Creates a HIR statement with the given kind and span.
