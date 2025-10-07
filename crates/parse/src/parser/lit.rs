@@ -317,7 +317,9 @@ fn parse_rational<'ast>(
     if rat.is_some_and(str::is_empty) {
         return Err(LitError::EmptyRational);
     }
-    if exp.is_some_and(str::is_empty) {
+    if let Some(power) = exp
+        && (power.is_empty() || power == "-")
+    {
         return Err(LitError::EmptyExponent);
     }
 
@@ -677,6 +679,8 @@ mod tests {
         check_int("0001", Err(IntegerLeadingZeros));
 
         check_int("0.", Err(EmptyRational));
+        check_int_full("0e-", true, Err(EmptyExponent));
+        check_int_full("0e", true, Err(EmptyExponent));
 
         check_int("0", Ok("0"));
         check_int("0e0", Ok("0"));
