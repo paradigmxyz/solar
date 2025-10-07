@@ -3,6 +3,66 @@ use solar_ast as ast;
 use solar_data_structures::smallvec::SmallVec;
 use solar_interface::{Span, Symbol};
 
+bitflags::bitflags! {
+    /// Tracks which documentation tags are locally defined in `merge_natspec_tags`.
+    struct LocalTags: u8 {
+        const NOTICE = 1 << 0;
+        const DEV    = 1 << 1;
+        const TITLE  = 1 << 2;
+        const AUTHOR = 1 << 3;
+    }
+
+    /// Tag permissions for different item types in natspec validation.
+    #[derive(Clone, Copy)]
+    struct TagPermissions: u8 {
+        const TITLE_AUTHOR = 1 << 0;
+        const INHERITDOC   = 1 << 1;
+        const PARAM        = 1 << 2;
+        const RETURN       = 1 << 3;
+    }
+
+    /// Tracks which tags have been seen during validation.
+    #[derive(Clone, Copy, Default)]
+    struct SeenTags: u8 {
+        const TITLE      = 1 << 0;
+        const AUTHOR     = 1 << 1;
+        const INHERITDOC = 1 << 2;
+    }
+}
+
+impl TagPermissions {
+    fn from_item_id(item_id: hir::ItemId) -> Self {
+        let mut perms = Self::empty();
+
+        if matches!(
+            item_id,
+            hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_)
+        ) {
+            perms.insert(Self::TITLE_AUTHOR);
+        }
+
+        if matches!(
+            item_id,
+            hir::ItemId::Function(_)
+                | hir::ItemId::Variable(_)
+                | hir::ItemId::Event(_)
+                | hir::ItemId::Error(_)
+        ) {
+            perms.insert(Self::PARAM);
+        }
+
+        if matches!(item_id, hir::ItemId::Function(_) | hir::ItemId::Variable(_)) {
+            perms.insert(Self::INHERITDOC);
+        }
+
+        if !matches!(item_id, hir::ItemId::Event(_)) {
+            perms.insert(Self::RETURN);
+        }
+
+        perms
+    }
+}
+
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn lower_sources(&mut self) {
@@ -347,43 +407,17 @@ impl<'gcx> super::LoweringContext<'gcx> {
     fn validate_item_natspec(&mut self, docs: &'gcx ast::DocComments<'gcx>, item_id: hir::ItemId) {
         use ast::NatSpecKind;
 
-        let item = self.hir.item(item_id);
         let dcx = self.dcx();
+        let item = self.hir.item(item_id);
+        let permissions = TagPermissions::from_item_id(item_id);
 
         #[derive(Default)]
-        struct ValidationHelper {
-            // Tag permissions (immutable)
-            allows_structure_tags: bool,
-            allows_callable_tags: bool,
-            allows_inheritdoc: bool,
-            allows_return: bool,
-            // Validation flags
-            seen_title: bool,
-            seen_author: bool,
-            seen_inheritdoc: bool,
+        struct ValidationState {
+            seen_tags: SeenTags,
             seen_params: SmallVec<[(Symbol, Span); 6]>,
             return_count: usize,
         }
-
-        let mut check = ValidationHelper {
-            allows_structure_tags: matches!(
-                item_id,
-                hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_)
-            ),
-            allows_callable_tags: matches!(
-                item_id,
-                hir::ItemId::Function(_)
-                    | hir::ItemId::Variable(_)
-                    | hir::ItemId::Event(_)
-                    | hir::ItemId::Error(_)
-            ),
-            allows_inheritdoc: matches!(
-                item_id,
-                hir::ItemId::Function(_) | hir::ItemId::Variable(_)
-            ),
-            allows_return: !matches!(item_id, hir::ItemId::Event(_)),
-            ..Default::default()
-        };
+        let mut state = ValidationState::default();
 
         // Get item parameters and returns for validation
         let parameters = item.parameters();
@@ -400,44 +434,43 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     | NatSpecKind::Internal { .. } => {
                         // Allowed on all items, no validation needed
                     }
-
                     NatSpecKind::Title => {
                         self.validate_single_tag(
                             "@title",
                             tag_span,
-                            check.allows_structure_tags,
-                            &mut check.seen_title,
+                            permissions.contains(TagPermissions::TITLE_AUTHOR),
+                            &mut state.seen_tags,
+                            SeenTags::TITLE,
                             item.description(),
                         );
                     }
-
                     NatSpecKind::Author => {
                         self.validate_single_tag(
                             "@author",
                             tag_span,
-                            check.allows_structure_tags,
-                            &mut check.seen_author,
+                            permissions.contains(TagPermissions::TITLE_AUTHOR),
+                            &mut state.seen_tags,
+                            SeenTags::AUTHOR,
                             item.description(),
                         );
                     }
-
                     NatSpecKind::Inheritdoc { contract } => {
                         self.validate_single_tag(
                             "@inheritdoc",
                             tag_span,
-                            check.allows_inheritdoc,
-                            &mut check.seen_inheritdoc,
+                            permissions.contains(TagPermissions::INHERITDOC),
+                            &mut state.seen_tags,
+                            SeenTags::INHERITDOC,
                             item.description(),
                         );
 
                         // Validate that the contract exists
-                        if check.allows_inheritdoc {
+                        if permissions.contains(TagPermissions::INHERITDOC) {
                             self.validate_inheritdoc_contract(contract, tag_span, item_id);
                         }
                     }
-
                     NatSpecKind::Param { name } => {
-                        if !check.allows_callable_tags {
+                        if !permissions.contains(TagPermissions::PARAM) {
                             dcx.err(format!(
                                 "documentation tag `@param` not valid for {}",
                                 item.description()
@@ -446,10 +479,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             .emit();
                             continue;
                         }
-
                         // Check for duplicate `@param` tags
                         if let Some(&(_, prev_span)) =
-                            check.seen_params.iter().find(|(sym, _)| *sym == name.name)
+                            state.seen_params.iter().find(|(sym, _)| *sym == name.name)
                         {
                             dcx.err(format!(
                                 "duplicate documentation for parameter '{}'",
@@ -460,8 +492,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             .emit();
                             continue;
                         }
-                        check.seen_params.push((name.name, tag_span));
-
+                        state.seen_params.push((name.name, tag_span));
                         // Validate name exists
                         if let Some(params) = parameters {
                             let param_exists = params.iter().any(|&param_id| {
@@ -470,7 +501,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
                                     .name
                                     .is_some_and(|n| n.name == name.name)
                             });
-
                             if !param_exists {
                                 dcx.err(format!(
                                     "documentation tag `@param` references non-existent parameter '{}'",
@@ -481,9 +511,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             }
                         }
                     }
-
                     NatSpecKind::Return { .. } => {
-                        if !check.allows_callable_tags {
+                        if !permissions.contains(TagPermissions::PARAM) {
                             dcx.err(format!(
                                 "documentation tag `@return` not valid for {}",
                                 item.description()
@@ -492,25 +521,22 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             .emit();
                             continue;
                         }
-
-                        if !check.allows_return {
+                        if !permissions.contains(TagPermissions::RETURN) {
                             dcx.err("documentation tag `@return` not valid for events")
                                 .span(tag_span)
                                 .emit();
                             continue;
                         }
-
-                        check.return_count += 1;
-
+                        state.return_count += 1;
                         // Validate return count if this is a function
                         if let Some(rets) = returns
-                            && check.return_count > rets.len()
+                            && state.return_count > rets.len()
                         {
                             dcx.err(format!(
                                 "too many `@return` tags: function has {} return value{}, found {}",
                                 rets.len(),
                                 if rets.len() == 1 { "" } else { "s" },
-                                check.return_count
+                                state.return_count
                             ))
                             .span(tag_span)
                             .emit();
@@ -521,13 +547,14 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    /// Helper to validate tags that don't require more elements.
+    /// Helper to validate singleton tags.
     fn validate_single_tag(
         &self,
         tag_name: &str,
         tag_span: Span,
         allowed: bool,
-        seen: &mut bool,
+        seen_tags: &mut SeenTags,
+        tag_flag: SeenTags,
         item_desc: &str,
     ) {
         if !allowed {
@@ -536,13 +563,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 .span(tag_span)
                 .emit();
         }
-        if *seen {
+        if seen_tags.contains(tag_flag) {
             self.dcx()
                 .err(format!("documentation tag {tag_name} can only be given once"))
                 .span(tag_span)
                 .emit();
         }
-        *seen = true;
+        seen_tags.insert(tag_flag);
     }
 
     /// Validates that a contract referenced in `@inheritdoc` exists and contains a matching item.
@@ -745,16 +772,12 @@ impl<'gcx> super::LoweringContext<'gcx> {
         inherited_doc_id: hir::DocId,
     ) -> SmallVec<[hir::NatSpecItem; 6]> {
         use hir::NatSpecKind as HirKind;
-        use solar_data_structures::map::FxHashSet;
 
         let doc = self.hir.doc(doc_id);
         let mut merged = SmallVec::new();
-        let mut has_notice = false;
-        let mut has_dev = false;
-        let mut has_title = false;
-        let mut has_author = false;
-        let mut local_params = FxHashSet::<solar_interface::Symbol>::default();
-        let mut local_returns = FxHashSet::<Option<solar_interface::Symbol>>::default();
+        let mut local_tags = LocalTags::empty();
+        let mut local_params = SmallVec::<[Symbol; 4]>::new();
+        let mut local_returns = SmallVec::<[Option<Symbol>; 4]>::new();
 
         // Collect local tags, excluding `@inheritdoc`
         for doc_comment in doc.ast_comments.iter() {
@@ -762,15 +785,20 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 if let Some(resolved_item) = hir::NatSpecItem::from_ast(*item, doc_comment.symbol) {
                     match &resolved_item.kind {
                         // Only inherit if not locally defined
-                        HirKind::Notice => has_notice = true,
-                        HirKind::Dev => has_dev = true,
-                        HirKind::Title => has_title = true,
-                        HirKind::Author => has_author = true,
+                        HirKind::Notice => local_tags.insert(LocalTags::NOTICE),
+                        HirKind::Dev => local_tags.insert(LocalTags::DEV),
+                        HirKind::Title => local_tags.insert(LocalTags::TITLE),
+                        HirKind::Author => local_tags.insert(LocalTags::AUTHOR),
                         HirKind::Param { name } => {
-                            local_params.insert(name.name);
+                            if !local_params.contains(&name.name) {
+                                local_params.push(name.name);
+                            }
                         }
                         HirKind::Return { name } => {
-                            local_returns.insert(name.map(|n| n.name));
+                            let symbol = name.map(|i| i.name);
+                            if !local_returns.contains(&symbol) {
+                                local_returns.push(symbol);
+                            }
                         }
                         // Always merge
                         HirKind::Custom { .. } | HirKind::Internal { .. } => {}
@@ -792,10 +820,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
         for item in inherited_items.iter() {
             let should_inherit = match &item.kind {
                 // Only inherit if not locally defined
-                HirKind::Notice => !has_notice,
-                HirKind::Dev => !has_dev,
-                HirKind::Title => !has_title,
-                HirKind::Author => !has_author,
+                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
+                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
+                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
+                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
                 HirKind::Param { name } => !local_params.contains(&name.name),
                 HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
                 // Always merge
