@@ -318,7 +318,7 @@ fn parse_rational<'ast>(
         return Err(LitError::EmptyRational);
     }
     if let Some(power) = exp
-        && (power.is_empty() || power == "-")
+        && (power.is_empty() || power == "-" || power == "+")
     {
         return Err(LitError::EmptyExponent);
     }
@@ -680,6 +680,7 @@ mod tests {
 
         check_int("0.", Err(EmptyRational));
         check_int_full("0e-", true, Err(EmptyExponent));
+        check_int_full("0e+", true, Err(EmptyExponent));
         check_int_full("0e", true, Err(EmptyExponent));
 
         check_int("0", Ok("0"));

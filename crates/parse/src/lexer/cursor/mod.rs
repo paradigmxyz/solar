@@ -464,8 +464,9 @@ impl<'a> Cursor<'a> {
     /// Eats the exponent. Returns `true` if any digits were encountered.
     fn eat_exponent(&mut self) -> bool {
         debug_assert!(self.prev() == b'e' || self.prev() == b'E');
-        // b'+' is not a valid prefix for an exponent.
-        if self.first() == b'-' {
+        // b'+' is not a valid prefix for an exponent, but we accept it here and let the parser
+        // reject it later.
+        if self.first() == b'-' || self.first() == b'+' {
             self.bump();
         }
         self.eat_decimal_digits()
