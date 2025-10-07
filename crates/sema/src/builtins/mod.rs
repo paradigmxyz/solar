@@ -29,7 +29,7 @@ fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {
 type Primitive = u8;
 
 macro_rules! declare_builtins {
-    (|$gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
+    (|$slf:ident, $gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
         /// A compiler builtin.
         #[repr(u8)]
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -55,8 +55,8 @@ macro_rules! declare_builtins {
             }
 
             /// Returns the type of the builtin.
-            pub fn ty(self, $gcx: Gcx<'_>) -> Ty<'_> {
-                match self {
+            pub fn ty($slf, $gcx: Gcx<'_>) -> Ty<'_> {
+                match $slf {
                     $(
                         Builtin::$variant_name => $ty,
                     )*
@@ -70,7 +70,7 @@ macro_rules! declare_builtins {
 // https://github.com/argotorg/solidity/blob/b136829e4998a9f0ebc6ca87b7ba45362fe83ba0/libsolidity/analysis/GlobalContext.cpp#L73
 // NOTE: Order matters, see functions below.
 declare_builtins! {
-    |gcx|
+    |self, gcx|
 
     // Global
     Blockhash              => kw::Blockhash
@@ -111,13 +111,13 @@ declare_builtins! {
                            => gcx.mk_builtin_fn(&[gcx.types.fixed_bytes(32), gcx.types.uint(8), gcx.types.fixed_bytes(32), gcx.types.fixed_bytes(32)], SM::Pure, &[gcx.types.address]);
 
     Block                  => sym::block
-                           => gcx.mk_builtin_mod(Self::Block);
+                           => gcx.mk_builtin_mod(self);
     Msg                    => sym::msg
-                           => gcx.mk_builtin_mod(Self::Msg);
+                           => gcx.mk_builtin_mod(self);
     Tx                     => sym::tx
-                           => gcx.mk_builtin_mod(Self::Tx);
+                           => gcx.mk_builtin_mod(self);
     Abi                    => sym::abi
-                           => gcx.mk_builtin_mod(Self::Abi);
+                           => gcx.mk_builtin_mod(self);
 
     // Contract
     This                   => sym::this   => unreachable!();
@@ -206,9 +206,15 @@ declare_builtins! {
 
     ArrayLength            => sym::length
                            => gcx.types.uint(256);
+    ArrayPush0             => sym::push => unreachable!();
+    ArrayPush              => sym::push => unreachable!();
+    ArrayPop               => kw::Pop => unreachable!();
 
-    ErrorSelector          => sym::selector
+    FunctionSelector       => sym::selector
                            => gcx.types.fixed_bytes(4);
+
+    FunctionAddress        => kw::Address
+                           => gcx.types.address;
 
     EventSelector          => sym::selector
                            => gcx.types.fixed_bytes(32);
