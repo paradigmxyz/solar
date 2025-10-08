@@ -1150,19 +1150,13 @@ fn split_once_ws<'a>(
     start: usize,
     end: usize,
 ) -> (&'a str, usize) {
-    let ws_pos = memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end])
-        .map(|offset| start + offset)
-        .unwrap_or(end);
-
-    if ws_pos < end {
-        let rest_start = bytes[ws_pos..end]
-            .iter()
-            .position(|&b| !matches!(b, b' ' | b'\t' | b'\r'))
-            .map(|offset| ws_pos + offset)
-            .unwrap_or(end);
-        (&content[start..ws_pos], rest_start)
+    if let Some(ws_pos) =
+        memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end]).map(|offset| start + offset)
+    {
+        let rest = &bytes[ws_pos..end];
+        (&content[start..ws_pos], ws_pos + (rest.len() - rest.trim_ascii_start().len()))
     } else {
-        (&content[start..ws_pos], end)
+        (&content[start..end], end)
     }
 }
 
