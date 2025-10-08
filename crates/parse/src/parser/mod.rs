@@ -875,8 +875,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     #[cold]
     fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
-        let docs = std::mem::take(&mut self.docs);
-        self.alloc_vec(docs).into()
+        // SAFETY: Doesn't have `Drop` and we clear right after to pass ownership to the caller.
+        // We use this to avoid deallocating the vector's memory.
+        assert!(!std::mem::needs_drop::<DocComments<'_>>());
+        let docs = unsafe { self.arena.alloc_thin_slice_unchecked((), &self.docs) };
+        self.docs.clear();
+        docs.into()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
