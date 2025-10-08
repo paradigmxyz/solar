@@ -655,6 +655,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
+                        let builder = self.hir_builder();
                         let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), span);
 
                         // `return (<name "." ret.name "," for ret in returns>);`
@@ -685,12 +686,12 @@ impl<'gcx> ResolveContext<'gcx> {
                     }
                 }
             };
-            stmts.map(|stmts| builder.block(stmts, span))
+            stmts.map(|stmts| self.hir_builder().block(stmts, span))
         }
     }
 
     fn mk_var(
-        &mut self,
+        &self,
         function: Option<hir::FunctionId>,
         span: Span,
         ty: hir::Type<'gcx>,
@@ -706,7 +707,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn mk_var_stmt(
-        &mut self,
+        &self,
         function: hir::FunctionId,
         span: Span,
         ty: hir::Type<'gcx>,
@@ -900,9 +901,9 @@ impl<'gcx> ResolveContext<'gcx> {
             //     if (<cond>) <stmt> else break;
             // }
             ast::StmtKind::While(cond, stmt) => self.in_scope(|this| {
-                let builder = this.hir_builder();
                 let cond = this.lower_expr(cond);
                 let stmt = this.lower_stmt(stmt);
+                let builder = this.hir_builder();
                 let break_stmt = builder.break_stmt(span);
                 let body = this.arena.alloc_as_slice(
                     builder.stmt(hir::StmtKind::If(cond, stmt, Some(break_stmt)), span),
@@ -915,9 +916,9 @@ impl<'gcx> ResolveContext<'gcx> {
             //     if (<cond>) continue else break;
             // }
             ast::StmtKind::DoWhile(stmt, cond) => self.in_scope(|this| {
-                let builder = this.hir_builder();
                 let stmt = this.in_scope(|this| this.lower_stmt_full(stmt));
                 let cond = this.lower_expr(cond);
+                let builder = this.hir_builder();
                 let cont_stmt = builder.continue_stmt(span);
                 let break_stmt = builder.break_stmt(span);
                 let check =
@@ -938,12 +939,12 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             ast::StmtKind::For { init, cond, next, body } => {
                 self.in_scope_if(init.is_some(), |this| {
-                    let builder = this.hir_builder();
                     let init = init.as_deref().map(|stmt| this.lower_stmt_full(stmt));
                     let cond = this.lower_expr_opt(cond.as_deref());
                     let mut body =
                         this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body));
                     let next = this.lower_expr_opt(next.as_deref());
+                    let builder = this.hir_builder();
 
                     // <body> = { <body>; <next>; }
                     if let Some(next) = next {
@@ -1152,10 +1153,8 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     /// Creates a HIR builder.
-    fn hir_builder(&self) -> hir::HirBuilder<'gcx> {
-        // SAFETY: The IdCounter lives as long as the ResolveContext, which lives as long as 'gcx
-        let cell: &'gcx _ = unsafe { std::mem::transmute(self.next_id.cell()) };
-        hir::Hir::builder(self.arena, cell)
+    fn hir_builder(&self) -> hir::HirBuilder<'gcx, '_> {
+        hir::Hir::builder(self.arena, &self.next_id)
     }
 }
 

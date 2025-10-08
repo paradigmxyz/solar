@@ -5,7 +5,11 @@ use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
-use solar_data_structures::{BumpExt, index::IndexVec, newtype_index};
+use solar_data_structures::{
+    BumpExt,
+    index::{Idx, IndexVec},
+    newtype_index,
+};
 use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
@@ -266,28 +270,63 @@ impl<'hir> Hir<'hir> {
     }
 
     /// Creates a builder for constructing HIR nodes.
-    pub fn builder(arena: &'hir bumpalo::Bump, next_id: &'hir Cell<u32>) -> HirBuilder<'hir> {
+    pub fn builder<'id>(
+        arena: &'hir bumpalo::Bump,
+        next_id: &'id IdCounter,
+    ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
     }
 }
 
-/// A builder for constructing HIR nodes.
-pub struct HirBuilder<'hir> {
-    arena: &'hir bumpalo::Bump,
-    next_id: &'hir Cell<u32>,
+/// A counter for generating unique IDs.
+pub struct IdCounter {
+    counter: Cell<u32>,
 }
 
-impl<'hir> HirBuilder<'hir> {
+impl Default for IdCounter {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IdCounter {
+    /// Creates a new ID counter.
+    #[inline]
+    pub fn new() -> Self {
+        Self { counter: Cell::new(0) }
+    }
+
+    /// Generates the next ID.
+    #[inline]
+    pub fn next<I: Idx>(&self) -> I {
+        I::from_usize(self.next_usize())
+    }
+
+    /// Generates the next ID as a usize.
+    #[inline]
+    pub fn next_usize(&self) -> usize {
+        let x = self.counter.get();
+        self.counter.set(x + 1);
+        x as usize
+    }
+}
+
+/// A builder for constructing HIR nodes.
+pub struct HirBuilder<'hir, 'id> {
+    arena: &'hir bumpalo::Bump,
+    next_id: &'id IdCounter,
+}
+
+impl<'hir, 'id> HirBuilder<'hir, 'id> {
     /// Creates a new HIR builder.
-    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'hir Cell<u32>) -> Self {
+    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'id IdCounter) -> Self {
         Self { arena, next_id }
     }
 
     /// Generates the next expression ID.
     pub fn next_expr_id(&self) -> ExprId {
-        let id = self.next_id.get();
-        self.next_id.set(id + 1);
-        ExprId::from_usize(id as usize)
+        self.next_id.next()
     }
 
     /// Creates a HIR expression with ID, kind and span.
