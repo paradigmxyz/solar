@@ -1,5 +1,6 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
+use solar_data_structures::map::FxHashSet;
 use solar_data_structures::smallvec::SmallVec;
 use solar_interface::{Span, Symbol};
 
@@ -791,8 +792,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let doc = self.hir.doc(doc_id);
         let mut merged = SmallVec::new();
         let mut local_tags = LocalTags::empty();
-        let mut local_params = SmallVec::<[Symbol; 4]>::new();
-        let mut local_returns = SmallVec::<[Option<Symbol>; 4]>::new();
+        let mut local_params = FxHashSet::<Symbol>::default();
+        let mut local_returns = FxHashSet::<Option<Symbol>>::default();
 
         // Collect local tags, excluding `@inheritdoc`
         for doc_comment in doc.ast_comments.iter() {
@@ -805,15 +806,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         HirKind::Title => local_tags.insert(LocalTags::TITLE),
                         HirKind::Author => local_tags.insert(LocalTags::AUTHOR),
                         HirKind::Param { name } => {
-                            if !local_params.contains(&name.name) {
-                                local_params.push(name.name);
-                            }
+                            local_params.insert(name.name);
                         }
                         HirKind::Return { name } => {
-                            let symbol = name.map(|i| i.name);
-                            if !local_returns.contains(&symbol) {
-                                local_returns.push(symbol);
-                            }
+                            local_returns.insert(name.map(|i| i.name));
                         }
                         // Always merge
                         HirKind::Custom { .. } | HirKind::Internal { .. } => {}

@@ -11,6 +11,8 @@ pub struct NatSpecItem {
     /// Span of the tag. '@' is not included.
     pub span: Span,
     /// The symbol containing this tag's content.
+    ///
+    /// NOTE: Not stored at `Doc` level, because `@inheritdoc` items reference other source docs.
     pub(crate) symbol: Symbol,
     /// Byte offset into the doc comment's symbol where this tag's content starts.
     pub(crate) content_start: u32,
