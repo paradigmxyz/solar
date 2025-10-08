@@ -109,6 +109,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             })
         } else if let Some(unop) = self.token.as_unop(false) {
             self.bump(); // unop
+            // Special handling for negation followed by integer literals
+            if unop.kind == UnOpKind::Neg && self.check_int_lit() {
+                let (lit, subdenomination) = self.parse_lit(true)?;
+                if let LitKind::Number(n, _) = lit.kind {
+                    let span = lo.to(self.prev_token.span);
+                    let negative_lit = self.alloc(Lit {
+                        span,
+                        symbol: lit.symbol,
+                        kind: LitKind::Number(n, true), // Set negative to true
+                    });
+                    return Ok(self
+                        .alloc(Expr { span, kind: ExprKind::Lit(negative_lit, subdenomination) }));
+                }
+            }
             self.parse_unary_expr(None).map(|expr| {
                 let span = lo.to(self.prev_token.span);
                 self.alloc(Expr { span, kind: ExprKind::Unary(unop, expr) })

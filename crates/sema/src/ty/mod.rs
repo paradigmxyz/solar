@@ -634,8 +634,8 @@ impl<'gcx> Gcx<'gcx> {
     pub fn type_of_lit(self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
         match &lit.kind {
             solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s.as_byte_str()),
-            solar_ast::LitKind::Number(int) => {
-                self.mk_ty_int_literal(false, int.bit_len() as _).unwrap_or_else(|| {
+            solar_ast::LitKind::Number(int, positive) => {
+                self.mk_ty_int_literal(*positive, int.bit_len() as _).unwrap_or_else(|| {
                     self.mk_ty_err(
                         self.dcx()
                             .err("integer literal is greater than 2**256")

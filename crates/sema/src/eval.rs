@@ -125,7 +125,9 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
-            LitKind::Number(n) => Ok(IntScalar::new(n)),
+            LitKind::Number(n, negative) => {
+                Ok(if negative { IntScalar::new(n.wrapping_neg()) } else { IntScalar::new(n) })
+            }
             // LitKind::Rational(ratio) => todo!(),
             LitKind::Address(address) => Ok(IntScalar::from_be_bytes(address.as_slice())),
             LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),

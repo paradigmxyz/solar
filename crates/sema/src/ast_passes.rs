@@ -63,7 +63,7 @@ impl<'sess> AstValidator<'sess, '_> {
     }
 
     fn check_underscores_in_number_literals(&self, lit: &ast::Lit<'_>) {
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+        let (ast::LitKind::Number(..) | ast::LitKind::Rational(_)) = lit.kind else {
             return;
         };
         let value = lit.symbol.as_str();
@@ -109,7 +109,7 @@ impl<'sess> AstValidator<'sess, '_> {
             return;
         };
 
-        let (ast::LitKind::Number(_) | ast::LitKind::Rational(_)) = lit.kind else {
+        let (ast::LitKind::Number(..) | ast::LitKind::Rational(_)) = lit.kind else {
             panic!("non-number literal with denomination {:?}", lit.kind)
         };
 
