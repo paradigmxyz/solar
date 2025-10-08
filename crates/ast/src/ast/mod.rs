@@ -16,6 +16,9 @@ pub use item::*;
 mod lit;
 pub use lit::*;
 
+mod natspec;
+pub use natspec::*;
+
 mod path;
 pub use path::*;
 
@@ -85,10 +88,10 @@ impl std::ops::Deref for Arena {
 
 /// A list of doc-comments.
 #[derive(Default)]
-pub struct DocComments<'ast>(pub BoxSlice<'ast, DocComment>);
+pub struct DocComments<'ast>(BoxSlice<'ast, DocComment<'ast>>);
 
 impl<'ast> std::ops::Deref for DocComments<'ast> {
-    type Target = BoxSlice<'ast, DocComment>;
+    type Target = BoxSlice<'ast, DocComment<'ast>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -103,8 +106,8 @@ impl std::ops::DerefMut for DocComments<'_> {
     }
 }
 
-impl<'ast> From<BoxSlice<'ast, DocComment>> for DocComments<'ast> {
-    fn from(comments: BoxSlice<'ast, DocComment>) -> Self {
+impl<'ast> From<BoxSlice<'ast, DocComment<'ast>>> for DocComments<'ast> {
+    fn from(comments: BoxSlice<'ast, DocComment<'ast>>) -> Self {
         Self(comments)
     }
 }
@@ -121,18 +124,6 @@ impl DocComments<'_> {
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
     }
-}
-
-/// A single doc-comment: `/// foo`, `/** bar */`.
-#[derive(Clone, Copy, Debug)]
-pub struct DocComment {
-    /// The comment kind.
-    pub kind: CommentKind,
-    /// The comment's span including its "quotes" (`//`, `/**`).
-    pub span: Span,
-    /// The comment's contents excluding its "quotes" (`//`, `/**`)
-    /// similarly to symbols in string literal tokens.
-    pub symbol: Symbol,
 }
 
 /// A Solidity source file.
