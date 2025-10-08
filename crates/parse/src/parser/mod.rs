@@ -870,12 +870,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses contiguous doc comments. Can be empty.
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
-        if !self.docs.is_empty() {
-            let comments = std::mem::take(&mut self.docs);
-            self.alloc_vec(comments).into()
-        } else {
-            Default::default()
-        }
+        if !self.docs.is_empty() { self.parse_doc_comments_inner() } else { Default::default() }
+    }
+
+    #[cold]
+    fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
+        let docs = std::mem::take(&mut self.docs);
+        self.alloc_vec(docs).into()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
