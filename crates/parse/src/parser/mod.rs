@@ -1089,8 +1089,8 @@ fn parse_natspec(
             let (tag, rest_start) = split_once_ws(content, bytes, tag_start, line_end);
 
             // Calculate span: from '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + (line_start + tag_offset) as u32;
-            let tag_hi = tag_lo + tag.len() as u32 + 1; // +1 for '@'
+            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
+            let tag_hi = tag_lo + tag.len() as u32;
             span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
             content_start = rest_start;
 
