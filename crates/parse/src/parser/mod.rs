@@ -1235,19 +1235,19 @@ mod tests {
                 check_natspec_item(sm, natspec_items[i].0, natspec_items[i].1, snip, kind, name, content)
             };
 
-            check(0, "@title", "title", None, Some("MyContract"));
-            check(1, "@author", "author", None, Some("Alice"));
-            check(2, "@notice", "notice", None, Some("This is a notice"));
+            check(0, "title", "title", None, Some("MyContract"));
+            check(1, "author", "author", None, Some("Alice"));
+            check(2, "notice", "notice", None, Some("This is a notice"));
             let span3 = sm.span_to_snippet(natspec_items[3].1.span).unwrap();
             check(3, &span3, "notice", None, Some("that spans multiple lines"));
             let span4 = sm.span_to_snippet(natspec_items[4].1.span).unwrap();
             check(4, &span4, "notice", None, Some("and continues here"));
-            check(5, "@dev", "dev", None, Some("This is dev documentation"));
-            check(6, "@param", "param", Some("x"), Some("The input parameter"));
-            check(7, "@return", "return", Some("result"), Some("The return value"));
-            check(8, "@inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
-            check(9, "@custom:security", "custom", Some("security"), Some("High priority"));
-            check(10, "@solidity", "internal", Some("solidity"), Some("memory-safe"));
+            check(5, "dev", "dev", None, Some("This is dev documentation"));
+            check(6, "param", "param", Some("x"), Some("The input parameter"));
+            check(7, "return", "return", Some("result"), Some("The return value"));
+            check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
+            check(9, "custom:security", "custom", Some("security"), Some("High priority"));
+            check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe");
         });
@@ -1290,15 +1290,15 @@ mod tests {
                 check_natspec_item(sm, sym, &items[i], span, kind, name, content)
             };
 
-            check(0, "@title", "title", None, Some("MyContract"));
-            check(1, "@author", "author", None, Some("Alice"));
-            check(2, "@notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
-            check(3, "@dev", "dev", None, Some("This is dev documentation"));
-            check(4, "@param", "param", Some("x"), Some("The input parameter"));
-            check(5, "@return", "return", Some("result"), Some("The return value"));
-            check(6, "@inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
-            check(7, "@custom:security", "custom", Some("security"), Some("High priority"));
-            check(8, "@src", "internal", Some("src"), Some("0:123:456"));
+            check(0, "title", "title", None, Some("MyContract"));
+            check(1, "author", "author", None, Some("Alice"));
+            check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
+            check(3, "dev", "dev", None, Some("This is dev documentation"));
+            check(4, "param", "param", Some("x"), Some("The input parameter"));
+            check(5, "return", "return", Some("result"), Some("The return value"));
+            check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
+            check(7, "custom:security", "custom", Some("security"), Some("High priority"));
+            check(8, "src", "internal", Some("src"), Some("0:123:456"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */");
         });
