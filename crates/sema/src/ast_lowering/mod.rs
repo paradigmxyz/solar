@@ -1,5 +1,5 @@
 use crate::{
-    hir::{self, Hir},
+    hir::{self, Hir, IdCounter},
     parse::Sources,
     ty::{Gcx, GcxMut},
 };
@@ -105,28 +105,6 @@ impl<'gcx> LoweringContext<'gcx> {
             let this = self;
             (this.hir, this.resolver)
         }
-    }
-}
-
-struct IdCounter {
-    counter: std::cell::Cell<usize>,
-}
-
-impl IdCounter {
-    fn new() -> Self {
-        Self { counter: std::cell::Cell::new(0) }
-    }
-
-    #[inline]
-    fn next<I: Idx>(&self) -> I {
-        I::from_usize(self.next_usize())
-    }
-
-    #[inline]
-    fn next_usize(&self) -> usize {
-        let x = self.counter.get();
-        self.counter.set(x + 1);
-        x
     }
 }
 

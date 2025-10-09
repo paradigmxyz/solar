@@ -634,17 +634,23 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.functions[id].parameters = self.arena.alloc_slice_copy(&parameters);
         self.hir.functions[id].returns = self.arena.alloc_slice_copy(&returns);
         self.hir.functions[id].body = {
-            let mk_expr =
-                |kind| &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span });
-            let mk_stmt = |kind| hir::Stmt { span, kind };
+            let builder = self.hir_builder();
 
             // `<gettee><"[" param "]" for param in params>`
             let res = Res::Item(hir::ItemId::Variable(gettee));
-            let mut expr = mk_expr(hir::ExprKind::Ident(self.arena.alloc_as_slice(res)));
+            let mut expr = builder.expr(
+                self.next_id(),
+                hir::ExprKind::Ident(self.arena.alloc_as_slice(res)),
+                span,
+            );
             for &param in &parameters {
                 let res = Res::Item(hir::ItemId::Variable(param));
                 let ident = hir::ExprKind::Ident(self.arena.alloc_as_slice(res));
-                expr = mk_expr(hir::ExprKind::Index(expr, Some(mk_expr(ident))));
+                expr = builder.expr(
+                    self.next_id(),
+                    hir::ExprKind::Index(expr, Some(builder.expr(self.next_id(), ident, span))),
+                    span,
+                );
             }
 
             let stmts: Option<&[hir::Stmt<'_>]> = match returns[..] {
@@ -655,15 +661,20 @@ impl<'gcx> ResolveContext<'gcx> {
                     Some(&[])
                 }
                 // `return <expr>;`
-                [_] if ret_struct.is_none() => {
-                    Some(self.arena.alloc_as_slice(mk_stmt(hir::StmtKind::Return(Some(expr)))))
-                }
+                [_] if ret_struct.is_none() => Some(
+                    self.arena
+                        .alloc_as_slice(builder.stmt(hir::StmtKind::Return(Some(expr)), span)),
+                ),
                 [..] => {
                     if let [ret] = returns[..] {
                         // `return <expr>.<ret.name>;`
                         let ret = self.hir.variable(ret);
-                        let expr = mk_expr(hir::ExprKind::Member(expr, ret.name.unwrap()));
-                        let stmt = mk_stmt(hir::StmtKind::Return(Some(expr)));
+                        let expr = builder.expr(
+                            self.next_id(),
+                            hir::ExprKind::Member(expr, ret.name.unwrap()),
+                            span,
+                        );
+                        let stmt = builder.stmt(hir::StmtKind::Return(Some(expr)), span);
                         Some(self.arena.alloc_as_slice(stmt))
                     } else {
                         // `Struct storage <name> = <expr>;`
@@ -671,32 +682,38 @@ impl<'gcx> ResolveContext<'gcx> {
                         let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
                         let decl_id = self.hir.variables.push(decl_var);
-                        // Re-declare `mk_expr` because we need to re-borrow `self`.
-                        let mk_expr = |kind| {
-                            &*self.arena.alloc(hir::Expr { id: self.next_id.next(), kind, span })
-                        };
-                        let decl_stmt = mk_stmt(hir::StmtKind::DeclSingle(decl_id));
+                        let builder = self.hir_builder();
+                        let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), span);
 
                         // `return (<name "." ret.name "," for ret in returns>);`
                         let res =
                             self.arena.alloc_as_slice(Res::Item(hir::ItemId::Variable(decl_id)));
-                        let tuple = mk_expr(hir::ExprKind::Tuple(
-                            self.arena.alloc_slice_fill_iter(returns.iter().map(|&ret| {
-                                let decl_name_expr = mk_expr(hir::ExprKind::Ident(res));
-                                let ret = self.hir.variable(ret);
-                                Some(mk_expr(hir::ExprKind::Member(
-                                    decl_name_expr,
-                                    ret.name.unwrap(),
-                                )))
-                            })),
-                        ));
-                        let ret_stmt = mk_stmt(hir::StmtKind::Return(Some(tuple)));
+                        let tuple = builder.expr(
+                            self.next_id(),
+                            hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
+                                returns.iter().map(|&ret| {
+                                    let decl_name_expr = builder.expr(
+                                        self.next_id(),
+                                        hir::ExprKind::Ident(res),
+                                        span,
+                                    );
+                                    let ret = self.hir.variable(ret);
+                                    Some(builder.expr(
+                                        self.next_id(),
+                                        hir::ExprKind::Member(decl_name_expr, ret.name.unwrap()),
+                                        span,
+                                    ))
+                                }),
+                            )),
+                            span,
+                        );
+                        let ret_stmt = builder.stmt(hir::StmtKind::Return(Some(tuple)), span);
 
                         Some(self.arena.alloc_array([decl_stmt, ret_stmt]))
                     }
                 }
             };
-            stmts.map(|stmts| hir::Block { span, stmts })
+            stmts.map(|stmts| self.hir_builder().block(stmts, span))
         }
     }
 
@@ -926,12 +943,12 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::While(cond, stmt) => self.in_scope(|this| {
                 let cond = this.lower_expr(cond);
                 let stmt = this.lower_stmt(stmt);
-                let break_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
-                let body = this.arena.alloc_as_slice(hir::Stmt {
-                    span,
-                    kind: hir::StmtKind::If(cond, stmt, Some(break_stmt)),
-                });
-                hir::StmtKind::Loop(hir::Block { span, stmts: body }, hir::LoopSource::While)
+                let builder = this.hir_builder();
+                let break_stmt = builder.break_stmt(span);
+                let body = this.arena.alloc_as_slice(
+                    builder.stmt(hir::StmtKind::If(cond, stmt, Some(break_stmt)), span),
+                );
+                hir::StmtKind::Loop(builder.block(body, span), hir::LoopSource::While)
             }),
 
             // loop {
@@ -941,13 +958,14 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::DoWhile(stmt, cond) => self.in_scope(|this| {
                 let stmt = this.in_scope(|this| this.lower_stmt_full(stmt));
                 let cond = this.lower_expr(cond);
-                let cont_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Continue });
-                let break_stmt = this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
+                let builder = this.hir_builder();
+                let cont_stmt = builder.continue_stmt(span);
+                let break_stmt = builder.break_stmt(span);
                 let check =
-                    hir::Stmt { span, kind: hir::StmtKind::If(cond, cont_stmt, Some(break_stmt)) };
+                    builder.stmt(hir::StmtKind::If(cond, cont_stmt, Some(break_stmt)), span);
 
                 let body = this.arena.alloc_array([stmt, check]);
-                hir::StmtKind::Loop(hir::Block { span, stmts: body }, hir::LoopSource::DoWhile)
+                hir::StmtKind::Loop(builder.block(body, span), hir::LoopSource::DoWhile)
             }),
 
             // {
@@ -966,40 +984,40 @@ impl<'gcx> ResolveContext<'gcx> {
                     let mut body =
                         this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body));
                     let next = this.lower_expr_opt(next.as_deref());
+                    let builder = this.hir_builder();
 
                     // <body> = { <body>; <next>; }
                     if let Some(next) = next {
-                        let next = hir::Stmt { span: next.span, kind: hir::StmtKind::Expr(next) };
-                        body = hir::Stmt {
-                            span: body.span,
-                            kind: hir::StmtKind::Block(hir::Block {
-                                span,
-                                stmts: this.arena.alloc_array([body, next]),
-                            }),
-                        };
+                        let next = builder.stmt(hir::StmtKind::Expr(next), next.span);
+                        let body_span = body.span;
+                        body = builder.stmt(
+                            hir::StmtKind::Block(
+                                builder.block(this.arena.alloc_array([body, next]), span),
+                            ),
+                            body_span,
+                        );
                     }
 
                     // <body> = if (<cond>) { <body> } else break;
                     if let Some(cond) = cond {
-                        let break_stmt =
-                            this.arena.alloc(hir::Stmt { span, kind: hir::StmtKind::Break });
-                        body = hir::Stmt {
-                            span: body.span,
-                            kind: hir::StmtKind::If(cond, this.arena.alloc(body), Some(break_stmt)),
-                        };
+                        let break_stmt = builder.break_stmt(span);
+                        let body_span = body.span;
+                        body = builder.stmt(
+                            hir::StmtKind::If(cond, this.arena.alloc(body), Some(break_stmt)),
+                            body_span,
+                        );
                     }
 
                     let mut kind = hir::StmtKind::Loop(
-                        hir::Block { span, stmts: this.arena.alloc_as_slice(body) },
+                        builder.block(this.arena.alloc_as_slice(body), span),
                         hir::LoopSource::For,
                     );
 
                     if let Some(init) = init {
-                        let s = hir::Stmt { span, kind };
-                        kind = hir::StmtKind::Block(hir::Block {
-                            span,
-                            stmts: this.arena.alloc_array([init, s]),
-                        });
+                        let s = builder.stmt(kind, span);
+                        kind = hir::StmtKind::Block(
+                            builder.block(this.arena.alloc_array([init, s]), span),
+                        );
                     }
 
                     kind
@@ -1108,7 +1126,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
         };
-        hir::Expr { id: self.next_id(), kind, span: expr.span }
+        self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
@@ -1180,6 +1198,11 @@ impl<'gcx> ResolveContext<'gcx> {
     #[inline]
     fn next_id<I: Idx>(&self) -> I {
         self.next_id.next()
+    }
+
+    /// Creates a HIR builder.
+    fn hir_builder(&self) -> hir::HirBuilder<'gcx, '_> {
+        hir::Hir::builder(self.arena, &self.next_id)
     }
 }
 

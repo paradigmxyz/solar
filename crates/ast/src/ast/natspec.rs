@@ -46,7 +46,7 @@ impl NatSpecItem {
 /// The kind of a [`NatSpecItem`].
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug)]
 pub enum NatSpecKind {
     /// `@title`
     ///

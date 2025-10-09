@@ -658,7 +658,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         }
 
         while !self.check(ket) {
-            if let TokenKind::CloseDelim(..) | TokenKind::Eof = self.token.kind {
+            if self.token.kind == TokenKind::Eof {
+                recovered = Recovered::Yes;
                 break;
             }
 
@@ -870,12 +871,17 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses contiguous doc comments. Can be empty.
     #[inline]
     pub fn parse_doc_comments(&mut self) -> DocComments<'ast> {
-        if !self.docs.is_empty() {
-            let comments = std::mem::take(&mut self.docs);
-            self.alloc_vec(comments).into()
-        } else {
-            Default::default()
-        }
+        if !self.docs.is_empty() { self.parse_doc_comments_inner() } else { Default::default() }
+    }
+
+    #[cold]
+    fn parse_doc_comments_inner(&mut self) -> DocComments<'ast> {
+        // SAFETY: Doesn't have `Drop` and we clear right after to pass ownership to the caller.
+        // We use this to avoid deallocating the vector's memory.
+        assert!(!std::mem::needs_drop::<DocComments<'_>>());
+        let docs = unsafe { self.arena.alloc_thin_slice_unchecked((), &self.docs) };
+        self.docs.clear();
+        docs.into()
     }
 
     /// Parses a qualified identifier: `foo.bar.baz`.
@@ -1088,8 +1094,8 @@ fn parse_natspec(
             let (tag, rest_start) = split_once_ws(content, bytes, tag_start, line_end);
 
             // Calculate span: from '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + (line_start + tag_offset) as u32;
-            let tag_hi = tag_lo + tag.len() as u32 + 1; // +1 for '@'
+            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
+            let tag_hi = tag_lo + tag.len() as u32;
             span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
             content_start = rest_start;
 
@@ -1151,19 +1157,13 @@ fn split_once_ws<'a>(
     start: usize,
     end: usize,
 ) -> (&'a str, usize) {
-    let ws_pos = memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end])
-        .map(|offset| start + offset)
-        .unwrap_or(end);
-
-    if ws_pos < end {
-        let rest_start = bytes[ws_pos..end]
-            .iter()
-            .position(|&b| !matches!(b, b' ' | b'\t' | b'\r'))
-            .map(|offset| ws_pos + offset)
-            .unwrap_or(end);
-        (&content[start..ws_pos], rest_start)
+    if let Some(ws_pos) =
+        memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end]).map(|offset| start + offset)
+    {
+        let rest = &bytes[ws_pos..end];
+        (&content[start..ws_pos], ws_pos + (rest.len() - rest.trim_ascii_start().len()))
     } else {
-        (&content[start..ws_pos], end)
+        (&content[start..end], end)
     }
 }
 
@@ -1240,19 +1240,19 @@ mod tests {
                 check_natspec_item(sm, natspec_items[i].0, natspec_items[i].1, snip, kind, name, content)
             };
 
-            check(0, "@title", "title", None, Some("MyContract"));
-            check(1, "@author", "author", None, Some("Alice"));
-            check(2, "@notice", "notice", None, Some("This is a notice"));
+            check(0, "title", "title", None, Some("MyContract"));
+            check(1, "author", "author", None, Some("Alice"));
+            check(2, "notice", "notice", None, Some("This is a notice"));
             let span3 = sm.span_to_snippet(natspec_items[3].1.span).unwrap();
             check(3, &span3, "notice", None, Some("that spans multiple lines"));
             let span4 = sm.span_to_snippet(natspec_items[4].1.span).unwrap();
             check(4, &span4, "notice", None, Some("and continues here"));
-            check(5, "@dev", "dev", None, Some("This is dev documentation"));
-            check(6, "@param", "param", Some("x"), Some("The input parameter"));
-            check(7, "@return", "return", Some("result"), Some("The return value"));
-            check(8, "@inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
-            check(9, "@custom:security", "custom", Some("security"), Some("High priority"));
-            check(10, "@solidity", "internal", Some("solidity"), Some("memory-safe"));
+            check(5, "dev", "dev", None, Some("This is dev documentation"));
+            check(6, "param", "param", Some("x"), Some("The input parameter"));
+            check(7, "return", "return", Some("result"), Some("The return value"));
+            check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
+            check(9, "custom:security", "custom", Some("security"), Some("High priority"));
+            check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe");
         });
@@ -1295,15 +1295,15 @@ mod tests {
                 check_natspec_item(sm, sym, &items[i], span, kind, name, content)
             };
 
-            check(0, "@title", "title", None, Some("MyContract"));
-            check(1, "@author", "author", None, Some("Alice"));
-            check(2, "@notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
-            check(3, "@dev", "dev", None, Some("This is dev documentation"));
-            check(4, "@param", "param", Some("x"), Some("The input parameter"));
-            check(5, "@return", "return", Some("result"), Some("The return value"));
-            check(6, "@inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
-            check(7, "@custom:security", "custom", Some("security"), Some("High priority"));
-            check(8, "@src", "internal", Some("src"), Some("0:123:456"));
+            check(0, "title", "title", None, Some("MyContract"));
+            check(1, "author", "author", None, Some("Alice"));
+            check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
+            check(3, "dev", "dev", None, Some("This is dev documentation"));
+            check(4, "param", "param", Some("x"), Some("The input parameter"));
+            check(5, "return", "return", Some("result"), Some("The return value"));
+            check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
+            check(7, "custom:security", "custom", Some("security"), Some("High priority"));
+            check(8, "src", "internal", Some("src"), Some("0:123:456"));
 
             assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/**\n * @title MyContract\n * @author Alice\n * @notice This is a notice\n * that spans multiple lines\n * and continues here\n * @dev This is dev documentation\n * @param x The input parameter\n * @return result The return value\n * @inheritdoc BaseContract\n * @custom:security High priority\n * @src 0:123:456\n */");
         });

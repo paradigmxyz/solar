@@ -12,6 +12,8 @@ use solar_data_structures::{
 };
 use solar_interface::error_code;
 
+mod checker;
+
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
         gcx.sess,
@@ -24,6 +26,10 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+            if gcx.sess.opts.unstable.typeck {
+                // TODO: Parallelize more.
+                checker::check(gcx, id);
+            }
         }),
     );
 }
@@ -258,7 +264,8 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
             Some(total_size)
         }
 
-        TyKind::Type(..)
+        TyKind::Slice(..)
+        | TyKind::Type(..)
         | TyKind::Tuple(..)
         | TyKind::Module(..)
         | TyKind::BuiltinModule(..)
