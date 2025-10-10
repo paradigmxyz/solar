@@ -119,7 +119,18 @@ impl fmt::Debug for DocComments<'_> {
     }
 }
 
-impl DocComments<'_> {
+impl<'ast> DocComments<'ast> {
+    /// Returns a reference to the empty documentation comments.
+    pub fn empty() -> &'static Self {
+        // SAFETY: we're just changing the type wrapper, not the underlying data (which is empty).
+        unsafe {
+            std::mem::transmute::<
+                &'static ThinSlice<DocComment<'static>>,
+                &'static DocComments<'static>,
+            >(<&ThinSlice<DocComment<'static>>>::default())
+        }
+    }
+
     /// Returns the span containing all doc-comments.
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
