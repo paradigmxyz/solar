@@ -411,7 +411,16 @@ impl<'gcx> ResolveContext<'gcx> {
             let contract = self.hir.contract(c_id);
             let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
             let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
+
+            // Initialize without contract scope, but manually add a local scope with only `this` to
+            // allows builtins to be accessible in base constructor arguments while keeping state
+            // variables inaccessible.
             self.init(contract.source, None, None);
+            self.scopes.enter();
+            let span = Span::DUMMY;
+            let this_decl = Declaration { res: Res::Builtin(Builtin::This), span };
+            self.scopes.current_scope().declare_unchecked(sym::this, this_decl);
+
             self.hir.contracts[c_id].bases_args = self.arena.alloc_from_iter(
                 std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
                     |(ast_base, &base_id)| hir::Modifier {
@@ -470,6 +479,9 @@ impl<'gcx> ResolveContext<'gcx> {
             }
 
             self.hir.contracts[c_id].linearized_bases_args = base_args;
+
+            // Exit the manually created scope that only contains `this`.
+            self.scopes.exit();
         }
     }
 
