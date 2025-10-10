@@ -1,7 +1,6 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
-use solar_data_structures::map::FxHashSet;
-use solar_data_structures::smallvec::SmallVec;
+use solar_data_structures::{BumpExt, map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Span, Symbol};
 
 bitflags::bitflags! {
@@ -156,7 +155,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Contract(id));
         self.hir.contracts[id].doc = doc_id;
-
         id
     }
 
@@ -239,7 +237,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Function(id));
         self.hir.functions[id].doc = doc_id;
-
         id
     }
 
@@ -283,7 +280,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Struct(id));
         self.hir.structs[id].doc = doc_id;
-
         id
     }
 
@@ -302,7 +298,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Enum(id));
         self.hir.enums[id].doc = doc_id;
-
         id
     }
 
@@ -321,7 +316,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Udvt(id));
         self.hir.udvts[id].doc = doc_id;
-
         id
     }
 
@@ -340,7 +334,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Error(id));
         self.hir.errors[id].doc = doc_id;
-
         id
     }
 
@@ -360,7 +353,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Lower docs after `ItemId` is available
         let doc_id = self.lower_docs(&item.docs, hir::ItemId::Event(id));
         self.hir.events[id].doc = doc_id;
-
         id
     }
 
@@ -639,16 +631,14 @@ impl<'gcx> super::LoweringContext<'gcx> {
         name: Symbol,
         source_id: hir::SourceId,
     ) -> Option<hir::ContractId> {
-        let source_scope = &self.resolver.source_scopes[source_id];
-
-        // Use the resolve method with an ident
-        let ident = solar_interface::Ident { name, span: Span::DUMMY };
-        source_scope.resolve(ident).and_then(|decls| {
-            decls.iter().find_map(|decl| match decl.res {
-                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                _ => None,
+        self.resolver.source_scopes[source_id]
+            .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+            .and_then(|decls| {
+                decls.iter().find_map(|decl| match decl.res {
+                    hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
+                    _ => None,
+                })
             })
-        })
     }
 
     /// Resolves `@inheritdoc` tags across all documentation and converts AST natspec to HIR.
@@ -656,7 +646,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     /// This must be called after validation to ensure all references are valid.
     /// Populates `doc.natspec` for all docs, making it the single source of truth for natspec in
     /// HIR.
-    pub(super) fn resolve_inheritdoc(&mut self) {
+    pub(super) fn resolve_docs(&mut self) {
         for doc_id in self.hir.doc_ids() {
             if doc_id.is_empty() {
                 continue;
@@ -668,20 +658,17 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 doc_items.any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }));
 
             if has_inheritdoc {
-                self.resolve_doc_inheritdoc(doc_id);
+                self.resolve_doc_inheritoc(doc_id);
             } else {
-                // No @inheritdoc - convert AST natspec directly to resolved tags
-                self.resolve_doc_simple(doc_id);
+                self.convert_doc(doc_id);
             }
         }
     }
 
     /// Converts AST natspec to resolved tags for docs without `@inheritdoc`.
-    fn resolve_doc_simple(&mut self, doc_id: hir::DocId) {
-        let doc = self.hir.doc(doc_id);
+    fn convert_doc(&mut self, doc_id: hir::DocId) {
         let mut resolved = SmallVec::<[hir::NatSpecItem; 6]>::new();
-
-        for doc_comment in doc.ast_comments.iter() {
+        for doc_comment in self.hir.doc(doc_id).ast_comments.iter() {
             for item in doc_comment.natspec.iter() {
                 if let Some(resolved_item) = hir::NatSpecItem::from_ast(*item, doc_comment.symbol) {
                     resolved.push(resolved_item);
@@ -689,12 +676,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
             }
         }
 
-        let resolved_slice = self.arena.alloc_slice_copy(&resolved);
-        self.hir.docs[doc_id].comments = resolved_slice;
+        self.hir.docs[doc_id].comments = self.arena.alloc_smallvec(resolved);
     }
 
     /// Resolves `@inheritdoc` for a single doc.
-    fn resolve_doc_inheritdoc(&mut self, doc_id: hir::DocId) {
+    fn resolve_doc_inheritoc(&mut self, doc_id: hir::DocId) {
         if !self.hir.doc(doc_id).comments().is_empty() {
             return;
         }
@@ -742,7 +728,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     .any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }));
 
                 if has_inheritdoc {
-                    self.resolve_doc_inheritdoc(inherited_doc_id);
+                    self.resolve_doc_inheritoc(inherited_doc_id);
                 }
             }
         }
