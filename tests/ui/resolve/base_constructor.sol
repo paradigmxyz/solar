@@ -36,3 +36,17 @@ contract G is WithArgs {
 contract K is WithArgs(1337) {
     constructor() {}
 }
+
+// ensure `this` can be used in base constructor inheritance
+// ref: https://github.com/paradigmxyz/solar/issues/569
+abstract contract WithAddrArgs {
+    constructor(address) {}
+}
+
+contract L is WithAddrArgs(address(this)) {
+    constructor() {}
+}
+
+contract M is WithAddrArgs(address(this)), WithArgs(42) {
+    constructor() {}
+}
