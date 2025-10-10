@@ -496,11 +496,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     #[must_use]
-    fn check_int_lit(&mut self) -> bool {
-        self.check_or_expected(self.token.is_integer_lit(), ExpectedToken::Lit)
-    }
-
-    #[must_use]
     fn check_str_lit(&mut self) -> bool {
         self.check_or_expected(self.token.is_str_lit(), ExpectedToken::StrLit)
     }

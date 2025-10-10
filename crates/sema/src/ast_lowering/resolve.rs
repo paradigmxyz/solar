@@ -1084,7 +1084,25 @@ impl<'gcx> ResolveContext<'gcx> {
             )),
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
-            ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
+            ast::ExprKind::Unary(op, expr) => {
+                // Special handling for negation of numeric literals: fold to negative integer
+                // literal
+                let expr_span = op.span.with_hi(expr.span.hi());
+                if op.kind == ast::UnOpKind::Neg
+                    && let ast::ExprKind::Lit(ast::Lit { span: _, symbol, kind }, _) =
+                        &expr.peel_parens().kind
+                    && let ast::LitKind::Number(number, negative) = kind
+                {
+                    let neg_int_lit = self.arena.alloc(ast::Lit {
+                        span: expr_span,
+                        symbol: *symbol,
+                        kind: ast::LitKind::Number(*number, !negative),
+                    });
+                    hir::ExprKind::Lit(neg_int_lit)
+                } else {
+                    hir::ExprKind::Unary(*op, self.lower_expr(expr))
+                }
+            }
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }
