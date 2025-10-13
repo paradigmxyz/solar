@@ -50,9 +50,8 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let sess = gcx.sess;
 
     if gcx.sources.is_empty() {
-        let msg = "no files found";
-        let note = "if you wish to use the standard input, please specify `-` explicitly";
-        return Err(sess.dcx.err(msg).note(note).emit());
+        debug!("no files found");
+        return Ok(ControlFlow::Break(()));
     }
 
     if let Some(dump) = &sess.opts.unstable.dump
