@@ -594,9 +594,6 @@ impl<'gcx> Gcx<'gcx> {
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
-                if !mapping.key.kind.is_mapping_key_type() {
-                    return self.mk_ty_err(self.dcx().err("only elementary types or used-defined types can be used as key types in mappings").span(mapping.key.span).emit());
-                }
                 let key = self.type_of_hir_ty(&mapping.key);
                 let value = self.type_of_hir_ty(&mapping.value);
                 TyKind::Mapping(key, value)

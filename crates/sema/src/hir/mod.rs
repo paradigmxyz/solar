@@ -1589,16 +1589,6 @@ impl TypeKind<'_> {
             _ => false,
         }
     }
-
-    /// Returns `true` if the type is a custom type.
-    pub fn is_custom(&self) -> bool {
-        matches!(self, Self::Custom(_))
-    }
-
-    /// Returns `true` if the type is a mapping key type.
-    pub fn is_mapping_key_type(&self) -> bool {
-        self.is_elementary() || self.is_custom()
-    }
 }
 
 /// An array type.

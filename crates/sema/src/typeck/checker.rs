@@ -626,6 +626,15 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     #[must_use]
+    fn check_mapping_key_type(&mut self, key: &'gcx hir::Type<'gcx>) -> Ty<'gcx> {
+        let ty = self.gcx.type_of_hir_ty(key);
+        if !matches!(ty.kind, TyKind::Elementary(_) | TyKind::Enum(_) | TyKind::Contract(_)) {
+            self.dcx().err("Only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
+        }
+        ty
+    }
+
+    #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let prev = self.lvalue_context.replace(true);
         let ty = self.check_expr(expr);
@@ -739,6 +748,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     let _ = self.expect_ty(size, self.gcx.types.uint(256));
                 }
                 return self.visit_ty(&array.element);
+            }
+            hir::TypeKind::Mapping(mapping) => {
+                let _ = self.check_mapping_key_type(&mapping.key);
+                self.visit_ty(&mapping.value)?;
             }
             // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
             // hir::TypeKind::Function(func) => {
