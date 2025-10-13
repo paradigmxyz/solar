@@ -628,7 +628,10 @@ impl<'gcx> TypeChecker<'gcx> {
     #[must_use]
     fn check_mapping_key_type(&mut self, key: &'gcx hir::Type<'gcx>) -> Ty<'gcx> {
         let ty = self.gcx.type_of_hir_ty(key);
-        if !matches!(ty.kind, TyKind::Elementary(_) | TyKind::Enum(_) | TyKind::Contract(_)) {
+        if !matches!(
+            ty.kind,
+            TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
+        ) {
             self.dcx().err("Only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
         }
         ty
