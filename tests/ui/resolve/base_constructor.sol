@@ -37,16 +37,22 @@ contract K is WithArgs(1337) {
     constructor() {}
 }
 
-// ensure `this` can be used in base constructor inheritance
+// ensure `this` and `super` can be used in base constructor inheritance
 // ref: https://github.com/paradigmxyz/solar/issues/569
 abstract contract WithAddrArgs {
     constructor(address) {}
+}
+
+abstract contract Base {
+    function getValue() public virtual returns (uint) {
+        return 42;
+    }
 }
 
 contract L is WithAddrArgs(address(this)) {
     constructor() {}
 }
 
-contract M is WithAddrArgs(address(this)), WithArgs(42) {
+contract M is Base, WithAddrArgs(address(this)), WithArgs(super.getValue()) {
     constructor() {}
 }

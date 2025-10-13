@@ -409,18 +409,25 @@ impl<'gcx> ResolveContext<'gcx> {
         for c_id in self.hir.contract_ids() {
             let contract = self.hir.contract(c_id);
 
-            // Initialize without contract scope, but manually add a local scope with only `this` to
-            // allows builtins to be accessible in base constructor arguments while keeping state
-            // variables inaccessible.
+            // Initialize without contract scope, but manually add a local scope with only `this`
+            // and `super` to allow builtins to be accessible in base constructor
+            // arguments while keeping state variables inaccessible.
             self.init(contract.source, None, None);
             self.scopes.enter();
-            let this_decl = Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY };
-            self.scopes.current_scope().declare_unchecked(sym::this, this_decl);
+            let scope = self.scopes.current_scope();
+            scope.declare_unchecked(
+                sym::this,
+                Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY },
+            );
+            scope.declare_unchecked(
+                sym::super_,
+                Declaration { res: Res::Builtin(Builtin::Super), span: Span::DUMMY },
+            );
 
             // Lower the base modifiers.
             self.resolve_base_args_inner(c_id);
 
-            // Exit the manually created scope that only contains `this`.
+            // Exit the manually created scope that only contains `this` and `super`.
             self.scopes.exit();
         }
     }
