@@ -40,6 +40,11 @@ pub use solar_data_structures as data_structures;
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 
+/// The minimum supported Solidity version.
+///
+/// Solar aims to support Solidity 0.8.* and later versions.
+pub const MIN_SOLIDITY_VERSION: (u8, u8, u8) = (0, 8, 0);
+
 /// Pluralize a word based on a count.
 #[macro_export]
 #[rustfmt::skip]
