@@ -1,0 +1,8 @@
+error: expected one of elementary type name or path, found `[`
+  --> ROOT/tests/ui/parser/invalid_mapping_key_type2.sol:LL:CC
+   |
+LL |     mapping([] => uint) m2;
+   |             ^ expected one of elementary type name or path
+
+error: aborting due to 1 previous error
+
