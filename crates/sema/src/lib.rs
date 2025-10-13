@@ -50,6 +50,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     let sess = gcx.sess;
 
     if gcx.sources.is_empty() {
+        debug!("no files found");
         return Ok(ControlFlow::Break(()));
     }
 
