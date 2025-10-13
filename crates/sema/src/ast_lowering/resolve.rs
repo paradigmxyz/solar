@@ -407,7 +407,6 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
-            // Lower the base modifiers.
             let contract = self.hir.contract(c_id);
 
             // Initialize without contract scope, but manually add a local scope with only `this` to
@@ -417,7 +416,10 @@ impl<'gcx> ResolveContext<'gcx> {
             self.scopes.enter();
             let this_decl = Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY };
             self.scopes.current_scope().declare_unchecked(sym::this, this_decl);
+
+            // Lower the base modifiers.
             self.resolve_base_args_inner(c_id);
+
             // Exit the manually created scope that only contains `this`.
             self.scopes.exit();
         }
