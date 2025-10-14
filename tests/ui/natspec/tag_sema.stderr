@@ -1,10 +1,10 @@
-error: documentation tag @author can only be given once
+error: tag @author can only be given once
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL | /// @author Second author
    |      ^^^^^^
 
-error: documentation tag @title can only be given once
+error: tag @title can only be given once
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL | /// @title Second title
@@ -22,37 +22,37 @@ note: previous documentation here
 LL |     /// @param x First documentation
    |          ^^^^^
 
-error: documentation tag @inheritdoc can only be given once
+error: tag @inheritdoc can only be given once
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @inheritdoc DuplicateInheritdocBase
    |          ^^^^^^^^^^
 
-error: documentation tag `@author` not valid for functions
+error: tag `@author` not valid for functions
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @author Invalid author on function
    |          ^^^^^^
 
-error: documentation tag `@title` not valid for functions
+error: tag `@title` not valid for functions
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @title Invalid title on function
    |          ^^^^^
 
-error: documentation tag `@return` not valid for events
+error: tag `@return` not valid for events
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @return Invalid return on event
    |          ^^^^^^
 
-error: documentation tag `@inheritdoc` not valid for events
+error: tag `@inheritdoc` not valid for events
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @inheritdoc InvalidInheritdocBase
    |          ^^^^^^^^^^
 
-error: documentation tag `@param` references non-existent parameter 'y'
+error: tag `@param` references non-existent parameter 'y'
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @param y Invalid parameter name

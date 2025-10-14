@@ -43,12 +43,12 @@ contract ValidItems {
 
 /// @author First author
 /// @author Second author
-//~^ ERROR: documentation tag @author can only be given once
+//~^ ERROR: tag @author can only be given once
 contract DuplicateAuthor {}
 
 /// @title First title
 /// @title Second title
-//~^ ERROR: documentation tag @title can only be given once
+//~^ ERROR: tag @title can only be given once
 contract DuplicateTitle {}
 
 contract DuplicateParamBase {
@@ -66,7 +66,7 @@ contract DuplicateInheritdocBase {
 contract DuplicateInheritdoc is DuplicateInheritdocBase {
     /// @inheritdoc DuplicateInheritdocBase
     /// @inheritdoc DuplicateInheritdocBase
-    //~^ ERROR: documentation tag @inheritdoc can only be given once
+    //~^ ERROR: tag @inheritdoc can only be given once
     function foo() public override {}
 }
 
@@ -74,15 +74,15 @@ contract DuplicateInheritdoc is DuplicateInheritdocBase {
 
 contract InvalidTagContext {
     /// @author Invalid author on function
-    //~^ ERROR: documentation tag `@author` not valid for functions
+    //~^ ERROR: tag `@author` not valid for functions
     function invalidAuthor() public {}
 
     /// @title Invalid title on function
-    //~^ ERROR: documentation tag `@title` not valid for functions
+    //~^ ERROR: tag `@title` not valid for functions
     function invalidTitle() public {}
 
     /// @return Invalid return on event
-    //~^ ERROR: documentation tag `@return` not valid for events
+    //~^ ERROR: tag `@return` not valid for events
     event InvalidReturn(address from, address to);
 }
 
@@ -92,14 +92,14 @@ contract InvalidInheritdocBase {
 
 contract InvalidInheritdoc is InvalidInheritdocBase {
     /// @inheritdoc InvalidInheritdocBase
-    //~^ ERROR: documentation tag `@inheritdoc` not valid for events
+    //~^ ERROR: tag `@inheritdoc` not valid for events
     event Transfer(address from, address to);
 }
 
 contract InvalidParamName {
     /// @param x Valid parameter
     /// @param y Invalid parameter name
-    //~^ ERROR: documentation tag `@param` references non-existent parameter 'y'
+    //~^ ERROR: tag `@param` references non-existent parameter 'y'
     function foo(uint x) public {}
 }
 

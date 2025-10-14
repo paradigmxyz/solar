@@ -460,7 +460,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Get required info for validation
         let permissions = TagPermissions::from_item_id(item_id);
         let description = self.hir.item(item_id).description();
-        let parameters = self.hir.item(item_id).parameters();
+        let parameters = self.hir.item(item_id).parameters().map_or(FxHashSet::default(), |p| {
+            p.iter()
+                .filter_map(|&id| self.hir.variable(id).name.map(|ident| ident.name))
+                .collect::<FxHashSet<Symbol>>()
+        });
         let returns = if let hir::ItemId::Function(id) = item_id {
             Some(self.hir.function(id).returns)
         } else {
@@ -474,8 +478,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
             return_count: usize,
         }
 
-        let (mut state, mut local_tags, mut inheritdoc) =
-            (ValidationState::default(), SmallVec::<[NatSpecItem; 6]>::new(), None);
+        let mut inheritdoc = None;
+        let mut state = ValidationState::default();
+        let mut local_tags = SmallVec::<[NatSpecItem; 6]>::new();
 
         for doc_comment in docs.iter() {
             for natspec_item in doc_comment.natspec.iter() {
@@ -486,11 +491,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
-                        if let Some(hir_item) =
-                            NatSpecItem::from_ast(*natspec_item, doc_comment.symbol)
-                        {
-                            local_tags.push(hir_item);
-                        }
+                        self.convert_and_push_tag(
+                            *natspec_item,
+                            doc_comment.symbol,
+                            &mut local_tags,
+                        );
                     }
                     NatSpecKind::Title => {
                         if self.validate_tag_once(
@@ -501,11 +506,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             SeenTags::TITLE,
                             description,
                         ) {
-                            if let Some(hir_item) =
-                                NatSpecItem::from_ast(*natspec_item, doc_comment.symbol)
-                            {
-                                local_tags.push(hir_item);
-                            }
+                            self.convert_and_push_tag(
+                                *natspec_item,
+                                doc_comment.symbol,
+                                &mut local_tags,
+                            );
                         }
                     }
                     NatSpecKind::Author => {
@@ -517,11 +522,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             SeenTags::AUTHOR,
                             description,
                         ) {
-                            if let Some(hir_item) =
-                                NatSpecItem::from_ast(*natspec_item, doc_comment.symbol)
-                            {
-                                local_tags.push(hir_item);
-                            }
+                            self.convert_and_push_tag(
+                                *natspec_item,
+                                doc_comment.symbol,
+                                &mut local_tags,
+                            );
                         }
                     }
                     NatSpecKind::Inheritdoc { contract } => {
@@ -537,17 +542,15 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
 
                         // Validate and cache contract resolution
-                        if permissions.contains(TagPermissions::INHERITDOC) {
-                            if let Some(contract_id) = self.validate_and_cache_inheritdoc_contract(
-                                contract,
-                                tag_span,
-                                item_id,
-                                source_id,
-                                contract_cache,
-                            ) {
-                                // Cache info for later resolution
-                                inheritdoc = Some((contract_id, item_id));
-                            }
+                        if let Some(contract_id) = self.validate_and_cache_inheritdoc_contract(
+                            contract,
+                            tag_span,
+                            item_id,
+                            source_id,
+                            contract_cache,
+                        ) {
+                            // Cache info for later resolution
+                            inheritdoc = Some((contract_id, item_id));
                         }
                     }
                     NatSpecKind::Param { name } => {
@@ -576,37 +579,22 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
                         state.seen_params.push((name.name, tag_span));
 
-                        // Validate parameter exists
-                        let param_valid = if let Some(params) = parameters {
-                            let param_name = name.name;
-                            let param_exists = params.iter().any(|&param_id| {
-                                self.hir
-                                    .variable(param_id)
-                                    .name
-                                    .is_some_and(|n| n.name == param_name)
-                            });
-
-                            if !param_exists {
-                                self.dcx()
-                                    .err(format!(
-                                        "documentation tag `@param` references non-existent parameter '{param_name}'"
-                                    ))
-                                    .span(tag_span)
-                                    .emit();
-                            }
-                            param_exists
-                        } else {
-                            true
-                        };
-
                         // Convert to HIR if validation passed
-                        if param_valid {
-                            if let Some(hir_item) =
-                                NatSpecItem::from_ast(*natspec_item, doc_comment.symbol)
-                            {
-                                local_tags.push(hir_item);
-                            }
-                        }
+                        if parameters.contains(&name.name) {
+                            self.convert_and_push_tag(
+                                *natspec_item,
+                                doc_comment.symbol,
+                                &mut local_tags,
+                            );
+                        } else {
+                            self.dcx()
+                                .err(format!(
+                                    "tag `@param` references non-existent parameter '{}'",
+                                    name.name
+                                ))
+                                .span(tag_span)
+                                .emit();
+                        };
                     }
                     NatSpecKind::Return { .. } => {
                         if !self.validate_tag_permission(
@@ -639,11 +627,11 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
                         // Convert to HIR if validation passed
                         if return_valid {
-                            if let Some(hir_item) =
-                                NatSpecItem::from_ast(*natspec_item, doc_comment.symbol)
-                            {
-                                local_tags.push(hir_item);
-                            }
+                            self.convert_and_push_tag(
+                                *natspec_item,
+                                doc_comment.symbol,
+                                &mut local_tags,
+                            );
                         }
                     }
                 }
@@ -664,7 +652,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     ) -> bool {
         if !allowed {
             self.dcx()
-                .err(format!("documentation tag `{tag_name}` not valid for {item_desc}s"))
+                .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
                 .span(tag_span)
                 .emit();
             false
@@ -688,14 +676,27 @@ impl<'gcx> super::LoweringContext<'gcx> {
             return false;
         }
         if seen_tags.contains(tag_flag) {
-            self.dcx()
-                .err(format!("documentation tag {tag_name} can only be given once"))
-                .span(tag_span)
-                .emit();
+            self.dcx().err(format!("tag {tag_name} can only be given once")).span(tag_span).emit();
             return false;
         }
         seen_tags.insert(tag_flag);
         true
+    }
+
+    /// Converts an AST natspec item to HIR and adds it to the local tags vector.
+    ///
+    /// This helper consolidates the common pattern of converting and conditionally adding
+    /// validated natspec items.
+    #[inline]
+    fn convert_and_push_tag(
+        &self,
+        natspec_item: ast::NatSpecItem,
+        doc_symbol: Symbol,
+        local_tags: &mut SmallVec<[hir::NatSpecItem; 6]>,
+    ) {
+        if let Some(hir_item) = hir::NatSpecItem::from_ast(natspec_item, doc_symbol) {
+            local_tags.push(hir_item);
+        }
     }
 
     /// Validates and caches contract resolution for `@inheritdoc`.
@@ -718,7 +719,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
         let Some(contract_id) = contract_id else {
             dcx.err(format!(
-                "documentation tag `@inheritdoc` references inexistent contract \"{}\"",
+                "tag `@inheritdoc` references inexistent contract \"{}\"",
                 contract_ident.name
             ))
             .span(tag_span)
@@ -739,7 +740,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             let linearized_bases = &self.hir.contract(contract).linearized_bases;
             if !linearized_bases.contains(&contract_id) {
                 dcx.err(format!(
-                    "documentation tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
+                    "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
                     contract_ident.name
                 ))
                 .span(tag_span)
@@ -751,7 +752,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Verify that the referenced contract contains a matching item
         if self.find_inherited_item(item_id, contract_id).is_none() {
             dcx.err(format!(
-                "documentation tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
+                "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
                 contract_ident.name
             ))
             .span(tag_span)
@@ -786,23 +787,23 @@ impl<'gcx> super::LoweringContext<'gcx> {
     /// - `@custom`: merge both
     fn merge_natspec_tags(
         &self,
-        local_tags: &[hir::NatSpecItem],
+        items: &[hir::NatSpecItem],
         inherited_tags: &'gcx [hir::NatSpecItem],
     ) -> &'gcx [hir::NatSpecItem] {
         use hir::NatSpecKind as HirKind;
 
-        let mut merged = SmallVec::<[hir::NatSpecItem; 6]>::from_slice(local_tags);
-        let mut local_set = LocalTags::empty();
+        let mut local_tags = LocalTags::empty();
         let mut local_params = FxHashSet::<Symbol>::default();
         let mut local_returns = FxHashSet::<Option<Symbol>>::default();
+        let mut merged = SmallVec::<[hir::NatSpecItem; 6]>::from_slice(items);
 
         // Build local tag index
-        for item in local_tags.iter() {
+        for item in items.iter() {
             match &item.kind {
-                HirKind::Notice => local_set.insert(LocalTags::NOTICE),
-                HirKind::Dev => local_set.insert(LocalTags::DEV),
-                HirKind::Title => local_set.insert(LocalTags::TITLE),
-                HirKind::Author => local_set.insert(LocalTags::AUTHOR),
+                HirKind::Notice => local_tags.insert(LocalTags::NOTICE),
+                HirKind::Dev => local_tags.insert(LocalTags::DEV),
+                HirKind::Title => local_tags.insert(LocalTags::TITLE),
+                HirKind::Author => local_tags.insert(LocalTags::AUTHOR),
                 HirKind::Param { name } => {
                     local_params.insert(name.name);
                 }
@@ -816,10 +817,10 @@ impl<'gcx> super::LoweringContext<'gcx> {
         // Merge inherited tags
         for item in inherited_tags.iter() {
             let should_inherit = match &item.kind {
-                HirKind::Notice => !local_set.contains(LocalTags::NOTICE),
-                HirKind::Dev => !local_set.contains(LocalTags::DEV),
-                HirKind::Title => !local_set.contains(LocalTags::TITLE),
-                HirKind::Author => !local_set.contains(LocalTags::AUTHOR),
+                HirKind::Notice => !local_tags.contains(LocalTags::NOTICE),
+                HirKind::Dev => !local_tags.contains(LocalTags::DEV),
+                HirKind::Title => !local_tags.contains(LocalTags::TITLE),
+                HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
                 HirKind::Param { name } => !local_params.contains(&name.name),
                 HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
                 HirKind::Custom { .. } | HirKind::Internal { .. } => true,
