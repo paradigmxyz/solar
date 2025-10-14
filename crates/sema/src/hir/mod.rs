@@ -79,7 +79,7 @@ impl std::ops::Deref for Arena {
 pub struct Hir<'hir> {
     /// All sources.
     pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
-    /// All docummentation comments.
+    /// All documentation comments.
     pub(crate) docs: IndexVec<DocId, Doc<'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
@@ -721,7 +721,7 @@ impl ItemId {
 pub struct Contract<'hir> {
     /// The source this contract is defined in.
     pub source: SourceId,
-    /// The docummentation of this contract.
+    /// The documentation of this contract.
     pub doc: DocId,
     /// The contract span.
     pub span: Span,
@@ -816,7 +816,7 @@ pub struct Modifier<'hir> {
 pub struct Function<'hir> {
     /// The source this function is defined in.
     pub source: SourceId,
-    /// The docummentation of this function.
+    /// The documentation of this function.
     pub doc: DocId,
     /// The contract this function is defined in, if any.
     pub contract: Option<ContractId>,
@@ -908,7 +908,7 @@ impl Function<'_> {
 pub struct Struct<'hir> {
     /// The source this struct is defined in.
     pub source: SourceId,
-    /// The docummentation of this struct.
+    /// The documentation of this struct.
     pub doc: DocId,
     /// The contract this struct is defined in, if any.
     pub contract: Option<ContractId>,
@@ -924,7 +924,7 @@ pub struct Struct<'hir> {
 pub struct Enum<'hir> {
     /// The source this enum is defined in.
     pub source: SourceId,
-    /// The docummentation of this enum.
+    /// The documentation of this enum.
     pub doc: DocId,
     /// The contract this enum is defined in, if any.
     pub contract: Option<ContractId>,
@@ -958,7 +958,7 @@ pub struct Udvt<'hir> {
 pub struct Event<'hir> {
     /// The source this event is defined in.
     pub source: SourceId,
-    /// The docummentation of this event.
+    /// The documentation of this event.
     pub doc: DocId,
     /// The contract this event is defined in, if any.
     pub contract: Option<ContractId>,
@@ -976,7 +976,7 @@ pub struct Event<'hir> {
 pub struct Error<'hir> {
     /// The source this error is defined in.
     pub source: SourceId,
-    /// The docummentation of this error.
+    /// The documentation of this error.
     pub doc: DocId,
     /// The contract this error is defined in, if any.
     pub contract: Option<ContractId>,
@@ -992,7 +992,7 @@ pub struct Error<'hir> {
 pub struct Variable<'hir> {
     /// The source this variable is defined in.
     pub source: SourceId,
-    /// The docummentation of this variable.
+    /// The documentation of this variable.
     pub doc: Option<DocId>,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,

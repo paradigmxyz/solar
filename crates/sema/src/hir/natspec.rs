@@ -62,16 +62,17 @@ pub enum NatSpecKind {
 }
 
 impl NatSpecItem {
-    /// Converts an AST natspec item to HIR, returning `None` for `@inheritdoc` tags.
+    /// Converts an AST natspec item to HIR.
     ///
     /// The `symbol` parameter should be the symbol from the parent `ast::DocComment`.
-    pub fn from_ast(item: ast::NatSpecItem, symbol: Symbol) -> Option<Self> {
+    ///
+    /// SAFETY: The caller must ensure the item is not an `@inheritdoc` tag.
+    #[inline]
+    pub fn from_ast(item: ast::NatSpecItem, symbol: Symbol) -> Self {
         use NatSpecKind as HirKind;
         use ast::NatSpecKind as AstKind;
 
-        // Skip @inheritdoc - will be replaced by inherited tags during resolution
         let kind = match &item.kind {
-            AstKind::Inheritdoc { .. } => return None,
             AstKind::Notice => HirKind::Notice,
             AstKind::Dev => HirKind::Dev,
             AstKind::Title => HirKind::Title,
@@ -80,15 +81,20 @@ impl NatSpecItem {
             AstKind::Return { name } => HirKind::Return { name: *name },
             AstKind::Custom { name } => HirKind::Custom { name: *name },
             AstKind::Internal { tag } => HirKind::Internal { tag: *tag },
+            AstKind::Inheritdoc { .. } => {
+                // SAFETY: Caller guarantees this is not @inheritdoc.
+                debug_assert!(false, "from_ast called with @inheritdoc tag");
+                unsafe { std::hint::unreachable_unchecked() }
+            }
         };
 
-        Some(Self {
+        Self {
             kind,
             span: item.span,
             symbol,
             content_start: item.content_start,
             content_end: item.content_end,
-        })
+        }
     }
 
     /// Returns the byte range of this item's content within the doc comment's symbol.
