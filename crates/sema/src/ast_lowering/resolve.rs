@@ -422,70 +422,93 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
-            // Lower the base modifiers.
             let contract = self.hir.contract(c_id);
-            let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
-            let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
+
+            // Initialize without contract scope, but manually add a local scope with only `this`
+            // and `super` to allow builtins to be accessible in base constructor
+            // arguments while keeping state variables inaccessible.
             self.init(contract.source, None, None);
-            self.hir.contracts[c_id].bases_args = self.arena.alloc_from_iter(
-                std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
-                    |(ast_base, &base_id)| hir::Modifier {
-                        span: ast_base.span(),
-                        id: base_id.into(),
-                        args: self.lower_call_args(&ast_base.arguments),
-                    },
-                ),
+            self.scopes.enter();
+            let scope = self.scopes.current_scope();
+            scope.declare_unchecked(
+                sym::this,
+                Declaration { res: Res::Builtin(Builtin::This), span: Span::DUMMY },
             );
-            let contract = self.hir.contract(c_id);
+            scope.declare_unchecked(
+                sym::super_,
+                Declaration { res: Res::Builtin(Builtin::Super), span: Span::DUMMY },
+            );
 
-            if contract.linearization_failed() {
-                continue;
-            }
+            // Lower the base modifiers.
+            self.resolve_base_args_inner(c_id);
 
-            let len = contract.linearized_bases.len() - 1;
-            let base_args: &mut [Option<&'gcx hir::Modifier<'gcx>>] =
-                self.arena.alloc_from_iter(std::iter::repeat_n(None, len));
-            let mut resolve = |base: &'gcx hir::Modifier<'gcx>, is_ctor: bool| {
-                let Some(base_id) = base.id.as_contract() else { return };
-                let base_idx = contract
-                    .linearized_bases
-                    .iter()
-                    .skip(1)
-                    .position(|&l| l == base_id)
-                    .expect("base contract not found");
-
-                if is_ctor && base.args.is_dummy() {
-                    // bad: `contract is C` ... `constructor() C`
-                    //  ok: `contract is C` ... `constructor() C()`
-                    // So we use `is_dummy` here instead of `is_empty`.
-                    self.sess
-                        .dcx
-                        .err("modifier-style base constructor call without arguments")
-                        .span(base.span)
-                        .emit();
-                }
-                let prev = &mut base_args[base_idx];
-                if let Some(prev) = prev
-                    && !prev.args.is_empty()
-                {
-                    self.sess
-                        .dcx
-                        .err("base constructor arguments given twice")
-                        .span(base.span)
-                        .span_help(prev.span, "previous declaration")
-                        .emit();
-                }
-                *prev = Some(base);
-            };
-            for base in contract.bases_args {
-                resolve(base, false);
-            }
-            for base in contract.ctor.map_or(&[][..], |c| self.hir.function(c).modifiers) {
-                resolve(base, true);
-            }
-
-            self.hir.contracts[c_id].linearized_bases_args = base_args;
+            // Exit the manually created scope that only contains `this` and `super`.
+            self.scopes.exit();
         }
+    }
+
+    fn resolve_base_args_inner(&mut self, c_id: hir::ContractId) {
+        let ast_contract = &self.hir_to_ast[&hir::ItemId::Contract(c_id)];
+        let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
+
+        self.hir.contracts[c_id].bases_args = self.arena.alloc_from_iter(
+            std::iter::zip(&*ast_contract.bases, self.hir.contract(c_id).bases).map(
+                |(ast_base, &base_id)| hir::Modifier {
+                    span: ast_base.span(),
+                    id: base_id.into(),
+                    args: self.lower_call_args(&ast_base.arguments),
+                },
+            ),
+        );
+        let contract = self.hir.contract(c_id);
+
+        if contract.linearization_failed() {
+            return;
+        }
+
+        let len = contract.linearized_bases.len() - 1;
+        let base_args: &mut [Option<&'gcx hir::Modifier<'gcx>>] =
+            self.arena.alloc_from_iter(std::iter::repeat_n(None, len));
+        let mut resolve = |base: &'gcx hir::Modifier<'gcx>, is_ctor: bool| {
+            let Some(base_id) = base.id.as_contract() else { return };
+            let base_idx = contract
+                .linearized_bases
+                .iter()
+                .skip(1)
+                .position(|&l| l == base_id)
+                .expect("base contract not found");
+
+            if is_ctor && base.args.is_dummy() {
+                // bad: `contract is C` ... `constructor() C`
+                //  ok: `contract is C` ... `constructor() C()`
+                // So we use `is_dummy` here instead of `is_empty`.
+                self.sess
+                    .dcx
+                    .err("modifier-style base constructor call without arguments")
+                    .span(base.span)
+                    .emit();
+            }
+            let prev = &mut base_args[base_idx];
+            if let Some(prev) = prev
+                && !prev.args.is_empty()
+            {
+                self.sess
+                    .dcx
+                    .err("base constructor arguments given twice")
+                    .span(base.span)
+                    .span_help(prev.span, "previous declaration")
+                    .emit();
+            }
+            *prev = Some(base);
+        };
+        for base in contract.bases_args {
+            resolve(base, false);
+        }
+        for base in contract.ctor.map_or(&[][..], |c| self.hir.function(c).modifiers) {
+            resolve(base, true);
+        }
+
+        self.hir.contracts[c_id].linearized_bases_args = base_args;
     }
 
     fn resolve_var(&mut self, id: hir::VariableId) {
