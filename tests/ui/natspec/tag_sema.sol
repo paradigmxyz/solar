@@ -53,7 +53,7 @@ contract DuplicateTitle {}
 
 contract DuplicateParamBase {
     /// @param x First documentation
-    //~^ NOTE: previous documentation here
+    //~^ NOTE: previously documented here
     /// @param x Second documentation
     //~^ ERROR: duplicate documentation for parameter 'x'
     function foo(uint x) public {}

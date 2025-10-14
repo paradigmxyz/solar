@@ -528,12 +528,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
                     }
                     NatSpecKind::Param { name } => {
-                        if !self.validate_tag_permission(
-                            "@param",
-                            tag_span,
-                            permissions.contains(TagPermissions::PARAM),
-                            item_id,
-                        ) {
+                        if !permissions.contains(TagPermissions::PARAM) {
+                            self.emit_forbidden_tag_error("@param", tag_span, item_id);
                             continue;
                         }
 
@@ -541,14 +537,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         if let Some(&(_, prev_span)) =
                             state.seen_params.iter().find(|(sym, _)| *sym == name.name)
                         {
-                            self.dcx()
-                                .err(format!(
-                                    "duplicate documentation for parameter '{}'",
-                                    name.name
-                                ))
-                                .span(tag_span)
-                                .span_note(prev_span, "previous documentation here")
-                                .emit();
+                            self.emit_duplicate_param_error(name.name, tag_span, prev_span);
                             continue;
                         }
                         state.seen_params.push((name.name, tag_span));
@@ -582,12 +571,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         };
                     }
                     NatSpecKind::Return { .. } => {
-                        if !self.validate_tag_permission(
-                            "@return",
-                            tag_span,
-                            permissions.contains(TagPermissions::RETURN),
-                            item_id,
-                        ) {
+                        if !permissions.contains(TagPermissions::RETURN) {
+                            self.emit_forbidden_tag_error("@return", tag_span, item_id);
                             continue;
                         }
 
@@ -633,25 +618,27 @@ impl<'gcx> super::LoweringContext<'gcx> {
         (local_tags, inheritdoc)
     }
 
-    /// Helper to validate that a tag is allowed for the item type.
-    /// Returns `true` if the tag is allowed, `false` otherwise.
-    #[inline]
-    fn validate_tag_permission(
-        &self,
-        tag_name: &str,
-        tag_span: Span,
-        allowed: bool,
-        item_id: hir::ItemId,
-    ) -> bool {
-        if allowed {
-            return true;
-        }
+    #[cold]
+    fn emit_forbidden_tag_error(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.hir.item(item_id).description();
         self.dcx()
             .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
             .span(tag_span)
             .emit();
-        false
+    }
+
+    #[cold]
+    fn emit_duplicate_tag_error(&self, tag_name: &str, tag_span: Span) {
+        self.dcx().err(format!("tag {tag_name} can only be given once")).span(tag_span).emit();
+    }
+
+    #[cold]
+    fn emit_duplicate_param_error(&self, param_name: Symbol, tag_span: Span, prev_span: Span) {
+        self.dcx()
+            .err(format!("duplicate documentation for parameter '{}'", param_name))
+            .span(tag_span)
+            .span_note(prev_span, "previously documented here")
+            .emit();
     }
 
     /// Helper to validate tags that can only be defined once.
@@ -666,11 +653,12 @@ impl<'gcx> super::LoweringContext<'gcx> {
         tag_flag: SeenTags,
         item_id: hir::ItemId,
     ) -> bool {
-        if !self.validate_tag_permission(tag_name, tag_span, allowed, item_id) {
+        if !allowed {
+            self.emit_forbidden_tag_error(tag_name, tag_span, item_id);
             return false;
         }
         if seen_tags.contains(tag_flag) {
-            self.dcx().err(format!("tag {tag_name} can only be given once")).span(tag_span).emit();
+            self.emit_duplicate_tag_error(tag_name, tag_span);
             return false;
         }
         seen_tags.insert(tag_flag);

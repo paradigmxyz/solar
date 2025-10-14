@@ -16,7 +16,7 @@ error: duplicate documentation for parameter 'x'
 LL |     /// @param x Second documentation
    |          ^^^^^
    |
-note: previous documentation here
+note: previously documented here
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @param x First documentation
