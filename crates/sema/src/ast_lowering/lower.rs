@@ -726,16 +726,32 @@ impl<'gcx> super::LoweringContext<'gcx> {
             return None;
         };
 
-        // Verify that the contract contains a matching item that is overridden
-        let overrides = match item_id {
-            hir::ItemId::Function(id) => self.hir.function(id).overrides,
-            hir::ItemId::Variable(id) => self.hir.variable(id).overrides,
+        // Verify that the item's contract inherits from the referenced contract
+        // and that the referenced contract contains a matching item.
+        // This works for both explicit `override(Base)` and implicit `override`.
+        let item_contract = match item_id {
+            hir::ItemId::Function(id) => self.hir.function(id).contract,
+            hir::ItemId::Variable(id) => self.hir.variable(id).contract,
             _ => return None,
         };
 
-        if !overrides.contains(&contract_id) {
+        if let Some(contract) = item_contract {
+            let linearized_bases = &self.hir.contract(contract).linearized_bases;
+            if !linearized_bases.contains(&contract_id) {
+                dcx.err(format!(
+                    "documentation tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
+                    contract_ident.name
+                ))
+                .span(tag_span)
+                .emit();
+                return None;
+            }
+        }
+
+        // Verify that the referenced contract contains a matching item
+        if self.find_inherited_item(item_id, contract_id).is_none() {
             dcx.err(format!(
-                "documentation tag `@inheritdoc` references contract \"{}\", but the contract does not contain an item that is overridden by this one",
+                "documentation tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
                 contract_ident.name
             ))
             .span(tag_span)

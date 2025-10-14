@@ -22,19 +22,7 @@ note: previous documentation here
 LL |     /// @param x First documentation
    |          ^^^^^
 
-error: documentation tag `@inheritdoc` references contract "DuplicateInheritdocBase", but the contract does not contain an item that is overridden by this one
-  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   |
-LL |     /// @inheritdoc DuplicateInheritdocBase
-   |          ^^^^^^^^^^
-
 error: documentation tag @inheritdoc can only be given once
-  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   |
-LL |     /// @inheritdoc DuplicateInheritdocBase
-   |          ^^^^^^^^^^
-
-error: documentation tag `@inheritdoc` references contract "DuplicateInheritdocBase", but the contract does not contain an item that is overridden by this one
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
 LL |     /// @inheritdoc DuplicateInheritdocBase
@@ -76,5 +64,5 @@ error: too many `@return` tags: function has 2 return values, found 3
 LL |     /// @return Third return value
    |          ^^^^^^
 
-error: aborting due to 12 previous errors
+error: aborting due to 10 previous errors
 

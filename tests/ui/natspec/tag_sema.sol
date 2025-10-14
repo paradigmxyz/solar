@@ -65,10 +65,8 @@ contract DuplicateInheritdocBase {
 
 contract DuplicateInheritdoc is DuplicateInheritdocBase {
     /// @inheritdoc DuplicateInheritdocBase
-    //~^ ERROR: documentation tag `@inheritdoc` references contract "DuplicateInheritdocBase", but the contract does not contain an item that is overridden by this one
     /// @inheritdoc DuplicateInheritdocBase
     //~^ ERROR: documentation tag @inheritdoc can only be given once
-    //~^^ ERROR: documentation tag `@inheritdoc` references contract "DuplicateInheritdocBase", but the contract does not contain an item that is overridden by this one
     function foo() public override {}
 }
 
