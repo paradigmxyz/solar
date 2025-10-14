@@ -169,13 +169,10 @@ macro_rules! indexvec_methods {
 impl<'hir> Hir<'hir> {
     pub(crate) fn new() -> Self {
         let mut docs = IndexVec::new();
-        // SAFETY: we're just changing the type wrapper, not the underlying data (which is empty).
-        let empty_comments: &ast::DocComments<'hir> =
-            unsafe { std::mem::transmute(ast::DocComments::empty()) };
         let empty_doc_id = docs.push(Doc {
             source: SourceId::MAX,
             item: ItemId::Contract(ContractId::MAX),
-            ast_comments: empty_comments,
+            ast_comments: ast::DocComments::empty(),
             comments: &[],
         });
         debug_assert_eq!(empty_doc_id, DocId::EMPTY);
