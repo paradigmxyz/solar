@@ -41,10 +41,8 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     rcx.resolve_base_args();
     let mut lcx = rcx.lcx;
 
-    // Validate natspec tags after params/returns are lowered.
-    lcx.validate_natspec_tags();
-    // Resolve @inheritdoc tags after validation.
-    lcx.resolve_docs();
+    // Process and resolve docs in a single pass (combines validation and @inheritdoc resolution).
+    lcx.validate_and_resolve_docs();
 
     // Clean up.
     lcx.shrink_to_fit();
