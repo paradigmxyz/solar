@@ -1,3 +1,4 @@
+//@compile-flags: -Ztypeck
 type U is int;
 enum E {
     A,
@@ -14,15 +15,11 @@ library L{
     }
 }
 
-
 contract C {
     mapping(uint => uint) m0;
-    mapping(E => uint) m1;
-    mapping(U => uint) m2;
-    mapping(L.E1 => uint) m3;
-
-    // TODO: enable typeck feature to trigger this error
-    mapping(L.S1 => uint) m4;
+    mapping(string => uint) m1;
+    mapping(E => uint) m2;
+    mapping(U => uint) m3;
+    mapping(L.E1 => uint) m4;
+    mapping(L.S1 => uint) m5; //~ ERROR: Only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
 }
-
-
