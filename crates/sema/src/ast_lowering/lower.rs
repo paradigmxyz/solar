@@ -435,7 +435,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         item_id: hir::ItemId,
         source_id: hir::SourceId,
         contract_cache: &mut FxHashMap<(Symbol, hir::SourceId), Option<hir::ContractId>>,
-    ) -> (SmallVec<[hir::NatSpecItem; 6]>, Option<(hir::ContractId, hir::ItemId)>) {
+    ) -> (SmallVec<[hir::NatSpecItem; 8]>, Option<(hir::ContractId, hir::ItemId)>) {
         use ast::NatSpecKind;
         use hir::NatSpecItem;
 
@@ -454,7 +454,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
         let mut inheritdoc = None;
         let mut state = ValidationState::default();
-        let mut local_tags = SmallVec::<[NatSpecItem; 6]>::new();
+        let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
 
         for doc_comment in docs.iter() {
             for natspec_item in doc_comment.natspec.iter() {
@@ -643,16 +643,15 @@ impl<'gcx> super::LoweringContext<'gcx> {
         allowed: bool,
         item_id: hir::ItemId,
     ) -> bool {
-        if !allowed {
-            let item_desc = self.hir.item(item_id).description();
-            self.dcx()
-                .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
-                .span(tag_span)
-                .emit();
-            false
-        } else {
-            true
+        if allowed {
+            return true;
         }
+        let item_desc = self.hir.item(item_id).description();
+        self.dcx()
+            .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
+            .span(tag_span)
+            .emit();
+        false
     }
 
     /// Helper to validate tags that can only be defined once.
@@ -687,7 +686,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         &self,
         natspec_item: ast::NatSpecItem,
         doc_symbol: Symbol,
-        local_tags: &mut SmallVec<[hir::NatSpecItem; 6]>,
+        local_tags: &mut SmallVec<[hir::NatSpecItem; 8]>,
     ) {
         if let Some(hir_item) = hir::NatSpecItem::from_ast(natspec_item, doc_symbol) {
             local_tags.push(hir_item);
@@ -791,7 +790,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let mut local_tags = LocalTags::empty();
         let mut local_params = FxHashSet::<Symbol>::default();
         let mut local_returns = FxHashSet::<Option<Symbol>>::default();
-        let mut merged = SmallVec::<[hir::NatSpecItem; 6]>::from_slice(items);
+        let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
 
         // Build local tag index
         for item in items.iter() {
