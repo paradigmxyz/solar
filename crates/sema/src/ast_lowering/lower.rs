@@ -457,19 +457,15 @@ impl<'gcx> super::LoweringContext<'gcx> {
         let mut local_tags = SmallVec::<[NatSpecItem; 8]>::new();
 
         for doc_comment in docs.iter() {
-            for natspec_item in doc_comment.natspec.iter() {
-                let tag_span = natspec_item.span;
+            for natspec in doc_comment.natspec.iter() {
+                let tag_span = natspec.span;
 
-                match &natspec_item.kind {
+                match &natspec.kind {
                     NatSpecKind::Notice
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
-                        self.convert_and_push_tag(
-                            *natspec_item,
-                            doc_comment.symbol,
-                            &mut local_tags,
-                        );
+                        local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                     }
                     NatSpecKind::Title => {
                         if self.validate_tag_once(
@@ -480,11 +476,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             SeenTags::TITLE,
                             item_id,
                         ) {
-                            self.convert_and_push_tag(
-                                *natspec_item,
-                                doc_comment.symbol,
-                                &mut local_tags,
-                            );
+                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                         }
                     }
                     NatSpecKind::Author => {
@@ -496,11 +488,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             SeenTags::AUTHOR,
                             item_id,
                         ) {
-                            self.convert_and_push_tag(
-                                *natspec_item,
-                                doc_comment.symbol,
-                                &mut local_tags,
-                            );
+                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                         }
                     }
                     NatSpecKind::Inheritdoc { contract } => {
@@ -555,11 +543,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
                         // Convert to HIR if validation passed
                         if params.contains(&name.name) {
-                            self.convert_and_push_tag(
-                                *natspec_item,
-                                doc_comment.symbol,
-                                &mut local_tags,
-                            );
+                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                         } else {
                             self.dcx()
                                 .err(format!(
@@ -604,11 +588,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
                         // Convert to HIR if validation passed
                         if return_valid {
-                            self.convert_and_push_tag(
-                                *natspec_item,
-                                doc_comment.symbol,
-                                &mut local_tags,
-                            );
+                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                         }
                     }
                 }
@@ -663,22 +643,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
         seen_tags.insert(tag_flag);
         true
-    }
-
-    /// Converts an AST natspec item to HIR and adds it to the local tags vector.
-    ///
-    /// This helper consolidates the common pattern of converting and conditionally adding
-    /// validated natspec items.
-    #[inline]
-    fn convert_and_push_tag(
-        &self,
-        natspec_item: ast::NatSpecItem,
-        doc_symbol: Symbol,
-        local_tags: &mut SmallVec<[hir::NatSpecItem; 8]>,
-    ) {
-        if let Some(hir_item) = hir::NatSpecItem::from_ast(natspec_item, doc_symbol) {
-            local_tags.push(hir_item);
-        }
     }
 
     /// Validates and caches contract resolution for `@inheritdoc`.
