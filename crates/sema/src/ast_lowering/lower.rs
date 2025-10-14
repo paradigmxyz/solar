@@ -635,7 +635,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     #[cold]
     fn emit_duplicate_param_error(&self, param_name: Symbol, tag_span: Span, prev_span: Span) {
         self.dcx()
-            .err(format!("duplicate documentation for parameter '{}'", param_name))
+            .err(format!("duplicate documentation for parameter '{param_name}'"))
             .span(tag_span)
             .span_note(prev_span, "previously documented here")
             .emit();

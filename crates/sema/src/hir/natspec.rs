@@ -65,6 +65,7 @@ impl NatSpecItem {
     /// Converts an AST natspec item to HIR, returning `None` for `@inheritdoc` tags.
     ///
     /// The `symbol` parameter should be the symbol from the parent `ast::DocComment`.
+    #[inline]
     pub fn from_ast(item: ast::NatSpecItem, symbol: Symbol) -> Option<Self> {
         use NatSpecKind as HirKind;
         use ast::NatSpecKind as AstKind;
