@@ -35,34 +35,16 @@ bitflags::bitflags! {
 
 impl TagPermissions {
     fn from_item_id(item_id: hir::ItemId) -> Self {
-        let mut perms = Self::empty();
-
-        if matches!(
-            item_id,
-            hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_)
-        ) {
-            perms.insert(Self::TITLE_AUTHOR);
+        match item_id {
+            hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_) => {
+                Self::TITLE_AUTHOR | Self::RETURN
+            }
+            hir::ItemId::Function(_) => Self::PARAM | Self::INHERITDOC | Self::RETURN,
+            hir::ItemId::Variable(_) => Self::PARAM | Self::INHERITDOC,
+            hir::ItemId::Event(_) => Self::PARAM,
+            hir::ItemId::Error(_) => Self::PARAM,
+            hir::ItemId::Udvt(_) => Self::PARAM,
         }
-
-        if matches!(
-            item_id,
-            hir::ItemId::Function(_)
-                | hir::ItemId::Variable(_)
-                | hir::ItemId::Event(_)
-                | hir::ItemId::Error(_)
-        ) {
-            perms.insert(Self::PARAM);
-        }
-
-        if matches!(item_id, hir::ItemId::Function(_) | hir::ItemId::Variable(_)) {
-            perms.insert(Self::INHERITDOC);
-        }
-
-        if !matches!(item_id, hir::ItemId::Event(_)) {
-            perms.insert(Self::RETURN);
-        }
-
-        perms
     }
 }
 
@@ -459,17 +441,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
         // Get required info for validation
         let permissions = TagPermissions::from_item_id(item_id);
-        let description = self.hir.item(item_id).description();
-        let parameters = self.hir.item(item_id).parameters().map_or(FxHashSet::default(), |p| {
-            p.iter()
-                .filter_map(|&id| self.hir.variable(id).name.map(|ident| ident.name))
-                .collect::<FxHashSet<Symbol>>()
-        });
-        let returns = if let hir::ItemId::Function(id) = item_id {
-            Some(self.hir.function(id).returns)
-        } else {
-            None
-        };
+        // Parameters, returns, and description are lazily initialized
+        let mut parameters: Option<FxHashSet<Symbol>> = None;
+        let mut returns: Option<&[hir::VariableId]> = None;
 
         #[derive(Default)]
         struct ValidationState {
@@ -504,7 +478,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             permissions.contains(TagPermissions::TITLE_AUTHOR),
                             &mut state.seen_tags,
                             SeenTags::TITLE,
-                            description,
+                            item_id,
                         ) {
                             self.convert_and_push_tag(
                                 *natspec_item,
@@ -520,7 +494,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             permissions.contains(TagPermissions::TITLE_AUTHOR),
                             &mut state.seen_tags,
                             SeenTags::AUTHOR,
-                            description,
+                            item_id,
                         ) {
                             self.convert_and_push_tag(
                                 *natspec_item,
@@ -536,7 +510,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             permissions.contains(TagPermissions::INHERITDOC),
                             &mut state.seen_tags,
                             SeenTags::INHERITDOC,
-                            description,
+                            item_id,
                         ) {
                             continue;
                         }
@@ -558,7 +532,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             "@param",
                             tag_span,
                             permissions.contains(TagPermissions::PARAM),
-                            description,
+                            item_id,
                         ) {
                             continue;
                         }
@@ -579,8 +553,19 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
                         state.seen_params.push((name.name, tag_span));
 
+                        // Lazy initialization of parameters
+                        let params = parameters.get_or_insert_with(|| {
+                            self.hir.item(item_id).parameters().map_or(FxHashSet::default(), |p| {
+                                p.iter()
+                                    .filter_map(|&id| {
+                                        self.hir.variable(id).name.map(|ident| ident.name)
+                                    })
+                                    .collect()
+                            })
+                        });
+
                         // Convert to HIR if validation passed
-                        if parameters.contains(&name.name) {
+                        if params.contains(&name.name) {
                             self.convert_and_push_tag(
                                 *natspec_item,
                                 doc_comment.symbol,
@@ -601,17 +586,24 @@ impl<'gcx> super::LoweringContext<'gcx> {
                             "@return",
                             tag_span,
                             permissions.contains(TagPermissions::RETURN),
-                            description,
+                            item_id,
                         ) {
                             continue;
                         }
 
                         state.return_count += 1;
 
-                        // Validate return count if this is a function
-                        let return_valid = if let Some(rets) = returns
-                            && state.return_count > rets.len()
-                        {
+                        // Lazy initialization of returns
+                        let rets = returns.get_or_insert_with(|| {
+                            if let hir::ItemId::Function(id) = item_id {
+                                self.hir.function(id).returns
+                            } else {
+                                &[]
+                            }
+                        });
+
+                        // Validate return count
+                        let return_valid = if state.return_count > rets.len() {
                             self.dcx().err(format!(
                                 "too many `@return` tags: function has {} return value{}, found {}",
                                 rets.len(),
@@ -643,14 +635,16 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     /// Helper to validate that a tag is allowed for the item type.
     /// Returns `true` if the tag is allowed, `false` otherwise.
+    #[inline]
     fn validate_tag_permission(
         &self,
         tag_name: &str,
         tag_span: Span,
         allowed: bool,
-        item_desc: &str,
+        item_id: hir::ItemId,
     ) -> bool {
         if !allowed {
+            let item_desc = self.hir.item(item_id).description();
             self.dcx()
                 .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
                 .span(tag_span)
@@ -663,6 +657,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     /// Helper to validate tags that can only be defined once.
     /// Returns `true` if validation passed, `false` otherwise.
+    #[inline]
     fn validate_tag_once(
         &self,
         tag_name: &str,
@@ -670,9 +665,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
         allowed: bool,
         seen_tags: &mut SeenTags,
         tag_flag: SeenTags,
-        item_desc: &str,
+        item_id: hir::ItemId,
     ) -> bool {
-        if !self.validate_tag_permission(tag_name, tag_span, allowed, item_desc) {
+        if !self.validate_tag_permission(tag_name, tag_span, allowed, item_id) {
             return false;
         }
         if seen_tags.contains(tag_flag) {
@@ -701,6 +696,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     /// Validates and caches contract resolution for `@inheritdoc`.
     /// Returns the resolved contract ID if validation passed.
+    #[inline]
     fn validate_and_cache_inheritdoc_contract(
         &mut self,
         contract_ident: &solar_interface::Ident,
