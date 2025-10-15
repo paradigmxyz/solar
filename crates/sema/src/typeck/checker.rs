@@ -632,7 +632,7 @@ impl<'gcx> TypeChecker<'gcx> {
             ty.kind,
             TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
         ) {
-            self.dcx().err("Only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
+            self.dcx().err("only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
         }
         ty
     }
