@@ -51,6 +51,10 @@ annotate-snippets.workspace = true
 serde = { workspace = true, optional = true, features = ["derive"] }
 serde_json = { workspace = true, optional = true }
 
+[dev-dependencies]
+tempfile.workspace = true
+tracing-subscriber.workspace = true
+
 [features]
 json = ["dep:serde", "dep:serde_json"]
 
