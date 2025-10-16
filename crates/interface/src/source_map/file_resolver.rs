@@ -403,7 +403,8 @@ mod tests {
         for source in test_case.sources {
             let path = base_path.join(source.path);
             if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).expect(parent.to_str().unwrap());
+                let parent = parent.to_str().unwrap();
+                std::fs::create_dir_all(parent).expect(parent);
             }
             std::fs::write(&path, "").expect(source.path);
             sm.load_file(&path).expect(source.path);
@@ -420,11 +421,7 @@ mod tests {
                         .split_once(" => ")
                         .ok_or("import is not in the format <import string> => <resolved path>")?;
                     let parent = base_path.join(path);
-                    let resolved = match file_resolver.resolve_file(import.as_ref(), Some(&parent))
-                    {
-                        Ok(file) => file,
-                        Err(e) => return Err(e.into()),
-                    };
+                    let resolved = file_resolver.resolve_file(import.as_ref(), Some(&parent))?;
                     let actual_full = resolved.name.as_real().ok_or("resolved file has no path")?;
                     let actual = actual_full.strip_prefix(&base_path).ok().ok_or(
                         "resolved file path is not a subpath of the base path (not absolute?)",
