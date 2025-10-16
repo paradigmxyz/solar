@@ -2855,8 +2855,10 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-macros",
+ "tempfile",
  "thiserror 2.0.17",
  "tracing",
+ "tracing-subscriber",
  "unicode-width 0.2.2",
 ]
 
