@@ -1,0 +1,12 @@
+warning: this declaration shadows a builtin symbol
+  --> ROOT/tests/ui/resolve/buildin_shadow.sol:LL:CC
+   |
+LL |     event this();
+   |           ^^^^
+
+warning: this declaration shadows a builtin symbol
+  --> ROOT/tests/ui/resolve/buildin_shadow.sol:LL:CC
+   |
+LL |     event super();
+   |           ^^^^^
+

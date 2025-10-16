@@ -1540,6 +1540,14 @@ impl Declarations {
         name: Symbol,
         decl: Declaration,
     ) -> Result<(), ErrorGuaranteed> {
+        // Check if we're shadowing a builtin before declaring
+        if let hir::Res::Item(hir::ItemId::Event(_)) = decl.res
+            && let Some(existing) = self.declarations.get(&name)
+            && existing.iter().any(|d| matches!(d.res, hir::Res::Builtin(_)))
+        {
+            sess.dcx.warn("this declaration shadows a builtin symbol").span(decl.span).emit();
+        }
+
         self.try_declare(hir, name, decl)
             .map_err(|conflict| report_conflict(hir, sess, name, decl, conflict))
     }
@@ -1595,6 +1603,9 @@ impl Declarations {
             let same_kind = |decl2: &Declaration| match decl2.res {
                 Item(Variable(v)) => hir.variable(v).getter == getter,
                 Item(Function(f)) => hir.function(f).kind.is_ordinary(),
+                // Events are allowed to shadow builtins (this, super, _)
+                // See: https://github.com/argotorg/solidity/blob/develop/test/libsolidity/syntaxTests/events/illegal_names_exception.sol
+                Builtin(_) if matches!(decl.res, Item(Event(_))) => true,
                 ref k => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
