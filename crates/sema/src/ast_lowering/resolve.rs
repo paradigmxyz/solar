@@ -296,7 +296,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let error = self.hir.error(id);
             init_cx!(error);
             self.hir.errors[id].parameters =
-                self.lower_variables(*ast_error.parameters, hir::VarKind::Error);
+                self.lower_variables_two_phase(*ast_error.parameters, hir::VarKind::Error);
         }
 
         for id in self.hir.event_ids() {
@@ -305,7 +305,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let event = self.hir.event(id);
             init_cx!(event);
             self.hir.events[id].parameters =
-                self.lower_variables(*ast_event.parameters, hir::VarKind::Event);
+                self.lower_variables_two_phase(*ast_event.parameters, hir::VarKind::Event);
         }
 
         // Resolve constants and state variables.
@@ -353,8 +353,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.arena.alloc_smallvec(overrides)
             };
 
-            self.hir.functions[id].parameters =
-                self.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
+            self.hir.functions[id].parameters = self.lower_variables_two_phase(
+                *ast_func.header.parameters,
+                hir::VarKind::FunctionParam,
+            );
 
             self.hir.functions[id].modifiers = {
                 let mut modifiers = SmallVec::<[_; 8]>::new();
@@ -892,6 +894,48 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, kind).0))
     }
 
+    /// Lowers variables in two phases (first resolve types without declaring names, then declare
+    ///  all names in scope) to prevent parameter names from shadowing type names.
+    fn lower_variables_two_phase(
+        &mut self,
+        vars: &[ast::VariableDefinition<'_>],
+        kind: hir::VarKind,
+    ) -> &'gcx [hir::VariableId] {
+        // Phase 1: Lower variables and resolve types without declaring names
+        let var_data: Vec<_> = vars
+            .iter()
+            .map(|var| {
+                let id = super::lower::lower_variable_partial(
+                    &mut self.lcx.hir,
+                    var,
+                    self.scopes.source.unwrap(),
+                    self.scopes.contract,
+                    self.function_id,
+                    kind,
+                );
+                self.hir.variables[id].ty = self.lower_type(&var.ty);
+                self.hir.variables[id].initializer =
+                    self.lower_expr_opt(var.initializer.as_deref());
+                (id, var.name)
+            })
+            .collect();
+
+        // Phase 2: Declare all names in scope
+        for &(id, name) in &var_data {
+            if let Some(name) = name {
+                let res = Res::Item(hir::ItemId::Variable(id));
+                let _ = self.scopes.current_scope().declare_res(
+                    self.lcx.sess,
+                    &self.lcx.hir,
+                    name,
+                    res,
+                );
+            }
+        }
+
+        self.arena.alloc_slice_fill_iter(var_data.into_iter().map(|(id, _)| id))
+    }
+
     /// Lowers `var` to HIR and declares it in the current scope.
     fn lower_variable(
         &mut self,
@@ -1145,13 +1189,15 @@ impl<'gcx> ResolveContext<'gcx> {
             })),
             ast::TypeKind::Function(f) => hir::TypeKind::Function(
                 self.arena.alloc(hir::TypeFunction {
-                    parameters: self.lower_variables(*f.parameters, hir::VarKind::FunctionTyParam),
+                    parameters: self
+                        .lower_variables_two_phase(*f.parameters, hir::VarKind::FunctionTyParam),
                     visibility: f.visibility.map(|v| *v).unwrap_or(ast::Visibility::Public),
                     state_mutability: f
                         .state_mutability
                         .map(|s| s.data)
                         .unwrap_or(ast::StateMutability::NonPayable),
-                    returns: self.lower_variables(f.returns(), hir::VarKind::FunctionTyReturn),
+                    returns: self
+                        .lower_variables_two_phase(f.returns(), hir::VarKind::FunctionTyReturn),
                 }),
             ),
             ast::TypeKind::Mapping(mapping) => {
