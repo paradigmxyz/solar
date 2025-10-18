@@ -42,7 +42,7 @@ pub struct Object<'ast> {
     /// The `code` block.
     pub code: CodeBlock<'ast>,
     /// Sub-objects, if any.
-    pub children: BoxSlice<'ast, Object<'ast>>,
+    pub children: BoxSlice<'ast, Self>,
     /// `data` segments, if any.
     pub data: BoxSlice<'ast, Data<'ast>>,
 }
