@@ -738,6 +738,46 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_contract(
+        &mut self,
+        contract: &'gcx hir::Contract<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        // Check base constructor arguments
+        for (&base_id, modifier) in
+            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
+        {
+            // Get constructor parameters if the base has a constructor
+            let base_contract = self.gcx.hir.contract(base_id);
+            if let Some(ctor_id) = base_contract.ctor {
+                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
+                // Check if arguments were provided and validate count
+                if let Some(modifier) = modifier {
+                    let arg_count = modifier.args.exprs().len();
+                    if arg_count != ctor_param_types.len() {
+                        self.dcx()
+                            .err(format!(
+                                "wrong number of arguments for base constructor: expected {}, found {}",
+                                ctor_param_types.len(),
+                                arg_count
+                            ))
+                            .span(modifier.span)
+                            .emit();
+                    } else {
+                        for (_arg_expr, _expected_arg_ty) in
+                            modifier.args.exprs().zip(ctor_param_types.iter())
+                        {
+                            // TODO: implicit conversion needed here
+                            // let actual_arg_ty = self.check_expr_kind(arg_expr,
+                            // Some(*expected_arg_ty));
+                            // self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                        }
+                    }
+                }
+            }
+        }
+        self.walk_contract(contract)
+    }
+
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
         let _ = self.check_var(id);
         ControlFlow::Continue(())
