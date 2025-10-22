@@ -1,6 +1,6 @@
 #![allow(clippy::disallowed_methods)]
 
-use solar_parse::interface::Session;
+use solar::{parse::interface::Session, sema::Compiler};
 use std::{
     any::Any,
     hint::black_box,
@@ -29,18 +29,24 @@ pub fn get_srcs() -> &'static [Source] {
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         vec![
-            Source { name: "empty", path: "", src: "" },
-            include_source("../testdata/Counter.sol"),
-            include_source("../testdata/solidity/test/benchmarks/verifier.sol"),
-            include_source("../testdata/solidity/test/benchmarks/OptimizorClub.sol"),
-            include_source("../testdata/UniswapV3.sol"),
-            include_source("../testdata/Solarray.sol"),
-            include_source("../testdata/console.sol"),
-            include_source("../testdata/Vm.sol"),
-            include_source("../testdata/safeconsole.sol"),
-            include_source("../testdata/Seaport.sol"),
-            include_source("../testdata/Solady.sol"),
-            include_source("../testdata/Optimism.sol"),
+            Source { name: "empty", path: "", src: "", capabilities: Capabilities::all() },
+            include_source("../testdata/Counter.sol", Capabilities::all()),
+            include_source(
+                "../testdata/solidity/test/benchmarks/verifier.sol",
+                Capabilities::all(),
+            ),
+            include_source(
+                "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
+                Capabilities::all(),
+            ),
+            include_source("../testdata/UniswapV3.sol", Capabilities::all()),
+            include_source("../testdata/Solarray.sol", Capabilities::all()),
+            include_source("../testdata/console.sol", Capabilities::all()),
+            include_source("../testdata/Vm.sol", Capabilities::all()),
+            include_source("../testdata/safeconsole.sol", Capabilities::all()),
+            include_source("../testdata/Seaport.sol", Capabilities::all()),
+            include_source("../testdata/Solady.sol", Capabilities::all()),
+            include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
         ]
     })
 }
@@ -50,7 +56,7 @@ pub fn get_src(name: &str) -> &'static Source {
 }
 
 /// `include!` at runtime, since the submodule may not be initialized.
-fn include_source(path: &'static str) -> Source {
+fn include_source(path: &'static str, capabilities: Capabilities) -> Source {
     let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
         Ok(source) => source,
         Err(e) => panic!(
@@ -58,11 +64,11 @@ fn include_source(path: &'static str) -> Source {
              you may need to initialize submodules: `git submodule update --init --checkout`"
         ),
     };
-    source_from_path(path, source.leak())
+    source_from_path(path, source.leak(), capabilities)
 }
 
-fn source_from_path(path: &'static str, src: &'static str) -> Source {
-    Source { name: Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src }
+fn source_from_path(path: &'static str, src: &'static str, capabilities: Capabilities) -> Source {
+    Source { name: Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src, capabilities }
 }
 
 #[derive(Clone, Debug)]
@@ -70,18 +76,46 @@ pub struct Source {
     pub name: &'static str,
     pub path: &'static str,
     pub src: &'static str,
+    pub capabilities: Capabilities,
+}
+
+#[derive(Clone, Debug)]
+pub struct Capabilities {
+    lex: bool,
+    lower: bool,
+}
+
+impl Capabilities {
+    pub fn all() -> Self {
+        Self { lex: true, lower: true }
+    }
+
+    pub fn parse_only() -> Self {
+        Self { lex: false, lower: false }
+    }
+
+    pub fn lex_and_parse() -> Self {
+        Self { lex: true, lower: false }
+    }
+
+    pub fn can_lex(&self) -> bool {
+        self.lex
+    }
+
+    pub fn can_lower(&self) -> bool {
+        self.lower
+    }
 }
 
 pub trait Parser {
     fn name(&self) -> &'static str;
+    fn capabilities(&self) -> Capabilities;
     fn setup(&self, _src: &str) -> Box<dyn Any> {
         Box::new(())
     }
-    fn lex(&self, src: &str, setup: &mut dyn Any);
-    fn can_lex(&self) -> bool {
-        true
-    }
+    fn lex(&self, _src: &str, _setup: &mut dyn Any) {}
     fn parse(&self, src: &str, setup: &mut dyn Any);
+    fn lower(&self, _src: &str, _setup: &mut dyn Any) {}
 }
 
 pub struct Solc;
@@ -90,11 +124,9 @@ impl Parser for Solc {
         "solc"
     }
 
-    fn can_lex(&self) -> bool {
-        false
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::parse_only()
     }
-
-    fn lex(&self, _: &str, _: &mut dyn Any) {}
 
     fn parse(&self, src: &str, _: &mut dyn Any) {
         let solc = std::env::var_os("SOLC");
@@ -122,39 +154,65 @@ impl Parser for Solar {
         "solar"
     }
 
-    fn setup(&self, _src: &str) -> Box<dyn Any> {
-        Box::new(session())
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::all()
     }
 
-    fn lex(&self, src: &str, sess_any: &mut dyn Any) {
-        let sess = sess_any.downcast_ref::<Session>().unwrap();
-        sess.enter(|| {
-            for token in solar_parse::Lexer::new(sess, src) {
+    fn setup(&self, _src: &str) -> Box<dyn Any> {
+        Box::new(Compiler::new(session()))
+    }
+
+    fn lex(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_ref::<Compiler>().unwrap();
+        compiler.enter(|compiler| {
+            for token in solar::parse::Lexer::new(compiler.sess(), src) {
                 black_box(token);
             }
-            sess.dcx.has_errors().unwrap();
+            compiler.dcx().has_errors().unwrap();
         });
     }
 
-    fn parse(&self, src: &str, sess_any: &mut dyn Any) {
-        let sess = sess_any.downcast_ref::<Session>().unwrap();
-        sess.enter(|| -> solar_parse::interface::Result {
-            let arena = solar_parse::ast::Arena::new();
-            let filename = PathBuf::from("test.sol");
-            let mut parser =
-                solar_parse::Parser::from_source_code(sess, &arena, filename.into(), src)?;
-            let result = parser.parse_file().map_err(|e| e.emit())?;
-            sess.dcx.has_errors()?;
-            black_box(result);
-            Ok(())
+    fn parse(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler
+            .enter_mut(|compiler| -> solar::parse::interface::Result {
+                let arena = solar::parse::ast::Arena::new();
+                let filename = PathBuf::from("test.sol");
+                let mut parser = solar::parse::Parser::from_source_code(
+                    compiler.sess(),
+                    &arena,
+                    filename.into(),
+                    src,
+                )?;
+                let result = parser.parse_file().map_err(|e| e.emit())?;
+                compiler.dcx().has_errors()?;
+                black_box(result);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    fn lower(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler.enter_mut(|compiler| {
+            let mut parsing_context = compiler.parse();
+            parsing_context.add_file(
+                compiler
+                    .sess()
+                    .source_map()
+                    .new_source_file(PathBuf::from("test.sol"), src)
+                    .unwrap(),
+            );
+            // load file
+            parsing_context.parse();
+            let _ = compiler.lower_asts().unwrap();
         })
-        .unwrap();
     }
 }
 
 fn session() -> Session {
     Session::builder()
-        .with_stderr_emitter_and_color(solar_parse::interface::ColorChoice::Always)
+        .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
         .single_threaded()
         .build()
 }
@@ -163,6 +221,10 @@ pub struct Solang;
 impl Parser for Solang {
     fn name(&self) -> &'static str {
         "solang"
+    }
+
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::lex_and_parse()
     }
 
     fn lex(&self, src: &str, _: &mut dyn Any) {
@@ -206,12 +268,8 @@ impl Parser for Slang {
         "slang"
     }
 
-    fn lex(&self, src: &str, _: &mut dyn Any) {
-        let _ = src;
-    }
-
-    fn can_lex(&self) -> bool {
-        false
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::parse_only()
     }
 
     fn parse(&self, src: &str, _: &mut dyn Any) {
@@ -247,12 +305,8 @@ impl Parser for TreeSitter {
         "tree-sitter"
     }
 
-    fn lex(&self, src: &str, _: &mut dyn Any) {
-        let _ = src;
-    }
-
-    fn can_lex(&self) -> bool {
-        false
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::parse_only()
     }
 
     fn parse(&self, src: &str, _: &mut dyn Any) {

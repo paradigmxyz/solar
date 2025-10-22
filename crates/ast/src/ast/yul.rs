@@ -1,6 +1,6 @@
 //! Yul AST.
 
-use super::{AstPath, Box, DocComments, Lit, StrLit};
+use crate::{AstPath, Box, BoxSlice, DocComments, Lit, StrLit};
 use solar_interface::{Ident, Span};
 
 /// A block of Yul statements: `{ ... }`.
@@ -11,7 +11,7 @@ pub struct Block<'ast> {
     /// The span of the block, including the `{` and `}`.
     pub span: Span,
     /// The statements in the block.
-    pub stmts: Box<'ast, [Stmt<'ast>]>,
+    pub stmts: BoxSlice<'ast, Stmt<'ast>>,
 }
 
 impl<'ast> std::ops::Deref for Block<'ast> {
@@ -42,9 +42,9 @@ pub struct Object<'ast> {
     /// The `code` block.
     pub code: CodeBlock<'ast>,
     /// Sub-objects, if any.
-    pub children: Box<'ast, [Object<'ast>]>,
+    pub children: BoxSlice<'ast, Self>,
     /// `data` segments, if any.
-    pub data: Box<'ast, [Data<'ast>]>,
+    pub data: BoxSlice<'ast, Data<'ast>>,
 }
 
 /// A Yul `code` block. See [`Object`].
@@ -101,7 +101,7 @@ pub enum StmtKind<'ast> {
     /// Multi-assignments require a function call on the right-hand side.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulAssignment>
-    AssignMulti(Box<'ast, [AstPath<'ast>]>, Expr<'ast>),
+    AssignMulti(BoxSlice<'ast, AstPath<'ast>>, Expr<'ast>),
 
     /// An expression statement. This can only be a function call.
     Expr(Expr<'ast>),
@@ -138,7 +138,7 @@ pub enum StmtKind<'ast> {
     /// A variable declaration statement: `let x := 0`.
     ///
     /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.yulVariableDeclaration>
-    VarDecl(Box<'ast, [Ident]>, Option<Expr<'ast>>),
+    VarDecl(BoxSlice<'ast, Ident>, Option<Expr<'ast>>),
 }
 
 /// A Yul for statement: `for {let i := 0} lt(i,10) {i := add(i,1)} { ... }`.
@@ -171,7 +171,7 @@ pub struct StmtFor<'ast> {
 pub struct StmtSwitch<'ast> {
     pub selector: Expr<'ast>,
     /// The cases of the switch statement. Includes the default case in the last position, if any.
-    pub cases: Box<'ast, [StmtSwitchCase<'ast>]>,
+    pub cases: BoxSlice<'ast, StmtSwitchCase<'ast>>,
 }
 
 impl<'ast> StmtSwitch<'ast> {
@@ -198,8 +198,8 @@ pub struct StmtSwitchCase<'ast> {
 #[derive(Debug)]
 pub struct Function<'ast> {
     pub name: Ident,
-    pub parameters: Box<'ast, [Ident]>,
-    pub returns: Box<'ast, [Ident]>,
+    pub parameters: BoxSlice<'ast, Ident>,
+    pub returns: BoxSlice<'ast, Ident>,
     pub body: Block<'ast>,
 }
 
@@ -229,5 +229,5 @@ pub enum ExprKind<'ast> {
 #[derive(Debug)]
 pub struct ExprCall<'ast> {
     pub name: Ident,
-    pub arguments: Box<'ast, [Expr<'ast>]>,
+    pub arguments: BoxSlice<'ast, Expr<'ast>>,
 }

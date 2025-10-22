@@ -247,6 +247,23 @@ impl SourceMap {
         self.files().is_empty()
     }
 
+    /// Parses a file name from a string.
+    pub fn parse_file_name(&self, s: &str) -> FileName {
+        match s {
+            "stdin" | "<stdin>" => FileName::Stdin,
+            s if s.starts_with('<') && s.ends_with('>') => {
+                FileName::Custom(s[1..s.len() - 1].to_string())
+            }
+            s => {
+                if let Some(file) = FileResolver::new(self).get_file(s.as_ref()) {
+                    file.name.clone()
+                } else {
+                    FileName::Custom(s.to_string())
+                }
+            }
+        }
+    }
+
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file(&self, path: impl Into<FileName>) -> Option<Arc<SourceFile>> {

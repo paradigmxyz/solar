@@ -3,7 +3,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(panic_update_hook))]
 
 #[macro_use]
@@ -25,7 +25,7 @@ pub mod source_map;
 pub use source_map::SourceMap;
 
 mod span;
-pub use span::{Span, Spanned};
+pub use span::{Span, Spanned, SpannedOption};
 
 mod symbol;
 pub use symbol::{ByteSymbol, Ident, Symbol, kw, sym};
@@ -39,6 +39,11 @@ pub use solar_data_structures as data_structures;
 
 /// Compiler result type.
 pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
+
+/// The minimum supported Solidity version.
+///
+/// Solar aims to support Solidity 0.8.* and later versions.
+pub const MIN_SOLIDITY_VERSION: (u64, u64, u64) = (0, 8, 0);
 
 /// Pluralize a word based on a count.
 #[macro_export]

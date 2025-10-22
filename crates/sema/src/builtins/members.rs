@@ -5,13 +5,13 @@ use crate::{
 };
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM};
 use solar_data_structures::BumpExt;
-use solar_interface::{Symbol, kw, sym};
+use solar_interface::Symbol;
 
 pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
-pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
-    let expected_ref = || unreachable!("members_of: type {ty:?} should be wrapped in Ref");
+pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
+    let expected_ref = || panic!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
             ElementaryType::Address(false) => address(gcx).collect(),
@@ -25,10 +25,11 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
-        TyKind::IntLiteral(_size) => Default::default(),
+        TyKind::IntLiteral(_negative, _size) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
+        TyKind::Slice(_ty) => Default::default(), // TODO: do slices have members
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),
@@ -36,8 +37,14 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
-        TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::ErrorSelector]),
-        TyKind::Event(_tys, _id) => Member::of_builtins(gcx, [Builtin::EventSelector]),
+        TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::FunctionSelector]),
+        TyKind::Event(_tys, id) => {
+            if gcx.hir.event(id).anonymous {
+                Default::default()
+            } else {
+                Member::of_builtins(gcx, [Builtin::EventSelector])
+            }
+        }
         TyKind::Module(id) => gcx.symbol_resolver.source_scopes[id]
             .iter()
             .flat_map(|(name, decls)| {
@@ -49,8 +56,8 @@ pub(crate) fn members_of<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx>
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
             .map(|b| Member::of_builtin(gcx, b))
             .collect(),
-        TyKind::Type(_ty) => type_type(gcx, ty),
-        TyKind::Meta(_ty) => meta(gcx, ty),
+        TyKind::Type(ty) => type_type(gcx, ty),
+        TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),
     })
 }
@@ -76,7 +83,7 @@ impl<'gcx> Member<'gcx> {
     }
 
     pub fn of_builtin(gcx: Gcx<'gcx>, builtin: Builtin) -> Self {
-        Self { name: builtin.name(), ty: builtin.ty(gcx), res: None }
+        Self::new(builtin.name(), builtin.ty(gcx))
     }
 
     pub fn of_builtins(
@@ -134,8 +141,14 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
 }
 
 fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
-    let _ = (gcx, f);
-    todo!()
+    let mut members = Vec::with_capacity(2);
+    if f.visibility >= hir::Visibility::Public {
+        members.push(Member::of_builtin(gcx, Builtin::FunctionSelector));
+    }
+    if f.visibility == hir::Visibility::External {
+        members.push(Member::of_builtin(gcx, Builtin::FunctionAddress));
+    }
+    members
 }
 
 fn reference<'gcx>(
@@ -152,7 +165,7 @@ fn reference<'gcx>(
             fields
                 .iter()
                 .zip(tys)
-                .map(|(&f, &ty)| Member::new(gcx.item_name(f).name, ty.with_loc(gcx, loc)))
+                .map(|(&f, &ty)| Member::new(gcx.item_name(f).name, ty.with_loc_if_ref(gcx, loc)))
                 .collect()
         }
         (
@@ -160,15 +173,24 @@ fn reference<'gcx>(
             DataLocation::Storage,
         ) => {
             let inner = if let TyKind::DynArray(inner) = inner.kind {
-                inner
+                inner.with_loc_if_ref(gcx, loc)
             } else {
                 gcx.types.fixed_bytes(1)
             };
             vec![
-                Member::new(sym::length, gcx.types.uint(256)),
-                Member::new(sym::push, gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[])),
-                Member::new(sym::push, gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner])),
-                Member::new(kw::Pop, gcx.mk_builtin_fn(&[this], SM::NonPayable, &[])),
+                Member::of_builtin(gcx, Builtin::ArrayLength),
+                Member::with_builtin(
+                    Builtin::ArrayPush0,
+                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
+                ),
+                Member::with_builtin(
+                    Builtin::ArrayPush,
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
+                ),
+                Member::with_builtin(
+                    Builtin::ArrayPop,
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[]),
+                ),
             ]
         }
         (

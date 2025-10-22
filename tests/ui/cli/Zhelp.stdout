@@ -27,6 +27,12 @@ Options:
       -Zspan-visitor
           Run the span visitor after parsing
 
+      -Zprint-max-storage-sizes
+          Print contracts' max storage sizes
+
+      -Ztypeck
+          Type check the program. WIP
+
       -Zhelp
           Print help
 

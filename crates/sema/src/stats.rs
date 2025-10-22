@@ -533,7 +533,7 @@ impl<'ast> Visit<'ast> for StatCollector {
 
     fn visit_doc_comment(
         &mut self,
-        doc_comment: &'ast ast::DocComment,
+        doc_comment: &'ast ast::DocComment<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
         self.record("DocComment", None, doc_comment);
         // Don't visit span field since it isn't boxed

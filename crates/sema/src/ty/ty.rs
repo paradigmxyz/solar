@@ -1,4 +1,4 @@
-use super::{Gcx, Recursiveness, abi::TySolcPrinter};
+use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
@@ -30,7 +30,12 @@ impl<'gcx> Ty<'gcx> {
         gcx.mk_ty(kind)
     }
 
-    // TODO: with_loc_if_ref ?
+    /// Displays the type for human-readable diagnostics.
+    pub fn display(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
+        fmt::from_fn(move |f| TySolcPrinter::new(gcx, f).data_locations(true).print(self))
+    }
+
+    #[doc(alias = "with_location")]
     pub fn with_loc(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
         let mut ty = self;
         if let TyKind::Ref(inner, l2) = self.kind {
@@ -42,13 +47,38 @@ impl<'gcx> Ty<'gcx> {
         Self::new(gcx, TyKind::Ref(ty, loc))
     }
 
-    /// Peels `Ref` layers from the type, returning the inner type.
-    pub fn peel_refs(self) -> Self {
-        let mut ty = self;
-        while let TyKind::Ref(inner, _) = ty.kind {
-            ty = inner;
+    #[doc(alias = "with_location_if_reference")]
+    pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
+        if self.is_reference_type() {
+            return self.with_loc(gcx, loc);
         }
-        ty
+        self
+    }
+
+    pub fn with_loc_if_ref_opt(self, gcx: Gcx<'gcx>, loc: Option<DataLocation>) -> Self {
+        if let Some(loc) = loc {
+            return self.with_loc_if_ref(gcx, loc);
+        }
+        self
+    }
+
+    /// Returns the location of the type if it is a reference.
+    #[doc(alias = "location")]
+    pub fn loc(self) -> Option<DataLocation> {
+        match self.kind {
+            TyKind::Ref(_, loc) => Some(loc),
+            _ => None,
+        }
+    }
+
+    /// Peels `Ref` layers from the type, returning the inner type.
+    pub fn peel_refs(mut self) -> Self {
+        // There shouldn't be any double references so we can avoid using a loop here.
+        if let TyKind::Ref(inner, _) = self.kind {
+            self = inner;
+        }
+        debug_assert!(!self.is_ref(), "double reference type found");
+        self
     }
 
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
@@ -113,8 +143,18 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if the type is a reference to the given location.
     #[inline]
+    #[doc(alias = "is_reference_with_location")]
     pub fn is_ref_at(self, loc: DataLocation) -> bool {
         matches!(self.kind, TyKind::Ref(_, l) if l == loc)
+    }
+
+    /// Returns `true` if the type is a reference to the given location.
+    pub fn data_stored_in(self, loc: DataLocation) -> bool {
+        match self.kind {
+            TyKind::Ref(_, l) => l == loc,
+            TyKind::Mapping(..) => loc == DataLocation::Storage,
+            _ => false,
+        }
     }
 
     /// Returns `true` if the type is a value type.
@@ -134,34 +174,39 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_reference_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_reference_type(),
-            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) => true,
+            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Slice(_) => true,
             _ => false,
         }
     }
 
     /// Returns `true` if the type is recursive.
+    #[inline]
     pub fn is_recursive(self) -> bool {
         self.flags.contains(TyFlags::IS_RECURSIVE)
     }
 
     /// Returns `true` if this type contains a mapping.
+    #[inline]
     pub fn has_mapping(self) -> bool {
         self.flags.contains(TyFlags::HAS_MAPPING)
     }
 
+    /// Returns `Err(guar)` if this type contains an error.
+    #[inline]
+    pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
+        if self.references_error() { Err(ErrorGuaranteed::new_unchecked()) } else { Ok(()) }
+    }
+
     /// Returns `true` if this type contains an error.
-    pub fn has_error(self) -> Result<(), ErrorGuaranteed> {
-        if self.flags.contains(TyFlags::HAS_ERROR) {
-            Err(ErrorGuaranteed::new_unchecked())
-        } else {
-            Ok(())
-        }
+    #[inline]
+    pub fn references_error(self) -> bool {
+        self.flags.contains(TyFlags::HAS_ERROR)
     }
 
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.has_error().is_err())
+        !(self.is_recursive() || self.has_mapping() || self.references_error())
     }
 
     /// Returns the parameter types of the type.
@@ -207,7 +252,7 @@ impl<'gcx> Ty<'gcx> {
         match self.kind {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
+            | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
             | TyKind::Enum(_)
@@ -219,6 +264,7 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
+            | TyKind::Slice(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
             | TyKind::Meta(ty) => ty.visit(f),
@@ -237,9 +283,187 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
-    /// Displays the type with the default format.
-    pub fn display(self, gcx: Gcx<'gcx>) -> impl fmt::Display + use<'gcx> {
-        fmt::from_fn(move |f| TySolcPrinter::new(gcx, f).data_locations(true).print(self))
+    /// Returns `true` if the type is an array.
+    #[inline]
+    pub fn is_array(self) -> bool {
+        matches!(self.kind, TyKind::Array(..) | TyKind::DynArray(..))
+    }
+
+    /// Returns `true` if the type is an array-like type.
+    ///
+    /// This is either an array or bytes/string.
+    #[inline]
+    pub fn is_array_like(&self) -> bool {
+        self.is_array()
+            || matches!(
+                self.kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            )
+    }
+
+    /// Returns `true` if the type is sliceable.
+    ///
+    /// This is either an array, bytes, string, or slice.
+    #[inline]
+    pub fn is_sliceable(self) -> bool {
+        self.is_array_like() || matches!(self.kind, TyKind::Slice(..))
+    }
+
+    /// Returns `true` if the type is dynamically sized.
+    pub fn is_dynamically_sized(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                | TyKind::DynArray(..)
+                | TyKind::Slice(..)
+        )
+    }
+
+    pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
+        match self.kind {
+            TyKind::Struct(id) => {
+                self.is_recursive()
+                    || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
+            }
+            TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
+            _ => self.is_dynamically_sized(),
+        }
+    }
+
+    /// Returns `true` if the type is a fixed-size byte array.
+    pub fn is_fixed_bytes(self) -> bool {
+        matches!(self.kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+    }
+
+    /// Returns `true` if the type is an integer, including literals.
+    pub fn is_integer(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
+                | TyKind::IntLiteral(..)
+        )
+    }
+
+    /// Returns `true` if the type is a signed integer, including negative literals.
+    pub fn is_signed(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, _)
+        )
+    }
+
+    /// Returns `true` if the type is a tuple.
+    pub fn is_tuple(self) -> bool {
+        matches!(self.kind, TyKind::Tuple(..))
+    }
+
+    /// Returns `true` if the type is the unit type `()`.
+    pub fn is_unit(self) -> bool {
+        matches!(self.kind, TyKind::Tuple([]))
+    }
+
+    /// Returns `true` if the type can be used for variables.
+    pub fn nameable(self) -> bool {
+        matches!(
+            self.kind,
+            TyKind::Elementary(_)
+                | TyKind::Array(..)
+                | TyKind::DynArray(_)
+                | TyKind::Contract(_)
+                | TyKind::Struct(_)
+                | TyKind::Enum(_)
+                | TyKind::Udvt(..)
+                | TyKind::Mapping(..)
+        )
+    }
+
+    /// Returns the common type between the two types.
+    pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
+        let a = self;
+        if let Some(a) = a.mobile(gcx)
+            && b.convert_implicit_to(a)
+        {
+            return Some(a);
+        }
+        if let Some(b) = b.mobile(gcx)
+            && a.convert_implicit_to(b)
+        {
+            return Some(b);
+        }
+        None
+    }
+
+    /// Returns the base type, if any.
+    pub fn base_type(self, gcx: Gcx<'gcx>) -> Option<Self> {
+        let loc = self.loc();
+        match self.peel_refs().kind {
+            TyKind::Array(base, _) | TyKind::DynArray(base) => {
+                Some(base.with_loc_if_ref_opt(gcx, loc))
+            }
+            TyKind::Slice(arr) => arr.with_loc_if_ref_opt(gcx, loc).base_type(gcx),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(gcx.types.fixed_bytes(1))
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns `true` if the type is implicitly convertible to the given type.
+    ///
+    /// Prefer using [`Ty::try_convert_implicit_to`] if you need to handle the error case.
+    #[inline]
+    #[doc(alias = "is_implicitly_convertible_to")]
+    #[must_use]
+    pub fn convert_implicit_to(self, other: Self) -> bool {
+        self.try_convert_implicit_to(other).is_ok()
+    }
+
+    #[allow(clippy::result_unit_err)]
+    pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
+        if self == other || self.references_error() || other.references_error() {
+            return Ok(());
+        }
+
+        // TODO
+        Err(())
+    }
+
+    /// Returns `true` if the type is explicitly convertible to the given type.
+    ///
+    /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
+    #[inline]
+    #[doc(alias = "is_explicitly_convertible_to")]
+    #[must_use]
+    pub fn convert_explicit_to(self, other: Self) -> bool {
+        self.try_convert_explicit_to(other).is_ok()
+    }
+
+    #[allow(clippy::result_unit_err)]
+    pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
+        // TODO
+        self.try_convert_implicit_to(other)
+    }
+
+    /// Returns the mobile (in contrast to static) type corresponding to the given type.
+    #[doc(alias = "mobile_type")]
+    pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
+        Some(match self.kind {
+            TyKind::IntLiteral(false, size) => gcx.types.uint_(size),
+            TyKind::IntLiteral(true, size) => gcx.types.int_(size),
+            TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
+            // TODO: basetype.is_dynamically_encoded
+            TyKind::Slice(ty)
+                if ty.data_stored_in(DataLocation::Calldata) && ty.is_dynamically_sized() =>
+            {
+                ty
+            }
+            TyKind::Tuple(tys) => {
+                let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
+                gcx.mk_ty_tuple(gcx.mk_tys(&tys))
+            }
+            // TODO: functions
+            _ => self,
+        })
     }
 }
 
@@ -291,8 +515,8 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, TypeSize),
 
-    /// Any integer or fixed-point number literal. Contains `min(s.len(), 32)`.
-    IntLiteral(TypeSize),
+    /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
+    IntLiteral(bool, TypeSize),
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
@@ -302,6 +526,11 @@ pub enum TyKind<'gcx> {
 
     /// Fixed-size array: `T[N]`.
     Array(Ty<'gcx>, U256),
+
+    /// Array slice: result of `expr[1:2]`.
+    ///
+    /// Holds the underlying array type it is slicing (which can also be string/bytes).
+    Slice(Ty<'gcx>),
 
     /// Tuple: `(T1, T2, ...)`.
     Tuple(&'gcx [Ty<'gcx>]),
@@ -388,7 +617,7 @@ impl TyFlags {
         match *ty {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
+            | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
             | TyKind::Enum(_)
@@ -398,6 +627,7 @@ impl TyFlags {
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
+            | TyKind::Slice(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
             | TyKind::Meta(ty) => self.add_ty(ty),

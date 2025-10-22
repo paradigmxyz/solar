@@ -200,6 +200,13 @@ impl ElementaryType {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeSize(u8);
 
+impl Default for TypeSize {
+    #[inline]
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
 impl fmt::Debug for TypeSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TypeSize({})", self.0)

@@ -1,11 +1,11 @@
 //! Solidity source code token.
 
 use crate::{
-    DocComment, StrKind,
+    StrKind,
     ast::{BinOp, BinOpKind, UnOp, UnOpKind},
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, mem::MaybeUninit};
 
 /// The type of a comment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -446,14 +446,16 @@ impl TokenKind {
 /// This struct is written in such a way that it can be passed in registers.
 /// The actual representation is [`TokenRepr`], but it should not be accessed directly.
 #[derive(Clone, Copy)]
+#[repr(C)]
 pub struct Token {
-    _data: (std::mem::MaybeUninit<u64>, std::mem::MaybeUninit<u64>),
+    _kind: MaybeUninit<u64>,
+    _span: u64,
 }
 
 /// Actual representation of [`Token`].
 ///
 /// Do not use this struct directly. Use [`Token`] instead.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct TokenRepr {
     /// The kind of the token.
     pub kind: TokenKind,
@@ -464,6 +466,8 @@ pub struct TokenRepr {
 const _: () = {
     assert!(size_of::<Token>() == size_of::<TokenRepr>());
     assert!(align_of::<Token>() >= align_of::<TokenRepr>());
+    assert!(std::mem::offset_of!(Token, _kind) == std::mem::offset_of!(TokenRepr, kind));
+    assert!(std::mem::offset_of!(Token, _span) == std::mem::offset_of!(TokenRepr, span));
 };
 
 impl std::ops::Deref for Token {
@@ -488,6 +492,13 @@ impl fmt::Debug for Token {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for TokenRepr {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Token").field("kind", &self.kind).field("span", &self.span).finish()
     }
 }
 
@@ -556,24 +567,9 @@ impl Token {
 
     /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
     #[inline]
-    pub fn comment(&self) -> Option<(bool, DocComment)> {
+    pub fn comment(&self) -> Option<(bool, CommentKind, Symbol)> {
         match self.kind {
-            TokenKind::Comment(is_doc, kind, symbol) => {
-                Some((is_doc, DocComment { span: self.span, kind, symbol }))
-            }
-            _ => None,
-        }
-    }
-
-    /// Returns the comment if the kind is [`TokenKind::Comment`].
-    ///
-    /// Does not check that `is_doc` is `true`.
-    #[inline]
-    pub fn doc(&self) -> Option<DocComment> {
-        match self.kind {
-            TokenKind::Comment(_, kind, symbol) => {
-                Some(DocComment { span: self.span, kind, symbol })
-            }
+            TokenKind::Comment(is_doc, kind, symbol) => Some((is_doc, kind, symbol)),
             _ => None,
         }
     }
@@ -691,7 +687,7 @@ impl Token {
     /// Returns `true` if the token is an identifier for which `pred` holds.
     #[inline]
     pub fn is_ident_where(&self, pred: impl FnOnce(Ident) -> bool) -> bool {
-        self.ident().map(pred).unwrap_or(false)
+        self.ident().is_some_and(pred)
     }
 
     /// Returns `true` if the token is an end-of-file marker.

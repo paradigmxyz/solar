@@ -29,7 +29,7 @@ The following results were achieved on:
 - CPU: AMD Ryzen 9 5950X
 - Versions:
   - [`solc 0.8.30`](https://github.com/argotorg/solidity)
-  - [`solar 0.1.7`](../README.md)
+  - [`solar 0.1.8`](../README.md)
   - [`solang-parser 0.3.4`](https://crates.io/crates/solang-parser)
   - [`slang 0.18.3`](https://crates.io/crates/slang)
   - [`tree-sitter 0.25.4`](https://crates.io/crates/tree-sitter), [`tree-sitter-solidity 1.2.11`](https://crates.io/crates/tree-sitter-solidity)
@@ -40,206 +40,267 @@ The following results were achieved on:
 
 ![parse Relative Performance](parse_relative_performance.png)
 
+![lower Relative Performance](lower_relative_performance.png)
+
 ### empty (0 LoC, 0 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solang   | 1.10x      | 10.832 ns | N/A     | N/A       |
-| solar    | 1.00x      | 11.563 ns | N/A     | N/A       |
+| solang   | 21.64x     | 11.732 ns | N/A     | N/A       |
+| solar    | 1.00x      | 238.29 ns | N/A     | N/A       |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solang      | 35.50x     | 105.08 ns | N/A     | N/A       |
-| solar       | 30.06x     | 124.58 ns | N/A     | N/A       |
-| tree-sitter | 6.58x      | 566.25 ns | N/A     | N/A       |
-| solc        | 3.73x      | 1.0000 µs | N/A     | N/A       |
-| slang       | 1.00x      | 3.7276 µs | N/A     | N/A       |
+| solang      | 37.74x     | 104.35 ns | N/A     | N/A       |
+| tree-sitter | 6.36x      | 617.88 ns | N/A     | N/A       |
+| solar       | 4.01x      | 979.37 ns | N/A     | N/A       |
+| solc        | 3.92x      | 1.0000 µs | N/A     | N/A       |
+| slang       | 1.00x      | 3.9255 µs | N/A     | N/A       |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 5.1668 µs | N/A     | N/A       |
 
 ### Counter (14 LoC, 258 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.75x      | 668.02 ns | 20.96M  | 386.23M   |
-| solang   | 1.00x      | 1.8405 µs | 7.61M   | 140.22M   |
+| solang   | 2.36x      | 1.7589 µs | 7.96M   | 146.76M   |
+| solar    | 1.00x      | 4.1441 µs | 3.38M   | 62.26M    |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 90.38x     | 2.0966 µs | 6.68M   | 123.09M   |
-| solang      | 19.86x     | 9.5382 µs | 1.47M   | 27.05M    |
-| tree-sitter | 12.00x     | 15.781 µs | 887.14K | 16.35M    |
-| solc        | 5.12x      | 37.000 µs | 378.38K | 6.97M     |
-| slang       | 1.00x      | 189.43 µs | 73.91K  | 1.36M     |
+| solar       | 32.88x     | 6.2099 µs | 2.25M   | 41.55M    |
+| solang      | 21.42x     | 9.5290 µs | 1.47M   | 27.08M    |
+| tree-sitter | 13.41x     | 15.225 µs | 919.54K | 16.95M    |
+| solc        | 5.50x      | 37.100 µs | 377.36K | 6.95M     |
+| slang       | 1.00x      | 204.15 µs | 68.58K  | 1.26M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 11.964 µs | 1.17M   | 21.56M    |
 
 ### verifier (208 LoC, 11040 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.95x      | 27.334 µs | 7.61M   | 403.89M   |
-| solang   | 1.00x      | 80.615 µs | 2.58M   | 136.95M   |
+| solar    | 1.56x      | 49.728 µs | 4.18M   | 222.01M   |
+| solang   | 1.00x      | 77.362 µs | 2.69M   | 142.71M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 124.85x    | 80.466 µs | 2.58M   | 137.20M   |
-| solang      | 18.77x     | 535.17 µs | 388.66K | 20.63M    |
-| solc        | 12.87x     | 780.60 µs | 266.46K | 14.14M    |
-| tree-sitter | 10.55x     | 951.97 µs | 218.49K | 11.60M    |
-| slang       | 1.00x      | 10.046 ms | 20.70K  | 1.10M     |
+| solar       | 113.10x    | 96.278 µs | 2.16M   | 114.67M   |
+| solang      | 21.06x     | 517.15 µs | 402.20K | 21.35M    |
+| solc        | 14.27x     | 763.00 µs | 272.61K | 14.47M    |
+| tree-sitter | 11.72x     | 929.05 µs | 223.88K | 11.88M    |
+| slang       | 1.00x      | 10.889 ms | 19.10K  | 1.01M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 128.68 µs | 1.62M   | 85.79M    |
 
 ### OptimizorClub (782 LoC, 35905 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.74x      | 91.913 µs | 8.51M   | 390.64M   |
-| solang   | 1.00x      | 252.04 µs | 3.10M   | 142.46M   |
+| solar    | 2.02x      | 120.90 µs | 6.47M   | 296.98M   |
+| solang   | 1.00x      | 244.33 µs | 3.20M   | 146.95M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 110.56x    | 248.33 µs | 3.15M   | 144.59M   |
-| solang      | 17.87x     | 1.5362 ms | 509.05K | 23.37M    |
-| solc        | 15.73x     | 1.7451 ms | 448.11K | 20.57M    |
-| tree-sitter | 10.36x     | 2.6499 ms | 295.11K | 13.55M    |
-| slang       | 1.00x      | 27.455 ms | 28.48K  | 1.31M     |
+| solar       | 114.29x    | 257.49 µs | 3.04M   | 139.44M   |
+| solang      | 20.23x     | 1.4549 ms | 537.49K | 24.68M    |
+| solc        | 16.07x     | 1.8318 ms | 426.90K | 19.60M    |
+| tree-sitter | 11.36x     | 2.5915 ms | 301.76K | 13.85M    |
+| slang       | 1.00x      | 29.429 ms | 26.57K  | 1.22M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 356.80 µs | 2.19M   | 100.63M   |
 
 ### UniswapV3 (3189 LoC, 146583 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.89x      | 281.34 µs | 11.34M  | 521.02M   |
-| solang   | 1.00x      | 814.44 µs | 3.92M   | 179.98M   |
+| solar    | 2.24x      | 343.15 µs | 9.29M   | 427.17M   |
+| solang   | 1.00x      | 769.13 µs | 4.15M   | 190.58M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 118.71x    | 630.91 µs | 5.05M   | 232.34M   |
-| solang      | 18.95x     | 3.9526 ms | 806.81K | 37.09M    |
-| solc        | 15.26x     | 4.9083 ms | 649.72K | 29.86M    |
-| tree-sitter | 10.14x     | 7.3854 ms | 431.80K | 19.85M    |
-| slang       | 1.00x      | 74.894 ms | 42.58K  | 1.96M     |
+| solar       | 129.33x    | 632.17 µs | 5.04M   | 231.87M   |
+| solang      | 21.95x     | 3.7254 ms | 856.02K | 39.35M    |
+| solc        | 15.68x     | 5.2130 ms | 611.74K | 28.12M    |
+| tree-sitter | 11.49x     | 7.1160 ms | 448.15K | 20.60M    |
+| slang       | 1.00x      | 81.757 ms | 39.01K  | 1.79M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 859.45 µs | 3.71M   | 170.55M   |
 
 ### Solarray (1544 LoC, 35898 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.16x      | 164.90 µs | 9.36M   | 217.70M   |
-| solang   | 1.00x      | 355.79 µs | 4.34M   | 100.90M   |
+| solar    | 2.38x      | 147.69 µs | 10.45M  | 243.06M   |
+| solang   | 1.00x      | 350.78 µs | 4.40M   | 102.34M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 146.92x    | 478.90 µs | 3.22M   | 74.96M    |
-| solc        | 29.00x     | 2.4258 ms | 636.49K | 14.80M    |
-| solang      | 21.61x     | 3.2559 ms | 474.22K | 11.03M    |
-| tree-sitter | 13.27x     | 5.3027 ms | 291.17K | 6.77M     |
-| slang       | 1.00x      | 70.360 ms | 21.94K  | 510.20K   |
+| solar       | 188.70x    | 402.83 µs | 3.83M   | 89.11M    |
+| solc        | 29.38x     | 2.5877 ms | 596.67K | 13.87M    |
+| solang      | 23.87x     | 3.1846 ms | 484.83K | 11.27M    |
+| tree-sitter | 14.06x     | 5.4070 ms | 285.56K | 6.64M     |
+| slang       | 1.00x      | 76.014 ms | 20.31K  | 472.26K   |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 557.44 µs | 2.77M   | 64.40M    |
 
 ### console (1552 LoC, 67315 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.33x      | 236.00 µs | 6.58M   | 285.23M   |
-| solang   | 1.00x      | 549.77 µs | 2.82M   | 122.44M   |
+| solar    | 2.23x      | 234.68 µs | 6.61M   | 286.84M   |
+| solang   | 1.00x      | 524.19 µs | 2.96M   | 128.42M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 123.75x    | 612.98 µs | 2.53M   | 109.82M   |
-| solc        | 20.22x     | 3.7516 ms | 413.69K | 17.94M    |
-| solang      | 18.69x     | 4.0585 ms | 382.41K | 16.59M    |
-| tree-sitter | 11.44x     | 6.6291 ms | 234.12K | 10.15M    |
-| slang       | 1.00x      | 75.856 ms | 20.46K  | 887.41K   |
+| solar       | 148.54x    | 536.06 µs | 2.90M   | 125.57M   |
+| solc        | 20.93x     | 3.8049 ms | 407.90K | 17.69M    |
+| solang      | 20.58x     | 3.8689 ms | 401.15K | 17.40M    |
+| tree-sitter | 12.59x     | 6.3248 ms | 245.38K | 10.64M    |
+| slang       | 1.00x      | 79.624 ms | 19.49K  | 845.41K   |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 796.18 µs | 1.95M   | 84.55M    |
 
 ### Vm (1763 LoC, 91405 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 3.25x      | 156.86 µs | 11.24M  | 582.72M   |
-| solang   | 1.00x      | 510.18 µs | 3.46M   | 179.16M   |
+| solar    | 2.35x      | 201.36 µs | 8.76M   | 453.94M   |
+| solang   | 1.00x      | 474.17 µs | 3.72M   | 192.77M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 65.29x     | 311.25 µs | 5.66M   | 293.67M   |
-| solang      | 12.59x     | 1.6140 ms | 1.09M   | 56.63M    |
-| solc        | 7.86x      | 2.5853 ms | 681.93K | 35.36M    |
-| tree-sitter | 6.69x      | 3.0373 ms | 580.45K | 30.09M    |
-| slang       | 1.00x      | 20.320 ms | 86.76K  | 4.50M     |
+| solar       | 62.34x     | 349.68 µs | 5.04M   | 261.40M   |
+| solang      | 14.35x     | 1.5192 ms | 1.16M   | 60.17M    |
+| solc        | 8.15x      | 2.6763 ms | 658.75K | 34.15M    |
+| tree-sitter | 7.35x      | 2.9665 ms | 594.30K | 30.81M    |
+| slang       | 1.00x      | 21.799 ms | 80.88K  | 4.19M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 436.40 µs | 4.04M   | 209.45M   |
 
 ### safeconsole (13248 LoC, 397898 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.38x      | 1.2667 ms | 10.46M  | 314.12M   |
-| solang   | 1.00x      | 3.0175 ms | 4.39M   | 131.86M   |
+| solar    | 2.58x      | 1.1099 ms | 11.94M  | 358.50M   |
+| solang   | 1.00x      | 2.8629 ms | 4.63M   | 138.98M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 87.17x     | 4.8996 ms | 2.70M   | 81.21M    |
-| solang      | 19.88x     | 21.484 ms | 616.64K | 18.52M    |
-| solc        | 18.52x     | 23.059 ms | 574.52K | 17.26M    |
-| tree-sitter | 16.01x     | 26.671 ms | 496.72K | 14.92M    |
-| slang       | 1.00x      | 427.10 ms | 31.02K  | 931.63K   |
+| solar       | 158.27x    | 2.7348 ms | 4.84M   | 145.49M   |
+| solang      | 26.62x     | 16.258 ms | 814.86K | 24.47M    |
+| solc        | 18.20x     | 23.783 ms | 557.04K | 16.73M    |
+| tree-sitter | 17.07x     | 25.363 ms | 522.34K | 15.69M    |
+| slang       | 1.00x      | 432.85 ms | 30.61K  | 919.25K   |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 3.2686 ms | 4.05M   | 121.73M   |
 
 ### Seaport (19935 LoC, 770547 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 3.44x      | 1.0668 ms | 18.69M  | 722.30M   |
-| solang   | 1.00x      | 3.6671 ms | 5.44M   | 210.12M   |
+| solar    | 2.82x      | 1.1841 ms | 16.84M  | 650.74M   |
+| solang   | 1.00x      | 3.3378 ms | 5.97M   | 230.85M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 125.17x    | 2.0907 ms | 9.54M   | 368.56M   |
-| solang      | 21.33x     | 12.266 ms | 1.63M   | 62.82M    |
-| solc        | 12.38x     | 21.144 ms | 942.81K | 36.44M    |
-| tree-sitter | 11.55x     | 22.666 ms | 879.51K | 34.00M    |
-| slang       | 1.00x      | 261.69 ms | 76.18K  | 2.94M     |
+| solar       | 130.52x    | 2.1225 ms | 9.39M   | 363.04M   |
+| solang      | 24.00x     | 11.542 ms | 1.73M   | 66.76M    |
+| solc        | 12.52x     | 22.119 ms | 901.26K | 34.84M    |
+| tree-sitter | 12.48x     | 22.191 ms | 898.34K | 34.72M    |
+| slang       | 1.00x      | 277.02 ms | 71.96K  | 2.78M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 2.6639 ms | 7.48M   | 289.26M   |
 
 ### Solady (31047 LoC, 1381235 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.50x      | 3.4008 ms | 9.13M   | 406.15M   |
-| solang   | 1.00x      | 8.5050 ms | 3.65M   | 162.40M   |
+| solar    | 2.43x      | 3.2973 ms | 9.42M   | 418.90M   |
+| solang   | 1.00x      | 8.0148 ms | 3.87M   | 172.34M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 116.89x    | 7.3867 ms | 4.20M   | 186.99M   |
-| solang      | 20.18x     | 42.797 ms | 725.45K | 32.27M    |
-| solc        | 15.25x     | 56.606 ms | 548.47K | 24.40M    |
-| tree-sitter | 13.04x     | 66.195 ms | 469.02K | 20.87M    |
-| slang       | 1.00x      | 863.45 ms | 35.96K  | 1.60M     |
+| solar       | 127.70x    | 6.9273 ms | 4.48M   | 199.39M   |
+| solang      | 23.66x     | 37.386 ms | 830.44K | 36.95M    |
+| solc        | 15.36x     | 57.598 ms | 539.03K | 23.98M    |
+| tree-sitter | 14.55x     | 60.798 ms | 510.66K | 22.72M    |
+| slang       | 1.00x      | 884.65 ms | 35.10K  | 1.56M     |
+
+#### Lower
+| Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
+|:---------|:-----------|:----------|:--------|:----------|
+| solar    | 1.00x      | 7.8862 ms | 3.94M   | 175.15M   |
 
 ### Optimism (124413 LoC, 5383971 bytes)
 
 #### Lex
 | Parser   | Relative   | Time      | LoC/s   | Bytes/s   |
 |:---------|:-----------|:----------|:--------|:----------|
-| solar    | 2.43x      | 14.301 ms | 8.70M   | 376.48M   |
-| solang   | 1.00x      | 34.786 ms | 3.58M   | 154.77M   |
+| solar    | 2.53x      | 13.223 ms | 9.41M   | 407.17M   |
+| solang   | 1.00x      | 33.505 ms | 3.71M   | 160.69M   |
 
 #### Parse
 | Parser      | Relative   | Time      | LoC/s   | Bytes/s   |
 |:------------|:-----------|:----------|:--------|:----------|
-| solar       | 190.83x    | 35.456 ms | 3.51M   | 151.85M   |
-| solang      | 32.28x     | 209.59 ms | 593.60K | 25.69M    |
-| solc        | 29.87x     | 226.54 ms | 549.17K | 23.77M    |
-| tree-sitter | 16.87x     | 401.06 ms | 310.21K | 13.42M    |
-| slang       | 1.00x      | 6.7659 s  | 18.39K  | 795.75K   |
+| solar       | 243.75x    | 27.976 ms | 4.45M   | 192.45M   |
+| solang      | 34.28x     | 198.91 ms | 625.47K | 27.07M    |
+| solc        | 28.95x     | 235.53 ms | 528.23K | 22.86M    |
+| tree-sitter | 15.57x     | 437.90 ms | 284.11K | 12.29M    |
+| slang       | 1.00x      | 6.8191 s  | 18.24K  | 789.54K   |
+
+#### Lower
+| Parser   | Relative   | Time   | LoC/s   | Bytes/s   |
+|----------|------------|--------|---------|-----------|

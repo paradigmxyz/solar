@@ -1,7 +1,7 @@
 //! Constant and mutable AST visitor trait definitions.
 
 use crate::ast::*;
-use solar_interface::{Ident, Span, Spanned};
+use solar_interface::{Ident, Span, Spanned, SpannedOption};
 use solar_macros::declare_visitors;
 use std::ops::ControlFlow;
 
@@ -304,8 +304,11 @@ declare_visitors! {
                     self.visit_variable_definition #_mut(var)?;
                 }
                 StmtKind::DeclMulti(vars, expr) => {
-                    for var in vars.iter #_mut().flatten() {
-                        self.visit_variable_definition #_mut(var)?;
+                    for spanned_var in vars.iter #_mut() {
+                        match spanned_var {
+                            SpannedOption::Some(var) => self.visit_variable_definition #_mut(var)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
                     }
                     self.visit_expr #_mut(expr)?;
                 }
@@ -471,8 +474,11 @@ declare_visitors! {
                     self.visit_expr #_mut(false_)?;
                 }
                 ExprKind::Tuple(exprs) => {
-                    for expr in exprs.iter #_mut().flatten() {
-                        self.visit_expr #_mut(expr)?;
+                    for spanned_expr in exprs.iter #_mut() {
+                        match spanned_expr {
+                            SpannedOption::Some(expr) => self.visit_expr #_mut(expr)?,
+                            SpannedOption::None(span) => self.visit_span #_mut(span)?,
+                        }
                     }
                 }
                 ExprKind::TypeCall(ty) => {
@@ -629,8 +635,17 @@ declare_visitors! {
             ControlFlow::Continue(())
         }
 
-        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment) -> ControlFlow<Self::BreakValue> {
-            let DocComment { kind: _, span, symbol: _ } = doc_comment;
+        fn visit_doc_comment(&mut self, doc_comment: &'ast #mut DocComment<'ast>) -> ControlFlow<Self::BreakValue> {
+            let DocComment { kind: _, span, symbol: _, natspec } = doc_comment;
+            self.visit_span #_mut(span)?;
+            for item in natspec.iter #_mut() {
+                self.visit_natspec_item #_mut(item)?;
+            }
+            ControlFlow::Continue(())
+        }
+
+        fn visit_natspec_item(&mut self, item: &'ast #mut NatSpecItem) -> ControlFlow<Self::BreakValue> {
+            let NatSpecItem { span, .. } = item;
             self.visit_span #_mut(span)?;
             ControlFlow::Continue(())
         }

@@ -223,7 +223,6 @@ impl HumanEmitter {
 
         // Dummy subdiagnostics go in the main group's footer, non-dummy ones go as separate groups.
         let subs = |d| diagnostic.children.iter().filter(move |sub| sub.span.is_dummy() == d);
-        let footers = subs(true).map(|sub| message_from_subdiagnostic(sub, self.supports_color()));
         let sub_groups = subs(false).map(|sub| {
             let mut g = Group::with_title(title_from_subdiagnostic(sub, self.supports_color()));
             if let Some(sm) = sm {
@@ -231,6 +230,11 @@ impl HumanEmitter {
             }
             g
         });
+
+        let mut footers =
+            subs(true).map(|sub| message_from_subdiagnostic(sub, self.supports_color())).peekable();
+        let footer_group =
+            footers.peek().is_some().then(|| Group::with_level(ASLevel::NOTE).elements(footers));
 
         // Create suggestion groups for non-inline suggestions
         let suggestion_groups = children.iter().flat_map(|suggestion| {
@@ -274,10 +278,11 @@ impl HumanEmitter {
             None
         });
 
-        let main_group = Group::with_title(title).elements(snippets).elements(footers);
+        let main_group = Group::with_title(title).elements(snippets);
         let report = std::iter::once(main_group)
-            .chain(sub_groups)
             .chain(suggestion_groups)
+            .chain(footer_group)
+            .chain(sub_groups)
             .collect::<Vec<_>>();
         f(self, &report)
     }
