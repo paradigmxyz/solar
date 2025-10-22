@@ -3590,9 +3590,9 @@ dependencies = [
 
 [[package]]
 name = "vergen-gitcl"
-version = "2.0.0-beta.1"
+version = "2.1.0-beta.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c51b67fcab8e25b04483d5934948e4c12ee36fe321d5aad5955624647e4c635e"
+checksum = "fa221f0895e4391a4ca85d5e7d3c7e064fc53318fba97f6f6e80c3df19ea99ba"
 dependencies = [
  "anyhow",
  "bon",
