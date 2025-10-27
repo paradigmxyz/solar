@@ -1091,10 +1091,14 @@ fn parse_natspec(
             let tag_start = line_start + tag_offset + 1;
             flush_item(&mut items, &mut kind, &mut span, content_start, prev_line_end);
 
-            let (tag, rest_start) = split_once_ws(content, bytes, tag_start, line_end);
+            // Skip leading whitespace after '@'
+            let tag_slice = &bytes[tag_start..line_end];
+            let trimmed = tag_slice.len() - tag_slice.trim_ascii_start().len();
+            let (tag, rest_start) = split_once_ws(content, bytes, tag_start + trimmed, line_end);
 
-            // Calculate span: from '@' to end of tag name.
-            let tag_lo = comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset) as u32; // +1 for '@'
+            // Calculate span: from first non-whitespace char after '@' to end of tag name.
+            let tag_lo =
+                comment_span.lo().0 + PREFIX_BYTES + 1 + (line_start + tag_offset + trimmed) as u32; // +1 for '@'
             let tag_hi = tag_lo + tag.len() as u32;
             span = Some(Span::new(BytePos(tag_lo), BytePos(tag_hi)));
             content_start = rest_start;
@@ -1217,6 +1221,7 @@ mod tests {
 /// @inheritdoc BaseContract
 /// @custom:security High priority
 /// @solidity memory-safe
+/// @ notice with space
 "#;
 
         let sess =
@@ -1230,7 +1235,7 @@ mod tests {
             let docs = parser.parse_doc_comments();
 
             let natspec_items: Vec<_> = docs.iter().flat_map(|d| d.natspec.iter().map(move |i| (d.symbol, i))).collect();
-            assert_eq!(natspec_items.len(), 11);
+            assert_eq!(natspec_items.len(), 12);
 
             let check = |i: usize, snip, kind, name, content| {
                 check_natspec_item(sm, natspec_items[i].0, natspec_items[i].1, snip, kind, name, content)
@@ -1249,8 +1254,9 @@ mod tests {
             check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(9, "custom:security", "custom", Some("security"), Some("High priority"));
             check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
+            check(11, "notice", "notice", None, Some("with space"));
 
-            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe");
+            assert_eq!(sm.span_to_snippet(docs.span()).unwrap(), "/// @title MyContract\n/// @author Alice\n/// @notice This is a notice\n/// that spans multiple lines\n/// and continues here\n/// @dev This is dev documentation\n/// @param x The input parameter\n/// @return result The return value\n/// @inheritdoc BaseContract\n/// @custom:security High priority\n/// @solidity memory-safe\n/// @ notice with space");
         });
     }
 
