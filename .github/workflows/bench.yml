@@ -1,5 +1,7 @@
 name: Benchmark
 
+permissions: {}
+
 on:
   push:
     branches: [main]
@@ -12,6 +14,8 @@ env:
 jobs:
   codspeed:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
         with:
@@ -37,6 +41,8 @@ jobs:
 
   iai:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
