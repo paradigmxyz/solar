@@ -480,14 +480,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         }
                     }
                     NatSpecKind::Author => {
-                        if self.validate_tag_once(
-                            "@author",
-                            tag_span,
-                            permissions.contains(TagPermissions::TITLE_AUTHOR),
-                            &mut state.seen_tags,
-                            SeenTags::AUTHOR,
-                            item_id,
-                        ) {
+                        if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
+                            self.emit_forbidden_tag_error("@author", tag_span, item_id);
+                        } else {
                             local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
                         }
                     }

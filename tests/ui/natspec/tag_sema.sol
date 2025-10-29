@@ -43,7 +43,6 @@ contract ValidItems {
 
 /// @author First author
 /// @author Second author
-//~^ ERROR: tag @author can only be given once
 contract DuplicateAuthor {}
 
 /// @title First title

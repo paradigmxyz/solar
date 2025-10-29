@@ -1,9 +1,3 @@
-error: tag @author can only be given once
-  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   |
-LL | /// @author Second author
-   |      ^^^^^^
-
 error: tag @title can only be given once
   --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    |
@@ -64,5 +58,5 @@ error: too many `@return` tags: function has 2 return values, found 3
 LL |     /// @return Third return value
    |          ^^^^^^
 
-error: aborting due to 10 previous errors
+error: aborting due to 9 previous errors
 
