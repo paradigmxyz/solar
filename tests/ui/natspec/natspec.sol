@@ -87,3 +87,6 @@ contract YulContext {
         }
     }
 }
+
+/// @ author whitespace before tag is valid
+contract Repro {}
