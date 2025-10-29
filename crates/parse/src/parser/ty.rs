@@ -114,19 +114,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         Ok(ty)
     }
 
+    /// Parses a mapping key type.
+    fn parse_mapping_key_type(&mut self) -> PResult<'sess, Type<'ast>> {
+        if self.check_elementary_type() {
+            self.parse_spanned(Self::parse_elementary_type)
+                .map(|(span, kind)| Type { span, kind: TypeKind::Elementary(kind) })
+        } else if self.check_path() {
+            self.parse_spanned(Self::parse_path)
+                .map(|(span, path)| Type { span, kind: TypeKind::Custom(path) })
+        } else {
+            self.unexpected()
+        }
+    }
+
     /// Parses a mapping type.
     fn parse_mapping_type(&mut self) -> PResult<'sess, TypeMapping<'ast>> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
-        let key = self.parse_type()?;
-        // TODO: Move to type checking.
-        if !key.is_elementary() && !key.is_custom() {
-            let msg =
-                "only elementary types or used-defined types can be used as key types in mappings";
-            self.dcx().err(msg).span(key.span).emit();
-        }
+        let key = self.parse_mapping_key_type()?;
         let key_name = self.parse_ident_opt()?;
 
+        // We are about to require a `=>`. Previous checks (e.g. state mutability on elementary
+        // types) may have added expectations like `payable`/`pure`/`view`. Clear them so the
+        // diagnostic only mentions `=>` here.
+        self.expected_tokens.clear();
         self.expect(TokenKind::FatArrow)?;
 
         let value = self.parse_type()?;
