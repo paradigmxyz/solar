@@ -87,6 +87,7 @@ impl std::ops::Deref for Arena {
 }
 
 /// A list of doc-comments.
+#[repr(transparent)]
 #[derive(Default)]
 pub struct DocComments<'ast>(BoxSlice<'ast, DocComment<'ast>>);
 
@@ -119,7 +120,30 @@ impl fmt::Debug for DocComments<'_> {
     }
 }
 
-impl DocComments<'_> {
+impl Default for &'static DocComments<'static> {
+    fn default() -> Self {
+        // SAFETY: `DocComments` is `repr(transparent)` over `BoxSlice<DocComment>`,
+        // so the memory layout is identical and this transmute is sound.
+        unsafe {
+            std::mem::transmute::<
+                &'static ThinSlice<DocComment<'static>>,
+                &'static DocComments<'static>,
+            >(<&ThinSlice<DocComment<'static>>>::default())
+        }
+    }
+}
+
+impl<'ast> DocComments<'ast> {
+    /// Returns a reference to the empty documentation comments.
+    ///
+    /// This method can return a reference with an arbitrary lifetime since the underlying data is
+    /// empty and static.
+    pub fn empty() -> &'ast Self {
+        // SAFETY: we're shortening the lifetime from 'static to 'ast for an empty, immutable slice,
+        // which is safe since the data never changes and lives forever.
+        unsafe { std::mem::transmute(Self::default()) }
+    }
+
     /// Returns the span containing all doc-comments.
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
