@@ -352,6 +352,17 @@ impl<'gcx> Ty<'gcx> {
         )
     }
 
+    /// Returns the [`TypeSize`] if the type has a size.
+    pub fn type_size(self) -> Option<TypeSize> {
+        match self.kind {
+            TyKind::Elementary(ElementaryType::Int(size)) => Some(size),
+            TyKind::Elementary(ElementaryType::UInt(size)) => Some(size),
+            TyKind::IntLiteral(_, size) => Some(size),
+            TyKind::Elementary(ElementaryType::FixedBytes(size)) => Some(size),
+            _ => None,
+        }
+    }
+
     /// Returns `true` if the type is a tuple.
     pub fn is_tuple(self) -> bool {
         matches!(self.kind, TyKind::Tuple(..))
@@ -421,6 +432,16 @@ impl<'gcx> Ty<'gcx> {
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
         if self == other || self.references_error() || other.references_error() {
+            return Ok(());
+        }
+
+        // integers (signed and unsigned) can implicitly be converted to a larger integer. this also
+        // handles integer literals
+        if self.is_integer()
+            && other.is_integer()
+            && (!self.is_signed() || other.is_signed())
+            && self.type_size() <= other.type_size()
+        {
             return Ok(());
         }
 
