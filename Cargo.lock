@@ -2789,6 +2789,7 @@ dependencies = [
  "once_map",
  "rayon",
  "scoped-tls",
+ "semver 1.0.27",
  "serde",
  "serde_json",
  "solar-config",

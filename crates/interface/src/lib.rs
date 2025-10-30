@@ -43,7 +43,7 @@ pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 /// The minimum supported Solidity version.
 ///
 /// Solar aims to support Solidity 0.8.* and later versions.
-pub const MIN_SOLIDITY_VERSION: (u64, u64, u64) = (0, 8, 0);
+pub const MIN_SOLIDITY_VERSION: semver::Version = semver::Version::new(0, 8, 0);
 
 /// Pluralize a word based on a count.
 #[macro_export]

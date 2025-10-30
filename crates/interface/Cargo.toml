@@ -29,6 +29,7 @@ solar-data-structures.workspace = true
 solar-macros.workspace = true
 
 derive_more.workspace = true
+semver.workspace = true
 thiserror.workspace = true
 
 dunce = "1"
