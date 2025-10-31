@@ -29,7 +29,7 @@ impl fmt::Display for Lit<'_> {
         let Self { ref kind, symbol, span: _ } = *self;
         match kind {
             LitKind::Str(s, ..) => write!(f, "{}\"{symbol}\"", s.prefix()),
-            LitKind::Number(_)
+            LitKind::Number(..)
             | LitKind::Rational(_)
             | LitKind::Err(_)
             | LitKind::Address(_)
@@ -97,7 +97,8 @@ pub enum LitKind<'ast> {
     /// This list is only present in the AST, and is discarded after.
     Str(StrKind, ByteSymbol, &'ast [(Span, Symbol)]),
     /// A decimal or hexadecimal number literal.
-    Number(U256),
+    /// The boolean indicates if the number is negative.
+    Number(U256, bool),
     /// A rational number literal.
     ///
     /// Note that rational literals that evaluate to integers are represented as
@@ -127,7 +128,13 @@ impl fmt::Debug for LitKind<'_> {
                 }
                 f.write_str(")")
             }
-            Self::Number(value) => write!(f, "Number({value:?})"),
+            Self::Number(value, negative) => {
+                if *negative {
+                    write!(f, "Number(-{value:?})")
+                } else {
+                    write!(f, "Number({value:?})")
+                }
+            }
             Self::Rational(value) => write!(f, "Rational({value:?})"),
             Self::Address(value) => write!(f, "Address({value:?})"),
             Self::Bool(value) => write!(f, "Bool({value:?})"),
@@ -141,7 +148,7 @@ impl LitKind<'_> {
     pub fn description(&self) -> &'static str {
         match self {
             Self::Str(kind, ..) => kind.description(),
-            Self::Number(_) => "number",
+            Self::Number(..) => "number",
             Self::Rational(_) => "rational",
             Self::Address(_) => "address",
             Self::Bool(_) => "boolean",
