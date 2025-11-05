@@ -23,6 +23,8 @@ manual-string-new = "warn"
 uninlined-format-args = "warn"
 use-self = "warn"
 redundant-clone = "warn"
+# Files in `examples/` are present as doctests but run in `cargo test` normally too.
+test-attr-in-doctest = "allow"
 
 [workspace.lints.rust]
 rust-2018-idioms = "warn"
