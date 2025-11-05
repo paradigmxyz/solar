@@ -120,8 +120,13 @@ impl BumpExt for Bump {
 
         // SAFETY: The `Vec` is deallocated, but the elements are not dropped.
         unsafe {
+            let len = values.len();
+            let ptr = values.as_ptr();
+
             values.set_len(0);
-            let r = self.alloc_slice_unchecked(values.as_slice());
+
+            let slice = std::slice::from_raw_parts(ptr, len);
+            let r = self.alloc_slice_unchecked(slice);
             r
         }
     }
@@ -134,8 +139,13 @@ impl BumpExt for Bump {
 
         // SAFETY: See `alloc_vec`.
         unsafe {
+            let len = values.len();
+            let ptr = values.as_ptr();
+
             values.set_len(0);
-            let r = self.alloc_slice_unchecked(values.as_slice());
+
+            let slice = std::slice::from_raw_parts(ptr, len);
+            let r = self.alloc_slice_unchecked(slice);
             r
         }
     }
