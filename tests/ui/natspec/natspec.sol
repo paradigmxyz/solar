@@ -89,4 +89,13 @@ contract YulContext {
 }
 
 /// @ author whitespace before tag is valid
-contract Repro {}
+/// @notice it is valid to add '@'s in the middle of a comment
+///   * Solve: 2yr @ 5% == 1yr @ 0% + 1yr @ x => x = 10.00%
+contract ReproLineComment {}
+
+/**
+* @ author whitespace before tag is valid
+* @notice it is valid to add '@'s in the middle of a comment
+*    Solve: 2yr @ 5% == 1yr @ 0% + 1yr @ x => x = 10.00%
+**/
+contract ReproBlockComment {}
