@@ -1088,10 +1088,10 @@ fn parse_natspec(
     // Check if '@' is located at the logical start of the line.
     let is_line_start = |line_start: usize, at_pos: usize| {
         match comment_kind {
-            // can only be preceded by whitespace
+            // can only be followed by whitespace
             ast::CommentKind::Line => bytes[line_start..at_pos].trim_ascii().is_empty(),
 
-            // can only be preceeded by whitespaces + ('*') + whitespaces
+            // can only be followed by whitespaces + ('*') + whitespaces
             ast::CommentKind::Block => {
                 let trimmed = &bytes[line_start..at_pos].trim_ascii_start();
                 trimmed.is_empty()
