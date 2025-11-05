@@ -126,8 +126,7 @@ impl BumpExt for Bump {
             values.set_len(0);
 
             let slice = std::slice::from_raw_parts(ptr, len);
-            let r = self.alloc_slice_unchecked(slice);
-            r
+            self.alloc_slice_unchecked(slice)
         }
     }
 
@@ -145,8 +144,7 @@ impl BumpExt for Bump {
             values.set_len(0);
 
             let slice = std::slice::from_raw_parts(ptr, len);
-            let r = self.alloc_slice_unchecked(slice);
-            r
+            self.alloc_slice_unchecked(slice)
         }
     }
 
