@@ -120,8 +120,8 @@ impl BumpExt for Bump {
 
         // SAFETY: The `Vec` is deallocated, but the elements are not dropped.
         unsafe {
-            let r = self.alloc_slice_unchecked(values.as_slice());
             values.set_len(0);
+            let r = self.alloc_slice_unchecked(values.as_slice());
             r
         }
     }
@@ -134,8 +134,8 @@ impl BumpExt for Bump {
 
         // SAFETY: See `alloc_vec`.
         unsafe {
-            let r = self.alloc_slice_unchecked(values.as_slice());
             values.set_len(0);
+            let r = self.alloc_slice_unchecked(values.as_slice());
             r
         }
     }
