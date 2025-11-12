@@ -70,12 +70,12 @@ contract InternalTags {
 
 // Invalid tags (should emit errors)
 /// @invalid This is not a valid tag
-//~^ ERROR: invalid natspec tag '@invalid'
+//~^ WARN: invalid natspec tag '@invalid'
 contract InvalidTag1 {}
 
 // Invalid custom tag format
 /// @customwrong Should use colon format
-//~^ ERROR: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
+//~^ WARN: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
 contract InvalidCustom {}
 
 // Yul context - should silently ignore unknown tags

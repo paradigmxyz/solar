@@ -1149,7 +1149,7 @@ fn parse_natspec(
                         // Emit error for invalid solidity tags, but ignore in Yul.
                         if !in_yul {
                             dcx
-                                .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
+                                .warn(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
                                 .span(comment_span)
                                 .emit();
                         }
