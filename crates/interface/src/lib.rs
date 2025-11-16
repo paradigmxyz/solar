@@ -1,3 +1,4 @@
+#![allow(macro_expanded_macro_exports_accessed_by_absolute_paths)]
 #![doc = include_str!("../README.md")]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",

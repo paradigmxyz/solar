@@ -1,12 +1,17 @@
 use super::{Diag, Emitter, io_panic, rustc::FileWithAnnotatedLines};
 use crate::{
-    SourceMap,
-    diagnostics::{Level, MultiSpan, Style, SubDiagnostic, SuggestionStyle},
-    source_map::SourceFile,
+    SourceMap, Span,
+    diagnostics::{
+        ConfusionType, DiagId, DiagMsg, Level, MultiSpan, SpanLabel, Style, SubDiagnostic,
+        SuggestionStyle, Suggestions, detect_confusion_type, emitter::normalize_whitespace,
+        is_different,
+    },
+    pluralize,
+    source_map::{FileName, SourceFile},
 };
 use annotate_snippets::{
-    Annotation, AnnotationKind, Group, Level as ASLevel, Message, Patch, Renderer, Report, Snippet,
-    Title, renderer::DecorStyle,
+    Annotation as ASAnnotation, AnnotationKind, Group, Level as ASLevel, Message, Padding, Patch,
+    Renderer, Report, Snippet, Title, renderer::DecorStyle,
 };
 use anstream::{AutoStream, ColorChoice};
 use solar_config::HumanEmitterKind;
@@ -18,9 +23,12 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-// TODO: Tabs are not formatted correctly: https://github.com/rust-lang/annotate-snippets-rs/issues/25
-
 type Writer = dyn Write + Send + 'static;
+
+/// Maximum number of suggestions to be shown
+///
+/// Arbitrary, but taken from trait import suggestion limit
+pub(super) const MAX_SUGGESTIONS: usize = 4;
 
 const DEFAULT_RENDERER: Renderer = Renderer::styled()
     .error(Level::Error.style())
@@ -45,12 +53,24 @@ pub struct HumanEmitter {
 unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
-    fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
-        self.snippet(diagnostic, |this, snippet| {
-            writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
-            this.writer.flush()
-        })
-        .unwrap_or_else(|e| io_panic(e));
+    fn emit_diagnostic(&mut self, diag: &mut Diag) {
+        let mut primary_span = Cow::Borrowed(&diag.span);
+        self.primary_span_formatted(&mut primary_span, &mut diag.suggestions);
+
+        self.emit_messages_default(
+            &diag.level,
+            &diag.messages,
+            &diag.code,
+            &primary_span,
+            &diag.children,
+            &diag.suggestions,
+        );
+
+        // self.snippet(diag, |this, snippet| {
+        //     writeln!(this.writer, "{}\n", this.renderer.render(snippet))?;
+        //     this.writer.flush()
+        // })
+        // .unwrap_or_else(|e| io_panic(e));
     }
 
     fn source_map(&self) -> Option<&Arc<SourceMap>> {
@@ -286,6 +306,328 @@ impl HumanEmitter {
             .collect::<Vec<_>>();
         f(self, &report)
     }
+
+    fn emit_messages_default(
+        &mut self,
+        level: &Level,
+        msgs: &[(DiagMsg, Style)],
+        code: &Option<DiagId>,
+        msp: &MultiSpan,
+        children: &[SubDiagnostic],
+        suggestions: &Suggestions,
+    ) {
+        let renderer = &self.renderer;
+        let annotation_level = annotation_level_for_level(*level);
+
+        // If at least one portion of the message is styled, we need to
+        // "pre-style" the message
+        let mut title = if msgs.iter().any(|(_, style)| style != &Style::NoStyle) {
+            annotation_level.clone().secondary_title(Cow::Owned(self.pre_style_msgs(msgs, *level)))
+        } else {
+            annotation_level.clone().primary_title(self.no_style_msgs(msgs))
+        };
+
+        if let Some(c) = code {
+            title = title.id(c.as_string());
+            // Unlike rustc, there is no URL associated with DiagId yet.
+            // TODO: Add URL mapping
+            // if let TerminalUrl::Yes = self.terminal_url {
+            //     title = title.id_url(format!("<TODO_URL>/error_codes/{c}.html"));
+            // }
+        }
+
+        let mut report = vec![];
+        let mut main_group = Group::with_title(title);
+        let mut footer_group = Group::with_level(ASLevel::NOTE);
+
+        // If we don't have span information, emit and exit
+        let Some(sm) = self.source_map.as_ref() else {
+            main_group = main_group.elements(children.iter().map(|c| {
+                let msg = self.no_style_msgs(&c.messages);
+                let level = annotation_level_for_level(c.level);
+                level.message(msg)
+            }));
+
+            report.push(main_group);
+            if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
+                panic!("failed to emit error: {e}");
+            }
+            return;
+        };
+
+        let mut file_ann = collect_annotations(msp, sm);
+
+        // Make sure our primary file comes first
+        let primary_span = msp.primary_span().unwrap_or_default();
+        if !primary_span.is_dummy() {
+            let primary_lo = sm.lookup_char_pos(primary_span.lo());
+            if let Ok(pos) = file_ann.binary_search_by(|(f, _)| f.name.cmp(&primary_lo.file.name)) {
+                file_ann.swap(0, pos);
+            }
+
+            for (file, annotations) in file_ann.into_iter() {
+                if let Some(snippet) = self.annotated_snippet(annotations, &file.name, sm) {
+                    main_group = main_group.element(snippet);
+                }
+            }
+        }
+
+        for c in children {
+            let level = annotation_level_for_level(c.level);
+
+            // If at least one portion of the message is styled, we need to
+            // "pre-style" the message
+            let msg = if c.messages.iter().any(|(_, style)| style != &Style::NoStyle) {
+                Cow::Owned(self.pre_style_msgs(&c.messages, c.level))
+            } else {
+                Cow::Owned(self.no_style_msgs(&c.messages))
+            };
+
+            // This is a secondary message with no span info
+            if !c.span.has_primary_spans() && !c.span.has_span_labels() {
+                footer_group = footer_group.element(level.clone().message(msg));
+                continue;
+            }
+
+            report.push(std::mem::replace(
+                &mut main_group,
+                Group::with_title(level.clone().secondary_title(msg)),
+            ));
+
+            let mut file_ann = collect_annotations(&c.span, sm);
+            let primary_span = c.span.primary_span().unwrap_or_default();
+            if !primary_span.is_dummy() {
+                let primary_lo = sm.lookup_char_pos(primary_span.lo());
+                if let Ok(pos) =
+                    file_ann.binary_search_by(|(f, _)| f.name.cmp(&primary_lo.file.name))
+                {
+                    file_ann.swap(0, pos);
+                }
+            }
+
+            for (file, annotations) in file_ann.into_iter() {
+                if let Some(snippet) = self.annotated_snippet(annotations, &file.name, sm) {
+                    main_group = main_group.element(snippet);
+                }
+            }
+        }
+
+        let suggestions_expected = suggestions
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.style,
+                    SuggestionStyle::HideCodeInline
+                        | SuggestionStyle::ShowCode
+                        | SuggestionStyle::ShowAlways
+                )
+            })
+            .count();
+        for suggestion in suggestions.unwrap_tag() {
+            match suggestion.style {
+                SuggestionStyle::CompletelyHidden => {
+                    // do not display this suggestion, it is meant only for tools
+                }
+                SuggestionStyle::HideCodeAlways => {
+                    let msg = self.no_style_msgs(&[(suggestion.msg.to_owned(), Style::HeaderMsg)]);
+                    main_group = main_group.element(annotate_snippets::Level::HELP.message(msg));
+                }
+                SuggestionStyle::HideCodeInline
+                | SuggestionStyle::ShowCode
+                | SuggestionStyle::ShowAlways => {
+                    let substitutions = suggestion
+                        .substitutions
+                        .iter()
+                        .cloned() // clone is required to sort and filter duplicated spans
+                        .filter_map(|mut subst| {
+                            // Suggestions coming from macros can have malformed spans. This is a
+                            // heavy handed approach to avoid ICEs by
+                            // ignoring the suggestion outright.
+                            let invalid =
+                                subst.parts.iter().any(|item| sm.is_valid_span(item.span).is_err());
+                            if invalid {
+                                debug!("suggestion contains an invalid span: {:?}", subst);
+                            }
+
+                            // Assumption: all spans are in the same file, and all spans
+                            // are disjoint. Sort in ascending order.
+                            subst.parts.sort_by_key(|part| part.span.lo());
+                            // Verify the assumption that all spans are disjoint
+                            assert_eq!(
+                                subst.parts.windows(2).find(|s| s[0].span.overlaps(s[1].span)),
+                                None,
+                                "all spans must be disjoint",
+                            );
+
+                            // Account for cases where we are suggesting the same code that's
+                            // already there. This shouldn't happen
+                            // often, but in some cases for multipart
+                            // suggestions it's much easier to handle it here than in the origin.
+                            subst.parts.retain(|p| is_different(sm, &p.snippet, p.span));
+
+                            if !invalid { Some(subst) } else { None }
+                        })
+                        .collect::<Vec<_>>();
+
+                    if substitutions.is_empty() {
+                        continue;
+                    }
+                    let mut msg = suggestion.msg.to_string();
+
+                    let lo = substitutions
+                        .iter()
+                        .find_map(|sub| sub.parts.first().map(|p| p.span.lo()))
+                        .unwrap();
+                    let file = sm.lookup_source_file(lo);
+
+                    let filename = sm.filename_for_diagnostics(&file.name).to_string();
+
+                    let other_suggestions = substitutions.len().saturating_sub(MAX_SUGGESTIONS);
+
+                    let subs = substitutions
+                        .into_iter()
+                        .take(MAX_SUGGESTIONS)
+                        .filter_map(|sub| {
+                            let mut confusion_type = ConfusionType::None;
+                            for part in &sub.parts {
+                                let part_confusion =
+                                    detect_confusion_type(sm, &part.snippet, part.span);
+                                confusion_type = confusion_type.combine(part_confusion);
+                            }
+
+                            if !matches!(confusion_type, ConfusionType::None) {
+                                msg.push_str(confusion_type.label_text());
+                            }
+
+                            let parts = sub
+                                .parts
+                                .into_iter()
+                                .filter_map(|p| {
+                                    if is_different(sm, &p.snippet, p.span) {
+                                        Some((p.span, p.snippet))
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+
+                            if parts.is_empty() {
+                                None
+                            } else {
+                                let spans = parts.iter().map(|(span, _)| *span).collect::<Vec<_>>();
+
+                                // Unlike rustc, there is no attribute suggestion in Solidity (yet).
+                                // When similar feature to attribute arrives, refer to rustc's
+                                // implementation https://github.com/rust-lang/rust/blob/4146079cee94242771864147e32fb5d9adbd34f8/compiler/rustc_errors/src/annotate_snippet_emitter_writer.rs#L424
+                                let fold = true;
+
+                                if let Some((bounding_span, source, line_offset)) =
+                                    shrink_file(spans.as_slice(), &file.name, sm)
+                                {
+                                    let adj_lo = bounding_span.lo().to_usize();
+                                    Some(
+                                        Snippet::source(source)
+                                            .line_start(line_offset)
+                                            .path(filename.clone())
+                                            .fold(fold)
+                                            .patches(parts.into_iter().map(
+                                                |(span, replacement)| {
+                                                    let lo =
+                                                        span.lo().to_usize().saturating_sub(adj_lo);
+                                                    let hi =
+                                                        span.hi().to_usize().saturating_sub(adj_lo);
+
+                                                    Patch::new(lo..hi, replacement.into_inner())
+                                                },
+                                            )),
+                                    )
+                                } else {
+                                    None
+                                }
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if !subs.is_empty() {
+                        report.push(std::mem::replace(
+                            &mut main_group,
+                            Group::with_title(annotate_snippets::Level::HELP.secondary_title(msg)),
+                        ));
+
+                        main_group = main_group.elements(subs);
+                        if other_suggestions > 0 {
+                            main_group = main_group.element(
+                                annotate_snippets::Level::NOTE.no_name().message(format!(
+                                    "and {} other candidate{}",
+                                    other_suggestions,
+                                    pluralize!(other_suggestions)
+                                )),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // FIXME: This hack should be removed once annotate_snippets is the
+        // default emitter.
+        if suggestions_expected > 0 && report.is_empty() {
+            main_group = main_group.element(Padding);
+        }
+
+        if !main_group.is_empty() {
+            report.push(main_group);
+        }
+
+        if !footer_group.is_empty() {
+            report.push(footer_group);
+        }
+
+        if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
+            panic!("failed to emit error: {e}");
+        }
+    }
+
+    fn pre_style_msgs(&self, msgs: &[(DiagMsg, Style)], level: Level) -> String {
+        msgs.iter()
+            .filter_map(|(m, style)| {
+                let text = m.as_str();
+                let style = style.to_color_spec(level);
+                if text.is_empty() { None } else { Some(format!("{style}{text}{style:#}")) }
+            })
+            .collect()
+    }
+
+    // Unlike rustc, there is no translation.
+    // Since the behavior of `translator.translate_messages` does not contains styling,
+    // this function to concatenate messages instead can be used.
+    fn no_style_msgs(&self, msgs: &[(DiagMsg, Style)]) -> String {
+        msgs.iter().map(|(m, _)| m.as_str()).collect()
+    }
+
+    fn annotated_snippet<'a>(
+        &self,
+        annotations: Vec<Annotation>,
+        file_name: &FileName,
+        sm: &Arc<SourceMap>,
+    ) -> Option<Snippet<'a, ASAnnotation<'a>>> {
+        let spans = annotations.iter().map(|a| a.span).collect::<Vec<_>>();
+        if let Some((bounding_span, source, offset_line)) = shrink_file(&spans, file_name, sm) {
+            let adj_lo = bounding_span.lo().to_usize();
+
+            let filename = sm.filename_for_diagnostics(file_name).to_string();
+
+            Some(Snippet::source(source).line_start(offset_line).path(filename).annotations(
+                annotations.into_iter().map(move |a| {
+                    let lo = a.span.lo().to_usize().saturating_sub(adj_lo);
+                    let hi = a.span.hi().to_usize().saturating_sub(adj_lo);
+                    let ann = a.kind.span(lo..hi);
+                    if let Some(label) = a.label { ann.label(label) } else { ann }
+                }),
+            ))
+        } else {
+            None
+        }
+    }
 }
 
 /// Diagnostic emitter that emits diagnostics in human-readable format to a local buffer.
@@ -368,7 +710,7 @@ impl HumanBufferEmitter {
 }
 
 fn title_from_diagnostic(diag: &Diag) -> Title<'_> {
-    let mut title = to_as_level(diag.level).primary_title(diag.label());
+    let mut title = annotation_level_for_level(diag.level).primary_title(diag.label());
     if let Some(id) = diag.id() {
         title = title.id(id);
     }
@@ -376,17 +718,17 @@ fn title_from_diagnostic(diag: &Diag) -> Title<'_> {
 }
 
 fn title_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Title<'_> {
-    to_as_level(sub.level).secondary_title(sub.label_with_style(supports_color))
+    annotation_level_for_level(sub.level).secondary_title(sub.label_with_style(supports_color))
 }
 
 fn message_from_subdiagnostic(sub: &SubDiagnostic, supports_color: bool) -> Message<'_> {
-    to_as_level(sub.level).message(sub.label_with_style(supports_color))
+    annotation_level_for_level(sub.level).message(sub.label_with_style(supports_color))
 }
 
 fn iter_snippets<'a>(
     sm: &SourceMap,
     msp: &MultiSpan,
-) -> impl Iterator<Item = Snippet<'a, Annotation<'a>>> {
+) -> impl Iterator<Item = Snippet<'a, ASAnnotation<'a>>> {
     collect_files(sm, msp).into_iter().map(|file| file_to_snippet(sm, &file.file, &file.lines))
 }
 
@@ -415,7 +757,7 @@ fn file_to_snippet<'a>(
     sm: &SourceMap,
     file: &SourceFile,
     lines: &[super::rustc::Line],
-) -> Snippet<'a, Annotation<'a>> {
+) -> Snippet<'a, ASAnnotation<'a>> {
     /// `label, start_idx`
     type MultiLine<'a> = (Option<&'a String>, usize);
     fn multi_line_at<'a, 'b>(
@@ -497,7 +839,7 @@ fn file_to_snippet<'a>(
         .annotations(annotations)
 }
 
-fn to_as_level<'a>(level: Level) -> ASLevel<'a> {
+fn annotation_level_for_level<'a>(level: Level) -> ASLevel<'a> {
     match level {
         Level::Bug | Level::Fatal | Level::Error | Level::FailureNote => ASLevel::ERROR,
         Level::Warning => ASLevel::WARNING,
@@ -519,4 +861,75 @@ fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
     } else {
         color_choice
     }
+}
+
+fn emit_to_destination(rendered: String, lvl: &Level, dst: &mut Writer) -> io::Result<()> {
+    // Unlike rustc, there is no lock
+    // use crate::lock;
+    // let _buffer_lock = lock::acquire_global_lock("rustc_errors");
+
+    writeln!(dst, "{rendered}")?;
+    if !lvl.is_failure_note() {
+        writeln!(dst)?;
+    }
+    dst.flush()?;
+    Ok(())
+}
+
+#[derive(Debug)]
+struct Annotation {
+    kind: AnnotationKind,
+    span: Span,
+    label: Option<String>,
+}
+
+fn collect_annotations(
+    msp: &MultiSpan,
+    sm: &Arc<SourceMap>,
+) -> Vec<(Arc<SourceFile>, Vec<Annotation>)> {
+    let mut output: Vec<(Arc<SourceFile>, Vec<Annotation>)> = vec![];
+
+    for SpanLabel { span, is_primary, label } in msp.span_labels() {
+        // If we don't have a useful span, pick the primary span if that exists.
+        // Worst case we'll just print an error at the top of the main file.
+        let span = match (span.is_dummy(), msp.primary_span()) {
+            (_, None) | (false, _) => span,
+            (true, Some(span)) => span,
+        };
+        let file = sm.lookup_source_file(span.lo());
+
+        let kind = if is_primary { AnnotationKind::Primary } else { AnnotationKind::Context };
+
+        let label = label.as_ref().map(|m| normalize_whitespace(m));
+
+        let ann = Annotation { kind, span, label };
+        if sm.is_valid_span(ann.span).is_ok() {
+            if let Some((_, annotations)) = output.iter_mut().find(|(f, _)| f.name == file.name) {
+                annotations.push(ann);
+            } else {
+                output.push((file, vec![ann]));
+            }
+        }
+    }
+    output
+}
+
+fn shrink_file(
+    spans: &[Span],
+    _file_name: &FileName,
+    sm: &Arc<SourceMap>,
+) -> Option<(Span, String, usize)> {
+    let lo_byte = spans.iter().map(|s| s.lo()).min()?;
+    let lo_loc = sm.lookup_char_pos(lo_byte);
+    let lo = lo_loc.file.line_bounds(lo_loc.line.saturating_sub(1)).start;
+
+    let hi_byte = spans.iter().map(|s| s.hi()).max()?;
+    let hi_loc = sm.lookup_char_pos(hi_byte);
+    let hi = lo_loc.file.line_bounds(hi_loc.line.saturating_sub(1)).end;
+
+    let bounding_span = Span::new(lo, hi);
+    let source = sm.span_to_snippet(bounding_span).unwrap_or_default();
+    let offset_line = lo_loc.line;
+
+    Some((bounding_span, source, offset_line))
 }
