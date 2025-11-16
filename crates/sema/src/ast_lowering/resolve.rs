@@ -474,15 +474,26 @@ impl<'gcx> ResolveContext<'gcx> {
                     .emit();
             }
             let prev = &mut base_args[base_idx];
-            if let Some(prev) = prev
-                && !prev.args.is_empty()
-            {
-                self.sess
-                    .dcx
-                    .err("base constructor arguments given twice")
-                    .span(base.span)
-                    .span_help(prev.span, "previous declaration")
-                    .emit();
+            if let Some(prev) = prev {
+                if !prev.args.is_empty() {
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given twice")
+                        .span(base.span)
+                        .span_help(prev.span, "previous declaration")
+                        .emit();
+                } else if !prev.args.is_dummy() && !base.args.is_empty() {
+                    // Empty parens in inheritance list, but args in constructor
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given here")
+                        .span(base.span)
+                        .span_help(
+                            prev.span,
+                            "remove parentheses if you do not want to provide arguments here",
+                        )
+                        .emit();
+                }
             }
             *prev = Some(base);
         };
