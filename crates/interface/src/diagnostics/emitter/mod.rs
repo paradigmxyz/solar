@@ -1,9 +1,5 @@
 use super::{Diag, Level, MultiSpan, SuggestionStyle};
-use crate::{
-    SourceMap,
-    diagnostics::Suggestions,
-    source_map::{FileName, SourceFile},
-};
+use crate::{SourceMap, diagnostics::Suggestions};
 use std::{any::Any, borrow::Cow, sync::Arc};
 
 mod human;
