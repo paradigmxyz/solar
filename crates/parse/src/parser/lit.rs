@@ -258,7 +258,7 @@ fn parse_integer<'ast>(
     if let Some(subdenomination) = subdenomination {
         n = n.checked_mul(U256::from(subdenomination.value())).ok_or(LitError::IntegerTooLarge)?;
     }
-    Ok(LitKind::Number(n))
+    Ok(LitKind::Number(n, false))
 }
 
 fn parse_rational<'ast>(
@@ -347,7 +347,7 @@ fn parse_rational<'ast>(
 
     // 0E... is always zero.
     if number.is_zero() {
-        return Ok(LitKind::Number(U256::ZERO));
+        return Ok(LitKind::Number(U256::ZERO, false));
     }
 
     if let Some(exp) = exp {
@@ -377,7 +377,7 @@ fn parse_rational<'ast>(
     }
 
     if number.is_integer() {
-        big_to_u256(number.to_integer(), true).map(LitKind::Number)
+        big_to_u256(number.to_integer(), true).map(|n| LitKind::Number(n, false))
     } else {
         let (numer, denom) = number.into_raw();
         Ok(LitKind::Rational(Ratio::new(big_to_u256(numer, true)?, big_to_u256(denom, true)?)))
@@ -539,7 +539,7 @@ mod tests {
         fn check_int(src: &str, expected: Result<&str, LitError>) {
             lex_literal(src, false, |sess, symbol| {
                 let res = match parse_integer(sess, symbol, None) {
-                    Ok(LitKind::Number(n)) => Ok(n),
+                    Ok(LitKind::Number(n, _)) => Ok(n),
                     Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                     Err(e) => Err(e),
                 };
@@ -559,7 +559,7 @@ mod tests {
                     e => panic!("not an address: {e:?} ({src:?})"),
                 },
                 Err(int) => match parse_integer(sess, symbol, None) {
-                    Ok(LitKind::Number(n)) => {
+                    Ok(LitKind::Number(n, _)) => {
                         assert_eq!(n, U256::from_str_radix(int, 10).unwrap(), "{src:?}")
                     }
                     e => panic!("not an integer: {e:?} ({src:?})"),
@@ -636,7 +636,7 @@ mod tests {
         fn check_int_full(src: &str, should_fail_lexing: bool, expected: Result<&str, LitError>) {
             lex_literal(src, should_fail_lexing, |sess, symbol| {
                 let res = match parse_rational(sess, symbol, None) {
-                    Ok(LitKind::Number(r)) => Ok(r),
+                    Ok(LitKind::Number(r, _)) => Ok(r),
                     Ok(x) => panic!("not a number: {x:?} ({src:?})"),
                     Err(e) => Err(e),
                 };
