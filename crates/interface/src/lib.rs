@@ -1,4 +1,3 @@
-#![allow(macro_expanded_macro_exports_accessed_by_absolute_paths)]
 #![doc = include_str!("../README.md")]
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
@@ -45,28 +44,6 @@ pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 ///
 /// Solar aims to support Solidity 0.8.* and later versions.
 pub const MIN_SOLIDITY_VERSION: semver::Version = semver::Version::new(0, 8, 0);
-
-/// Pluralize a word based on a count.
-#[macro_export]
-#[rustfmt::skip]
-macro_rules! pluralize {
-    // Pluralize based on count (e.g., apples)
-    ($x:expr) => {
-        if $x == 1 { "" } else { "s" }
-    };
-    ("has", $x:expr) => {
-        if $x == 1 { "has" } else { "have" }
-    };
-    ("is", $x:expr) => {
-        if $x == 1 { "is" } else { "are" }
-    };
-    ("was", $x:expr) => {
-        if $x == 1 { "was" } else { "were" }
-    };
-    ("this", $x:expr) => {
-        if $x == 1 { "this" } else { "these" }
-    };
-}
 
 /// Creates new session globals on the current thread if they doesn't exist already and then
 /// executes the given closure.

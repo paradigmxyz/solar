@@ -6,7 +6,6 @@ use crate::{
         SuggestionStyle, Suggestions, detect_confusion_type, emitter::normalize_whitespace,
         is_different,
     },
-    pluralize,
     source_map::{FileName, SourceFile},
 };
 use annotate_snippets::{
@@ -15,6 +14,7 @@ use annotate_snippets::{
 };
 use anstream::{AutoStream, ColorChoice};
 use solar_config::HumanEmitterKind;
+use solar_data_structures::pluralize;
 use std::{
     any::Any,
     borrow::Cow,
