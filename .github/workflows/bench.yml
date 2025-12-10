@@ -17,7 +17,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Checkout submodules
@@ -47,7 +47,7 @@ jobs:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Checkout submodules
@@ -58,7 +58,7 @@ jobs:
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
@@ -73,7 +73,7 @@ jobs:
       - name: Save baseline
         run: cargo bench -p solar-bench --bench iai --features ci -- --save-baseline=$BASELINE
       - name: Checkout PR
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           clean: false
       - name: Install iai-callgrind-runner
