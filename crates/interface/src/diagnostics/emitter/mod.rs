@@ -13,8 +13,6 @@ pub use json::JsonEmitter;
 mod mem;
 pub use mem::InMemoryEmitter;
 
-mod rustc;
-
 /// Dynamic diagnostic emitter. See [`Emitter`].
 pub type DynEmitter = dyn Emitter + Send;
 

@@ -422,31 +422,30 @@ impl ConfusionType {
     /// Returns the appropriate label text for this confusion type.
     pub fn label_text(&self) -> &'static str {
         match self {
-            ConfusionType::None => "",
-            ConfusionType::Case => " (notice the capitalization)",
-            ConfusionType::DigitLetter => " (notice the digit/letter confusion)",
-            ConfusionType::Both => " (notice the capitalization and digit/letter confusion)",
+            Self::None => "",
+            Self::Case => " (notice the capitalization)",
+            Self::DigitLetter => " (notice the digit/letter confusion)",
+            Self::Both => " (notice the capitalization and digit/letter confusion)",
         }
     }
 
     /// Combines two confusion types. If either is `Both`, the result is `Both`.
     /// If one is `Case` and the other is `DigitLetter`, the result is `Both`.
     /// Otherwise, returns the non-`None` type, or `None` if both are `None`.
-    pub fn combine(self, other: ConfusionType) -> ConfusionType {
+    pub fn combine(self, other: Self) -> Self {
         match (self, other) {
-            (ConfusionType::None, other) => other,
-            (this, ConfusionType::None) => this,
-            (ConfusionType::Both, _) | (_, ConfusionType::Both) => ConfusionType::Both,
-            (ConfusionType::Case, ConfusionType::DigitLetter)
-            | (ConfusionType::DigitLetter, ConfusionType::Case) => ConfusionType::Both,
-            (ConfusionType::Case, ConfusionType::Case) => ConfusionType::Case,
-            (ConfusionType::DigitLetter, ConfusionType::DigitLetter) => ConfusionType::DigitLetter,
+            (Self::None, other) => other,
+            (this, Self::None) => this,
+            (Self::Both, _) | (_, Self::Both) => Self::Both,
+            (Self::Case, Self::DigitLetter) | (Self::DigitLetter, Self::Case) => Self::Both,
+            (Self::Case, Self::Case) => Self::Case,
+            (Self::DigitLetter, Self::DigitLetter) => Self::DigitLetter,
         }
     }
 
     /// Returns true if this confusion type represents any kind of confusion.
     pub fn has_confusion(&self) -> bool {
-        *self != ConfusionType::None
+        *self != Self::None
     }
 }
 
