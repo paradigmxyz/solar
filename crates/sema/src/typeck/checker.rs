@@ -5,8 +5,8 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
-use solar_data_structures::{Never, map::FxHashMap, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, pluralize};
+use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
+use solar_interface::diagnostics::DiagCtxt;
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {

@@ -41,6 +41,10 @@ impl DiagMsg {
     pub fn as_str(&self) -> &str {
         &self.inner
     }
+
+    pub fn into_inner(self) -> Cow<'static, str> {
+        self.inner
+    }
 }
 
 /// A span together with some additional data.
