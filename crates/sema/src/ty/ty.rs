@@ -424,6 +424,13 @@ impl<'gcx> Ty<'gcx> {
             return Ok(());
         }
 
+        // payable addresses can be implicitly converted into non-payable addresses
+        if self.kind == TyKind::Elementary(ElementaryType::Address(true))
+            && other.kind == TyKind::Elementary(ElementaryType::Address(false))
+        {
+            return Ok(());
+        }
+
         // TODO
         Err(())
     }
