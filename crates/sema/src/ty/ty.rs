@@ -476,6 +476,56 @@ impl<'gcx> Ty<'gcx> {
             // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
             (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
             (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
+            // address <-> uint160: Explicit conversions are allowed.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
+            ) => {
+                if size_to.bytes() == 20u8 {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) => {
+                if size_from.bytes() == 20u8 {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            // address <-> bytes20: Explicit conversions are allowed.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::UInt(size)),
+            ) => {
+                if size.bits() == 160u16 {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            (
+                TyKind::Elementary(ElementaryType::UInt(size)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) => {
+                if size.bits() == 160u16 {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            // address -> address payable: Explicit conversions are allowed.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (
+                TyKind::Elementary(ElementaryType::Address(false)),
+                TyKind::Elementary(ElementaryType::Address(true)),
+            ) => Ok(()),
             _ => Err(()),
         }
     }
