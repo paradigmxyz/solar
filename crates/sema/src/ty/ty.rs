@@ -453,8 +453,8 @@ impl<'gcx> Ty<'gcx> {
         match (&self.kind, &other.kind) {
             // For Enum <-> all integer types conversion:
             // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-            (TyKind::Enum(_), _) if other.is_integer() => return Ok(()),
-            (_, TyKind::Enum(_)) if self.is_integer() => return Ok(()),
+            (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
+            (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
             _ => Err(()),
         }
     }
