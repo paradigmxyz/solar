@@ -13,6 +13,7 @@ contract C {
         uint160 u = uint160(a);
         address a3 = address(u160);
         address payable p = payable(a);
+        address payable p2 = payable(p);
 
         // Invalid conversions
         bytes32 b32_from_a = bytes32(a); //~ ERROR: cannot convert
