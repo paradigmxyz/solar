@@ -1,0 +1,26 @@
+error: cannot convert `enum C.TrafficLight` to `bytes1`
+  --> ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   |
+LL |         bytes1 b1 = bytes1(t);
+   |                     ^^^^^^^^^ invalid explicit type conversion
+
+error: cannot convert `enum C.TrafficLight` to `bytes32`
+  --> ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   |
+LL |         bytes32 b32 = bytes32(t);
+   |                       ^^^^^^^^^^ invalid explicit type conversion
+
+error: cannot convert `enum C.TrafficLight` to `address`
+  --> ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   |
+LL |         address addr = address(t);
+   |                        ^^^^^^^^^^ invalid explicit type conversion
+
+error: cannot convert `enum C.TrafficLight` to `bool`
+  --> ROOT/tests/ui/typeck/explicit_enum_conversion.sol:LL:CC
+   |
+LL |         bool b = bool(t);
+   |                  ^^^^^^^ invalid explicit type conversion
+
+error: aborting due to 4 previous errors
+

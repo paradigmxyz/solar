@@ -468,8 +468,16 @@ impl<'gcx> Ty<'gcx> {
 
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
-        // TODO
-        self.try_convert_implicit_to(other)
+        if self.try_convert_implicit_to(other).is_ok() {
+            return Ok(());
+        }
+        match (&self.kind, &other.kind) {
+            // For Enum <-> all integer types conversion:
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
+            (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
+            _ => Err(()),
+        }
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
