@@ -466,6 +466,7 @@ impl<'gcx> Ty<'gcx> {
         self.try_convert_explicit_to(other).is_ok()
     }
 
+    /// Checks if the type is explicitly convertible to the given type.
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
         if self.try_convert_implicit_to(other).is_ok() {
@@ -476,6 +477,28 @@ impl<'gcx> Ty<'gcx> {
             // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
             (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
             (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
+
+            // FixedBytes to FixedBytes: always allowed (any size).
+            // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#fixed-size-byte-arrays>
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+            ) => Ok(()),
+
+            // FixedBytes to UInt: same size only (signed integers not allowed).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
+                TyKind::Elementary(ElementaryType::UInt(size_to)),
+            ) if size_from == size_to => Ok(()),
+
+            // UInt to FixedBytes: same size only (signed integers not allowed).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            (
+                TyKind::Elementary(ElementaryType::UInt(size_from)),
+                TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
+            ) if size_from == size_to => Ok(()),
             _ => Err(()),
         }
     }
