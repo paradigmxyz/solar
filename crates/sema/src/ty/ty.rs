@@ -499,13 +499,6 @@ impl<'gcx> Ty<'gcx> {
             (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
             (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
 
-            // FixedBytes <-> FixedBytes: always allowed (any size).
-            // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
-            (
-                TyKind::Elementary(ElementaryType::FixedBytes(_)),
-                TyKind::Elementary(ElementaryType::FixedBytes(_)),
-            ) => Ok(()),
-
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (
                 TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
