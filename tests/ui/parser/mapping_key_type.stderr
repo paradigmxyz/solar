@@ -1,8 +1,0 @@
-error: expected `=>`, found `[`
-  --> ROOT/tests/ui/parser/mapping_key_type.sol:LL:CC
-   |
-LL |     mapping(uint[] => uint) m4;
-   |                 ^ expected `=>`
-
-error: aborting due to 1 previous error
-

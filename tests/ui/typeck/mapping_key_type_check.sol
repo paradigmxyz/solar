@@ -22,4 +22,5 @@ contract C {
     mapping(U => uint) m3;
     mapping(L.E1 => uint) m4;
     mapping(L.S1 => uint) m5; //~ ERROR: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
+    mapping(uint[] => uint) m6; //~ ERROR: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
 }
