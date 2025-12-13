@@ -306,7 +306,8 @@ impl<'gcx> Ty<'gcx> {
     /// This is either an array, bytes, string, or slice.
     #[inline]
     pub fn is_sliceable(self) -> bool {
-        self.is_array_like() || matches!(self.kind, TyKind::Slice(..))
+        let inner = self.peel_refs();
+        inner.is_array_like() || matches!(inner.kind, TyKind::Slice(..))
     }
 
     /// Returns `true` if the type is dynamically sized.
@@ -429,6 +430,26 @@ impl<'gcx> Ty<'gcx> {
             && other.kind == TyKind::Elementary(ElementaryType::Address(false))
         {
             return Ok(());
+        }
+
+        // Array slices are implicitly convertible to arrays of their underlying element type.
+        // E.g., `uint256[] calldata slice` can convert to `uint256[] calldata` or `uint256[]
+        // memory`. See: https://docs.soliditylang.org/en/latest/types.html#array-slices
+        if let TyKind::Slice(underlying) = self.kind {
+            // Exact match with underlying type.
+            if underlying == other {
+                return Ok(());
+            }
+            // Allow conversion to memory arrays of the same base type.
+            // E.g., `uint256[] calldata slice` → `uint256[] memory`.
+            // Note: conversion to storage pointers is NOT allowed.
+            if let (TyKind::Ref(self_inner, _), TyKind::Ref(other_inner, other_loc)) =
+                (&underlying.kind, &other.kind)
+                && self_inner == other_inner
+                && *other_loc == DataLocation::Memory
+            {
+                return Ok(());
+            }
         }
 
         // TODO
