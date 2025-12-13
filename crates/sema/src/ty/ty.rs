@@ -469,6 +469,9 @@ impl<'gcx> Ty<'gcx> {
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+    ///
+    /// Follows Solidity 0.8.0+ rules where explicit conversions are as strict as implicit.
+    /// See: <https://docs.soliditylang.org/en/latest/080-breaking-changes.html>
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
         if self.try_convert_implicit_to(other).is_ok() {
@@ -521,6 +524,43 @@ impl<'gcx> Ty<'gcx> {
                 TyKind::Elementary(ElementaryType::Address(false)),
                 TyKind::Elementary(ElementaryType::Address(true)),
             ) => Ok(()),
+
+            // IntLiteral -> IntLiteral: always allowed.
+            // The restriction on negative -> unsigned applies when converting to concrete types,
+            // not between literals.
+            (TyKind::IntLiteral(_, _), TyKind::IntLiteral(_, _)) => Ok(()),
+
+            // Int <-> Int: any size allowed (only width changes, sign stays same).
+            (
+                TyKind::Elementary(ElementaryType::Int(_)),
+                TyKind::Elementary(ElementaryType::Int(_)),
+            ) => Ok(()),
+
+            // UInt <-> UInt: any size allowed (only width changes, sign stays same).
+            (
+                TyKind::Elementary(ElementaryType::UInt(_)),
+                TyKind::Elementary(ElementaryType::UInt(_)),
+            ) => Ok(()),
+
+            // Int <-> UInt: same size only (prevents multi-aspect conversion).
+            // This enforces the Solidity 0.8.0+ restriction: cannot change both sign and width.
+            (
+                TyKind::Elementary(ElementaryType::Int(size_from)),
+                TyKind::Elementary(ElementaryType::UInt(size_to)),
+            )
+            | (
+                TyKind::Elementary(ElementaryType::UInt(size_from)),
+                TyKind::Elementary(ElementaryType::Int(size_to)),
+            ) if size_from == size_to => Ok(()),
+
+            // IntLiteral(positive) -> Int or UInt: always allowed.
+            (
+                TyKind::IntLiteral(false, _),
+                TyKind::Elementary(ElementaryType::Int(_) | ElementaryType::UInt(_)),
+            ) => Ok(()),
+
+            // IntLiteral(negative) -> Int: allowed.
+            (TyKind::IntLiteral(true, _), TyKind::Elementary(ElementaryType::Int(_))) => Ok(()),
 
             _ => Err(()),
         }
