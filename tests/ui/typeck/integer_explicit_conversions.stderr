@@ -1,0 +1,44 @@
+error: cannot convert `int8` to `uint256`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         uint256 a = uint256(i8);
+   ╰╴                    ━━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `uint256` to `int8`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         int8 b = int8(u256);
+   ╰╴                 ━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `int16` to `uint32`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         uint32 c = uint32(i16);
+   ╰╴                   ━━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `uint32` to `int16`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         int16 d = int16(u32);
+   ╰╴                  ━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `int8` to `uint128`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         uint128 e = uint128(i8);
+   ╰╴                    ━━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `uint8` to `bytes2`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         bytes2 b2 = bytes2(u8);
+   ╰╴                    ━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `uint32` to `bytes8`
+   ╭▸ ROOT/tests/ui/typeck/integer_explicit_conversions.sol:LL:CC
+   │
+LL │         bytes8 b8 = bytes8(u32);
+   ╰╴                    ━━━━━━━━━━━ invalid explicit type conversion
+
+error: aborting due to 7 previous errors
+
