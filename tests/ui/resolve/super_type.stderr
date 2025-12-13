@@ -1,50 +1,50 @@
 error: identifier `this` already declared
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |     struct this { uint x; }
-   |            ^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │     struct this { uint x; }
+   ╰╴           ━━━━
 
 error: identifier `super` already declared
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |     struct super { uint x; }
-   |            ^^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │     struct super { uint x; }
+   ╰╴           ━━━━━
 
 error: unresolved symbol `this`
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL | contract D is this.C {}
-   |               ^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │ contract D is this.C {}
+   ╰╴              ━━━━
 
 error: unresolved symbol `super`
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL | contract E is super.C {}
-   |               ^^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │ contract E is super.C {}
+   ╰╴              ━━━━━
 
 error: `this` is a builtin, which cannot be indexed in type paths
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |         this.S1 memory x0;
-   |         ^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │         this.S1 memory x0;
+   ╰╴        ━━━━
 
 error: `super` is a builtin, which cannot be indexed in type paths
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |         super.S1 memory x1;
-   |         ^^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │         super.S1 memory x1;
+   ╰╴        ━━━━━
 
 error: `super` is a builtin, which cannot be indexed in type paths
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |         super.S2 memory x2;
-   |         ^^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │         super.S2 memory x2;
+   ╰╴        ━━━━━
 
 error: `super` is a builtin, which cannot be indexed in type paths
-  --> ROOT/tests/ui/resolve/super_type.sol:LL:CC
-   |
-LL |         super.super.S2 memory x3;
-   |         ^^^^^
+   ╭▸ ROOT/tests/ui/resolve/super_type.sol:LL:CC
+   │
+LL │         super.super.S2 memory x3;
+   ╰╴        ━━━━━
 
 error: aborting due to 8 previous errors
 

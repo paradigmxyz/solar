@@ -1,18 +1,18 @@
 error: expected a state variable declaration
-  --> ROOT/tests/ui/parser/old_fallback.sol:LL:CC
-   |
-LL |     function() external payable {
-   |                                 ^
-   |
-   = note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
+   ╭▸ ROOT/tests/ui/parser/old_fallback.sol:LL:CC
+   │
+LL │     function() external payable {
+   │                                 ━
+   │
+   ╰ note: this style of fallback function has been removed; use the `fallback` or `receive` keywords instead
 
 error: expected one of `(`, `.`, `;`, `?`, `[`, `payable`, `pure`, `view`, or `{`, found `}`
-  --> ROOT/tests/ui/parser/old_fallback.sol:LL:CC
-   |
-LL |         uint
-   |             - expected one of 9 possible tokens
-LL |     }
-   |     ^ unexpected token
+   ╭▸ ROOT/tests/ui/parser/old_fallback.sol:LL:CC
+   │
+LL │         uint
+   │             ─ expected one of 9 possible tokens
+LL │     }
+   ╰╴    ━ unexpected token
 
 error: aborting due to 2 previous errors
 

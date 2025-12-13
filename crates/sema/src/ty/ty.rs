@@ -466,6 +466,9 @@ impl<'gcx> Ty<'gcx> {
         self.try_convert_explicit_to(other).is_ok()
     }
 
+    /// Checks if the type is explicitly convertible to the given type.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
         if self.try_convert_implicit_to(other).is_ok() {
@@ -476,8 +479,7 @@ impl<'gcx> Ty<'gcx> {
                 TyKind::Elementary(ElementaryType::FixedBytes(_)),
                 TyKind::Elementary(ElementaryType::FixedBytes(_)),
             ) => Ok(()),
-            // For DynamicBytes -> FixedBytes type conversion.
-            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversion
+            // DynamicBytes -> FixedBytes type conversion:
             (TyKind::Ref(ty, _), TyKind::Elementary(ElementaryType::FixedBytes(_))) => {
                 if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes)) {
                     Ok(())
@@ -493,8 +495,53 @@ impl<'gcx> Ty<'gcx> {
 
             // For Enum <-> all integer types conversion:
             // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            // Enum <-> all integer types.
             (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
             (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
+
+            // FixedBytes <-> FixedBytes: always allowed (any size).
+            // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+            ) => Ok(()),
+
+            // FixedBytes <-> UInt: same size only (signed integers not allowed).
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
+                TyKind::Elementary(ElementaryType::UInt(size_to)),
+            )
+            | (
+                TyKind::Elementary(ElementaryType::UInt(size_from)),
+                TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
+            ) if size_from == size_to => Ok(()),
+
+            // address <-> bytes20.
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
+            ) if size_to.bytes() == 20u8 => Ok(()),
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) if size_from.bytes() == 20u8 => Ok(()),
+
+            // address <-> uint160.
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::UInt(size)),
+            ) if size.bits() == 160u16 => Ok(()),
+            (
+                TyKind::Elementary(ElementaryType::UInt(size)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) if size.bits() == 160u16 => Ok(()),
+
+            // address -> address payable.
+            (
+                TyKind::Elementary(ElementaryType::Address(false)),
+                TyKind::Elementary(ElementaryType::Address(true)),
+            ) => Ok(()),
+
             _ => Err(()),
         }
     }

@@ -1,26 +1,26 @@
 error: identifier `x` already declared
-  --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
-   |
-LL |     uint public x = 1;
-   |                 ^
-   |
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 1;
+   │                 ━
+   ╰╴
 note: previous declaration declared here
-  --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
-   |
-LL |     uint public x = 0;
-   |                 ^
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 0;
+   ╰╴                ━
 
 error: identifier `y` already declared
-  --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
-   |
-LL |     uint public y = 3;
-   |                 ^
-   |
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public y = 3;
+   │                 ━
+   ╰╴
 note: previous declaration declared here
-  --> ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
-   |
-LL |     uint public y = 2;
-   |                 ^
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public y = 2;
+   ╰╴                ━
 
 error: aborting due to 2 previous errors
 
