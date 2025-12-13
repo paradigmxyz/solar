@@ -475,16 +475,29 @@ impl<'gcx> Ty<'gcx> {
             return Ok(());
         }
         match (&self.kind, &other.kind) {
-            // Enum <-> all integer types.
-            (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
-            (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
-
-            // FixedBytes to FixedBytes: always allowed (any size).
-            // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
             (
                 TyKind::Elementary(ElementaryType::FixedBytes(_)),
                 TyKind::Elementary(ElementaryType::FixedBytes(_)),
             ) => Ok(()),
+            // DynamicBytes -> FixedBytes type conversion:
+            (TyKind::Ref(ty, _), TyKind::Elementary(ElementaryType::FixedBytes(_))) => {
+                if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes)) {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+
+            (
+                TyKind::Elementary(ElementaryType::Bytes),
+                TyKind::Elementary(ElementaryType::Bytes),
+            ) => Ok(()),
+
+            // For Enum <-> all integer types conversion:
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+            // Enum <-> all integer types.
+            (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
+            (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (
