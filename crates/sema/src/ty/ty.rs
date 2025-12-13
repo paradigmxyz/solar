@@ -472,6 +472,25 @@ impl<'gcx> Ty<'gcx> {
             return Ok(());
         }
         match (&self.kind, &other.kind) {
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(_)),
+            ) => Ok(()),
+            // For DynamicBytes -> FixedBytes type conversion.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversion
+            (TyKind::Ref(ty, _), TyKind::Elementary(ElementaryType::FixedBytes(_))) => {
+                if matches!(ty.kind, TyKind::Elementary(ElementaryType::Bytes)) {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+
+            (
+                TyKind::Elementary(ElementaryType::Bytes),
+                TyKind::Elementary(ElementaryType::Bytes),
+            ) => Ok(()),
+
             // For Enum <-> all integer types conversion:
             // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
             (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
