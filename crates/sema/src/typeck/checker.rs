@@ -523,7 +523,7 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(()) = from.try_convert_explicit_to(to) else { return to };
+        let Err(()) = from.try_convert_explicit_to(self.gcx, to) else { return to };
 
         let msg =
             format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
@@ -539,7 +539,7 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        let Err(()) = actual.try_convert_implicit_to(expected) else { return };
+        let Err(()) = actual.try_convert_implicit_to(self.gcx, expected) else { return };
 
         let mut err = self.dcx().err("mismatched types").span(expr.span);
         err = err.span_label(
