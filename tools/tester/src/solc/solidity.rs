@@ -101,6 +101,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "transient_function_type_with_transient_param"
         | "invalid_state_variable_location"
         | "location_specifiers_for_state_variables"
+
+        // Mapping key types are checked in sema.
+        | "mapping_nonelementary_key_1"
+        | "mapping_nonelementary_key_4"
     ) {
         return Err("manually skipped");
     };
