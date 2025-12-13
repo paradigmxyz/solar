@@ -2,12 +2,13 @@
 //!
 //! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
 
-use crate::Span;
+use crate::{SourceMap, Span};
 use anstyle::{AnsiColor, Color};
 use std::{
     borrow::Cow,
     fmt::{self, Write},
     hash::{Hash, Hasher},
+    iter,
     ops::Deref,
     panic::Location,
 };
@@ -249,6 +250,10 @@ impl Level {
         }
     }
 
+    pub fn is_failure_note(&self) -> bool {
+        matches!(*self, Self::FailureNote)
+    }
+
     /// Returns the style of this level.
     #[inline]
     pub const fn style(self) -> anstyle::Style {
@@ -326,6 +331,121 @@ impl Style {
             Self::Level(level2) => s.fg_color(level2.color()).bold(),
             Self::Highlight => s.fg_color(Some(MAGENTA)).bold(),
         }
+    }
+}
+
+/// Whether the original and suggested code are the same.
+pub fn is_different(sm: &SourceMap, suggested: &str, sp: Span) -> bool {
+    let found = match sm.span_to_snippet(sp) {
+        Ok(snippet) => snippet,
+        Err(e) => {
+            warn!(error = ?e, "Invalid span {:?}", sp);
+            return true;
+        }
+    };
+    found != suggested
+}
+
+/// Whether the original and suggested code are visually similar enough to warrant extra wording.
+pub fn detect_confusion_type(sm: &SourceMap, suggested: &str, sp: Span) -> ConfusionType {
+    let found = match sm.span_to_snippet(sp) {
+        Ok(snippet) => snippet,
+        Err(e) => {
+            warn!(error = ?e, "Invalid span {:?}", sp);
+            return ConfusionType::None;
+        }
+    };
+
+    let mut has_case_confusion = false;
+    let mut has_digit_letter_confusion = false;
+
+    if found.len() == suggested.len() {
+        let mut has_case_diff = false;
+        let mut has_digit_letter_confusable = false;
+        let mut has_other_diff = false;
+
+        let ascii_confusables = &['c', 'f', 'i', 'k', 'o', 's', 'u', 'v', 'w', 'x', 'y', 'z'];
+
+        let digit_letter_confusables = [('0', 'O'), ('1', 'l'), ('5', 'S'), ('8', 'B'), ('9', 'g')];
+
+        for (f, s) in iter::zip(found.chars(), suggested.chars()) {
+            if f != s {
+                if f.eq_ignore_ascii_case(&s) {
+                    // Check for case differences (any character that differs only in case)
+                    if ascii_confusables.contains(&f) || ascii_confusables.contains(&s) {
+                        has_case_diff = true;
+                    } else {
+                        has_other_diff = true;
+                    }
+                } else if digit_letter_confusables.contains(&(f, s))
+                    || digit_letter_confusables.contains(&(s, f))
+                {
+                    // Check for digit-letter confusables (like 0 vs O, 1 vs l, etc.)
+                    has_digit_letter_confusable = true;
+                } else {
+                    has_other_diff = true;
+                }
+            }
+        }
+
+        // If we have case differences and no other differences
+        if has_case_diff && !has_other_diff && found != suggested {
+            has_case_confusion = true;
+        }
+        if has_digit_letter_confusable && !has_other_diff && found != suggested {
+            has_digit_letter_confusion = true;
+        }
+    }
+
+    match (has_case_confusion, has_digit_letter_confusion) {
+        (true, true) => ConfusionType::Both,
+        (true, false) => ConfusionType::Case,
+        (false, true) => ConfusionType::DigitLetter,
+        (false, false) => ConfusionType::None,
+    }
+}
+
+/// Represents the type of confusion detected between original and suggested code.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfusionType {
+    /// No confusion detected
+    None,
+    /// Only case differences (e.g., "hello" vs "Hello")
+    Case,
+    /// Only digit-letter confusion (e.g., "0" vs "O", "1" vs "l")
+    DigitLetter,
+    /// Both case and digit-letter confusion
+    Both,
+}
+
+impl ConfusionType {
+    /// Returns the appropriate label text for this confusion type.
+    pub fn label_text(&self) -> &'static str {
+        match self {
+            Self::None => "",
+            Self::Case => " (notice the capitalization)",
+            Self::DigitLetter => " (notice the digit/letter confusion)",
+            Self::Both => " (notice the capitalization and digit/letter confusion)",
+        }
+    }
+
+    /// Combines two confusion types. If either is `Both`, the result is `Both`.
+    /// If one is `Case` and the other is `DigitLetter`, the result is `Both`.
+    /// Otherwise, returns the non-`None` type, or `None` if both are `None`.
+    pub fn combine(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::None, other) => other,
+            (this, Self::None) => this,
+            (Self::Both, _) | (_, Self::Both) => Self::Both,
+            (Self::Case, Self::DigitLetter) | (Self::DigitLetter, Self::Case) => Self::Both,
+            (Self::Case, Self::Case) => Self::Case,
+            (Self::DigitLetter, Self::DigitLetter) => Self::DigitLetter,
+        }
+    }
+
+    /// Returns true if this confusion type represents any kind of confusion.
+    pub fn has_confusion(&self) -> bool {
+        *self != Self::None
     }
 }
 
