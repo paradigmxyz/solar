@@ -1063,7 +1063,10 @@ mod tests {
 
         assert_data_eq!(&*sub.label(), str!["plain text removed middle added"]);
 
-        assert_data_eq!(&*sub.label_with_style(true), str!["plain text [91mremoved[0m middle [92madded[0m"]);
+        assert_data_eq!(
+            &*sub.label_with_style(true),
+            str!["plain text [91mremoved[0m middle [92madded[0m"]
+        );
     }
 
     #[test]
