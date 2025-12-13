@@ -1,14 +1,14 @@
 error: mismatched types
-  --> ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
-   |
-LL |     address payable e = 0x14aF3198B9Dd911fc828434f8D97df0C0Ff979Ee;
-   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `address payable`, found `address`
+   ╭▸ ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
+   │
+LL │     address payable e = 0x14aF3198B9Dd911fc828434f8D97df0C0Ff979Ee;
+   ╰╴                        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `address payable`, found `address`
 
 error: mismatched types
-  --> ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
-   |
-LL |     address payable p2 = a;
-   |                          ^ expected `address payable`, found `address`
+   ╭▸ ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
+   │
+LL │     address payable p2 = a;
+   ╰╴                         ━ expected `address payable`, found `address`
 
 error: aborting due to 2 previous errors
 
