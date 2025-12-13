@@ -1,14 +1,14 @@
 error: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
-  --> ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
-   |
-LL |     mapping(L.S1 => uint) m5;
-   |             ^^^^
+   ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
+   │
+LL │     mapping(L.S1 => uint) m5;
+   ╰╴            ━━━━
 
 error: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
-  --> ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
-   |
-LL |     mapping(uint[] => uint) m6;
-   |             ^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
+   │
+LL │     mapping(uint[] => uint) m6;
+   ╰╴            ━━━━━━
 
 error: aborting due to 2 previous errors
 

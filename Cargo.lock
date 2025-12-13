@@ -2636,6 +2636,8 @@ dependencies = [
  "anstream",
  "anstyle",
  "normalize-line-endings",
+ "serde",
+ "serde_json",
  "similar",
  "snapbox-macros",
 ]
