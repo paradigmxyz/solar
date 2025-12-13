@@ -26,6 +26,6 @@ Display options:
       --pretty-json                  Pretty-print JSON output
       --pretty-json-err              Pretty-print error JSON output
       --error-format <ERROR_FORMAT>  How errors and other messages are produced [default: human] [possible values: human, json, rustc-json]
-      --error-format-human <VALUE>   Human-readable error message style [default: ascii] [possible values: ascii, unicode, short]
+      --error-format-human <VALUE>   Human-readable error message style [default: unicode] [possible values: ascii, unicode, short]
       --diagnostic-width <WIDTH>     Terminal width for error message formatting
       --no-warnings                  Whether to disable warnings
