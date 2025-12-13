@@ -496,6 +496,32 @@ impl<'gcx> Ty<'gcx> {
                 TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
             ) if size_from == size_to => Ok(()),
 
+            // address <-> bytes20.
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::FixedBytes(size_to)),
+            ) if size_to.bytes() == 20u8 => Ok(()),
+            (
+                TyKind::Elementary(ElementaryType::FixedBytes(size_from)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) if size_from.bytes() == 20u8 => Ok(()),
+
+            // address <-> uint160.
+            (
+                TyKind::Elementary(ElementaryType::Address(_)),
+                TyKind::Elementary(ElementaryType::UInt(size)),
+            ) if size.bits() == 160u16 => Ok(()),
+            (
+                TyKind::Elementary(ElementaryType::UInt(size)),
+                TyKind::Elementary(ElementaryType::Address(_)),
+            ) if size.bits() == 160u16 => Ok(()),
+
+            // address -> address payable.
+            (
+                TyKind::Elementary(ElementaryType::Address(false)),
+                TyKind::Elementary(ElementaryType::Address(true)),
+            ) => Ok(()),
+
             _ => Err(()),
         }
     }
