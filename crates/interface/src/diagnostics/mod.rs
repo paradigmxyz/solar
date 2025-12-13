@@ -1046,10 +1046,10 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
-        // Create a diagnostic with styled messages
         let mut diag = Diag::new(Level::Note, "test");
 
         diag.highlighted_note(vec![
@@ -1061,15 +1061,11 @@ mod tests {
 
         let sub = &diag.children[0];
 
-        // Without styles - just concatenated text
-        let plain = sub.label();
-        assert_eq!(plain, "plain text removed middle added");
+        assert_data_eq!(&*sub.label(), str!["plain text removed middle added"]);
 
-        // With styles - includes ANSI escape codes
-        let styled = sub.label_with_style(true);
-        assert_eq!(
-            styled.to_string(),
-            "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
+        assert_data_eq!(
+            &*sub.label_with_style(true),
+            str!["plain text [91mremoved[0m middle [92madded[0m"]
         );
     }
 
@@ -1088,14 +1084,18 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = r#"note: mutable variables should use mixedCase
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
  --> <test.sol>:4:17
   |
 4 |         uint256 my_var = 0;
   |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1114,7 +1114,10 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
-        let expected = r#"note: mutable variables should use mixedCase
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
  --> <test.sol>:4:17
   |
 4 |         uint256 my_var = 0;
@@ -1126,8 +1129,9 @@ help: mutable variables should use mixedCase
 4 +         uint256 myVar = 0;
   |
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1148,21 +1152,25 @@ help: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
-        let expected = r#"note: mutable variables should use mixedCase
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
  --> <test.sol>:4:17
   |
 4 |         uint256 my_var = 0;
   |                 ^^^^^^
   |
+  = help: some footer help msg that should be displayed at the very bottom
 help: mutable variables should use mixedCase
   |
 4 -         uint256 my_var = 0;
 4 +         uint256 myVar = 0;
   |
-  = help: some footer help msg that should be displayed at the very bottom
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1181,7 +1189,10 @@ help: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = r#"warning: inefficient visibility and mutability
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+warning: inefficient visibility and mutability
  --> <test.sol>:3:20
   |
 3 |     function foo() public view {
@@ -1193,8 +1204,9 @@ help: consider changing visibility and mutability
 3 +     function foo() external pure {
   |
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
