@@ -94,6 +94,7 @@ impl HumanEmitter {
             source_map: None,
             renderer: DEFAULT_RENDERER,
         }
+        .human_kind(Default::default())
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
