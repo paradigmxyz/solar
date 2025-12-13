@@ -5,16 +5,16 @@ LL │ contract D is C(x) {
    ╰╴                ━
 
 error: base constructor arguments given here
-  --> ROOT/tests/ui/resolve/base_scope.sol:LL:CC
-   |
-LL |     constructor() C(x) {}
-   |                   ^^^^
-   |
+   ╭▸ ROOT/tests/ui/resolve/base_scope.sol:LL:CC
+   │
+LL │     constructor() C(x) {}
+   │                   ━━━━
+   ╰╴
 help: remove parentheses if you do not want to provide arguments here
-  --> ROOT/tests/ui/resolve/base_scope.sol:LL:CC
-   |
-LL | contract F is C() {
-   |               ^^^
+   ╭▸ ROOT/tests/ui/resolve/base_scope.sol:LL:CC
+   │
+LL │ contract F is C() {
+   ╰╴              ━━━
 
 error: aborting due to 2 previous errors
 
