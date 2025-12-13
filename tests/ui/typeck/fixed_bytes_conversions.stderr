@@ -1,44 +1,44 @@
 error: cannot convert `bytes4` to `int32`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         int32 i32 = int32(b4);
-   |                     ^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         int32 i32 = int32(b4);
+   ╰╴                    ━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `bytes8` to `int64`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         int64 i64 = int64(b8);
-   |                     ^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         int64 i64 = int64(b8);
+   ╰╴                    ━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `int64` to `bytes8`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         bytes8 b8 = bytes8(i64);
-   |                     ^^^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes8 b8 = bytes8(i64);
+   ╰╴                    ━━━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `bytes4` to `uint64`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         uint64 u64 = uint64(b4);
-   |                      ^^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         uint64 u64 = uint64(b4);
+   ╰╴                     ━━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `bytes4` to `uint8`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         uint8 u8 = uint8(b4);
-   |                    ^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         uint8 u8 = uint8(b4);
+   ╰╴                   ━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `uint64` to `bytes4`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         bytes4 b4 = bytes4(u64);
-   |                     ^^^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes4 b4 = bytes4(u64);
+   ╰╴                    ━━━━━━━━━━━ invalid explicit type conversion
 
 error: cannot convert `uint64` to `bytes32`
-  --> ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
-   |
-LL |         bytes32 b32 = bytes32(u64);
-   |                       ^^^^^^^^^^^^ invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes32 b32 = bytes32(u64);
+   ╰╴                      ━━━━━━━━━━━━ invalid explicit type conversion
 
 error: aborting due to 7 previous errors
 
