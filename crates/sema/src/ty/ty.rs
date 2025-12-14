@@ -532,7 +532,7 @@ impl<'gcx> Ty<'gcx> {
                 if matches!(ty.kind, Elementary(Bytes)) {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::Incompatible)
                 }
             }
 
