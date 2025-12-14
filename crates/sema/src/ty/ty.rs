@@ -382,12 +382,12 @@ impl<'gcx> Ty<'gcx> {
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;
         if let Some(a) = a.mobile(gcx)
-            && b.convert_implicit_to(gcx, a)
+            && b.convert_implicit_to(a, gcx)
         {
             return Some(a);
         }
         if let Some(b) = b.mobile(gcx)
-            && a.convert_implicit_to(gcx, b)
+            && a.convert_implicit_to(b, gcx)
         {
             return Some(b);
         }
@@ -415,15 +415,15 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
     #[must_use]
-    pub fn convert_implicit_to(self, gcx: Gcx<'gcx>, other: Self) -> bool {
-        self.try_convert_implicit_to(gcx, other).is_ok()
+    pub fn convert_implicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_implicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is implicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
     #[allow(clippy::result_unit_err)]
-    pub fn try_convert_implicit_to(self, gcx: Gcx<'gcx>, other: Self) -> Result<(), ()> {
+    pub fn try_convert_implicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), ()> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -472,19 +472,19 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
-    pub fn convert_explicit_to(self, gcx: Gcx<'gcx>, other: Self) -> bool {
-        self.try_convert_explicit_to(gcx, other).is_ok()
+    pub fn convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_explicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     #[allow(clippy::result_unit_err)]
-    pub fn try_convert_explicit_to(self, gcx: Gcx<'gcx>, other: Self) -> Result<(), ()> {
+    pub fn try_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), ()> {
         use ElementaryType::*;
         use TyKind::*;
 
-        if self.try_convert_implicit_to(gcx, other).is_ok() {
+        if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
         match (self.kind, other.kind) {
