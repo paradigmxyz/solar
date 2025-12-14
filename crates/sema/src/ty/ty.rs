@@ -482,7 +482,7 @@ impl<'gcx> Ty<'gcx> {
             (Enum(_), _) if other.is_integer() => Ok(()),
             (_, Enum(_)) if self.is_integer() => Ok(()),
 
-            // bytes to FixedBytes: always allowed (any size).
+            // bytes/FixedBytes to FixedBytes: always allowed (any size).
             // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
             (Elementary(FixedBytes(_)), Elementary(FixedBytes(_))) => Ok(()),
             (Ref(ty, _), Elementary(FixedBytes(_))) => {
