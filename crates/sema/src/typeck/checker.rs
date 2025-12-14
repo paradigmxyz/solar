@@ -542,24 +542,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
-        diag = match err {
-            crate::ty::TyConvertError::NonDerivedContract => diag.span_label(
-                expr.span,
-                format!(
-                    "contract `{}` does not inherit from `{}`",
-                    actual.display(self.gcx),
-                    expected.display(self.gcx)
-                ),
-            ),
-            _ => diag.span_label(
-                expr.span,
-                format!(
-                    "expected `{}`, found `{}`",
-                    expected.display(self.gcx),
-                    actual.display(self.gcx)
-                ),
-            ),
-        };
+        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
         diag.emit();
     }
 

@@ -34,6 +34,24 @@ pub enum TyConvertError {
     NonDerivedContract,
 }
 
+impl TyConvertError {
+    /// Returns the error message for this conversion error.
+    pub fn message<'gcx>(self, from: Ty<'gcx>, to: Ty<'gcx>, gcx: Gcx<'gcx>) -> String {
+        match self {
+            Self::NonDerivedContract => {
+                format!(
+                    "contract `{}` does not inherit from `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
+            }
+            Self::Incompatible => {
+                format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+        }
+    }
+}
+
 impl<'gcx> Ty<'gcx> {
     pub fn new(gcx: Gcx<'gcx>, kind: TyKind<'gcx>) -> Self {
         gcx.mk_ty(kind)
