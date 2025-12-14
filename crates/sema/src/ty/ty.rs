@@ -25,6 +25,15 @@ impl<'gcx> std::ops::Deref for Ty<'gcx> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TyConvertError {
+    /// Generic incompatibility (fallback).
+    Incompatible,
+
+    /// Contract doesn't inherit from target contract.
+    NonDerivedContract,
+}
+
 impl<'gcx> Ty<'gcx> {
     pub fn new(gcx: Gcx<'gcx>, kind: TyKind<'gcx>) -> Self {
         gcx.mk_ty(kind)
@@ -422,8 +431,11 @@ impl<'gcx> Ty<'gcx> {
     /// Checks if the type is implicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_implicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), ()> {
+    pub fn try_convert_implicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -447,7 +459,7 @@ impl<'gcx> Ty<'gcx> {
                 {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::Incompatible)
                 }
             }
 
@@ -457,12 +469,12 @@ impl<'gcx> Ty<'gcx> {
                 if self_contract.linearized_bases.contains(&other_contract_id) {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
 
             // TODO: more implicit conversions
-            _ => Result::Err(()),
+            _ => Result::Err(TyConvertError::Incompatible),
         }
     }
 
@@ -479,8 +491,11 @@ impl<'gcx> Ty<'gcx> {
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), ()> {
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -515,7 +530,7 @@ impl<'gcx> Ty<'gcx> {
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
 
-            _ => Result::Err(()),
+            _ => Result::Err(TyConvertError::Incompatible),
         }
     }
 

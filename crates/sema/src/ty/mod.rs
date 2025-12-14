@@ -42,7 +42,7 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
-pub use ty::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 

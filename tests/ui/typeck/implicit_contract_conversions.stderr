@@ -2,7 +2,7 @@ error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
    │
 LL │         Base b = u;
-   ╰╴                 ━ expected `contract Base`, found `contract Unrelated`
+   ╰╴                 ━ contract `contract Unrelated` does not inherit from `contract Base`
 
 error: aborting due to 1 previous error
 
