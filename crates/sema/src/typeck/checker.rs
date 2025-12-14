@@ -763,13 +763,12 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                             .span(modifier.span)
                             .emit();
                     } else {
-                        for (_arg_expr, _expected_arg_ty) in
+                        for (arg_expr, expected_arg_ty) in
                             modifier.args.exprs().zip(ctor_param_types.iter())
                         {
-                            // TODO: implicit conversion needed here
-                            // let actual_arg_ty = self.check_expr_kind(arg_expr,
-                            // Some(*expected_arg_ty));
-                            // self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                            let actual_arg_ty =
+                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
                     }
                 }
