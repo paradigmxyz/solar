@@ -419,41 +419,41 @@ impl<'gcx> Ty<'gcx> {
         self.try_convert_implicit_to(other).is_ok()
     }
 
+    /// Checks if the type is implicitly convertible to the given type.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
+        use ElementaryType::*;
+        use TyKind::*;
+
         if self == other || self.references_error() || other.references_error() {
             return Ok(());
         }
 
-        // payable addresses can be implicitly converted into non-payable addresses
-        if self.kind == TyKind::Elementary(ElementaryType::Address(true))
-            && other.kind == TyKind::Elementary(ElementaryType::Address(false))
-        {
-            return Ok(());
-        }
+        match (self.kind, other.kind) {
+            // address payable -> address.
+            (Elementary(Address(true)), Elementary(Address(false))) => Ok(()),
 
-        // Array slices are implicitly convertible to arrays of their underlying element type.
-        // E.g., `uint256[] calldata slice` can convert to `uint256[] calldata` or `uint256[]
-        // memory`. See: https://docs.soliditylang.org/en/latest/types.html#array-slices
-        if let TyKind::Slice(underlying) = self.kind {
-            // Exact match with underlying type.
-            if underlying == other {
-                return Ok(());
-            }
-            // Allow conversion to memory arrays of the same base type.
-            // E.g., `uint256[] calldata slice` → `uint256[] memory`.
+            // Array slices are implicitly convertible to arrays of their underlying element type.
             // Note: conversion to storage pointers is NOT allowed.
-            if let (TyKind::Ref(self_inner, _), TyKind::Ref(other_inner, other_loc)) =
-                (&underlying.kind, &other.kind)
-                && self_inner == other_inner
-                && *other_loc == DataLocation::Memory
-            {
-                return Ok(());
+            // See: <https://docs.soliditylang.org/en/latest/types.html#array-slices>
+            // `T[] loc slice` -> `T[] loc`
+            (Slice(underlying), _) if underlying == other => Ok(()),
+            // `T[] loc slice` -> `T[] memory`
+            (Slice(underlying), Ref(other_inner, DataLocation::Memory)) => {
+                if let Ref(self_inner, _) = underlying.kind
+                    && self_inner == other_inner
+                {
+                    Ok(())
+                } else {
+                    Result::Err(())
+                }
             }
-        }
 
-        // TODO
-        Err(())
+            // TODO: more implicit conversions
+            _ => Result::Err(()),
+        }
     }
 
     /// Returns `true` if the type is explicitly convertible to the given type.
@@ -466,17 +466,53 @@ impl<'gcx> Ty<'gcx> {
         self.try_convert_explicit_to(other).is_ok()
     }
 
+    /// Checks if the type is explicitly convertible to the given type.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     #[allow(clippy::result_unit_err)]
     pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
+        use ElementaryType::*;
+        use TyKind::*;
+
         if self.try_convert_implicit_to(other).is_ok() {
             return Ok(());
         }
-        match (&self.kind, &other.kind) {
-            // For Enum <-> all integer types conversion:
-            // See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-            (TyKind::Enum(_), _) if other.is_integer() => Ok(()),
-            (_, TyKind::Enum(_)) if self.is_integer() => Ok(()),
-            _ => Err(()),
+        match (self.kind, other.kind) {
+            // Enum <-> all integer types.
+            (Enum(_), _) if other.is_integer() => Ok(()),
+            (_, Enum(_)) if self.is_integer() => Ok(()),
+
+            // bytes/FixedBytes to FixedBytes: always allowed (any size).
+            // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
+            (Elementary(FixedBytes(_)), Elementary(FixedBytes(_))) => Ok(()),
+            (Ref(ty, _), Elementary(FixedBytes(_))) => {
+                if matches!(ty.kind, Elementary(Bytes)) {
+                    Ok(())
+                } else {
+                    Result::Err(())
+                }
+            }
+
+            // FixedBytes <-> UInt: same size only (signed integers not allowed).
+            (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
+            | (Elementary(UInt(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
+
+            // address <-> bytes20.
+            (Elementary(Address(_)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
+            (Elementary(FixedBytes(s)), Elementary(Address(_))) if s.bytes() == 20 => Ok(()),
+
+            // address <-> uint160.
+            (Elementary(Address(_)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
+            (Elementary(UInt(s)), Elementary(Address(_))) if s.bits() == 160 => Ok(()),
+
+            // address -> address payable.
+            (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+
+            _ => Result::Err(()),
         }
     }
 
@@ -539,7 +575,7 @@ impl fmt::Debug for TyData<'_> {
 }
 
 /// The kind of a type.
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum TyKind<'gcx> {
     /// An elementary/primitive type.

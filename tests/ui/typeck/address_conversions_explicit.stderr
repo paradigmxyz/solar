@@ -1,0 +1,26 @@
+error: cannot convert `address` to `bytes32`
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         bytes32 b32_from_a = bytes32(a);
+   ╰╴                             ━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `bytes32` to `address`
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         address a4 = address(b32);
+   ╰╴                     ━━━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `address` to `uint256`
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         uint256 u256_from_a = uint256(a);
+   ╰╴                              ━━━━━━━━━━ invalid explicit type conversion
+
+error: cannot convert `uint256` to `address`
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         address a5 = address(u256);
+   ╰╴                     ━━━━━━━━━━━━━ invalid explicit type conversion
+
+error: aborting due to 4 previous errors
+

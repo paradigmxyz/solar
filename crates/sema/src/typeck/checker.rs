@@ -912,9 +912,7 @@ impl<T> FromIterator<T> for WantOne<T> {
                 let first = iter.next().unwrap();
                 match iter.peek() {
                     None => Self::One(first),
-                    Some(_) => Self::Many
-                    // (std::iter::once(first).chain(iter).collect())
-                    ,
+                    Some(_) => Self::Many, // (std::iter::once(first).chain(iter).collect()),
                 }
             }
         }
