@@ -502,10 +502,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => {
-                debug_assert!(!key.is_reference_type(), "invalid mapping key {key:?}");
-                (key, value.with_loc_if_ref_opt(self.gcx, loc))
-            }
+            TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
     }
