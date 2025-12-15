@@ -471,6 +471,39 @@ impl<'gcx> Ty<'gcx> {
             // address payable -> address.
             (Elementary(Address(true)), Elementary(Address(false))) => Ok(()),
 
+            // Reference type location coercion rules.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#data-location-and-assignment-behaviour>
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) => {
+                match (from_loc, to_loc) {
+                    // Same location: allowed if base types match.
+                    (DataLocation::Memory, DataLocation::Memory)
+                    | (DataLocation::Calldata, DataLocation::Calldata) => {
+                        from_inner.try_convert_implicit_to(to_inner)
+                    }
+
+                    // storage -> storage: allowed (reference assignment).
+                    (DataLocation::Storage, DataLocation::Storage) => {
+                        from_inner.try_convert_implicit_to(to_inner)
+                    }
+
+                    // calldata/storage -> memory: allowed (copy semantics).
+                    (DataLocation::Calldata, DataLocation::Memory)
+                    | (DataLocation::Storage, DataLocation::Memory) => {
+                        from_inner.try_convert_implicit_to(to_inner)
+                    }
+
+                    // memory/calldata -> storage: allowed (copy semantics).
+                    (DataLocation::Memory, DataLocation::Storage)
+                    | (DataLocation::Calldata, DataLocation::Storage) => {
+                        from_inner.try_convert_implicit_to(to_inner)
+                    }
+
+                    // storage -> calldata: never allowed.
+                    // memory -> calldata: never allowed.
+                    _ => Result::Err(()),
+                }
+            }
+
             // Array slices are implicitly convertible to arrays of their underlying element type.
             // Note: conversion to storage pointers is NOT allowed.
             // See: <https://docs.soliditylang.org/en/latest/types.html#array-slices>

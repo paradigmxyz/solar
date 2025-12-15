@@ -10,5 +10,17 @@ error: only elementary types, user defined value types, contract types or enums 
 LL │     mapping(uint[] => uint) m6;
    ╰╴            ━━━━━━
 
-error: aborting due to 2 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
+   │
+LL │         m1[s];
+   ╰╴           ━ expected `string`, found `string memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
+   │
+LL │         m1b[b];
+   ╰╴            ━ expected `bytes`, found `bytes memory`
+
+error: aborting due to 4 previous errors
 

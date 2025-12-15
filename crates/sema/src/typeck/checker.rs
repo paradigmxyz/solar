@@ -502,10 +502,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => {
-                debug_assert!(!key.is_reference_type(), "invalid mapping key {key:?}");
-                (key, value.with_loc_if_ref_opt(self.gcx, loc))
-            }
+            TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
     }
@@ -727,6 +724,45 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         let r = self.walk_nested_contract(id);
         self.contract = prev;
         r
+    }
+
+    fn visit_contract(
+        &mut self,
+        contract: &'gcx hir::Contract<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        // Check base constructor arguments
+        for (&base_id, modifier) in
+            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
+        {
+            // Get constructor parameters if the base has a constructor
+            let base_contract = self.gcx.hir.contract(base_id);
+            if let Some(ctor_id) = base_contract.ctor {
+                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
+                // Check if arguments were provided and validate count
+                if let Some(modifier) = modifier {
+                    let arg_count = modifier.args.exprs().len();
+                    if arg_count != ctor_param_types.len() {
+                        self.dcx()
+                            .err(format!(
+                                "wrong number of arguments for base constructor: expected {}, found {}",
+                                ctor_param_types.len(),
+                                arg_count
+                            ))
+                            .span(modifier.span)
+                            .emit();
+                    } else {
+                        for (arg_expr, expected_arg_ty) in
+                            modifier.args.exprs().zip(ctor_param_types.iter())
+                        {
+                            let actual_arg_ty =
+                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                        }
+                    }
+                }
+            }
+        }
+        self.walk_contract(contract)
     }
 
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
