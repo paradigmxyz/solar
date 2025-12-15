@@ -12,7 +12,7 @@ contract E is C {
     uint constant x = 69;
     constructor() C(x) {}
 }
-contract F is C() { // TODO: ~ERROR: mismatched base constructor arguments
+contract F is C() { //~HELP: remove parentheses if you do not want to provide arguments here
     uint constant x = 69;
-    constructor() C(x) {}
+    constructor() C(x) {} //~ERROR: base constructor arguments given here
 }

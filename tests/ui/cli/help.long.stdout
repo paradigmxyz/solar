@@ -86,7 +86,7 @@ Display options:
       --error-format-human <VALUE>
           Human-readable error message style
           
-          [default: ascii]
+          [default: unicode]
           [possible values: ascii, unicode, short]
 
       --diagnostic-width <WIDTH>

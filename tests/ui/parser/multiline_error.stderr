@@ -1,11 +1,11 @@
 error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found keyword `new`
-  --> ROOT/tests/ui/parser/multiline_error.sol:LL:CC
-   |
-LL |         new string[](3)
-   |                        - expected one of `(`, `.`, `;`, `?`, `[`, or `{`
-...
-LL |         new string[](4)
-   |         ^^^ unexpected token
+   ╭▸ ROOT/tests/ui/parser/multiline_error.sol:LL:CC
+   │
+LL │         new string[](3)
+   │                        ─ expected one of `(`, `.`, `;`, `?`, `[`, or `{`
+   ‡
+LL │         new string[](4)
+   ╰╴        ━━━ unexpected token
 
 error: aborting due to 1 previous error
 

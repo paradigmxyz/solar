@@ -119,12 +119,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
 
         let key = self.parse_type()?;
-        // TODO: Move to type checking.
-        if !key.is_elementary() && !key.is_custom() {
-            let msg =
-                "only elementary types or used-defined types can be used as key types in mappings";
-            self.dcx().err(msg).span(key.span).emit();
-        }
         let key_name = self.parse_ident_opt()?;
 
         self.expect(TokenKind::FatArrow)?;

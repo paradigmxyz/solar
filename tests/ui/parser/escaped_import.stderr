@@ -1,8 +1,8 @@
 error: unknown character escape
-  --> ROOT/tests/ui/parser/escaped_import.sol:LL:CC
-   |
-LL | import "\?";
-   |          ^
+   ╭▸ ROOT/tests/ui/parser/escaped_import.sol:LL:CC
+   │
+LL │ import "\?";
+   ╰╴         ━
 
 error: aborting due to 1 previous error
 

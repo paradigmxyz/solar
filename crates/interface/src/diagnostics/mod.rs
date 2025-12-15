@@ -1046,10 +1046,10 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
+    use snapbox::{IntoData, assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
-        // Create a diagnostic with styled messages
         let mut diag = Diag::new(Level::Note, "test");
 
         diag.highlighted_note(vec![
@@ -1061,15 +1061,11 @@ mod tests {
 
         let sub = &diag.children[0];
 
-        // Without styles - just concatenated text
-        let plain = sub.label();
-        assert_eq!(plain, "plain text removed middle added");
+        assert_data_eq!(&*sub.label(), str!["plain text removed middle added"]);
 
-        // With styles - includes ANSI escape codes
-        let styled = sub.label_with_style(true);
-        assert_eq!(
-            styled.to_string(),
-            "plain text \u{1b}[91mremoved\u{1b}[0m middle \u{1b}[92madded\u{1b}[0m".to_string()
+        assert_data_eq!(
+            &*sub.label_with_style(true),
+            str!["plain text [91mremoved[0m middle [92madded[0m"]
         );
     }
 
@@ -1088,14 +1084,18 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = r#"note: mutable variables should use mixedCase
- --> <test.sol>:4:17
-  |
-4 |         uint256 my_var = 0;
-  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
+  ╭▸ <test.sol>:4:17
+  │
+4 │         uint256 my_var = 0;
+  ╰╴                ━━━━━━ help: mutable variables should use mixedCase: `myVar`
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1114,20 +1114,24 @@ mod tests {
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
-        let expected = r#"note: mutable variables should use mixedCase
- --> <test.sol>:4:17
-  |
-4 |         uint256 my_var = 0;
-  |                 ^^^^^^
-  |
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
+  ╭▸ <test.sol>:4:17
+  │
+4 │         uint256 my_var = 0;
+  │                 ━━━━━━
+  ╰╴
 help: mutable variables should use mixedCase
-  |
+  ╭╴
 4 -         uint256 my_var = 0;
 4 +         uint256 myVar = 0;
-  |
+  ╰╴
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1148,21 +1152,25 @@ help: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
-        let expected = r#"note: mutable variables should use mixedCase
- --> <test.sol>:4:17
-  |
-4 |         uint256 my_var = 0;
-  |                 ^^^^^^
-  |
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+note: mutable variables should use mixedCase
+  ╭▸ <test.sol>:4:17
+  │
+4 │         uint256 my_var = 0;
+  │                 ━━━━━━
+  │
+  ╰ help: some footer help msg that should be displayed at the very bottom
 help: mutable variables should use mixedCase
-  |
+  ╭╴
 4 -         uint256 my_var = 0;
 4 +         uint256 myVar = 0;
-  |
-  = help: some footer help msg that should be displayed at the very bottom
+  ╰╴
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1181,20 +1189,24 @@ help: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = r#"warning: inefficient visibility and mutability
- --> <test.sol>:3:20
-  |
-3 |     function foo() public view {
-  |                    ^^^^^^ ^^^^
-  |
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+warning: inefficient visibility and mutability
+  ╭▸ <test.sol>:3:20
+  │
+3 │     function foo() public view {
+  │                    ━━━━━━ ━━━━
+  ╰╴
 help: consider changing visibility and mutability
-  |
+  ╭╴
 3 -     function foo() public view {
 3 +     function foo() external pure {
-  |
+  ╰╴
 
-"#;
-        assert_eq!(emit_human_diagnostics(diag), expected);
+
+"#]]
+        );
     }
 
     #[test]
@@ -1213,56 +1225,69 @@ help: consider changing visibility and mutability
         assert_eq!(diag.suggestions[0].applicability, Applicability::MachineApplicable);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = json!({
-            "$message_type": "diagnostic",
-            "message": "mutable variables should use mixedCase",
-            "code": null,
-            "level": "note",
-            "spans": [{
-                "file_name": "<test.sol>",
-                "byte_start": 66,
-                "byte_end": 72,
-                "line_start": 4,
-                "line_end": 4,
-                "column_start": 17,
-                "column_end": 23,
-                "is_primary": true,
-                "text": [{
-                    "text": "        uint256 my_var = 0;",
-                    "highlight_start": 17,
-                    "highlight_end": 23
-                }],
-                "label": null,
-                "suggested_replacement": null
-            }],
-            "children": [{
-                "message": "mutable variables should use mixedCase",
-                "code": null,
-                "level": "help",
-                "spans": [{
-                    "file_name": "<test.sol>",
-                    "byte_start": 66,
-                    "byte_end": 72,
-                    "line_start": 4,
-                    "line_end": 4,
-                    "column_start": 17,
-                    "column_end": 23,
-                    "is_primary": true,
-                    "text": [{
-                        "text": "        uint256 my_var = 0;",
-                        "highlight_start": 17,
-                        "highlight_end": 23
-                    }],
-                    "label": null,
-                    "suggested_replacement": "myVar"
-                }],
-                "children": [],
-                "rendered": null
-            }],
-            "rendered": "note: mutable variables should use mixedCase\n --> <test.sol>:4:17\n  |\n4 |         uint256 my_var = 0;\n  |                 ^^^^^^ help: mutable variables should use mixedCase: `myVar`\n\n"
-        });
-
-        assert_eq!(emit_json_diagnostics(diag), expected);
+        assert_data_eq!(
+            emit_json_diagnostics(diag),
+            str![[r#"
+{
+  "$message_type": "diagnostic",
+  "children": [
+    {
+      "children": [],
+      "code": null,
+      "level": "help",
+      "message": "mutable variables should use mixedCase",
+      "rendered": null,
+      "spans": [
+        {
+          "byte_end": 72,
+          "byte_start": 66,
+          "column_end": 23,
+          "column_start": 17,
+          "file_name": "<test.sol>",
+          "is_primary": true,
+          "label": null,
+          "line_end": 4,
+          "line_start": 4,
+          "suggested_replacement": "myVar",
+          "text": [
+            {
+              "highlight_end": 23,
+              "highlight_start": 17,
+              "text": "        uint256 my_var = 0;"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "code": null,
+  "level": "note",
+  "message": "mutable variables should use mixedCase",
+  "rendered": "note: mutable variables should use mixedCase\n  ╭▸ <test.sol>:4:17\n  │\n4 │         uint256 my_var = 0;\n  ╰╴                ━━━━━━ help: mutable variables should use mixedCase: `myVar`\n\n",
+  "spans": [
+    {
+      "byte_end": 72,
+      "byte_start": 66,
+      "column_end": 23,
+      "column_start": 17,
+      "file_name": "<test.sol>",
+      "is_primary": true,
+      "label": null,
+      "line_end": 4,
+      "line_start": 4,
+      "suggested_replacement": null,
+      "text": [
+        {
+          "highlight_end": 23,
+          "highlight_start": 17,
+          "text": "        uint256 my_var = 0;"
+        }
+      ]
+    }
+  ]
+}
+"#]].is(snapbox::data::DataFormat::Json)
+        );
     }
 
     #[test]
@@ -1282,93 +1307,107 @@ help: consider changing visibility and mutability
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
 
-        let expected = json!({
-            "$message_type": "diagnostic",
-            "message": "inefficient visibility and mutability",
-            "code": null,
-            "level": "warning",
-            "spans": [
-                {
-                    "file_name": "<test.sol>",
-                    "byte_start": 36,
-                    "byte_end": 42,
-                    "line_start": 3,
-                    "line_end": 3,
-                    "column_start": 20,
-                    "column_end": 26,
-                    "is_primary": true,
-                    "text": [{
-                        "text": "    function foo() public view {",
-                        "highlight_start": 20,
-                        "highlight_end": 26
-                    }],
-                    "label": null,
-                    "suggested_replacement": null
-                },
-                {
-                    "file_name": "<test.sol>",
-                    "byte_start": 43,
-                    "byte_end": 47,
-                    "line_start": 3,
-                    "line_end": 3,
-                    "column_start": 27,
-                    "column_end": 31,
-                    "is_primary": true,
-                    "text": [{
-                        "text": "    function foo() public view {",
-                        "highlight_start": 27,
-                        "highlight_end": 31
-                    }],
-                    "label": null,
-                    "suggested_replacement": null
-                }
-            ],
-            "children": [{
-                "message": "consider changing visibility and mutability",
-                "code": null,
-                "level": "help",
-                "spans": [
-                    {
-                        "file_name": "<test.sol>",
-                        "byte_start": 36,
-                        "byte_end": 42,
-                        "line_start": 3,
-                        "line_end": 3,
-                        "column_start": 20,
-                        "column_end": 26,
-                        "is_primary": true,
-                        "text": [{
-                            "text": "    function foo() public view {",
-                            "highlight_start": 20,
-                            "highlight_end": 26
-                        }],
-                        "label": null,
-                        "suggested_replacement": "external"
-                    },
-                    {
-                        "file_name": "<test.sol>",
-                        "byte_start": 43,
-                        "byte_end": 47,
-                        "line_start": 3,
-                        "line_end": 3,
-                        "column_start": 27,
-                        "column_end": 31,
-                        "is_primary": true,
-                        "text": [{
-                            "text": "    function foo() public view {",
-                            "highlight_start": 27,
-                            "highlight_end": 31
-                        }],
-                        "label": null,
-                        "suggested_replacement": "pure"
-                    }
-                ],
-                "children": [],
-                "rendered": null
-            }],
-            "rendered": "warning: inefficient visibility and mutability\n --> <test.sol>:3:20\n  |\n3 |     function foo() public view {\n  |                    ^^^^^^ ^^^^\n  |\nhelp: consider changing visibility and mutability\n  |\n3 -     function foo() public view {\n3 +     function foo() external pure {\n  |\n\n"
-        });
-        assert_eq!(emit_json_diagnostics(diag), expected);
+        assert_data_eq!(
+            emit_json_diagnostics(diag),
+            str![[r#"
+{
+  "$message_type": "diagnostic",
+  "children": [
+    {
+      "children": [],
+      "code": null,
+      "level": "help",
+      "message": "consider changing visibility and mutability",
+      "rendered": null,
+      "spans": [
+        {
+          "byte_end": 42,
+          "byte_start": 36,
+          "column_end": 26,
+          "column_start": 20,
+          "file_name": "<test.sol>",
+          "is_primary": true,
+          "label": null,
+          "line_end": 3,
+          "line_start": 3,
+          "suggested_replacement": "external",
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 20,
+              "text": "    function foo() public view {"
+            }
+          ]
+        },
+        {
+          "byte_end": 47,
+          "byte_start": 43,
+          "column_end": 31,
+          "column_start": 27,
+          "file_name": "<test.sol>",
+          "is_primary": true,
+          "label": null,
+          "line_end": 3,
+          "line_start": 3,
+          "suggested_replacement": "pure",
+          "text": [
+            {
+              "highlight_end": 31,
+              "highlight_start": 27,
+              "text": "    function foo() public view {"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "code": null,
+  "level": "warning",
+  "message": "inefficient visibility and mutability",
+  "rendered": "warning: inefficient visibility and mutability\n  ╭▸ <test.sol>:3:20\n  │\n3 │     function foo() public view {\n  │                    ━━━━━━ ━━━━\n  ╰╴\nhelp: consider changing visibility and mutability\n  ╭╴\n3 -     function foo() public view {\n3 +     function foo() external pure {\n  ╰╴\n\n",
+  "spans": [
+    {
+      "byte_end": 42,
+      "byte_start": 36,
+      "column_end": 26,
+      "column_start": 20,
+      "file_name": "<test.sol>",
+      "is_primary": true,
+      "label": null,
+      "line_end": 3,
+      "line_start": 3,
+      "suggested_replacement": null,
+      "text": [
+        {
+          "highlight_end": 26,
+          "highlight_start": 20,
+          "text": "    function foo() public view {"
+        }
+      ]
+    },
+    {
+      "byte_end": 47,
+      "byte_start": 43,
+      "column_end": 31,
+      "column_start": 27,
+      "file_name": "<test.sol>",
+      "is_primary": true,
+      "label": null,
+      "line_end": 3,
+      "line_start": 3,
+      "suggested_replacement": null,
+      "text": [
+        {
+          "highlight_end": 31,
+          "highlight_start": 27,
+          "text": "    function foo() public view {"
+        }
+      ]
+    }
+  ]
+}
+"#]].is(snapbox::data::DataFormat::Json)
+        );
     }
 
     // --- HELPERS -------------------------------------------------------------
@@ -1392,12 +1431,8 @@ contract Test {
     }
 
     #[cfg(feature = "json")]
-    use {
-        serde_json::{Value, json},
-        std::sync::{Arc, Mutex},
-    };
+    use std::sync::{Arc, Mutex};
 
-    // A sharable writer
     #[cfg(feature = "json")]
     #[derive(Clone)]
     struct SharedWriter(Arc<Mutex<Vec<u8>>>);
@@ -1412,9 +1447,8 @@ contract Test {
         }
     }
 
-    // Helper to setup the run the json emitter. Outputs a json object for the given diagnostics.
     #[cfg(feature = "json")]
-    fn emit_json_diagnostics(diag: Diag) -> Value {
+    fn emit_json_diagnostics(diag: Diag) -> String {
         let sm = Arc::new(source_map::SourceMap::empty());
         sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
 
@@ -1425,9 +1459,6 @@ contract Test {
         let _ = dcx.emit_diagnostic(diag);
 
         let buffer = writer.lock().unwrap();
-        serde_json::from_str(
-            &String::from_utf8(buffer.clone()).expect("JSON output was not valid UTF-8"),
-        )
-        .expect("failed to deserialize JSON")
+        String::from_utf8(buffer.clone()).expect("JSON output was not valid UTF-8")
     }
 }

@@ -502,10 +502,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => {
-                debug_assert!(!key.is_reference_type(), "invalid mapping key {key:?}");
-                (key, value.with_loc_if_ref_opt(self.gcx, loc))
-            }
+            TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
     }
@@ -626,6 +623,18 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     #[must_use]
+    fn check_mapping_key_type(&mut self, key: &'gcx hir::Type<'gcx>) -> Ty<'gcx> {
+        let ty = self.gcx.type_of_hir_ty(key);
+        if !matches!(
+            ty.kind,
+            TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
+        ) {
+            self.dcx().err("only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
+        }
+        ty
+    }
+
+    #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let prev = self.lvalue_context.replace(true);
         let ty = self.check_expr(expr);
@@ -726,12 +735,50 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_contract(
+        &mut self,
+        contract: &'gcx hir::Contract<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        // Check base constructor arguments
+        for (&base_id, modifier) in
+            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
+        {
+            // Get constructor parameters if the base has a constructor
+            let base_contract = self.gcx.hir.contract(base_id);
+            if let Some(ctor_id) = base_contract.ctor {
+                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
+                // Check if arguments were provided and validate count
+                if let Some(modifier) = modifier {
+                    let arg_count = modifier.args.exprs().len();
+                    if arg_count != ctor_param_types.len() {
+                        self.dcx()
+                            .err(format!(
+                                "wrong number of arguments for base constructor: expected {}, found {}",
+                                ctor_param_types.len(),
+                                arg_count
+                            ))
+                            .span(modifier.span)
+                            .emit();
+                    } else {
+                        for (arg_expr, expected_arg_ty) in
+                            modifier.args.exprs().zip(ctor_param_types.iter())
+                        {
+                            let actual_arg_ty =
+                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                        }
+                    }
+                }
+            }
+        }
+        self.walk_contract(contract)
+    }
+
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
         let _ = self.check_var(id);
         ControlFlow::Continue(())
     }
 
-    #[expect(clippy::single_match)]
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
@@ -739,6 +786,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     let _ = self.expect_ty(size, self.gcx.types.uint(256));
                 }
                 return self.visit_ty(&array.element);
+            }
+            hir::TypeKind::Mapping(mapping) => {
+                let _ = self.check_mapping_key_type(&mapping.key);
+                self.visit_ty(&mapping.value)?;
             }
             // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
             // hir::TypeKind::Function(func) => {
@@ -857,9 +908,7 @@ impl<T> FromIterator<T> for WantOne<T> {
                 let first = iter.next().unwrap();
                 match iter.peek() {
                     None => Self::One(first),
-                    Some(_) => Self::Many
-                    // (std::iter::once(first).chain(iter).collect())
-                    ,
+                    Some(_) => Self::Many, // (std::iter::once(first).chain(iter).collect()),
                 }
             }
         }

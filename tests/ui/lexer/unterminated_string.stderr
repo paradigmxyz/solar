@@ -1,20 +1,20 @@
 error: unterminated string
-  --> ROOT/tests/ui/lexer/unterminated_string.sol:LL:CC
-   |
-LL | / "
-LL | |
-LL | |
-   | |_________________________________^
+   ╭▸ ROOT/tests/ui/lexer/unterminated_string.sol:LL:CC
+   │
+LL │ ┏ "
+LL │ ┃
+LL │ ┃
+   ╰╴┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 error: expected global item (pragma, import directive, contract, interface, library, struct, enum, constant, function, modifier, or error definition), found `<error>`
-  --> ROOT/tests/ui/lexer/unterminated_string.sol:LL:CC
-   |
-LL | / "
-LL | |
-LL | |
-   | |_________________________________^
-   |
-   = note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
+   ╭▸ ROOT/tests/ui/lexer/unterminated_string.sol:LL:CC
+   │
+LL │ ┏ "
+LL │ ┃
+LL │ ┃
+   │ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+   │
+   ╰ note: for a full list of valid global items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.sourceUnit>
 
 error: aborting due to 2 previous errors
 

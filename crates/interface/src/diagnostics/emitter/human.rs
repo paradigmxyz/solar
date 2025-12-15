@@ -94,6 +94,7 @@ impl HumanEmitter {
             source_map: None,
             renderer: DEFAULT_RENDERER,
         }
+        .human_kind(Default::default())
     }
 
     /// Creates a new `HumanEmitter` that writes to stderr, for use in tests.
@@ -222,18 +223,17 @@ impl HumanEmitter {
         }
 
         let mut report = vec![];
-        let mut main_group = Group::with_title(title);
-        let mut footer_group = Group::with_level(ASLevel::NOTE);
+        let mut group = Group::with_title(title);
 
         // If we don't have span information, emit and exit
         let Some(sm) = self.source_map.as_ref() else {
-            main_group = main_group.elements(children.iter().map(|c| {
+            group = group.elements(children.iter().map(|c| {
                 let msg = self.no_style_msgs(&c.messages);
                 let level = annotation_level_for_level(c.level);
                 level.message(msg)
             }));
 
-            report.push(main_group);
+            report.push(group);
             if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
                 panic!("failed to emit error: {e}");
             }
@@ -252,7 +252,7 @@ impl HumanEmitter {
 
             for (file, annotations) in file_ann.into_iter() {
                 if let Some(snippet) = self.annotated_snippet(annotations, &file.name, sm) {
-                    main_group = main_group.element(snippet);
+                    group = group.element(snippet);
                 }
             }
         }
@@ -270,12 +270,12 @@ impl HumanEmitter {
 
             // This is a secondary message with no span info
             if !c.span.has_primary_spans() && !c.span.has_span_labels() {
-                footer_group = footer_group.element(level.clone().message(msg));
+                group = group.element(level.clone().message(msg));
                 continue;
             }
 
             report.push(std::mem::replace(
-                &mut main_group,
+                &mut group,
                 Group::with_title(level.clone().secondary_title(msg)),
             ));
 
@@ -292,7 +292,7 @@ impl HumanEmitter {
 
             for (file, annotations) in file_ann.into_iter() {
                 if let Some(snippet) = self.annotated_snippet(annotations, &file.name, sm) {
-                    main_group = main_group.element(snippet);
+                    group = group.element(snippet);
                 }
             }
         }
@@ -315,7 +315,7 @@ impl HumanEmitter {
                 }
                 SuggestionStyle::HideCodeAlways => {
                     let msg = self.no_style_msgs(&[(suggestion.msg.to_owned(), Style::HeaderMsg)]);
-                    main_group = main_group.element(annotate_snippets::Level::HELP.message(msg));
+                    group = group.element(annotate_snippets::Level::HELP.message(msg));
                 }
                 SuggestionStyle::HideCodeInline
                 | SuggestionStyle::ShowCode
@@ -434,13 +434,13 @@ impl HumanEmitter {
                         .collect::<Vec<_>>();
                     if !subs.is_empty() {
                         report.push(std::mem::replace(
-                            &mut main_group,
+                            &mut group,
                             Group::with_title(annotate_snippets::Level::HELP.secondary_title(msg)),
                         ));
 
-                        main_group = main_group.elements(subs);
+                        group = group.elements(subs);
                         if other_suggestions > 0 {
-                            main_group = main_group.element(
+                            group = group.element(
                                 annotate_snippets::Level::NOTE.no_name().message(format!(
                                     "and {} other candidate{}",
                                     other_suggestions,
@@ -456,15 +456,11 @@ impl HumanEmitter {
         // FIXME: This hack should be removed once annotate_snippets is the
         // default emitter.
         if suggestions_expected > 0 && report.is_empty() {
-            main_group = main_group.element(Padding);
+            group = group.element(Padding);
         }
 
-        if !main_group.is_empty() {
-            report.push(main_group);
-        }
-
-        if !footer_group.is_empty() {
-            report.push(footer_group);
+        if !group.is_empty() {
+            report.push(group);
         }
 
         if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
@@ -655,13 +651,25 @@ fn collect_annotations(
 
         let ann = Annotation { kind, span, label };
         if sm.is_valid_span(ann.span).is_ok() {
-            if let Some((_, annotations)) = output.iter_mut().find(|(f, _)| f.name == file.name) {
+            // Look through each of our files for the one we're adding to.
+            if let Some((_, annotations)) =
+                output.iter_mut().find(|(f, _)| f.start_pos == file.start_pos)
+            {
                 annotations.push(ann);
             } else {
                 output.push((file, vec![ann]));
             }
         }
     }
+
+    // Sort annotations within each file by line number.
+    for (_, ann) in output.iter_mut() {
+        ann.sort_by_key(|a| {
+            let lo = sm.lookup_char_pos(a.span.lo());
+            lo.line
+        });
+    }
+
     output
 }
 
@@ -672,14 +680,20 @@ fn shrink_file(
 ) -> Option<(Span, String, usize)> {
     let lo_byte = spans.iter().map(|s| s.lo()).min()?;
     let lo_loc = sm.lookup_char_pos(lo_byte);
-    let lo = lo_loc.file.line_bounds(lo_loc.line.saturating_sub(1)).start;
 
     let hi_byte = spans.iter().map(|s| s.hi()).max()?;
     let hi_loc = sm.lookup_char_pos(hi_byte);
+
+    if lo_loc.file.start_pos != hi_loc.file.start_pos {
+        // This may happen when spans cross file boundaries due to macro expansion.
+        return None;
+    }
+
+    let lo = lo_loc.file.line_bounds(lo_loc.line.saturating_sub(1)).start;
     let hi = lo_loc.file.line_bounds(hi_loc.line.saturating_sub(1)).end;
 
     let bounding_span = Span::new(lo, hi);
-    let source = sm.span_to_snippet(bounding_span).unwrap_or_default();
+    let source = sm.span_to_snippet(bounding_span).ok()?;
     let offset_line = lo_loc.line;
 
     Some((bounding_span, source, offset_line))
