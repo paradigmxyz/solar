@@ -483,6 +483,11 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(())
                 }
             }
+            // byte literal -> bytesN/bytes
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() { Ok(()) } else { Result::Err(()) }
+            }
 
             // TODO: more implicit conversions
             _ => Result::Err(()),
