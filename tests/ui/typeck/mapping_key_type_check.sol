@@ -25,4 +25,14 @@ contract C {
     mapping(C => uint) m4b;
     mapping(L.S1 => uint) m5; //~ ERROR: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
     mapping(uint[] => uint) m6; //~ ERROR: only elementary types, user defined value types, contract types or enums are allowed as mapping keys.
+
+    function access(uint u, string memory s, bytes memory b, E e, U ud, L.E1 e1, C c) public {
+        m0[u];
+        m1[s];
+        m1b[b];
+        m2[e];
+        m3[ud];
+        m4[e1];
+        m4b[c];
+    }
 }

@@ -10,5 +10,175 @@ error: only elementary types, user defined value types, contract types or enums 
 LL │     mapping(uint[] => uint) m6;
    ╰╴            ━━━━━━
 
-error: aborting due to 2 previous errors
+
+thread 'main' (708571) panicked at crates/sema/src/typeck/checker.rs:LL:CC:
+invalid mapping key Elementary(String)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/4da69dfff1929cc79872b3d05ab7112d84753dba/library/std/src/panicking.rs:LL:CC
+   1: core::panicking::panic_fmt
+             at /rustc/4da69dfff1929cc79872b3d05ab7112d84753dba/library/core/src/panicking.rs:LL:CC
+   2: solar_sema::typeck::checker::TypeChecker::index_types
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   3: check_expr_kind
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   4: solar_sema::typeck::checker::TypeChecker::check_expr_with_noexpect
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   5: solar_sema::typeck::checker::TypeChecker::check_expr_with
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   6: solar_sema::typeck::checker::TypeChecker::check_expr
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   7: <solar_sema::typeck::checker::TypeChecker as solar_sema::hir::visit::Visit>::visit_expr
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+   8: solar_sema::hir::visit::Visit::walk_stmt
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+   9: <solar_sema::typeck::checker::TypeChecker as solar_sema::hir::visit::Visit>::visit_stmt
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+  10: solar_sema::hir::visit::Visit::walk_function
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  11: solar_sema::hir::visit::Visit::visit_function
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  12: solar_sema::hir::visit::Visit::walk_nested_function
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  13: solar_sema::hir::visit::Visit::visit_nested_function
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  14: solar_sema::hir::visit::Visit::walk_nested_item
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  15: solar_sema::hir::visit::Visit::visit_nested_item
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  16: solar_sema::hir::visit::visit_nested_items::{{closure}}
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  17: core::iter::traits::iterator::Iterator::try_for_each::call::{{closure}}
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  18: core::iter::traits::iterator::Iterator::try_fold
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  19: core::iter::traits::iterator::Iterator::try_for_each
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  20: solar_sema::hir::visit::visit_nested_items
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  21: solar_sema::hir::visit::Visit::walk_contract
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  22: solar_sema::hir::visit::Visit::visit_contract
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  23: solar_sema::hir::visit::Visit::walk_nested_contract
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  24: <solar_sema::typeck::checker::TypeChecker as solar_sema::hir::visit::Visit>::visit_nested_contract
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+  25: solar_sema::hir::visit::Visit::walk_nested_item
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  26: solar_sema::hir::visit::Visit::visit_nested_item
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  27: solar_sema::hir::visit::visit_nested_items::{{closure}}
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  28: core::iter::traits::iterator::Iterator::try_for_each::call::{{closure}}
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  29: core::iter::traits::iterator::Iterator::try_fold
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  30: core::iter::traits::iterator::Iterator::try_for_each
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  31: solar_sema::hir::visit::visit_nested_items
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  32: solar_sema::hir::visit::Visit::walk_nested_source
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  33: solar_sema::hir::visit::Visit::visit_nested_source
+             at ROOT/crates/sema/src/hir/visit.rs:LL:CC
+  34: solar_sema::typeck::checker::check
+             at ROOT/crates/sema/src/typeck/checker.rs:LL:CC
+  35: solar_sema::typeck::check::{{closure}}::{{closure}}::{{closure}}
+             at ROOT/crates/sema/src/typeck/mod.rs:LL:CC
+  36: core::ops::function::impls::<impl core::ops::function::FnMut<A> for &F>::call_mut
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:LL:CC
+  37: core::iter::traits::iterator::Iterator::for_each::call::{{closure}}
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  38: core::iter::adapters::map::map_fold::{{closure}}
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/adapters/map.rs:LL:CC
+  39: core::iter::traits::iterator::Iterator::fold
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  40: <core::iter::adapters::map::Map<I,F> as core::iter::traits::iterator::Iterator>::fold
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/adapters/map.rs:LL:CC
+  41: core::iter::traits::iterator::Iterator::for_each
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:LL:CC
+  42: <rayon::iter::for_each::ForEachConsumer<F> as rayon::iter::plumbing::Folder<T>>::consume_iter
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/for_each.rs:LL:CC
+  43: <rayon::iter::map::MapFolder<C,F> as rayon::iter::plumbing::Folder<T>>::consume_iter
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/map.rs:LL:CC
+  44: rayon::iter::plumbing::Producer::fold_with
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/plumbing/mod.rs:LL:CC
+  45: rayon::iter::plumbing::bridge_producer_consumer::helper
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/plumbing/mod.rs:LL:CC
+  46: rayon::iter::plumbing::bridge_producer_consumer
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/plumbing/mod.rs:LL:CC
+  47: <rayon::iter::plumbing::bridge::Callback<C> as rayon::iter::plumbing::ProducerCallback<I>>::callback
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/plumbing/mod.rs:LL:CC
+  48: rayon::range::<impl rayon::range::private::IndexedRangeInteger for usize>::with_producer
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/range.rs:LL:CC
+  49: <rayon::range::Iter<T> as rayon::iter::IndexedParallelIterator>::with_producer
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/range.rs:LL:CC
+  50: rayon::iter::plumbing::bridge
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/plumbing/mod.rs:LL:CC
+  51: rayon::range::<impl rayon::range::private::RangeInteger for usize>::drive_unindexed
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/range.rs:LL:CC
+  52: <rayon::range::Iter<T> as rayon::iter::ParallelIterator>::drive_unindexed
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/range.rs:LL:CC
+  53: <rayon::iter::map::Map<I,F> as rayon::iter::ParallelIterator>::drive_unindexed
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/map.rs:LL:CC
+  54: rayon::iter::for_each::for_each
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/for_each.rs:LL:CC
+  55: rayon::iter::ParallelIterator::for_each
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-1.11.0/src/iter/mod.rs:LL:CC
+  56: solar_sema::typeck::check::{{closure}}::{{closure}}
+             at ROOT/crates/sema/src/typeck/mod.rs:LL:CC
+  57: solar_data_structures::sync::Scope::spawn
+             at ROOT/crates/data-structures/src/sync.rs:LL:CC
+  58: solar_sema::typeck::check::{{closure}}
+             at ROOT/crates/data-structures/src/sync.rs:LL:CC
+  59: solar_data_structures::sync::scope
+             at ROOT/crates/data-structures/src/sync.rs:LL:CC
+  60: solar_interface::session::Session::scope
+             at ROOT/crates/interface/src/session.rs:LL:CC
+  61: solar_sema::typeck::check
+             at ROOT/crates/sema/src/typeck/mod.rs:LL:CC
+  62: analysis
+             at ROOT/crates/sema/src/lib.rs:LL:CC
+  63: solar_sema::compiler::CompilerRef::analysis
+             at ROOT/crates/sema/src/compiler.rs:LL:CC
+  64: solar_cli::run_default
+             at ROOT/crates/cli/src/lib.rs:LL:CC
+  65: core::ops::function::FnOnce::call_once
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:LL:CC
+  66: solar_cli::run_compiler_with::{{closure}}
+             at ROOT/crates/cli/src/lib.rs:LL:CC
+  67: solar_sema::compiler::Compiler::enter_mut::{{closure}}
+             at ROOT/crates/sema/src/compiler.rs:LL:CC
+  68: rayon_core::thread_pool::ThreadPool::install::{{closure}}
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-core-1.13.0/src/thread_pool/mod.rs:LL:CC
+  69: rayon_core::registry::Registry::in_worker
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-core-1.13.0/src/registry.rs:LL:CC
+  70: rayon_core::thread_pool::ThreadPool::install
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rayon-core-1.13.0/src/thread_pool/mod.rs:LL:CC
+  71: solar_interface::session::Session::enter::{{closure}}
+             at ROOT/crates/interface/src/session.rs:LL:CC
+  72: scoped_tls::ScopedKey<T>::set
+             at /home/oliver/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/scoped-tls-1.0.1/src/lib.rs:LL:CC
+  73: solar_interface::globals::SessionGlobals::set
+             at ROOT/crates/interface/src/globals.rs:LL:CC
+  74: solar_interface::session::Session::enter_sequential
+             at ROOT/crates/interface/src/session.rs:LL:CC
+  75: solar_interface::session::Session::enter
+             at ROOT/crates/interface/src/session.rs:LL:CC
+  76: enter_mut<core::result::Result<(), solar_interface::diagnostics::ErrorGuaranteed>, solar_cli::run_compiler_with::{closure_env#0}<fn(&mut solar_sema::compiler::CompilerRef) -> core::result::Result<(), solar_interface::diagnostics::ErrorGuaranteed>>>
+             at ROOT/crates/sema/src/compiler.rs:LL:CC
+  77: solar_cli::run_compiler_with
+             at ROOT/crates/cli/src/lib.rs:LL:CC
+  78: solar_cli::run_compiler_args
+             at ROOT/crates/cli/src/lib.rs:LL:CC
+  79: solar::main
+             at ./src/main.rs:LL:CC
+  80: core::ops::function::FnOnce::call_once
+             at /home/oliver/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/ops/function.rs:LL:CC
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+error: the compiler unexpectedly panicked; this is a bug.
+
+note: we would appreciate a bug report: https://github.com/paradigmxyz/solar/issues/new/?labels=C-bug%2C+I-ICE&template=ice.yml
 
