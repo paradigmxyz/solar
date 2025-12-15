@@ -22,24 +22,24 @@ contract C {
 
     // Invalid: FixedBytes to signed Int (not allowed)
     function invalidBytesToSignedInt(bytes4 b4, bytes8 b8) public pure {
-        int32 i32 = int32(b4);      //~ ERROR: cannot convert
-        int64 i64 = int64(b8);      //~ ERROR: cannot convert
+        int32 i32 = int32(b4);      //~ ERROR: invalid explicit type conversion
+        int64 i64 = int64(b8);      //~ ERROR: invalid explicit type conversion
     }
 
     // Invalid: signed Int to FixedBytes (not allowed)
     function invalidSignedIntToBytes(int64 i64) public pure {
-        bytes8 b8 = bytes8(i64);    //~ ERROR: cannot convert
+        bytes8 b8 = bytes8(i64);    //~ ERROR: invalid explicit type conversion
     }
 
     // Invalid: FixedBytes to UInt (different size)
     function invalidBytesToUint(bytes4 b4) public pure {
-        uint64 u64 = uint64(b4);    //~ ERROR: cannot convert
-        uint8 u8 = uint8(b4);       //~ ERROR: cannot convert
+        uint64 u64 = uint64(b4);    //~ ERROR: invalid explicit type conversion
+        uint8 u8 = uint8(b4);       //~ ERROR: invalid explicit type conversion
     }
 
     // Invalid: UInt to FixedBytes (different size)
     function invalidUintToBytes(uint64 u64) public pure {
-        bytes4 b4 = bytes4(u64);    //~ ERROR: cannot convert
-        bytes32 b32 = bytes32(u64); //~ ERROR: cannot convert
+        bytes4 b4 = bytes4(u64);    //~ ERROR: invalid explicit type conversion
+        bytes32 b32 = bytes32(u64); //~ ERROR: invalid explicit type conversion
     }
 }

@@ -553,13 +553,11 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(()) = from.try_convert_explicit_to(to) else { return to };
+        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else { return to };
 
-        let msg =
-            format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
-        let mut err = self.dcx().err(msg).span(span);
-        err = err.span_label(span, "invalid explicit type conversion");
-        self.gcx.mk_ty_err(err.emit())
+        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+        diag = diag.span_label(span, err.message(from, to, self.gcx));
+        self.gcx.mk_ty_err(diag.emit())
     }
 
     #[track_caller]
@@ -569,18 +567,11 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        let Err(()) = actual.try_convert_implicit_to(expected) else { return };
+        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
-        let mut err = self.dcx().err("mismatched types").span(expr.span);
-        err = err.span_label(
-            expr.span,
-            format!(
-                "expected `{}`, found `{}`",
-                expected.display(self.gcx),
-                actual.display(self.gcx)
-            ),
-        );
-        err.emit();
+        let mut diag = self.dcx().err("mismatched types").span(expr.span);
+        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
+        diag.emit();
     }
 
     #[must_use]
