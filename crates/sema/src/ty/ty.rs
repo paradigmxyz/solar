@@ -32,6 +32,9 @@ pub enum TyConvertError {
 
     /// Contract doesn't inherit from target contract.
     NonDerivedContract,
+
+    /// Invalid conversion between types.
+    InvalidConversion,
 }
 
 impl TyConvertError {
@@ -44,6 +47,9 @@ impl TyConvertError {
                     from.display(gcx),
                     to.display(gcx)
                 )
+            }
+            Self::InvalidConversion => {
+                format!("cannot convert `{}` to `{}`", from.display(gcx), to.display(gcx))
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
@@ -532,7 +538,7 @@ impl<'gcx> Ty<'gcx> {
                 if matches!(ty.kind, Elementary(Bytes)) {
                     Ok(())
                 } else {
-                    Result::Err(TyConvertError::Incompatible)
+                    Result::Err(TyConvertError::InvalidConversion)
                 }
             }
 
@@ -555,7 +561,17 @@ impl<'gcx> Ty<'gcx> {
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
 
-            _ => Result::Err(TyConvertError::Incompatible),
+            // Contract -> Base contract (inheritance check)
+            (Contract(self_contract_id), Contract(other_contract_id)) => {
+                let self_contract = gcx.hir.contract(self_contract_id);
+                if self_contract.linearized_bases.contains(&other_contract_id) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
 

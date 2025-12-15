@@ -13,9 +13,15 @@ contract Test {
 
     function testPass(Derived d) public pure {
         Base b = d;  // ok - implicit conversion
+        Base b2 = Base(d); // ok - explicit conversion
     }
 
     function testPassAgain(MoreDerived d) public pure {
         Base b = d;  // ok - implicit conversion
+        Base b2 = Base(d); // ok - explicit conversion
+    }
+
+    function testFailExplicit(Unrelated u) public {
+        Base b = Base(u); //~ ERROR: invalid explicit type conversion
     }
 }

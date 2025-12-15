@@ -4,5 +4,11 @@ error: mismatched types
 LL │         Base b = u;
    ╰╴                 ━ contract `contract Unrelated` does not inherit from `contract Base`
 
-error: aborting due to 1 previous error
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
+   │
+LL │         Base b = Base(u);
+   ╰╴                 ━━━━━━━ contract `contract Unrelated` does not inherit from `contract Base`
+
+error: aborting due to 2 previous errors
 

@@ -523,13 +523,11 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(_err) = from.try_convert_explicit_to(to, self.gcx) else { return to };
+        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else { return to };
 
-        let msg =
-            format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
-        let mut err = self.dcx().err(msg).span(span);
-        err = err.span_label(span, "invalid explicit type conversion");
-        self.gcx.mk_ty_err(err.emit())
+        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+        diag = diag.span_label(span, err.message(from, to, self.gcx));
+        self.gcx.mk_ty_err(diag.emit())
     }
 
     #[track_caller]
