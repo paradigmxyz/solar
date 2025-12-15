@@ -3,7 +3,7 @@
 
 contract Test {
     uint256 constant CONST = 1; //~ ERROR: mismatched types
-    
+
     function test() external {
         CONST = 2; //~ ERROR: cannot assign to a constant variable
         //~^ ERROR: mismatched types
