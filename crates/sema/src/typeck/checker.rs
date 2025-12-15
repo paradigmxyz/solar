@@ -21,7 +21,20 @@ struct TypeChecker<'gcx> {
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
-    lvalue_context: Option<bool>,
+    lvalue_context: Option<Result<(), NotLvalueReason>>,
+}
+
+#[derive(Clone, Copy)]
+enum NotLvalueReason {
+    Constant,
+    Immutable,
+    CalldataArray,
+    CalldataStruct,
+    FixedBytesIndex,
+    ArrayLength,
+    #[allow(dead_code)]
+    ExternalCallableParameter,
+    Generic,
 }
 
 impl<'gcx> TypeChecker<'gcx> {
@@ -164,7 +177,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 if !is_array_push {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
                 ty
@@ -181,8 +194,8 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if !res_is_lvalue(self.gcx, res) {
-                    self.not_lvalue();
+                if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                    self.try_set_not_lvalue(reason);
                 }
                 self.type_of_res(res)
             }
@@ -192,7 +205,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     return ty;
                 }
                 if ty.loc() == Some(DataLocation::Calldata) {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
+                }
+                if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+                {
+                    self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
@@ -283,18 +300,31 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                match expr_ty.kind {
-                    TyKind::Ref(_, d) if d.is_calldata() => self.not_lvalue(),
-                    TyKind::Type(ty)
-                        if matches!(ty.kind, TyKind::Contract(_))
-                            && possible_members.len() == 1
-                            && !possible_members[0]
-                                .res
-                                .is_some_and(|res| res_is_lvalue(self.gcx, res)) =>
-                    {
-                        self.not_lvalue();
+                if ident.name.as_str() == "length"
+                    && matches!(expr_ty.peel_refs().kind, TyKind::Array(..) | TyKind::DynArray(_))
+                {
+                    self.try_set_not_lvalue(NotLvalueReason::ArrayLength);
+                } else {
+                    match expr_ty.kind {
+                        TyKind::Ref(inner, d) if d.is_calldata() => {
+                            let reason = if matches!(inner.kind, TyKind::Struct(_)) {
+                                NotLvalueReason::CalldataStruct
+                            } else {
+                                NotLvalueReason::CalldataArray
+                            };
+                            self.try_set_not_lvalue(reason);
+                        }
+                        TyKind::Type(ty)
+                            if matches!(ty.kind, TyKind::Contract(_))
+                                && possible_members.len() == 1
+                                && possible_members[0].res.is_some_and(|res| {
+                                    res_not_lvalue_reason(self.gcx, res).is_some()
+                                }) =>
+                        {
+                            self.try_set_not_lvalue(NotLvalueReason::Generic);
+                        }
+                        _ => {}
                     }
-                    _ => {}
                 }
 
                 ty
@@ -636,26 +666,39 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = self.lvalue_context.replace(true);
+        let prev = self.lvalue_context.replace(Ok(()));
         let ty = self.check_expr(expr);
-        let ctx = self.lvalue_context;
-        debug_assert!(ctx.is_some());
+        let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
-        // TODO: check ctx
-        if is_syntactic_lvalue(expr) {
+
+        if result.is_ok() && is_syntactic_lvalue(expr) {
             return ty;
         }
 
-        // TODO: better error message https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L4143
-
-        self.dcx().err("expected lvalue").span(expr.span).emit();
+        let msg = match result {
+            Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
+            Err(NotLvalueReason::Immutable) => "cannot assign to an immutable variable",
+            Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
+            Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
+            Err(NotLvalueReason::FixedBytesIndex) => {
+                "single bytes in fixed bytes arrays cannot be modified"
+            }
+            Err(NotLvalueReason::ArrayLength) => {
+                "member \"length\" is read-only and cannot be used to resize arrays"
+            }
+            Err(NotLvalueReason::ExternalCallableParameter) => {
+                "external function arguments of reference type are read-only"
+            }
+            Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
+        };
+        self.dcx().err(msg).span(expr.span).emit();
 
         ty
     }
 
-    fn not_lvalue(&mut self) {
-        if let Some(v) = &mut self.lvalue_context {
-            *v = false;
+    fn try_set_not_lvalue(&mut self, reason: NotLvalueReason) {
+        if let Some(Ok(())) = self.lvalue_context {
+            self.lvalue_context = Some(Err(reason));
         }
     }
 
@@ -915,11 +958,18 @@ impl<T> FromIterator<T> for WantOne<T> {
     }
 }
 
-fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
+fn res_not_lvalue_reason(gcx: Gcx<'_>, res: hir::Res) -> Option<NotLvalueReason> {
     match res {
-        hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
-        hir::Res::Err(_) => true,
-        _ => false,
+        hir::Res::Item(hir::ItemId::Variable(var)) => {
+            let var = gcx.hir.variable(var);
+            match var.mutability {
+                Some(m) if m.is_constant() => Some(NotLvalueReason::Constant),
+                Some(m) if m.is_immutable() => Some(NotLvalueReason::Immutable),
+                _ => None,
+            }
+        }
+        hir::Res::Err(_) => None,
+        _ => Some(NotLvalueReason::Generic),
     }
 }
 

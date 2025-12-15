@@ -1,0 +1,20 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/literals.sol:LL:CC
+   │
+LL │         1 = state;
+   ╰╴        ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/literals.sol:LL:CC
+   │
+LL │         1 = state;
+   ╰╴            ━━━━━ expected `int_literal[1]`, found `uint256`
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/literals.sol:LL:CC
+   │
+LL │         true = boolState;
+   ╰╴        ━━━━
+
+error: aborting due to 3 previous errors
+
