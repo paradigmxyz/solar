@@ -548,6 +548,35 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // Integer literals can coerce to typed integers if they fit.
+            // Non-negative literals can coerce to both uint and int types.
+            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+                // Unsigned: reject negative, check size fits
+                if neg {
+                    Result::Err(TyConvertError::Incompatible)
+                } else if size.bits() <= target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+                // Signed: non-negative values need strict inequality since they use the
+                // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
+                // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
+                if neg {
+                    if size.bits() <= target_size.bits() {
+                        Ok(())
+                    } else {
+                        Result::Err(TyConvertError::Incompatible)
+                    }
+                } else if size.bits() < target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
             // TODO: more implicit conversions
             _ => Result::Err(TyConvertError::Incompatible),
         }
