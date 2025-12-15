@@ -478,29 +478,29 @@ impl<'gcx> Ty<'gcx> {
                     // Same location: allowed if base types match.
                     (DataLocation::Memory, DataLocation::Memory)
                     | (DataLocation::Calldata, DataLocation::Calldata) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // storage -> storage: allowed (reference assignment).
                     (DataLocation::Storage, DataLocation::Storage) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // calldata/storage -> memory: allowed (copy semantics).
                     (DataLocation::Calldata, DataLocation::Memory)
                     | (DataLocation::Storage, DataLocation::Memory) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // memory/calldata -> storage: allowed (copy semantics).
                     (DataLocation::Memory, DataLocation::Storage)
                     | (DataLocation::Calldata, DataLocation::Storage) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // storage -> calldata: never allowed.
                     // memory -> calldata: never allowed.
-                    _ => Result::Err(()),
+                    _ => Result::Err(TyConvertError::Incompatible),
                 }
             }
 
