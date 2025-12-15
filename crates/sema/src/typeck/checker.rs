@@ -32,8 +32,6 @@ enum NotLvalueReason {
     CalldataStruct,
     FixedBytesIndex,
     ArrayLength,
-    #[allow(dead_code)]
-    ExternalCallableParameter,
     Generic,
 }
 
@@ -300,31 +298,36 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                if ident.name.as_str() == "length"
-                    && matches!(expr_ty.peel_refs().kind, TyKind::Array(..) | TyKind::DynArray(_))
-                {
-                    self.try_set_not_lvalue(NotLvalueReason::ArrayLength);
-                } else {
-                    match expr_ty.kind {
-                        TyKind::Ref(inner, d) if d.is_calldata() => {
-                            let reason = if matches!(inner.kind, TyKind::Struct(_)) {
-                                NotLvalueReason::CalldataStruct
-                            } else {
-                                NotLvalueReason::CalldataArray
-                            };
-                            self.try_set_not_lvalue(reason);
-                        }
-                        TyKind::Type(ty)
-                            if matches!(ty.kind, TyKind::Contract(_))
-                                && possible_members.len() == 1
-                                && possible_members[0].res.is_some_and(|res| {
-                                    res_not_lvalue_reason(self.gcx, res).is_some()
-                                }) =>
-                        {
-                            self.try_set_not_lvalue(NotLvalueReason::Generic);
-                        }
-                        _ => {}
+                let not_lvalue_reason = match expr_ty.kind {
+                    _ if ident.name.as_str() == "length"
+                        && matches!(
+                            expr_ty.peel_refs().kind,
+                            TyKind::Array(..) | TyKind::DynArray(_)
+                        ) =>
+                    {
+                        Some(NotLvalueReason::ArrayLength)
                     }
+                    TyKind::Ref(inner, d) if d.is_calldata() => {
+                        let reason = if matches!(inner.kind, TyKind::Struct(_)) {
+                            NotLvalueReason::CalldataStruct
+                        } else {
+                            NotLvalueReason::CalldataArray
+                        };
+                        Some(reason)
+                    }
+                    TyKind::Type(ty)
+                        if matches!(ty.kind, TyKind::Contract(_))
+                            && possible_members.len() == 1
+                            && possible_members[0].res.is_some_and(|res| {
+                                res_not_lvalue_reason(self.gcx, res).is_some()
+                            }) =>
+                    {
+                        Some(NotLvalueReason::Generic)
+                    }
+                    _ => None,
+                };
+                if let Some(reason) = not_lvalue_reason {
+                    self.try_set_not_lvalue(reason);
                 }
 
                 ty
@@ -684,10 +687,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 "single bytes in fixed bytes arrays cannot be modified"
             }
             Err(NotLvalueReason::ArrayLength) => {
-                "member \"length\" is read-only and cannot be used to resize arrays"
-            }
-            Err(NotLvalueReason::ExternalCallableParameter) => {
-                "external function arguments of reference type are read-only"
+                "member `length` is read-only and cannot be used to resize arrays"
             }
             Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
         };
