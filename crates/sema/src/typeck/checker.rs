@@ -6,7 +6,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -299,11 +299,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 // Validate lvalue.
                 let not_lvalue_reason = match expr_ty.kind {
-                    _ if ident.name.as_str() == "length"
-                        && matches!(
-                            expr_ty.peel_refs().kind,
-                            TyKind::Array(..) | TyKind::DynArray(_)
-                        ) =>
+                    _ if matches!(
+                        expr_ty.peel_refs().kind,
+                        TyKind::Array(..) | TyKind::DynArray(_)
+                    ) && possible_members.len() == 1
+                        && possible_members[0].name == sym::length =>
                     {
                         Some(NotLvalueReason::ArrayLength)
                     }
