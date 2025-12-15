@@ -1,14 +1,26 @@
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
    │
-LL │         Base b = u;
-   ╰╴                 ━ contract `contract Unrelated` does not inherit from `contract Base`
+LL │         Base b1 = u;
+   ╰╴                  ━ contract `contract Unrelated` does not inherit from `contract Base`
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
    │
-LL │         Base b = Base(u);
-   ╰╴                 ━━━━━━━ contract `contract Unrelated` does not inherit from `contract Base`
+LL │         Base b2 = Base(u);
+   ╰╴                  ━━━━━━━ contract `contract Unrelated` does not inherit from `contract Base`
 
-error: aborting due to 2 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
+   │
+LL │         Unrelated u1 = md;
+   ╰╴                       ━━ contract `contract MoreDerived` does not inherit from `contract Unrelated`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
+   │
+LL │         Unrelated u2 = Unrelated(md);
+   ╰╴                       ━━━━━━━━━━━━━ contract `contract MoreDerived` does not inherit from `contract Unrelated`
+
+error: aborting due to 4 previous errors
 

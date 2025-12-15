@@ -7,21 +7,22 @@ contract Derived is Base {}
 contract MoreDerived is Derived {}
 
 contract Test {
-    function testFail(Unrelated u) public {
-        Base b = u;  //~ ERROR: mismatched types
+    function testUnrelated(Unrelated u) public {
+        Base b1 = u;  //~ ERROR: mismatched types
+        Base b2 = Base(u); //~ ERROR: invalid explicit type conversion
     }
 
-    function testPass(Derived d) public pure {
+    function testDerived(Derived d) public pure {
         Base b = d;  // ok - implicit conversion
         Base b2 = Base(d); // ok - explicit conversion
     }
 
-    function testPassAgain(MoreDerived d) public pure {
-        Base b = d;  // ok - implicit conversion
-        Base b2 = Base(d); // ok - explicit conversion
-    }
-
-    function testFailExplicit(Unrelated u) public {
-        Base b = Base(u); //~ ERROR: invalid explicit type conversion
+    function testMoreDerived(MoreDerived md) public pure {
+        Base b = md;  // ok - implicit conversion
+        Base b2 = Base(md); // ok - explicit conversion
+        Derived d1 = md; // ok - explicit conversion
+        Derived d2 = Derived(md); // ok - explicit conversion
+        Unrelated u1 = md; //~ ERROR: mismatched types
+        Unrelated u2 = Unrelated(md); //~ ERROR: invalid explicit type conversion
     }
 }
