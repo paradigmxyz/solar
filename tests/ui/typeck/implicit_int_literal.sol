@@ -41,4 +41,25 @@ function f() {
     int256 zero_i256 = 0;
     int8 one_i8 = 1;
     int256 one_i256 = 1;
+
+    // === Negative literals to int ===
+    // Negative literals can only coerce to signed int types.
+    // TypeSize stores actual bits. Negative int_literal[N] can fit in int(N) since
+    // the negative range uses all N bits (e.g., -128 needs 8 bits, fits in int8).
+
+    // int_literal[1] negative (1-8 bits) -> int8+ works
+    int8 neg_1_i8 = -1;
+    int8 neg_128_i8 = -128;
+    int256 neg_1_i256 = -1;
+
+    // int_literal[2] negative (9-16 bits) -> int16+ works
+    int16 neg_129_i16 = -129;
+    int16 neg_32768_i16 = -32768;
+
+    // int_literal[3] negative (17-24 bits) -> int24+ works
+    int32 neg_32769_i32 = -32769;
+
+    // Negative literals cannot coerce to unsigned types
+    uint8 neg_to_uint8 = -1; //~ ERROR: mismatched types
+    uint256 neg_to_uint256 = -42; //~ ERROR: mismatched types
 }
