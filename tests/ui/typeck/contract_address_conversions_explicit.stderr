@@ -1,14 +1,14 @@
-error: Explicit type conversion not allowed from `contract NoReceive` to `address payable`
+error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
    │
 LL │         address payable p1 = payable(c1);
-   ╰╴                                     ━━
+   ╰╴                                     ━━ cannot convert `contract NoReceive` to `address payable` because it has no receive function or payable fallback
 
-error: Explicit type conversion not allowed from `contract WithNonPayableFallback` to `address payable`
+error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
    │
 LL │         address payable p4 = payable(c4);
-   ╰╴                                     ━━
+   ╰╴                                     ━━ cannot convert `contract WithNonPayableFallback` to `address payable` because it has no receive function or payable fallback
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC

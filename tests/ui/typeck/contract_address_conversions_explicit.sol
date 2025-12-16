@@ -33,10 +33,10 @@ contract Test {
         WithNonPayableFallback c4
     ) public pure {
         // Only contracts with receive or payable fallback can convert to address payable
-        address payable p1 = payable(c1); //~ ERROR: cannot convert
+        address payable p1 = payable(c1); //~ ERROR: invalid explicit type conversion
         address payable p2 = payable(c2); // ok
         address payable p3 = payable(c3); // ok
-        address payable p4 = payable(c4); //~ ERROR: cannot convert
+        address payable p4 = payable(c4); //~ ERROR: invalid explicit type conversion
     }
 
     function testAddressToContract(address addr, address payable paddr) public pure {

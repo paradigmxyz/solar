@@ -399,32 +399,14 @@ impl<'gcx> TypeChecker<'gcx> {
                     return ty;
                 }
 
-                // Check if it's an address or contract that can be converted to address payable
-                match ty.kind {
-                    // Address can always be converted to address payable
-                    TyKind::Elementary(ElementaryType::Address(_)) => {
-                        self.gcx.types.address_payable
-                    }
-                    // Contract can be converted if it has receive or payable fallback
-                    TyKind::Contract(contract_id) => {
-                        let contract = self.gcx.hir.contract(contract_id);
+                let target_ty = self.gcx.types.address_payable;
+                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
+                    return target_ty;
+                };
 
-                        if hir::can_receive_ether(contract, self.gcx) {
-                            self.gcx.types.address_payable
-                        } else {
-                            // Contract cannot receive ether
-                            let msg = format!(
-                                "Explicit type conversion not allowed from `{}` to `address payable`",
-                                ty.display(self.gcx)
-                            );
-                            self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
-                        }
-                    }
-                    _ => {
-                        let msg = format!("expected `address` or contract type, found `{}`", ty.display(self.gcx));
-                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
-                    }
-                }
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
+                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
