@@ -394,8 +394,48 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Payable(expr) => {
-                let ty = self.expect_ty(expr, self.gcx.types.address);
-                if ty.references_error() { ty } else { self.gcx.types.address_payable }
+                use solar_ast::StateMutability;
+
+                let ty = self.check_expr(expr);
+                if ty.references_error() {
+                    return ty;
+                }
+
+                // Check if it's an address or contract that can be converted to address payable
+                match ty.kind {
+                    // Address can always be converted to address payable
+                    TyKind::Elementary(ElementaryType::Address(_)) => {
+                        self.gcx.types.address_payable
+                    }
+                    // Contract can be converted if it has receive or payable fallback
+                    TyKind::Contract(contract_id) => {
+                        let contract = self.gcx.hir.contract(contract_id);
+
+                        // Check if contract has receive function
+                        if contract.receive.is_some() {
+                            return self.gcx.types.address_payable;
+                        }
+
+                        // Check if contract has payable fallback function
+                        if let Some(fallback_id) = contract.fallback {
+                            let fallback = self.gcx.hir.function(fallback_id);
+                            if fallback.state_mutability == StateMutability::Payable {
+                                return self.gcx.types.address_payable;
+                            }
+                        }
+
+                        // Contract cannot receive ether
+                        let msg = format!(
+                            "cannot convert `{}` to `address payable` because it has no receive function or payable fallback",
+                            ty.display(self.gcx)
+                        );
+                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                    }
+                    _ => {
+                        let msg = format!("expected `address` or contract type, found `{}`", ty.display(self.gcx));
+                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                    }
+                }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
