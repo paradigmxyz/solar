@@ -1,6 +1,7 @@
 //! High-level intermediate representation (HIR).
 
 use crate::builtins::Builtin;
+use crate::ty::Gcx;
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
@@ -742,6 +743,28 @@ impl Contract<'_> {
     pub fn description(&self) -> &'static str {
         self.kind.to_str()
     }
+}
+
+/// Returns `true` if the contract can receive ether.
+///
+/// A contract can receive ether if it has:
+/// - A `receive()` function, OR
+/// - A `fallback()` function with `payable` state mutability
+pub fn can_receive_ether(contract: &Contract<'_>, gcx: Gcx<'_>) -> bool {
+    // Check if contract has receive function
+    if contract.receive.is_some() {
+        return true;
+    }
+
+    // Check if contract has payable fallback function
+    if let Some(fallback_id) = contract.fallback {
+        let fallback = gcx.hir.function(fallback_id);
+        if fallback.state_mutability == StateMutability::Payable {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// A modifier or base class call.

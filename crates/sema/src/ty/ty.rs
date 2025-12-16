@@ -629,20 +629,11 @@ impl<'gcx> Ty<'gcx> {
             (Contract(contract_id), Elementary(Address(true))) => {
                 let contract = gcx.hir.contract(contract_id);
 
-                // Check if contract has receive function
-                if contract.receive.is_some() {
-                    return Ok(());
+                if hir::can_receive_ether(contract, gcx) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::ContractNotPayable)
                 }
-
-                // Check if contract has payable fallback function
-                if let Some(fallback_id) = contract.fallback {
-                    let fallback = gcx.hir.function(fallback_id);
-                    if fallback.state_mutability == StateMutability::Payable {
-                        return Ok(());
-                    }
-                }
-
-                Result::Err(TyConvertError::ContractNotPayable)
             }
 
             // Address payable -> Contract (always allowed)
@@ -652,21 +643,11 @@ impl<'gcx> Ty<'gcx> {
             (Elementary(Address(false)), Contract(contract_id)) => {
                 let contract = gcx.hir.contract(contract_id);
 
-                // Check if contract has receive function
-                if contract.receive.is_some() {
-                    return Result::Err(TyConvertError::AddressNotPayable);
+                if hir::can_receive_ether(contract, gcx) {
+                    Result::Err(TyConvertError::AddressNotPayable)
+                } else {
+                    Ok(())
                 }
-
-                // Check if contract has payable fallback function
-                if let Some(fallback_id) = contract.fallback {
-                    let fallback = gcx.hir.function(fallback_id);
-                    if fallback.state_mutability == StateMutability::Payable {
-                        return Result::Err(TyConvertError::AddressNotPayable);
-                    }
-                }
-
-                // Contract cannot receive ether, conversion is safe
-                Ok(())
             }
 
             _ => Result::Err(TyConvertError::InvalidConversion),
