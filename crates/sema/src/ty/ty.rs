@@ -533,7 +533,11 @@ impl<'gcx> Ty<'gcx> {
             // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
             (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
-                if size_from.bytes() <= size_to.bytes() { Ok(()) } else { Result::Err(()) }
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::InvalidConversion)
+                }
             }
 
             // TODO: more implicit conversions

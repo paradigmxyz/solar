@@ -2,19 +2,19 @@ error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes2 invalid_b2 = "abc";
-   ╰╴                            ━━━━━ expected `bytes2`, found `utf8_string_literal[3]`
+   ╰╴                            ━━━━━ cannot convert `utf8_string_literal[3]` to `bytes2`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes2 invalid_h2 = hex"123456";
-   ╰╴                            ━━━━━━━━━━━ expected `bytes2`, found `utf8_string_literal[3]`
+   ╰╴                            ━━━━━━━━━━━ cannot convert `utf8_string_literal[3]` to `bytes2`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes1 invalid_b1 = "ab";
-   ╰╴                            ━━━━ expected `bytes1`, found `utf8_string_literal[2]`
+   ╰╴                            ━━━━ cannot convert `utf8_string_literal[2]` to `bytes1`
 
 error: aborting due to 3 previous errors
 
