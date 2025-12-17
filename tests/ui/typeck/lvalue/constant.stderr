@@ -1,0 +1,38 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │     uint256 constant CONST = 1;
+   ╰╴                             ━ expected `uint256`, found `int_literal[1]`
+
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │         CONST = 2;
+   ╰╴        ━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │         CONST = 2;
+   ╰╴                ━ expected `uint256`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │ uint256 constant FILE_CONST = 1;
+   ╰╴                              ━ expected `uint256`, found `int_literal[1]`
+
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │     FILE_CONST = 2;
+   ╰╴    ━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │     FILE_CONST = 2;
+   ╰╴                 ━ expected `uint256`, found `int_literal[1]`
+
+error: aborting due to 6 previous errors
+

@@ -22,16 +22,16 @@ contract C {
     }
 
     function invalidEnumToBytes(TrafficLight t) public pure {
-        bytes1 b1 = bytes1(t); //~ ERROR: cannot convert `enum C.TrafficLight` to `bytes1`
-        bytes32 b32 = bytes32(t); //~ ERROR: cannot convert `enum C.TrafficLight` to `bytes32`
+        bytes1 b1 = bytes1(t); //~ ERROR: invalid explicit type conversion
+        bytes32 b32 = bytes32(t); //~ ERROR: invalid explicit type conversion
     }
 
     function invalidEnumToAddress(TrafficLight t) public pure {
-        address addr = address(t); //~ ERROR: cannot convert `enum C.TrafficLight` to `address`
+        address addr = address(t); //~ ERROR: invalid explicit type conversion
     }
 
     function invalidEnumToBool(TrafficLight t) public pure {
-        bool b = bool(t); //~ ERROR: cannot convert `enum C.TrafficLight` to `bool`
+        bool b = bool(t); //~ ERROR: invalid explicit type conversion
     }
 }
 

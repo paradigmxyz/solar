@@ -16,9 +16,9 @@ contract C {
         address payable p2 = payable(p);
 
         // Invalid conversions
-        bytes32 b32_from_a = bytes32(a); //~ ERROR: cannot convert
-        address a4 = address(b32); //~ ERROR: cannot convert
-        uint256 u256_from_a = uint256(a); //~ ERROR: cannot convert
-        address a5 = address(u256); //~ ERROR: cannot convert
+        bytes32 b32_from_a = bytes32(a); //~ ERROR: invalid explicit type conversion
+        address a4 = address(b32); //~ ERROR: invalid explicit type conversion
+        uint256 u256_from_a = uint256(a); //~ ERROR: invalid explicit type conversion
+        address a5 = address(u256); //~ ERROR: invalid explicit type conversion
     }
 }
