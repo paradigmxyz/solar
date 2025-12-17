@@ -530,24 +530,23 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
             (FnPtr(from), FnPtr(to)) => {
-                if from.parameters == to.parameters
-                    && from.returns == to.returns
-                    && from.visibility == to.visibility
+                if from.parameters != to.parameters
+                    || from.returns != to.returns
+                    || from.visibility != to.visibility
                 {
-                    match (from.state_mutability, to.state_mutability) {
-                        (StateMutability::Pure, StateMutability::View) => Ok(()),
-                        (StateMutability::Pure, StateMutability::NonPayable) => Ok(()),
-                        (StateMutability::View, StateMutability::NonPayable) => Ok(()),
-                        (StateMutability::Payable, StateMutability::NonPayable) => Ok(()),
-                        // sanity check
-                        (StateMutability::Payable, StateMutability::Payable) => Ok(()),
-                        (StateMutability::NonPayable, StateMutability::NonPayable) => Ok(()),
-                        (StateMutability::Pure, StateMutability::Pure) => Ok(()),
-                        (StateMutability::View, StateMutability::View) => Ok(()),
-                        _ => Result::Err(TyConvertError::Incompatible),
-                    }
-                } else {
-                    Result::Err(TyConvertError::Incompatible)
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                match (from.state_mutability, to.state_mutability) {
+                    (StateMutability::Pure, StateMutability::View) => Ok(()),
+                    (StateMutability::Pure, StateMutability::NonPayable) => Ok(()),
+                    (StateMutability::View, StateMutability::NonPayable) => Ok(()),
+                    (StateMutability::Payable, StateMutability::NonPayable) => Ok(()),
+                    // sanity check
+                    (StateMutability::Payable, StateMutability::Payable) => Ok(()),
+                    (StateMutability::NonPayable, StateMutability::NonPayable) => Ok(()),
+                    (StateMutability::Pure, StateMutability::Pure) => Ok(()),
+                    (StateMutability::View, StateMutability::View) => Ok(()),
+                    _ => Result::Err(TyConvertError::Incompatible),
                 }
             }
 
