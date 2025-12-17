@@ -1,7 +1,6 @@
 //! High-level intermediate representation (HIR).
 
-use crate::builtins::Builtin;
-use crate::ty::Gcx;
+use crate::{builtins::Builtin, ty::Gcx};
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
