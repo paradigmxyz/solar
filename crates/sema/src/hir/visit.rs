@@ -252,7 +252,8 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Expr(expr) => self.visit_expr(expr)?,
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => {},
+            StmtKind::Assembly(_) => {},
             StmtKind::Err(_guar) => {}
         }
         ControlFlow::Continue(())
@@ -293,3 +294,4 @@ fn visit_nested_items<'hir, V: Visit<'hir> + ?Sized>(
 ) -> ControlFlow<V::BreakValue> {
     ids.iter().try_for_each(|&id| v.visit_nested_item(id))
 }
+

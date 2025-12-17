@@ -4,7 +4,7 @@ use crate::builtins::Builtin;
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
-use solar_ast as ast;
+use solar_ast::{self as ast};
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
@@ -20,6 +20,7 @@ pub use ast::{
 };
 
 mod visit;
+mod yul;
 pub use visit::Visit;
 
 /// HIR arena allocator.
@@ -1138,9 +1139,8 @@ pub struct Stmt<'hir> {
 /// A kind of statement.
 #[derive(Debug)]
 pub enum StmtKind<'hir> {
-    // TODO: Yul to HIR.
-    // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-    // Assembly(StmtAssembly<'hir>),
+    /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
+    Assembly(&'hir StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.
     DeclSingle(VariableId),
 
@@ -1191,7 +1191,11 @@ pub enum StmtKind<'hir> {
 
     Err(ErrorGuaranteed),
 }
-
+/// An assembly block.
+#[derive(Debug)]
+pub struct StmtAssembly<'hir> {
+    pub block: yul::Block<'hir>,
+}
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.tryStatement>
@@ -1658,3 +1662,4 @@ mod tests {
         assert_size::<Block<'_>>(str!["24"]);
     }
 }
+
