@@ -529,6 +529,7 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
+            // Fn -> Fn (parameter, return, visibility, state mutability type check)
             (FnPtr(from), FnPtr(to)) => {
                 if from.parameters != to.parameters
                     || from.returns != to.returns
