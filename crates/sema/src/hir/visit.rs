@@ -252,7 +252,8 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Expr(expr) => self.visit_expr(expr)?,
-            StmtKind::Placeholder => {}
+            StmtKind::Placeholder => {},
+            StmtKind::Assembly(_) => {},
             StmtKind::Err(_guar) => {}
         }
         ControlFlow::Continue(())
