@@ -336,21 +336,19 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.print(ty)?; // TODO: `richIdentifier`
                 self.buf.write_str(")")
             }
-            TyKind::Error(tys, id) => self.print_function_like(tys, id.into()),
-            TyKind::Event(tys, id) => self.print_function_like(tys, id.into()),
+            TyKind::Error(tys, id) => {
+                self.buf.write_str("error ")?;
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))?;
+                self.print_tuple(tys)
+            }
+            TyKind::Event(tys, id) => {
+                self.buf.write_str("event ")?;
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))?;
+                self.print_tuple(tys)
+            }
 
             TyKind::Err(_) => self.buf.write_str("<error>"),
         }
-    }
-
-    fn print_function_like(&mut self, parameters: &[Ty<'gcx>], id: hir::ItemId) -> fmt::Result {
-        self.print_function(
-            Some(id),
-            parameters,
-            &[],
-            hir::StateMutability::NonPayable,
-            solar_ast::Visibility::Internal,
-        )
     }
 
     fn print_function(
