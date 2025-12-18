@@ -1,0 +1,32 @@
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_immutable.sol:LL:CC
+   │
+LL │     uint[] immutable f;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_immutable.sol:LL:CC
+   │
+LL │     string immutable g;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_immutable.sol:LL:CC
+   │
+LL │     bytes immutable h;
+   ╰╴    ━━━━━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_immutable.sol:LL:CC
+   │
+LL │     S immutable i;
+   ╰╴    ━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_immutable.sol:LL:CC
+   │
+LL │     mapping(uint => uint) immutable j;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

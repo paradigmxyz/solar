@@ -588,6 +588,33 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+
+        // Immutable variables must be value types
+        if var.is_immutable() && !ty.is_value_type() {
+            self.dcx()
+                .err("immutable variables cannot have a non-value type")
+                .span(var.span)
+                .emit();
+        }
+
+        // State variables containing mappings cannot be initialized
+        if var.is_state_variable() && ty.has_mapping() && var.initializer.is_some() {
+            self.dcx()
+                .err("state variables containing mappings cannot be initialized")
+                .span(var.span)
+                .emit();
+        }
+
+        // Libraries cannot have non-constant state variables
+        if var.is_state_variable()
+            && var.contract.is_some_and(|contract_id| {
+                let contract = self.gcx.hir.contract(contract_id);
+                contract.kind.is_library() && !var.is_constant()
+            })
+        {
+            self.dcx().err("library cannot have non-constant state variable").span(var.span).emit();
+        }
+
         if let Some(init) = var.initializer {
             // TODO: might have different logic vs assignment
             self.check_assign(ty, init);
