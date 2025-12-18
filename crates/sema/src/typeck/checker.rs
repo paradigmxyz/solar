@@ -164,20 +164,9 @@ impl<'gcx> TypeChecker<'gcx> {
                         todo!()
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(params, _) | TyKind::Error(params, _) => {
-                        let arg_count = args.exprs().len();
-                        if arg_count != params.len() {
-                            self.dcx()
-                                .err(format!(
-                                    "wrong number of arguments for {}: expected {}, found {}",
-                                    callee_ty.display(self.gcx),
-                                    params.len(),
-                                    arg_count
-                                ))
-                                .span(expr.span)
-                                .emit();
-                        }
-                        callee_ty
+                    TyKind::Event(..) | TyKind::Error(..) => {
+                        // return callee_ty
+                        todo!()
                     }
                     TyKind::Err(_) => callee_ty,
                     _ => {
