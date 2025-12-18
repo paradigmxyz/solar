@@ -164,7 +164,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         todo!()
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) | TyKind::Err(_) => callee_ty,
+                    TyKind::Event(..) | TyKind::Error(..) => {
+                        // return callee_ty
+                        todo!()
+                    }
+                    TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
