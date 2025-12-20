@@ -247,6 +247,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
         | TyKind::FnPtr(..)
+        | TyKind::Function(_)
         | TyKind::DynArray(..) => Some(U256::from(1)),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {

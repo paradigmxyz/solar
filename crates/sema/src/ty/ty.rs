@@ -3,7 +3,7 @@ use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{Interned, fmt};
-use solar_interface::diagnostics::ErrorGuaranteed;
+use solar_interface::{Ident, diagnostics::ErrorGuaranteed};
 use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
@@ -247,9 +247,74 @@ impl<'gcx> Ty<'gcx> {
     pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.parameters,
+            TyKind::Function(_) => return None,
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
             _ => return None,
         })
+    }
+
+    /// Returns the named parameters of the type (parameter names with their types).
+    /// Returns None if the type doesn't have named parameters or if parameter names cannot be
+    /// retrieved.
+    pub fn named_parameters(self, gcx: Gcx<'gcx>) -> Option<Vec<(Ident, Self)>> {
+        match self.kind {
+            TyKind::Event(_, event_id) => {
+                let event = gcx.hir.event(event_id);
+                let param_types = self.parameters()?;
+                let mut named_params = Vec::new();
+
+                for (&param_id, &param_ty) in event.parameters.iter().zip(param_types.iter()) {
+                    let param_var = gcx.hir.variable(param_id);
+                    let Some(param_name) = param_var.name else {
+                        // If any parameter is unnamed, we can't support named arguments
+                        return None;
+                    };
+                    named_params.push((param_name, param_ty));
+                }
+                Some(named_params)
+            }
+            TyKind::Error(_, error_id) => {
+                let error = gcx.hir.error(error_id);
+                let param_types = self.parameters()?;
+                let mut named_params = Vec::new();
+
+                for (&param_id, &param_ty) in error.parameters.iter().zip(param_types.iter()) {
+                    let param_var = gcx.hir.variable(param_id);
+                    let Some(param_name) = param_var.name else {
+                        // If any parameter is unnamed, we can't support named arguments
+                        return None;
+                    };
+                    named_params.push((param_name, param_ty));
+                }
+                Some(named_params)
+            }
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                if let Some(param_types) =
+                    gcx.item_parameter_types_opt(hir::ItemId::Function(function_id))
+                {
+                    let mut named_params = Vec::new();
+                    for (&param_id, &param_ty) in function.parameters.iter().zip(param_types.iter())
+                    {
+                        let param_var = gcx.hir.variable(param_id);
+                        let Some(param_name) = param_var.name else {
+                            // If any parameter is unnamed, we can't support named arguments
+                            return None;
+                        };
+                        named_params.push((param_name, param_ty));
+                    }
+                    Some(named_params)
+                } else {
+                    None
+                }
+            }
+            TyKind::FnPtr(_) => {
+                // Function pointers don't store parameter names, so we can't provide named
+                // parameters. Only unnamed arguments are supported for function pointers.
+                None
+            }
+            _ => None,
+        }
     }
 
     /// Returns the return types of the type.
@@ -288,6 +353,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
+            | TyKind::Function(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
@@ -705,6 +771,9 @@ pub enum TyKind<'gcx> {
     /// Function pointer: `function(...) returns (...)`.
     FnPtr(&'gcx TyFnPtr<'gcx>),
 
+    /// Regular function reference.
+    Function(hir::FunctionId),
+
     /// Contract.
     Contract(hir::ContractId),
 
@@ -784,6 +853,7 @@ impl TyFlags {
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
+            | TyKind::Function(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}

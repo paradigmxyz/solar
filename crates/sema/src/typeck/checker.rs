@@ -1,12 +1,12 @@
 use crate::{
     builtins::Builtin,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, Ty, TyFnPtr, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{Ident, diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -90,12 +90,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -159,14 +153,22 @@ impl<'gcx> TypeChecker<'gcx> {
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
+                    TyKind::FnPtr(f) => {
+                        let _ = self.check_function_call_args(args, f, expr.span);
+                        callee_ty
+                    }
+                    TyKind::Function(function_id) => {
+                        let _ = self.check_call_args(args, function_id.into(), "function");
+                        callee_ty
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) => {
-                        // return callee_ty
-                        todo!()
+                    TyKind::Event(_, event_id) => {
+                        let _ = self.check_call_args(args, event_id.into(), "event");
+                        callee_ty
+                    }
+                    TyKind::Error(_, error_id) => {
+                        let _ = self.check_call_args(args, error_id.into(), "error");
+                        callee_ty
                     }
                     TyKind::Err(_) => callee_ty,
                     _ => {
@@ -757,6 +759,176 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
         }
     }
+
+    /// Helper to get named parameters for a function-like item (function, event, error).
+    /// Returns None if the item has no named parameters or if parameter names cannot be retrieved.
+    fn get_named_parameters(&self, item_id: hir::ItemId) -> Option<Vec<(Ident, Ty<'gcx>)>> {
+        let item = self.gcx.hir.item(item_id);
+        let param_ids = item.parameters()?;
+        let param_types = self.gcx.item_parameter_types_opt(item_id)?;
+
+        let mut named_params = Vec::new();
+        for (&param_id, &param_ty) in param_ids.iter().zip(param_types.iter()) {
+            let param_var = self.gcx.hir.variable(param_id);
+            let Some(param_name) = param_var.name else {
+                // If any parameter is unnamed, we can't support named arguments
+                return None;
+            };
+            named_params.push((param_name, param_ty));
+        }
+        Some(named_params)
+    }
+
+    /// Validates and type-checks arguments against function-like item parameters.
+    /// Enforces the constraint that arguments must be ALL unnamed or ALL named.
+    fn check_call_args(
+        &mut self,
+        args: &'gcx hir::CallArgs<'gcx>,
+        item_id: hir::ItemId,
+        item_name: &str, // "function", "event", "error", etc.
+    ) -> Result<(), ()> {
+        self.check_call_args_with_span(args, item_id, item_name, args.span)
+    }
+
+    /// Validates and type-checks arguments for function pointer calls.
+    /// Function pointers only support unnamed arguments since they don't have parameter names.
+    fn check_function_call_args(
+        &mut self,
+        args: &'gcx hir::CallArgs<'gcx>,
+        fn_ptr: &TyFnPtr<'gcx>,
+        error_span: Span,
+    ) -> Result<(), ()> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(arg_exprs) => {
+                // Validate argument count
+                if arg_exprs.len() != fn_ptr.parameters.len() {
+                    self.dcx()
+                        .err(format!(
+                            "wrong number of arguments for function: expected {}, found {}",
+                            fn_ptr.parameters.len(),
+                            arg_exprs.len()
+                        ))
+                        .span(error_span)
+                        .emit();
+                    return Err(());
+                }
+
+                // Type check each argument sequentially
+                for (arg_expr, &expected_ty) in arg_exprs.iter().zip(fn_ptr.parameters.iter()) {
+                    let actual_ty = self.check_expr_kind(arg_expr, Some(expected_ty));
+                    self.check_expected(arg_expr, actual_ty, expected_ty);
+                }
+                Ok(())
+            }
+            hir::CallArgsKind::Named(_) => {
+                self.dcx()
+                    .err("function pointers do not support named arguments")
+                    .span(error_span)
+                    .emit();
+                Err(())
+            }
+        }
+    }
+
+    /// Validates and type-checks arguments against function-like item parameters with custom span.
+    /// Enforces the constraint that arguments must be ALL unnamed or ALL named.
+    fn check_call_args_with_span(
+        &mut self,
+        args: &'gcx hir::CallArgs<'gcx>,
+        item_id: hir::ItemId,
+        item_name: &str,
+        error_span: Span,
+    ) -> Result<(), ()> {
+        let Some(param_types) = self.gcx.item_parameter_types_opt(item_id) else {
+            return Ok(()); // Item doesn't have parameters we can check
+        };
+
+        match args.kind {
+            hir::CallArgsKind::Unnamed(arg_exprs) => {
+                // Validate argument count
+                if arg_exprs.len() != param_types.len() {
+                    self.dcx()
+                        .err(format!(
+                            "wrong number of arguments for {}: expected {}, found {}",
+                            item_name,
+                            param_types.len(),
+                            arg_exprs.len()
+                        ))
+                        .span(error_span)
+                        .emit();
+                    return Err(());
+                }
+
+                // Type check each argument sequentially
+                for (arg_expr, &expected_ty) in arg_exprs.iter().zip(param_types.iter()) {
+                    let actual_ty = self.check_expr_kind(arg_expr, Some(expected_ty));
+                    self.check_expected(arg_expr, actual_ty, expected_ty);
+                }
+                Ok(())
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                // Get named parameters for this item
+                let Some(named_params) = self.get_named_parameters(item_id) else {
+                    self.dcx()
+                        .err(format!(
+                            "{item_name} does not support named arguments (parameters are not named)"
+                        ))
+                        .span(error_span)
+                        .emit();
+                    return Err(());
+                };
+
+                // Validate argument count
+                if named_args.len() != named_params.len() {
+                    self.dcx()
+                        .err(format!(
+                            "wrong number of arguments for {}: expected {}, found {}",
+                            item_name,
+                            named_params.len(),
+                            named_args.len()
+                        ))
+                        .span(error_span)
+                        .emit();
+                    return Err(());
+                }
+
+                // Check that each named argument matches a parameter
+                for named_arg in named_args {
+                    if let Some((_, expected_ty)) = named_params
+                        .iter()
+                        .find(|(param_name, _)| param_name.name == named_arg.name.name)
+                    {
+                        let actual_ty = self.check_expr_kind(&named_arg.value, Some(*expected_ty));
+                        self.check_expected(&named_arg.value, actual_ty, *expected_ty);
+                    } else {
+                        self.dcx()
+                            .err(format!(
+                                "no parameter named `{}` in {}",
+                                named_arg.name.name, item_name
+                            ))
+                            .span(named_arg.name.span)
+                            .emit();
+                        return Err(());
+                    }
+                }
+
+                // Check that all parameters have corresponding arguments
+                for (param_name, _) in &named_params {
+                    if !named_args.iter().any(|arg| arg.name.name == param_name.name) {
+                        self.dcx()
+                            .err(format!(
+                                "missing argument for parameter `{}` in {}",
+                                param_name.name, item_name
+                            ))
+                            .span(error_span)
+                            .emit();
+                        return Err(());
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
@@ -1071,6 +1243,11 @@ fn binop_common_type<'gcx>(
         TyKind::FnPtr(_) => {
             // TODO: Compare internal function pointers
             // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3193
+            None
+        }
+
+        TyKind::Function(_) => {
+            // TODO: Compare regular functions
             None
         }
 

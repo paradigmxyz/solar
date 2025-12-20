@@ -33,6 +33,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),
+        TyKind::Function(_) => Default::default(), // Regular functions don't have direct members
         TyKind::Contract(id) => contract(gcx, id),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
