@@ -2716,7 +2716,6 @@ version = "0.1.8"
 dependencies = [
  "codspeed-criterion-compat",
  "iai-callgrind",
- "paste",
  "semver 1.0.27",
  "slang_solidity",
  "solang-parser",
