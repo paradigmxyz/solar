@@ -589,12 +589,24 @@ impl<'gcx> TypeChecker<'gcx> {
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
 
-        // Immutable variables must be value types
-        if var.is_immutable() && !ty.is_value_type() {
-            self.dcx()
-                .err("immutable variables cannot have a non-value type")
-                .span(var.span)
-                .emit();
+        // Constants must have compile-time constant initializers
+        // (uninitialized constants are already caught by the parser)
+        if var.is_constant() {
+            if let Some(init) = var.initializer {
+                // Validate that initializer is a compile-time constant
+                let mut evaluator = crate::eval::ConstantEvaluator::new(self.gcx);
+                let _ = evaluator.eval(init);
+                // Error already emitted by evaluator with proper message
+                // Message will be: "failed to evaluate constant: <reason>"
+            }
+        } else if var.is_immutable() {
+            // Immutable variables must be value types
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+            }
         }
 
         // State variables containing mappings cannot be initialized
