@@ -653,6 +653,24 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
+        // Non-state variables with mappings must be in storage
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "Type {} is only valid in storage because it contains a (nested) mapping.",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+            return ty;
+        }
+
         // Libraries cannot have non-constant state variables
         if var.is_state_variable()
             && var.contract.is_some_and(|contract_id| {
