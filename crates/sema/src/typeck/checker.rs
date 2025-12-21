@@ -48,6 +48,11 @@ impl<'gcx> TypeChecker<'gcx> {
         self.types[&expr.id]
     }
 
+    fn is_compile_time_constant(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        let mut evaluator = crate::eval::ConstantEvaluator::new(self.gcx);
+        evaluator.try_eval(expr).is_ok()
+    }
+
     #[must_use]
     fn check_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         self.check_expr_with(expr, None)
@@ -592,12 +597,20 @@ impl<'gcx> TypeChecker<'gcx> {
         // Constants must have compile-time constant initializers
         // (uninitialized constants are already caught by the parser)
         if var.is_constant() {
-            if let Some(init) = var.initializer {
-                // Validate that initializer is a compile-time constant
-                let mut evaluator = crate::eval::ConstantEvaluator::new(self.gcx);
-                let _ = evaluator.eval(init);
-                // Error already emitted by evaluator with proper message
-                // Message will be: "failed to evaluate constant: <reason>"
+             // Constants must be initialized
+             if var.initializer.is_none() {
+                self.dcx()
+                    .err("uninitialized \"constant\" variable")
+                    .span(var.span)
+                    .emit();
+            } else if let Some(init) = var.initializer {
+                // Constant initializers must be compile-time constants
+                if !self.is_compile_time_constant(init) {
+                    self.dcx()
+                        .err("initial value for constant variable has to be compile-time constant")
+                        .span(init.span)
+                        .emit();
+                }
             }
         } else if var.is_immutable() {
             // Immutable variables must be value types
