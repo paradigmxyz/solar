@@ -27,7 +27,6 @@ tree-sitter-solidity = "=1.2.12"
 [dev-dependencies]
 criterion.workspace = true
 iai-callgrind = "0.16"
-paste.workspace = true
 
 [features]
 ci = []
