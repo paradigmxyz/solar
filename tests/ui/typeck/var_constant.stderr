@@ -1,14 +1,14 @@
-error: failed to evaluate constant: only constant variables are allowed
+error: initial value for constant variable has to be compile-time constant
    ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
    │
 LL │     uint constant refNonConstant = nonConstant;
-   ╰╴                                   ━━━━━━━━━━━ evaluation of constant value failed here
+   ╰╴                                   ━━━━━━━━━━━
 
-error: failed to evaluate constant: unsupported expression
+error: initial value for constant variable has to be compile-time constant
    ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
    │
 LL │     uint constant blockTime = block.timestamp;
-   ╰╴                              ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   ╰╴                              ━━━━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
