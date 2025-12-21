@@ -1,0 +1,14 @@
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_struct.sol:LL:CC
+   │
+LL │     S y = x;
+   ╰╴    ━━━━━━━━
+
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_struct.sol:LL:CC
+   │
+LL │     S z = z;
+   ╰╴    ━━━━━━━━
+
+error: aborting due to 2 previous errors
+
