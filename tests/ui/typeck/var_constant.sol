@@ -7,5 +7,4 @@ contract TestConstants {
     uint constant refNonConstant = nonConstant; //~ ERROR: initial value for constant variable has to be compile-time constant
 
     uint constant blockTime = block.timestamp; //~ ERROR: initial value for constant variable has to be compile-time constant
-    //~^ ERROR: mismatched types
 }

@@ -10,11 +10,5 @@ error: initial value for constant variable has to be compile-time constant
 LL │     uint constant blockTime = block.timestamp;
    ╰╴                              ━━━━━━━━━━━━━━━
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
-   │
-LL │     uint constant blockTime = block.timestamp;
-   ╰╴                              ━━━━━━━━━━━━━━━ expected `uint256`, found `uint256`
-
-error: aborting due to 3 previous errors
+error: aborting due to 2 previous errors
 

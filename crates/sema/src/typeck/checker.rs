@@ -603,6 +603,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err("uninitialized \"constant\" variable")
                     .span(var.span)
                     .emit();
+                return ty;
             } else if let Some(init) = var.initializer {
                 // Constant initializers must be compile-time constants
                 if !self.is_compile_time_constant(init) {
@@ -610,6 +611,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         .err("initial value for constant variable has to be compile-time constant")
                         .span(init.span)
                         .emit();
+                    return ty;
                 }
             }
         } else if var.is_immutable() {
@@ -619,6 +621,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err("immutable variables cannot have a non-value type")
                     .span(var.span)
                     .emit();
+                return ty;
             }
         }
 
@@ -628,6 +631,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .err("state variables containing mappings cannot be initialized")
                 .span(var.span)
                 .emit();
+            return ty;
         }
 
         // Libraries cannot have non-constant state variables
@@ -638,6 +642,7 @@ impl<'gcx> TypeChecker<'gcx> {
             })
         {
             self.dcx().err("library cannot have non-constant state variable").span(var.span).emit();
+            return ty;
         }
 
         if let Some(init) = var.initializer {
