@@ -116,8 +116,8 @@ impl<'gcx> Ty<'gcx> {
 
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
-        let parameters = self.parameters().unwrap_or_default();
-        let returns = self.returns().unwrap_or_default();
+        let parameters = self.parameters_with_gcx(gcx).unwrap_or_default();
+        let returns = self.returns_with_gcx(gcx).unwrap_or_default();
         let any_parameter = parameters.iter().any(is_calldata);
         let any_return = returns.iter().any(is_calldata);
         if !any_parameter && !any_return {
@@ -142,8 +142,10 @@ impl<'gcx> Ty<'gcx> {
             } else {
                 returns
             },
-            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
-            visibility: self.visibility().unwrap_or(Visibility::Public),
+            state_mutability: self
+                .state_mutability_with_gcx(gcx)
+                .unwrap_or(StateMutability::NonPayable),
+            visibility: self.visibility_with_gcx(gcx).unwrap_or(Visibility::Public),
         })
     }
 
@@ -247,7 +249,21 @@ impl<'gcx> Ty<'gcx> {
     pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.parameters,
-            TyKind::Function(_) => return None,
+            TyKind::Function(_) => return None, // Need gcx to get function parameters
+            TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
+            _ => return None,
+        })
+    }
+
+    /// Returns the parameter types of the type with a context.
+    #[inline]
+    pub fn parameters_with_gcx(self, gcx: Gcx<'gcx>) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.parameters,
+            TyKind::Function(function_id) => {
+                // Get parameter types from the function definition
+                return gcx.item_parameter_types_opt(hir::ItemId::Function(function_id));
+            }
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
             _ => return None,
         })
@@ -322,6 +338,24 @@ impl<'gcx> Ty<'gcx> {
     pub fn returns(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.returns,
+            TyKind::Function(_) => return None, // Need gcx to get function returns
+            _ => return None,
+        })
+    }
+
+    /// Returns the return types of the type with a context.
+    #[inline]
+    pub fn returns_with_gcx(self, gcx: Gcx<'gcx>) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.returns,
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                return if function.returns.is_empty() {
+                    Some(&[])
+                } else {
+                    Some(gcx.mk_item_tys(function.returns))
+                };
+            }
             _ => return None,
         })
     }
@@ -331,6 +365,20 @@ impl<'gcx> Ty<'gcx> {
     pub fn state_mutability(self) -> Option<StateMutability> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Function(_) => None, // Need gcx to get function state mutability
+            _ => None,
+        }
+    }
+
+    /// Returns the state mutability of the type with a context.
+    #[inline]
+    pub fn state_mutability_with_gcx(self, gcx: Gcx<'gcx>) -> Option<StateMutability> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                Some(function.state_mutability)
+            }
             _ => None,
         }
     }
@@ -340,6 +388,20 @@ impl<'gcx> Ty<'gcx> {
     pub fn visibility(self) -> Option<Visibility> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.visibility),
+            TyKind::Function(_) => None, // Need gcx to get function visibility
+            _ => None,
+        }
+    }
+
+    /// Returns the visibility of the type with a context.
+    #[inline]
+    pub fn visibility_with_gcx(self, gcx: Gcx<'gcx>) -> Option<Visibility> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.visibility),
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                Some(function.visibility)
+            }
             _ => None,
         }
     }

@@ -621,7 +621,11 @@ impl<'gcx> Gcx<'gcx> {
     pub fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
         match res {
             hir::Res::Item(id) => {
-                let ty = self.type_of_item(id);
+                let ty = match id {
+                    // When directly referencing a function, create a Function type
+                    hir::ItemId::Function(function_id) => self.mk_ty(TyKind::Function(function_id)),
+                    _ => self.type_of_item(id),
+                };
                 if is_value_ns(id) { ty } else { self.mk_ty(TyKind::Type(ty)) }
             }
             hir::Res::Namespace(id) => self.mk_ty(TyKind::Module(id)),
