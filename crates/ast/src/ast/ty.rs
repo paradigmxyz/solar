@@ -243,6 +243,23 @@ impl TypeSize {
         if bits.is_multiple_of(8) { Self::new(bits) } else { None }
     }
 
+    /// Creates a new `TypeSize` for an integer literal from **bits**.
+    ///
+    /// Panics if `bits` is zero or greater than 256.
+    #[inline]
+    #[track_caller]
+    pub fn new_literal_bits(bits: u16) -> Self {
+        Self::try_new_literal_bits(bits).unwrap_or_else(|| panic!("invalid literal size: {bits}"))
+    }
+
+    /// Creates a new `TypeSize` for an integer literal from **bits**.
+    ///
+    /// Returns None if `bits` is zero or greater than 256.
+    #[inline]
+    pub fn try_new_literal_bits(bits: u16) -> Option<Self> {
+        if bits == 0 { None } else { Self::new(bits) }
+    }
+
     /// Creates a new `TypeSize` for a fixed-bytes type from **bytes**.
     ///
     /// Panics if `bytes` is not in the range 1..=32.

@@ -364,10 +364,10 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
         let bits = bits.max(1);
-        if bits > 256 {
+        if bits > TypeSize::MAX as u64 {
             return None;
         }
-        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_int_bits(bits as u16))))
+        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
