@@ -1,9 +1,3 @@
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
-   │
-LL │     uint256[10] fixedArray;
-   ╰╴            ━━ expected `uint256`, found `int_literal[1]`
-
 error: member `length` is read-only and cannot be used to resize arrays
    ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
    │
@@ -22,5 +16,5 @@ error: member `length` is read-only and cannot be used to resize arrays
 LL │         arr.length = state;
    ╰╴        ━━━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: aborting due to 3 previous errors
 
