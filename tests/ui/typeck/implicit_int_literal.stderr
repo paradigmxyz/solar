@@ -16,5 +16,17 @@ error: mismatched types
 LL │     int16 i16_overflow = 65536;
    ╰╴                         ━━━━━ expected `int16`, found `int_literal[3]`
 
-error: aborting due to 3 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
+   │
+LL │     uint8 neg_to_uint8 = -1;
+   ╰╴                         ━━ expected `uint8`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
+   │
+LL │     uint256 neg_to_uint256 = -42;
+   ╰╴                             ━━━ expected `uint256`, found `int_literal[1]`
+
+error: aborting due to 5 previous errors
 
