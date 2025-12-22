@@ -309,7 +309,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
             }
             TyKind::IntLiteral(_, size) => {
-                write!(self.buf, "int_literal[{}]", size.bytes())
+                write!(self.buf, "int_literal[{}]", size.bits())
             }
             TyKind::Slice(ty) => {
                 self.print(ty)?;
