@@ -79,11 +79,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::UInt => ElementaryType::UInt(TypeSize::ZERO),
             s if s >= kw::UInt8 && s <= kw::UInt256 => {
                 let bits = (s.as_u32() - kw::UInt8.as_u32() + 1) * 8;
-                ElementaryType::UInt(TypeSize::new(bits as u16).unwrap())
+                ElementaryType::UInt(TypeSize::new_int_bits(bits as u16))
             }
             s if s >= kw::Int8 && s <= kw::Int256 => {
                 let bits = (s.as_u32() - kw::Int8.as_u32() + 1) * 8;
-                ElementaryType::Int(TypeSize::new(bits as u16).unwrap())
+                ElementaryType::Int(TypeSize::new_int_bits(bits as u16))
             }
             s if s >= kw::Bytes1 && s <= kw::Bytes32 => {
                 let bytes = s.as_u32() - kw::Bytes1.as_u32() + 1;
@@ -183,7 +183,7 @@ fn parse_fb_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
 
 #[allow(dead_code)]
 fn parse_int_size(s: &str) -> Result<TypeSize, ParseTySizeError> {
-    parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new(x as u16 * 8).unwrap())
+    parse_ty_size_u8(s, 1..=32, true).map(|x| TypeSize::new_int_bits(x as u16 * 8))
 }
 
 #[allow(dead_code)]

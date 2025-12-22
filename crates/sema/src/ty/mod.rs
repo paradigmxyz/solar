@@ -358,7 +358,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
         self.mk_ty(TyKind::StringLiteral(
             std::str::from_utf8(s).is_ok(),
-            TypeSize::new(s.len().min(32) as u16 * 8).unwrap(),
+            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
         ))
     }
 
@@ -367,7 +367,7 @@ impl<'gcx> Gcx<'gcx> {
         if bits > 256 {
             return None;
         }
-        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new(bits as u16).unwrap())))
+        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_int_bits(bits as u16))))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {

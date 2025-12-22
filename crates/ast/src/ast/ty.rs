@@ -222,7 +222,7 @@ impl TypeSize {
 
     /// Creates a new `TypeSize` from a `u16` number of **bits**.
     #[inline]
-    pub const fn new(bits: u16) -> Option<Self> {
+    const fn new(bits: u16) -> Option<Self> {
         if bits > Self::MAX { None } else { Some(Self(bits)) }
     }
 
