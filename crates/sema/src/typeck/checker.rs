@@ -1,5 +1,6 @@
 use crate::{
     builtins::Builtin,
+    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -145,6 +146,16 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Binary(lhs_e, op, rhs_e) => {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
+
+                // When both operands are IntLiteral, evaluate the expression to preserve
+                // literal type through binary operations (needed for -(1 + 2) to work).
+                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
+                    && !op.kind.is_cmp()
+                    && let Some(lit_ty) = self.try_eval_int_literal_binop(expr)
+                {
+                    return lit_ty;
+                }
+
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
@@ -518,6 +529,16 @@ impl<'gcx> TypeChecker<'gcx> {
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
         // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
         let _ = (ty, expr);
+    }
+
+    /// Tries to evaluate a binary expression where both operands are int literals.
+    ///
+    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
+    /// This is used to preserve literal type through binary operations.
+    fn try_eval_int_literal_binop(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+        let mut evaluator = ConstantEvaluator::new(self.gcx);
+        let result = evaluator.try_eval(expr).ok()?;
+        self.gcx.mk_ty_int_literal(result.is_negative(), result.bit_len())
     }
 
     fn check_binop(
