@@ -196,9 +196,9 @@ impl ElementaryType {
     }
 }
 
-/// Byte size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=32.
+/// Bit size of a fixed-bytes, integer, or fixed-point number (M) type. Valid values: 0..=256.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct TypeSize(u8);
+pub struct TypeSize(u16);
 
 impl Default for TypeSize {
     #[inline]
@@ -217,16 +217,16 @@ impl TypeSize {
     /// The value zero. Note that this is not a valid size for a fixed-bytes type.
     pub const ZERO: Self = Self(0);
 
-    /// The maximum byte value of a `TypeSize`.
-    pub const MAX: u8 = 32;
+    /// The maximum bit value of a `TypeSize`.
+    pub const MAX: u16 = 256;
 
-    /// Creates a new `TypeSize` from a `u8` number of **bytes**.
+    /// Creates a new `TypeSize` from a `u16` number of **bits**.
     #[inline]
-    pub const fn new(bytes: u8) -> Option<Self> {
-        if bytes > Self::MAX { None } else { Some(Self(bytes)) }
+    pub const fn new(bits: u16) -> Option<Self> {
+        if bits > Self::MAX { None } else { Some(Self(bits)) }
     }
 
-    /// Creates a new `TypeSize` from a `u8` number of **bits**.
+    /// Creates a new `TypeSize` for an integer type from **bits**.
     ///
     /// Panics if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
@@ -235,15 +235,15 @@ impl TypeSize {
         Self::try_new_int_bits(bits).unwrap_or_else(|| panic!("invalid integer size: {bits}"))
     }
 
-    /// Creates a new `TypeSize` for an integer type.
+    /// Creates a new `TypeSize` for an integer type from **bits**.
     ///
     /// Returns None if `bits` is not a multiple of 8 or greater than 256.
     #[inline]
     pub fn try_new_int_bits(bits: u16) -> Option<Self> {
-        if bits.is_multiple_of(8) { Self::new((bits / 8).try_into().ok()?) } else { None }
+        if bits.is_multiple_of(8) { Self::new(bits) } else { None }
     }
 
-    /// Creates a new `TypeSize` for a fixed-bytes type.
+    /// Creates a new `TypeSize` for a fixed-bytes type from **bytes**.
     ///
     /// Panics if `bytes` is not in the range 1..=32.
     #[inline]
@@ -252,7 +252,7 @@ impl TypeSize {
         Self::try_new_fb_bytes(bytes).unwrap_or_else(|| panic!("invalid fixed-bytes size: {bytes}"))
     }
 
-    /// Creates a new `TypeSize` for a fixed-bytes type.
+    /// Creates a new `TypeSize` for a fixed-bytes type from **bytes**.
     ///
     /// Returns None if `bytes` is not in the range 1..=32.
     #[inline]
@@ -260,43 +260,43 @@ impl TypeSize {
         if bytes == 0 {
             return None;
         }
-        Self::new(bytes)
+        Self::new(bytes as u16 * 8)
     }
 
-    /// Returns the number of **bytes**, with `0` defaulting to `MAX`.
+    /// Returns the number of **bytes**, with `0` defaulting to 32.
     #[inline]
     pub const fn bytes(self) -> u8 {
-        if self.0 == 0 { Self::MAX } else { self.0 }
+        if self.0 == 0 { (Self::MAX / 8) as u8 } else { self.0.div_ceil(8) as u8 }
     }
 
     /// Returns the number of **bytes**.
     #[inline]
     pub const fn bytes_raw(self) -> u8 {
-        self.0
+        self.0.div_ceil(8) as u8
     }
 
-    /// Returns the number of **bits**, with `0` defaulting to `MAX*8`.
+    /// Returns the number of **bits**, with `0` defaulting to `MAX`.
     #[inline]
     pub const fn bits(self) -> u16 {
-        self.bytes() as u16 * 8
+        if self.0 == 0 { Self::MAX } else { self.0 }
     }
 
     /// Returns the number of **bits**.
     #[inline]
     pub const fn bits_raw(self) -> u16 {
-        self.0 as u16 * 8
+        self.0
     }
 
     /// Returns the `int` symbol for the type name.
     #[inline]
     pub const fn int_keyword(self) -> Symbol {
-        kw::int(self.0)
+        kw::int(self.bytes_raw())
     }
 
     /// Returns the `uint` symbol for the type name.
     #[inline]
     pub const fn uint_keyword(self) -> Symbol {
-        kw::uint(self.0)
+        kw::uint(self.bytes_raw())
     }
 
     /// Returns the `bytesN` symbol for the type name.
@@ -307,7 +307,7 @@ impl TypeSize {
     #[inline]
     #[track_caller]
     pub const fn bytes_keyword(self) -> Symbol {
-        kw::fixed_bytes(self.0)
+        kw::fixed_bytes(self.bytes_raw())
     }
 }
 

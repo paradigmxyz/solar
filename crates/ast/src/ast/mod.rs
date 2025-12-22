@@ -218,7 +218,7 @@ mod tests {
         assert_size::<FunctionHeader<'_>>(str!["112"]);
         assert_size::<ParameterList<'_>>(str!["16"]);
 
-        assert_size::<ElementaryType>(str!["3"]);
+        assert_size::<ElementaryType>(str!["4"]);
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);
 
