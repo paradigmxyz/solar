@@ -187,6 +187,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
             TyKind::Contract(_) => self.buf.write_str("address"),
             TyKind::FnPtr(_) => self.buf.write_str("function"),
+            TyKind::Function(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => match self.mode {
                 TyAbiPrinterMode::Signature => {
                     if self.gcx.struct_recursiveness(id).is_recursive() {
@@ -282,6 +283,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
             TyKind::FnPtr(f) => {
                 self.print_function(None, f.parameters, f.returns, f.state_mutability, f.visibility)
             }
+            TyKind::Function(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => {
                 write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
             }

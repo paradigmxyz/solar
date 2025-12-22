@@ -3,7 +3,7 @@ use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{Interned, fmt};
-use solar_interface::diagnostics::ErrorGuaranteed;
+use solar_interface::{Ident, diagnostics::ErrorGuaranteed};
 use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
 
 /// An interned type.
@@ -134,8 +134,8 @@ impl<'gcx> Ty<'gcx> {
 
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
-        let parameters = self.parameters().unwrap_or_default();
-        let returns = self.returns().unwrap_or_default();
+        let parameters = self.parameters_with_gcx(gcx).unwrap_or_default();
+        let returns = self.returns_with_gcx(gcx).unwrap_or_default();
         let any_parameter = parameters.iter().any(is_calldata);
         let any_return = returns.iter().any(is_calldata);
         if !any_parameter && !any_return {
@@ -160,8 +160,10 @@ impl<'gcx> Ty<'gcx> {
             } else {
                 returns
             },
-            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
-            visibility: self.visibility().unwrap_or(Visibility::Public),
+            state_mutability: self
+                .state_mutability_with_gcx(gcx)
+                .unwrap_or(StateMutability::NonPayable),
+            visibility: self.visibility_with_gcx(gcx).unwrap_or(Visibility::Public),
         })
     }
 
@@ -265,9 +267,88 @@ impl<'gcx> Ty<'gcx> {
     pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.parameters,
+            TyKind::Function(_) => return None, // Need gcx to get function parameters
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
             _ => return None,
         })
+    }
+
+    /// Returns the parameter types of the type with a context.
+    #[inline]
+    pub fn parameters_with_gcx(self, gcx: Gcx<'gcx>) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.parameters,
+            TyKind::Function(function_id) => {
+                // Get parameter types from the function definition
+                return gcx.item_parameter_types_opt(hir::ItemId::Function(function_id));
+            }
+            TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
+            _ => return None,
+        })
+    }
+
+    /// Returns the named parameters of the type (parameter names with their types).
+    /// Returns None if the type doesn't have named parameters or if parameter names cannot be
+    /// retrieved.
+    pub fn named_parameters(self, gcx: Gcx<'gcx>) -> Option<Vec<(Ident, Self)>> {
+        match self.kind {
+            TyKind::Event(_, event_id) => {
+                let event = gcx.hir.event(event_id);
+                let param_types = self.parameters()?;
+                let mut named_params = Vec::new();
+
+                for (&param_id, &param_ty) in event.parameters.iter().zip(param_types.iter()) {
+                    let param_var = gcx.hir.variable(param_id);
+                    let Some(param_name) = param_var.name else {
+                        // If any parameter is unnamed, we can't support named arguments
+                        return None;
+                    };
+                    named_params.push((param_name, param_ty));
+                }
+                Some(named_params)
+            }
+            TyKind::Error(_, error_id) => {
+                let error = gcx.hir.error(error_id);
+                let param_types = self.parameters()?;
+                let mut named_params = Vec::new();
+
+                for (&param_id, &param_ty) in error.parameters.iter().zip(param_types.iter()) {
+                    let param_var = gcx.hir.variable(param_id);
+                    let Some(param_name) = param_var.name else {
+                        // If any parameter is unnamed, we can't support named arguments
+                        return None;
+                    };
+                    named_params.push((param_name, param_ty));
+                }
+                Some(named_params)
+            }
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                if let Some(param_types) =
+                    gcx.item_parameter_types_opt(hir::ItemId::Function(function_id))
+                {
+                    let mut named_params = Vec::new();
+                    for (&param_id, &param_ty) in function.parameters.iter().zip(param_types.iter())
+                    {
+                        let param_var = gcx.hir.variable(param_id);
+                        let Some(param_name) = param_var.name else {
+                            // If any parameter is unnamed, we can't support named arguments
+                            return None;
+                        };
+                        named_params.push((param_name, param_ty));
+                    }
+                    Some(named_params)
+                } else {
+                    None
+                }
+            }
+            TyKind::FnPtr(_) => {
+                // Function pointers don't store parameter names, so we can't provide named
+                // parameters. Only unnamed arguments are supported for function pointers.
+                None
+            }
+            _ => None,
+        }
     }
 
     /// Returns the return types of the type.
@@ -275,6 +356,24 @@ impl<'gcx> Ty<'gcx> {
     pub fn returns(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.returns,
+            TyKind::Function(_) => return None, // Need gcx to get function returns
+            _ => return None,
+        })
+    }
+
+    /// Returns the return types of the type with a context.
+    #[inline]
+    pub fn returns_with_gcx(self, gcx: Gcx<'gcx>) -> Option<&'gcx [Self]> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.returns,
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                return if function.returns.is_empty() {
+                    Some(&[])
+                } else {
+                    Some(gcx.mk_item_tys(function.returns))
+                };
+            }
             _ => return None,
         })
     }
@@ -284,6 +383,20 @@ impl<'gcx> Ty<'gcx> {
     pub fn state_mutability(self) -> Option<StateMutability> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Function(_) => None, // Need gcx to get function state mutability
+            _ => None,
+        }
+    }
+
+    /// Returns the state mutability of the type with a context.
+    #[inline]
+    pub fn state_mutability_with_gcx(self, gcx: Gcx<'gcx>) -> Option<StateMutability> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                Some(function.state_mutability)
+            }
             _ => None,
         }
     }
@@ -293,6 +406,20 @@ impl<'gcx> Ty<'gcx> {
     pub fn visibility(self) -> Option<Visibility> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.visibility),
+            TyKind::Function(_) => None, // Need gcx to get function visibility
+            _ => None,
+        }
+    }
+
+    /// Returns the visibility of the type with a context.
+    #[inline]
+    pub fn visibility_with_gcx(self, gcx: Gcx<'gcx>) -> Option<Visibility> {
+        match self.kind {
+            TyKind::FnPtr(f) => Some(f.visibility),
+            TyKind::Function(function_id) => {
+                let function = gcx.hir.function(function_id);
+                Some(function.visibility)
+            }
             _ => None,
         }
     }
@@ -306,6 +433,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
+            | TyKind::Function(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
@@ -780,6 +908,9 @@ pub enum TyKind<'gcx> {
     /// Function pointer: `function(...) returns (...)`.
     FnPtr(&'gcx TyFnPtr<'gcx>),
 
+    /// Regular function reference.
+    Function(hir::FunctionId),
+
     /// Contract.
     Contract(hir::ContractId),
 
@@ -859,6 +990,7 @@ impl TyFlags {
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::FnPtr(_)
+            | TyKind::Function(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
