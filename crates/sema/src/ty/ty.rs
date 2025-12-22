@@ -35,6 +35,12 @@ pub enum TyConvertError {
 
     /// Invalid conversion between types.
     InvalidConversion,
+
+    /// Contract cannot be converted to address payable because it cannot receive ether.
+    ContractNotPayable,
+
+    /// Non-payable address cannot be converted to a contract that can receive ether.
+    AddressNotPayable,
 }
 
 impl TyConvertError {
@@ -53,6 +59,18 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::ContractNotPayable => {
+                format!(
+                    "cannot convert `{}` to `address payable` because it has no receive function or payable fallback",
+                    from.display(gcx)
+                )
+            }
+            Self::AddressNotPayable => {
+                format!(
+                    "cannot convert non-payable `address` to `{}` because it has a receive function or payable fallback",
+                    to.display(gcx)
+                )
             }
         }
     }
@@ -601,6 +619,34 @@ impl<'gcx> Ty<'gcx> {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            // Contract -> address (always allowed)
+            (Contract(_), Elementary(Address(false))) => Ok(()),
+
+            // Contract -> address payable (only if contract can receive ether)
+            (Contract(contract_id), Elementary(Address(true))) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::ContractNotPayable)
+                }
+            }
+
+            // Address payable -> Contract (always allowed)
+            (Elementary(Address(true)), Contract(_)) => Ok(()),
+
+            // Address (non-payable) -> Contract (only if contract cannot receive ether)
+            (Elementary(Address(false)), Contract(contract_id)) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Result::Err(TyConvertError::AddressNotPayable)
+                } else {
+                    Ok(())
                 }
             }
 
