@@ -682,6 +682,15 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
+        // Public state variables must have exportable types for their getter
+        if var.is_state_variable() && var.is_public() && !ty.can_be_exported() {
+            self.dcx()
+                .err("internal or recursive type is not allowed for public state variables")
+                .span(var.span)
+                .emit();
+            return ty;
+        }
+
         if let Some(init) = var.initializer {
             if expect {
                 let _ = self.expect_ty(init, ty);

@@ -224,6 +224,12 @@ impl<'gcx> Ty<'gcx> {
         self.flags.contains(TyFlags::HAS_MAPPING)
     }
 
+    /// Returns `true` if this type contains a non-public (internal/private) function pointer.
+    #[inline]
+    pub fn has_internal_function(self) -> bool {
+        self.flags.contains(TyFlags::HAS_INTERNAL_FN)
+    }
+
     /// Returns `Err(guar)` if this type contains an error.
     #[inline]
     pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
@@ -239,7 +245,10 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.references_error())
+        !(self.is_recursive()
+            || self.has_mapping()
+            || self.has_internal_function()
+            || self.references_error())
     }
 
     /// Returns the parameter types of the type.
@@ -767,6 +776,8 @@ bitflags::bitflags! {
         const HAS_MAPPING  = 1 << 1;
         /// Whether an error is reachable.
         const HAS_ERROR    = 1 << 2;
+        /// Whether this type contains a non-public (internal/private) function pointer.
+        const HAS_INTERNAL_FN = 1 << 3;
     }
 }
 
@@ -783,10 +794,19 @@ impl TyFlags {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
+
+            TyKind::FnPtr(f) => {
+                // Non-public (internal/private) function pointers cannot be exported
+                if f.visibility < Visibility::Public {
+                    self.add(Self::HAS_INTERNAL_FN);
+                }
+                // Also propagate flags from parameter and return types
+                self.add_tys(f.parameters);
+                self.add_tys(f.returns);
+            }
 
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)

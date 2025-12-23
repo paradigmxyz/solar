@@ -1,0 +1,20 @@
+error: getter must return at least one value
+   ╭▸ ROOT/tests/ui/typeck/var_recursive_type.sol:LL:CC
+   │
+LL │     R public myVar;
+   │     ━━━━━━━━━━━━━━━
+   ╰╴
+note: the struct has all its members omitted, therefore the getter cannot return any values
+   ╭▸ ROOT/tests/ui/typeck/var_recursive_type.sol:LL:CC
+   │
+LL │     R public myVar;
+   ╰╴    ━
+
+error: recursive types cannot be parameter or return types of public functions
+   ╭▸ ROOT/tests/ui/typeck/var_recursive_type.sol:LL:CC
+   │
+LL │     function testRecursive(S memory s) public {}
+   ╰╴                           ━
+
+error: aborting due to 2 previous errors
+

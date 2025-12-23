@@ -754,6 +754,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.is_recursive() {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_internal_function() {
+                    format!("types containing non-public function pointers cannot be parameter or return types of public {kind}s")
                 } else {
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
