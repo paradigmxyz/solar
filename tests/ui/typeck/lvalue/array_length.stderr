@@ -1,0 +1,20 @@
+error: member `length` is read-only and cannot be used to resize arrays
+   ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
+   │
+LL │         dynamicArray.length = state;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error: member `length` is read-only and cannot be used to resize arrays
+   ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
+   │
+LL │         fixedArray.length = state;
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error: member `length` is read-only and cannot be used to resize arrays
+   ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
+   │
+LL │         arr.length = state;
+   ╰╴        ━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

@@ -25,6 +25,57 @@ impl<'gcx> std::ops::Deref for Ty<'gcx> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TyConvertError {
+    /// Generic incompatibility (fallback).
+    Incompatible,
+
+    /// Contract doesn't inherit from target contract.
+    NonDerivedContract,
+
+    /// Invalid conversion between types.
+    InvalidConversion,
+
+    /// Contract cannot be converted to address payable because it cannot receive ether.
+    ContractNotPayable,
+
+    /// Non-payable address cannot be converted to a contract that can receive ether.
+    AddressNotPayable,
+}
+
+impl TyConvertError {
+    /// Returns the error message for this conversion error.
+    pub fn message<'gcx>(self, from: Ty<'gcx>, to: Ty<'gcx>, gcx: Gcx<'gcx>) -> String {
+        match self {
+            Self::NonDerivedContract => {
+                format!(
+                    "contract `{}` does not inherit from `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
+            }
+            Self::InvalidConversion => {
+                format!("cannot convert `{}` to `{}`", from.display(gcx), to.display(gcx))
+            }
+            Self::Incompatible => {
+                format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::ContractNotPayable => {
+                format!(
+                    "cannot convert `{}` to `address payable` because it has no receive function or payable fallback",
+                    from.display(gcx)
+                )
+            }
+            Self::AddressNotPayable => {
+                format!(
+                    "cannot convert non-payable `address` to `{}` because it has a receive function or payable fallback",
+                    to.display(gcx)
+                )
+            }
+        }
+    }
+}
+
 impl<'gcx> Ty<'gcx> {
     pub fn new(gcx: Gcx<'gcx>, kind: TyKind<'gcx>) -> Self {
         gcx.mk_ty(kind)
@@ -382,12 +433,12 @@ impl<'gcx> Ty<'gcx> {
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;
         if let Some(a) = a.mobile(gcx)
-            && b.convert_implicit_to(a)
+            && b.convert_implicit_to(a, gcx)
         {
             return Some(a);
         }
         if let Some(b) = b.mobile(gcx)
-            && a.convert_implicit_to(b)
+            && a.convert_implicit_to(b, gcx)
         {
             return Some(b);
         }
@@ -415,15 +466,18 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
     #[must_use]
-    pub fn convert_implicit_to(self, other: Self) -> bool {
-        self.try_convert_implicit_to(other).is_ok()
+    pub fn convert_implicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_implicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is implicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_implicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -434,6 +488,39 @@ impl<'gcx> Ty<'gcx> {
         match (self.kind, other.kind) {
             // address payable -> address.
             (Elementary(Address(true)), Elementary(Address(false))) => Ok(()),
+
+            // Reference type location coercion rules.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#data-location-and-assignment-behaviour>
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) => {
+                match (from_loc, to_loc) {
+                    // Same location: allowed if base types match.
+                    (DataLocation::Memory, DataLocation::Memory)
+                    | (DataLocation::Calldata, DataLocation::Calldata) => {
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
+                    }
+
+                    // storage -> storage: allowed (reference assignment).
+                    (DataLocation::Storage, DataLocation::Storage) => {
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
+                    }
+
+                    // calldata/storage -> memory: allowed (copy semantics).
+                    (DataLocation::Calldata, DataLocation::Memory)
+                    | (DataLocation::Storage, DataLocation::Memory) => {
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
+                    }
+
+                    // memory/calldata -> storage: allowed (copy semantics).
+                    (DataLocation::Memory, DataLocation::Storage)
+                    | (DataLocation::Calldata, DataLocation::Storage) => {
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
+                    }
+
+                    // storage -> calldata: never allowed.
+                    // memory -> calldata: never allowed.
+                    _ => Result::Err(TyConvertError::Incompatible),
+                }
+            }
 
             // Array slices are implicitly convertible to arrays of their underlying element type.
             // Note: conversion to storage pointers is NOT allowed.
@@ -447,12 +534,51 @@ impl<'gcx> Ty<'gcx> {
                 {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Contract -> Base contract (inheritance check)
+            (Contract(self_contract_id), Contract(other_contract_id)) => {
+                let self_contract = gcx.hir.contract(self_contract_id);
+                if self_contract.linearized_bases.contains(&other_contract_id) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            // Integer literals can coerce to typed integers if they fit.
+            // Non-negative literals can coerce to both uint and int types.
+            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+                // Unsigned: reject negative, check size fits
+                if neg {
+                    Result::Err(TyConvertError::Incompatible)
+                } else if size.bits() <= target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+                // Signed: non-negative values need strict inequality since they use the
+                // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
+                // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
+                if neg {
+                    if size.bits() <= target_size.bits() {
+                        Ok(())
+                    } else {
+                        Result::Err(TyConvertError::Incompatible)
+                    }
+                } else if size.bits() < target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
                 }
             }
 
             // TODO: more implicit conversions
-            _ => Result::Err(()),
+            _ => Result::Err(TyConvertError::Incompatible),
         }
     }
 
@@ -462,22 +588,22 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
-    pub fn convert_explicit_to(self, other: Self) -> bool {
-        self.try_convert_explicit_to(other).is_ok()
+    pub fn convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_explicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    ///
-    /// Follows Solidity 0.8.0+ rules where explicit conversions are as strict as implicit.
-    /// See: <https://docs.soliditylang.org/en/latest/080-breaking-changes.html>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
-        if self.try_convert_implicit_to(other).is_ok() {
+        if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
         match (self.kind, other.kind) {
@@ -485,9 +611,16 @@ impl<'gcx> Ty<'gcx> {
             (Enum(_), _) if other.is_integer() => Ok(()),
             (_, Enum(_)) if self.is_integer() => Ok(()),
 
-            // FixedBytes to FixedBytes: always allowed (any size).
+            // bytes/FixedBytes to FixedBytes: always allowed (any size).
             // Smaller to larger right-pads with zeros, larger to smaller truncates on the right.
             (Elementary(FixedBytes(_)), Elementary(FixedBytes(_))) => Ok(()),
+            (Ref(ty, _), Elementary(FixedBytes(_))) => {
+                if matches!(ty.kind, Elementary(Bytes)) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::InvalidConversion)
+                }
+            }
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
@@ -533,7 +666,45 @@ impl<'gcx> Ty<'gcx> {
             // IntLiteral(negative) -> Int: allowed.
             (IntLiteral(true, _), Elementary(Int(_))) => Ok(()),
 
-            _ => Result::Err(()),
+            // Contract -> Base contract (inheritance check)
+            (Contract(self_contract_id), Contract(other_contract_id)) => {
+                let self_contract = gcx.hir.contract(self_contract_id);
+                if self_contract.linearized_bases.contains(&other_contract_id) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            // Contract -> address (always allowed)
+            (Contract(_), Elementary(Address(false))) => Ok(()),
+
+            // Contract -> address payable (only if contract can receive ether)
+            (Contract(contract_id), Elementary(Address(true))) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::ContractNotPayable)
+                }
+            }
+
+            // Address payable -> Contract (always allowed)
+            (Elementary(Address(true)), Contract(_)) => Ok(()),
+
+            // Address (non-payable) -> Contract (only if contract cannot receive ether)
+            (Elementary(Address(false)), Contract(contract_id)) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Result::Err(TyConvertError::AddressNotPayable)
+                } else {
+                    Ok(())
+                }
+            }
+
+            _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
 
