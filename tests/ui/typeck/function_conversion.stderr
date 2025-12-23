@@ -1,0 +1,86 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = view_fn;
+   ╰╴                 ━━━━━━━ expected `function () pure`, found `function () view`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = nonpayable_fn;
+   ╰╴                 ━━━━━━━━━━━━━ expected `function () pure`, found `function ()`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = payable_fn;
+   ╰╴                 ━━━━━━━━━━ expected `function () pure`, found `function () payable`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_view = nonpayable_fn;
+   ╰╴                 ━━━━━━━━━━━━━ expected `function () view`, found `function ()`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_view = payable_fn;
+   ╰╴                 ━━━━━━━━━━ expected `function () view`, found `function () payable`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_payable = pure_fn;
+   ╰╴                    ━━━━━━━ expected `function () payable`, found `function () pure`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_payable = view_fn;
+   ╰╴                    ━━━━━━━ expected `function () payable`, found `function () view`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_payable = nonpayable_fn;
+   ╰╴                    ━━━━━━━━━━━━━ expected `function () payable`, found `function ()`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = this.external_pure_fn;
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━ expected `function () pure`, found `function () pure external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_external = pure_fn;
+   ╰╴                     ━━━━━━━ expected `function () pure external`, found `function () pure`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = pure_fn_param;
+   ╰╴                 ━━━━━━━━━━━━━ expected `function () pure`, found `function (uint256) pure`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_pure = pure_fn_returns;
+   ╰╴                 ━━━━━━━━━━━━━━━ expected `function () pure`, found `function () pure returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_with_param = pure_fn;
+   ╰╴                       ━━━━━━━ expected `function (uint256) pure`, found `function () pure`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_conversion.sol:LL:CC
+   │
+LL │         f_with_return = pure_fn;
+   ╰╴                        ━━━━━━━ expected `function () pure returns (uint256)`, found `function () pure`
+
+error: aborting due to 14 previous errors
+
