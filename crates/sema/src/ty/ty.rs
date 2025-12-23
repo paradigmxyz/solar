@@ -547,6 +547,16 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
+            // byte literal -> bytesN/bytes
+            // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::InvalidConversion)
+                }
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
