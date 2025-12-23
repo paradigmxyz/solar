@@ -30,11 +30,11 @@ contract IntegerConversions {
     // Int <-> UInt (different sizes - multi-aspect conversion)
     // Cannot change both sign and width in one conversion
     function invalidIntUintDifferentSize(int8 i8, uint256 u256, int16 i16, uint32 u32) public pure {
-        uint256 a = uint256(i8);   //~ ERROR: cannot convert
-        int8 b = int8(u256);       //~ ERROR: cannot convert
-        uint32 c = uint32(i16);    //~ ERROR: cannot convert
-        int16 d = int16(u32);      //~ ERROR: cannot convert
-        uint128 e = uint128(i8);   //~ ERROR: cannot convert
+        uint256 a = uint256(i8);   //~ ERROR: invalid explicit type conversion
+        int8 b = int8(u256);       //~ ERROR: invalid explicit type conversion
+        uint32 c = uint32(i16);    //~ ERROR: invalid explicit type conversion
+        int16 d = int16(u32);      //~ ERROR: invalid explicit type conversion
+        uint128 e = uint128(i8);   //~ ERROR: invalid explicit type conversion
     }
 
     // IntLiteral (positive) -> Int/UInt (any size)
@@ -51,7 +51,8 @@ contract IntegerConversions {
     function validPositiveLiteralVariousSizes() public pure {
         uint128 a = uint128(0);
         uint32 b = uint32(0xFFFFFFFF);
-        int64 c = int64(9223372036854775807);  // max int64
+        int64 d = int64(9223372036854775807);  // max int64
+        int64 e = int64(9223372036854775808);   //~ ERROR: invalid explicit type conversion
     }
 
     // IntLiteral (negative) -> Int
@@ -79,8 +80,8 @@ contract IntegerConversions {
 
     // UInt -> FixedBytes (different size)
     function invalidUintToBytesDifferentSize(uint8 u8, uint32 u32) public pure {
-        bytes2 b2 = bytes2(u8);      //~ ERROR: cannot convert
-        bytes8 b8 = bytes8(u32);     //~ ERROR: cannot convert
+        bytes2 b2 = bytes2(u8);      //~ ERROR: invalid explicit type conversion
+        bytes8 b8 = bytes8(u32);     //~ ERROR: invalid explicit type conversion
     }
 
     // Nested type conversions

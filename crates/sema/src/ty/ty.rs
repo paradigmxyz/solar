@@ -660,12 +660,6 @@ impl<'gcx> Ty<'gcx> {
                 Ok(())
             }
 
-            // IntLiteral(positive) -> Int or UInt: always allowed.
-            (IntLiteral(false, _), Elementary(Int(_) | UInt(_))) => Ok(()),
-
-            // IntLiteral(negative) -> Int: allowed.
-            (IntLiteral(true, _), Elementary(Int(_))) => Ok(()),
-
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
                 let self_contract = gcx.hir.contract(self_contract_id);
