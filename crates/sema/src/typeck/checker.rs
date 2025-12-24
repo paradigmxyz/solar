@@ -616,12 +616,9 @@ impl<'gcx> TypeChecker<'gcx> {
 
         // Constants must have compile-time constant initializers
         if var.is_constant() {
-             // Constants must be initialized
-             if var.initializer.is_none() {
-                self.dcx()
-                    .err("uninitialized \"constant\" variable")
-                    .span(var.span)
-                    .emit();
+            // Constants must be initialized
+            if var.initializer.is_none() {
+                self.dcx().err("uninitialized \"constant\" variable").span(var.span).emit();
                 return ty;
             } else if let Some(init) = var.initializer {
                 // Constant initializers must be compile-time constants
@@ -671,31 +668,10 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        // Libraries cannot have non-constant state variables
-        if var.is_state_variable()
-            && var.contract.is_some_and(|contract_id| {
-                let contract = self.gcx.hir.contract(contract_id);
-                contract.kind.is_library() && !var.is_constant()
-            })
-        {
-            self.dcx().err("library cannot have non-constant state variable").span(var.span).emit();
-            return ty;
-        }
-
-        // Public state variables must have exportable types for their getter
-        if var.is_state_variable() && var.is_public() && !ty.can_be_exported() {
-            self.dcx()
-                .err("internal or recursive type is not allowed for public state variables")
-                .span(var.span)
-                .emit();
-            return ty;
-        }
-
-        if let Some(init) = var.initializer {
-            if expect {
+        if let Some(init) = var.initializer
+            && expect {
                 let _ = self.expect_ty(init, ty);
             }
-        }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
         ty
     }
