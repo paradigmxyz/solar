@@ -48,6 +48,11 @@ impl<'gcx> TypeChecker<'gcx> {
         self.types[&expr.id]
     }
 
+    fn is_compile_time_constant(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        let mut evaluator = crate::eval::ConstantEvaluator::new(self.gcx);
+        evaluator.try_eval(expr).is_ok()
+    }
+
     #[must_use]
     fn check_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         self.check_expr_with(expr, None)
@@ -516,8 +521,28 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
-        let _ = (ty, expr);
+        // Check if assigning to type containing mappings.
+        // Mappings are always in storage, so we only need to check has_mapping().
+        // Allow if the lvalue is a local/return variable (local storage pointers are OK).
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+            self.dcx()
+                .err("Types in storage containing (nested) mappings cannot be assigned to.")
+                .span(expr.span)
+                .emit();
+        }
+    }
+
+    /// Returns true if the expression refers to a local or return variable.
+    fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                let var = self.gcx.hir.variable(var_id);
+                return var.is_local_or_return();
+            }
+        }
+        false
     }
 
     fn check_binop(
@@ -611,13 +636,65 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
-        if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assignment
-            self.check_assign(ty, init);
-            if expect {
-                let _ = self.expect_ty(init, ty);
+
+        // Constants must have compile-time constant initializers
+        if var.is_constant() {
+            // Constants must be initialized
+            if var.initializer.is_none() {
+                self.dcx().err("uninitialized \"constant\" variable").span(var.span).emit();
+                return ty;
+            } else if let Some(init) = var.initializer {
+                // Constant initializers must be compile-time constants
+                if !self.is_compile_time_constant(init) {
+                    self.dcx()
+                        .err("initial value for constant variable has to be compile-time constant")
+                        .span(init.span)
+                        .emit();
+                    return ty;
+                }
+            }
+        } else if var.is_immutable() {
+            // Immutable variables must be value types
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+                return ty;
             }
         }
+
+        // State variables containing mappings cannot be initialized
+        if var.is_state_variable() && ty.has_mapping() && var.initializer.is_some() {
+            self.dcx()
+                .err("Types in storage containing (nested) mappings cannot be assigned to.")
+                .span(var.span)
+                .emit();
+            return ty;
+        }
+
+        // Non-state variables with mappings must be in storage
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "Type {} is only valid in storage because it contains a (nested) mapping.",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+            return ty;
+        }
+
+        if let Some(init) = var.initializer
+            && expect {
+                let _ = self.expect_ty(init, ty);
+            }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
         ty
     }

@@ -1,0 +1,14 @@
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_in_function.sol:LL:CC
+   │
+LL │         a = b;
+   ╰╴        ━
+
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_in_function.sol:LL:CC
+   │
+LL │         b = c;
+   ╰╴        ━
+
+error: aborting due to 2 previous errors
+

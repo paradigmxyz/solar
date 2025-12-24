@@ -1,0 +1,14 @@
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_state_var.sol:LL:CC
+   │
+LL │     mapping (uint => address payable []) public a = a;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: Types in storage containing (nested) mappings cannot be assigned to.
+   ╭▸ ROOT/tests/ui/typeck/mapping/assignment_state_var.sol:LL:CC
+   │
+LL │     mapping (uint => uint) b = a;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
