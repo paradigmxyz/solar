@@ -1,0 +1,14 @@
+error: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
+   │
+LL │     uint constant refNonConstant = nonConstant;
+   ╰╴                                   ━━━━━━━━━━━
+
+error: initial value for constant variable has to be compile-time constant
+   ╭▸ ROOT/tests/ui/typeck/var_constant.sol:LL:CC
+   │
+LL │     uint constant blockTime = block.timestamp;
+   ╰╴                              ━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

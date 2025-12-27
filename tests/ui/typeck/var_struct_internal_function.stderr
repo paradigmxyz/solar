@@ -1,0 +1,8 @@
+error: types containing non-public function pointers cannot be parameter or return types of public getter functions
+   ╭▸ ROOT/tests/ui/typeck/var_struct_internal_function.sol:LL:CC
+   │
+LL │     S public myVar;
+   ╰╴    ━
+
+error: aborting due to 1 previous error
+

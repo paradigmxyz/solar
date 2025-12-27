@@ -1,0 +1,14 @@
+error: Type struct C.S memory is only valid in storage because it contains a (nested) mapping.
+   ╭▸ ROOT/tests/ui/typeck/mapping/nested_mapping_storage_only.sol:LL:CC
+   │
+LL │     function f1(S memory s) internal {}
+   ╰╴                ━━━━━━━━━━
+
+error: Type struct C.S memory is only valid in storage because it contains a (nested) mapping.
+   ╭▸ ROOT/tests/ui/typeck/mapping/nested_mapping_storage_only.sol:LL:CC
+   │
+LL │         S memory s;
+   ╰╴        ━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,14 @@
+error: library cannot have non-constant state variable
+   ╭▸ ROOT/tests/ui/typeck/var_library.sol:LL:CC
+   │
+LL │     uint x;
+   ╰╴    ━━━━━━━
+
+error: library cannot have non-constant state variable
+   ╭▸ ROOT/tests/ui/typeck/var_library.sol:LL:CC
+   │
+LL │     uint immutable i;
+   ╰╴    ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
