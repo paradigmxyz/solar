@@ -669,9 +669,10 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         if let Some(init) = var.initializer
-            && expect {
-                let _ = self.expect_ty(init, ty);
-            }
+            && expect
+        {
+            let _ = self.expect_ty(init, ty);
+        }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
         ty
     }
