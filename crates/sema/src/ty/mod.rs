@@ -540,6 +540,22 @@ impl<'gcx> Gcx<'gcx> {
         self.type_of_item(id.into()).parameters()
     }
 
+    /// Returns the named parameters of the given function-like item.
+    ///
+    /// Returns an iterator of (name, type) pairs. Unnamed parameters have `None` for the name.
+    /// For function pointers (via `Ty::named_parameters`), all names will be `None`.
+    pub fn item_named_parameters(
+        self,
+        id: impl Into<hir::ItemId>,
+    ) -> impl Iterator<Item = (Option<Ident>, Ty<'gcx>)> + 'gcx {
+        let id = id.into();
+        self.item_parameters(id).iter().map(move |&var_id| {
+            let var = self.hir.variable(var_id);
+            let ty = self.type_of_item(var_id.into());
+            (var.name, ty)
+        })
+    }
+
     /// Returns the name of the given item.
     #[inline]
     pub fn item_name_opt(self, id: impl Into<hir::ItemId>) -> Option<Ident> {

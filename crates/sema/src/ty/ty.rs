@@ -1,6 +1,7 @@
 use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
+use either::Either;
 use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{Interned, fmt};
 use solar_interface::diagnostics::ErrorGuaranteed;
@@ -266,6 +267,39 @@ impl<'gcx> Ty<'gcx> {
         Some(match self.kind {
             TyKind::FnPtr(f) => f.parameters,
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
+            _ => return None,
+        })
+    }
+
+    /// Returns the named parameters of the type.
+    ///
+    /// - `FnPtr`: Returns `(None, ty)` for each parameter (no names available in type).
+    /// - `Event`/`Error`: Returns `(Some(name), ty)` or `(None, ty)` for unnamed params.
+    ///
+    /// Returns `None` for non-callable types.
+    pub fn named_parameters(
+        self,
+        gcx: Gcx<'gcx>,
+    ) -> Option<impl Iterator<Item = (Option<solar_interface::Ident>, Self)> + 'gcx> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => {
+                // FnPtr has no parameter names - return all None
+                Either::Left(f.parameters.iter().map(|&ty| (None, ty)))
+            }
+            TyKind::Event(_, id) => Either::Right(Either::Left(
+                gcx.hir.event(id).parameters.iter().map(move |&var_id| {
+                    let var = gcx.hir.variable(var_id);
+                    let ty = gcx.type_of_item(var_id.into());
+                    (var.name, ty)
+                }),
+            )),
+            TyKind::Error(_, id) => Either::Right(Either::Right(
+                gcx.hir.error(id).parameters.iter().map(move |&var_id| {
+                    let var = gcx.hir.variable(var_id);
+                    let ty = gcx.type_of_item(var_id.into());
+                    (var.name, ty)
+                }),
+            )),
             _ => return None,
         })
     }
