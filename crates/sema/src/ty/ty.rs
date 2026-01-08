@@ -35,6 +35,9 @@ pub enum TyConvertError {
 
     /// Invalid conversion between types.
     InvalidConversion,
+
+    /// Literal is larger than the target type.
+    LiteralTooLarge,
 }
 
 impl TyConvertError {
@@ -54,6 +57,7 @@ impl TyConvertError {
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
             }
+            Self::LiteralTooLarge => "literal is larger than the type".to_string(),
         }
     }
 }
@@ -536,7 +540,7 @@ impl<'gcx> Ty<'gcx> {
                 if size_from.bytes() <= size_to.bytes() {
                     Ok(())
                 } else {
-                    Result::Err(TyConvertError::InvalidConversion)
+                    Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
 
