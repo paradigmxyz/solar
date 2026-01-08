@@ -1,11 +1,16 @@
 use crate::{
     builtins::Builtin,
-    hir::{self, Visit},
+    hir::{self, CallArgs, Visit},
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
-use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
+use solar_data_structures::{
+    Never,
+    map::{FxHashMap, rustc_hash::FxHashSet},
+    pluralize,
+    smallvec::SmallVec,
+};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
@@ -90,12 +95,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -148,33 +147,68 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
-                let mut callee_ty = self.check_expr(callee);
-                // Get the function type for struct constructors.
-                if let TyKind::Type(struct_ty) = callee_ty.kind
-                    && let TyKind::Struct(id) = struct_ty.kind
-                {
-                    callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                }
-
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
-                let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
+
+                let ty = match callee.kind {
+                    hir::ExprKind::Ident(res_list) => {
+                        match self.resolve_ident_callee(res_list, args) {
+                            ResolvedCallee::Callable(callable_id) => {
+                                // Single callable or shape-unique - check args WITH expected types
+                                let callee_ty = self.gcx.type_of_item(callable_id);
+                                self.register_ty(callee, callee_ty);
+                                self.check_call_args(callable_id, args, expr.span)
+                            }
+                            ResolvedCallee::CallableArgsChecked(callable_id) => {
+                                // Args already type-checked during overload resolution (no expected
+                                // types) But we still need to
+                                // validate named arg semantics
+                                let callee_ty = self.gcx.type_of_item(callable_id);
+                                self.register_ty(callee, callee_ty);
+                                self.validate_named_call_args(callable_id, args, expr.span);
+                                self.callable_return_type(callable_id)
+                            }
+                            ResolvedCallee::NonCallable(res) => {
+                                let callee_ty = self.type_of_res(res);
+                                self.register_ty(callee, callee_ty);
+                                self.check_non_callable_call(callee_ty, args, expr.span)
+                            }
+                            ResolvedCallee::Ambiguous(_candidates) => {
+                                let err = self.dcx().err("ambiguous call").span(callee.span).emit();
+                                let err_ty = self.gcx.mk_ty_err(err);
+                                self.register_ty(callee, err_ty);
+                                // Args may already be checked if we got here from type filtering
+                                // Check if not already registered
+                                for arg_expr in args.exprs() {
+                                    if !self.types.contains_key(&arg_expr.id) {
+                                        let _ = self.check_expr(arg_expr);
+                                    }
+                                }
+                                err_ty
+                            }
+                            ResolvedCallee::None => {
+                                let err = self
+                                    .dcx()
+                                    .err("no matching function found")
+                                    .span(callee.span)
+                                    .emit();
+                                let err_ty = self.gcx.mk_ty_err(err);
+                                self.register_ty(callee, err_ty);
+                                // Args may already be checked - check if not registered
+                                for arg_expr in args.exprs() {
+                                    if !self.types.contains_key(&arg_expr.id) {
+                                        let _ = self.check_expr(arg_expr);
+                                    }
+                                }
+                                err_ty
+                            }
+                        }
                     }
-                    TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) => {
-                        // return callee_ty
-                        todo!()
-                    }
-                    TyKind::Err(_) => callee_ty,
                     _ => {
-                        let msg =
-                            format!("expected function, found `{}`", callee_ty.display(self.gcx));
-                        let mut err = self.dcx().err(msg).span(callee.span);
-                        err = err.span_note(expr.span, "call expression requires function");
-                        self.gcx.mk_ty_err(err.emit())
+                        // Non-ident callee (member calls, etc.)
+                        // TODO: allow named arguments for member calls
+                        let callee_ty = self.check_expr(callee);
+                        self.check_non_callable_call(callee_ty, args, expr.span)
                     }
                 };
 
@@ -685,6 +719,305 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    /// Type-checks call arguments against a callable's parameters.
+    /// Returns the callable's return type.
+    fn check_call_args(
+        &mut self,
+        callable_id: hir::ItemId,
+        args: &'gcx CallArgs<'gcx>,
+        call_span: Span,
+    ) -> Ty<'gcx> {
+        let named_params: Vec<_> = self.gcx.item_named_parameters(callable_id).collect();
+
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                if exprs.len() != named_params.len() {
+                    self.dcx()
+                        .err(format!(
+                            "wrong number of arguments: expected {}, found {}",
+                            named_params.len(),
+                            exprs.len()
+                        ))
+                        .span(args.span)
+                        .emit();
+                }
+
+                for (arg_expr, (_name, expected_ty)) in exprs.iter().zip(named_params.iter()) {
+                    let actual_ty = self.check_expr_kind(arg_expr, Some(*expected_ty));
+                    self.register_ty(arg_expr, actual_ty);
+                    self.check_expected(arg_expr, actual_ty, *expected_ty);
+                }
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if named_params.iter().any(|(name, _)| name.is_none()) {
+                    self.dcx()
+                        .err("named arguments cannot be used for functions with unnamed parameters")
+                        .span(args.span)
+                        .emit();
+
+                    for arg in named_args.iter() {
+                        let _ = self.check_expr(&arg.value);
+                    }
+                    return self.callable_return_type(callable_id);
+                }
+
+                let mut seen_names = FxHashSet::default();
+                for arg in named_args.iter() {
+                    if !seen_names.insert(arg.name.name) {
+                        self.dcx()
+                            .err(format!("duplicate argument `{}`", arg.name))
+                            .span(arg.name.span)
+                            .emit();
+                    }
+                }
+
+                let param_map: FxHashMap<_, _> = named_params
+                    .iter()
+                    .filter_map(|(name, ty)| name.map(|n| (n.name, *ty)))
+                    .collect();
+
+                for arg in named_args.iter() {
+                    if let Some(&expected_ty) = param_map.get(&arg.name.name) {
+                        let actual_ty = self.check_expr_kind(&arg.value, Some(expected_ty));
+                        self.register_ty(&arg.value, actual_ty);
+                        self.check_expected(&arg.value, actual_ty, expected_ty);
+                    } else {
+                        self.dcx()
+                            .err(format!("unknown argument `{}`", arg.name))
+                            .span(arg.name.span)
+                            .emit();
+
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+
+                for (param_name, _ty) in named_params.iter() {
+                    if let Some(param_ident) = param_name
+                        && !named_args.iter().any(|arg| arg.name.name == param_ident.name)
+                    {
+                        self.dcx()
+                            .err(format!("missing argument `{param_ident}`"))
+                            .span(call_span)
+                            .emit();
+                    }
+                }
+            }
+        }
+
+        self.callable_return_type(callable_id)
+    }
+
+    /// Handles calls to non-callable types (struct constructors, type casts, FnPtr, etc.).
+    fn check_non_callable_call(
+        &mut self,
+        mut callee_ty: Ty<'gcx>,
+        args: &'gcx CallArgs<'gcx>,
+        call_span: Span,
+    ) -> Ty<'gcx> {
+        // Handle struct constructors: TyKind::Type(struct_ty) where struct_ty is a Struct
+        if let TyKind::Type(struct_ty) = callee_ty.kind
+            && let TyKind::Struct(id) = struct_ty.kind
+        {
+            callee_ty = struct_constructor(self.gcx, struct_ty, id);
+        }
+
+        match callee_ty.kind {
+            TyKind::FnPtr(f) => {
+                // Handle FnPtr calls (from member access, etc.)
+                match args.kind {
+                    hir::CallArgsKind::Unnamed(exprs) => {
+                        if exprs.len() != f.parameters.len() {
+                            self.dcx()
+                                .err(format!(
+                                    "wrong number of arguments: expected {}, found {}",
+                                    f.parameters.len(),
+                                    exprs.len()
+                                ))
+                                .span(args.span)
+                                .emit();
+                        }
+
+                        for (arg_expr, expected_arg_ty) in exprs.iter().zip(f.parameters) {
+                            let actual_ty = self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            self.register_ty(arg_expr, actual_ty);
+                            self.check_expected(arg_expr, actual_ty, *expected_arg_ty);
+                        }
+                    }
+                    hir::CallArgsKind::Named(_) => {
+                        // Named args for FnPtr calls require param names, which we don't have
+                        self.dcx()
+                            .err("named arguments are not supported for function pointer calls")
+                            .span(args.span)
+                            .emit();
+
+                        for arg_expr in args.exprs() {
+                            let _ = self.check_expr(arg_expr);
+                        }
+                    }
+                }
+
+                match f.returns.len() {
+                    0 => self.gcx.types.unit,
+                    1 => f.returns[0],
+                    _ => self.gcx.mk_ty_tuple(f.returns),
+                }
+            }
+            TyKind::Type(to) => {
+                // Type cast
+                self.check_explicit_cast(call_span, to, args)
+            }
+            TyKind::Event(..) | TyKind::Error(..) => {
+                // Should be unreachable with current lowering; kept for future member-call support.
+                let guar = self
+                    .dcx()
+                    .err("event/error calls are only valid in `emit`/`revert` statements")
+                    .span(call_span)
+                    .emit();
+
+                for arg_expr in args.exprs() {
+                    let _ = self.check_expr(arg_expr);
+                }
+
+                self.gcx.mk_ty_err(guar)
+            }
+            TyKind::Err(_) => callee_ty,
+            _ => {
+                let msg = format!("expected function, found `{}`", callee_ty.display(self.gcx));
+                let mut err = self.dcx().err(msg).span(call_span);
+                err = err.span_note(call_span, "call expression requires function");
+
+                for arg_expr in args.exprs() {
+                    let _ = self.check_expr(arg_expr);
+                }
+                self.gcx.mk_ty_err(err.emit())
+            }
+        }
+    }
+
+    /// Returns the shape (param count, param names) of a callable for shape-based matching.
+    fn callable_shape(
+        &self,
+        callable_id: hir::ItemId,
+    ) -> (usize, FxHashSet<solar_interface::Symbol>) {
+        let mut count = 0;
+        let mut names = FxHashSet::default();
+        for (name, _ty) in self.gcx.item_named_parameters(callable_id) {
+            count += 1;
+            if let Some(ident) = name {
+                names.insert(ident.name);
+            }
+        }
+        (count, names)
+    }
+
+    /// Checks if args match the callable's shape (arity + named arg set).
+    fn args_match_shape(&self, args: &'gcx CallArgs<'gcx>, callable_id: hir::ItemId) -> bool {
+        let (param_count, param_names) = self.callable_shape(callable_id);
+
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => exprs.len() == param_count,
+            hir::CallArgsKind::Named(named_args) => {
+                if named_args.len() != param_count {
+                    return false;
+                }
+
+                named_args.iter().all(|arg| param_names.contains(&arg.name.name))
+            }
+        }
+    }
+
+    /// Checks if arg types can be implicitly converted to callable's param types.
+    fn args_convertible_to_params(
+        &self,
+        callable_id: hir::ItemId,
+        args: &'gcx CallArgs<'gcx>,
+        arg_types: &[Ty<'gcx>],
+    ) -> bool {
+        let named_params: Vec<_> = self.gcx.item_named_parameters(callable_id).collect();
+
+        match args.kind {
+            hir::CallArgsKind::Unnamed(_) => {
+                if arg_types.len() != named_params.len() {
+                    return false;
+                }
+
+                arg_types.iter().zip(named_params.iter()).all(|(arg_ty, (_name, param_ty))| {
+                    arg_ty.convert_implicit_to(*param_ty, self.gcx)
+                })
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if named_args.len() != named_params.len() {
+                    return false;
+                }
+
+                let mut param_map: FxHashMap<_, _> = FxHashMap::default();
+                for (name, param_ty) in named_params {
+                    if let Some(ident) = name {
+                        param_map.insert(ident.name, param_ty);
+                    } else {
+                        // Unnamed param - named args not supported
+                        return false;
+                    }
+                }
+
+                named_args.iter().zip(arg_types.iter()).all(|(arg, arg_ty)| {
+                    param_map
+                        .get(&arg.name.name)
+                        .is_some_and(|&param_ty| arg_ty.convert_implicit_to(param_ty, self.gcx))
+                })
+            }
+        }
+    }
+
+    /// Returns the return type of a callable (function, event, or error).
+    fn callable_return_type(&self, callable_id: hir::ItemId) -> Ty<'gcx> {
+        let ty = self.gcx.type_of_item(callable_id);
+        match ty.kind {
+            TyKind::FnPtr(f) => match f.returns.len() {
+                0 => self.gcx.types.unit,
+                1 => f.returns[0],
+                _ => self.gcx.mk_ty_tuple(f.returns),
+            },
+            TyKind::Event(..) | TyKind::Error(..) => self.gcx.types.unit,
+            _ => self.gcx.types.unit,
+        }
+    }
+
+    /// Validates named call args for semantic issues (duplicates, missing params).
+    ///
+    /// This is called from `CallableArgsChecked` path where args are already type-checked
+    /// but semantic validation was skipped during overload resolution.
+    fn validate_named_call_args(
+        &self,
+        callable_id: hir::ItemId,
+        args: &'gcx CallArgs<'gcx>,
+        call_span: Span,
+    ) {
+        let hir::CallArgsKind::Named(named_args) = args.kind else {
+            return; // Unnamed args don't need this validation
+        };
+
+        let named_params: Vec<_> = self.gcx.item_named_parameters(callable_id).collect();
+
+        let mut seen_names = FxHashSet::default();
+        for arg in named_args.iter() {
+            if !seen_names.insert(arg.name.name) {
+                self.dcx()
+                    .err(format!("duplicate argument `{}`", arg.name))
+                    .span(arg.name.span)
+                    .emit();
+            }
+        }
+
+        for (param_name, _ty) in named_params.iter() {
+            if let Some(param_ident) = param_name
+                && !named_args.iter().any(|arg| arg.name.name == param_ident.name)
+            {
+                self.dcx().err(format!("missing argument `{param_ident}`")).span(call_span).emit();
+            }
+        }
+    }
+
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         let prev = self.lvalue_context.replace(Ok(()));
@@ -722,6 +1055,73 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn in_lvalue(&self) -> bool {
         self.lvalue_context.is_some()
+    }
+
+    /// Resolves an ident callee.
+    ///
+    /// Algorithm:
+    /// 1. Partition res_list into callables (function/event/error) and non-callables
+    /// 2. Single callable → return `Callable(id)` (args checked later with expected types)
+    /// 3. Multiple callables → type-check args, filter by implicit conversion → return
+    ///    `CallableArgsChecked(id)` (args already checked, no expected types)
+    /// 4. No callables but one non-callable → return `NonCallable(res)`
+    fn resolve_ident_callee(
+        &mut self,
+        res_list: &'gcx [hir::Res],
+        args: &'gcx CallArgs<'gcx>,
+    ) -> ResolvedCallee<'gcx> {
+        if res_list.is_empty() {
+            return ResolvedCallee::None;
+        }
+
+        let mut callables: SmallVec<[hir::ItemId; 4]> = SmallVec::new();
+        let mut non_callables: SmallVec<[hir::Res; 2]> = SmallVec::new();
+
+        for res in res_list {
+            if let Some(callable_id) = res.as_callable() {
+                callables.push(callable_id);
+            } else {
+                non_callables.push(*res);
+            }
+        }
+
+        match callables.len() {
+            0 => match non_callables.len() {
+                1 => ResolvedCallee::NonCallable(non_callables[0]),
+                0 => ResolvedCallee::None,
+                _ => ResolvedCallee::Ambiguous(res_list),
+            },
+            1 => ResolvedCallee::Callable(callables[0]),
+            _ => {
+                let shape_matching: SmallVec<[hir::ItemId; 4]> =
+                    callables.into_iter().filter(|&id| self.args_match_shape(args, id)).collect();
+
+                if shape_matching.is_empty() {
+                    return match non_callables.len() {
+                        1 => ResolvedCallee::NonCallable(non_callables[0]),
+                        0 => ResolvedCallee::None,
+                        _ => ResolvedCallee::Ambiguous(res_list),
+                    };
+                }
+
+                if shape_matching.len() == 1 {
+                    return ResolvedCallee::Callable(shape_matching[0]);
+                }
+
+                let arg_types: Vec<Ty<'gcx>> = args.exprs().map(|e| self.check_expr(e)).collect();
+
+                let type_matching: SmallVec<[hir::ItemId; 4]> = shape_matching
+                    .into_iter()
+                    .filter(|&id| self.args_convertible_to_params(id, args, &arg_types))
+                    .collect();
+
+                match type_matching.len() {
+                    1 => ResolvedCallee::CallableArgsChecked(type_matching[0]),
+                    0 => ResolvedCallee::None,
+                    _ => ResolvedCallee::Ambiguous(res_list),
+                }
+            }
+        }
     }
 
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
@@ -952,6 +1352,22 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
 enum OverloadError {
     NotFound,
     Ambiguous,
+}
+
+/// Result of resolving an ident callee.
+/// - Single callable: returns `Callable` (args not checked, use expected types)
+/// - Multiple callables: type-based filtering, returns `CallableArgsChecked` (args already checked)
+enum ResolvedCallee<'gcx> {
+    /// Single callable - args NOT yet checked
+    Callable(hir::ItemId),
+    /// Callable from overload resolution
+    CallableArgsChecked(hir::ItemId),
+    /// Non-callable (type cast, struct constructor, fn pointer variable).
+    NonCallable(hir::Res),
+    /// Multiple candidates match - ambiguous.
+    Ambiguous(&'gcx [hir::Res]),
+    /// No candidates at all.
+    None,
 }
 
 enum WantOne<T> {
