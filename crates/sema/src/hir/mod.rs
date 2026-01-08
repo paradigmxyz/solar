@@ -660,6 +660,26 @@ impl ItemId {
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }
     }
+
+    /// Returns the event ID if this is an event.
+    pub fn as_event(&self) -> Option<EventId> {
+        if let Self::Event(v) = *self { Some(v) } else { None }
+    }
+
+    /// Returns the error ID if this is an error.
+    pub fn as_error(&self) -> Option<ErrorId> {
+        if let Self::Error(v) = *self { Some(v) } else { None }
+    }
+
+    /// Returns the callable ID if this is a callable.
+    pub fn as_callable(&self) -> Option<Self> {
+        match self {
+            Self::Function(id) => Some(Self::Function(*id)),
+            Self::Event(id) => Some(Self::Event(*id)),
+            Self::Error(id) => Some(Self::Error(*id)),
+            _ => None,
+        }
+    }
 }
 
 /// A contract, interface, or library.
@@ -1337,6 +1357,22 @@ impl Res {
 
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Item(id) = self { id.as_variable() } else { None }
+    }
+
+    pub fn as_function(&self) -> Option<FunctionId> {
+        if let Self::Item(id) = self { id.as_function() } else { None }
+    }
+
+    pub fn as_event(&self) -> Option<EventId> {
+        if let Self::Item(id) = self { id.as_event() } else { None }
+    }
+
+    pub fn as_error(&self) -> Option<ErrorId> {
+        if let Self::Item(id) = self { id.as_error() } else { None }
+    }
+
+    pub fn as_callable(&self) -> Option<ItemId> {
+        if let Self::Item(id) = self { id.as_callable() } else { None }
     }
 }
 
