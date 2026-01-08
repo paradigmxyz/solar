@@ -1,0 +1,20 @@
+error: ambiguous call
+   ╭▸ ROOT/tests/ui/typeck/call_overload_resolution.sol:LL:CC
+   │
+LL │         f(50);
+   ╰╴        ━
+
+error: ambiguous call
+   ╭▸ ROOT/tests/ui/typeck/call_overload_resolution.sol:LL:CC
+   │
+LL │         g(50);
+   ╰╴        ━
+
+error: no matching function found
+   ╭▸ ROOT/tests/ui/typeck/call_overload_resolution.sol:LL:CC
+   │
+LL │         h(1, 2, 3);
+   ╰╴        ━
+
+error: aborting due to 3 previous errors
+

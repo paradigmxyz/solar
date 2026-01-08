@@ -1,0 +1,38 @@
+error: duplicate argument `a`
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: 10, a: 20});
+   ╰╴                    ━
+
+error: missing argument `b`
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: 10, a: 20});
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error: unknown argument `c`
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: 10, c: 20});
+   ╰╴                    ━
+
+error: missing argument `b`
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: 10, c: 20});
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error: missing argument `b`
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: 10});
+   ╰╴        ━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_named_args.sol:LL:CC
+   │
+LL │         add({a: true, b: 100});
+   ╰╴                ━━━━ expected `uint256`, found `bool`
+
+error: aborting due to 6 previous errors
+
