@@ -2,19 +2,19 @@ error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes2 invalid_b2 = "abc";
-   ╰╴                            ━━━━━ literal is larger than the type
+   ╰╴                            ━━━━━ literal `utf8_string_literal[3]` is larger than the type `bytes2`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes2 invalid_h2 = hex"123456";
-   ╰╴                            ━━━━━━━━━━━ literal is larger than the type
+   ╰╴                            ━━━━━━━━━━━ literal `utf8_string_literal[3]` is larger than the type `bytes2`
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/literal_bytes_implicit_conversion.sol:LL:CC
    │
 LL │         bytes1 invalid_b1 = "ab";
-   ╰╴                            ━━━━ literal is larger than the type
+   ╰╴                            ━━━━ literal `utf8_string_literal[2]` is larger than the type `bytes1`
 
 error: aborting due to 3 previous errors
 

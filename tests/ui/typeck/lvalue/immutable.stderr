@@ -4,23 +4,11 @@ error: cannot assign to an immutable variable
 LL │         IMMUT = 1;
    ╰╴        ━━━━━
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
-   │
-LL │         IMMUT = 1;
-   ╰╴                ━ expected `uint256`, found `int_literal[1]`
-
 error: cannot assign to an immutable variable
    ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
    │
 LL │         IMMUT = 2;
    ╰╴        ━━━━━
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
-   │
-LL │         IMMUT = 2;
-   ╰╴                ━ expected `uint256`, found `int_literal[1]`
-
-error: aborting due to 4 previous errors
+error: aborting due to 2 previous errors
 
