@@ -623,6 +623,14 @@ impl<'gcx> Ty<'gcx> {
         use ElementaryType::*;
         use TyKind::*;
 
+        macro_rules! unreachable {
+            () => {
+                gcx.dcx()
+                    .bug(format!("unreachable explicit conversion from `{self:?}` to `{other:?}`"))
+                    .emit()
+            };
+        }
+
         if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
@@ -660,6 +668,24 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
+            // possible.
+            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
+
+            // Int <-> Int: any size allowed (only width changes, sign stays same).
+            (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
+
+            // UInt <-> UInt: any size allowed (only width changes, sign stays same).
+            (Elementary(UInt(_)), Elementary(UInt(_))) => Ok(()),
+
+            // Int <-> UInt: same size only (prevents multi-aspect conversion).
+            // This enforces the Solidity 0.8.0+ restriction: cannot change both sign and width.
+            (Elementary(Int(size_from)), Elementary(UInt(size_to)))
+            | (Elementary(UInt(size_from)), Elementary(Int(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
