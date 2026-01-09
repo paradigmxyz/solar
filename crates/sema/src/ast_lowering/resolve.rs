@@ -513,7 +513,8 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_using_directives(&mut self) {
         use solar_data_structures::map::FxHashMap;
-        let mut udvt_operators: FxHashMap<hir::UdvtId, Vec<hir::UdvtOperator>> = FxHashMap::default();
+        let mut udvt_operators: FxHashMap<hir::UdvtId, Vec<hir::UdvtOperator>> =
+            FxHashMap::default();
 
         for (source_id, source) in self.sources.iter_enumerated() {
             let Some(ast) = &source.ast else { continue };
@@ -545,7 +546,10 @@ impl<'gcx> ResolveContext<'gcx> {
     fn resolve_using_directive(
         &mut self,
         using: &ast::UsingDirective<'_>,
-        udvt_operators: &mut solar_data_structures::map::FxHashMap<hir::UdvtId, Vec<hir::UdvtOperator>>,
+        udvt_operators: &mut solar_data_structures::map::FxHashMap<
+            hir::UdvtId,
+            Vec<hir::UdvtOperator>,
+        >,
     ) {
         let Some(target_ty) = &using.ty else { return };
         let ast::UsingList::Multiple(entries) = &using.list else { return };
@@ -601,24 +605,51 @@ impl<'gcx> ResolveContext<'gcx> {
             }
 
             // Error 1884/2066: parameter count validation.
-            let expected_params = if op.is_unary() { 1 } else { 2 };
-            if func.parameters.len() != expected_params {
-                let kind = if op.is_unary() { "unary" } else { "binary" };
-                self.dcx()
-                    .err(format!(
-                        "{kind} operator function must have exactly {expected_params} parameter{}",
-                        if expected_params == 1 { "" } else { "s" }
-                    ))
-                    .span(path.span())
-                    .emit();
+            // Operators can be unary or binary depending on function arity.
+            // `-` can be both unary (1 param) and binary (2 params).
+            // `~` can only be unary.
+            // All others can only be binary.
+            let param_count = func.parameters.len();
+            let is_valid = match param_count {
+                1 => op.can_be_unary(),
+                2 => op.can_be_binary(),
+                _ => false,
+            };
+            if !is_valid {
+                let msg = if param_count == 1 && !op.can_be_unary() {
+                    format!(
+                        "operator `{}` cannot be unary; expected a function with 2 parameters",
+                        op.to_str()
+                    )
+                } else if param_count == 2 && !op.can_be_binary() {
+                    format!(
+                        "operator `{}` cannot be binary; expected a function with 1 parameter",
+                        op.to_str()
+                    )
+                } else {
+                    format!("operator function must have 1 or 2 parameters, found {param_count}")
+                };
+                self.dcx().err(msg).span(path.span()).emit();
                 continue;
             }
 
             // Error 4705: duplicate operator definition.
+            // Note: an operator like `-` can be defined twice (once unary, once binary),
+            // so we check for duplicates by operator AND arity.
+            let is_unary_def = param_count == 1;
             let operators = udvt_operators.entry(target_udvt_id).or_default();
-            if operators.iter().any(|o| o.op == *op) {
+            let already_defined = operators.iter().any(|o| {
+                if o.op != *op {
+                    return false;
+                }
+                let existing_func = self.hir.function(o.function);
+                let existing_is_unary = existing_func.parameters.len() == 1;
+                is_unary_def == existing_is_unary
+            });
+            if already_defined {
+                let kind = if is_unary_def { "unary" } else { "binary" };
                 self.dcx()
-                    .err(format!("operator `{}` already defined for this type", op.to_str()))
+                    .err(format!("{kind} operator `{}` already defined for this type", op.to_str()))
                     .span(path.span())
                     .emit();
                 continue;

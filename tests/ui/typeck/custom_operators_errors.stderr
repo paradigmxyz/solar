@@ -1,0 +1,24 @@
+error: cannot apply operator `+` to `Int` and `Other`
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_errors.sol:LL:CC
+   │
+LL │     return a + b;
+   │            ┬ ━ ─ Other
+   │            │
+   ╰╴           Int
+
+error: cannot apply operator `*` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_errors.sol:LL:CC
+   │
+LL │     return a * b;
+   │            ┬ ━ ─ Int
+   │            │
+   ╰╴           Int
+
+error: cannot apply unary operator `~` to `Int`
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_errors.sol:LL:CC
+   │
+LL │     return ~a;
+   ╰╴            ━
+
+error: aborting due to 3 previous errors
+

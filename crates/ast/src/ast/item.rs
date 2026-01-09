@@ -384,14 +384,21 @@ impl UserDefinableOperator {
         }
     }
 
-    /// Returns `true` if this is a unary operator.
-    pub const fn is_unary(self) -> bool {
+    /// Returns `true` if this operator can be used as a unary operator.
+    /// Only `-` and `~` are valid unary operators.
+    pub const fn can_be_unary(self) -> bool {
         matches!(self, Self::BitNot | Self::Sub)
     }
 
-    /// Returns `true` if this is a binary operator.
-    pub const fn is_binary(self) -> bool {
-        !self.is_unary()
+    /// Returns `true` if this operator can be used as a binary operator.
+    /// All operators except `~` can be binary.
+    pub const fn can_be_binary(self) -> bool {
+        !matches!(self, Self::BitNot)
+    }
+
+    /// Returns `true` if this is exclusively a unary operator (cannot be binary).
+    pub const fn is_unary_only(self) -> bool {
+        matches!(self, Self::BitNot)
     }
 }
 

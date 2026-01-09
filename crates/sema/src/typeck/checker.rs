@@ -511,10 +511,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     return result;
                 }
 
-                let msg = format!(
-                    "cannot apply unary operator `{op}` to `{}`",
-                    ty.display(self.gcx),
-                );
+                let msg =
+                    format!("cannot apply unary operator `{op}` to `{}`", ty.display(self.gcx),);
                 let err = self.dcx().err(msg).span(expr.span);
                 self.gcx.mk_ty_err(err.emit())
             }
@@ -546,10 +544,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
         // Try user-defined operator (not for compound assignment).
         // Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/TypeChecker.cpp> (`endVisit(BinaryOperation)`)
-        if !assign {
-            if let Some(result) = self.try_user_defined_binop(lhs_e, lhs, rhs_e, rhs, op) {
-                return result;
-            }
+        if !assign && let Some(result) = self.try_user_defined_binop(lhs_e, lhs, rhs_e, rhs, op) {
+            return result;
         }
 
         let msg = format!(

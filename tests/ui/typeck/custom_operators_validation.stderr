@@ -1,0 +1,26 @@
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_validation.sol:LL:CC
+   │
+LL │ using {impureAdd as +} for Int global;
+   ╰╴       ━━━━━━━━━
+
+error: operator `*` cannot be unary; expected a function with 2 parameters
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_validation.sol:LL:CC
+   │
+LL │ using {wrongArity as *} for Int global;
+   ╰╴       ━━━━━━━━━━
+
+error: operator `~` cannot be binary; expected a function with 1 parameter
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_validation.sol:LL:CC
+   │
+LL │ using {wrongArityUnary as ~} for Int global;
+   ╰╴       ━━━━━━━━━━━━━━━
+
+error: operators can only be implemented for user-defined value types
+   ╭▸ ROOT/tests/ui/typeck/custom_operators_validation.sol:LL:CC
+   │
+LL │ using {enumAdd as +} for E global;
+   ╰╴                         ━
+
+error: aborting due to 4 previous errors
+
