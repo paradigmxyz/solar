@@ -660,10 +660,8 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
-            // IntLiteral -> IntLiteral: always allowed.
-            // The restriction on negative -> unsigned applies when converting to concrete types,
-            // not between literals.
-            (IntLiteral(_, _), IntLiteral(_, _)) => Ok(()),
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be possible.
+            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
 
             // Int <-> Int: any size allowed (only width changes, sign stays same).
             (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
