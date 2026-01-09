@@ -36,6 +36,9 @@ pub enum TyConvertError {
     /// Invalid conversion between types.
     InvalidConversion,
 
+    /// Literal is larger than the target type.
+    LiteralTooLarge,
+
     /// Contract cannot be converted to address payable because it cannot receive ether.
     ContractNotPayable,
 
@@ -59,6 +62,13 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::LiteralTooLarge => {
+                format!(
+                    "literal `{}` is larger than the type `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
             }
             Self::ContractNotPayable => {
                 format!(
@@ -545,6 +555,16 @@ impl<'gcx> Ty<'gcx> {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+            // byte literal -> bytesN/bytes
+            // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
 
