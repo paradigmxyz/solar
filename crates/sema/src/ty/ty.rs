@@ -37,6 +37,9 @@ pub enum TyConvertError {
     /// Invalid conversion between types.
     InvalidConversion,
 
+    /// Literal is larger than the target type.
+    LiteralTooLarge,
+
     /// Contract cannot be converted to address payable because it cannot receive ether.
     ContractNotPayable,
 
@@ -60,6 +63,13 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::LiteralTooLarge => {
+                format!(
+                    "literal `{}` is larger than the type `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
             }
             Self::ContractNotPayable => {
                 format!(
@@ -581,6 +591,16 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
+            // byte literal -> bytesN/bytes
+            // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::LiteralTooLarge)
+                }
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
@@ -637,6 +657,14 @@ impl<'gcx> Ty<'gcx> {
         use ElementaryType::*;
         use TyKind::*;
 
+        macro_rules! unreachable {
+            () => {
+                gcx.dcx()
+                    .bug(format!("unreachable explicit conversion from `{self:?}` to `{other:?}`"))
+                    .emit()
+            };
+        }
+
         if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
@@ -674,6 +702,24 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
+            // possible.
+            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
+
+            // Int <-> Int: any size allowed (only width changes, sign stays same).
+            (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
+
+            // UInt <-> UInt: any size allowed (only width changes, sign stays same).
+            (Elementary(UInt(_)), Elementary(UInt(_))) => Ok(()),
+
+            // Int <-> UInt: same size only (prevents multi-aspect conversion).
+            // This enforces the Solidity 0.8.0+ restriction: cannot change both sign and width.
+            (Elementary(Int(size_from)), Elementary(UInt(size_to)))
+            | (Elementary(UInt(size_from)), Elementary(Int(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
