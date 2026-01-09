@@ -507,6 +507,127 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.contracts[c_id].linearized_bases_args = base_args;
     }
 
+    /// Resolves `using { f as op } for T` directives and attaches operator bindings to UDVTs.
+    ///
+    /// Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/TypeChecker.cpp> (`endVisit(UsingForDirective)`)
+    #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_using_directives(&mut self) {
+        use solar_data_structures::map::FxHashMap;
+        let mut udvt_operators: FxHashMap<hir::UdvtId, Vec<hir::UdvtOperator>> = FxHashMap::default();
+
+        for (source_id, source) in self.sources.iter_enumerated() {
+            let Some(ast) = &source.ast else { continue };
+            self.scopes.init(source_id, None);
+            for item in ast.items.iter() {
+                if let ast::ItemKind::Using(using) = &item.kind {
+                    self.resolve_using_directive(using, &mut udvt_operators);
+                }
+            }
+        }
+
+        for contract_id in self.hir.contract_ids() {
+            let contract = self.hir.contract(contract_id);
+            self.scopes.init(contract.source, Some(contract_id));
+            let ast_contract = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
+            let ast::ItemKind::Contract(ast_contract) = &ast_contract.kind else { unreachable!() };
+            for item in ast_contract.body.iter() {
+                if let ast::ItemKind::Using(using) = &item.kind {
+                    self.resolve_using_directive(using, &mut udvt_operators);
+                }
+            }
+        }
+
+        for (udvt_id, operators) in udvt_operators {
+            self.hir.udvts[udvt_id].operators = self.arena.alloc_slice_copy(&operators);
+        }
+    }
+
+    fn resolve_using_directive(
+        &mut self,
+        using: &ast::UsingDirective<'_>,
+        udvt_operators: &mut solar_data_structures::map::FxHashMap<hir::UdvtId, Vec<hir::UdvtOperator>>,
+    ) {
+        let Some(target_ty) = &using.ty else { return };
+        let ast::UsingList::Multiple(entries) = &using.list else { return };
+
+        let hir_ty = self.lower_type(target_ty);
+        let target_udvt_id = match hir_ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Udvt(id)) => id,
+            _ => {
+                // Error 5332: operators can only be defined for UDVTs.
+                for (_, op) in entries.iter() {
+                    if op.is_some() {
+                        self.dcx()
+                            .err("operators can only be implemented for user-defined value types")
+                            .span(target_ty.span)
+                            .emit();
+                        break;
+                    }
+                }
+                return;
+            }
+        };
+
+        for (path, op) in entries.iter() {
+            let Some(op) = op else { continue };
+
+            let decls = match self.resolve_paths(path) {
+                Ok(decls) => decls,
+                Err(_) => continue,
+            };
+
+            let func_id = decls.iter().find_map(|d| match d.res {
+                Res::Item(hir::ItemId::Function(id)) => Some(id),
+                _ => None,
+            });
+
+            let Some(func_id) = func_id else {
+                self.dcx()
+                    .err("user-defined operator must refer to a function")
+                    .span(path.span())
+                    .emit();
+                continue;
+            };
+
+            let func = self.hir.function(func_id);
+
+            // Error 7775: only pure free functions can define operators.
+            if func.state_mutability != hir::StateMutability::Pure || func.contract.is_some() {
+                self.dcx()
+                    .err("only pure free functions can be used to define operators")
+                    .span(path.span())
+                    .emit();
+                continue;
+            }
+
+            // Error 1884/2066: parameter count validation.
+            let expected_params = if op.is_unary() { 1 } else { 2 };
+            if func.parameters.len() != expected_params {
+                let kind = if op.is_unary() { "unary" } else { "binary" };
+                self.dcx()
+                    .err(format!(
+                        "{kind} operator function must have exactly {expected_params} parameter{}",
+                        if expected_params == 1 { "" } else { "s" }
+                    ))
+                    .span(path.span())
+                    .emit();
+                continue;
+            }
+
+            // Error 4705: duplicate operator definition.
+            let operators = udvt_operators.entry(target_udvt_id).or_default();
+            if operators.iter().any(|o| o.op == *op) {
+                self.dcx()
+                    .err(format!("operator `{}` already defined for this type", op.to_str()))
+                    .span(path.span())
+                    .emit();
+                continue;
+            }
+
+            operators.push(hir::UdvtOperator { op: *op, function: func_id, span: path.span() });
+        }
+    }
+
     fn resolve_var(&mut self, id: hir::VariableId) {
         let var = self.hir.variable(id);
         let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {

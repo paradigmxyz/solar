@@ -224,6 +224,30 @@ impl BinOpKind {
         use BinOpKind::*;
         matches!(self, Shl | Shr | Sar)
     }
+
+    /// Converts to a user-definable operator, if applicable.
+    ///
+    /// Ref: <https://docs.soliditylang.org/en/latest/contracts.html#operator-implementations>
+    pub const fn to_user_definable(self) -> Option<super::UserDefinableOperator> {
+        use super::UserDefinableOperator as UDO;
+        Some(match self {
+            Self::BitAnd => UDO::BitAnd,
+            Self::BitOr => UDO::BitOr,
+            Self::BitXor => UDO::BitXor,
+            Self::Add => UDO::Add,
+            Self::Sub => UDO::Sub,
+            Self::Mul => UDO::Mul,
+            Self::Div => UDO::Div,
+            Self::Rem => UDO::Rem,
+            Self::Eq => UDO::Eq,
+            Self::Ne => UDO::Ne,
+            Self::Lt => UDO::Lt,
+            Self::Le => UDO::Le,
+            Self::Gt => UDO::Gt,
+            Self::Ge => UDO::Ge,
+            Self::Or | Self::And | Self::Shr | Self::Shl | Self::Sar | Self::Pow => return None,
+        })
+    }
 }
 
 /// A unary operation: `!x`, `-x`, `x++`.
@@ -290,6 +314,18 @@ impl UnOpKind {
             Self::PreInc | Self::PreDec | Self::PostInc | Self::PostDec => true,
             Self::Not | Self::Neg | Self::BitNot => false,
         }
+    }
+
+    /// Converts to a user-definable operator, if applicable.
+    ///
+    /// Ref: <https://docs.soliditylang.org/en/latest/contracts.html#operator-implementations>
+    pub const fn to_user_definable(self) -> Option<super::UserDefinableOperator> {
+        use super::UserDefinableOperator as UDO;
+        Some(match self {
+            Self::Neg => UDO::Sub,
+            Self::BitNot => UDO::BitNot,
+            Self::PreInc | Self::PreDec | Self::PostInc | Self::PostDec | Self::Not => return None,
+        })
     }
 }
 

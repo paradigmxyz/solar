@@ -207,7 +207,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     }
 
     fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
-        // Handled later: ty
+        // Handled later: ty, operators
         let ast::ItemUdvt { name, ty: _ } = *i;
         self.hir.udvts.push(hir::Udvt {
             source: self.current_source_id,
@@ -215,6 +215,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             span: item.span,
             name,
             ty: hir::Type::DUMMY,
+            operators: &[],
         })
     }
 

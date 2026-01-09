@@ -16,7 +16,7 @@ use strum::EnumIs;
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
-    StateMutability, UnOp, UnOpKind, VarMut, Visibility,
+    StateMutability, UnOp, UnOpKind, UserDefinableOperator, VarMut, Visibility,
 };
 
 mod visit;
@@ -899,16 +899,25 @@ pub struct Enum<'hir> {
 /// A user-defined value type.
 #[derive(Debug)]
 pub struct Udvt<'hir> {
-    /// The source this UDVT is defined in.
     pub source: SourceId,
-    /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
-    /// The UDVT span.
     pub span: Span,
-    /// The UDVT name.
     pub name: Ident,
-    /// The UDVT type.
     pub ty: Type<'hir>,
+    /// Operator bindings from `using { f as op } for T`.
+    ///
+    /// Ref: <https://docs.soliditylang.org/en/latest/contracts.html#operator-implementations>
+    pub operators: &'hir [UdvtOperator],
+}
+
+/// A user-defined operator binding for a UDVT.
+///
+/// Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/ast/AST.h> (`UsingForDirective`)
+#[derive(Clone, Copy, Debug)]
+pub struct UdvtOperator {
+    pub op: UserDefinableOperator,
+    pub function: FunctionId,
+    pub span: Span,
 }
 
 /// An event.

@@ -307,6 +307,15 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Returns the UDVT ID if this type is a UDVT.
+    #[inline]
+    pub fn as_udvt(self) -> Option<hir::UdvtId> {
+        match self.peel_refs().kind {
+            TyKind::Udvt(_, id) => Some(id),
+            _ => None,
+        }
+    }
+
     /// Visits the type and its subtypes.
     pub fn visit<T>(self, f: &mut impl FnMut(Self) -> ControlFlow<T>) -> ControlFlow<T> {
         f(self)?;

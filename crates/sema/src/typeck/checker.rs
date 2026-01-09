@@ -493,7 +493,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(expr)
                 };
-                // TODO: custom operators
+
+                // Try builtin operator first.
                 if valid_unop(ty, op.kind) {
                     // Propagate negativity for integer literals under unary negation.
                     if op.kind == hir::UnOpKind::Neg
@@ -501,15 +502,21 @@ impl<'gcx> TypeChecker<'gcx> {
                     {
                         return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
                     }
-                    ty
-                } else {
-                    let msg = format!(
-                        "cannot apply unary operator `{op}` to `{}`",
-                        ty.display(self.gcx),
-                    );
-                    let err = self.dcx().err(msg).span(expr.span);
-                    self.gcx.mk_ty_err(err.emit())
+                    return ty;
                 }
+
+                // Try user-defined operator.
+                // Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/TypeChecker.cpp> (`endVisit(UnaryOperation)`)
+                if let Some(result) = self.try_user_defined_unop(expr, ty, op) {
+                    return result;
+                }
+
+                let msg = format!(
+                    "cannot apply unary operator `{op}` to `{}`",
+                    ty.display(self.gcx),
+                );
+                let err = self.dcx().err(msg).span(expr.span);
+                self.gcx.mk_ty_err(err.emit())
             }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
@@ -529,16 +536,24 @@ impl<'gcx> TypeChecker<'gcx> {
         op: hir::BinOp,
         assign: bool,
     ) -> Ty<'gcx> {
+        // Try builtin operator first.
         let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
-        // TODO: custom operators
         if let Some(common) = common
             && !(assign && common != lhs)
         {
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
 
+        // Try user-defined operator (not for compound assignment).
+        // Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/TypeChecker.cpp> (`endVisit(BinaryOperation)`)
+        if !assign {
+            if let Some(result) = self.try_user_defined_binop(lhs_e, lhs, rhs_e, rhs, op) {
+                return result;
+            }
+        }
+
         let msg = format!(
-            "cannot apply builtin operator `{op}` to `{}` and `{}`",
+            "cannot apply operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
             rhs.display(self.gcx),
         );
@@ -546,6 +561,76 @@ impl<'gcx> TypeChecker<'gcx> {
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())
+    }
+
+    fn try_user_defined_binop(
+        &mut self,
+        lhs_e: &'gcx hir::Expr<'gcx>,
+        lhs: Ty<'gcx>,
+        rhs_e: &'gcx hir::Expr<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOp,
+    ) -> Option<Ty<'gcx>> {
+        let user_op = op.kind.to_user_definable()?;
+        let lhs_udvt = lhs.as_udvt()?;
+        let rhs_udvt = rhs.as_udvt()?;
+
+        if lhs_udvt != rhs_udvt {
+            return None;
+        }
+
+        let operators = &self.gcx.hir.udvt(lhs_udvt).operators;
+        let op_def = operators.iter().find(|o| o.op == user_op)?;
+
+        Some(self.apply_user_defined_operator(op_def, &[(lhs_e, lhs), (rhs_e, rhs)]))
+    }
+
+    /// Tries to apply a user-defined unary operator.
+    /// Ref: <https://github.com/ethereum/solidity/blob/develop/libsolidity/analysis/TypeChecker.cpp> (`endVisit(UnaryOperation)`)
+    fn try_user_defined_unop(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        ty: Ty<'gcx>,
+        op: hir::UnOp,
+    ) -> Option<Ty<'gcx>> {
+        let user_op = op.kind.to_user_definable()?;
+        let udvt_id = ty.as_udvt()?;
+
+        let operators = &self.gcx.hir.udvt(udvt_id).operators;
+        let op_def = operators.iter().find(|o| o.op == user_op)?;
+
+        Some(self.apply_user_defined_operator(op_def, &[(expr, ty)]))
+    }
+
+    fn apply_user_defined_operator(
+        &mut self,
+        op_def: &hir::UdvtOperator,
+        args: &[(&'gcx hir::Expr<'gcx>, Ty<'gcx>)],
+    ) -> Ty<'gcx> {
+        let func = self.gcx.hir.function(op_def.function);
+        let func_ty = self.gcx.type_of_item(op_def.function.into());
+
+        let TyKind::FnPtr(f) = func_ty.kind else {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("operator binding does not reference a function")
+                    .span(op_def.span)
+                    .emit(),
+            );
+        };
+
+        for ((arg_expr, arg_ty), &param_ty) in args.iter().zip(f.parameters.iter()) {
+            if let Err(err) = arg_ty.try_convert_implicit_to(param_ty, self.gcx) {
+                self.dcx()
+                    .err("mismatched types for user-defined operator")
+                    .span(arg_expr.span)
+                    .span_label(arg_expr.span, err.message(*arg_ty, param_ty, self.gcx))
+                    .span_note(func.span, "operator function defined here")
+                    .emit();
+            }
+        }
+
+        f.returns.first().copied().unwrap_or(self.gcx.types.unit)
     }
 
     /// Returns `(index_ty, result_ty)` for the given value type, if it is indexable.
