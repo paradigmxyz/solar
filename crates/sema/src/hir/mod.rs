@@ -1673,7 +1673,7 @@ mod tests {
         assert_size::<Function<'_>>(str!["136"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);
-        assert_size::<Udvt<'_>>(str!["56"]);
+        assert_size::<Udvt<'_>>(str!["72"]);
         assert_size::<Error<'_>>(str!["48"]);
         assert_size::<Event<'_>>(str!["48"]);
         assert_size::<Variable<'_>>(str!["96"]);
