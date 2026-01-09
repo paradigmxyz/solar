@@ -623,6 +623,14 @@ impl<'gcx> Ty<'gcx> {
         use ElementaryType::*;
         use TyKind::*;
 
+        macro_rules! unreachable {
+            () => {
+                gcx.dcx()
+                    .bug(format!("unreachable explicit conversion from `{self:?}` to `{other:?}`"))
+                    .emit()
+            };
+        }
+
         if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
@@ -660,7 +668,8 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
-            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be possible.
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
+            // possible.
             (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
 
             // Int <-> Int: any size allowed (only width changes, sign stays same).
