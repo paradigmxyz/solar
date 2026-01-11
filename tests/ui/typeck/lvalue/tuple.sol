@@ -1,8 +1,7 @@
 //@compile-flags: -Ztypeck
-// TODO: `mismatched types` errors on integer literals are a current limitation of solar
 
 contract Test {
-    uint256 constant CONST = 1; //~ ERROR: mismatched types
+    uint256 constant CONST = 1;
     uint256 state;
 
     function testTupleWithConstant() external {

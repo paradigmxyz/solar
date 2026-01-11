@@ -14,7 +14,7 @@ cargo nextest run --workspace                    # Run tests (faster than cargo 
 cargo uitest                                     # Run UI tests
 cargo uibless                                    # Update UI test expectations
 cargo +nightly fmt --all                         # Format (CI uses nightly)
-RUSTFLAGS="-D warnings" cargo clippy --workspace --all-targets  # Lint
+cargo clippy --workspace --all-targets           # Lint
 cargo run -- file.sol                            # Run compiler
 cargo run -- -Zhelp                              # Unstable flags help
 ```

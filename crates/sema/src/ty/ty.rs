@@ -35,6 +35,15 @@ pub enum TyConvertError {
 
     /// Invalid conversion between types.
     InvalidConversion,
+
+    /// Literal is larger than the target type.
+    LiteralTooLarge,
+
+    /// Contract cannot be converted to address payable because it cannot receive ether.
+    ContractNotPayable,
+
+    /// Non-payable address cannot be converted to a contract that can receive ether.
+    AddressNotPayable,
 }
 
 impl TyConvertError {
@@ -53,6 +62,25 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::LiteralTooLarge => {
+                format!(
+                    "literal `{}` is larger than the type `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
+            }
+            Self::ContractNotPayable => {
+                format!(
+                    "cannot convert `{}` to `address payable` because it has no receive function or payable fallback",
+                    from.display(gcx)
+                )
+            }
+            Self::AddressNotPayable => {
+                format!(
+                    "cannot convert non-payable `address` to `{}` because it has a receive function or payable fallback",
+                    to.display(gcx)
+                )
             }
         }
     }
@@ -548,6 +576,43 @@ impl<'gcx> Ty<'gcx> {
                     (StateMutability::Pure, StateMutability::Pure) => Ok(()),
                     (StateMutability::View, StateMutability::View) => Ok(()),
                     _ => Result::Err(TyConvertError::Incompatible),
+            // byte literal -> bytesN/bytes
+            // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::LiteralTooLarge)
+                }
+            }
+
+            // Integer literals can coerce to typed integers if they fit.
+            // Non-negative literals can coerce to both uint and int types.
+            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+                // Unsigned: reject negative, check size fits
+                if neg {
+                    Result::Err(TyConvertError::Incompatible)
+                } else if size.bits() <= target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+                // Signed: non-negative values need strict inequality since they use the
+                // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
+                // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
+                if neg {
+                    if size.bits() <= target_size.bits() {
+                        Ok(())
+                    } else {
+                        Result::Err(TyConvertError::Incompatible)
+                    }
+                } else if size.bits() < target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
                 }
             }
 
@@ -576,6 +641,14 @@ impl<'gcx> Ty<'gcx> {
     ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
+
+        macro_rules! unreachable {
+            () => {
+                gcx.dcx()
+                    .bug(format!("unreachable explicit conversion from `{self:?}` to `{other:?}`"))
+                    .emit()
+            };
+        }
 
         if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
@@ -614,6 +687,24 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
+            // possible.
+            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
+
+            // Int <-> Int: any size allowed (only width changes, sign stays same).
+            (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
+
+            // UInt <-> UInt: any size allowed (only width changes, sign stays same).
+            (Elementary(UInt(_)), Elementary(UInt(_))) => Ok(()),
+
+            // Int <-> UInt: same size only (prevents multi-aspect conversion).
+            // This enforces the Solidity 0.8.0+ restriction: cannot change both sign and width.
+            (Elementary(Int(size_from)), Elementary(UInt(size_to)))
+            | (Elementary(UInt(size_from)), Elementary(Int(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
@@ -622,6 +713,34 @@ impl<'gcx> Ty<'gcx> {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            // Contract -> address (always allowed)
+            (Contract(_), Elementary(Address(false))) => Ok(()),
+
+            // Contract -> address payable (only if contract can receive ether)
+            (Contract(contract_id), Elementary(Address(true))) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::ContractNotPayable)
+                }
+            }
+
+            // Address payable -> Contract (always allowed)
+            (Elementary(Address(true)), Contract(_)) => Ok(()),
+
+            // Address (non-payable) -> Contract (only if contract cannot receive ether)
+            (Elementary(Address(false)), Contract(contract_id)) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Result::Err(TyConvertError::AddressNotPayable)
+                } else {
+                    Ok(())
                 }
             }
 

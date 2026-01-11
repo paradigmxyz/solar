@@ -164,7 +164,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         todo!()
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) | TyKind::Err(_) => callee_ty,
+                    TyKind::Event(..) | TyKind::Error(..) => {
+                        // return callee_ty
+                        todo!()
+                    }
+                    TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
@@ -394,8 +398,19 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Payable(expr) => {
-                let ty = self.expect_ty(expr, self.gcx.types.address);
-                if ty.references_error() { ty } else { self.gcx.types.address_payable }
+                let ty = self.check_expr(expr);
+                if ty.references_error() {
+                    return ty;
+                }
+
+                let target_ty = self.gcx.types.address_payable;
+                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
+                    return target_ty;
+                };
+
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
+                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -467,13 +482,25 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, expr) => {
+                // For negation, don't propagate expected type to the inner expression
+                // because we'll modify the type (flipping the sign for int literals).
+                let propagate_expected = op.kind != hir::UnOpKind::Neg
+                    || !matches!(expected, Some(ty) if ty.is_signed());
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(expr)
-                } else {
+                } else if propagate_expected {
                     self.check_expr_with(expr, expected)
+                } else {
+                    self.check_expr(expr)
                 };
                 // TODO: custom operators
                 if valid_unop(ty, op.kind) {
+                    // Propagate negativity for integer literals under unary negation.
+                    if op.kind == hir::UnOpKind::Neg
+                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                    {
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                    }
                     ty
                 } else {
                     let msg = format!(
@@ -986,15 +1013,25 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
 
     let ty = ty.peel_refs();
     match ty.kind {
-        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
-        | TyKind::IntLiteral(..) => match op {
-            hir::UnOpKind::Neg => ty.is_signed(),
-            hir::UnOpKind::Not => false,
-            hir::UnOpKind::PreInc
+        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_)) => {
+            match op {
+                hir::UnOpKind::Neg => ty.is_signed(),
+                hir::UnOpKind::Not => false,
+                hir::UnOpKind::PreInc
+                | hir::UnOpKind::PreDec
+                | hir::UnOpKind::BitNot
+                | hir::UnOpKind::PostInc
+                | hir::UnOpKind::PostDec => true,
+            }
+        }
+        // IntLiteral can always be negated (it becomes a negative literal).
+        TyKind::IntLiteral(..) => match op {
+            hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
+            hir::UnOpKind::Not
+            | hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
-            | hir::UnOpKind::BitNot
             | hir::UnOpKind::PostInc
-            | hir::UnOpKind::PostDec => true,
+            | hir::UnOpKind::PostDec => false,
         },
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => op == hir::UnOpKind::BitNot,
         TyKind::Elementary(hir::ElementaryType::Bool) => op == hir::UnOpKind::Not,

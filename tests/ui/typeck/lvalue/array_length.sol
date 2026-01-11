@@ -1,9 +1,8 @@
 //@compile-flags: -Ztypeck
-// TODO: `mismatched types` errors on integer literals are a current limitation of solar
 
 contract Test {
     uint256[] dynamicArray;
-    uint256[10] fixedArray; //~ ERROR: mismatched types
+    uint256[10] fixedArray;
     uint256 state;
 
     function testDynamic() external {
