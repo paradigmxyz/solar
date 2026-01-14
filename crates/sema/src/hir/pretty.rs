@@ -642,7 +642,7 @@ impl<'a, 'hir> HirPrettyPrinter<'a, 'hir> {
                 let source = self.hir.source(id);
                 write!(f, "{:?}", source.file.name)
             }
-            Res::Builtin(builtin) => write!(f, "{builtin:?}"),
+            Res::Builtin(builtin) => write!(f, "{}", builtin.name()),
             Res::Err(_) => write!(f, "<error>"),
         }
     }
@@ -741,12 +741,76 @@ mod tests {
 
     #[test]
     fn test_elementary_type_formatting() {
-        // Test that the pretty printer compiles and basic types work
         let hir = Hir::new();
+
+        // Test uint types
         let ty = Type {
             span: Span::DUMMY,
             kind: TypeKind::Elementary(ElementaryType::UInt(TypeSize::new_int_bits(256))),
         };
         assert_eq!(ty.pretty_print(&hir), "uint256");
+
+        let ty = Type {
+            span: Span::DUMMY,
+            kind: TypeKind::Elementary(ElementaryType::UInt(TypeSize::new_int_bits(8))),
+        };
+        assert_eq!(ty.pretty_print(&hir), "uint8");
+
+        // Test int types
+        let ty = Type {
+            span: Span::DUMMY,
+            kind: TypeKind::Elementary(ElementaryType::Int(TypeSize::new_int_bits(128))),
+        };
+        assert_eq!(ty.pretty_print(&hir), "int128");
+
+        // Test bytes types
+        let ty = Type {
+            span: Span::DUMMY,
+            kind: TypeKind::Elementary(ElementaryType::FixedBytes(TypeSize::new_fb_bytes(32))),
+        };
+        assert_eq!(ty.pretty_print(&hir), "bytes32");
+
+        // Test bool
+        let ty = Type { span: Span::DUMMY, kind: TypeKind::Elementary(ElementaryType::Bool) };
+        assert_eq!(ty.pretty_print(&hir), "bool");
+
+        // Test address
+        let ty =
+            Type { span: Span::DUMMY, kind: TypeKind::Elementary(ElementaryType::Address(false)) };
+        assert_eq!(ty.pretty_print(&hir), "address");
+
+        // Test address payable
+        let ty =
+            Type { span: Span::DUMMY, kind: TypeKind::Elementary(ElementaryType::Address(true)) };
+        assert_eq!(ty.pretty_print(&hir), "address payable");
+
+        // Test string
+        let ty = Type { span: Span::DUMMY, kind: TypeKind::Elementary(ElementaryType::String) };
+        assert_eq!(ty.pretty_print(&hir), "string");
+
+        // Test bytes
+        let ty = Type { span: Span::DUMMY, kind: TypeKind::Elementary(ElementaryType::Bytes) };
+        assert_eq!(ty.pretty_print(&hir), "bytes");
+    }
+
+    #[test]
+    fn test_array_type_formatting() {
+        let hir = Hir::new();
+
+        // Test dynamic array - use Box::leak since we don't have the arena in tests
+        let elem_ty = Type {
+            span: Span::DUMMY,
+            kind: TypeKind::Elementary(ElementaryType::UInt(TypeSize::new_int_bits(256))),
+        };
+        let arr = Box::leak(Box::new(TypeArray { element: elem_ty, size: None }));
+        let ty = Type { span: Span::DUMMY, kind: TypeKind::Array(arr) };
+        assert_eq!(ty.pretty_print(&hir), "uint256[]");
+    }
+
+    #[test]
+    fn test_error_type_formatting() {
+        let hir = Hir::new();
+        let ty = Type { span: Span::DUMMY, kind: TypeKind::Err(ErrorGuaranteed::new_unchecked()) };
+        assert_eq!(ty.pretty_print(&hir), "<error>");
     }
 }
