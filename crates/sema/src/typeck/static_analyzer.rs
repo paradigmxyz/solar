@@ -273,32 +273,37 @@ impl<'gcx> StaticAnalyzer<'gcx> {
 
     /// Check for assert/require without message.
     fn check_assert_require_message(&self, callee: &hir::Expr<'_>, args_len: usize) {
-        let hir::ExprKind::Ident(res) = &callee.kind else { return };
-        let [res] = res else { return };
-        let hir::Res::Builtin(builtin) = res else { return };
+        let hir::ExprKind::Ident(resolutions) = &callee.kind else { return };
 
-        match builtin {
-            Builtin::Assert => {
-                if args_len == 1 {
-                    self.dcx()
-                        .warn("assertion without description")
-                        .span(callee.span)
-                        .code(error_code!(5765))
-                        .help("consider adding a description string as second argument")
-                        .emit();
+        // Check if any resolution is Assert or Require (handles overloaded builtins)
+        for res in *resolutions {
+            let hir::Res::Builtin(builtin) = res else { continue };
+
+            match builtin {
+                Builtin::Assert => {
+                    if args_len == 1 {
+                        self.dcx()
+                            .warn("assertion without description")
+                            .span(callee.span)
+                            .code(error_code!(5765))
+                            .help("consider adding a description string as second argument")
+                            .emit();
+                        return;
+                    }
                 }
-            }
-            Builtin::Require => {
-                if args_len == 1 {
-                    self.dcx()
-                        .warn("require without error message")
-                        .span(callee.span)
-                        .code(error_code!(5765))
-                        .help("consider adding an error message as second argument")
-                        .emit();
+                Builtin::Require => {
+                    if args_len == 1 {
+                        self.dcx()
+                            .warn("require without error message")
+                            .span(callee.span)
+                            .code(error_code!(5765))
+                            .help("consider adding an error message as second argument")
+                            .emit();
+                        return;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 

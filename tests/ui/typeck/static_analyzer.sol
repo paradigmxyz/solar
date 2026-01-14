@@ -74,3 +74,42 @@ contract TestStatementNoEffect {
         1 + 2; //~ WARN: statement has no effect
     }
 }
+
+contract TestAssertRequireMessage {
+    // Test: Assert without message
+    function assertNoMsg(bool b) public pure {
+        assert(b); //~ WARN: assertion without description
+    }
+
+    // Test: Require without message
+    function requireNoMsg(bool b) public pure {
+        require(b); //~ WARN: require without error message
+    }
+
+    // Test: Assert with message - no warning
+    function assertWithMsg(bool b) public pure {
+        assert(b, "condition failed");
+    }
+
+    // Test: Require with message - no warning
+    function requireWithMsg(bool b) public pure {
+        require(b, "condition failed");
+    }
+}
+
+contract TestAddModMulMod {
+    // Test: addmod with zero modulo
+    function addmodZero() public pure returns (uint) {
+        return addmod(1, 2, 0); //~ ERROR: arithmetic modulo zero
+    }
+
+    // Test: mulmod with zero modulo
+    function mulmodZero() public pure returns (uint) {
+        return mulmod(1, 2, 0); //~ ERROR: arithmetic modulo zero
+    }
+
+    // Test: addmod with non-zero - no warning
+    function addmodOk() public pure returns (uint) {
+        return addmod(1, 2, 3);
+    }
+}

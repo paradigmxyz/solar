@@ -92,5 +92,33 @@ warning[6133]: statement has no effect
 LL │         1 + 2;
    ╰╴        ━━━━━
 
-error: aborting due to 2 previous errors; 11 warnings emitted
+warning[5765]: assertion without description
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         assert(b);
+   │         ━━━━━━
+   │
+   ╰ help: consider adding a description string as second argument
+
+warning[5765]: require without error message
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         require(b);
+   │         ━━━━━━━
+   │
+   ╰ help: consider adding an error message as second argument
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return addmod(1, 2, 0);
+   ╰╴               ━━━━━━━━━━━━━━━
+
+error[4195]: arithmetic modulo zero
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return mulmod(1, 2, 0);
+   ╰╴               ━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors; 13 warnings emitted
 
