@@ -659,12 +659,12 @@ impl<'gcx> Ty<'gcx> {
             }
 
             // address <-> bytes20.
-            (Elementary(Address(_)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
-            (Elementary(FixedBytes(s)), Elementary(Address(_))) if s.bytes() == 20 => Ok(()),
+            (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
+            (Elementary(FixedBytes(s)), Elementary(Address(false))) if s.bytes() == 20 => Ok(()),
 
             // address <-> uint160.
-            (Elementary(Address(_)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
-            (Elementary(UInt(s)), Elementary(Address(_))) if s.bits() == 160 => Ok(()),
+            (Elementary(Address(false)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
+            (Elementary(UInt(s)), Elementary(Address(false))) if s.bits() == 160 => Ok(()),
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
