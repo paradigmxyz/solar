@@ -10,5 +10,13 @@ error: cannot assign to an immutable variable
 LL │         IMMUT = 2;
    ╰╴        ━━━━━
 
-error: aborting due to 2 previous errors
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
+   │
+LL │ ┏     function test() external {
+LL │ ┃         IMMUT = 2;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 2 previous errors; 1 warning emitted
 

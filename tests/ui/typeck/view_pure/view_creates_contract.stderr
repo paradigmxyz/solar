@@ -1,0 +1,14 @@
+error: not yet implemented: Expr { id: ExprId(1), kind: Call(Expr { id: ExprId(0), kind: New(Type { span: ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC, kind: Custom(ItemId::ContractId(0)) }), span: ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC
+   │
+LL │         return new Other();
+   ╰╴               ━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/view_creates_contract.sol:LL:CC
+   │
+LL │         return new Other();
+   ╰╴               ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

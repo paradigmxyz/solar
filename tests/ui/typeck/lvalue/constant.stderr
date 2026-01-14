@@ -10,5 +10,21 @@ error: cannot assign to a constant variable
 LL │     FILE_CONST = 2;
    ╰╴    ━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │ ┏     function test() external {
+LL │ ┃         CONST = 2;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
+   │
+LL │ ┏ function fileLevel() {
+LL │ ┃     FILE_CONST = 2;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 2 previous errors; 2 warnings emitted
 

@@ -10,5 +10,15 @@ error: mismatched types
 LL │     address payable p2 = a;
    ╰╴                         ━ expected `address payable`, found `address`
 
-error: aborting due to 2 previous errors
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
+   │
+LL │ ┏ function f() {
+LL │ ┃     address payable e = 0x14aF3198B9Dd911fc828434f8D97df0C0Ff979Ee;
+   ‡ ┃
+LL │ ┃     address payable p2 = a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 2 previous errors; 1 warning emitted
 

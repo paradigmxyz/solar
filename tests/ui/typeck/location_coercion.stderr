@@ -22,5 +22,30 @@ error: mismatched types
 LL │         uint128[] memory b = a;
    ╰╴                             ━ expected `uint128[] memory`, found `uint256[] calldata`
 
-error: aborting due to 4 previous errors
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
+   │
+LL │ ┏     function storageToStorage() internal {
+LL │ ┃         uint256[] storage a = storageArr;
+LL │ ┃         uint256[] storage b = a;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
+   │
+LL │ ┏     function storageToCalldata() external {
+LL │ ┃         uint256[] calldata a = storageArr;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
+   │
+LL │ ┏     function memoryToCalldata(uint256[] memory a) external {
+LL │ ┃         uint256[] calldata b = a;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 4 previous errors; 3 warnings emitted
 

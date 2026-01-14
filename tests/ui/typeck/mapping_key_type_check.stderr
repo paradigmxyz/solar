@@ -22,5 +22,17 @@ error: mismatched types
 LL │         m1b[b];
    ╰╴            ━ expected `bytes`, found `bytes memory`
 
-error: aborting due to 4 previous errors
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
+   │
+LL │ ┏     function access(uint u, string memory s, bytes memory b, E e, U ud, L.E1 e1, C c) public {
+LL │ ┃         m0[u];
+LL │ ┃         m1[s];
+LL │ ┃         m1b[b];
+   ‡ ┃
+LL │ ┃         m4b[c];
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 4 previous errors; 1 warning emitted
 

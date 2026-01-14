@@ -16,5 +16,13 @@ error: member `length` is read-only and cannot be used to resize arrays
 LL │         arr.length = state;
    ╰╴        ━━━━━━━━━━
 
-error: aborting due to 3 previous errors
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
+   │
+LL │ ┏     function testParam(uint256[] memory arr) internal {
+LL │ ┃         arr.length = state;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 3 previous errors; 1 warning emitted
 

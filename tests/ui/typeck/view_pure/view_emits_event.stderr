@@ -1,0 +1,14 @@
+error: not yet implemented: Expr { id: ExprId(2), kind: Call(Expr { id: ExprId(0), kind: Ident([Res::Item(ItemId::EventId(0))]), span: ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(1), kind: Lit(Lit { span: ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC, symbol: "42", kind: Number(42) }), span: ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC
+   │
+LL │         emit MyEvent(42);
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/view_emits_event.sol:LL:CC
+   │
+LL │         emit MyEvent(42);
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
