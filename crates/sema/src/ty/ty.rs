@@ -614,8 +614,8 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with zeros).
-            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with
+            // zeros). See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
             (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
                 if from_size.bytes() <= to_size.bytes() {
                     Ok(())
@@ -697,17 +697,12 @@ impl<'gcx> Ty<'gcx> {
                     (Payable, NonPayable) => true,
                     _ => false,
                 };
-                if mutability_ok {
-                    Ok(())
-                } else {
-                    Result::Err(TyConvertError::Incompatible)
-                }
+                if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
             }
 
             // UDVT: user-defined value types are NOT implicitly convertible to their underlying
             // type or vice versa. Explicit wrap/unwrap is required.
             // See: <https://docs.soliditylang.org/en/latest/types.html#user-defined-value-types>
-
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
