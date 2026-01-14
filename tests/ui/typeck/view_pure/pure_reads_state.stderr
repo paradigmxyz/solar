@@ -1,0 +1,8 @@
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/view_pure/pure_reads_state.sol:LL:CC
+   │
+LL │         return x;
+   ╰╴               ━
+
+error: aborting due to 1 previous error
+

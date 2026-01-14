@@ -1,0 +1,14 @@
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/view_pure/pure_reads_block.sol:LL:CC
+   │
+LL │         return block.timestamp;
+   ╰╴               ━━━━━━━━━━━━━━━
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/view_pure/pure_reads_block.sol:LL:CC
+   │
+LL │         return block.number;
+   ╰╴               ━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,8 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/view_modifies_state.sol:LL:CC
+   │
+LL │         x = 42;
+   ╰╴        ━
+
+error: aborting due to 1 previous error
+

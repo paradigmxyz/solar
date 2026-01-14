@@ -1,0 +1,14 @@
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/view_pure/pure_reads_msg.sol:LL:CC
+   │
+LL │         return msg.sender;
+   ╰╴               ━━━━━━━━━━
+
+error[5887]: "msg.value" and "callvalue()" can only be used in payable public functions. Make the function "payable" or use an internal function to avoid this error.
+   ╭▸ ROOT/tests/ui/typeck/view_pure/pure_reads_msg.sol:LL:CC
+   │
+LL │         return msg.value;
+   ╰╴               ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
