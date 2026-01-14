@@ -9,6 +9,7 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
+pub use rustc_hash::FxHashMap;
 pub use solar_sema as sema;
 
 pub mod mir;
@@ -17,8 +18,14 @@ pub use mir::{
     Module, Terminator, Value, ValueId,
 };
 
+pub mod analysis;
+pub use analysis::{Liveness, LivenessInfo};
+
 pub mod lower;
 pub use lower::Lowerer;
 
 pub mod codegen;
-pub use codegen::EvmCodegen;
+pub use codegen::{
+    Assembler, AssembledCode, EvmCodegen, Label, SpillManager, SpillSlot, StackModel,
+    StackScheduler,
+};
