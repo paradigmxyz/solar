@@ -3,8 +3,7 @@
 contract C {
     // Constant with non-compile-time initializer
     uint constant NON_CONST = block.timestamp;
-    //~^ ERROR: mismatched types
-    //~| ERROR: initial value for constant variable has to be compile-time constant
+    //~^ ERROR: initial value for constant variable has to be compile-time constant
 
     // Valid constant
     uint constant VALID_CONST = 42;
@@ -31,7 +30,7 @@ contract C {
     uint immutable VALID_IMMUT;
 
     // Memory variable containing mapping is invalid
-    function f() public {
+    function f() public { //~ WARN: function state mutability can be restricted to pure
         WithMapping memory localWithMapping; //~ ERROR: is only valid in storage because it contains a (nested) mapping
     }
 }

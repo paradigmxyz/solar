@@ -82,6 +82,19 @@ impl SolcErrorKind {
         matches!(self, Self::DocstringParsingError | Self::ParserError)
     }
 
+    /// Returns true if this error kind is checked by solar with typeck enabled.
+    /// This includes parser errors, type errors, declaration errors, and syntax errors.
+    pub fn is_checked_error(&self) -> bool {
+        matches!(
+            self,
+            Self::DocstringParsingError
+                | Self::ParserError
+                | Self::TypeError
+                | Self::DeclarationError
+                | Self::SyntaxError
+        )
+    }
+
     pub(crate) fn is_error(&self) -> bool {
         !matches!(self, Self::Info | Self::Warning)
     }

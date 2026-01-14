@@ -31,7 +31,7 @@ contract C {
 
     // Slices cannot be assigned to storage pointers.
     uint256[] s;
-    function toStoragePointer(uint256[] calldata data, uint256 start, uint256 end) external {
+    function toStoragePointer(uint256[] calldata data, uint256 start, uint256 end) external { //~ WARN: function state mutability can be restricted to view
         uint256[] storage t = s;
         t = data[start:end]; //~ ERROR: mismatched types
     }

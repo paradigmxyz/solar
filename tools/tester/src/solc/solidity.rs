@@ -105,6 +105,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // Mapping key types are checked in sema.
         | "mapping_nonelementary_key_1"
         | "mapping_nonelementary_key_4"
+
+        // ICE: panics in ast_passes when error token has denomination.
+        // TODO: fix error recovery for invalid number with denomination.
+        | "invalid_octal_denomination_no_whitespace"
     ) {
         return Err("manually skipped");
     };

@@ -6,7 +6,6 @@ contract C {
 
     function viewEmitsEvent() public view {
         emit MyEvent(42);
-        //~^ ERROR: not yet implemented
-        //~| ERROR: function cannot be declared as view because this expression (potentially) modifies the state
+        //~^ ERROR: function cannot be declared as view because this expression (potentially) modifies the state
     }
 }

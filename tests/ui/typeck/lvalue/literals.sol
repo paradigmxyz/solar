@@ -5,12 +5,12 @@ contract Test {
     uint256 state;
     bool boolState;
 
-    function testInt() external {
+    function testInt() external { //~ WARN: function state mutability can be restricted to view
         1 = state; //~ ERROR: expression has to be an lvalue
         //~^ ERROR: mismatched types
     }
 
-    function testBool() external {
+    function testBool() external { //~ WARN: function state mutability can be restricted to view
         true = boolState; //~ ERROR: expression has to be an lvalue
     }
 }

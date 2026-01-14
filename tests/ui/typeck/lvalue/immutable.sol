@@ -9,7 +9,7 @@ contract Test {
         IMMUT = 1; //~ ERROR: cannot assign to an immutable variable
     }
 
-    function test() external {
+    function test() external { //~ WARN: function state mutability can be restricted to view
         IMMUT = 2; //~ ERROR: cannot assign to an immutable variable
     }
 }

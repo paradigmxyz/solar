@@ -1,9 +1,3 @@
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
-   │
-LL │     uint constant NON_CONST = block.timestamp;
-   ╰╴                              ━━━━━━━━━━━━━━━ expected `uint256`, found `uint256`
-
 error: initial value for constant variable has to be compile-time constant
    ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
    │
@@ -28,5 +22,13 @@ error: type `struct C.WithMapping memory` is only valid in storage because it co
 LL │         WithMapping memory localWithMapping;
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 5 previous errors
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │ ┏     function f() public {
+LL │ ┃         WithMapping memory localWithMapping;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 4 previous errors; 1 warning emitted
 

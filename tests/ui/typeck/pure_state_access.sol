@@ -9,7 +9,7 @@ contract C {
     // Error: pure function reads state.
     function testPure() public pure returns (uint256) {
         return stateVar;
-        //~^ ERROR: function declared as pure, but this expression reads
+        //~^ ERROR: function declared as pure, but this expression (potentially) reads
     }
     
     // OK: view function can read state.

@@ -987,27 +987,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Checks if accessing a resolved identifier is valid given the current function's state
     /// mutability.
-    fn check_state_access(&self, span: Span, res: hir::Res) {
-        // Only check if we're in a function with restricted mutability.
-        let Some(mutability) = self.function_state_mutability else {
-            return;
-        };
-
-        // Check if this is a state variable access.
-        if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
-            let var = self.gcx.hir.variable(var_id);
-            // State variables that aren't constant or immutable require at least view.
-            if var.is_state_variable()
-                && !var.is_constant()
-                && !var.is_immutable()
-                && mutability.is_pure()
-            {
-                self.dcx()
-                    .err("function declared as pure, but this expression reads from the environment or state and thus requires \"view\"")
-                    .span(span)
-                    .emit();
-            }
-        }
+    /// Note: State mutability violations for pure/view functions are now checked in
+    /// view_pure.rs more comprehensively.
+    fn check_state_access(&self, _span: Span, _res: hir::Res) {
+        // State variable access checks have been moved to view_pure.rs to avoid duplicates.
     }
 
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {

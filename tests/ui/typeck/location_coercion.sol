@@ -18,7 +18,7 @@ contract C {
         return b;
     }
 
-    function storageToStorage() internal {
+    function storageToStorage() internal { //~ WARN: function state mutability can be restricted to view
         uint256[] storage a = storageArr;
         uint256[] storage b = a;
     }
@@ -50,12 +50,12 @@ contract C {
     // === Disallowed conversions ===
 
     // storage -> calldata: never allowed
-    function storageToCalldata() external {
+    function storageToCalldata() external { //~ WARN: function state mutability can be restricted to view
         uint256[] calldata a = storageArr; //~ ERROR: mismatched types
     }
 
     // memory -> calldata: never allowed
-    function memoryToCalldata(uint256[] memory a) external {
+    function memoryToCalldata(uint256[] memory a) external { //~ WARN: function state mutability can be restricted to pure
         uint256[] calldata b = a; //~ ERROR: mismatched types
     }
 

@@ -28,7 +28,7 @@ contract C {
 
     // TODO: m1[s] and m1b[b] currently error with "expected `string`, found `string memory`"
     // This is incorrect - solc accepts these. The mapping key type should allow location coercion.
-    function access(uint u, string memory s, bytes memory b, E e, U ud, L.E1 e1, C c) public {
+    function access(uint u, string memory s, bytes memory b, E e, U ud, L.E1 e1, C c) public { //~ WARN: function state mutability can be restricted to view
         m0[u];
         m1[s]; //~ ERROR: mismatched types
         m1b[b]; //~ ERROR: mismatched types

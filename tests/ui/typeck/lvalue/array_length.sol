@@ -13,7 +13,7 @@ contract Test {
         fixedArray.length = state; //~ ERROR: member `length` is read-only and cannot be used to resize arrays
     }
 
-    function testParam(uint256[] memory arr) internal {
+    function testParam(uint256[] memory arr) internal { //~ WARN: function state mutability can be restricted to view
         arr.length = state; //~ ERROR: member `length` is read-only and cannot be used to resize arrays
     }
 }
