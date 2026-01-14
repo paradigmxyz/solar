@@ -18,4 +18,11 @@ contract C {
     function f(StructType memory a) public pure returns (StructType memory) {
         return a;
     }
+
+    // Ensure error can be used with revert (original bug #219 scenario).
+    error MyError(uint x);
+
+    function triggerError() public pure {
+        revert MyError(1);
+    }
 }
