@@ -1,0 +1,14 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_invalid.sol:LL:CC
+   │
+LL │         int8(256);
+   ╰╴        ━━━━━━━━━ cannot convert `int_literal[9]` to `int8`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_invalid.sol:LL:CC
+   │
+LL │         uint8(256);
+   ╰╴        ━━━━━━━━━━ cannot convert `int_literal[9]` to `uint8`
+
+error: aborting due to 2 previous errors
+

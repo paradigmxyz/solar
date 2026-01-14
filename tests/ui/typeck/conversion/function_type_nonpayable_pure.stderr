@@ -1,0 +1,8 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_nonpayable_pure.sol:LL:CC
+   │
+LL │         function () pure external g = this.h;
+   ╰╴                                      ━━━━━━ expected `function () pure external`, found `function () external`
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,8 @@
+error: not yet implemented: Expr { id: ExprId(2), kind: Call(Expr { id: ExprId(0), kind: Ident([Res::Item(ItemId::FunctionId(0))]), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_event_to_bytes4_function_argument.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_event_to_bytes4_function_argument.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(1), kind: Ident([Res::Item(ItemId::EventId(0))]), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_event_to_bytes4_function_argument.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_event_to_bytes4_function_argument.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/implicit_conversion_event_to_bytes4_function_argument.sol:LL:CC
+   │
+LL │         f(MyCustomEvent);
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

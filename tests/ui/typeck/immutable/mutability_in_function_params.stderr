@@ -1,0 +1,26 @@
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/mutability_in_function_params.sol:LL:CC
+   │
+LL │         uint constant a,
+   ╰╴             ━━━━━━━━
+
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/mutability_in_function_params.sol:LL:CC
+   │
+LL │         uint immutable b
+   ╰╴             ━━━━━━━━━
+
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/mutability_in_function_params.sol:LL:CC
+   │
+LL │         uint constant c,
+   ╰╴             ━━━━━━━━
+
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/mutability_in_function_params.sol:LL:CC
+   │
+LL │         uint immutable d
+   ╰╴             ━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

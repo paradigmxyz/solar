@@ -1,0 +1,8 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversion/allowed_conversion_to_string.sol:LL:CC
+   │
+LL │         d = string(c);
+   ╰╴            ━━━━━━━━━ cannot convert `string storage` to `string`
+
+error: aborting due to 1 previous error
+

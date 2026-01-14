@@ -1,0 +1,14 @@
+error: expected function, found `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/int_not_callable.sol:LL:CC
+   │
+LL │         (1(3), 2);
+   │          ━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/int_not_callable.sol:LL:CC
+   │
+LL │         (1(3), 2);
+   ╰╴         ━━━━
+
+error: aborting due to 1 previous error
+

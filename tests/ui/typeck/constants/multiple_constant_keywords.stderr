@@ -1,0 +1,14 @@
+error: mutability already specified
+   ╭▸ ROOT/tests/ui/typeck/constants/multiple_constant_keywords.sol:LL:CC
+   │
+LL │ uint constant constant x;
+   ╰╴              ━━━━━━━━
+
+error: constant variable must be initialized
+   ╭▸ ROOT/tests/ui/typeck/constants/multiple_constant_keywords.sol:LL:CC
+   │
+LL │ uint constant constant x;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

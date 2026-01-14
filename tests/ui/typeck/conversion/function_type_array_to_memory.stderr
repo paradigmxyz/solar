@@ -1,0 +1,74 @@
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         externalDefaultArray = [this.externalView];
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         internalDefaultArray = [internalView];
+   ╰╴                               ━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(20), kind: Call(Expr { id: ExprId(19), kind: Index(Expr { id: ExprId(17), kind: Ident([Res::Item(ItemId::VariableId(8))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(18), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalDefaultArray[0](), internalDefaultArray[0]());
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(24), kind: Call(Expr { id: ExprId(23), kind: Index(Expr { id: ExprId(21), kind: Ident([Res::Item(ItemId::VariableId(10))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(22), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalDefaultArray[0](), internalDefaultArray[0]());
+   ╰╴                                           ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         externalDefaultArray = [this.externalPure];
+   ╰╴                               ━━━━━━━━━━━━━━━━━━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         internalDefaultArray = [internalPure];
+   ╰╴                               ━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(40), kind: Call(Expr { id: ExprId(39), kind: Index(Expr { id: ExprId(37), kind: Ident([Res::Item(ItemId::VariableId(14))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(38), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalDefaultArray[0](), internalDefaultArray[0]());
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(44), kind: Call(Expr { id: ExprId(43), kind: Index(Expr { id: ExprId(41), kind: Ident([Res::Item(ItemId::VariableId(16))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(42), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalDefaultArray[0](), internalDefaultArray[0]());
+   ╰╴                                           ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         externalViewArray = [this.externalPure];
+   ╰╴                            ━━━━━━━━━━━━━━━━━━━
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         internalViewArray = [internalPure];
+   ╰╴                            ━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(60), kind: Call(Expr { id: ExprId(59), kind: Index(Expr { id: ExprId(57), kind: Ident([Res::Item(ItemId::VariableId(20))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(58), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalViewArray[0](), internalViewArray[0]());
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(64), kind: Call(Expr { id: ExprId(63), kind: Index(Expr { id: ExprId(61), kind: Ident([Res::Item(ItemId::VariableId(22))]), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, Some(Expr { id: ExprId(62), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, symbol: "0", kind: Number(0) }), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC })), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_array_to_memory.sol:LL:CC
+   │
+LL │         return (externalViewArray[0](), internalViewArray[0]());
+   ╰╴                                        ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 12 previous errors
+

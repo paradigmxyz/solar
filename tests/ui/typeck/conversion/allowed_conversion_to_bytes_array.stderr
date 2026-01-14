@@ -1,0 +1,8 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversion/allowed_conversion_to_bytes_array.sol:LL:CC
+   │
+LL │         d = bytes(c);
+   ╰╴            ━━━━━━━━ cannot convert `bytes storage` to `bytes`
+
+error: aborting due to 1 previous error
+

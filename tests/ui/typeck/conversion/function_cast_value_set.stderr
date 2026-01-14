@@ -1,0 +1,14 @@
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_cast_value_set.sol:LL:CC
+   │
+LL │         function() external payable x = this.f{value: 7};
+   │                                               ━━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_cast_value_set.sol:LL:CC
+   │
+LL │         function() external payable x = this.f{value: 7};
+   ╰╴                                        ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

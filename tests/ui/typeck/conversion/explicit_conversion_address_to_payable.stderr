@@ -1,0 +1,14 @@
+error: not yet implemented: Expr { id: ExprId(4), kind: Call(Expr { id: ExprId(1), kind: Ident([Res::Item(ItemId::FunctionId(0))]), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(3), kind: Payable(Expr { id: ExprId(2), kind: Ident([Res::Item(ItemId::VariableId(2))]), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC
+   │
+LL │         uint x = g(payable(_a));
+   ╰╴                 ━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(7), kind: Call(Expr { id: ExprId(5), kind: Ident([Res::Item(ItemId::FunctionId(0))]), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(6), kind: Ident([Res::Item(ItemId::VariableId(2))]), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_address_to_payable.sol:LL:CC
+   │
+LL │         uint y = g(_a);
+   ╰╴                 ━━━━━
+
+error: aborting due to 2 previous errors
+

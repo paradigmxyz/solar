@@ -1,0 +1,8 @@
+error: member `MyCustomError` not found on type `type(contract MyInterface)`
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_error_to_bytes4.sol:LL:CC
+   │
+LL │         return bytes4(MyInterface.MyCustomError);
+   ╰╴                                  ━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

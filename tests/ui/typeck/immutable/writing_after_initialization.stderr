@@ -1,0 +1,8 @@
+error: cannot assign to an immutable variable
+   ╭▸ ROOT/tests/ui/typeck/immutable/writing_after_initialization.sol:LL:CC
+   │
+LL │         x = 1;
+   ╰╴        ━
+
+error: aborting due to 1 previous error
+

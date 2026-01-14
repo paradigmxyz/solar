@@ -1,0 +1,8 @@
+error: mutability already specified
+   ╭▸ ROOT/tests/ui/typeck/immutable/double_specifier.sol:LL:CC
+   │
+LL │     uint immutable immutable x;
+   ╰╴                   ━━━━━━━━━
+
+error: aborting due to 1 previous error
+

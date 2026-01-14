@@ -1,0 +1,8 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_event_to_bytes4.sol:LL:CC
+   │
+LL │         return bytes4(MyCustomEvent);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━ cannot convert `event Test.MyCustomEvent(uint256)` to `bytes4`
+
+error: aborting due to 1 previous error
+

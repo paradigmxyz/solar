@@ -1,0 +1,14 @@
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/constant_in_struct.sol:LL:CC
+   │
+LL │         uint constant a;
+   ╰╴             ━━━━━━━━
+
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/constant_in_struct.sol:LL:CC
+   │
+LL │         uint immutable b;
+   ╰╴             ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -1,0 +1,8 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversion/function_type_payable_nonpayable.sol:LL:CC
+   │
+LL │         function () external g = this.h;
+   ╰╴                                 ━━━━━━ expected `function () external`, found `function () payable external`
+
+error: aborting due to 1 previous error
+

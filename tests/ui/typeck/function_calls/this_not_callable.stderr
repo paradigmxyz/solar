@@ -1,0 +1,14 @@
+error: expected function, found `contract C`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/this_not_callable.sol:LL:CC
+   │
+LL │         try this() {
+   │             ━━━━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/this_not_callable.sol:LL:CC
+   │
+LL │         try this() {
+   ╰╴            ━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,20 @@
+error: not yet implemented: Expr { id: ExprId(2), kind: Call(Expr { id: ExprId(0), kind: Ident([Res::Item(ItemId::FunctionId(0))]), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(1), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, symbol: "hello", kind: Str("hello") }), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC
+   │
+LL │         g("hello");
+   ╰╴        ━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(5), kind: Call(Expr { id: ExprId(3), kind: Ident([Res::Item(ItemId::FunctionId(0))]), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(4), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, symbol: "hello", kind: Unicode("hello") }), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC
+   │
+LL │         g(unicode"hello");
+   ╰╴        ━━━━━━━━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(8), kind: Call(Expr { id: ExprId(6), kind: Ident([Res::Item(ItemId::FunctionId(1))]), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, kind: Unnamed([Expr { id: ExprId(7), kind: Lit(Lit { span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC, symbol: "68656c6c6f", kind: Hex("hello") }), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }]) }, None), span: ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/conversion/implicit_conversion_from_string_literal_to_calldata_string.sol:LL:CC
+   │
+LL │         h(hex"68656c6c6f");
+   ╰╴        ━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

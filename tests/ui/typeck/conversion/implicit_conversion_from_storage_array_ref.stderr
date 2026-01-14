@@ -1,0 +1,8 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversion/implicit_conversion_from_storage_array_ref.sol:LL:CC
+   │
+LL │         y = x;
+   ╰╴            ━ expected `int256[] storage`, found `int256[10] storage`
+
+error: aborting due to 1 previous error
+

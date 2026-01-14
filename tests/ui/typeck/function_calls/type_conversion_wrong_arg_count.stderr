@@ -1,0 +1,26 @@
+error: expected exactly one unnamed argument
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_wrong_arg_count.sol:LL:CC
+   │
+LL │         uint(1, 2);
+   ╰╴            ━━━━━━
+
+error: expected exactly one unnamed argument
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_wrong_arg_count.sol:LL:CC
+   │
+LL │         uint();
+   ╰╴            ━━
+
+error: expected exactly one unnamed argument
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_wrong_arg_count.sol:LL:CC
+   │
+LL │         bytes32();
+   ╰╴               ━━
+
+error: expected exactly one unnamed argument
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_conversion_wrong_arg_count.sol:LL:CC
+   │
+LL │         address(1, 2);
+   ╰╴               ━━━━━━
+
+error: aborting due to 4 previous errors
+

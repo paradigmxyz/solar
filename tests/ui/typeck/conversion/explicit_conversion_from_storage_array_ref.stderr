@@ -1,0 +1,14 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_from_storage_array_ref.sol:LL:CC
+   │
+LL │         int[](x);
+   ╰╴        ━━━━━━━━ cannot convert `int256[10] storage` to `int256[]`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversion/explicit_conversion_from_storage_array_ref.sol:LL:CC
+   │
+LL │         int(x);
+   ╰╴        ━━━━━━ cannot convert `int256[10] storage` to `int256`
+
+error: aborting due to 2 previous errors
+

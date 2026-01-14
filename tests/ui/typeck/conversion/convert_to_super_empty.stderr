@@ -1,0 +1,14 @@
+error: expected function, found `contract C`
+   ╭▸ ROOT/tests/ui/typeck/conversion/convert_to_super_empty.sol:LL:CC
+   │
+LL │         super().x;
+   │         ━━━━━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/conversion/convert_to_super_empty.sol:LL:CC
+   │
+LL │         super().x;
+   ╰╴        ━━━━━━━
+
+error: aborting due to 1 previous error
+
