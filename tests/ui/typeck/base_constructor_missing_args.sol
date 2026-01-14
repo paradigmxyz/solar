@@ -144,3 +144,13 @@ contract ConcreteFromAbstractChain is AbstractB {} //~ ERROR: no arguments passe
 
 // OK: Provides AbstractB's args (but current impl still errors for AbstractA - see TODOs)
 contract ConcreteFromAbstractChainOk is AbstractB(1) {} //~ ERROR: no arguments passed to the base constructor
+
+// === Constructor modifier providing args for grandparent ===
+
+contract MiddleWithModifier is Base1 {
+    constructor() Base1(10) {}  // Middle provides Base1's args via modifier
+}
+
+// TODO: Should be OK - Base1 args provided by MiddleWithModifier's constructor modifier
+// Current impl incorrectly errors because it doesn't track modifier-provided args
+contract ChildOfMiddle is MiddleWithModifier {} //~ ERROR: no arguments passed to the base constructor

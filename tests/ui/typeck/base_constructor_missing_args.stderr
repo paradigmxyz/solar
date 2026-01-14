@@ -142,5 +142,17 @@ note: base constructor parameters
 LL │     constructor(uint a) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 12 previous errors
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:ChildOfMiddle" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract ChildOfMiddle is MiddleWithModifier {}
+   │          ━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint x) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 13 previous errors
 
