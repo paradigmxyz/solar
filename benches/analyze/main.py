@@ -171,7 +171,11 @@ def main() -> None:
 
     # Add relative performance charts
     for kind in KINDS:
-        out_s += f"![{kind} Relative Performance]({os.path.basename(plot_paths[f'{kind}_relative'])})\n\n"
+        plot_path = plot_paths.get(f"{kind}_relative")
+        if plot_path:
+            out_s += (
+                f"![{kind} Relative Performance]({os.path.basename(plot_path)})\n\n"
+            )
 
     # Generate markdown tables
     out_s += generate_markdown_tables(data, benchmarks)
@@ -303,6 +307,9 @@ def generate_markdown_tables(
                     ]
                 )
 
+            if len(table) <= 1:
+                continue
+
             # Sort by relative speed (fastest first)
             table[1:] = sorted(table[1:], key=lambda x: float(x[1][:-1]), reverse=True)
 
@@ -350,15 +357,16 @@ def plot_benchmark_times(data: BenchmarkData) -> Dict[str, str]:
             color_map,
         )
 
-        # Generate relative performance plots
-        plot_paths[f"{kind}_relative"] = create_relative_plot(
-            data,
-            kind,
-            sorted_bench_names[kind],
-            available_parsers,
-            output_dir,
-            color_map,
-        )
+        # Generate relative performance plots (if more than one parser is available)
+        if len(available_parsers) > 1:
+            plot_paths[f"{kind}_relative"] = create_relative_plot(
+                data,
+                kind,
+                sorted_bench_names[kind],
+                available_parsers,
+                output_dir,
+                color_map,
+            )
 
     return plot_paths
 

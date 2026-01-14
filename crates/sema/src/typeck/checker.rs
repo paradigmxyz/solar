@@ -6,7 +6,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::diagnostics::DiagCtxt;
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -21,7 +21,18 @@ struct TypeChecker<'gcx> {
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
-    lvalue_context: Option<bool>,
+    lvalue_context: Option<Result<(), NotLvalueReason>>,
+}
+
+#[derive(Clone, Copy)]
+enum NotLvalueReason {
+    Constant,
+    Immutable,
+    CalldataArray,
+    CalldataStruct,
+    FixedBytesIndex,
+    ArrayLength,
+    Generic,
 }
 
 impl<'gcx> TypeChecker<'gcx> {
@@ -153,7 +164,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         todo!()
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) | TyKind::Err(_) => callee_ty,
+                    TyKind::Event(..) | TyKind::Error(..) => {
+                        // return callee_ty
+                        todo!()
+                    }
+                    TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
@@ -164,7 +179,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 if !is_array_push {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
                 ty
@@ -181,8 +196,8 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if !res_is_lvalue(self.gcx, res) {
-                    self.not_lvalue();
+                if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                    self.try_set_not_lvalue(reason);
                 }
                 self.type_of_res(res)
             }
@@ -192,7 +207,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     return ty;
                 }
                 if ty.loc() == Some(DataLocation::Calldata) {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
+                }
+                if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+                {
+                    self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
@@ -283,18 +302,36 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                match expr_ty.kind {
-                    TyKind::Ref(_, d) if d.is_calldata() => self.not_lvalue(),
+                let not_lvalue_reason = match expr_ty.kind {
+                    _ if matches!(
+                        expr_ty.peel_refs().kind,
+                        TyKind::Array(..) | TyKind::DynArray(_)
+                    ) && possible_members.len() == 1
+                        && possible_members[0].name == sym::length =>
+                    {
+                        Some(NotLvalueReason::ArrayLength)
+                    }
+                    TyKind::Ref(inner, d) if d.is_calldata() => {
+                        let reason = if matches!(inner.kind, TyKind::Struct(_)) {
+                            NotLvalueReason::CalldataStruct
+                        } else {
+                            NotLvalueReason::CalldataArray
+                        };
+                        Some(reason)
+                    }
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
-                            && !possible_members[0]
-                                .res
-                                .is_some_and(|res| res_is_lvalue(self.gcx, res)) =>
+                            && possible_members[0].res.is_some_and(|res| {
+                                res_not_lvalue_reason(self.gcx, res).is_some()
+                            }) =>
                     {
-                        self.not_lvalue();
+                        Some(NotLvalueReason::Generic)
                     }
-                    _ => {}
+                    _ => None,
+                };
+                if let Some(reason) = not_lvalue_reason {
+                    self.try_set_not_lvalue(reason);
                 }
 
                 ty
@@ -361,8 +398,19 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Payable(expr) => {
-                let ty = self.expect_ty(expr, self.gcx.types.address);
-                if ty.references_error() { ty } else { self.gcx.types.address_payable }
+                let ty = self.check_expr(expr);
+                if ty.references_error() {
+                    return ty;
+                }
+
+                let target_ty = self.gcx.types.address_payable;
+                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
+                    return target_ty;
+                };
+
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
+                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -434,13 +482,25 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, expr) => {
+                // For negation, don't propagate expected type to the inner expression
+                // because we'll modify the type (flipping the sign for int literals).
+                let propagate_expected = op.kind != hir::UnOpKind::Neg
+                    || !matches!(expected, Some(ty) if ty.is_signed());
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(expr)
-                } else {
+                } else if propagate_expected {
                     self.check_expr_with(expr, expected)
+                } else {
+                    self.check_expr(expr)
                 };
                 // TODO: custom operators
                 if valid_unop(ty, op.kind) {
+                    // Propagate negativity for integer literals under unary negation.
+                    if op.kind == hir::UnOpKind::Neg
+                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                    {
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                    }
                     ty
                 } else {
                     let msg = format!(
@@ -520,13 +580,49 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(()) = from.try_convert_explicit_to(to) else { return to };
+        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else {
+            // For bytes <-> string conversions with unlocated target,
+            // return the target type with source's location.
+            return self.resolve_cast_result_type(from, to);
+        };
 
-        let msg =
-            format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
-        let mut err = self.dcx().err(msg).span(span);
-        err = err.span_label(span, "invalid explicit type conversion");
-        self.gcx.mk_ty_err(err.emit())
+        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+        diag = diag.span_label(span, err.message(from, to, self.gcx));
+        self.gcx.mk_ty_err(diag.emit())
+    }
+
+    /// Resolves the result type for an explicit cast.
+    /// For most conversions, returns `to`. For bytes <-> string with unlocated target,
+    /// returns the target type with the source's data location.
+    fn resolve_cast_result_type(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> Ty<'gcx> {
+        use TyKind::{Elementary, Ref};
+        use solar_ast::ElementaryType::{Bytes, String};
+
+        match (from.kind, to.kind) {
+            // string memory -> bytes: return bytes memory.
+            (Ref(from_inner, loc), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                match loc {
+                    DataLocation::Memory => self.gcx.types.bytes_ref.memory,
+                    DataLocation::Calldata => self.gcx.types.bytes_ref.calldata,
+                    DataLocation::Storage => self.gcx.types.bytes_ref.storage,
+                    DataLocation::Transient => self.gcx.types.bytes_ref.transient,
+                }
+            }
+            // bytes memory -> string: return string memory.
+            (Ref(from_inner, loc), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                match loc {
+                    DataLocation::Memory => self.gcx.types.string_ref.memory,
+                    DataLocation::Calldata => self.gcx.types.string_ref.calldata,
+                    DataLocation::Storage => self.gcx.types.string_ref.storage,
+                    DataLocation::Transient => self.gcx.types.string_ref.transient,
+                }
+            }
+            _ => to,
+        }
     }
 
     #[track_caller]
@@ -536,18 +632,11 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        let Err(()) = actual.try_convert_implicit_to(expected) else { return };
+        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
-        let mut err = self.dcx().err("mismatched types").span(expr.span);
-        err = err.span_label(
-            expr.span,
-            format!(
-                "expected `{}`, found `{}`",
-                expected.display(self.gcx),
-                actual.display(self.gcx)
-            ),
-        );
-        err.emit();
+        let mut diag = self.dcx().err("mismatched types").span(expr.span);
+        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
+        diag.emit();
     }
 
     #[must_use]
@@ -636,26 +725,36 @@ impl<'gcx> TypeChecker<'gcx> {
 
     #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = self.lvalue_context.replace(true);
+        let prev = self.lvalue_context.replace(Ok(()));
         let ty = self.check_expr(expr);
-        let ctx = self.lvalue_context;
-        debug_assert!(ctx.is_some());
+        let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
-        // TODO: check ctx
-        if is_syntactic_lvalue(expr) {
+
+        if result.is_ok() && is_syntactic_lvalue(expr) {
             return ty;
         }
 
-        // TODO: better error message https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L4143
-
-        self.dcx().err("expected lvalue").span(expr.span).emit();
+        let msg = match result {
+            Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
+            Err(NotLvalueReason::Immutable) => "cannot assign to an immutable variable",
+            Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
+            Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
+            Err(NotLvalueReason::FixedBytesIndex) => {
+                "single bytes in fixed bytes arrays cannot be modified"
+            }
+            Err(NotLvalueReason::ArrayLength) => {
+                "member `length` is read-only and cannot be used to resize arrays"
+            }
+            Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
+        };
+        self.dcx().err(msg).span(expr.span).emit();
 
         ty
     }
 
-    fn not_lvalue(&mut self) {
-        if let Some(v) = &mut self.lvalue_context {
-            *v = false;
+    fn try_set_not_lvalue(&mut self, reason: NotLvalueReason) {
+        if let Some(Ok(())) = self.lvalue_context {
+            self.lvalue_context = Some(Err(reason));
         }
     }
 
@@ -915,11 +1014,18 @@ impl<T> FromIterator<T> for WantOne<T> {
     }
 }
 
-fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
+fn res_not_lvalue_reason(gcx: Gcx<'_>, res: hir::Res) -> Option<NotLvalueReason> {
     match res {
-        hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
-        hir::Res::Err(_) => true,
-        _ => false,
+        hir::Res::Item(hir::ItemId::Variable(var)) => {
+            let var = gcx.hir.variable(var);
+            match var.mutability {
+                Some(m) if m.is_constant() => Some(NotLvalueReason::Constant),
+                Some(m) if m.is_immutable() => Some(NotLvalueReason::Immutable),
+                _ => None,
+            }
+        }
+        hir::Res::Err(_) => None,
+        _ => Some(NotLvalueReason::Generic),
     }
 }
 
@@ -945,15 +1051,25 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
 
     let ty = ty.peel_refs();
     match ty.kind {
-        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
-        | TyKind::IntLiteral(..) => match op {
-            hir::UnOpKind::Neg => ty.is_signed(),
-            hir::UnOpKind::Not => false,
-            hir::UnOpKind::PreInc
+        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_)) => {
+            match op {
+                hir::UnOpKind::Neg => ty.is_signed(),
+                hir::UnOpKind::Not => false,
+                hir::UnOpKind::PreInc
+                | hir::UnOpKind::PreDec
+                | hir::UnOpKind::BitNot
+                | hir::UnOpKind::PostInc
+                | hir::UnOpKind::PostDec => true,
+            }
+        }
+        // IntLiteral can always be negated (it becomes a negative literal).
+        TyKind::IntLiteral(..) => match op {
+            hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
+            hir::UnOpKind::Not
+            | hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
-            | hir::UnOpKind::BitNot
             | hir::UnOpKind::PostInc
-            | hir::UnOpKind::PostDec => true,
+            | hir::UnOpKind::PostDec => false,
         },
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => op == hir::UnOpKind::BitNot,
         TyKind::Elementary(hir::ElementaryType::Bool) => op == hir::UnOpKind::Not,

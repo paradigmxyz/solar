@@ -25,6 +25,67 @@ impl<'gcx> std::ops::Deref for Ty<'gcx> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TyConvertError {
+    /// Generic incompatibility (fallback).
+    Incompatible,
+
+    /// Contract doesn't inherit from target contract.
+    NonDerivedContract,
+
+    /// Invalid conversion between types.
+    InvalidConversion,
+
+    /// Literal is larger than the target type.
+    LiteralTooLarge,
+
+    /// Contract cannot be converted to address payable because it cannot receive ether.
+    ContractNotPayable,
+
+    /// Non-payable address cannot be converted to a contract that can receive ether.
+    AddressNotPayable,
+}
+
+impl TyConvertError {
+    /// Returns the error message for this conversion error.
+    pub fn message<'gcx>(self, from: Ty<'gcx>, to: Ty<'gcx>, gcx: Gcx<'gcx>) -> String {
+        match self {
+            Self::NonDerivedContract => {
+                format!(
+                    "contract `{}` does not inherit from `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
+            }
+            Self::InvalidConversion => {
+                format!("cannot convert `{}` to `{}`", from.display(gcx), to.display(gcx))
+            }
+            Self::Incompatible => {
+                format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::LiteralTooLarge => {
+                format!(
+                    "literal `{}` is larger than the type `{}`",
+                    from.display(gcx),
+                    to.display(gcx)
+                )
+            }
+            Self::ContractNotPayable => {
+                format!(
+                    "cannot convert `{}` to `address payable` because it has no receive function or payable fallback",
+                    from.display(gcx)
+                )
+            }
+            Self::AddressNotPayable => {
+                format!(
+                    "cannot convert non-payable `address` to `{}` because it has a receive function or payable fallback",
+                    to.display(gcx)
+                )
+            }
+        }
+    }
+}
+
 impl<'gcx> Ty<'gcx> {
     pub fn new(gcx: Gcx<'gcx>, kind: TyKind<'gcx>) -> Self {
         gcx.mk_ty(kind)
@@ -382,12 +443,12 @@ impl<'gcx> Ty<'gcx> {
     pub fn common_type(self, b: Self, gcx: Gcx<'gcx>) -> Option<Self> {
         let a = self;
         if let Some(a) = a.mobile(gcx)
-            && b.convert_implicit_to(a)
+            && b.convert_implicit_to(a, gcx)
         {
             return Some(a);
         }
         if let Some(b) = b.mobile(gcx)
-            && a.convert_implicit_to(b)
+            && a.convert_implicit_to(b, gcx)
         {
             return Some(b);
         }
@@ -415,15 +476,18 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_implicitly_convertible_to")]
     #[must_use]
-    pub fn convert_implicit_to(self, other: Self) -> bool {
-        self.try_convert_implicit_to(other).is_ok()
+    pub fn convert_implicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_implicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is implicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_implicit_to(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_implicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -442,29 +506,29 @@ impl<'gcx> Ty<'gcx> {
                     // Same location: allowed if base types match.
                     (DataLocation::Memory, DataLocation::Memory)
                     | (DataLocation::Calldata, DataLocation::Calldata) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // storage -> storage: allowed (reference assignment).
                     (DataLocation::Storage, DataLocation::Storage) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // calldata/storage -> memory: allowed (copy semantics).
                     (DataLocation::Calldata, DataLocation::Memory)
                     | (DataLocation::Storage, DataLocation::Memory) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // memory/calldata -> storage: allowed (copy semantics).
                     (DataLocation::Memory, DataLocation::Storage)
                     | (DataLocation::Calldata, DataLocation::Storage) => {
-                        from_inner.try_convert_implicit_to(to_inner)
+                        from_inner.try_convert_implicit_to(to_inner, gcx)
                     }
 
                     // storage -> calldata: never allowed.
                     // memory -> calldata: never allowed.
-                    _ => Result::Err(()),
+                    _ => Result::Err(TyConvertError::Incompatible),
                 }
             }
 
@@ -480,12 +544,99 @@ impl<'gcx> Ty<'gcx> {
                 {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::Incompatible)
                 }
             }
 
-            // TODO: more implicit conversions
-            _ => Result::Err(()),
+            // Contract -> Base contract (inheritance check)
+            (Contract(self_contract_id), Contract(other_contract_id)) => {
+                let self_contract = gcx.hir.contract(self_contract_id);
+                if self_contract.linearized_bases.contains(&other_contract_id) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+            // byte literal -> bytesN/bytes
+            // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
+            (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
+                if size_from.bytes() <= size_to.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::LiteralTooLarge)
+                }
+            }
+
+            // Integer literals can coerce to typed integers if they fit.
+            // Non-negative literals can coerce to both uint and int types.
+            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+                // Unsigned: reject negative, check size fits
+                if neg {
+                    Result::Err(TyConvertError::Incompatible)
+                } else if size.bits() <= target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+                // Signed: non-negative values need strict inequality since they use the
+                // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
+                // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
+                if neg {
+                    if size.bits() <= target_size.bits() {
+                        Ok(())
+                    } else {
+                        Result::Err(TyConvertError::Incompatible)
+                    }
+                } else if size.bits() < target_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Integer width conversions: smaller int -> larger int (same signedness).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(UInt(from_size)), Elementary(UInt(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (Elementary(Int(from_size)), Elementary(Int(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with
+            // zeros). See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
+                if from_size.bytes() <= to_size.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Tuple conversions: element-wise implicit conversion with same length.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#tuple-types>
+            (Tuple(from_tys), Tuple(to_tys)) => {
+                if from_tys.len() != to_tys.len() {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                for (&from_ty, &to_ty) in std::iter::zip(from_tys, to_tys) {
+                    from_ty.try_convert_implicit_to(to_ty, gcx)?;
+                }
+                Ok(())
+            }
+
+            _ => Result::Err(TyConvertError::Incompatible),
         }
     }
 
@@ -495,19 +646,30 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
-    pub fn convert_explicit_to(self, other: Self) -> bool {
-        self.try_convert_explicit_to(other).is_ok()
+    pub fn convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
+        self.try_convert_explicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    #[allow(clippy::result_unit_err)]
-    pub fn try_convert_explicit_to(self, other: Self) -> Result<(), ()> {
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
-        if self.try_convert_implicit_to(other).is_ok() {
+        macro_rules! unreachable {
+            () => {
+                gcx.dcx()
+                    .bug(format!("unreachable explicit conversion from `{self:?}` to `{other:?}`"))
+                    .emit()
+            };
+        }
+
+        if self.try_convert_implicit_to(other, gcx).is_ok() {
             return Ok(());
         }
         match (self.kind, other.kind) {
@@ -522,7 +684,7 @@ impl<'gcx> Ty<'gcx> {
                 if matches!(ty.kind, Elementary(Bytes)) {
                     Ok(())
                 } else {
-                    Result::Err(())
+                    Result::Err(TyConvertError::InvalidConversion)
                 }
             }
 
@@ -535,17 +697,96 @@ impl<'gcx> Ty<'gcx> {
             }
 
             // address <-> bytes20.
-            (Elementary(Address(_)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
-            (Elementary(FixedBytes(s)), Elementary(Address(_))) if s.bytes() == 20 => Ok(()),
+            (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
+            (Elementary(FixedBytes(s)), Elementary(Address(false))) if s.bytes() == 20 => Ok(()),
 
             // address <-> uint160.
-            (Elementary(Address(_)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
-            (Elementary(UInt(s)), Elementary(Address(_))) if s.bits() == 160 => Ok(()),
+            (Elementary(Address(false)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
+            (Elementary(UInt(s)), Elementary(Address(false))) if s.bits() == 160 => Ok(()),
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+            // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
+            // possible.
+            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
 
-            _ => Result::Err(()),
+            // Int <-> Int: any size allowed (only width changes, sign stays same).
+            (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
+
+            // UInt <-> UInt: any size allowed (only width changes, sign stays same).
+            (Elementary(UInt(_)), Elementary(UInt(_))) => Ok(()),
+
+            // Int <-> UInt: same size only (prevents multi-aspect conversion).
+            // This enforces the Solidity 0.8.0+ restriction: cannot change both sign and width.
+            (Elementary(Int(size_from)), Elementary(UInt(size_to)))
+            | (Elementary(UInt(size_from)), Elementary(Int(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
+
+            // Contract -> Base contract (inheritance check)
+            (Contract(self_contract_id), Contract(other_contract_id)) => {
+                let self_contract = gcx.hir.contract(self_contract_id);
+                if self_contract.linearized_bases.contains(&other_contract_id) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::NonDerivedContract)
+                }
+            }
+
+            // Contract -> address (always allowed)
+            (Contract(_), Elementary(Address(false))) => Ok(()),
+
+            // Contract -> address payable (only if contract can receive ether)
+            (Contract(contract_id), Elementary(Address(true))) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::ContractNotPayable)
+                }
+            }
+
+            // Address payable -> Contract (always allowed)
+            (Elementary(Address(true)), Contract(_)) => Ok(()),
+
+            // Address (non-payable) -> Contract (only if contract cannot receive ether)
+            (Elementary(Address(false)), Contract(contract_id)) => {
+                let contract = gcx.hir.contract(contract_id);
+
+                if hir::can_receive_ether(contract, gcx) {
+                    Result::Err(TyConvertError::AddressNotPayable)
+                } else {
+                    Ok(())
+                }
+            }
+
+            // bytes <-> string (explicit conversion).
+            // See: https://docs.soliditylang.org/en/latest/types.html#explicit-conversions
+            // When target is Ref with location, locations must match.
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) if from_loc == to_loc => {
+                match (from_inner.kind, to_inner.kind) {
+                    (Elementary(Bytes), Elementary(String)) => Ok(()),
+                    (Elementary(String), Elementary(Bytes)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+            // When target is unlocated (e.g., `bytes(s)` where s is `string memory`),
+            // the location is inherited from the source.
+            (Ref(from_inner, _), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
+            (Ref(from_inner, _), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
+
+            _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
 
