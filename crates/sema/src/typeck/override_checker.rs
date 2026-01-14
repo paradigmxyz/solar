@@ -21,7 +21,7 @@ use crate::{
 use solar_ast::{StateMutability, Visibility};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, Span, diagnostics::DiagCtxt, error_code};
-use std::collections::BTreeSet;
+use std::{cmp, collections::BTreeSet};
 
 pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     let checker = OverrideChecker::new(gcx, contract_id);
@@ -160,6 +160,199 @@ struct OverrideSignature<'gcx> {
     param_types: Option<&'gcx [Ty<'gcx>]>,
 }
 
+/// Override graph for detecting cut vertices in the inheritance hierarchy.
+///
+/// Node 0 represents the current contract (implicit).
+/// Node 1 represents an artificial "top" node that all roots connect to.
+/// Nodes 2+ represent actual functions/modifiers in the inheritance chain.
+struct OverrideGraph<'gcx> {
+    nodes: FxHashMap<OverrideProxy, usize>,
+    node_inv: FxHashMap<usize, OverrideProxy>,
+    edges: FxHashMap<usize, FxHashSet<usize>>,
+    num_nodes: usize,
+    gcx: Gcx<'gcx>,
+    signature: OverrideSignature<'gcx>,
+}
+
+impl<'gcx> OverrideGraph<'gcx> {
+    fn new(
+        gcx: Gcx<'gcx>,
+        signature: OverrideSignature<'gcx>,
+        base_callables: &[OverrideProxy],
+    ) -> Self {
+        let mut graph = Self {
+            nodes: FxHashMap::default(),
+            node_inv: FxHashMap::default(),
+            edges: FxHashMap::default(),
+            num_nodes: 2,
+            gcx,
+            signature,
+        };
+
+        for &proxy in base_callables {
+            let node = graph.visit(proxy);
+            graph.add_edge(0, node);
+        }
+
+        graph
+    }
+
+    fn add_edge(&mut self, a: usize, b: usize) {
+        self.edges.entry(a).or_default().insert(b);
+        self.edges.entry(b).or_default().insert(a);
+    }
+
+    fn visit(&mut self, proxy: OverrideProxy) -> usize {
+        if let Some(&node) = self.nodes.get(&proxy) {
+            return node;
+        }
+
+        let current_node = self.num_nodes;
+        self.num_nodes += 1;
+        self.nodes.insert(proxy, current_node);
+        self.node_inv.insert(current_node, proxy);
+
+        let base_functions = self.find_base_functions(proxy);
+        if base_functions.is_empty() {
+            self.add_edge(current_node, 1);
+        } else {
+            for base in base_functions {
+                let base_node = self.visit(base);
+                self.add_edge(current_node, base_node);
+            }
+        }
+
+        current_node
+    }
+
+    /// Find functions in parent contracts that this proxy overrides.
+    fn find_base_functions(&self, proxy: OverrideProxy) -> Vec<OverrideProxy> {
+        let Some(contract_id) = proxy.contract(self.gcx) else {
+            return Vec::new();
+        };
+        let contract = self.gcx.hir.contract(contract_id);
+
+        let mut result = Vec::new();
+
+        for &base_id in contract.bases.iter() {
+            if let Some(base_proxy) = self.find_matching_in_contract(base_id) {
+                result.push(base_proxy);
+            }
+        }
+
+        result
+    }
+
+    /// Find a function/variable in the given contract (or its ancestors) matching our signature.
+    fn find_matching_in_contract(&self, contract_id: ContractId) -> Option<OverrideProxy> {
+        let contract = self.gcx.hir.contract(contract_id);
+
+        for f_id in contract.functions() {
+            let f = self.gcx.hir.function(f_id);
+            if f.kind.is_constructor() || f.name.is_none() {
+                continue;
+            }
+            let proxy = OverrideProxy::Function(f_id);
+            if self.matches_signature(proxy) {
+                return Some(proxy);
+            }
+        }
+
+        for v_id in contract.variables() {
+            let v = self.gcx.hir.variable(v_id);
+            if !v.is_public() {
+                continue;
+            }
+            let proxy = OverrideProxy::Variable(v_id);
+            if self.matches_signature(proxy) {
+                return Some(proxy);
+            }
+        }
+
+        for &ancestor_id in &contract.linearized_bases[1..] {
+            if let Some(proxy) = self.find_matching_in_contract(ancestor_id) {
+                return Some(proxy);
+            }
+        }
+
+        None
+    }
+
+    fn matches_signature(&self, proxy: OverrideProxy) -> bool {
+        let name = match proxy.name(self.gcx) {
+            Some(n) => n,
+            None => return false,
+        };
+        if name != self.signature.name {
+            return false;
+        }
+        let is_modifier = proxy.is_modifier(self.gcx);
+        if is_modifier != self.signature.is_modifier {
+            return false;
+        }
+        if is_modifier {
+            return true;
+        }
+        let ty = proxy.ty(self.gcx);
+        let ext_ty = ty.as_externally_callable_function(self.gcx);
+        let param_types =
+            if let TyKind::FnPtr(fn_ptr) = ext_ty.kind { Some(fn_ptr.parameters) } else { None };
+        param_types == self.signature.param_types
+    }
+}
+
+/// Detect cut vertices using Tarjan's algorithm.
+/// Reference: <https://en.wikipedia.org/wiki/Biconnected_component#Pseudocode>
+struct CutVertexFinder<'a, 'gcx> {
+    graph: &'a OverrideGraph<'gcx>,
+    visited: Vec<bool>,
+    depths: Vec<i32>,
+    low: Vec<i32>,
+    parent: Vec<i32>,
+    cut_vertices: FxHashSet<OverrideProxy>,
+}
+
+impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
+    fn find(graph: &'a OverrideGraph<'gcx>) -> FxHashSet<OverrideProxy> {
+        let mut finder = Self {
+            graph,
+            visited: vec![false; graph.num_nodes],
+            depths: vec![-1; graph.num_nodes],
+            low: vec![-1; graph.num_nodes],
+            parent: vec![-1; graph.num_nodes],
+            cut_vertices: FxHashSet::default(),
+        };
+        finder.run(0, 0);
+        finder.cut_vertices
+    }
+
+    fn run(&mut self, u: usize, depth: i32) {
+        self.visited[u] = true;
+        self.depths[u] = depth;
+        self.low[u] = depth;
+
+        let neighbors: Vec<usize> =
+            self.graph.edges.get(&u).map(|s| s.iter().copied().collect()).unwrap_or_default();
+
+        for v in neighbors {
+            if !self.visited[v] {
+                self.parent[v] = u as i32;
+                self.run(v, depth + 1);
+
+                if self.low[v] >= self.depths[u]
+                    && self.parent[u] != -1
+                    && let Some(&proxy) = self.graph.node_inv.get(&u)
+                {
+                    self.cut_vertices.insert(proxy);
+                }
+                self.low[u] = cmp::min(self.low[u], self.low[v]);
+            } else if v as i32 != self.parent[u] {
+                self.low[u] = cmp::min(self.low[u], self.depths[v]);
+            }
+        }
+    }
+}
+
 impl<'gcx> OverrideChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
         Self { gcx, contract_id }
@@ -243,6 +436,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
                     if !seen_in_this_base.contains(&sig) {
                         result.entry(sig).or_default().push(proxy);
+                        seen_in_this_base.insert(sig);
                     }
                 }
 
@@ -256,6 +450,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
                     if !seen_in_this_base.contains(&sig) {
                         result.entry(sig).or_default().push(proxy);
+                        seen_in_this_base.insert(sig);
                     }
                 }
             }
@@ -735,31 +930,87 @@ impl<'gcx> OverrideChecker<'gcx> {
                 continue;
             }
 
-            let unique_contracts: BTreeSet<ContractId> =
-                bases.iter().filter_map(|p| p.contract(self.gcx)).collect();
+            self.check_ambiguous_overrides_internal(*sig, bases);
+        }
+    }
 
-            if unique_contracts.len() > 1 {
-                let base_names: Vec<_> = unique_contracts
-                    .iter()
-                    .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
-                    .collect();
+    /// Check if base callables require an override in the current contract.
+    ///
+    /// Uses the cut vertex algorithm to determine if an intermediate base contract
+    /// already provides an override that satisfies all conflicting definitions.
+    fn check_ambiguous_overrides_internal(
+        &self,
+        sig: OverrideSignature<'gcx>,
+        bases: &[OverrideProxy],
+    ) {
+        if bases.len() <= 1 {
+            return;
+        }
 
-                let kind = if sig.is_modifier { "modifier" } else { "function" };
+        let graph = OverrideGraph::new(self.gcx, sig, bases);
+        let cut_vertices = CutVertexFinder::find(&graph);
 
-                self.dcx()
-                    .err(format!(
-                        "derived contract must override {} \"{}\". Two or more base classes define {} with same {}",
-                        kind,
-                        sig.name,
-                        kind,
-                        if sig.is_modifier { "name" } else { "name and parameter types" }
-                    ))
-                    .code(error_code!(6480))
-                    .span(contract.name.span)
-                    .note(format!("defined in: {}", base_names.join(", ")))
-                    .emit();
+        let mut remaining: FxHashSet<OverrideProxy> = bases.iter().copied().collect();
+
+        for cut_vertex in &cut_vertices {
+            let base_functions = graph.find_base_functions(*cut_vertex);
+            let mut to_remove: Vec<OverrideProxy> = Vec::new();
+
+            let mut stack = base_functions;
+            while let Some(base) = stack.pop() {
+                to_remove.push(base);
+                stack.extend(graph.find_base_functions(base));
+            }
+
+            for proxy in to_remove {
+                remaining.remove(&proxy);
+            }
+
+            if !cut_vertex.is_implemented(self.gcx) {
+                remaining.remove(cut_vertex);
             }
         }
+
+        if remaining.len() <= 1 {
+            return;
+        }
+
+        let unique_contracts: BTreeSet<ContractId> =
+            remaining.iter().filter_map(|p| p.contract(self.gcx)).collect();
+
+        if unique_contracts.len() <= 1 {
+            return;
+        }
+
+        let base_names: Vec<_> = unique_contracts
+            .iter()
+            .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
+            .collect();
+
+        let kind = if sig.is_modifier { "modifier" } else { "function" };
+
+        let has_variable = remaining.iter().any(|p| p.is_variable());
+        let mut msg = format!(
+            "derived contract must override {} \"{}\". Two or more base classes define {} with same {}",
+            kind,
+            sig.name,
+            kind,
+            if sig.is_modifier { "name" } else { "name and parameter types" }
+        );
+
+        if has_variable {
+            msg.push_str(
+                ". Since one of the bases defines a public state variable which cannot be \
+                 overridden, you have to change the inheritance layout or the names of the functions",
+            );
+        }
+
+        self.dcx()
+            .err(msg)
+            .code(error_code!(6480))
+            .span(self.contract().name.span)
+            .note(format!("defined in: {}", base_names.join(", ")))
+            .emit();
     }
 
     fn check_abstract_definitions(&self) {
