@@ -1,0 +1,38 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (address x, uint256 y) = (a, b);
+   ╰╴                                  ━ expected `address`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (address x, uint256 y) = (a, b);
+   ╰╴                                     ━ expected `uint256`, found `address`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int256 x, uint256 y) = (a, b);
+   ╰╴                                 ━ expected `int256`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int256 x, uint256 y) = (a, b);
+   ╰╴                                    ━ expected `uint256`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (bool x, bool y) = (a, b);
+   ╰╴                            ━ expected `bool`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (bool x, bool y) = (a, b);
+   ╰╴                               ━ expected `bool`, found `uint256`
+
+error: aborting due to 6 previous errors
+
