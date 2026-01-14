@@ -16,5 +16,11 @@ note: overridden function is here
 LL │     function implemented() public virtual returns (uint) { return 2; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error[2353]: invalid contract specified in override list: "Base3"
+   ╭▸ ROOT/tests/ui/typeck/override_edge_cases.sol:LL:CC
+   │
+LL │     function mustOverride() public override(Base, Base3) returns (uint) { return 800; }
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
 

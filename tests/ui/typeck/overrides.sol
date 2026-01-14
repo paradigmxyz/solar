@@ -105,3 +105,29 @@ contract Good6 is Base {
 contract Good7 is Base {
     function externalFn() public override returns (uint) { return 6000; }
 }
+
+// Tests for data location compatibility (error codes: 7723, 1443)
+contract BasePublic {
+    function foo(uint[] memory x) public virtual returns (uint[] memory) { return x; }
+}
+
+// ERROR 7723: parameter data location mismatch
+contract Bad11 is BasePublic {
+    function foo(uint[] calldata x) public override returns (uint[] memory) { return x; }
+    //~^ ERROR: data locations of parameters have to be the same
+}
+
+// ERROR 1443: return data location mismatch
+contract Bad12 is BasePublic {
+    function foo(uint[] memory x) public override returns (uint[] calldata) {}
+    //~^ ERROR: data locations of return variables have to be the same
+}
+
+// OK: external base allows calldata->memory conversion
+contract BaseExternal {
+    function bar(uint[] calldata x) external virtual returns (uint[] calldata) { return x; }
+}
+
+contract Good8 is BaseExternal {
+    function bar(uint[] memory x) public override returns (uint[] memory) { return x; }
+}

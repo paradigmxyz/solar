@@ -51,10 +51,6 @@ impl OverrideProxy {
         gcx.item_name_opt(self.into_item_id())
     }
 
-    fn name_string(self, gcx: Gcx<'_>) -> String {
-        self.name(gcx).map_or_else(|| "<unnamed>".to_string(), |n| n.to_string())
-    }
-
     fn into_item_id(self) -> hir::ItemId {
         match self {
             Self::Function(id) => id.into(),
@@ -157,11 +153,11 @@ impl OverrideProxy {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct OverrideSignature {
-    name: String,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct OverrideSignature<'gcx> {
+    name: Ident,
     is_modifier: bool,
-    param_types: Option<Vec<String>>,
+    param_types: Option<&'gcx [Ty<'gcx>]>,
 }
 
 impl<'gcx> OverrideChecker<'gcx> {
@@ -188,29 +184,27 @@ impl<'gcx> OverrideChecker<'gcx> {
         self.check_abstract_definitions();
     }
 
-    fn signature(&self, proxy: OverrideProxy) -> OverrideSignature {
-        let name = proxy.name_string(self.gcx);
+    fn signature(&self, proxy: OverrideProxy) -> OverrideSignature<'gcx> {
+        let name = proxy.name(self.gcx).expect("function/modifier/variable should have a name");
         let is_modifier = proxy.is_modifier(self.gcx);
         let param_types = if is_modifier {
             None
         } else {
             let ty = proxy.ty(self.gcx);
-            if let TyKind::FnPtr(fn_ptr) = ty.kind {
-                Some(fn_ptr.parameters.iter().map(|t| format!("{t:?}")).collect())
-            } else {
-                None
-            }
+            let ext_ty = ty.as_externally_callable_function(self.gcx);
+            if let TyKind::FnPtr(fn_ptr) = ext_ty.kind { Some(fn_ptr.parameters) } else { None }
         };
         OverrideSignature { name, is_modifier, param_types }
     }
 
-    fn inherited_functions(&self) -> FxHashMap<OverrideSignature, Vec<OverrideProxy>> {
+    fn inherited_functions(&self) -> FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> {
         let contract = self.contract();
-        let mut result: FxHashMap<OverrideSignature, Vec<OverrideProxy>> = FxHashMap::default();
-        let mut seen_signatures: FxHashSet<OverrideSignature> = FxHashSet::default();
+        let mut result: FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> =
+            FxHashMap::default();
 
         for &base_id in contract.bases.iter() {
             let base = self.gcx.hir.contract(base_id);
+            let mut seen_in_this_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
 
             for f_id in base.functions() {
                 let f = self.gcx.hir.function(f_id);
@@ -220,8 +214,8 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let proxy = OverrideProxy::Function(f_id);
                 let sig = self.signature(proxy);
 
-                result.entry(sig.clone()).or_default().push(proxy);
-                seen_signatures.insert(sig);
+                result.entry(sig).or_default().push(proxy);
+                seen_in_this_base.insert(sig);
             }
 
             for v_id in base.variables() {
@@ -232,8 +226,8 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let proxy = OverrideProxy::Variable(v_id);
                 let sig = self.signature(proxy);
 
-                result.entry(sig.clone()).or_default().push(proxy);
-                seen_signatures.insert(sig);
+                result.entry(sig).or_default().push(proxy);
+                seen_in_this_base.insert(sig);
             }
 
             for &ancestor_id in &base.linearized_bases[1..] {
@@ -247,8 +241,8 @@ impl<'gcx> OverrideChecker<'gcx> {
                     let proxy = OverrideProxy::Function(f_id);
                     let sig = self.signature(proxy);
 
-                    if !seen_signatures.contains(&sig) {
-                        result.entry(sig.clone()).or_default().push(proxy);
+                    if !seen_in_this_base.contains(&sig) {
+                        result.entry(sig).or_default().push(proxy);
                     }
                 }
 
@@ -260,8 +254,8 @@ impl<'gcx> OverrideChecker<'gcx> {
                     let proxy = OverrideProxy::Variable(v_id);
                     let sig = self.signature(proxy);
 
-                    if !seen_signatures.contains(&sig) {
-                        result.entry(sig.clone()).or_default().push(proxy);
+                    if !seen_in_this_base.contains(&sig) {
+                        result.entry(sig).or_default().push(proxy);
                     }
                 }
             }
@@ -274,11 +268,11 @@ impl<'gcx> OverrideChecker<'gcx> {
         let contract = self.contract();
         let inherited = self.inherited_functions();
 
-        let inherited_modifiers: FxHashSet<String> =
-            inherited.keys().filter(|s| s.is_modifier).map(|s| s.name.clone()).collect();
+        let inherited_modifiers: FxHashSet<Ident> =
+            inherited.keys().filter(|s| s.is_modifier).map(|s| s.name).collect();
 
-        let inherited_functions: FxHashSet<String> =
-            inherited.keys().filter(|s| !s.is_modifier).map(|s| s.name.clone()).collect();
+        let inherited_functions: FxHashSet<Ident> =
+            inherited.keys().filter(|s| !s.is_modifier).map(|s| s.name).collect();
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
@@ -286,7 +280,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
-            let name = proxy.name_string(self.gcx);
+            let name = proxy.name(self.gcx).unwrap();
 
             if f.kind.is_modifier() {
                 if inherited_functions.contains(&name) {
@@ -311,16 +305,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 self.dcx()
                     .err(format!(
                         "{} has override specified but does not override anything",
-                        proxy.ast_node_name(self.gcx).to_string().replace(
-                            proxy.ast_node_name(self.gcx).chars().next().unwrap(),
-                            &proxy
-                                .ast_node_name(self.gcx)
-                                .chars()
-                                .next()
-                                .unwrap()
-                                .to_uppercase()
-                                .to_string()
-                        )
+                        capitalize(proxy.ast_node_name(self.gcx))
                     ))
                     .code(error_code!(7792))
                     .span(f.span)
@@ -343,7 +328,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
 
             let proxy = OverrideProxy::Variable(v_id);
-            let name = proxy.name_string(self.gcx);
+            let name = proxy.name(self.gcx).unwrap();
 
             if inherited_modifiers.contains(&name) {
                 self.dcx()
@@ -374,7 +359,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             self.dcx()
                 .err(format!(
                     "duplicate contract found in override list of \"{}\"",
-                    overriding.name_string(self.gcx)
+                    overriding.name(self.gcx).unwrap()
                 ))
                 .code(error_code!(4520))
                 .span(overriding.span(self.gcx))
@@ -489,7 +474,10 @@ impl<'gcx> OverrideChecker<'gcx> {
         self.check_mutability_compatibility(overriding, base);
 
         if !base.is_modifier(gcx) && !overriding.is_variable() {
-            self.check_return_type_compatibility(overriding, base);
+            let return_types_differ = self.check_return_type_compatibility(overriding, base);
+            if !return_types_differ {
+                self.check_data_location_compatibility(overriding, base);
+            }
         }
 
         if base.is_modifier(gcx) {
@@ -584,16 +572,23 @@ impl<'gcx> OverrideChecker<'gcx> {
         }
     }
 
-    fn check_return_type_compatibility(&self, overriding: OverrideProxy, base: OverrideProxy) {
+    fn check_return_type_compatibility(
+        &self,
+        overriding: OverrideProxy,
+        base: OverrideProxy,
+    ) -> bool {
         let gcx = self.gcx;
 
         let overriding_ty = overriding.ty(gcx);
         let base_ty = base.ty(gcx);
 
+        let overriding_ext = overriding_ty.as_externally_callable_function(gcx);
+        let base_ext = base_ty.as_externally_callable_function(gcx);
+
         let (TyKind::FnPtr(overriding_fn), TyKind::FnPtr(base_fn)) =
-            (overriding_ty.kind, base_ty.kind)
+            (overriding_ext.kind, base_ext.kind)
         else {
-            return;
+            return false;
         };
 
         if overriding_fn.returns != base_fn.returns {
@@ -606,6 +601,67 @@ impl<'gcx> OverrideChecker<'gcx> {
                     format!("overridden {} is here", base.ast_node_name(gcx)),
                 )
                 .emit();
+            return true;
+        }
+        false
+    }
+
+    fn check_data_location_compatibility(&self, overriding: OverrideProxy, base: OverrideProxy) {
+        let gcx = self.gcx;
+
+        let base_vis = base.visibility(gcx);
+        if base_vis == Visibility::External {
+            return;
+        }
+
+        let Some(overriding_id) = overriding.function_id() else { return };
+        let Some(base_id) = base.function_id() else { return };
+
+        let overriding_f = gcx.hir.function(overriding_id);
+        let base_f = gcx.hir.function(base_id);
+
+        for (&over_param, &base_param) in
+            overriding_f.parameters.iter().zip(base_f.parameters.iter())
+        {
+            let over_ty = gcx.type_of_item(over_param.into());
+            let base_ty = gcx.type_of_item(base_param.into());
+
+            if over_ty.peel_refs() == base_ty.peel_refs() && over_ty.loc() != base_ty.loc() {
+                self.dcx()
+                    .err(
+                        "data locations of parameters have to be the same when overriding \
+                         non-external functions, but they differ",
+                    )
+                    .code(error_code!(7723))
+                    .span(overriding.span(gcx))
+                    .span_note(
+                        base.span(gcx),
+                        format!("overridden {} is here", base.ast_node_name(gcx)),
+                    )
+                    .emit();
+                return;
+            }
+        }
+
+        for (&over_ret, &base_ret) in overriding_f.returns.iter().zip(base_f.returns.iter()) {
+            let over_ty = gcx.type_of_item(over_ret.into());
+            let base_ty = gcx.type_of_item(base_ret.into());
+
+            if over_ty.peel_refs() == base_ty.peel_refs() && over_ty.loc() != base_ty.loc() {
+                self.dcx()
+                    .err(
+                        "data locations of return variables have to be the same when overriding \
+                         non-external functions, but they differ",
+                    )
+                    .code(error_code!(1443))
+                    .span(overriding.span(gcx))
+                    .span_note(
+                        base.span(gcx),
+                        format!("overridden {} is here", base.ast_node_name(gcx)),
+                    )
+                    .emit();
+                return;
+            }
         }
     }
 
@@ -652,7 +708,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let contract = self.contract();
         let inherited = self.inherited_functions();
 
-        let own_functions: FxHashSet<OverrideSignature> = contract
+        let own_functions: FxHashSet<OverrideSignature<'gcx>> = contract
             .functions()
             .filter_map(|f_id| {
                 let f = self.gcx.hir.function(f_id);
@@ -663,7 +719,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             })
             .collect();
 
-        let own_variables: FxHashSet<OverrideSignature> = contract
+        let own_variables: FxHashSet<OverrideSignature<'gcx>> = contract
             .variables()
             .filter_map(|v_id| {
                 let v = self.gcx.hir.variable(v_id);
@@ -743,7 +799,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
         }
 
-        let mut seen_sigs: FxHashSet<OverrideSignature> = FxHashSet::default();
+        let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);
             if seen_sigs.contains(&sig) {
@@ -764,7 +820,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                     format!(
                         "unimplemented {} \"{}\" defined in \"{}\"",
                         proxy.ast_node_name(self.gcx),
-                        proxy.name_string(self.gcx),
+                        proxy.name(self.gcx).unwrap(),
                         base_name
                     ),
                 )
