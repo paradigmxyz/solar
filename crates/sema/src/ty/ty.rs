@@ -725,6 +725,29 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // bytes <-> string (explicit conversion).
+            // See: https://docs.soliditylang.org/en/latest/types.html#explicit-conversions
+            // When target is Ref with location, locations must match.
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) if from_loc == to_loc => {
+                match (from_inner.kind, to_inner.kind) {
+                    (Elementary(Bytes), Elementary(String)) => Ok(()),
+                    (Elementary(String), Elementary(Bytes)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+            // When target is unlocated (e.g., `bytes(s)` where s is `string memory`),
+            // the location is inherited from the source.
+            (Ref(from_inner, _), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
+            (Ref(from_inner, _), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
+
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
