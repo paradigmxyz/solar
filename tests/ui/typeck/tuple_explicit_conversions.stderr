@@ -1,0 +1,10 @@
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/tuple_explicit_conversions.sol:LL:CC
+   │
+LL │         (int256 d, int256 e) = (int256(a), int256(b), int256(c));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━┬────────────────────────────────━
+   │                                │
+   ╰╴                               expected a tuple with 2 elements, found one with 3 elements
+
+error: aborting due to 1 previous error
+
