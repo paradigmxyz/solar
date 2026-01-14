@@ -1,0 +1,20 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/delete_state.sol:LL:CC
+   │
+LL │         delete x;
+   ╰╴               ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/delete_state.sol:LL:CC
+   │
+LL │         delete arr;
+   ╰╴               ━━━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/delete_state.sol:LL:CC
+   │
+LL │         delete m[0];
+   ╰╴               ━
+
+error: aborting due to 3 previous errors
+

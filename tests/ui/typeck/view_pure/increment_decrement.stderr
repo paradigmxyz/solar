@@ -1,0 +1,26 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/increment_decrement.sol:LL:CC
+   │
+LL │         x++;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/increment_decrement.sol:LL:CC
+   │
+LL │         x--;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/increment_decrement.sol:LL:CC
+   │
+LL │         ++x;
+   ╰╴          ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/increment_decrement.sol:LL:CC
+   │
+LL │         --x;
+   ╰╴          ━
+
+error: aborting due to 4 previous errors
+

@@ -1,0 +1,32 @@
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/compound_assignment.sol:LL:CC
+   │
+LL │         x += 1;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/compound_assignment.sol:LL:CC
+   │
+LL │         x -= 1;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/compound_assignment.sol:LL:CC
+   │
+LL │         x *= 2;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/compound_assignment.sol:LL:CC
+   │
+LL │         x /= 2;
+   ╰╴        ━
+
+error[8961]: function cannot be declared as view because this expression (potentially) modifies the state
+   ╭▸ ROOT/tests/ui/typeck/view_pure/compound_assignment.sol:LL:CC
+   │
+LL │         x %= 2;
+   ╰╴        ━
+
+error: aborting due to 5 previous errors
+
