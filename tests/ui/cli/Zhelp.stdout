@@ -33,6 +33,9 @@ Options:
       -Ztypeck
           Type check the program. WIP
 
+      -Zstatic-analysis
+          Run static analysis to emit warnings for common issues. WIP
+
       -Zhelp
           Print help
 
