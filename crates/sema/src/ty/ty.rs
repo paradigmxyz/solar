@@ -614,6 +614,16 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with
+            // zeros). See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
+                if from_size.bytes() <= to_size.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
