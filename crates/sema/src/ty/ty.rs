@@ -725,6 +725,16 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // Function type explicit conversions.
+            // Only allowed between function types with same parameters and return types.
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                if from_fn.parameters == to_fn.parameters && from_fn.returns == to_fn.returns {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::InvalidConversion)
+                }
+            }
+
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
