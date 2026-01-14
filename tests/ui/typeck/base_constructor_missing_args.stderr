@@ -94,5 +94,53 @@ note: base constructor parameters
 LL │     constructor(uint x) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:ConcreteFromAbstract" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract ConcreteFromAbstract is AbstractWithCtor {}
+   │          ━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint x) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:ConcreteFromAbstractChain" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract ConcreteFromAbstractChain is AbstractB {}
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint b) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:ConcreteFromAbstractChain" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract ConcreteFromAbstractChain is AbstractB {}
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint a) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:ConcreteFromAbstractChainOk" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract ConcreteFromAbstractChainOk is AbstractB(1) {}
+   │          ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint a) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 12 previous errors
 

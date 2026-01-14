@@ -112,3 +112,35 @@ contract MixedBad is IExample, Base1 { //~ ERROR: no arguments passed to the bas
 contract MixedGood is IExample, Base1(42) {
     function foo() external override {}
 }
+
+// === Abstract base with constructor ===
+
+abstract contract AbstractWithCtor {
+    constructor(uint x) {}
+}
+
+// ERROR: Must provide args even though base is abstract
+contract ConcreteFromAbstract is AbstractWithCtor {} //~ ERROR: no arguments passed to the base constructor
+
+// OK: Provides args for abstract base
+contract ConcreteFromAbstractOk is AbstractWithCtor(100) {}
+
+// OK: Abstract child can skip args
+abstract contract AbstractFromAbstract is AbstractWithCtor {}
+
+// === Chain of abstracts ===
+
+abstract contract AbstractA {
+    constructor(uint a) {}
+}
+
+abstract contract AbstractB is AbstractA {
+    constructor(uint b) {}
+}
+
+// ERROR: Must provide both args (current impl errors twice - see TODOs above)
+contract ConcreteFromAbstractChain is AbstractB {} //~ ERROR: no arguments passed to the base constructor
+//~^ ERROR: no arguments passed to the base constructor
+
+// OK: Provides AbstractB's args (but current impl still errors for AbstractA - see TODOs)
+contract ConcreteFromAbstractChainOk is AbstractB(1) {} //~ ERROR: no arguments passed to the base constructor
