@@ -1,0 +1,14 @@
+error: type `mapping(uint256 => uint256)` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_declarations.sol:LL:CC
+   │
+LL │         mapping(uint => uint) memory badMap;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: type `struct Test.S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_declarations.sol:LL:CC
+   │
+LL │         S memory s;
+   ╰╴        ━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
