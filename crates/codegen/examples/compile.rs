@@ -2,7 +2,7 @@
 #![allow(unused_crate_dependencies)]
 
 use solar_codegen::{EvmCodegen, lower, mir::module_to_dot};
-use solar_interface::{ColorChoice, Session};
+use solar_interface::Session;
 use solar_sema::Compiler;
 use std::{ops::ControlFlow, path::Path};
 
@@ -26,8 +26,8 @@ fn main() {
 
     let path = Path::new(file_path);
 
-    // Create session with buffer emitter
-    let sess = Session::builder().with_buffer_emitter(ColorChoice::Auto).build();
+    // Create session with stderr emitter so errors are visible
+    let sess = Session::builder().with_stderr_emitter().build();
 
     // Create compiler
     let mut compiler = Compiler::new(sess);
@@ -86,7 +86,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    if compiler.sess().emitted_errors().unwrap().is_err() {
+    if compiler.sess().emitted_errors().is_some_and(|r| r.is_err()) {
         std::process::exit(1);
     }
 }
