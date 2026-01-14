@@ -13,6 +13,7 @@ use solar_data_structures::{
 use solar_interface::error_code;
 
 mod checker;
+mod override_checker;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -23,6 +24,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
+            override_checker::check(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
