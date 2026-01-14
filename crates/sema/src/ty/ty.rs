@@ -725,6 +725,10 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // UDVT <-> underlying type (explicit wrap/unwrap).
+            (Udvt(underlying, _), _) if underlying == other => Ok(()),
+            (_, Udvt(underlying, _)) if self == underlying => Ok(()),
+
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }

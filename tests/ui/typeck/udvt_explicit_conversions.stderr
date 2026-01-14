@@ -1,0 +1,20 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/udvt_explicit_conversions.sol:LL:CC
+   │
+LL │         int256 x = int256(p);
+   ╰╴                   ━━━━━━━━━ cannot convert `Price` to `int256`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/udvt_explicit_conversions.sol:LL:CC
+   │
+LL │         Price p = Price(u);
+   ╰╴                  ━━━━━━━━ cannot convert `MyUint` to `Price`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/udvt_explicit_conversions.sol:LL:CC
+   │
+LL │         uint128 x = uint128(p);
+   ╰╴                    ━━━━━━━━━━ cannot convert `Price` to `uint128`
+
+error: aborting due to 3 previous errors
+
