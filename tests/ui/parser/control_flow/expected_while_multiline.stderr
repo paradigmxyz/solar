@@ -1,0 +1,10 @@
+error: expected `while`, found `;`
+   ╭▸ ROOT/tests/ui/parser/control_flow/expected_while_multiline.sol:LL:CC
+   │
+LL │     do {}
+   │          ─ expected `while`
+LL │     ;
+   ╰╴    ━ unexpected token
+
+error: aborting due to 1 previous error
+

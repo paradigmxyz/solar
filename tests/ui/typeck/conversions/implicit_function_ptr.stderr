@@ -1,0 +1,86 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() external pure returns (uint256) g = f;
+   ╰╴                                                       ━ expected `function () pure external returns (uint256)`, found `function () view external returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() external payable returns (uint256) g = f;
+   ╰╴                                                          ━ expected `function () payable external returns (uint256)`, found `function () external returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() external payable returns (uint256) g = f;
+   ╰╴                                                          ━ expected `function () payable external returns (uint256)`, found `function () pure external returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() external pure returns (uint128) g = f;
+   ╰╴                                                       ━ expected `function () pure external returns (uint128)`, found `function () pure external returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function(uint128) external pure g = f;
+   ╰╴                                            ━ expected `function (uint128) pure external`, found `function (uint256) pure external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal pure g = f;
+   ╰╴                                     ━ expected `function () pure`, found `function () pure external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() payable external g = this.h;
+   ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() pure external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() view external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () view external`, found `function () external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() pure external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () payable external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() view external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () view external`, found `function () payable external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() payable external g = this.h;
+   ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () pure external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() payable external g = this.h;
+   ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () view external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() pure external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () view external`
+
+error: aborting due to 14 previous errors
+

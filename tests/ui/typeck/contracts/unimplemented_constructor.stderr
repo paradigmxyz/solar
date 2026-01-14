@@ -1,0 +1,8 @@
+error: expected one of `external`, `internal`, `override`, `payable`, `private`, `public`, `pure`, `view`, `virtual`, or `{`, found `;`
+   ╭▸ ROOT/tests/ui/typeck/contracts/unimplemented_constructor.sol:LL:CC
+   │
+LL │     constructor();
+   ╰╴                 ━ expected one of 10 possible tokens
+
+error: aborting due to 1 previous error
+

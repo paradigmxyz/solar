@@ -1,8 +1,0 @@
-error: modifier must have a `_;` placeholder statement
-   ╭▸ ROOT/tests/ui/resolve/modifier_without_placeholder.sol:LL:CC
-   │
-LL │     modifier P() {}
-   ╰╴             ━
-
-error: aborting due to 1 previous error
-

@@ -1,0 +1,48 @@
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │     function c() {}
+   │     ━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `public` to the declaration
+
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │     function c() {}
+   │     ━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `external` to the declaration
+
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │     fallback() {}
+   │     ━━━━━━━━━━━━━
+   │
+   ╰ help: add `external` to the declaration
+
+error: no visibility specified
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │     receive() payable {}
+   │     ━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: add `external` to the declaration
+
+error: free functions cannot have visibility
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │ function uvw() internal {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: remove `internal` from the declaration
+
+error: free functions must be implemented
+   ╭▸ ROOT/tests/ui/resolve/visibility/func_visibility.sol:LL:CC
+   │
+LL │ function xyz();
+   ╰╴━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

@@ -1,0 +1,8 @@
+error: empty rational
+   ╭▸ ROOT/tests/ui/parser/literals/trailing_dot.sol:LL:CC
+   │
+LL │ uint256 constant a = 2 + 2.;
+   ╰╴                         ━━
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,26 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_dynamic_bytes_conversion.sol:LL:CC
+   │
+LL │         bytes memory a1 = bytes(b4);
+   ╰╴                          ━━━━━━━━━ cannot convert `bytes16` to `bytes`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_dynamic_bytes_conversion.sol:LL:CC
+   │
+LL │         bytes memory a2 = bytes(b3);
+   ╰╴                          ━━━━━━━━━ cannot convert `bytes10` to `bytes`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_dynamic_bytes_conversion.sol:LL:CC
+   │
+LL │         bytes memory a3 = bytes(b2);
+   ╰╴                          ━━━━━━━━━ cannot convert `bytes2` to `bytes`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/conversions/explicit_dynamic_bytes_conversion.sol:LL:CC
+   │
+LL │         bytes memory a4 = bytes(b1);
+   ╰╴                          ━━━━━━━━━ cannot convert `bytes1` to `bytes`
+
+error: aborting due to 4 previous errors
+

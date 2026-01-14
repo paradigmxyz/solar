@@ -1,0 +1,26 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_slice.sol:LL:CC
+   │
+LL │         uint128[] calldata s = data[start:end];
+   ╰╴                               ━━━━━━━━━━━━━━━ expected `uint128[] calldata`, found `uint256[] calldata slice`
+
+error: can only slice dynamic calldata arrays
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_slice.sol:LL:CC
+   │
+LL │         uint256[] memory s = data[start:end];
+   ╰╴                             ━━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_slice.sol:LL:CC
+   │
+LL │         uint256 a = data[start:end];
+   ╰╴                    ━━━━━━━━━━━━━━━ expected `uint256`, found `uint256[] calldata slice`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/conversions/implicit_slice.sol:LL:CC
+   │
+LL │         t = data[start:end];
+   ╰╴            ━━━━━━━━━━━━━━━ expected `uint256[] storage`, found `uint256[] calldata slice`
+
+error: aborting due to 4 previous errors
+

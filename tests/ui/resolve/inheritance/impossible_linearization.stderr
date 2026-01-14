@@ -1,0 +1,20 @@
+error: linearization of inheritance graph impossible
+   ╭▸ ROOT/tests/ui/resolve/inheritance/impossible_linearization.sol:LL:CC
+   │
+LL │ contract ListsA is Sub, ParentA {}
+   ╰╴         ━━━━━━
+
+error: linearization of inheritance graph impossible
+   ╭▸ ROOT/tests/ui/resolve/inheritance/impossible_linearization.sol:LL:CC
+   │
+LL │ contract ListsB is Sub, ParentB {}
+   ╰╴         ━━━━━━
+
+error: linearization of inheritance graph impossible
+   ╭▸ ROOT/tests/ui/resolve/inheritance/impossible_linearization.sol:LL:CC
+   │
+LL │ contract ListsBoth is Sub, ParentA, ParentB {}
+   ╰╴         ━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

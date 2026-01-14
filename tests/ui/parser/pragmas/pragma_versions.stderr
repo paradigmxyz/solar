@@ -1,0 +1,98 @@
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity xX*x***X*X;
+   ╰╴                 ━
+
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity xX*x***X*X;
+   ╰╴                    ━━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity xX*x***X*X;
+   ╰╴                    ━━
+
+error: version number too large
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity ^4294967296;
+   ╰╴                           ━
+
+error: version number too large
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity ^0.4294967296;
+   ╰╴                             ━
+
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0.;
+   ╰╴                  ━
+
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0.0.;
+   ╰╴                    ━
+
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity .0;
+   ╰╴                ━━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity .0;
+   ╰╴                 ━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 88_;
+   ╰╴                  ━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 88_e3;
+   ╰╴                  ━━━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0e1.0;
+   ╰╴                 ━━
+
+error: expected version number
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0e1.0;
+   ╰╴                   ━━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0e1.0;
+   ╰╴                    ━
+
+error: unexpected trailing characters
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0.0e1;
+   ╰╴                   ━━
+
+error: ranges can only be combined using the || operator
+   ╭▸ ROOT/tests/ui/parser/pragmas/pragma_versions.sol:LL:CC
+   │
+LL │ pragma solidity 0 - 1 0 - 2;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 16 previous errors
+

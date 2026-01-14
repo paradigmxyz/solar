@@ -1,0 +1,8 @@
+error: expected one of `function`, `mapping`, elementary type name, or path, found `)`
+   ╭▸ ROOT/tests/ui/parser/functions/returns_empty_parens.sol:LL:CC
+   │
+LL │ function f() returns() {}
+   ╰╴                     ━ expected one of `function`, `mapping`, elementary type name, or path
+
+error: aborting due to 1 previous error
+

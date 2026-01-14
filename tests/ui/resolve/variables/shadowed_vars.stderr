@@ -1,0 +1,14 @@
+error: identifier `x` already declared
+   ╭▸ ROOT/tests/ui/resolve/variables/shadowed_vars.sol:LL:CC
+   │
+LL │         returns (int x)
+   │                      ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/resolve/variables/shadowed_vars.sol:LL:CC
+   │
+LL │     function g(uint x) private
+   ╰╴                    ━
+
+error: aborting due to 1 previous error
+

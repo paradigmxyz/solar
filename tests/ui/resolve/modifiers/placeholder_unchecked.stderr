@@ -1,0 +1,8 @@
+error: placeholder statements cannot be used inside unchecked blocks
+   ╭▸ ROOT/tests/ui/resolve/modifiers/placeholder_unchecked.sol:LL:CC
+   │
+LL │             _;
+   ╰╴            ━━
+
+error: aborting due to 1 previous error
+

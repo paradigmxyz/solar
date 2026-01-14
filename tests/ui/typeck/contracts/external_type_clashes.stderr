@@ -1,0 +1,74 @@
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(S1 memory a) external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(S2 memory a) external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(uint8 a) public {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(a) public {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function c(address) public pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function c(address payable) public pure {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(address) external pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(address payable) external pure {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(MyAddress a) external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function f(address a) external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function g(I a) external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/contracts/external_type_clashes.sol:LL:CC
+   │
+LL │     function g(MyAddress a) external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+
