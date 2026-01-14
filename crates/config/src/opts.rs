@@ -300,6 +300,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub typeck: bool,
 
+    /// Run static analysis to emit warnings for common issues. WIP.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub static_analysis: bool,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------

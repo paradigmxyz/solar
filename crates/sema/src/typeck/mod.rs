@@ -13,6 +13,7 @@ use solar_data_structures::{
 use solar_interface::error_code;
 
 mod checker;
+mod static_analyzer;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -29,6 +30,10 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             if gcx.sess.opts.unstable.typeck {
                 // TODO: Parallelize more.
                 checker::check(gcx, id);
+            }
+            if gcx.sess.opts.unstable.static_analysis {
+                // Run static analysis for warnings
+                static_analyzer::analyze(gcx, id);
             }
         }),
     );

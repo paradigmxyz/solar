@@ -1,0 +1,96 @@
+warning[2072]: unused function parameter `x`. Remove or comment out the variable name to silence this warning.
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │     function unusedParam(uint x) public pure {
+   ╰╴                         ━━━━━━
+
+warning[2072]: unused local variable `y`
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         uint y = 5;
+   ╰╴        ━━━━━━━━━━
+
+warning[2519]: local variable `stateVar` shadows a state variable
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         uint stateVar = 10;
+   │         ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: state variable declared here
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │     uint stateVar = 42;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+warning[2072]: unused local variable `stateVar`
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         uint stateVar = 10;
+   ╰╴        ━━━━━━━━━━━━━━━━━━
+
+warning[2519]: local variable `stateVar` shadows a state variable
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │     function shadowParam(uint stateVar) public pure {
+   │                          ━━━━━━━━━━━━━
+   ╰╴
+note: state variable declared here
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │     uint stateVar = 42;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━
+
+warning[2072]: unused function parameter `stateVar`. Remove or comment out the variable name to silence this warning.
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │     function shadowParam(uint stateVar) public pure {
+   ╰╴                         ━━━━━━━━━━━━━
+
+error[1211]: division by zero
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return x / 0;
+   ╰╴               ━━━━━
+
+error[1211]: modulo zero
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return x % 0;
+   ╰╴               ━━━━━
+
+warning[7324]: self-assignment of `x` has no effect
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         x = x;
+   ╰╴        ━━━━━
+
+warning[6326]: comparison with boolean constant
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return a == true;
+   │                ━━━━━━━━━
+   │
+   ╰ help: expression can be simplified to just the boolean expression
+
+warning[6326]: comparison with boolean constant
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         return a == false;
+   │                ━━━━━━━━━━
+   │
+   ╰ help: expression can be simplified using `!`
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         5;
+   ╰╴        ━
+
+warning[6133]: statement has no effect
+   ╭▸ ROOT/tests/ui/typeck/static_analyzer.sol:LL:CC
+   │
+LL │         1 + 2;
+   ╰╴        ━━━━━
+
+error: aborting due to 2 previous errors; 11 warnings emitted
+
