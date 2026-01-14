@@ -808,8 +808,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             if let Some(ctor_id) = base_contract.ctor {
                 let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
-                // Check if arguments were provided and validate count
-                if let Some(modifier) = modifier {
+
+                // Check if arguments were explicitly provided (not dummy).
+                // - `is Base` has is_dummy=true (no args intended)
+                // - `is Base()` has is_dummy=false, is_empty=true (explicit empty args)
+                // - `is Base(1,2)` has actual args
+                let has_explicit_args = modifier.is_some_and(|m| !m.args.is_dummy());
+
+                if has_explicit_args {
+                    let modifier = modifier.unwrap();
                     let arg_count = modifier.args.exprs().len();
                     if arg_count != ctor_param_types.len() {
                         self.dcx()
@@ -829,6 +836,21 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                             self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
                     }
+                } else if !ctor_param_types.is_empty() && !contract.is_abstract() {
+                    // Non-abstract contract must provide arguments for base constructors
+                    // that have parameters.
+                    // Reference: solc error 3415
+                    let ctor = self.gcx.hir.function(ctor_id);
+                    let contract_name =
+                        self.gcx.contract_fully_qualified_name(self.contract.unwrap());
+                    self.dcx()
+                        .err(format!(
+                            "no arguments passed to the base constructor. \
+                             Specify the arguments or mark \"{contract_name}\" as abstract."
+                        ))
+                        .span(contract.name.span)
+                        .span_note(ctor.span, "base constructor parameters")
+                        .emit();
                 }
             }
         }

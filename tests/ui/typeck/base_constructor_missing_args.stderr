@@ -1,0 +1,14 @@
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:DerivedMissing" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract DerivedMissing is Base { }
+   │          ━━━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint, int) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
