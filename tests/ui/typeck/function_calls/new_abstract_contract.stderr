@@ -1,0 +1,8 @@
+error: cannot instantiate abstract contracts
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new_abstract_contract.sol:LL:CC
+   │
+LL │        AbstractContract ac = new AbstractContract();
+   ╰╴                                 ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

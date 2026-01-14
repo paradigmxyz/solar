@@ -1,0 +1,14 @@
+error: wrong number of arguments for base constructor: expected 2, found 3
+   ╭▸ ROOT/tests/ui/typeck/function_calls/base_constructor_wrong_count.sol:LL:CC
+   │
+LL │ contract D is C { constructor() C(1, true, "a") {} }
+   ╰╴                                ━━━━━━━━━━━━━━━
+
+error: wrong number of arguments for base constructor: expected 2, found 1
+   ╭▸ ROOT/tests/ui/typeck/function_calls/base_constructor_wrong_count.sol:LL:CC
+   │
+LL │ contract E is C { constructor() C(1) {} }
+   ╰╴                                ━━━━
+
+error: aborting due to 2 previous errors
+

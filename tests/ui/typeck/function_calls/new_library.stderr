@@ -1,0 +1,8 @@
+error: cannot instantiate librarys
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new_library.sol:LL:CC
+   │
+LL │     new L();
+   ╰╴        ━
+
+error: aborting due to 1 previous error
+
