@@ -23,6 +23,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
+            check_unimplemented_functions(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
@@ -152,6 +153,46 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
     let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
     key(a) == key(b)
+}
+
+fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+
+        if f.marked_virtual && f.visibility == Visibility::Private {
+            gcx.dcx()
+                .err("\"virtual\" and \"private\" cannot be used together")
+                .code(error_code!(3942))
+                .span(f.span)
+                .emit();
+        }
+
+        if f.body.is_some() {
+            continue;
+        }
+
+        if f.kind.is_constructor() {
+            gcx.dcx()
+                .err("constructor must be implemented if declared")
+                .code(error_code!(5700))
+                .span(f.span)
+                .emit();
+        } else if contract.kind.is_library() {
+            gcx.dcx()
+                .err("library functions must be implemented if declared")
+                .code(error_code!(9231))
+                .span(f.span)
+                .emit();
+        } else if !f.virtual_ {
+            gcx.dcx()
+                .err("functions without implementation must be marked virtual")
+                .code(error_code!(5424))
+                .span(f.span)
+                .emit();
+        }
+    }
 }
 
 fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
