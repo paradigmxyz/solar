@@ -1,41 +1,41 @@
 error[9456]: overriding modifier is missing "override" specifier
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier onlyOwner() { _; }
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: overridden modifier is here
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier onlyOwner() virtual { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[4334]: trying to override non-virtual modifier. Did you forget to add "virtual"?
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier notVirtualMod() { _; }
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: overriding modifier is here
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier notVirtualMod() override { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[4327]: Modifier needs to specify overridden contracts "BaseModifier" and "BaseModifier2"
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier onlyOwner() override { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[7792]: Modifier has override specified but does not override anything
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier noBaseMod() override { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[6480]: derived contract must override modifier "onlyOwner". Two or more base classes define modifier with same name
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │ contract BadMod5 is BaseModifier, BaseModifier2 {}
    │          ━━━━━━━
@@ -43,7 +43,7 @@ LL │ contract BadMod5 is BaseModifier, BaseModifier2 {}
    ╰ note: defined in: "BaseModifier", "BaseModifier2"
 
 error[1078]: override changes modifier signature
-   ╭▸ ROOT/tests/ui/typeck/override_modifiers.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_modifiers.sol:LL:CC
    │
 LL │     modifier withParam(uint x, uint y) override { _; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

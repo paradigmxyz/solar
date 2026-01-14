@@ -525,7 +525,6 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
 
-        // Resolve override list for state variables.
         let overrides = {
             let mut overrides = SmallVec::<[_; 8]>::new();
             if let Some(ov) = &ast_var.override_ {
