@@ -649,14 +649,65 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+
         if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assignment
-            self.check_assign(ty, init);
-            if expect {
-                let _ = self.expect_ty(init, ty);
+            if var.is_state_variable() && ty.has_mapping() {
+                self.dcx()
+                    .err("types in storage containing (nested) mappings cannot be assigned to")
+                    .span(var.span)
+                    .emit();
+            } else {
+                self.check_assign(ty, init);
+                if expect {
+                    let _ = self.expect_ty(init, ty);
+                }
             }
         }
-        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
+
+        if var.is_immutable() {
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+            }
+            if let TyKind::FnPtr(f) = ty.kind
+                && f.visibility == hir::Visibility::External
+            {
+                self.dcx()
+                    .err("immutable variables of external function type are not yet supported")
+                    .span(var.span)
+                    .emit();
+            }
+        }
+
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "type `{}` is only valid in storage because it contains a (nested) mapping",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+        }
+
+        // Uninitialized local mapping variables are invalid (error 4182).
+        if var.kind == hir::VarKind::Statement
+            && var.initializer.is_none()
+            && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            self.dcx()
+                .err("uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable")
+                .span(var.span)
+                .emit();
+        }
+
         ty
     }
 
