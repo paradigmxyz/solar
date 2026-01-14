@@ -568,9 +568,9 @@ impl<'gcx> OverrideChecker<'gcx> {
         let is_less_strict =
             |a: StateMutability, b: StateMutability| -> bool { a != b && !is_stricter(a, b) };
 
-        let has_incompatible_mutability =
-            (base_mut == StateMutability::Payable && overriding_mut != StateMutability::Payable)
-                || is_less_strict(overriding_mut, base_mut);
+        let has_incompatible_mutability = (base_mut == StateMutability::Payable
+            && overriding_mut != StateMutability::Payable)
+            || is_less_strict(overriding_mut, base_mut);
 
         if has_incompatible_mutability {
             self.dcx()

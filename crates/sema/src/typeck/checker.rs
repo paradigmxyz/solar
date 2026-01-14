@@ -101,7 +101,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
