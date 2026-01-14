@@ -10,11 +10,9 @@ contract BaseWithExternalFunc {
 }
 
 // ERROR 5225: variable overriding non-external function
-// ERROR 9098: visibility mismatch (public vs external)
 contract Bad1 is BaseWithPublicFunc {
     uint public override getValue;
-    //~^ ERROR: overriding function visibility differs
-    //~| ERROR: public state variables can only override functions with external visibility
+    //~^ ERROR: public state variables can only override functions with external visibility
 }
 
 // OK: variable overriding external function

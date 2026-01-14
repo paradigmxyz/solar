@@ -509,18 +509,50 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn resolve_var(&mut self, id: hir::VariableId) {
         let var = self.hir.variable(id);
+        let var_source = var.source;
+        let var_contract = var.contract;
+        let var_getter = var.getter;
         let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
             assert!(!var.ty.is_dummy(), "{var:#?}");
             return;
         };
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
 
-        self.init(var.source, var.contract, None);
+        self.init(var_source, var_contract, None);
 
         let init = ast_var.initializer.as_deref().map(|init| self.lower_expr(init));
         let ty = self.lower_type(&ast_var.ty);
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
+
+        // Resolve override list for state variables.
+        let overrides = {
+            let mut overrides = SmallVec::<[_; 8]>::new();
+            if let Some(ov) = &ast_var.override_ {
+                for path in ov.paths.iter() {
+                    let Ok(contract_id) =
+                        self.resolver.resolve_path_as(path, &self.scopes, "contract")
+                    else {
+                        continue;
+                    };
+                    let Some(c) = var_contract else {
+                        continue;
+                    };
+                    if !self.hir.contract(c).linearized_bases[1..].contains(&contract_id) {
+                        self.dcx().err("override is not a base contract").span(ov.span).emit();
+                        continue;
+                    }
+                    overrides.push(contract_id);
+                }
+            }
+            self.arena.alloc_smallvec(overrides)
+        };
+        self.hir.variables[id].overrides = overrides;
+
+        // Update the getter function's overrides to match.
+        if let Some(getter_id) = var_getter {
+            self.hir.functions[getter_id].overrides = overrides;
+        }
     }
 
     /// Resolves a getter function.

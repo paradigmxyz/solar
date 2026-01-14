@@ -21,8 +21,7 @@ contract BadVar1 {
 // ERROR 7792: public variable override but nothing to override
 contract BadVar2 {
     uint public override noBase;
-    //~^ ERROR: Function has override specified but does not override anything
-    //~| ERROR: public state variable has override specified but does not override anything
+    //~^ ERROR: public state variable has override specified but does not override anything
 }
 
 // ERROR 1456: public variable with same name as inherited modifier

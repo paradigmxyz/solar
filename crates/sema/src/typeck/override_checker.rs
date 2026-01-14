@@ -500,7 +500,9 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
-            if f.kind.is_constructor() || f.name.is_none() {
+            // Skip constructors, unnamed functions, and getter functions (which are handled via
+            // variables).
+            if f.kind.is_constructor() || f.name.is_none() || f.is_getter() {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
