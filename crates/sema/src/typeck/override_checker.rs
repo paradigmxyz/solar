@@ -714,8 +714,13 @@ impl<'gcx> OverrideChecker<'gcx> {
         self.check_mutability_compatibility(overriding, base);
 
         if base.is_function(gcx) {
-            let return_types_differ = self.check_return_type_compatibility(overriding, base);
-            if !return_types_differ && overriding.is_function(gcx) {
+            let is_fallback = overriding.function_kind(gcx).is_fallback();
+            let return_types_differ = if !is_fallback {
+                self.check_return_type_compatibility(overriding, base)
+            } else {
+                false
+            };
+            if !return_types_differ && overriding.is_function(gcx) && !is_fallback {
                 self.check_data_location_compatibility(overriding, base);
             }
         }
