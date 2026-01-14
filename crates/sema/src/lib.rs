@@ -158,9 +158,25 @@ fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> 
 }
 
 fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
-    println!("{:#?}", gcx.hir);
-    if let Some(paths) = paths {
-        println!("\nPaths not yet implemented: {paths:#?}");
+    let filter_path = |source: &hir::Source<'_>| -> bool {
+        paths.is_none_or(|paths| {
+            paths.iter().any(|p| source.file.name.display().to_string().contains(p))
+        })
+    };
+
+    for source in gcx.hir.sources() {
+        if !filter_path(source) {
+            continue;
+        }
+        println!("// Source: {:?}", source.file.name);
+        for &item_id in source.items {
+            let mut printer = hir::HirPrettyPrinter::new(&gcx.hir);
+            let mut output = String::new();
+            if printer.fmt_item_id(item_id, &mut output).is_ok() {
+                println!("{output}");
+            }
+        }
+        println!();
     }
     Ok(())
 }

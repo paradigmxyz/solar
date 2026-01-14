@@ -19,7 +19,10 @@ pub use ast::{
     StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
+mod pretty;
 mod visit;
+
+pub use pretty::{HirPrettyPrint, HirPrettyPrinter};
 pub use visit::Visit;
 
 /// HIR arena allocator.
