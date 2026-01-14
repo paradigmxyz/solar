@@ -19,6 +19,9 @@ contract C {
         mapping(uint => uint) m;
     }
 
+    // Immutable struct with mapping triggers non-value type error
+    WithMapping immutable IMMUT_WITH_MAPPING; //~ ERROR: immutable variables cannot have a non-value type
+
     // State variable with mapping cannot have initializer
     WithMapping stateWithMapping = WithMapping(); //~ ERROR: types in storage containing (nested) mappings cannot be assigned to
 

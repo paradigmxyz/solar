@@ -16,6 +16,12 @@ error: immutable variables of external function type are not yet supported
 LL │     function(uint) external immutable IMMUT_EXT_FN;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     WithMapping immutable IMMUT_WITH_MAPPING;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 error: types in storage containing (nested) mappings cannot be assigned to
    ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
    │
@@ -40,5 +46,5 @@ error: type `struct C.WithMapping calldata` is only valid in storage because it 
 LL │     function g(WithMapping calldata w) internal {}
    ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 7 previous errors
+error: aborting due to 8 previous errors
 
