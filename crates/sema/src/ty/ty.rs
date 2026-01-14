@@ -296,20 +296,24 @@ impl<'gcx> Ty<'gcx> {
                 // FnPtr has no parameter names - return all None
                 Either::Left(f.parameters.iter().map(|&ty| (None, ty)))
             }
-            TyKind::Event(_, id) => Either::Right(Either::Left(
-                gcx.hir.event(id).parameters.iter().map(move |&var_id| {
-                    let var = gcx.hir.variable(var_id);
-                    let ty = gcx.type_of_item(var_id.into());
-                    (var.name, ty)
-                }),
-            )),
-            TyKind::Error(_, id) => Either::Right(Either::Right(
-                gcx.hir.error(id).parameters.iter().map(move |&var_id| {
-                    let var = gcx.hir.variable(var_id);
-                    let ty = gcx.type_of_item(var_id.into());
-                    (var.name, ty)
-                }),
-            )),
+            TyKind::Event(tys, id) => {
+                let params = gcx.hir.event(id).parameters;
+                Either::Right(Either::Left(tys.iter().zip(params.iter()).map(
+                    move |(&ty, &var_id)| {
+                        let var = gcx.hir.variable(var_id);
+                        (var.name, ty)
+                    },
+                )))
+            }
+            TyKind::Error(tys, id) => {
+                let params = gcx.hir.error(id).parameters;
+                Either::Right(Either::Right(tys.iter().zip(params.iter()).map(
+                    move |(&ty, &var_id)| {
+                        let var = gcx.hir.variable(var_id);
+                        (var.name, ty)
+                    },
+                )))
+            }
             _ => return None,
         })
     }
