@@ -17,7 +17,7 @@ use crate::{
     ty::Gcx,
 };
 use solar_ast::{BinOpKind, Span};
-use solar_data_structures::{map::FxHashMap, Never};
+use solar_data_structures::{Never, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, error_code};
 use std::ops::ControlFlow;
 
@@ -91,11 +91,8 @@ impl<'gcx> StaticAnalyzer<'gcx> {
                 let var = self.gcx.hir.variable(var_id);
                 if let Some(name) = var.name {
                     let msg = if var.is_callable_or_catch_parameter() {
-                        let kind = if var.is_try_catch_parameter() {
-                            "try/catch"
-                        } else {
-                            "function"
-                        };
+                        let kind =
+                            if var.is_try_catch_parameter() { "try/catch" } else { "function" };
                         format!(
                             "unused {kind} parameter `{name}`. Remove or comment out the variable name to silence this warning."
                         )
@@ -131,9 +128,7 @@ impl<'gcx> StaticAnalyzer<'gcx> {
                         && state_var.is_state_variable()
                     {
                         self.dcx()
-                            .warn(format!(
-                                "local variable `{name}` shadows a state variable"
-                            ))
+                            .warn(format!("local variable `{name}` shadows a state variable"))
                             .span(var.span)
                             .code(error_code!(2519))
                             .span_note(state_var.span, "state variable declared here")
@@ -214,7 +209,8 @@ impl<'gcx> StaticAnalyzer<'gcx> {
             return;
         };
 
-        let suggestion = if (bool_val && op == BinOpKind::Eq) || (!bool_val && op == BinOpKind::Ne) {
+        let suggestion = if (bool_val && op == BinOpKind::Eq) || (!bool_val && op == BinOpKind::Ne)
+        {
             "expression can be simplified to just the boolean expression"
         } else {
             "expression can be simplified using `!`"
@@ -243,7 +239,12 @@ impl<'gcx> StaticAnalyzer<'gcx> {
     }
 
     /// Check addmod/mulmod for modulo zero.
-    fn check_addmod_mulmod_zero(&self, expr: &hir::Expr<'_>, callee: &hir::Expr<'_>, args: &[&hir::Expr<'_>]) {
+    fn check_addmod_mulmod_zero(
+        &self,
+        expr: &hir::Expr<'_>,
+        callee: &hir::Expr<'_>,
+        args: &[&hir::Expr<'_>],
+    ) {
         // Check if callee is addmod or mulmod
         let hir::ExprKind::Ident(res) = &callee.kind else { return };
         let [res] = res else { return };
@@ -263,11 +264,7 @@ impl<'gcx> StaticAnalyzer<'gcx> {
         if let Ok(value) = evaluator.try_eval(args[2])
             && value.data.is_zero()
         {
-            self.dcx()
-                .err("arithmetic modulo zero")
-                .span(expr.span)
-                .code(error_code!(4195))
-                .emit();
+            self.dcx().err("arithmetic modulo zero").span(expr.span).code(error_code!(4195)).emit();
         }
     }
 
@@ -335,8 +332,7 @@ impl<'gcx> StaticAnalyzer<'gcx> {
                         | hir::UnOpKind::PreDec
                         | hir::UnOpKind::PostInc
                         | hir::UnOpKind::PostDec
-                )
-                    && self.is_pure_expression(inner)
+                ) && self.is_pure_expression(inner)
             }
             hir::ExprKind::Tuple(exprs) => {
                 exprs.iter().flatten().all(|e| self.is_pure_expression(e))
