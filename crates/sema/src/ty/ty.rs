@@ -597,7 +597,23 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // TODO: more implicit conversions
+            // Integer width conversions: smaller int -> larger int (same signedness).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(UInt(from_size)), Elementary(UInt(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (Elementary(Int(from_size)), Elementary(Int(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
