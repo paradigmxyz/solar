@@ -1,0 +1,38 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal pure returns (uint256) f = nonPayableFunc;
+   ╰╴                                                       ━━━━━━━━━━━━━━ expected `function () pure returns (uint256)`, found `function () returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal view returns (uint256) f = nonPayableFunc;
+   ╰╴                                                       ━━━━━━━━━━━━━━ expected `function () view returns (uint256)`, found `function () returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal pure returns (uint256) f = viewFunc;
+   ╰╴                                                       ━━━━━━━━ expected `function () pure returns (uint256)`, found `function () view returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal pure returns (uint256) f = oneParam;
+   ╰╴                                                       ━━━━━━━━ expected `function () pure returns (uint256)`, found `function (uint256) pure returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() internal pure returns (uint256) f = twoReturns;
+   ╰╴                                                       ━━━━━━━━━━ expected `function () pure returns (uint256)`, found `function () pure returns (uint256,uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function(uint256) internal pure returns (uint256) f = intParam;
+   ╰╴                                                              ━━━━━━━━ expected `function (uint256) pure returns (uint256)`, found `function (int256) pure returns (uint256)`
+
+error: aborting due to 6 previous errors
+
