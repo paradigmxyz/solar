@@ -7,7 +7,7 @@ contract C {
         bytes32 b32,
         uint256 u256
     ) public pure {
-        // Valid conversions
+        // Valid conversions: address <-> bytes20/uint160.
         bytes20 b = bytes20(a);
         address a2 = address(b20);
         uint160 u = uint160(a);
@@ -15,14 +15,16 @@ contract C {
         address payable p = payable(a);
         address payable p2 = payable(p);
 
-        // Invalid conversions
+        // Valid conversions: address payable <-> bytes20/uint160.
+        bytes20 b20_from_p = bytes20(p);
+        address payable a6 = payable(address(b20));
+        uint160 u160_from_p = uint160(p);
+        address payable a7 = payable(address(u160));
+
+        // Invalid conversions.
         bytes32 b32_from_a = bytes32(a); //~ ERROR: invalid explicit type conversion
         address a4 = address(b32); //~ ERROR: invalid explicit type conversion
         uint256 u256_from_a = uint256(a); //~ ERROR: invalid explicit type conversion
         address a5 = address(u256); //~ ERROR: invalid explicit type conversion
-        bytes20 b20_from_p = bytes20(p); //~ ERROR: invalid explicit type conversion
-        address payable a6 = payable(b20); //~ ERROR: invalid explicit type conversion
-        uint160 u160_from_p = uint160(p); //~ ERROR: invalid explicit type conversion
-        address payable a7 = payable(u160); //~ ERROR: invalid explicit type conversion
     }
 }
