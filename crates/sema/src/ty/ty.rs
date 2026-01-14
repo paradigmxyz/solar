@@ -616,7 +616,65 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // TODO: more implicit conversions
+            // Integer width conversions: smaller int -> larger int (same signedness).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(UInt(from_size)), Elementary(UInt(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (Elementary(Int(from_size)), Elementary(Int(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with
+            // zeros). See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
+                if from_size.bytes() <= to_size.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Function pointer conversions.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                // Parameter and return types must match exactly (no implicit conversion).
+                if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // Visibility must match.
+                if from_fn.visibility != to_fn.visibility {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // State mutability compatibility:
+                // - pure can convert to view or non-payable (more restrictive -> less restrictive)
+                // - view can convert to non-payable
+                // - payable can convert to non-payable (you can pay 0)
+                // - non-payable cannot convert to payable
+                use StateMutability::*;
+                let mutability_ok = match (from_fn.state_mutability, to_fn.state_mutability) {
+                    (a, b) if a == b => true,
+                    // pure is the most restrictive, can convert to anything except payable.
+                    (Pure, View) | (Pure, NonPayable) => true,
+                    // view can convert to non-payable.
+                    (View, NonPayable) => true,
+                    // payable can convert to non-payable.
+                    (Payable, NonPayable) => true,
+                    _ => false,
+                };
+                if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
@@ -678,12 +736,12 @@ impl<'gcx> Ty<'gcx> {
             }
 
             // address <-> bytes20.
-            (Elementary(Address(_)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
-            (Elementary(FixedBytes(s)), Elementary(Address(_))) if s.bytes() == 20 => Ok(()),
+            (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
+            (Elementary(FixedBytes(s)), Elementary(Address(false))) if s.bytes() == 20 => Ok(()),
 
             // address <-> uint160.
-            (Elementary(Address(_)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
-            (Elementary(UInt(s)), Elementary(Address(_))) if s.bits() == 160 => Ok(()),
+            (Elementary(Address(false)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
+            (Elementary(UInt(s)), Elementary(Address(false))) if s.bits() == 160 => Ok(()),
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
@@ -742,6 +800,29 @@ impl<'gcx> Ty<'gcx> {
                 } else {
                     Ok(())
                 }
+            }
+
+            // bytes <-> string (explicit conversion).
+            // See: https://docs.soliditylang.org/en/latest/types.html#explicit-conversions
+            // When target is Ref with location, locations must match.
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) if from_loc == to_loc => {
+                match (from_inner.kind, to_inner.kind) {
+                    (Elementary(Bytes), Elementary(String)) => Ok(()),
+                    (Elementary(String), Elementary(Bytes)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+            // When target is unlocated (e.g., `bytes(s)` where s is `string memory`),
+            // the location is inherited from the source.
+            (Ref(from_inner, _), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
+            (Ref(from_inner, _), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
             }
 
             _ => Result::Err(TyConvertError::InvalidConversion),

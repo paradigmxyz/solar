@@ -40,8 +40,6 @@ The following results were achieved on:
 
 ![parse Relative Performance](parse_relative_performance.png)
 
-![lower Relative Performance](lower_relative_performance.png)
-
 ### empty (0 LoC, 0 bytes)
 
 #### Lex
@@ -300,7 +298,3 @@ The following results were achieved on:
 | solc        | 28.95x     | 235.53 ms | 528.23K | 22.86M    |
 | tree-sitter | 15.57x     | 437.90 ms | 284.11K | 12.29M    |
 | slang       | 1.00x      | 6.8191 s  | 18.24K  | 789.54K   |
-
-#### Lower
-| Parser   | Relative   | Time   | LoC/s   | Bytes/s   |
-|----------|------------|--------|---------|-----------|
