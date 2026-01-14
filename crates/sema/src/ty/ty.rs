@@ -745,8 +745,16 @@ impl<'gcx> Ty<'gcx> {
             }
             // When target is unlocated (e.g., `bytes(s)` where s is `string memory`),
             // the location is inherited from the source.
-            (Ref(from_inner, _), Elementary(Bytes)) if matches!(from_inner.kind, Elementary(String)) => Ok(()),
-            (Ref(from_inner, _), Elementary(String)) if matches!(from_inner.kind, Elementary(Bytes)) => Ok(()),
+            (Ref(from_inner, _), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
+            (Ref(from_inner, _), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
 
             // Function type explicit conversions.
             // Only allowed between function types (different visibility/mutability).

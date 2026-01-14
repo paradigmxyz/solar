@@ -595,8 +595,8 @@ impl<'gcx> TypeChecker<'gcx> {
     /// For most conversions, returns `to`. For bytes <-> string with unlocated target,
     /// returns the target type with the source's data location.
     fn resolve_cast_result_type(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> Ty<'gcx> {
-        use solar_ast::ElementaryType::{Bytes, String};
         use TyKind::{Elementary, Ref};
+        use solar_ast::ElementaryType::{Bytes, String};
 
         match (from.kind, to.kind) {
             // string memory -> bytes: return bytes memory
