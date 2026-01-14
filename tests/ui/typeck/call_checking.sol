@@ -71,6 +71,13 @@ contract CallChecking {
         emit E({a: 1, c: "hi"}); //~ ERROR: named argument `c` does not match
     }
 
+    // === Event emit - mixed named/positional (not allowed) ===
+    function testEventMixedArgs() public {
+        // Solidity doesn't allow mixing positional and named args
+        // This should error at parse time or as "expected }" 
+        // emit E(1, {b: "hi"}); // Would be a parse error
+    }
+
     // === Error/revert - correct (no errors expected) ===
     function testRevertCorrect() public pure {
         revert MyError(404, "not found");
