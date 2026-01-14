@@ -1,0 +1,50 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (uint8 x, uint8 y) = (a, b);
+   ╰╴                              ━ expected `uint8`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (uint8 x, uint8 y) = (a, b);
+   ╰╴                                 ━ expected `uint8`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int8 x, int8 y) = (a, b);
+   ╰╴                            ━ expected `int8`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int8 x, int8 y) = (a, b);
+   ╰╴                               ━ expected `int8`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int8 x, uint8 y) = (a, b);
+   ╰╴                             ━ expected `int8`, found `uint8`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (int8 x, uint8 y) = (a, b);
+   ╰╴                                ━ expected `uint8`, found `int8`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (bytes1 x, bytes2 y) = (a, b);
+   ╰╴                                ━ expected `bytes1`, found `bytes32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         (bytes1 x, bytes2 y) = (a, b);
+   ╰╴                                   ━ expected `bytes2`, found `bytes32`
+
+error: aborting due to 8 previous errors
+
