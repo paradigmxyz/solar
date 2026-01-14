@@ -1,0 +1,235 @@
+//! HIR to MIR lowering.
+//!
+//! This module transforms the high-level IR from solar-sema into MIR.
+
+mod expr;
+mod stmt;
+
+use crate::mir::{
+    Function, FunctionAttributes, FunctionBuilder, FunctionId, MirType, Module, StorageSlot,
+    ValueId,
+};
+use alloy_primitives::U256;
+use rustc_hash::FxHashMap;
+use solar_interface::Ident;
+use solar_sema::{
+    hir::{self, ContractId, VariableId},
+    ty::Gcx,
+};
+
+/// Lowering context for converting HIR to MIR.
+pub struct Lowerer<'gcx> {
+    /// The global context.
+    gcx: Gcx<'gcx>,
+    /// The current module being built.
+    module: Module,
+    /// Mapping from HIR variable IDs to storage slots.
+    storage_slots: FxHashMap<VariableId, u64>,
+    /// Next available storage slot.
+    next_storage_slot: u64,
+    /// Mapping from HIR variable IDs to MIR values (for local variables).
+    locals: FxHashMap<VariableId, ValueId>,
+}
+
+impl<'gcx> Lowerer<'gcx> {
+    /// Creates a new lowerer.
+    pub fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
+        Self {
+            gcx,
+            module: Module::new(name),
+            storage_slots: FxHashMap::default(),
+            next_storage_slot: 0,
+            locals: FxHashMap::default(),
+        }
+    }
+
+    /// Lowers a contract to MIR.
+    pub fn lower_contract(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+
+        self.allocate_storage(contract);
+
+        for func_id in contract.all_functions() {
+            self.lower_function(func_id);
+        }
+    }
+
+    /// Allocates storage slots for state variables.
+    fn allocate_storage(&mut self, contract: &hir::Contract<'_>) {
+        for var_id in contract.variables() {
+            let var = self.gcx.hir.variable(var_id);
+            if var.is_state_variable() {
+                let slot = self.next_storage_slot;
+                self.next_storage_slot += 1;
+
+                self.storage_slots.insert(var_id, slot);
+
+                let mir_ty = self.lower_type_from_var(var);
+                self.module.add_storage_slot(StorageSlot {
+                    slot,
+                    offset: 0,
+                    ty: mir_ty,
+                    name: var.name,
+                });
+            }
+        }
+    }
+
+    /// Lowers a function to MIR.
+    fn lower_function(&mut self, func_id: hir::FunctionId) -> FunctionId {
+        let hir_func = self.gcx.hir.function(func_id);
+
+        let func_name = hir_func.name.unwrap_or_else(|| {
+            Ident::new(solar_interface::Symbol::intern("_anonymous"), solar_interface::Span::DUMMY)
+        });
+
+        let mut mir_func = Function::new(func_name);
+
+        mir_func.attributes = FunctionAttributes {
+            visibility: hir_func.visibility,
+            state_mutability: hir_func.state_mutability,
+            is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
+            is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
+            is_receive: hir_func.kind == hir::FunctionKind::Receive,
+        };
+
+        if mir_func.is_public() && !mir_func.attributes.is_constructor {
+            mir_func.selector = Some(self.compute_selector(hir_func));
+        }
+
+        self.locals.clear();
+
+        {
+            let mut builder = FunctionBuilder::new(&mut mir_func);
+
+            for &param_id in hir_func.parameters {
+                let param = self.gcx.hir.variable(param_id);
+                let ty = self.lower_type_from_var(param);
+                let val = builder.add_param(ty);
+                self.locals.insert(param_id, val);
+            }
+
+            for &ret_id in hir_func.returns {
+                let ret_var = self.gcx.hir.variable(ret_id);
+                let ty = self.lower_type_from_var(ret_var);
+                builder.add_return(ty);
+            }
+
+            if let Some(body) = &hir_func.body {
+                self.lower_block(&mut builder, body);
+            }
+
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                if builder.func().returns.is_empty() {
+                    builder.stop();
+                } else {
+                    let zero = builder.imm_u256(U256::ZERO);
+                    builder.ret([zero]);
+                }
+            }
+        }
+
+        self.module.add_function(mir_func)
+    }
+
+    /// Computes the 4-byte function selector.
+    fn compute_selector(&self, func: &hir::Function<'_>) -> [u8; 4] {
+        use alloy_primitives::keccak256;
+
+        let name = func.name.map(|n| n.to_string()).unwrap_or_default();
+        let mut sig = name;
+        sig.push('(');
+        for (i, &param_id) in func.parameters.iter().enumerate() {
+            if i > 0 {
+                sig.push(',');
+            }
+            let param = self.gcx.hir.variable(param_id);
+            sig.push_str(&self.type_canonical_name(param));
+        }
+        sig.push(')');
+
+        let hash = keccak256(sig.as_bytes());
+        [hash[0], hash[1], hash[2], hash[3]]
+    }
+
+    /// Gets the canonical name of a type for selector computation.
+    fn type_canonical_name(&self, var: &hir::Variable<'_>) -> String {
+        let ty = &var.ty;
+        self.type_kind_canonical_name(&ty.kind)
+    }
+
+    /// Gets the canonical name from a TypeKind.
+    fn type_kind_canonical_name(&self, kind: &hir::TypeKind<'_>) -> String {
+        match kind {
+            hir::TypeKind::Elementary(elem) => elem.to_abi_str().into_owned(),
+            hir::TypeKind::Array(arr) => {
+                let elem_name = self.type_kind_canonical_name(&arr.element.kind);
+                format!("{elem_name}[]")
+            }
+            hir::TypeKind::Mapping(_) => "mapping".to_string(),
+            hir::TypeKind::Function(_) => "function".to_string(),
+            hir::TypeKind::Custom(item_id) => match item_id {
+                hir::ItemId::Struct(struct_id) => {
+                    let s = self.gcx.hir.strukt(*struct_id);
+                    s.name.to_string()
+                }
+                hir::ItemId::Enum(enum_id) => {
+                    let e = self.gcx.hir.enumm(*enum_id);
+                    e.name.to_string()
+                }
+                hir::ItemId::Contract(contract_id) => {
+                    let c = self.gcx.hir.contract(*contract_id);
+                    c.name.to_string()
+                }
+                _ => "unknown".to_string(),
+            },
+            hir::TypeKind::Err(_) => "error".to_string(),
+        }
+    }
+
+    /// Lowers a type from a variable declaration.
+    fn lower_type_from_var(&self, var: &hir::Variable<'_>) -> MirType {
+        self.lower_type_kind(&var.ty.kind)
+    }
+
+    /// Lowers a TypeKind to MirType.
+    fn lower_type_kind(&self, kind: &hir::TypeKind<'_>) -> MirType {
+        match kind {
+            hir::TypeKind::Elementary(elem) => match elem {
+                hir::ElementaryType::Bool => MirType::Bool,
+                hir::ElementaryType::Address(_) => MirType::Address,
+                hir::ElementaryType::Int(bits) => MirType::Int(bits.bits()),
+                hir::ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
+                hir::ElementaryType::Fixed(_, _) => MirType::Int(256),
+                hir::ElementaryType::UFixed(_, _) => MirType::UInt(256),
+                hir::ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
+                hir::ElementaryType::String => MirType::MemPtr,
+                hir::ElementaryType::Bytes => MirType::MemPtr,
+            },
+            hir::TypeKind::Mapping(_) => MirType::StoragePtr,
+            hir::TypeKind::Array(_) => MirType::MemPtr,
+            hir::TypeKind::Function(_) => MirType::Function,
+            hir::TypeKind::Custom(item_id) => match item_id {
+                hir::ItemId::Struct(_) => MirType::MemPtr,
+                hir::ItemId::Enum(_) => MirType::UInt(8),
+                hir::ItemId::Contract(_) => MirType::Address,
+                _ => MirType::uint256(),
+            },
+            hir::TypeKind::Err(_) => MirType::uint256(),
+        }
+    }
+
+    /// Returns the completed module.
+    #[must_use]
+    pub fn finish(self) -> Module {
+        self.module
+    }
+}
+
+/// Lowers a contract from HIR to MIR.
+pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
+    let contract = gcx.hir.contract(contract_id);
+    let mut lowerer = Lowerer::new(gcx, contract.name);
+    lowerer.lower_contract(contract_id);
+    lowerer.finish()
+}

@@ -2739,6 +2739,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-codegen"
+version = "0.1.8"
+dependencies = [
+ "alloy-primitives",
+ "derive_more",
+ "rustc-hash",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-sema",
+ "tracing",
+]
+
+[[package]]
 name = "solar-compiler"
 version = "0.1.8"
 dependencies = [
