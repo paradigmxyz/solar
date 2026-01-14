@@ -1,18 +1,30 @@
+error: named arguments are not supported for this function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, y: "hi"});
+   ╰╴              ━━━━━━━━━━━━━━━━━
+
+error: named arguments are not supported for this function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         target({y: "hi", x: 1});
+   ╰╴              ━━━━━━━━━━━━━━━━━
+
 error: wrong number of arguments: expected 2, got 1
    ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
    │
-LL │         add(1);
-   │         ━━━┬──
-   │            │
-   ╰╴           expected 2 arguments, found 1
+LL │         target(1);
+   │         ━━━━━━┬──
+   │               │
+   ╰╴              expected 2 arguments, found 1
 
 error: wrong number of arguments: expected 2, got 3
    ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
    │
-LL │         add(1, 2, 3);
-   │         ━━━┬────────
-   │            │
-   ╰╴           expected 2 arguments, found 3
+LL │         target(1, "hi", 3);
+   │         ━━━━━━┬───────────
+   │               │
+   ╰╴              expected 2 arguments, found 3
 
 error: wrong number of arguments: expected 0, got 1
    ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
@@ -25,8 +37,106 @@ LL │         noArgs(1);
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
    │
-LL │         add("hello", 2);
-   ╰╴            ━━━━━━━ expected `uint256`, found `utf8_string_literal[5]`
+LL │         target("hi", 1);
+   ╰╴               ━━━━ expected `uint256`, found `utf8_string_literal[2]`
 
-error: aborting due to 4 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         target("hi", 1);
+   ╰╴                     ━ expected `bytes32`, found `int_literal[1]`
+
+error: named arguments are not supported for this function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, x: 2, y: "hi"});
+   ╰╴              ━━━━━━━━━━━━━━━━━━━━━━━
+
+error: named arguments are not supported for this function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, z: "hi"});
+   ╰╴              ━━━━━━━━━━━━━━━━━
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E(1);
+   │         ━━━━━━┬──━
+   │               │
+   ╰╴              expected 2 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E("hi", 1);
+   ╰╴               ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E("hi", 1);
+   ╰╴                     ━ expected `bytes32`, found `int_literal[1]`
+
+error: wrong number of arguments: expected 2, got 3
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1, a: 2, b: "hi"});
+   │         ━━━━━━┬──────────────────────━
+   │               │
+   ╰╴              expected 2 arguments, found 3
+
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1, a: 2, b: "hi"});
+   ╰╴                      ━
+
+error: named argument `c` does not match any parameter
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1, c: "hi"});
+   ╰╴                      ━
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError(404);
+   │         ━━━━━━━━━━━━━━┬────━
+   │                       │
+   ╰╴                      expected 2 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError("hi", 404);
+   ╰╴                       ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError("hi", 404);
+   ╰╴                             ━━━ expected `bytes32`, found `int_literal[9]`
+
+error: wrong number of arguments: expected 2, got 3
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, code: 2, message: "hi"});
+   │         ━━━━━━━━━━━━━━┬──────────────────────────────────━
+   │                       │
+   ╰╴                      expected 2 arguments, found 3
+
+error: duplicate named argument `code`
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, code: 2, message: "hi"});
+   ╰╴                                 ━━━━
+
+error: named argument `msg` does not match any parameter
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, msg: "hi"});
+   ╰╴                                 ━━━
+
+error: aborting due to 21 previous errors
 

@@ -1,24 +1,99 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // Test function call type checking
 
 contract CallChecking {
-    function add(uint256 a, uint256 b) public pure returns (uint256) {
-        return a + b;
-    }
-    
+    event E(uint a, bytes32 b);
+    error MyError(uint code, bytes32 message);
+
+    function target(uint x, bytes32 y) public pure {}
     function noArgs() public pure returns (uint256) {
         return 42;
     }
-    
-    // Wrong argument count
-    function wrongArgCount() public pure {
-        add(1); //~ ERROR: wrong number of arguments
-        add(1, 2, 3); //~ ERROR: wrong number of arguments
+
+    // === Correct positional arguments (no errors expected) ===
+    function testPositional() public pure {
+        target(1, "hi");
+    }
+
+    // === Named arguments not supported for function calls ===
+    function testNamed() public pure {
+        target({x: 1, y: "hi"}); //~ ERROR: named arguments are not supported
+        target({y: "hi", x: 1}); //~ ERROR: named arguments are not supported
+    }
+
+    // === Wrong argument count ===
+    function testWrongCount() public pure {
+        target(1); //~ ERROR: wrong number of arguments
+        target(1, "hi", 3); //~ ERROR: wrong number of arguments
         noArgs(1); //~ ERROR: wrong number of arguments
     }
-    
-    // Wrong argument types
-    function wrongArgTypes() public pure {
-        add("hello", 2); //~ ERROR: mismatched types
+
+    // === Wrong argument types ===
+    function testWrongType() public pure {
+        target("hi", 1);
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === Named arguments not supported (error before duplicate check) ===
+    function testDuplicateNamed() public pure {
+        target({x: 1, x: 2, y: "hi"}); //~ ERROR: named arguments are not supported
+    }
+
+    // === Named arguments not supported (error before unknown check) ===
+    function testUnknownNamed() public pure {
+        target({x: 1, z: "hi"}); //~ ERROR: named arguments are not supported
+    }
+
+    // === Event emit - correct (no errors expected) ===
+    function testEventCorrect() public {
+        emit E(1, "hello");
+        emit E({a: 1, b: "hello"});
+    }
+
+    // === Event emit - wrong count ===
+    function testEventWrongCount() public {
+        emit E(1); //~ ERROR: wrong number of arguments
+    }
+
+    // === Event emit - wrong type ===
+    function testEventWrongType() public {
+        emit E("hi", 1);
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === Event emit - named argument errors ===
+    function testEventNamedErrors() public {
+        emit E({a: 1, a: 2, b: "hi"});
+        //~^ ERROR: wrong number of arguments
+        //~| ERROR: duplicate named argument
+        emit E({a: 1, c: "hi"}); //~ ERROR: named argument `c` does not match
+    }
+
+    // === Error/revert - correct (no errors expected) ===
+    function testRevertCorrect() public pure {
+        revert MyError(404, "not found");
+        revert MyError({code: 404, message: "not found"});
+    }
+
+    // === Error/revert - wrong count ===
+    function testRevertWrongCount() public pure {
+        revert MyError(404); //~ ERROR: wrong number of arguments
+    }
+
+    // === Error/revert - wrong type ===
+    function testRevertWrongType() public pure {
+        revert MyError("hi", 404);
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === Error/revert - named argument errors ===
+    function testRevertNamedErrors() public pure {
+        revert MyError({code: 1, code: 2, message: "hi"});
+        //~^ ERROR: wrong number of arguments
+        //~| ERROR: duplicate named argument
+        revert MyError({code: 1, msg: "hi"}); //~ ERROR: named argument `msg` does not match
     }
 }
