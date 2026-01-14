@@ -1,0 +1,8 @@
+error: constant variable must be initialized
+   ╭▸ ROOT/tests/ui/typeck/constants/constant_unassigned.sol:LL:CC
+   │
+LL │ uint constant x;
+   ╰╴━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

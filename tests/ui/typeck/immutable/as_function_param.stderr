@@ -1,0 +1,8 @@
+error: mutability is not allowed here
+   ╭▸ ROOT/tests/ui/typeck/immutable/as_function_param.sol:LL:CC
+   │
+LL │     function f(uint immutable) public pure {}
+   ╰╴                    ━━━━━━━━━
+
+error: aborting due to 1 previous error
+

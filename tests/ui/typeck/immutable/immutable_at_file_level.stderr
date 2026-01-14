@@ -1,0 +1,8 @@
+error: only constant variables are allowed at file level
+   ╭▸ ROOT/tests/ui/typeck/immutable/immutable_at_file_level.sol:LL:CC
+   │
+LL │ uint immutable x = 7;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+
