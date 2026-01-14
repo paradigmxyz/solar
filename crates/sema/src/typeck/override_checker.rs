@@ -18,7 +18,7 @@ use crate::{
     ty::{Gcx, Ty, TyKind},
 };
 
-use solar_ast::{StateMutability, Visibility};
+use solar_ast::{FunctionKind, StateMutability, Visibility};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, Span, diagnostics::DiagCtxt, error_code};
 use std::{cmp, collections::BTreeSet};
@@ -80,6 +80,13 @@ impl OverrideProxy {
         match self {
             Self::Function(id) => gcx.hir.function(id).kind.is_modifier(),
             Self::Variable(_) => false,
+        }
+    }
+
+    fn function_kind(self, gcx: Gcx<'_>) -> FunctionKind {
+        match self {
+            Self::Function(id) => gcx.hir.function(id).kind,
+            Self::Variable(_) => FunctionKind::Function,
         }
     }
 
@@ -162,8 +169,8 @@ impl OverrideProxy {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct OverrideSignature<'gcx> {
-    name: Ident,
-    is_modifier: bool,
+    name: Option<Ident>,
+    kind: FunctionKind,
     param_types: Option<&'gcx [Ty<'gcx>]>,
 }
 
@@ -286,20 +293,20 @@ impl<'gcx> OverrideGraph<'gcx> {
     }
 
     fn matches_signature(&self, proxy: OverrideProxy) -> bool {
-        let name = match proxy.name(self.gcx) {
-            Some(n) => n,
-            None => return false,
-        };
+        let name = proxy.name(self.gcx);
+        let kind = proxy.function_kind(self.gcx);
+
         if name != self.signature.name {
             return false;
         }
-        let is_modifier = proxy.is_modifier(self.gcx);
-        if is_modifier != self.signature.is_modifier {
+        if kind != self.signature.kind {
             return false;
         }
-        if is_modifier {
+
+        if !kind.is_function() {
             return true;
         }
+
         let ty = proxy.ty(self.gcx);
         let ext_ty = ty.as_externally_callable_function(self.gcx);
         let param_types =
@@ -385,16 +392,16 @@ impl<'gcx> OverrideChecker<'gcx> {
     }
 
     fn signature(&self, proxy: OverrideProxy) -> OverrideSignature<'gcx> {
-        let name = proxy.name(self.gcx).expect("function/modifier/variable should have a name");
-        let is_modifier = proxy.is_modifier(self.gcx);
-        let param_types = if is_modifier {
-            None
-        } else {
+        let name = proxy.name(self.gcx);
+        let kind = proxy.function_kind(self.gcx);
+        let param_types = if kind.is_function() {
             let ty = proxy.ty(self.gcx);
             let ext_ty = ty.as_externally_callable_function(self.gcx);
             if let TyKind::FnPtr(fn_ptr) = ext_ty.kind { Some(fn_ptr.parameters) } else { None }
+        } else {
+            None
         };
-        OverrideSignature { name, is_modifier, param_types }
+        OverrideSignature { name, kind, param_types }
     }
 
     fn inherited_functions(&self) -> FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> {
@@ -410,7 +417,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             for f_id in base.functions() {
                 let f = self.gcx.hir.function(f_id);
-                if f.kind.is_constructor() || f.name.is_none() {
+                if f.kind.is_constructor() {
                     continue;
                 }
                 let proxy = OverrideProxy::Function(f_id);
@@ -462,7 +469,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             for f_id in base.functions() {
                 let f = self.gcx.hir.function(f_id);
-                if f.kind.is_constructor() || f.name.is_none() {
+                if f.kind.is_constructor() {
                     continue;
                 }
                 let proxy = OverrideProxy::Function(f_id);
@@ -500,35 +507,35 @@ impl<'gcx> OverrideChecker<'gcx> {
         let inherited = self.inherited_functions();
 
         let inherited_modifiers: FxHashSet<Ident> =
-            inherited.keys().filter(|s| s.is_modifier).map(|s| s.name).collect();
+            inherited.keys().filter(|s| s.kind.is_modifier()).filter_map(|s| s.name).collect();
 
         let inherited_functions: FxHashSet<Ident> =
-            inherited.keys().filter(|s| !s.is_modifier).map(|s| s.name).collect();
+            inherited.keys().filter(|s| !s.kind.is_modifier()).filter_map(|s| s.name).collect();
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
-            // Skip constructors, unnamed functions, and getter functions (which are handled via
-            // variables).
-            if f.kind.is_constructor() || f.name.is_none() || f.is_getter() {
+            // Skip constructors and getter functions (which are handled via variables).
+            if f.kind.is_constructor() || f.is_getter() {
                 continue;
             }
             let proxy = OverrideProxy::Function(f_id);
-            let name = proxy.name(self.gcx).unwrap();
 
-            if f.kind.is_modifier() {
-                if inherited_functions.contains(&name) {
+            if let Some(name) = proxy.name(self.gcx) {
+                if f.kind.is_modifier() {
+                    if inherited_functions.contains(&name) {
+                        self.dcx()
+                            .err("override changes function or public state variable to modifier")
+                            .code(error_code!(5631))
+                            .span(f.span)
+                            .emit();
+                    }
+                } else if inherited_modifiers.contains(&name) {
                     self.dcx()
-                        .err("override changes function or public state variable to modifier")
-                        .code(error_code!(5631))
+                        .err("override changes modifier to function")
+                        .code(error_code!(1469))
                         .span(f.span)
                         .emit();
                 }
-            } else if inherited_modifiers.contains(&name) {
-                self.dcx()
-                    .err("override changes modifier to function")
-                    .code(error_code!(1469))
-                    .span(f.span)
-                    .emit();
             }
 
             let sig = self.signature(proxy);
@@ -1025,15 +1032,16 @@ impl<'gcx> OverrideChecker<'gcx> {
             .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
             .collect();
 
-        let kind = if sig.is_modifier { "modifier" } else { "function" };
+        let kind = if sig.kind.is_modifier() { "modifier" } else { "function" };
 
         let has_variable = remaining.iter().any(|p| p.is_variable());
+        let name_display = sig.name.map(|n| n.to_string()).unwrap_or_else(|| sig.kind.to_string());
         let mut msg = format!(
             "derived contract must override {} \"{}\". Two or more base classes define {} with same {}",
             kind,
-            sig.name,
+            name_display,
             kind,
-            if sig.is_modifier { "name" } else { "name and parameter types" }
+            if sig.kind.is_modifier() { "name" } else { "name and parameter types" }
         );
 
         if has_variable {
