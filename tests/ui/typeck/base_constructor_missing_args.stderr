@@ -34,5 +34,65 @@ note: base constructor parameters
 LL │     constructor(int y) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 3 previous errors
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:BadChild" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract BadChild is Parent {}
+   │          ━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint p) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:BadChild" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract BadChild is Parent {}
+   │          ━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint g) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:GoodChild" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract GoodChild is Parent(20) {}
+   │          ━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint g) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:DiamondChild" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract DiamondChild is DiamondLeft, DiamondRight {}
+   │          ━━━━━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint d) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: no arguments passed to the base constructor. Specify the arguments or mark "ROOT/tests/ui/typeck/base_constructor_missing_args.sol:MixedBad" as abstract.
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │ contract MixedBad is IExample, Base1 {
+   │          ━━━━━━━━
+   ╰╴
+note: base constructor parameters
+   ╭▸ ROOT/tests/ui/typeck/base_constructor_missing_args.sol:LL:CC
+   │
+LL │     constructor(uint x) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 8 previous errors
 
