@@ -1,5 +1,6 @@
 use crate::{
     builtins::Builtin,
+    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -649,15 +650,70 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+
         if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assignment
-            self.check_assign(ty, init);
-            if expect {
-                let _ = self.expect_ty(init, ty);
+            if var.is_state_variable() && ty.has_mapping() {
+                self.dcx()
+                    .err("types in storage containing (nested) mappings cannot be assigned to")
+                    .span(var.span)
+                    .emit();
+            } else {
+                self.check_assign(ty, init);
+                if expect {
+                    let _ = self.expect_ty(init, ty);
+                }
             }
         }
-        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
+
+        if var.is_constant() {
+            if var.initializer.is_none() {
+                self.dcx().err("uninitialized `constant` variable").span(var.span).emit();
+            } else if let Some(init) = var.initializer
+                && !self.is_compile_time_constant(init)
+            {
+                self.dcx()
+                    .err("initial value for constant variable has to be compile-time constant")
+                    .span(init.span)
+                    .emit();
+            }
+        } else if var.is_immutable() {
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+            }
+            if let TyKind::FnPtr(f) = ty.kind
+                && f.visibility <= hir::Visibility::Internal
+            {
+                self.dcx()
+                    .err("immutable variables of external function type are not yet supported")
+                    .span(var.span)
+                    .emit();
+            }
+        }
+
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "type `{}` is only valid in storage because it contains a (nested) mapping",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+        }
+
         ty
+    }
+
+    fn is_compile_time_constant(&self, expr: &hir::Expr<'_>) -> bool {
+        ConstantEvaluator::new(self.gcx).try_eval(expr).is_ok()
     }
 
     fn check_decl(
