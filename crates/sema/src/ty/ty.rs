@@ -630,12 +630,7 @@ impl<'gcx> Ty<'gcx> {
                 if from_tys.len() != to_tys.len() {
                     return Result::Err(TyConvertError::Incompatible);
                 }
-                // Empty tuples match (already handled by self == other, but be explicit).
-                if from_tys.is_empty() {
-                    return Ok(());
-                }
-                // Each element must be implicitly convertible.
-                for (&from_ty, &to_ty) in from_tys.iter().zip(to_tys.iter()) {
+                for (&from_ty, &to_ty) in std::iter::zip(from_tys, to_tys) {
                     from_ty.try_convert_implicit_to(to_ty, gcx)?;
                 }
                 Ok(())
