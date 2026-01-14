@@ -69,6 +69,13 @@ impl OverrideProxy {
         matches!(self, Self::Variable(_))
     }
 
+    fn is_function(self, gcx: Gcx<'_>) -> bool {
+        match self {
+            Self::Function(id) => !gcx.hir.function(id).kind.is_modifier(),
+            Self::Variable(_) => false,
+        }
+    }
+
     fn is_modifier(self, gcx: Gcx<'_>) -> bool {
         match self {
             Self::Function(id) => gcx.hir.function(id).kind.is_modifier(),
@@ -699,9 +706,9 @@ impl<'gcx> OverrideChecker<'gcx> {
         self.check_visibility_compatibility(overriding, base);
         self.check_mutability_compatibility(overriding, base);
 
-        if !base.is_modifier(gcx) && !overriding.is_variable() {
+        if base.is_function(gcx) {
             let return_types_differ = self.check_return_type_compatibility(overriding, base);
-            if !return_types_differ {
+            if !return_types_differ && overriding.is_function(gcx) {
                 self.check_data_location_compatibility(overriding, base);
             }
         }
