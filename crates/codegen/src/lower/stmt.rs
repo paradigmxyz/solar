@@ -1,6 +1,6 @@
 //! Statement lowering.
 
-use super::Lowerer;
+use super::{LoopContext, Lowerer};
 use crate::mir::FunctionBuilder;
 use alloy_primitives::U256;
 use solar_sema::hir::{self, StmtKind};
@@ -58,9 +58,17 @@ impl<'gcx> Lowerer<'gcx> {
 
             StmtKind::Try(_try_stmt) => {}
 
-            StmtKind::Continue => {}
+            StmtKind::Continue => {
+                if let Some(loop_ctx) = self.current_loop() {
+                    builder.jump(loop_ctx.continue_target);
+                }
+            }
 
-            StmtKind::Break => {}
+            StmtKind::Break => {
+                if let Some(loop_ctx) = self.current_loop() {
+                    builder.jump(loop_ctx.break_target);
+                }
+            }
 
             StmtKind::Placeholder => {}
 
@@ -73,6 +81,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a single variable declaration.
+    /// Local variables are stored in memory to support mutation in loops.
     fn lower_single_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -87,7 +96,10 @@ impl<'gcx> Lowerer<'gcx> {
             builder.imm_u256(U256::ZERO)
         };
 
-        self.locals.insert(var_id, initial_value);
+        // Allocate memory slot and store initial value
+        let offset = self.alloc_local_memory(var_id);
+        let offset_val = builder.imm_u64(offset);
+        builder.mstore(offset_val, initial_value);
     }
 
     /// Lowers a multi-variable declaration.
@@ -102,7 +114,10 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, var_id_opt) in var_ids.iter().enumerate() {
             if let Some(var_id) = var_id_opt {
                 let val = if i == 0 { init_val } else { builder.imm_u256(U256::ZERO) };
-                self.locals.insert(*var_id, val);
+                // Allocate memory slot and store value
+                let offset = self.alloc_local_memory(*var_id);
+                let offset_val = builder.imm_u64(offset);
+                builder.mstore(offset_val, val);
             }
         }
     }
@@ -150,6 +165,12 @@ impl<'gcx> Lowerer<'gcx> {
         let loop_block = builder.create_block();
         let exit_block = builder.create_block();
 
+        // Push loop context for break/continue
+        self.push_loop(LoopContext {
+            break_target: exit_block,
+            continue_target: loop_block,
+        });
+
         builder.jump(loop_block);
 
         builder.switch_to_block(loop_block);
@@ -157,6 +178,9 @@ impl<'gcx> Lowerer<'gcx> {
         if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(loop_block);
         }
+
+        // Pop loop context
+        self.pop_loop();
 
         builder.switch_to_block(exit_block);
     }

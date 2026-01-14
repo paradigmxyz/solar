@@ -151,10 +151,18 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Variable(var_id) = item_id {
+                    // First check if it's a function parameter (SSA value)
                     if let Some(&val) = self.locals.get(var_id) {
                         return val;
                     }
 
+                    // Check if it's a local variable stored in memory
+                    if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        let offset_val = builder.imm_u64(offset);
+                        return builder.mload(offset_val);
+                    }
+
+                    // Check if it's a storage variable
                     if let Some(&slot) = self.storage_slots.get(var_id) {
                         let slot_val = builder.imm_u64(slot);
                         return builder.sload(slot_val);
@@ -308,7 +316,12 @@ impl<'gcx> Lowerer<'gcx> {
         match &lhs.kind {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
-                    if self.locals.contains_key(var_id) {
+                    // Check if it's a local variable stored in memory
+                    if let Some(offset) = self.get_local_memory_offset(var_id) {
+                        let offset_val = builder.imm_u64(offset);
+                        builder.mstore(offset_val, rhs);
+                    } else if self.locals.contains_key(var_id) {
+                        // Function parameter - update SSA mapping (shouldn't happen normally)
                         self.locals.insert(*var_id, rhs);
                     } else if let Some(&slot) = self.storage_slots.get(var_id) {
                         let slot_val = builder.imm_u64(slot);
@@ -352,7 +365,80 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_member_call(builder, base, *member, args);
         }
 
+        // Handle `new Contract(args)` - contract creation
+        if let ExprKind::New(ty) = &callee.kind {
+            return self.lower_new_contract(builder, ty, args);
+        }
+
         builder.imm_u64(0)
+    }
+
+    /// Lowers a `new Contract(args)` expression.
+    fn lower_new_contract(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        // Extract ContractId from the type
+        let contract_id = match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
+            _ => {
+                // Not a contract type, return placeholder
+                return builder.imm_u64(0);
+            }
+        };
+
+        // Look up pre-compiled bytecode
+        let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
+            Some(bc) => bc.clone(),
+            None => {
+                // Bytecode not available - return placeholder
+                // This happens if contracts aren't compiled in the right order
+                return builder.imm_u64(0);
+            }
+        };
+
+        let bytecode_len = bytecode.len();
+
+        // Allocate memory for bytecode + constructor args
+        // We'll put the bytecode starting at a free memory offset
+        // For simplicity, use memory offset 0 (assuming it's available)
+        let mem_offset = builder.imm_u64(0);
+
+        // Copy bytecode to memory using CODECOPY isn't right here since
+        // the bytecode is from another contract. We need to use MSTORE
+        // to write the bytecode bytes to memory.
+        //
+        // For each 32-byte chunk of bytecode, emit an MSTORE
+        let mut offset = 0u64;
+        for chunk in bytecode.chunks(32) {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let value = U256::from_be_bytes(padded);
+            let val_id = builder.imm_u256(value);
+            let offset_id = builder.imm_u64(offset);
+            builder.mstore(offset_id, val_id);
+            offset += 32;
+        }
+
+        // Append constructor arguments after bytecode
+        let mut args_offset = bytecode_len as u64;
+        for arg in args.exprs() {
+            let arg_val = self.lower_expr(builder, arg);
+            let arg_offset = builder.imm_u64(args_offset);
+            builder.mstore(arg_offset, arg_val);
+            args_offset += 32; // Each arg is 32 bytes ABI encoded
+        }
+
+        // Total size = bytecode + args
+        let total_size = builder.imm_u64(args_offset);
+
+        // Value to send with CREATE (0 for non-payable)
+        let value = builder.imm_u64(0);
+
+        // Emit CREATE instruction
+        builder.create(value, mem_offset, total_size)
     }
 
     /// Lowers a builtin function call.
@@ -410,14 +496,93 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Lowers a member function call (e.g., addr.call()).
+    /// Lowers a member function call (e.g., counter.increment()).
     fn lower_member_call(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        _base: &hir::Expr<'_>,
-        _member: Ident,
-        _args: &CallArgs<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+        args: &CallArgs<'_>,
     ) -> ValueId {
-        builder.imm_u64(0)
+        // Look up the function being called to get its selector
+        let selector = self.compute_member_selector(base, member);
+
+        // Calculate calldata size first
+        let num_args = args.exprs().count();
+        let calldata_size_bytes = 4 + num_args * 32;
+
+        // ABI encode the call: selector (4 bytes) + args (32 bytes each)
+        // Write selector to memory at offset 0
+        let selector_word = U256::from(selector) << 224; // Left-align 4 bytes in 32-byte word
+        let selector_val = builder.imm_u256(selector_word);
+        let mem_start = builder.imm_u64(0);
+        builder.mstore(mem_start, selector_val);
+
+        // Write arguments after selector
+        let mut arg_offset = 4u64; // Start after 4-byte selector
+        for arg in args.exprs() {
+            let arg_val = self.lower_expr(builder, arg);
+            let offset = builder.imm_u64(arg_offset);
+            builder.mstore(offset, arg_val);
+            arg_offset += 32;
+        }
+
+        // Get the address AFTER writing to memory to keep stack simpler
+        let addr = self.lower_expr(builder, base);
+
+        // Total calldata size = 4 (selector) + 32 * num_args
+        let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
+
+        // Args offset is 0 (where calldata starts)
+        let args_offset = builder.imm_u64(0);
+
+        // Return data location (use offset 0, overwriting calldata since we don't need it after call)
+        let ret_offset = builder.imm_u64(0);
+        let ret_size = builder.imm_u64(32);
+
+        // Gas: use all available gas
+        let gas = builder.gas();
+
+        // Value: 0 for non-payable calls
+        let value = builder.imm_u64(0);
+
+        // Emit the CALL instruction
+        let _success = builder.call(gas, addr, value, args_offset, calldata_size, ret_offset, ret_size);
+
+        // Load return value from memory
+        builder.mload(ret_offset)
+    }
+
+    /// Computes the function selector for a member call.
+    fn compute_member_selector(&self, base: &hir::Expr<'_>, member: Ident) -> u32 {
+        // Try to get the type of the base expression and find the function
+        // For contract types, we look up the function in the contract's interface
+
+        // First, try to get the contract type from the base expression
+        if let ExprKind::Ident(res_slice) = &base.kind {
+            if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+                let var = self.gcx.hir.variable(*var_id);
+                // Get the type of the variable
+                let ty = self.gcx.type_of_hir_ty(&var.ty);
+                if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
+                    // Find the function with this name in the contract
+                    let contract = self.gcx.hir.contract(contract_id);
+                    for func_id in contract.all_functions() {
+                        let func = self.gcx.hir.function(func_id);
+                        if func.name.is_some_and(|n| n.name == member.name) {
+                            // Found the function, get its selector
+                            let selector = self.gcx.function_selector(func_id);
+                            return u32::from_be_bytes(selector.0);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: compute selector from member name
+        // This is a simplified version - proper implementation would use full signature
+        let sig = format!("{}()", member.name);
+        let hash = alloy_primitives::keccak256(sig.as_bytes());
+        u32::from_be_bytes(hash[..4].try_into().unwrap())
     }
 }

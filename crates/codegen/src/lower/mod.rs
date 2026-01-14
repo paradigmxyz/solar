@@ -6,8 +6,8 @@ mod expr;
 mod stmt;
 
 use crate::mir::{
-    Function, FunctionAttributes, FunctionBuilder, FunctionId, MirType, Module, StorageSlot,
-    ValueId,
+    BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, MirType, Module,
+    StorageSlot, ValueId,
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -16,6 +16,15 @@ use solar_sema::{
     hir::{self, ContractId, VariableId},
     ty::Gcx,
 };
+
+/// Context for a loop (tracks break/continue targets).
+#[derive(Clone, Copy)]
+pub struct LoopContext {
+    /// Block to jump to on `break`.
+    pub break_target: BlockId,
+    /// Block to jump to on `continue`.
+    pub continue_target: BlockId,
+}
 
 /// Lowering context for converting HIR to MIR.
 pub struct Lowerer<'gcx> {
@@ -28,7 +37,18 @@ pub struct Lowerer<'gcx> {
     /// Next available storage slot.
     next_storage_slot: u64,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
+    /// For SSA-style immutable variables (function params).
     locals: FxHashMap<VariableId, ValueId>,
+    /// Mapping from HIR variable IDs to memory offsets (for mutable locals).
+    /// Memory layout: starts at offset 0x80 (after scratch space).
+    local_memory_slots: FxHashMap<VariableId, u64>,
+    /// Next available memory offset for locals.
+    next_local_memory_offset: u64,
+    /// Bytecodes of other contracts (for `new` expressions).
+    /// Maps contract ID to (deployment_bytecode, data_segment_index).
+    contract_bytecodes: FxHashMap<ContractId, (Vec<u8>, usize)>,
+    /// Stack of loop contexts for nested loops.
+    loop_stack: Vec<LoopContext>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -40,7 +60,51 @@ impl<'gcx> Lowerer<'gcx> {
             storage_slots: FxHashMap::default(),
             next_storage_slot: 0,
             locals: FxHashMap::default(),
+            local_memory_slots: FxHashMap::default(),
+            next_local_memory_offset: 0x80, // Start after Solidity's scratch space
+            contract_bytecodes: FxHashMap::default(),
+            loop_stack: Vec::new(),
         }
+    }
+
+    /// Pushes a loop context onto the stack.
+    pub fn push_loop(&mut self, ctx: LoopContext) {
+        self.loop_stack.push(ctx);
+    }
+
+    /// Pops a loop context from the stack.
+    pub fn pop_loop(&mut self) {
+        self.loop_stack.pop();
+    }
+
+    /// Gets the current loop context, if any.
+    pub fn current_loop(&self) -> Option<&LoopContext> {
+        self.loop_stack.last()
+    }
+
+    /// Allocates a memory slot for a local variable.
+    /// Returns the memory offset.
+    pub fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
+        let offset = self.next_local_memory_offset;
+        self.next_local_memory_offset += 32; // Each slot is 32 bytes
+        self.local_memory_slots.insert(var_id, offset);
+        offset
+    }
+
+    /// Gets the memory offset for a local variable, if it's stored in memory.
+    pub fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
+        self.local_memory_slots.get(var_id).copied()
+    }
+
+    /// Registers a contract's bytecode for use in `new` expressions.
+    pub fn register_contract_bytecode(&mut self, contract_id: ContractId, bytecode: Vec<u8>) {
+        let segment_idx = self.module.add_data_segment(bytecode.clone());
+        self.contract_bytecodes.insert(contract_id, (bytecode, segment_idx));
+    }
+
+    /// Gets the bytecode for a contract, if registered.
+    pub fn get_contract_bytecode(&self, contract_id: ContractId) -> Option<&(Vec<u8>, usize)> {
+        self.contract_bytecodes.get(&contract_id)
     }
 
     /// Lowers a contract to MIR.
@@ -98,6 +162,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         self.locals.clear();
+        self.local_memory_slots.clear();
+        self.next_local_memory_offset = 0x80;
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -228,8 +294,23 @@ impl<'gcx> Lowerer<'gcx> {
 
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
+    lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
+}
+
+/// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.
+pub fn lower_contract_with_bytecodes(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    child_bytecodes: &FxHashMap<ContractId, Vec<u8>>,
+) -> Module {
     let contract = gcx.hir.contract(contract_id);
     let mut lowerer = Lowerer::new(gcx, contract.name);
+
+    // Register all child contract bytecodes
+    for (&child_id, bytecode) in child_bytecodes {
+        lowerer.register_contract_bytecode(child_id, bytecode.clone());
+    }
+
     lowerer.lower_contract(contract_id);
     lowerer.finish()
 }
