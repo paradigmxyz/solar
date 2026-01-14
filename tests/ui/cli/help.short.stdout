@@ -11,6 +11,7 @@ Options:
       --stop-after <STOP_AFTER>    Stop execution after the given compiler stage [possible values: parsing, lowering, analysis]
       --out-dir <OUT_DIR>          Directory to write output files
       --emit <EMIT>                Comma separated list of types of output for the compiler to emit [possible values: abi, hashes]
+      --standard-json              Switch to Standard JSON input / output mode. Reads a JSON object from stdin, compiles, and outputs a JSON object to stdout. This is compatible with solc's --standard-json mode for use with tools like Foundry
   -Z <FLAG>                        Unstable flags. WARNING: these are completely unstable, and may change at any time
   -h, --help                       Print help (see more with '--help')
   -V, --version                    Print version

@@ -100,7 +100,7 @@ impl StackModel {
     /// Returns true if the value is accessible via DUP (depth < 16).
     #[must_use]
     pub fn is_accessible(&self, value: ValueId) -> bool {
-        self.find(value).map_or(false, |d| d < MAX_STACK_ACCESS)
+        self.find(value).is_some_and(|d| d < MAX_STACK_ACCESS)
     }
 
     /// Simulates a DUP operation.

@@ -20,7 +20,7 @@ pub fn function_to_dot(func: &Function) -> String {
         let is_entry = block_id == func.entry_block;
         
         // Build the label with instructions
-        let mut label = format!("bb{}", block_idx);
+        let mut label = format!("bb{block_idx}");
         if is_entry {
             label.push_str(" (entry)");
         }
@@ -52,7 +52,7 @@ pub fn function_to_dot(func: &Function) -> String {
         
         // Node attributes
         let color = if is_entry { ", fillcolor=\"#e0ffe0\", style=filled" } else { "" };
-        writeln!(dot, "    bb{} [label=\"{{\"{}\"}}\"{color}];", block_idx, label).unwrap();
+        writeln!(dot, "    bb{block_idx} [label=\"{{\"{label}\"}}\"{color}];").unwrap();
     }
     
     writeln!(dot).unwrap();
@@ -256,15 +256,15 @@ fn fmt_val(vid: ValueId, func: &Function) -> String {
         Value::Immediate(imm) => {
             if let Some(u256) = imm.as_u256() {
                 if u256 < alloy_primitives::U256::from(1000u64) {
-                    format!("{}", u256)
+                    format!("{u256}")
                 } else {
-                    format!("0x{:x}", u256)
+                    format!("0x{u256:x}")
                 }
             } else {
                 format!("v{}", vid.index())
             }
         }
-        Value::Arg { index, .. } => format!("arg{}", index),
+        Value::Arg { index, .. } => format!("arg{index}"),
         _ => format!("v{}", vid.index()),
     }
 }

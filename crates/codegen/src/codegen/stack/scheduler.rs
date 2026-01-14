@@ -112,7 +112,7 @@ impl StackScheduler {
         // Push in reverse order so first value ends up on top
         for &value in values.iter().rev() {
             self.ensure_on_top(value, func);
-            all_ops.extend(self.ops.drain(..));
+            all_ops.append(&mut self.ops);
         }
 
         all_ops
@@ -125,13 +125,12 @@ impl StackScheduler {
             return None;
         }
 
-        if let Some(depth) = self.stack.find(value) {
-            if depth < MAX_STACK_ACCESS && depth > 0 {
+        if let Some(depth) = self.stack.find(value)
+            && depth < MAX_STACK_ACCESS && depth > 0 {
                 let swap_n = depth as u8;
                 self.stack.swap(swap_n);
                 return Some(StackOp::Swap(swap_n));
             }
-        }
 
         None
     }
@@ -178,16 +177,12 @@ impl StackScheduler {
     pub fn spill_excess_values(&mut self) -> Vec<ScheduledOp> {
         let mut ops = Vec::new();
 
-        while self.stack.depth() > MAX_STACK_ACCESS {
+        if self.stack.depth() > MAX_STACK_ACCESS {
             // Find a value deep in the stack to spill
             if let Some(value) = self.stack.peek(MAX_STACK_ACCESS - 1) {
                 let slot = self.spills.allocate(value);
                 ops.push(ScheduledOp::SaveSpill(slot));
-                // The spill operation consumes the value from stack
-                // We need to bring it to top first, then MSTORE
-                // This is simplified - real implementation needs more care
             }
-            break; // Avoid infinite loop in simplified version
         }
 
         ops

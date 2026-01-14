@@ -152,12 +152,11 @@ impl Assembler {
 
         // Compute new widths based on resolved offsets
         for (idx, inst) in self.instructions.iter().enumerate() {
-            if let AsmInst::PushLabel(label) = inst {
-                if let Some(&target_offset) = label_offsets.get(label) {
+            if let AsmInst::PushLabel(label) = inst
+                && let Some(&target_offset) = label_offsets.get(label) {
                     let width = push_width(U256::from(target_offset));
                     new_widths.insert(idx, width);
                 }
-            }
         }
 
         (label_offsets, new_widths)

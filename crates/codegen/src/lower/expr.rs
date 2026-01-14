@@ -559,8 +559,8 @@ impl<'gcx> Lowerer<'gcx> {
         // For contract types, we look up the function in the contract's interface
 
         // First, try to get the contract type from the base expression
-        if let ExprKind::Ident(res_slice) = &base.kind {
-            if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
                 let var = self.gcx.hir.variable(*var_id);
                 // Get the type of the variable
                 let ty = self.gcx.type_of_hir_ty(&var.ty);
@@ -577,7 +577,6 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
             }
-        }
 
         // Fallback: compute selector from member name
         // This is a simplified version - proper implementation would use full signature

@@ -87,11 +87,10 @@ pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
 /// Finds the ValueId that is defined by a phi instruction.
 fn find_phi_dst(func: &Function, inst_id: InstId) -> Option<ValueId> {
     for (val_id, val) in func.values.iter_enumerated() {
-        if let Value::Inst(def_inst) = val {
-            if *def_inst == inst_id {
+        if let Value::Inst(def_inst) = val
+            && *def_inst == inst_id {
                 return Some(val_id);
             }
-        }
     }
     None
 }
@@ -107,7 +106,7 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>) {
         return;
     }
 
-    let pending: Vec<ParallelCopy> = copies.drain(..).collect();
+    let pending: Vec<ParallelCopy> = std::mem::take(copies);
     let mut result: Vec<ParallelCopy> = Vec::with_capacity(pending.len());
 
     // Map from value to index of copy that writes to it
@@ -121,11 +120,10 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>) {
     let mut blocked_by: Vec<usize> = vec![0; pending.len()];
     for (i, copy) in pending.iter().enumerate() {
         // If copy i reads from value X, and copy j writes to X, then j is blocked by i
-        if let Some(&writer_idx) = writes_to.get(&copy.src) {
-            if writer_idx != i {
+        if let Some(&writer_idx) = writes_to.get(&copy.src)
+            && writer_idx != i {
                 blocked_by[writer_idx] += 1;
             }
-        }
     }
 
     let mut emitted = vec![false; pending.len()];
@@ -147,11 +145,10 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>) {
 
                 // Unblock anyone who was waiting for us to read their dst
                 // (i.e., if our src is someone else's dst)
-                if let Some(&blocked_writer) = writes_to.get(&pending[i].src) {
-                    if blocked_writer != i && !emitted[blocked_writer] {
+                if let Some(&blocked_writer) = writes_to.get(&pending[i].src)
+                    && blocked_writer != i && !emitted[blocked_writer] {
                         blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
                     }
-                }
             }
         }
 

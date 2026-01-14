@@ -21,7 +21,7 @@ impl LiveSet {
     /// Creates a new empty live set with capacity for `n` values.
     #[must_use]
     pub fn with_capacity(n: usize) -> Self {
-        let words = (n + 63) / 64;
+        let words = n.div_ceil(64);
         Self { bits: vec![0; words] }
     }
 
@@ -171,23 +171,21 @@ impl Liveness {
                 }
 
                 // Record definition
-                if let Value::Inst(def_inst) = func.value(ValueId::from_usize(inst_id.index())) {
-                    if *def_inst == inst_id {
+                if let Value::Inst(def_inst) = func.value(ValueId::from_usize(inst_id.index()))
+                    && *def_inst == inst_id {
                         block_defs[bidx].insert(ValueId::from_usize(inst_id.index()));
                     }
-                }
 
                 // Handle the result value
                 // The instruction defines a value if it has a result
                 if inst.result_ty.is_some() {
                     // Find the ValueId that corresponds to this instruction
                     for (val_id, val) in func.values.iter_enumerated() {
-                        if let Value::Inst(inst) = val {
-                            if *inst == inst_id {
+                        if let Value::Inst(inst) = val
+                            && *inst == inst_id {
                                 block_defs[bidx].insert(val_id);
                                 break;
                             }
-                        }
                     }
                 }
             }
@@ -319,11 +317,10 @@ impl Liveness {
 
             // Remove definition (value becomes dead before this instruction)
             for (val_id, val) in func.values.iter_enumerated() {
-                if let Value::Inst(def_inst) = val {
-                    if *def_inst == inst_id {
+                if let Value::Inst(def_inst) = val
+                    && *def_inst == inst_id {
                         live.remove(val_id);
                     }
-                }
             }
 
             // Add uses (values become live before this instruction)
