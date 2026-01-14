@@ -1,0 +1,46 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         string calldata s = string(b);
+   ╰╴                            ━━━━━━━━━ expected `string calldata`, found `string memory`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         string memory s = string(x);
+   ╰╴                          ━━━━━━━━━ cannot convert `uint256` to `string`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         uint256 x = uint256(s);
+   ╰╴                    ━━━━━━━━━━ cannot convert `string memory` to `uint256`
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         (int256 d, int256 e) = (int256(a), int256(b), int256(c));
+   │         ━━━━━━━━━━━━━━━━━━━━━━━┬────────────────────────────────━
+   │                                │
+   ╰╴                               expected a tuple with 2 elements, found one with 3 elements
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         int256 x = int256(p);
+   ╰╴                   ━━━━━━━━━ cannot convert `Price` to `int256`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         Price p = Price(u);
+   ╰╴                  ━━━━━━━━ cannot convert `MyUint` to `Price`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/explicit_conversions.sol:LL:CC
+   │
+LL │         uint128 x = uint128(p);
+   ╰╴                    ━━━━━━━━━━ cannot convert `Price` to `uint128`
+
+error: aborting due to 7 previous errors
+
