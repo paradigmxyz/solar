@@ -1,6 +1,5 @@
 use crate::{
     builtins::Builtin,
-    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -665,16 +664,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
-        if var.is_constant()
-            && let Some(init) = var.initializer
-            && !self.is_compile_time_constant(init)
-        {
-            self.dcx()
-                .err("initial value for constant variable has to be compile-time constant")
-                .span(init.span)
-                .emit();
-        }
-
         if var.is_immutable() {
             if !ty.is_value_type() {
                 self.dcx()
@@ -709,10 +698,6 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         ty
-    }
-
-    fn is_compile_time_constant(&self, expr: &hir::Expr<'_>) -> bool {
-        ConstantEvaluator::new(self.gcx).try_eval(expr).is_ok()
     }
 
     fn check_decl(

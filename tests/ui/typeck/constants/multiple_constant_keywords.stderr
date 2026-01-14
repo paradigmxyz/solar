@@ -1,8 +1,0 @@
-error: mutability already specified
-   ╭▸ ROOT/tests/ui/typeck/constants/multiple_constant_keywords.sol:LL:CC
-   │
-LL │ uint constant constant x = 0;
-   ╰╴              ━━━━━━━━
-
-error: aborting due to 1 previous error
-

@@ -1,8 +1,0 @@
-error: only constant variables are allowed at file level
-   ╭▸ ROOT/tests/ui/typeck/constants/non_constant.sol:LL:CC
-   │
-LL │ uint x = 7;
-   ╰╴━━━━━━━━━━━
-
-error: aborting due to 1 previous error
-

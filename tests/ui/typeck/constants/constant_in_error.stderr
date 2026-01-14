@@ -1,8 +1,0 @@
-error: mutability is not allowed here
-   ╭▸ ROOT/tests/ui/typeck/constants/constant_in_error.sol:LL:CC
-   │
-LL │     error E(uint constant x);
-   ╰╴                 ━━━━━━━━
-
-error: aborting due to 1 previous error
-

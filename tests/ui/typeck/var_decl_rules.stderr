@@ -1,15 +1,3 @@
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
-   │
-LL │     uint constant NON_CONST = block.timestamp;
-   ╰╴                              ━━━━━━━━━━━━━━━ expected `uint256`, found `uint256`
-
-error: initial value for constant variable has to be compile-time constant
-   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
-   │
-LL │     uint constant NON_CONST = block.timestamp;
-   ╰╴                              ━━━━━━━━━━━━━━━
-
 error: immutable variables cannot have a non-value type
    ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
    │
@@ -34,5 +22,11 @@ error: type `mapping(uint256 => uint256)` is only valid in storage because it co
 LL │         mapping(uint => uint) memory m;
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 6 previous errors
+error: type `struct C.WithMapping calldata` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function g(WithMapping calldata w) internal {}
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
 

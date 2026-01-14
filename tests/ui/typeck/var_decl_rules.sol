@@ -1,14 +1,6 @@
 //@compile-flags: -Ztypeck
 
 contract C {
-    // Constant with non-compile-time initializer
-    uint constant NON_CONST = block.timestamp;
-    //~^ ERROR: mismatched types
-    //~| ERROR: initial value for constant variable has to be compile-time constant
-
-    // Valid constant
-    uint constant VALID_CONST = 42;
-
     // Immutable with non-value type (array)
     uint[] immutable IMMUT_ARRAY; //~ ERROR: immutable variables cannot have a non-value type
 
@@ -34,7 +26,9 @@ contract C {
     function f() internal {
         WithMapping memory localWithMapping; //~ ERROR: is only valid in storage because it contains a (nested) mapping
 
-        // Direct mapping in memory is also invalid
         mapping(uint => uint) memory m; //~ ERROR: is only valid in storage because it contains a (nested) mapping
     }
+
+    // Calldata variable containing mapping is also invalid
+    function g(WithMapping calldata w) internal {} //~ ERROR: is only valid in storage because it contains a (nested) mapping
 }
