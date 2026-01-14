@@ -233,6 +233,158 @@ pub enum InstKind {
 }
 
 impl InstKind {
+    /// Collects all operands of this instruction into the provided vector.
+    /// This is the canonical way to get all operands for liveness analysis.
+    pub fn collect_operands(&self, out: &mut Vec<ValueId>) {
+        match self {
+            // Binary operations
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::SDiv(a, b)
+            | Self::Mod(a, b)
+            | Self::SMod(a, b)
+            | Self::Exp(a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b)
+            | Self::Xor(a, b)
+            | Self::Shl(a, b)
+            | Self::Shr(a, b)
+            | Self::Sar(a, b)
+            | Self::Byte(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b)
+            | Self::Eq(a, b)
+            | Self::MStore(a, b)
+            | Self::MStore8(a, b)
+            | Self::SStore(a, b)
+            | Self::TStore(a, b)
+            | Self::Keccak256(a, b)
+            | Self::Log0(a, b)
+            | Self::SignExtend(a, b) => {
+                out.push(*a);
+                out.push(*b);
+            }
+
+            // Unary operations
+            Self::Not(a)
+            | Self::IsZero(a)
+            | Self::MLoad(a)
+            | Self::SLoad(a)
+            | Self::TLoad(a)
+            | Self::CalldataLoad(a)
+            | Self::ExtCodeSize(a)
+            | Self::ExtCodeHash(a)
+            | Self::Balance(a)
+            | Self::BlockHash(a)
+            | Self::BlobHash(a) => {
+                out.push(*a);
+            }
+
+            // Ternary operations
+            Self::MCopy(a, b, c)
+            | Self::CalldataCopy(a, b, c)
+            | Self::CodeCopy(a, b, c)
+            | Self::ReturnDataCopy(a, b, c)
+            | Self::AddMod(a, b, c)
+            | Self::MulMod(a, b, c)
+            | Self::Create(a, b, c)
+            | Self::Log1(a, b, c)
+            | Self::Select(a, b, c) => {
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+            }
+
+            // 4-operand operations
+            Self::ExtCodeCopy(a, b, c, d)
+            | Self::Create2(a, b, c, d)
+            | Self::Log2(a, b, c, d) => {
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
+            }
+
+            // 5-operand operations
+            Self::Log3(a, b, c, d, e) => {
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
+                out.push(*e);
+            }
+
+            // 6-operand operations
+            Self::Log4(a, b, c, d, e, f) => {
+                out.push(*a);
+                out.push(*b);
+                out.push(*c);
+                out.push(*d);
+                out.push(*e);
+                out.push(*f);
+            }
+
+            // Call operations
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*value);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
+            }
+            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
+            }
+            Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                out.push(*gas);
+                out.push(*addr);
+                out.push(*args_offset);
+                out.push(*args_size);
+                out.push(*ret_offset);
+                out.push(*ret_size);
+            }
+
+            // Phi node - operands are the incoming values
+            Self::Phi(incoming) => {
+                for (_, val) in incoming {
+                    out.push(*val);
+                }
+            }
+
+            // Nullary operations - no operands
+            Self::MSize
+            | Self::CalldataSize
+            | Self::CodeSize
+            | Self::ReturnDataSize
+            | Self::Caller
+            | Self::CallValue
+            | Self::Origin
+            | Self::GasPrice
+            | Self::Coinbase
+            | Self::Timestamp
+            | Self::BlockNumber
+            | Self::PrevRandao
+            | Self::GasLimit
+            | Self::ChainId
+            | Self::Address
+            | Self::SelfBalance
+            | Self::Gas
+            | Self::BaseFee
+            | Self::BlobBaseFee => {}
+        }
+    }
+
     /// Returns the operands of this instruction.
     #[must_use]
     pub fn operands(&self) -> &[ValueId] {

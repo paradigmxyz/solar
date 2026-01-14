@@ -260,6 +260,61 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Keccak256(offset, size), Some(MirType::bytes32()))
     }
 
+    /// Emits a call instruction (external call).
+    #[allow(clippy::too_many_arguments)]
+    pub fn call(
+        &mut self,
+        gas: ValueId,
+        addr: ValueId,
+        value: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits a staticcall instruction (read-only external call).
+    pub fn staticcall(
+        &mut self,
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
+    /// Emits a create instruction (deploy a contract).
+    pub fn create(&mut self, value: ValueId, offset: ValueId, size: ValueId) -> ValueId {
+        self.emit_inst(InstKind::Create(value, offset, size), Some(MirType::Address))
+    }
+
+    /// Emits a create2 instruction (deploy a contract with salt).
+    pub fn create2(
+        &mut self,
+        value: ValueId,
+        offset: ValueId,
+        size: ValueId,
+        salt: ValueId,
+    ) -> ValueId {
+        self.emit_inst(InstKind::Create2(value, offset, size, salt), Some(MirType::Address))
+    }
+
+    /// Emits a codecopy instruction.
+    pub fn codecopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
+        self.emit_inst(InstKind::CodeCopy(dest, offset, size), None)
+    }
+
     /// Emits a select instruction.
     pub fn select(&mut self, cond: ValueId, then_val: ValueId, else_val: ValueId) -> ValueId {
         self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(MirType::uint256()))
