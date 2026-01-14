@@ -40,11 +40,23 @@ error: type `mapping(uint256 => uint256)` is only valid in storage because it co
 LL │         mapping(uint => uint) memory m;
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+error: uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) memory m;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 error: type `struct C.WithMapping calldata` is only valid in storage because it contains a (nested) mapping
    ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
    │
 LL │     function g(WithMapping calldata w) internal {}
    ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) storage s;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 10 previous errors
 

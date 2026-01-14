@@ -39,8 +39,14 @@ contract C {
         WithMapping memory localWithMapping; //~ ERROR: is only valid in storage because it contains a (nested) mapping
 
         mapping(uint => uint) memory m; //~ ERROR: is only valid in storage because it contains a (nested) mapping
+        //~^ ERROR: uninitialized mapping
     }
 
     // Calldata variable containing mapping is also invalid
     function g(WithMapping calldata w) internal {} //~ ERROR: is only valid in storage because it contains a (nested) mapping
+
+    // Uninitialized storage mapping in local variable is invalid
+    function h() internal {
+        mapping(uint => uint) storage s; //~ ERROR: uninitialized mapping
+    }
 }

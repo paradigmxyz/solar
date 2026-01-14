@@ -697,6 +697,17 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
         }
 
+        // Uninitialized local mapping variables are invalid (error 4182).
+        if var.kind == hir::VarKind::Statement
+            && var.initializer.is_none()
+            && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            self.dcx()
+                .err("uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable")
+                .span(var.span)
+                .emit();
+        }
+
         ty
     }
 
