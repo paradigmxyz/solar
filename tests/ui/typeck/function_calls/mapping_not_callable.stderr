@@ -1,0 +1,14 @@
+error: expected function, found `mapping(uint256 => uint256)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/mapping_not_callable.sol:LL:CC
+   │
+LL │     uint a = m(1000);
+   │              ━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/mapping_not_callable.sol:LL:CC
+   │
+LL │     uint a = m(1000);
+   ╰╴             ━━━━━━━
+
+error: aborting due to 1 previous error
+
