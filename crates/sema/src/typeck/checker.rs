@@ -893,8 +893,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err("types in storage containing (nested) mappings cannot be assigned to")
                     .span(var.span)
                     .emit();
-            } else if expect {
-                let _ = self.expect_ty(init, ty);
+            } else {
+                self.check_assign(ty, init);
+                if expect {
+                    let _ = self.expect_ty(init, ty);
+                }
             }
         }
 
@@ -937,8 +940,7 @@ impl<'gcx> TypeChecker<'gcx> {
             && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             self.dcx()
-                .err("uninitialized mapping")
-                .note("mappings cannot be created dynamically, you have to assign them from a state variable")
+                .err("uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable")
                 .span(var.span)
                 .emit();
         }
