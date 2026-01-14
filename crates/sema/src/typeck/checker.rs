@@ -101,12 +101,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
+
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -664,10 +659,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     /// Gets parameter names from variable IDs.
     fn get_param_names(&self, params: &[hir::VariableId]) -> Vec<Option<solar_interface::Symbol>> {
-        params
-            .iter()
-            .map(|&id| self.gcx.hir.variable(id).name.map(|n| n.name))
-            .collect()
+        params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|n| n.name)).collect()
     }
 
     /// Checks call arguments against expected parameter types.
@@ -786,9 +778,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             seen_names.push(arg_name);
 
-            let param_idx = param_names
-                .iter()
-                .position(|n| n.is_some_and(|name| name == arg_name));
+            let param_idx = param_names.iter().position(|n| n.is_some_and(|name| name == arg_name));
 
             match param_idx {
                 Some(idx) => {
@@ -796,9 +786,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 None => {
                     self.dcx()
-                        .err(format!(
-                            "named argument `{arg_name}` does not match any parameter"
-                        ))
+                        .err(format!("named argument `{arg_name}` does not match any parameter"))
                         .span(arg.name.span)
                         .emit();
                     let _ = self.check_expr(&arg.value);

@@ -20,7 +20,7 @@ use crate::{
 
 use solar_ast::{StateMutability, Visibility};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::{diagnostics::DiagCtxt, error_code, Ident, Span};
+use solar_interface::{Ident, Span, diagnostics::DiagCtxt, error_code};
 use std::collections::BTreeSet;
 
 pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
@@ -113,11 +113,7 @@ impl OverrideProxy {
             Self::Function(id) => gcx.hir.function(id).state_mutability,
             Self::Variable(id) => {
                 let v = gcx.hir.variable(id);
-                if v.is_constant() {
-                    StateMutability::Pure
-                } else {
-                    StateMutability::View
-                }
+                if v.is_constant() { StateMutability::Pure } else { StateMutability::View }
             }
         }
     }
@@ -133,11 +129,7 @@ impl OverrideProxy {
         match self {
             Self::Function(id) => {
                 let f = gcx.hir.function(id);
-                if f.kind.is_modifier() {
-                    "modifier"
-                } else {
-                    "function"
-                }
+                if f.kind.is_modifier() { "modifier" } else { "function" }
             }
             Self::Variable(_) => "public state variable",
         }
@@ -282,17 +274,11 @@ impl<'gcx> OverrideChecker<'gcx> {
         let contract = self.contract();
         let inherited = self.inherited_functions();
 
-        let inherited_modifiers: FxHashSet<String> = inherited
-            .keys()
-            .filter(|s| s.is_modifier)
-            .map(|s| s.name.clone())
-            .collect();
+        let inherited_modifiers: FxHashSet<String> =
+            inherited.keys().filter(|s| s.is_modifier).map(|s| s.name.clone()).collect();
 
-        let inherited_functions: FxHashSet<String> = inherited
-            .keys()
-            .filter(|s| !s.is_modifier)
-            .map(|s| s.name.clone())
-            .collect();
+        let inherited_functions: FxHashSet<String> =
+            inherited.keys().filter(|s| !s.is_modifier).map(|s| s.name.clone()).collect();
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
@@ -310,14 +296,12 @@ impl<'gcx> OverrideChecker<'gcx> {
                         .span(f.span)
                         .emit();
                 }
-            } else {
-                if inherited_modifiers.contains(&name) {
-                    self.dcx()
-                        .err("override changes modifier to function")
-                        .code(error_code!(1469))
-                        .span(f.span)
-                        .emit();
-                }
+            } else if inherited_modifiers.contains(&name) {
+                self.dcx()
+                    .err("override changes modifier to function")
+                    .code(error_code!(1469))
+                    .span(f.span)
+                    .emit();
             }
 
             let sig = self.signature(proxy);
@@ -455,10 +439,8 @@ impl<'gcx> OverrideChecker<'gcx> {
 
     fn check_override(&self, overriding: OverrideProxy, base: OverrideProxy) {
         let gcx = self.gcx;
-        let base_in_interface = base
-            .contract(gcx)
-            .map(|c| gcx.hir.contract(c).kind.is_interface())
-            .unwrap_or(false);
+        let base_in_interface =
+            base.contract(gcx).map(|c| gcx.hir.contract(c).kind.is_interface()).unwrap_or(false);
 
         if !overriding.has_override(gcx) && !base_in_interface {
             self.dcx()
@@ -468,7 +450,10 @@ impl<'gcx> OverrideChecker<'gcx> {
                 ))
                 .code(error_code!(9456))
                 .span(overriding.span(gcx))
-                .span_note(base.span(gcx), format!("overridden {} is here", base.ast_node_name(gcx)))
+                .span_note(
+                    base.span(gcx),
+                    format!("overridden {} is here", base.ast_node_name(gcx)),
+                )
                 .emit();
         }
 
@@ -520,7 +505,10 @@ impl<'gcx> OverrideChecker<'gcx> {
                 ))
                 .code(error_code!(4593))
                 .span(overriding.span(gcx))
-                .span_note(base.span(gcx), format!("overridden {} is here", base.ast_node_name(gcx)))
+                .span_note(
+                    base.span(gcx),
+                    format!("overridden {} is here", base.ast_node_name(gcx)),
+                )
                 .emit();
         }
     }
@@ -569,30 +557,22 @@ impl<'gcx> OverrideChecker<'gcx> {
         let base_mut = base.state_mutability(gcx);
 
         let is_stricter = |a: StateMutability, b: StateMutability| -> bool {
-            match (a, b) {
-                (StateMutability::Pure, StateMutability::View) => true,
-                (StateMutability::Pure, StateMutability::NonPayable) => true,
-                (StateMutability::View, StateMutability::NonPayable) => true,
-                _ => false,
-            }
+            matches!(
+                (a, b),
+                (StateMutability::Pure, StateMutability::View)
+                    | (StateMutability::Pure, StateMutability::NonPayable)
+                    | (StateMutability::View, StateMutability::NonPayable)
+            )
         };
 
-        let is_less_strict = |a: StateMutability, b: StateMutability| -> bool {
-            a != b && !is_stricter(a, b)
-        };
+        let is_less_strict =
+            |a: StateMutability, b: StateMutability| -> bool { a != b && !is_stricter(a, b) };
 
-        if base_mut == StateMutability::Payable && overriding_mut != StateMutability::Payable {
-            self.dcx()
-                .err(format!(
-                    "overriding {} changes state mutability from \"{}\" to \"{}\"",
-                    overriding.ast_node_name(gcx),
-                    base_mut.to_str(),
-                    overriding_mut.to_str()
-                ))
-                .code(error_code!(6959))
-                .span(overriding.span(gcx))
-                .emit();
-        } else if is_less_strict(overriding_mut, base_mut) {
+        let has_incompatible_mutability =
+            (base_mut == StateMutability::Payable && overriding_mut != StateMutability::Payable)
+                || is_less_strict(overriding_mut, base_mut);
+
+        if has_incompatible_mutability {
             self.dcx()
                 .err(format!(
                     "overriding {} changes state mutability from \"{}\" to \"{}\"",
