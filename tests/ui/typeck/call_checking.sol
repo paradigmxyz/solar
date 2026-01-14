@@ -3,16 +3,47 @@
 
 contract CallChecking {
     event E(uint a, bytes32 b);
+    event EmptyEvent();
     error MyError(uint code, bytes32 message);
+    error EmptyError();
+
+    struct MyStruct {
+        uint x;
+        bytes32 y;
+    }
 
     function target(uint x, bytes32 y) public pure {}
     function noArgs() public pure returns (uint256) {
         return 42;
     }
+    function multiReturn() public pure returns (uint, bytes32) {
+        return (1, "hi");
+    }
 
     // === Correct positional arguments (no errors expected) ===
     function testPositional() public pure {
         target(1, "hi");
+        noArgs();
+        multiReturn();
+    }
+
+    // === Zero-arg function/event/error calls (no errors expected) ===
+    function testZeroArgs() public pure {
+        noArgs();
+    }
+    function testEmptyEvent() public {
+        emit EmptyEvent();
+    }
+    function testEmptyError() public pure {
+        revert EmptyError();
+    }
+    
+    // === Empty event/error with wrong args (should error) ===
+    function testEmptyEventWithArgs() public {
+        emit EmptyEvent(1); //~ ERROR: wrong number of arguments
+    }
+    function testEmptyErrorWithArgs() public pure {
+        revert EmptyError(1); //~ ERROR: wrong number of arguments
     }
 
     // === Named arguments not supported for function calls ===
@@ -102,5 +133,34 @@ contract CallChecking {
         //~^ ERROR: wrong number of arguments
         //~| ERROR: duplicate named argument
         revert MyError({code: 1, msg: "hi"}); //~ ERROR: named argument `msg` does not match
+    }
+
+    // === Named arguments in different order (should work for events/errors) ===
+    function testNamedArgOrder() public {
+        emit E({b: "hello", a: 1}); // OK - reversed order
+        revert MyError({message: "error", code: 500}); // OK - reversed order
+    }
+
+    // === Missing named arguments (fewer than required, no duplicates) ===
+    function testMissingNamedArgs() public {
+        emit E({a: 1}); //~ ERROR: wrong number of arguments
+        revert MyError({code: 404}); //~ ERROR: wrong number of arguments
+    }
+
+    // === Struct constructor calls ===
+    function testStructConstructor() public pure {
+        MyStruct memory s1 = MyStruct(1, "hi"); // OK positional
+        MyStruct memory s2 = MyStruct({x: 1, y: "hi"}); //~ ERROR: named arguments are not supported
+        MyStruct memory s3 = MyStruct(1); //~ ERROR: wrong number of arguments
+        MyStruct memory s4 = MyStruct(1, "hi", 3); //~ ERROR: wrong number of arguments
+        MyStruct memory s5 = MyStruct("hi", 1);
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === Calling non-function ===
+    function testNonFunctionCall() public pure {
+        uint x = 42;
+        x(1); //~ ERROR: expected function
     }
 }

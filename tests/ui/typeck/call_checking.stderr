@@ -1,3 +1,19 @@
+error: wrong number of arguments: expected 0, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit EmptyEvent(1);
+   │         ━━━━━━━━━━━━━━━┬──━
+   │                        │
+   ╰╴                       expected 0 arguments, found 1
+
+error: wrong number of arguments: expected 0, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert EmptyError(1);
+   │         ━━━━━━━━━━━━━━━━━┬──━
+   │                          │
+   ╰╴                         expected 0 arguments, found 1
+
 error: named arguments are not supported for this function
    ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
    │
@@ -138,5 +154,67 @@ error: named argument `msg` does not match any parameter
 LL │         revert MyError({code: 1, msg: "hi"});
    ╰╴                                 ━━━
 
-error: aborting due to 21 previous errors
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1});
+   │         ━━━━━━┬───────━
+   │               │
+   ╰╴              expected 2 arguments, found 1
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 404});
+   │         ━━━━━━━━━━━━━━┬────────────━
+   │                       │
+   ╰╴                      expected 2 arguments, found 1
+
+error: named arguments are not supported for this function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         MyStruct memory s2 = MyStruct({x: 1, y: "hi"});
+   ╰╴                                     ━━━━━━━━━━━━━━━━━
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         MyStruct memory s3 = MyStruct(1);
+   │                              ━━━━━━━━┬──
+   │                                      │
+   ╰╴                                     expected 2 arguments, found 1
+
+error: wrong number of arguments: expected 2, got 3
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         MyStruct memory s4 = MyStruct(1, "hi", 3);
+   │                              ━━━━━━━━┬───────────
+   │                                      │
+   ╰╴                                     expected 2 arguments, found 3
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         MyStruct memory s5 = MyStruct("hi", 1);
+   ╰╴                                      ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         MyStruct memory s5 = MyStruct("hi", 1);
+   ╰╴                                            ━ expected `bytes32`, found `int_literal[1]`
+
+error: expected function, found `uint256`
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         x(1);
+   │         ━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         x(1);
+   ╰╴        ━━━━
+
+error: aborting due to 31 previous errors
 
