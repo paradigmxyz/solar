@@ -685,6 +685,18 @@ impl<'gcx> Ty<'gcx> {
                 if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
             }
 
+            // Tuple conversions: element-wise implicit conversion with same length.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#tuple-types>
+            (Tuple(from_tys), Tuple(to_tys)) => {
+                if from_tys.len() != to_tys.len() {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                for (&from_ty, &to_ty) in std::iter::zip(from_tys, to_tys) {
+                    from_ty.try_convert_implicit_to(to_ty, gcx)?;
+                }
+                Ok(())
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
