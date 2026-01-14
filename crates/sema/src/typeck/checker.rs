@@ -161,17 +161,20 @@ impl<'gcx> TypeChecker<'gcx> {
                             }
                             ResolvedCallee::CallableArgsChecked(callable_id) => {
                                 // Args already type-checked during overload resolution (no expected
-                                // types) But we still need to
-                                // validate named arg semantics
+                                // types).
                                 let callee_ty = self.gcx.type_of_item(callable_id);
                                 self.register_ty(callee, callee_ty);
-                                self.validate_named_call_args(callable_id, args, expr.span);
                                 self.callable_return_type(callable_id)
                             }
                             ResolvedCallee::NonCallable(res) => {
                                 let callee_ty = self.type_of_res(res);
                                 self.register_ty(callee, callee_ty);
-                                self.check_non_callable_call(callee_ty, args, expr.span)
+                                self.check_non_callable_call(
+                                    callee_ty,
+                                    args,
+                                    expr.span,
+                                    callee.span,
+                                )
                             }
                             ResolvedCallee::Ambiguous(_candidates) => {
                                 let err = self.dcx().err("ambiguous call").span(callee.span).emit();
@@ -208,7 +211,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Non-ident callee (member calls, etc.)
                         // TODO: allow named arguments for member calls
                         let callee_ty = self.check_expr(callee);
-                        self.check_non_callable_call(callee_ty, args, expr.span)
+                        self.check_non_callable_call(callee_ty, args, expr.span, callee.span)
                     }
                 };
 
@@ -814,15 +817,17 @@ impl<'gcx> TypeChecker<'gcx> {
     /// Handles calls to non-callable types (struct constructors, type casts, FnPtr, etc.).
     fn check_non_callable_call(
         &mut self,
-        mut callee_ty: Ty<'gcx>,
+        callee_ty: Ty<'gcx>,
         args: &'gcx CallArgs<'gcx>,
         call_span: Span,
+        callee_span: Span,
     ) -> Ty<'gcx> {
-        // Handle struct constructors: TyKind::Type(struct_ty) where struct_ty is a Struct
+        // Handle struct constructors: `S(...)` where `S` is a struct type.
         if let TyKind::Type(struct_ty) = callee_ty.kind
             && let TyKind::Struct(id) = struct_ty.kind
         {
-            callee_ty = struct_constructor(self.gcx, struct_ty, id);
+            self.check_struct_constructor_args(id, args, call_span);
+            return struct_ty.with_loc(self.gcx, DataLocation::Memory);
         }
 
         match callee_ty.kind {
@@ -845,6 +850,10 @@ impl<'gcx> TypeChecker<'gcx> {
                             let actual_ty = self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
                             self.register_ty(arg_expr, actual_ty);
                             self.check_expected(arg_expr, actual_ty, *expected_arg_ty);
+                        }
+
+                        for arg_expr in exprs.iter().skip(f.parameters.len()) {
+                            let _ = self.check_expr(arg_expr);
                         }
                     }
                     hir::CallArgsKind::Named(_) => {
@@ -887,7 +896,7 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Err(_) => callee_ty,
             _ => {
                 let msg = format!("expected function, found `{}`", callee_ty.display(self.gcx));
-                let mut err = self.dcx().err(msg).span(call_span);
+                let mut err = self.dcx().err(msg).span(callee_span);
                 err = err.span_note(call_span, "call expression requires function");
 
                 for arg_expr in args.exprs() {
@@ -898,36 +907,110 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    /// Returns the shape (param count, param names) of a callable for shape-based matching.
-    fn callable_shape(
-        &self,
-        callable_id: hir::ItemId,
-    ) -> (usize, FxHashSet<solar_interface::Symbol>) {
-        let mut count = 0;
-        let mut names = FxHashSet::default();
-        for (name, _ty) in self.gcx.item_named_parameters(callable_id) {
-            count += 1;
-            if let Some(ident) = name {
-                names.insert(ident.name);
-            }
-        }
-        (count, names)
-    }
+    fn check_struct_constructor_args(
+        &mut self,
+        id: hir::StructId,
+        args: &'gcx CallArgs<'gcx>,
+        call_span: Span,
+    ) {
+        let s = self.gcx.hir.strukt(id);
+        let field_tys: Vec<_> = self
+            .gcx
+            .struct_field_types(id)
+            .iter()
+            .map(|&ty| ty.with_loc_if_ref(self.gcx, DataLocation::Memory))
+            .collect();
 
-    /// Checks if args match the callable's shape (arity + named arg set).
-    fn args_match_shape(&self, args: &'gcx CallArgs<'gcx>, callable_id: hir::ItemId) -> bool {
-        let (param_count, param_names) = self.callable_shape(callable_id);
+        debug_assert_eq!(s.fields.len(), field_tys.len());
 
         match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => exprs.len() == param_count,
-            hir::CallArgsKind::Named(named_args) => {
-                if named_args.len() != param_count {
-                    return false;
+            hir::CallArgsKind::Unnamed(exprs) => {
+                if exprs.len() != field_tys.len() {
+                    self.dcx()
+                        .err(format!(
+                            "wrong number of arguments: expected {}, found {}",
+                            field_tys.len(),
+                            exprs.len()
+                        ))
+                        .span(args.span)
+                        .emit();
                 }
 
-                named_args.iter().all(|arg| param_names.contains(&arg.name.name))
+                for (arg_expr, &expected_ty) in exprs.iter().zip(field_tys.iter()) {
+                    let actual_ty = self.check_expr_kind(arg_expr, Some(expected_ty));
+                    self.register_ty(arg_expr, actual_ty);
+                    self.check_expected(arg_expr, actual_ty, expected_ty);
+                }
+
+                for arg_expr in exprs.iter().skip(field_tys.len()) {
+                    let _ = self.check_expr(arg_expr);
+                }
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if s.fields.iter().any(|&f| self.gcx.hir.variable(f).name.is_none()) {
+                    self.dcx().bug("struct field missing name").span(args.span).emit();
+                }
+
+                let mut seen_names = FxHashSet::default();
+                for arg in named_args.iter() {
+                    if !seen_names.insert(arg.name.name) {
+                        self.dcx()
+                            .err(format!("duplicate argument `{}`", arg.name))
+                            .span(arg.name.span)
+                            .emit();
+                    }
+                }
+
+                let param_map: FxHashMap<_, _> = s
+                    .fields
+                    .iter()
+                    .zip(field_tys.iter())
+                    .map(|(&var_id, &ty)| (self.gcx.hir.variable(var_id).name.unwrap().name, ty))
+                    .collect();
+
+                for arg in named_args.iter() {
+                    if let Some(&expected_ty) = param_map.get(&arg.name.name) {
+                        let actual_ty = self.check_expr_kind(&arg.value, Some(expected_ty));
+                        self.register_ty(&arg.value, actual_ty);
+                        self.check_expected(&arg.value, actual_ty, expected_ty);
+                    } else {
+                        self.dcx()
+                            .err(format!("unknown argument `{}`", arg.name))
+                            .span(arg.name.span)
+                            .emit();
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+
+                for &var_id in s.fields {
+                    let ident = self.gcx.hir.variable(var_id).name.unwrap();
+                    if !named_args.iter().any(|arg| arg.name.name == ident.name) {
+                        self.dcx()
+                            .err(format!("missing argument `{ident}`"))
+                            .span(call_span)
+                            .emit();
+                    }
+                }
             }
         }
+    }
+
+    /// Returns the shape (arity, param names) of a callable for overload resolution.
+    fn callable_shape(&self, callable_id: hir::ItemId) -> CallableShape {
+        let mut param_count = 0;
+        let mut param_names = FxHashSet::default();
+        let mut all_named = true;
+
+        for (name, _ty) in self.gcx.item_named_parameters(callable_id) {
+            param_count += 1;
+            if let Some(ident) = name {
+                param_names.insert(ident.name);
+            } else {
+                all_named = false;
+            }
+        }
+
+        CallableShape { param_count, param_names, all_named }
     }
 
     /// Checks if arg types can be implicitly converted to callable's param types.
@@ -984,41 +1067,6 @@ impl<'gcx> TypeChecker<'gcx> {
             },
             TyKind::Event(..) | TyKind::Error(..) => self.gcx.types.unit,
             _ => self.gcx.types.unit,
-        }
-    }
-
-    /// Validates named call args for semantic issues (duplicates, missing params).
-    ///
-    /// This is called from `CallableArgsChecked` path where args are already type-checked
-    /// but semantic validation was skipped during overload resolution.
-    fn validate_named_call_args(
-        &self,
-        callable_id: hir::ItemId,
-        args: &'gcx CallArgs<'gcx>,
-        call_span: Span,
-    ) {
-        let hir::CallArgsKind::Named(named_args) = args.kind else {
-            return; // Unnamed args don't need this validation
-        };
-
-        let named_params: Vec<_> = self.gcx.item_named_parameters(callable_id).collect();
-
-        let mut seen_names = FxHashSet::default();
-        for arg in named_args.iter() {
-            if !seen_names.insert(arg.name.name) {
-                self.dcx()
-                    .err(format!("duplicate argument `{}`", arg.name))
-                    .span(arg.name.span)
-                    .emit();
-            }
-        }
-
-        for (param_name, _ty) in named_params.iter() {
-            if let Some(param_ident) = param_name
-                && !named_args.iter().any(|arg| arg.name.name == param_ident.name)
-            {
-                self.dcx().err(format!("missing argument `{param_ident}`")).span(call_span).emit();
-            }
         }
     }
 
@@ -1097,32 +1145,111 @@ impl<'gcx> TypeChecker<'gcx> {
             },
             1 => ResolvedCallee::Callable(callables[0]),
             _ => {
-                let shape_matching: SmallVec<[hir::ItemId; 4]> =
-                    callables.into_iter().filter(|&id| self.args_match_shape(args, id)).collect();
+                match args.kind {
+                    hir::CallArgsKind::Unnamed(exprs) => {
+                        let mut shape_matching: SmallVec<[hir::ItemId; 4]> = SmallVec::new();
+                        for &id in &callables {
+                            let shape = self.callable_shape(id);
+                            if shape.param_count == exprs.len() {
+                                shape_matching.push(id);
+                            }
+                        }
 
-                if shape_matching.is_empty() {
-                    return match non_callables.len() {
-                        1 => ResolvedCallee::NonCallable(non_callables[0]),
-                        0 => ResolvedCallee::None,
-                        _ => ResolvedCallee::Ambiguous(res_list),
-                    };
-                }
+                        if shape_matching.is_empty() {
+                            return match non_callables.len() {
+                                1 => ResolvedCallee::NonCallable(non_callables[0]),
+                                0 => ResolvedCallee::None,
+                                _ => ResolvedCallee::Ambiguous(res_list),
+                            };
+                        }
 
-                if shape_matching.len() == 1 {
-                    return ResolvedCallee::Callable(shape_matching[0]);
-                }
+                        if shape_matching.len() == 1 {
+                            return ResolvedCallee::Callable(shape_matching[0]);
+                        }
 
-                let arg_types: Vec<Ty<'gcx>> = args.exprs().map(|e| self.check_expr(e)).collect();
+                        let arg_types: Vec<Ty<'gcx>> =
+                            exprs.iter().map(|e| self.check_expr(e)).collect();
 
-                let type_matching: SmallVec<[hir::ItemId; 4]> = shape_matching
-                    .into_iter()
-                    .filter(|&id| self.args_convertible_to_params(id, args, &arg_types))
-                    .collect();
+                        let type_matching: SmallVec<[hir::ItemId; 4]> = shape_matching
+                            .into_iter()
+                            .filter(|&id| self.args_convertible_to_params(id, args, &arg_types))
+                            .collect();
 
-                match type_matching.len() {
-                    1 => ResolvedCallee::CallableArgsChecked(type_matching[0]),
-                    0 => ResolvedCallee::None,
-                    _ => ResolvedCallee::Ambiguous(res_list),
+                        match type_matching.len() {
+                            1 => ResolvedCallee::CallableArgsChecked(type_matching[0]),
+                            0 => ResolvedCallee::None,
+                            _ => ResolvedCallee::Ambiguous(res_list),
+                        }
+                    }
+                    hir::CallArgsKind::Named(named_args) => {
+                        let mut named_callables: SmallVec<[hir::ItemId; 4]> = SmallVec::new();
+                        for &id in &callables {
+                            if self.callable_shape(id).all_named {
+                                named_callables.push(id);
+                            }
+                        }
+
+                        // If we don't have names available for any candidate, let argument
+                        // checking emit the relevant diagnostic.
+                        if named_callables.is_empty() {
+                            return ResolvedCallee::Callable(callables[0]);
+                        }
+
+                        // If the call has duplicate names, prefer reporting named-arg diagnostics
+                        // over overload resolution.
+                        let mut seen = FxHashSet::default();
+                        let has_dups = named_args.iter().any(|arg| !seen.insert(arg.name.name));
+                        if has_dups {
+                            return ResolvedCallee::Callable(named_callables[0]);
+                        }
+
+                        let mut compatible: SmallVec<[hir::ItemId; 4]> = SmallVec::new();
+                        for &id in &named_callables {
+                            let shape = self.callable_shape(id);
+                            if named_args
+                                .iter()
+                                .all(|arg| shape.param_names.contains(&arg.name.name))
+                            {
+                                compatible.push(id);
+                            }
+                        }
+
+                        // Unknown names (relative to all candidates) should be reported as
+                        // named-argument diagnostics
+                        if compatible.is_empty() {
+                            return ResolvedCallee::Callable(named_callables[0]);
+                        }
+
+                        let mut exact_arity: SmallVec<[hir::ItemId; 4]> = SmallVec::new();
+                        for &id in &compatible {
+                            if self.callable_shape(id).param_count == named_args.len() {
+                                exact_arity.push(id);
+                            }
+                        }
+
+                        if exact_arity.len() == 1 {
+                            return ResolvedCallee::Callable(exact_arity[0]);
+                        }
+
+                        if exact_arity.is_empty() {
+                            // Missing/extra named args should be diagnosed as missing/unknown
+                            return ResolvedCallee::Callable(compatible[0]);
+                        }
+
+                        let arg_types: Vec<Ty<'gcx>> =
+                            named_args.iter().map(|arg| self.check_expr(&arg.value)).collect();
+
+                        let type_matching: SmallVec<[hir::ItemId; 4]> = exact_arity
+                            .into_iter()
+                            .filter(|&id| self.args_convertible_to_params(id, args, &arg_types))
+                            .collect();
+
+                        match type_matching.len() {
+                            1 => ResolvedCallee::CallableArgsChecked(type_matching[0]),
+                            0 => ResolvedCallee::None,
+                            _ => ResolvedCallee::Ambiguous(res_list),
+                        }
+                    }
                 }
             }
         }
@@ -1358,6 +1485,12 @@ enum OverloadError {
     Ambiguous,
 }
 
+struct CallableShape {
+    param_count: usize,
+    param_names: FxHashSet<solar_interface::Symbol>,
+    all_named: bool,
+}
+
 /// Result of resolving an ident callee.
 /// - Single callable: returns `Callable` (args not checked, use expected types)
 /// - Multiple callables: type-based filtering, returns `CallableArgsChecked` (args already checked)
@@ -1572,16 +1705,5 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
             | TyKind::Contract(_)
             | TyKind::Enum(_)
-    )
-}
-
-fn struct_constructor<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>, id: hir::StructId) -> Ty<'gcx> {
-    gcx.mk_builtin_fn(
-        &gcx.struct_field_types(id)
-            .iter()
-            .map(|&ty| ty.with_loc_if_ref(gcx, DataLocation::Memory))
-            .collect::<Vec<_>>(),
-        hir::StateMutability::Pure,
-        &[ty.with_loc(gcx, DataLocation::Memory)],
     )
 }
