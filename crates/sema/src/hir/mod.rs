@@ -899,10 +899,15 @@ pub struct Enum<'hir> {
 /// A user-defined value type.
 #[derive(Debug)]
 pub struct Udvt<'hir> {
+    /// The source this UDVT is defined in.
     pub source: SourceId,
+    /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
+    /// The UDVT span.
     pub span: Span,
+    /// The UDVT name.
     pub name: Ident,
+    /// The UDVT type.
     pub ty: Type<'hir>,
     /// Operator bindings from `using { f as op } for T`.
     ///
