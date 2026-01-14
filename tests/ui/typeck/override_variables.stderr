@@ -1,0 +1,20 @@
+error[8022]: override can only be used with public state variables
+   ╭▸ ROOT/tests/ui/typeck/override_variables.sol:LL:CC
+   │
+LL │     uint internal override x;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7792]: Function has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/typeck/override_variables.sol:LL:CC
+   │
+LL │     uint public override noBase;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7792]: public state variable has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/typeck/override_variables.sol:LL:CC
+   │
+LL │     uint public override noBase;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+
