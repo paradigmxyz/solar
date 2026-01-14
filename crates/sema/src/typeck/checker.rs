@@ -170,14 +170,22 @@ impl<'gcx> TypeChecker<'gcx> {
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
+                    TyKind::FnPtr(f) => {
+                        self.check_call_args(expr.span, args, f.parameters, None);
+                        self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) => {
-                        // return callee_ty
-                        todo!()
+                    TyKind::Event(param_tys, id) => {
+                        let event = self.gcx.hir.event(id);
+                        let param_names = self.get_param_names(event.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Error(param_tys, id) => {
+                        let error = self.gcx.hir.error(id);
+                        let param_names = self.get_param_names(error.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
                     _ => {
@@ -642,6 +650,161 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
         diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
         diag.emit();
+    }
+
+    /// Returns the return type for a function call.
+    #[must_use]
+    fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        match returns.len() {
+            0 => self.gcx.types.unit,
+            1 => returns[0],
+            _ => self.gcx.mk_ty(TyKind::Tuple(returns)),
+        }
+    }
+
+    /// Gets parameter names from variable IDs.
+    fn get_param_names(&self, params: &[hir::VariableId]) -> Vec<Option<solar_interface::Symbol>> {
+        params
+            .iter()
+            .map(|&id| self.gcx.hir.variable(id).name.map(|n| n.name))
+            .collect()
+    }
+
+    /// Checks call arguments against expected parameter types.
+    ///
+    /// Handles both positional and named arguments, validating:
+    /// - Argument count matches parameter count
+    /// - Each argument type is implicitly convertible to the parameter type
+    /// - Named arguments match parameter names (no duplicates, all valid)
+    fn check_call_args(
+        &mut self,
+        call_span: Span,
+        args: &'gcx hir::CallArgs<'gcx>,
+        param_tys: &'gcx [Ty<'gcx>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
+    ) {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if let Some(names) = param_names {
+                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
+                } else {
+                    self.dcx()
+                        .err("named arguments are not supported for this function")
+                        .span(args.span)
+                        .emit();
+                    for arg in named_args {
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Checks positional (unnamed) call arguments.
+    fn check_positional_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        param_tys: &'gcx [Ty<'gcx>],
+    ) {
+        if exprs.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong number of arguments: expected {}, got {}",
+                    param_tys.len(),
+                    exprs.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        exprs.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let count = std::cmp::min(exprs.len(), param_tys.len());
+        for i in 0..count {
+            let _ = self.expect_ty(&exprs[i], param_tys[i]);
+        }
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr(expr);
+        }
+    }
+
+    /// Checks named call arguments.
+    fn check_named_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+        param_tys: &'gcx [Ty<'gcx>],
+        param_names: &[Option<solar_interface::Symbol>],
+    ) {
+        debug_assert_eq!(param_tys.len(), param_names.len());
+
+        if named_args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong number of arguments: expected {}, got {}",
+                    param_tys.len(),
+                    named_args.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        named_args.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
+
+        for arg in named_args {
+            let arg_name = arg.name.name;
+
+            if seen_names.contains(&arg_name) {
+                self.dcx()
+                    .err(format!("duplicate named argument `{arg_name}`"))
+                    .span(arg.name.span)
+                    .emit();
+                let _ = self.check_expr(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            let param_idx = param_names
+                .iter()
+                .position(|n| n.is_some_and(|name| name == arg_name));
+
+            match param_idx {
+                Some(idx) => {
+                    let _ = self.expect_ty(&arg.value, param_tys[idx]);
+                }
+                None => {
+                    self.dcx()
+                        .err(format!(
+                            "named argument `{arg_name}` does not match any parameter"
+                        ))
+                        .span(arg.name.span)
+                        .emit();
+                    let _ = self.check_expr(&arg.value);
+                }
+            }
+        }
     }
 
     #[must_use]

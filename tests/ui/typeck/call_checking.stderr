@@ -1,0 +1,32 @@
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         add(1);
+   │         ━━━┬──
+   │            │
+   ╰╴           expected 2 arguments, found 1
+
+error: wrong number of arguments: expected 2, got 3
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         add(1, 2, 3);
+   │         ━━━┬────────
+   │            │
+   ╰╴           expected 2 arguments, found 3
+
+error: wrong number of arguments: expected 0, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         noArgs(1);
+   │         ━━━━━━┬──
+   │               │
+   ╰╴              expected 0 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         add("hello", 2);
+   ╰╴            ━━━━━━━ expected `uint256`, found `utf8_string_literal[5]`
+
+error: aborting due to 4 previous errors
+
