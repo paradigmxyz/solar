@@ -3,11 +3,14 @@
 //! The scheduler takes operands needed for an instruction and generates
 //! the sequence of stack operations to arrange them on the stack.
 
-use super::model::{StackModel, StackOp, MAX_STACK_ACCESS};
-use super::spill::{SpillManager, SpillSlot};
-use crate::analysis::Liveness;
-use crate::mir::{BlockId, Function, ValueId};
-
+use super::{
+    model::{MAX_STACK_ACCESS, StackModel, StackOp},
+    spill::{SpillManager, SpillSlot},
+};
+use crate::{
+    analysis::Liveness,
+    mir::{BlockId, Function, ValueId},
+};
 
 /// Stack scheduler that generates stack manipulation operations.
 pub struct StackScheduler {
@@ -39,11 +42,7 @@ impl StackScheduler {
     /// Creates a new stack scheduler.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            stack: StackModel::new(),
-            spills: SpillManager::new(),
-            ops: Vec::new(),
-        }
+        Self { stack: StackModel::new(), spills: SpillManager::new(), ops: Vec::new() }
     }
 
     /// Clears the scheduled operations (after emitting them).
@@ -126,11 +125,13 @@ impl StackScheduler {
         }
 
         if let Some(depth) = self.stack.find(value)
-            && depth < MAX_STACK_ACCESS && depth > 0 {
-                let swap_n = depth as u8;
-                self.stack.swap(swap_n);
-                return Some(StackOp::Swap(swap_n));
-            }
+            && depth < MAX_STACK_ACCESS
+            && depth > 0
+        {
+            let swap_n = depth as u8;
+            self.stack.swap(swap_n);
+            return Some(StackOp::Swap(swap_n));
+        }
 
         None
     }

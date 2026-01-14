@@ -9,7 +9,7 @@ mod evm;
 pub use evm::EvmCodegen;
 
 pub mod assembler;
-pub use assembler::{Assembler, AssembledCode, Label};
+pub use assembler::{AssembledCode, Assembler, Label};
 
 pub mod stack;
-pub use stack::{StackModel, StackScheduler, SpillManager, SpillSlot};
+pub use stack::{SpillManager, SpillSlot, StackModel, StackScheduler};

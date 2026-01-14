@@ -6,10 +6,14 @@
 //! - Stack scheduling to generate DUP/SWAP sequences
 //! - Two-pass assembly for label resolution
 
-use crate::analysis::{eliminate_phis, Liveness, ParallelCopy};
-use crate::codegen::assembler::{opcodes, Assembler, Label};
-use crate::codegen::stack::{ScheduledOp, StackScheduler};
-use crate::mir::{BlockId, Function, InstKind, Module, Terminator, ValueId};
+use crate::{
+    analysis::{Liveness, ParallelCopy, eliminate_phis},
+    codegen::{
+        assembler::{Assembler, Label, opcodes},
+        stack::{ScheduledOp, StackScheduler},
+    },
+    mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
+};
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
 
@@ -66,9 +70,10 @@ impl EvmCodegen {
         // PUSH2 = 3 bytes (for values 256-65535)
         //
         // Worst case for small contracts:
-        // PUSH2 runtime_len (3) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0 (1) + RETURN (1) = 10
-        // For contracts < 256 bytes:
-        // PUSH1 runtime_len (2) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0 (1) + RETURN (1) = 9
+        // PUSH2 runtime_len (3) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0
+        // (1) + RETURN (1) = 10 For contracts < 256 bytes:
+        // PUSH1 runtime_len (2) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0
+        // (1) + RETURN (1) = 9
 
         // Calculate push sizes
         let len_push_size = if runtime_len == 0 {
@@ -254,7 +259,9 @@ impl EvmCodegen {
                 }
 
                 // Find the value ID that corresponds to this instruction (if any)
-                let result_value = func.values.iter_enumerated()
+                let result_value = func
+                    .values
+                    .iter_enumerated()
                     .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
                     .map(|(vid, _)| vid);
 
@@ -288,19 +295,41 @@ impl EvmCodegen {
     ) {
         match kind {
             // Binary arithmetic operations
-            InstKind::Add(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::ADD, result_value),
-            InstKind::Sub(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::SUB, result_value),
-            InstKind::Mul(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::MUL, result_value),
-            InstKind::Div(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::DIV, result_value),
-            InstKind::SDiv(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::SDIV, result_value),
-            InstKind::Mod(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::MOD, result_value),
-            InstKind::SMod(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::SMOD, result_value),
-            InstKind::Exp(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::EXP, result_value),
+            InstKind::Add(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::ADD, result_value)
+            }
+            InstKind::Sub(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::SUB, result_value)
+            }
+            InstKind::Mul(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::MUL, result_value)
+            }
+            InstKind::Div(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::DIV, result_value)
+            }
+            InstKind::SDiv(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::SDIV, result_value)
+            }
+            InstKind::Mod(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::MOD, result_value)
+            }
+            InstKind::SMod(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::SMOD, result_value)
+            }
+            InstKind::Exp(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::EXP, result_value)
+            }
 
             // Bitwise operations
-            InstKind::And(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::AND, result_value),
-            InstKind::Or(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::OR, result_value),
-            InstKind::Xor(a, b) => self.emit_binary_op_with_result(func, *a, *b, opcodes::XOR, result_value),
+            InstKind::And(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::AND, result_value)
+            }
+            InstKind::Or(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::OR, result_value)
+            }
+            InstKind::Xor(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::XOR, result_value)
+            }
             InstKind::Not(a) => self.emit_unary_op(func, *a, opcodes::NOT),
             InstKind::Shl(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SHL),
             InstKind::Shr(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SHR),
@@ -322,15 +351,15 @@ impl EvmCodegen {
             InstKind::MSize => self.asm.emit_op(opcodes::MSIZE),
 
             // Storage operations
-            InstKind::SLoad(slot) => self.emit_unary_op_with_result(func, *slot, opcodes::SLOAD, result_value),
+            InstKind::SLoad(slot) => {
+                self.emit_unary_op_with_result(func, *slot, opcodes::SLOAD, result_value)
+            }
             InstKind::SStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::SSTORE),
             InstKind::TLoad(slot) => self.emit_unary_op(func, *slot, opcodes::TLOAD),
             InstKind::TStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::TSTORE),
 
             // Calldata operations
-            InstKind::CalldataLoad(off) => {
-                self.emit_unary_op(func, *off, opcodes::CALLDATALOAD)
-            }
+            InstKind::CalldataLoad(off) => self.emit_unary_op(func, *off, opcodes::CALLDATALOAD),
             InstKind::CalldataSize => self.asm.emit_op(opcodes::CALLDATASIZE),
 
             // Hash operations
@@ -450,7 +479,8 @@ impl EvmCodegen {
             // External calls
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
-                // Stack needs (top to bottom): gas, addr, value, argsOffset, argsSize, retOffset, retSize
+                // Stack needs (top to bottom): gas, addr, value, argsOffset, argsSize, retOffset,
+                // retSize
                 //
                 // NOTE: Due to how MIR is structured, `gas` and `addr` are instruction results
                 // that were emitted immediately before this CALL. They are already on the stack.
@@ -463,9 +493,9 @@ impl EvmCodegen {
                 // 1. Push all the immediate values
                 // 2. Then swap to get the order right
                 //
-                // For simplicity, emit all as immediates - the computed values (gas, addr) 
+                // For simplicity, emit all as immediates - the computed values (gas, addr)
                 // will be pushed fresh since they're immediate in our lowering.
-                
+
                 self.emit_value(func, *ret_size);
                 self.emit_value(func, *ret_offset);
                 self.emit_value(func, *args_size);
@@ -473,7 +503,7 @@ impl EvmCodegen {
                 self.emit_value(func, *value);
                 self.emit_value(func, *addr);
                 self.emit_value(func, *gas);
-                
+
                 self.asm.emit_op(opcodes::CALL);
                 self.scheduler.instruction_executed(7, None);
             }
@@ -556,7 +586,14 @@ impl EvmCodegen {
     }
 
     /// Emits a binary operation with result tracking.
-    fn emit_binary_op_with_result(&mut self, func: &Function, a: ValueId, b: ValueId, opcode: u8, result: Option<ValueId>) {
+    fn emit_binary_op_with_result(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        b: ValueId,
+        opcode: u8,
+        result: Option<ValueId>,
+    ) {
         self.emit_value(func, b);
         self.emit_value(func, a);
         self.asm.emit_op(opcode);
@@ -572,7 +609,13 @@ impl EvmCodegen {
     }
 
     /// Emits a unary operation with result tracking.
-    fn emit_unary_op_with_result(&mut self, func: &Function, a: ValueId, opcode: u8, result: Option<ValueId>) {
+    fn emit_unary_op_with_result(
+        &mut self,
+        func: &Function,
+        a: ValueId,
+        opcode: u8,
+        result: Option<ValueId>,
+    ) {
         self.emit_value(func, a);
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(1, result);
@@ -587,14 +630,7 @@ impl EvmCodegen {
     }
 
     /// Emits a ternary operation.
-    fn emit_ternary_op(
-        &mut self,
-        func: &Function,
-        a: ValueId,
-        b: ValueId,
-        c: ValueId,
-        opcode: u8,
-    ) {
+    fn emit_ternary_op(&mut self, func: &Function, a: ValueId, b: ValueId, c: ValueId, opcode: u8) {
         self.emit_value(func, c);
         self.emit_value(func, b);
         self.emit_value(func, a);

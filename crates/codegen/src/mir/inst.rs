@@ -300,9 +300,7 @@ impl InstKind {
             }
 
             // 4-operand operations
-            Self::ExtCodeCopy(a, b, c, d)
-            | Self::Create2(a, b, c, d)
-            | Self::Log2(a, b, c, d) => {
+            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
                 out.push(*a);
                 out.push(*b);
                 out.push(*c);

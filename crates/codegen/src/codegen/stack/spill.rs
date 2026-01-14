@@ -38,11 +38,7 @@ impl SpillManager {
     /// Creates a new spill manager.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            slots: FxHashMap::default(),
-            next_offset: 0,
-            max_offset: 0,
-        }
+        Self { slots: FxHashMap::default(), next_offset: 0, max_offset: 0 }
     }
 
     /// Allocates a spill slot for a value.

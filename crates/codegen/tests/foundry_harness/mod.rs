@@ -2,10 +2,19 @@
 //!
 //! This module tests Solar's codegen by comparing execution results
 //! between Solar-compiled and solc-compiled contracts.
+#![allow(
+    unreachable_pub,
+    clippy::uninlined_format_args,
+    dead_code,
+    unused_variables,
+    unused_imports
+)]
 
-use std::collections::HashMap;
-use std::path::Path;
-use std::process::{Command, Stdio};
+use std::{
+    collections::HashMap,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 /// Result of a contract call.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,7 +36,8 @@ impl FoundryHarness {
         Self {
             anvil_port: port,
             anvil_process: None,
-            private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".to_string(),
+            private_key: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                .to_string(),
         }
     }
 
@@ -125,15 +135,8 @@ impl FoundryHarness {
     /// Sends a transaction with arguments.
     pub fn send_with_args(&self, contract: &str, sig: &str, args: &[&str]) -> Result<(), String> {
         let rpc = self.rpc_url();
-        let mut cmd_args = vec![
-            "send",
-            contract,
-            sig,
-            "--rpc-url",
-            &rpc,
-            "--private-key",
-            &self.private_key,
-        ];
+        let mut cmd_args =
+            vec!["send", contract, sig, "--rpc-url", &rpc, "--private-key", &self.private_key];
         cmd_args.extend(args);
 
         let output = Command::new("cast").args(&cmd_args).output().map_err(|e| e.to_string())?;
@@ -153,7 +156,7 @@ impl Drop for FoundryHarness {
 
 /// Compiles a Solidity source with Solar and returns (deployment_bytecode, runtime_bytecode).
 pub fn compile_with_solar(source: &str) -> Result<(String, String), String> {
-    use solar_codegen::{lower, EvmCodegen};
+    use solar_codegen::{EvmCodegen, lower};
     use solar_interface::Session;
     use solar_sema::Compiler;
     use std::ops::ControlFlow;
@@ -163,9 +166,7 @@ pub fn compile_with_solar(source: &str) -> Result<(String, String), String> {
     let source_path = temp_dir.path().join("Contract.sol");
     std::fs::write(&source_path, source).map_err(|e| e.to_string())?;
 
-    let sess = Session::builder()
-        .with_buffer_emitter(solar_interface::ColorChoice::Never)
-        .build();
+    let sess = Session::builder().with_buffer_emitter(solar_interface::ColorChoice::Never).build();
 
     let mut compiler = Compiler::new(sess);
 
@@ -185,9 +186,11 @@ pub fn compile_with_solar(source: &str) -> Result<(String, String), String> {
         let gcx = compiler.gcx();
 
         // Get the first contract
-        let (contract_id, _contract) = gcx.hir.contracts_enumerated().next().ok_or_else(|| {
-            compiler.gcx().sess.dcx.err("no contracts found").emit()
-        })?;
+        let (contract_id, _contract) = gcx
+            .hir
+            .contracts_enumerated()
+            .next()
+            .ok_or_else(|| compiler.gcx().sess.dcx.err("no contracts found").emit())?;
 
         let module = lower::lower_contract(gcx, contract_id);
         let mut codegen = EvmCodegen::new();
@@ -204,26 +207,22 @@ pub fn compile_with_solar(source: &str) -> Result<(String, String), String> {
 
 /// Compiles multiple contracts with Solar using two-pass compilation for `new` support.
 /// Returns a map of contract_name -> (deployment_bytecode, runtime_bytecode).
-pub fn compile_all_with_solar(
-    source: &str,
-) -> Result<HashMap<String, (String, String)>, String> {
-    use solar_codegen::{lower, EvmCodegen, FxHashMap};
+pub fn compile_all_with_solar(source: &str) -> Result<HashMap<String, (String, String)>, String> {
+    use solar_codegen::{EvmCodegen, FxHashMap, lower};
     use solar_interface::Session;
-    use solar_sema::{hir::ContractId, Compiler};
+    use solar_sema::{Compiler, hir::ContractId};
     use std::ops::ControlFlow;
 
     let temp_dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     let source_path = temp_dir.path().join("Contract.sol");
     std::fs::write(&source_path, source).map_err(|e| e.to_string())?;
 
-    let sess = Session::builder()
-        .with_buffer_emitter(solar_interface::ColorChoice::Never)
-        .build();
+    let sess = Session::builder().with_buffer_emitter(solar_interface::ColorChoice::Never).build();
 
     let mut compiler = Compiler::new(sess);
 
-    let result =
-        compiler.enter_mut(|compiler| -> solar_interface::Result<HashMap<String, (String, String)>> {
+    let result = compiler.enter_mut(
+        |compiler| -> solar_interface::Result<HashMap<String, (String, String)>> {
             let mut pcx = compiler.parse();
             pcx.load_files([source_path.as_path()])?;
             pcx.parse();
@@ -244,7 +243,8 @@ pub fn compile_all_with_solar(
             for (contract_id, _contract) in gcx.hir.contracts_enumerated() {
                 let module = lower::lower_contract(gcx, contract_id);
                 let mut codegen = EvmCodegen::new();
-                let (deployment_bytecode, _runtime_bytecode) = codegen.generate_deployment_bytecode(&module);
+                let (deployment_bytecode, _runtime_bytecode) =
+                    codegen.generate_deployment_bytecode(&module);
                 all_bytecodes.insert(contract_id, deployment_bytecode);
             }
 
@@ -266,7 +266,8 @@ pub fn compile_all_with_solar(
             }
 
             Ok(contracts_output)
-        });
+        },
+    );
 
     result.map_err(|_| "compilation failed".to_string())
 }
@@ -278,11 +279,7 @@ pub fn compile_with_solc(source: &str) -> Result<(String, String), String> {
     std::fs::write(&source_path, source).map_err(|e| e.to_string())?;
 
     let output = Command::new("solc")
-        .args([
-            "--combined-json",
-            "bin,bin-runtime",
-            source_path.to_str().unwrap(),
-        ])
+        .args(["--combined-json", "bin,bin-runtime", source_path.to_str().unwrap()])
         .output()
         .map_err(|e| e.to_string())?;
 
@@ -377,7 +374,8 @@ contract Constant {
 
         // Both should return 42 (0x2a)
         assert!(
-            solar_value.contains("000000000000000000000000000000000000000000000000000000000000002a"),
+            solar_value
+                .contains("000000000000000000000000000000000000000000000000000000000000002a"),
             "Solar returned wrong value: {}",
             solar_value
         );
@@ -869,8 +867,14 @@ contract Max {
     fn test_summary_stats() {
         let contracts = vec![
             ("Empty", r#"contract Empty {}"#),
-            ("Counter", r#"contract Counter { uint256 public c; function inc() public { c = c + 1; } }"#),
-            ("Math", r#"contract Math { function add(uint256 a, uint256 b) public pure returns (uint256) { return a + b; } }"#),
+            (
+                "Counter",
+                r#"contract Counter { uint256 public c; function inc() public { c = c + 1; } }"#,
+            ),
+            (
+                "Math",
+                r#"contract Math { function add(uint256 a, uint256 b) public pure returns (uint256) { return a + b; } }"#,
+            ),
         ];
 
         println!("\n=== Compilation Size Comparison ===");
@@ -878,10 +882,8 @@ contract Max {
         println!("{}", "-".repeat(52));
 
         for (name, source) in contracts {
-            let full_source = format!(
-                "// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n{}",
-                source
-            );
+            let full_source =
+                format!("// SPDX-License-Identifier: MIT\npragma solidity ^0.8.0;\n{}", source);
 
             let solar = compile_with_solar(&full_source);
             let solc = compile_with_solc(&full_source);
@@ -889,15 +891,9 @@ contract Max {
             if let (Ok((solar_bc, _)), Ok((solc_bc, _))) = (solar, solc) {
                 let solar_size = (solar_bc.len() - 2) / 2;
                 let solc_size = (solc_bc.len() - 2) / 2;
-                let reduction = if solc_size > 0 {
-                    100 - (100 * solar_size / solc_size)
-                } else {
-                    0
-                };
-                println!(
-                    "{:<15} {:>10} B {:>10} B {:>9}%",
-                    name, solar_size, solc_size, reduction
-                );
+                let reduction =
+                    if solc_size > 0 { 100 - (100 * solar_size / solc_size) } else { 0 };
+                println!("{:<15} {:>10} B {:>10} B {:>9}%", name, solar_size, solc_size, reduction);
             }
         }
         println!();
@@ -948,11 +944,7 @@ contract Factory {
 
         // Factory should have bytecode that includes CREATE instruction
         // Factory bytecode should contain the CREATE opcode (0xf0)
-        assert!(
-            factory_bytecode.len() > 10,
-            "Factory bytecode too short: {}",
-            factory_bytecode
-        );
+        assert!(factory_bytecode.len() > 10, "Factory bytecode too short: {}", factory_bytecode);
     }
 
     /// Test: External calls

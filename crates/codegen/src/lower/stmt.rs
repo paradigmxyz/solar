@@ -166,10 +166,7 @@ impl<'gcx> Lowerer<'gcx> {
         let exit_block = builder.create_block();
 
         // Push loop context for break/continue
-        self.push_loop(LoopContext {
-            break_target: exit_block,
-            continue_target: loop_block,
-        });
+        self.push_loop(LoopContext { break_target: exit_block, continue_target: loop_block });
 
         builder.jump(loop_block);
 

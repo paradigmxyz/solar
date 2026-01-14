@@ -536,7 +536,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Args offset is 0 (where calldata starts)
         let args_offset = builder.imm_u64(0);
 
-        // Return data location (use offset 0, overwriting calldata since we don't need it after call)
+        // Return data location (use offset 0, overwriting calldata since we don't need it after
+        // call)
         let ret_offset = builder.imm_u64(0);
         let ret_size = builder.imm_u64(32);
 
@@ -547,7 +548,8 @@ impl<'gcx> Lowerer<'gcx> {
         let value = builder.imm_u64(0);
 
         // Emit the CALL instruction
-        let _success = builder.call(gas, addr, value, args_offset, calldata_size, ret_offset, ret_size);
+        let _success =
+            builder.call(gas, addr, value, args_offset, calldata_size, ret_offset, ret_size);
 
         // Load return value from memory
         builder.mload(ret_offset)
@@ -560,23 +562,24 @@ impl<'gcx> Lowerer<'gcx> {
 
         // First, try to get the contract type from the base expression
         if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
-                let var = self.gcx.hir.variable(*var_id);
-                // Get the type of the variable
-                let ty = self.gcx.type_of_hir_ty(&var.ty);
-                if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
-                    // Find the function with this name in the contract
-                    let contract = self.gcx.hir.contract(contract_id);
-                    for func_id in contract.all_functions() {
-                        let func = self.gcx.hir.function(func_id);
-                        if func.name.is_some_and(|n| n.name == member.name) {
-                            // Found the function, get its selector
-                            let selector = self.gcx.function_selector(func_id);
-                            return u32::from_be_bytes(selector.0);
-                        }
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            // Get the type of the variable
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
+                // Find the function with this name in the contract
+                let contract = self.gcx.hir.contract(contract_id);
+                for func_id in contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        // Found the function, get its selector
+                        let selector = self.gcx.function_selector(func_id);
+                        return u32::from_be_bytes(selector.0);
                     }
                 }
             }
+        }
 
         // Fallback: compute selector from member name
         // This is a simplified version - proper implementation would use full signature

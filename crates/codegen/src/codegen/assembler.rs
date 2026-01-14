@@ -47,10 +47,7 @@ impl Assembler {
     /// Creates a new assembler.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            instructions: Vec::new(),
-            next_label: 0,
-        }
+        Self { instructions: Vec::new(), next_label: 0 }
     }
 
     /// Creates a new label.
@@ -153,10 +150,11 @@ impl Assembler {
         // Compute new widths based on resolved offsets
         for (idx, inst) in self.instructions.iter().enumerate() {
             if let AsmInst::PushLabel(label) = inst
-                && let Some(&target_offset) = label_offsets.get(label) {
-                    let width = push_width(U256::from(target_offset));
-                    new_widths.insert(idx, width);
-                }
+                && let Some(&target_offset) = label_offsets.get(label)
+            {
+                let width = push_width(U256::from(target_offset));
+                new_widths.insert(idx, width);
+            }
         }
 
         (label_offsets, new_widths)
@@ -190,10 +188,7 @@ impl Assembler {
             }
         }
 
-        AssembledCode {
-            bytecode,
-            label_offsets: label_offsets.clone(),
-        }
+        AssembledCode { bytecode, label_offsets: label_offsets.clone() }
     }
 }
 

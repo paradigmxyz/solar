@@ -4,14 +4,13 @@
 //! This is necessary because the EVM cannot directly execute phi nodes.
 //!
 //! The algorithm:
-//! 1. For each phi node in block B with incoming value V from predecessor P,
-//!    insert a copy from V to the phi's destination at the end of P.
+//! 1. For each phi node in block B with incoming value V from predecessor P, insert a copy from V
+//!    to the phi's destination at the end of P.
 //! 2. Handle cycles by detecting when copies form a cycle and using a temporary.
 //! 3. Remove the phi instructions after copies are inserted.
 
 use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
 use rustc_hash::FxHashMap;
-
 
 /// A parallel copy operation: copy from source to destination.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,9 +87,10 @@ pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
 fn find_phi_dst(func: &Function, inst_id: InstId) -> Option<ValueId> {
     for (val_id, val) in func.values.iter_enumerated() {
         if let Value::Inst(def_inst) = val
-            && *def_inst == inst_id {
-                return Some(val_id);
-            }
+            && *def_inst == inst_id
+        {
+            return Some(val_id);
+        }
     }
     None
 }
@@ -121,9 +121,10 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>) {
     for (i, copy) in pending.iter().enumerate() {
         // If copy i reads from value X, and copy j writes to X, then j is blocked by i
         if let Some(&writer_idx) = writes_to.get(&copy.src)
-            && writer_idx != i {
-                blocked_by[writer_idx] += 1;
-            }
+            && writer_idx != i
+        {
+            blocked_by[writer_idx] += 1;
+        }
     }
 
     let mut emitted = vec![false; pending.len()];
@@ -146,9 +147,11 @@ fn sequentialize_copies(copies: &mut Vec<ParallelCopy>) {
                 // Unblock anyone who was waiting for us to read their dst
                 // (i.e., if our src is someone else's dst)
                 if let Some(&blocked_writer) = writes_to.get(&pending[i].src)
-                    && blocked_writer != i && !emitted[blocked_writer] {
-                        blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
-                    }
+                    && blocked_writer != i
+                    && !emitted[blocked_writer]
+                {
+                    blocked_by[blocked_writer] = blocked_by[blocked_writer].saturating_sub(1);
+                }
             }
         }
 
@@ -185,10 +188,7 @@ pub(crate) struct CopyInst {
 /// Returns copies in the order they should be executed.
 #[allow(dead_code)]
 pub(crate) fn generate_copy_sequence(copies: &[ParallelCopy]) -> Vec<CopyInst> {
-    copies
-        .iter()
-        .map(|c| CopyInst { src: c.src, dst: c.dst })
-        .collect()
+    copies.iter().map(|c| CopyInst { src: c.src, dst: c.dst }).collect()
 }
 
 #[cfg(test)]

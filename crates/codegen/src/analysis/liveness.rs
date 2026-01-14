@@ -172,9 +172,10 @@ impl Liveness {
 
                 // Record definition
                 if let Value::Inst(def_inst) = func.value(ValueId::from_usize(inst_id.index()))
-                    && *def_inst == inst_id {
-                        block_defs[bidx].insert(ValueId::from_usize(inst_id.index()));
-                    }
+                    && *def_inst == inst_id
+                {
+                    block_defs[bidx].insert(ValueId::from_usize(inst_id.index()));
+                }
 
                 // Handle the result value
                 // The instruction defines a value if it has a result
@@ -182,10 +183,11 @@ impl Liveness {
                     // Find the ValueId that corresponds to this instruction
                     for (val_id, val) in func.values.iter_enumerated() {
                         if let Value::Inst(inst) = val
-                            && *inst == inst_id {
-                                block_defs[bidx].insert(val_id);
-                                break;
-                            }
+                            && *inst == inst_id
+                        {
+                            block_defs[bidx].insert(val_id);
+                            break;
+                        }
                     }
                 }
             }
@@ -288,7 +290,12 @@ impl Liveness {
     /// Computes liveness at a specific instruction within a block.
     /// Returns values live before and after the instruction.
     #[must_use]
-    pub fn live_at_inst(&self, func: &Function, block_id: BlockId, inst_idx: usize) -> LivenessInfo {
+    pub fn live_at_inst(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        inst_idx: usize,
+    ) -> LivenessInfo {
         let bidx = block_id.index();
         let block = &func.blocks[block_id];
 
@@ -318,9 +325,10 @@ impl Liveness {
             // Remove definition (value becomes dead before this instruction)
             for (val_id, val) in func.values.iter_enumerated() {
                 if let Value::Inst(def_inst) = val
-                    && *def_inst == inst_id {
-                        live.remove(val_id);
-                    }
+                    && *def_inst == inst_id
+                {
+                    live.remove(val_id);
+                }
             }
 
             // Add uses (values become live before this instruction)
@@ -331,18 +339,12 @@ impl Liveness {
             }
 
             if idx == inst_idx {
-                return LivenessInfo {
-                    live_before: live,
-                    live_after: live_after.unwrap(),
-                };
+                return LivenessInfo { live_before: live, live_after: live_after.unwrap() };
             }
         }
 
         // Should not reach here
-        LivenessInfo {
-            live_before: live.clone(),
-            live_after: live,
-        }
+        LivenessInfo { live_before: live.clone(), live_after: live }
     }
 
     /// Returns the last use location of a value, if known.
@@ -357,9 +359,7 @@ impl Liveness {
     #[must_use]
     pub fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         match self.last_use.get(&val) {
-            Some(&(last_block, Some(last_idx))) => {
-                last_block == block && last_idx == inst_idx
-            }
+            Some(&(last_block, Some(last_idx))) => last_block == block && last_idx == inst_idx,
             _ => false,
         }
     }

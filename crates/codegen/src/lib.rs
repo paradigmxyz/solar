@@ -5,6 +5,7 @@
 )]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs), allow(internal_features))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(test, allow(unused_crate_dependencies))]
 
 extern crate derive_more as _;
 extern crate tracing as _;
@@ -26,6 +27,6 @@ pub use lower::Lowerer;
 
 pub mod codegen;
 pub use codegen::{
-    Assembler, AssembledCode, EvmCodegen, Label, SpillManager, SpillSlot, StackModel,
+    AssembledCode, Assembler, EvmCodegen, Label, SpillManager, SpillSlot, StackModel,
     StackScheduler,
 };

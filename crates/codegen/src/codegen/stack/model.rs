@@ -15,7 +15,7 @@ pub(crate) const MAX_STACK_ACCESS: usize = 16;
 pub(crate) const MAX_STACK_DEPTH: usize = 1024;
 
 /// Represents the current state of the EVM stack.
-/// 
+///
 /// Stack positions are 0-indexed from the top:
 /// - Position 0 = top of stack
 /// - Position 1 = second from top
@@ -59,11 +59,7 @@ impl StackModel {
     /// Pops the top value from the stack.
     /// Returns the value that was at the top, if known.
     pub fn pop(&mut self) -> Option<ValueId> {
-        if self.stack.is_empty() {
-            None
-        } else {
-            self.stack.remove(0)
-        }
+        if self.stack.is_empty() { None } else { self.stack.remove(0) }
     }
 
     /// Returns the value at the given stack depth (0 = top).
@@ -171,8 +167,8 @@ impl StackOp {
     #[must_use]
     pub const fn opcode(self) -> u8 {
         match self {
-            Self::Dup(n) => 0x80 + n - 1,   // DUP1 = 0x80
-            Self::Swap(n) => 0x90 + n - 1,  // SWAP1 = 0x90
+            Self::Dup(n) => 0x80 + n - 1,  // DUP1 = 0x80
+            Self::Swap(n) => 0x90 + n - 1, // SWAP1 = 0x90
             Self::Pop => 0x50,
         }
     }

@@ -1,6 +1,7 @@
 //! Simple example to test the full codegen pipeline.
+#![allow(unused_crate_dependencies)]
 
-use solar_codegen::{lower, mir::module_to_dot, EvmCodegen};
+use solar_codegen::{EvmCodegen, lower, mir::module_to_dot};
 use solar_interface::{ColorChoice, Session};
 use solar_sema::Compiler;
 use std::{ops::ControlFlow, path::Path};
@@ -26,9 +27,7 @@ fn main() {
     let path = Path::new(file_path);
 
     // Create session with buffer emitter
-    let sess = Session::builder()
-        .with_buffer_emitter(ColorChoice::Auto)
-        .build();
+    let sess = Session::builder().with_buffer_emitter(ColorChoice::Auto).build();
 
     // Create compiler
     let mut compiler = Compiler::new(sess);

@@ -5,11 +5,20 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use solar_codegen::{lower, EvmCodegen, FxHashMap};
+use solar_codegen::{EvmCodegen, FxHashMap, lower};
 use solar_config::{ImportRemapping, Opts};
 use solar_interface::Session;
-use solar_sema::{hir::ContractId, Compiler};
-use std::{collections::BTreeMap, io::{self, Read, Write}, ops::ControlFlow};
+use solar_sema::{Compiler, hir::ContractId};
+use std::{
+    collections::BTreeMap,
+    io::{self, Read, Write},
+    ops::ControlFlow,
+};
+
+/// Type alias for internal contract data: (ABI, deployment_hex, runtime_hex)
+type ContractData = (Vec<Value>, String, String);
+/// Type alias for the contracts map: source_name -> contract_name -> ContractData
+type ContractsMap = BTreeMap<String, BTreeMap<String, ContractData>>;
 
 /// Standard JSON input format (subset of solc's format).
 #[derive(Debug, Deserialize)]
@@ -242,17 +251,15 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
     }
 
     // Parse import remappings from JSON input
-    let import_remappings: Vec<ImportRemapping> = input
-        .settings
-        .remappings
-        .iter()
-        .filter_map(|s| s.parse().ok())
-        .collect();
+    let import_remappings: Vec<ImportRemapping> =
+        input.settings.remappings.iter().filter_map(|s| s.parse().ok()).collect();
 
     // Build opts with remappings and base_path
-    let mut opts = Opts::default();
-    opts.import_remappings = import_remappings;
-    opts.base_path = Some(temp_dir.path().to_path_buf());
+    let opts = Opts {
+        import_remappings,
+        base_path: Some(temp_dir.path().to_path_buf()),
+        ..Default::default()
+    };
 
     // Create session with buffer emitter (to capture errors as JSON)
     let sess = Session::builder()
@@ -263,8 +270,7 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
     let mut compiler = Compiler::new(sess);
 
     // Parse and compile
-    // Result type: source_name -> contract_name -> (abi, deployment_hex, runtime_hex)
-    let compile_result = compiler.enter_mut(|compiler| -> solar_interface::Result<BTreeMap<String, BTreeMap<String, (Vec<Value>, String, String)>>> {
+    let compile_result = compiler.enter_mut(|compiler| -> solar_interface::Result<ContractsMap> {
         // Parse files
         let mut pcx = compiler.parse();
         let paths: Vec<&std::path::Path> = source_paths.iter().map(|(_, p)| p.as_path()).collect();
@@ -293,14 +299,14 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
 
             // Generate deployment bytecode
             let mut codegen = EvmCodegen::new();
-            let (deployment_bytecode, _runtime_bytecode) = codegen.generate_deployment_bytecode(&module);
+            let (deployment_bytecode, _runtime_bytecode) =
+                codegen.generate_deployment_bytecode(&module);
 
             all_bytecodes.insert(contract_id, deployment_bytecode);
         }
 
         // Pass 2: Recompile with bytecodes available for `new` expressions
-        // Mapping: source_name -> contract_name -> (abi, deployment_hex, runtime_hex)
-        let mut contracts_output: BTreeMap<String, BTreeMap<String, (Vec<Value>, String, String)>> = BTreeMap::new();
+        let mut contracts_output: ContractsMap = BTreeMap::new();
 
         for (contract_id, contract) in gcx.hir.contracts_enumerated() {
             // Find source file name for this contract by matching the file path
@@ -316,7 +322,8 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
 
             // Generate bytecode (deployment and runtime)
             let mut codegen = EvmCodegen::new();
-            let (deployment_bytecode, runtime_bytecode) = codegen.generate_deployment_bytecode(&module);
+            let (deployment_bytecode, runtime_bytecode) =
+                codegen.generate_deployment_bytecode(&module);
             let deployment_hex = alloy_primitives::hex::encode(&deployment_bytecode);
             let runtime_hex = alloy_primitives::hex::encode(&runtime_bytecode);
 
@@ -337,7 +344,9 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
     match compile_result {
         Ok(contracts) => {
             for (source_name, source_contracts) in contracts {
-                for (contract_name, (abi, deployment_bytecode, runtime_bytecode)) in source_contracts {
+                for (contract_name, (abi, deployment_bytecode, runtime_bytecode)) in
+                    source_contracts
+                {
                     let contract_output = ContractOutput {
                         abi,
                         evm: EvmOutput {
