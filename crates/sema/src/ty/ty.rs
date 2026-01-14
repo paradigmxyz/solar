@@ -624,37 +624,6 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // Tuple conversions: element-wise implicit conversion with same length.
-            // See: <https://docs.soliditylang.org/en/latest/types.html#tuple-types>
-            (Tuple(from_tys), Tuple(to_tys)) => {
-                if from_tys.len() != to_tys.len() {
-                    return Result::Err(TyConvertError::Incompatible);
-                }
-                for (&from_ty, &to_ty) in std::iter::zip(from_tys, to_tys) {
-                    from_ty.try_convert_implicit_to(to_ty, gcx)?;
-                }
-                Ok(())
-            }
-
-            // Array conversions: element types must be exactly the same.
-            // Unlike scalars, arrays do NOT allow implicit element type widening.
-            // Dynamic arrays: same base type required.
-            (DynArray(from_elem), DynArray(to_elem)) => {
-                if from_elem == to_elem {
-                    Ok(())
-                } else {
-                    Result::Err(TyConvertError::Incompatible)
-                }
-            }
-            // Fixed arrays: same base type and same length required.
-            (Array(from_elem, from_len), Array(to_elem, to_len)) => {
-                if from_len == to_len && from_elem == to_elem {
-                    Ok(())
-                } else {
-                    Result::Err(TyConvertError::Incompatible)
-                }
-            }
-
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
