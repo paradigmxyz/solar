@@ -548,8 +548,6 @@ impl<'gcx> ResolveContext<'gcx> {
             self.arena.alloc_smallvec(overrides)
         };
         self.hir.variables[id].overrides = overrides;
-
-        // Update the getter function's overrides to match.
         if let Some(getter_id) = var_getter {
             self.hir.functions[getter_id].overrides = overrides;
         }
