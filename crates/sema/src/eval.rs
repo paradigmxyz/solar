@@ -244,7 +244,7 @@ impl EvalErrorKind {
         EvalError { kind: self, span }
     }
 
-    fn msg(&self) -> &'static str {
+    pub fn msg(&self) -> &'static str {
         match self {
             Self::RecursionLimitReached => "recursion limit reached",
             Self::ArithmeticOverflow => "arithmetic overflow",
