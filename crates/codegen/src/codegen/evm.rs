@@ -505,7 +505,8 @@ impl EvmCodegen {
                 self.emit_value(func, *gas);
 
                 self.asm.emit_op(opcodes::CALL);
-                self.scheduler.instruction_executed(7, None);
+                // CALL consumes 7 values and produces 1 (success bool)
+                self.scheduler.instruction_executed(7, result_value);
             }
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
@@ -517,7 +518,8 @@ impl EvmCodegen {
                 self.emit_value(func, *addr);
                 self.emit_value(func, *gas);
                 self.asm.emit_op(opcodes::STATICCALL);
-                self.scheduler.instruction_executed(6, None);
+                // STATICCALL consumes 6 values and produces 1 (success bool)
+                self.scheduler.instruction_executed(6, result_value);
             }
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
@@ -529,7 +531,8 @@ impl EvmCodegen {
                 self.emit_value(func, *addr);
                 self.emit_value(func, *gas);
                 self.asm.emit_op(opcodes::DELEGATECALL);
-                self.scheduler.instruction_executed(6, None);
+                // DELEGATECALL consumes 6 values and produces 1 (success bool)
+                self.scheduler.instruction_executed(6, result_value);
             }
 
             // TODO: Implement remaining operations

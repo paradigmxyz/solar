@@ -49,6 +49,30 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Call(callee, args, _named_args) => self.lower_call(builder, callee, args),
 
             ExprKind::Index(base, index) => {
+                // Check if base is a mapping (state variable with mapping type)
+                if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
+                    // This is a mapping access: mapping[key]
+                    // Storage slot = keccak256(abi.encode(key, base_slot))
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let slot_val = builder.imm_u64(slot);
+                    let computed_slot = self.compute_mapping_slot(builder, index_val, slot_val);
+
+                    // Check if this is a nested mapping
+                    let var = self.gcx.hir.variable(var_id);
+                    if let hir::TypeKind::Mapping(map) = &var.ty.kind
+                        && matches!(map.value.kind, hir::TypeKind::Mapping(_))
+                    {
+                        // Nested mapping - return the computed slot for further indexing
+                        return computed_slot;
+                    }
+
+                    return builder.sload(computed_slot);
+                }
+
+                // Regular array/memory access
                 let base_val = self.lower_expr(builder, base);
                 let index_val = match index {
                     Some(idx) => self.lower_expr(builder, idx),
@@ -65,10 +89,18 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mload(base_val)
             }
 
-            ExprKind::Assign(lhs, _op, rhs) => {
+            ExprKind::Assign(lhs, op, rhs) => {
                 let rhs_val = self.lower_expr(builder, rhs);
-                self.lower_assign(builder, lhs, rhs_val);
-                rhs_val
+                // Handle compound assignment (+=, -=, etc.)
+                let final_val = if let Some(bin_op) = op {
+                    // Read current value, apply operator, then assign
+                    let lhs_val = self.lower_expr(builder, lhs);
+                    self.lower_binary_op(builder, lhs_val, *bin_op, rhs_val)
+                } else {
+                    rhs_val
+                };
+                self.lower_assign(builder, lhs, final_val);
+                final_val
             }
 
             ExprKind::Tuple(elements) => {
@@ -330,6 +362,21 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             ExprKind::Index(base, index) => {
+                // Check if base is a mapping (state variable with mapping type)
+                if let Some((_var_id, slot)) = self.get_mapping_base_slot(base) {
+                    // This is a mapping assignment: mapping[key] = value
+                    // Storage slot = keccak256(abi.encode(key, base_slot))
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let slot_val = builder.imm_u64(slot);
+                    let computed_slot = self.compute_mapping_slot(builder, index_val, slot_val);
+                    builder.sstore(computed_slot, rhs);
+                    return;
+                }
+
+                // Regular array/memory assignment
                 let base_val = self.lower_expr(builder, base);
                 let index_val = match index {
                     Some(idx) => self.lower_expr(builder, idx),
@@ -504,6 +551,55 @@ impl<'gcx> Lowerer<'gcx> {
         member: Ident,
         args: &CallArgs<'_>,
     ) -> ValueId {
+        // Handle address payable transfer/send builtins
+        let member_name = member.name.as_str();
+        if member_name == "transfer" || member_name == "send" {
+            // payable(addr).transfer(amount) or payable(addr).send(amount)
+            // CALL(2300, addr, amount, 0, 0, 0, 0)
+            let addr = self.lower_expr(builder, base);
+            let mut exprs = args.exprs();
+            let amount = if let Some(first) = exprs.next() {
+                self.lower_expr(builder, first)
+            } else {
+                builder.imm_u64(0)
+            };
+
+            // transfer/send uses 2300 gas stipend
+            let gas_stipend = builder.imm_u64(2300);
+            // Create fresh zero values for each CALL argument to avoid stack issues
+            let zero_args_offset = builder.imm_u64(0);
+            let zero_args_size = builder.imm_u64(0);
+            let zero_ret_offset = builder.imm_u64(0);
+            let zero_ret_size = builder.imm_u64(0);
+
+            // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
+            let success = builder.call(
+                gas_stipend,
+                addr,
+                amount,
+                zero_args_offset,
+                zero_args_size,
+                zero_ret_offset,
+                zero_ret_size,
+            );
+
+            if member_name == "transfer" {
+                // transfer reverts on failure
+                let is_failure = builder.iszero(success);
+                let revert_block = builder.create_block();
+                let continue_block = builder.create_block();
+                builder.branch(is_failure, revert_block, continue_block);
+                builder.switch_to_block(revert_block);
+                let revert_offset = builder.imm_u64(0);
+                let revert_size = builder.imm_u64(0);
+                builder.revert(revert_offset, revert_size);
+                builder.switch_to_block(continue_block);
+                return builder.imm_u64(0);
+            }
+            // send returns success bool
+            return success;
+        }
+
         // Look up the function being called to get its selector
         let selector = self.compute_member_selector(base, member);
 
@@ -553,6 +649,44 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Load return value from memory
         builder.mload(ret_offset)
+    }
+
+    /// Checks if an expression is a mapping state variable and returns its var_id and storage slot.
+    fn get_mapping_base_slot(&self, expr: &hir::Expr<'_>) -> Option<(hir::VariableId, u64)> {
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            // Check if this variable has mapping type
+            if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
+                // Look up the storage slot
+                if let Some(&slot) = self.storage_slots.get(var_id) {
+                    return Some((*var_id, slot));
+                }
+            }
+        }
+        None
+    }
+
+    /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
+    /// Memory layout: key at offset 0, slot at offset 32, hash from [0, 64)
+    fn compute_mapping_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        key: ValueId,
+        slot: ValueId,
+    ) -> ValueId {
+        // Store key at memory offset 0
+        let mem_0 = builder.imm_u64(0);
+        builder.mstore(mem_0, key);
+
+        // Store slot at memory offset 32
+        let mem_32 = builder.imm_u64(32);
+        builder.mstore(mem_32, slot);
+
+        // Compute keccak256 of 64 bytes starting at offset 0
+        let size_64 = builder.imm_u64(64);
+        builder.keccak256(mem_0, size_64)
     }
 
     /// Computes the function selector for a member call.
