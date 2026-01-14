@@ -125,6 +125,10 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+## Divergence from solc
+
+Solar aims for compatibility with `solc`, but makes intentional deviations in certain areas for performance or implementation reasons. See [SOLC_DIVERGENCE.md](/SOLC_DIVERGENCE.md) for details.
+
 ## Roadmap
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).
