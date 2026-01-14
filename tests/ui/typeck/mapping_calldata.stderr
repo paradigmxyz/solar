@@ -1,0 +1,8 @@
+error: type `struct C.WithMapping calldata` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_calldata.sol:LL:CC
+   │
+LL │     function f(WithMapping calldata w) internal {}
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

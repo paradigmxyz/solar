@@ -31,7 +31,10 @@ contract C {
     uint immutable VALID_IMMUT;
 
     // Memory variable containing mapping is invalid
-    function f() public {
+    function f() internal {
         WithMapping memory localWithMapping; //~ ERROR: is only valid in storage because it contains a (nested) mapping
+
+        // Direct mapping in memory is also invalid
+        mapping(uint => uint) memory m; //~ ERROR: is only valid in storage because it contains a (nested) mapping
     }
 }

@@ -665,18 +665,17 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
-        if var.is_constant() {
-            if var.initializer.is_none() {
-                self.dcx().err("uninitialized `constant` variable").span(var.span).emit();
-            } else if let Some(init) = var.initializer
-                && !self.is_compile_time_constant(init)
-            {
-                self.dcx()
-                    .err("initial value for constant variable has to be compile-time constant")
-                    .span(init.span)
-                    .emit();
-            }
-        } else if var.is_immutable() {
+        if var.is_constant()
+            && let Some(init) = var.initializer
+            && !self.is_compile_time_constant(init)
+        {
+            self.dcx()
+                .err("initial value for constant variable has to be compile-time constant")
+                .span(init.span)
+                .emit();
+        }
+
+        if var.is_immutable() {
             if !ty.is_value_type() {
                 self.dcx()
                     .err("immutable variables cannot have a non-value type")

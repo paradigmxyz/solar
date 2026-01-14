@@ -28,5 +28,11 @@ error: type `struct C.WithMapping memory` is only valid in storage because it co
 LL │         WithMapping memory localWithMapping;
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 5 previous errors
+error: type `mapping(uint256 => uint256)` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) memory m;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
 
