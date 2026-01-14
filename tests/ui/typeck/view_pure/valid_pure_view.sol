@@ -23,4 +23,9 @@ contract C {
     function viewReadsMsgSender() public view returns (address) {
         return msg.sender;
     }
+
+    // Payable function that reads msg.value
+    function goodPayable() public payable returns (uint256) {
+        return msg.value;
+    }
 }
