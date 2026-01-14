@@ -397,7 +397,9 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         for &base_id in contract.bases.iter() {
             let base = self.gcx.hir.contract(base_id);
-            let mut seen_in_this_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
+
+            // Collect functions/variables defined directly in this base.
+            let mut defined_in_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
 
             for f_id in base.functions() {
                 let f = self.gcx.hir.function(f_id);
@@ -408,7 +410,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let sig = self.signature(proxy);
 
                 result.entry(sig).or_default().push(proxy);
-                seen_in_this_base.insert(sig);
+                defined_in_base.insert(sig);
             }
 
             for v_id in base.variables() {
@@ -420,38 +422,65 @@ impl<'gcx> OverrideChecker<'gcx> {
                 let sig = self.signature(proxy);
 
                 result.entry(sig).or_default().push(proxy);
-                seen_in_this_base.insert(sig);
+                defined_in_base.insert(sig);
             }
 
-            for &ancestor_id in &base.linearized_bases[1..] {
-                let ancestor = self.gcx.hir.contract(ancestor_id);
-
-                for f_id in ancestor.functions() {
-                    let f = self.gcx.hir.function(f_id);
-                    if f.kind.is_constructor() || f.name.is_none() {
-                        continue;
-                    }
-                    let proxy = OverrideProxy::Function(f_id);
-                    let sig = self.signature(proxy);
-
-                    if !seen_in_this_base.contains(&sig) {
-                        result.entry(sig).or_default().push(proxy);
-                        seen_in_this_base.insert(sig);
-                    }
+            // Get inherited functions from ancestors and add those NOT defined in base.
+            // This matches solc's logic: inherited functions are added unless the direct
+            // base defines a function with the same signature.
+            let inherited = self.inherited_functions_for(base_id);
+            for (sig, proxies) in inherited {
+                if !defined_in_base.contains(&sig) {
+                    result.entry(sig).or_default().extend(proxies);
                 }
+            }
+        }
 
-                for v_id in ancestor.variables() {
-                    let v = self.gcx.hir.variable(v_id);
-                    if !v.is_public() {
-                        continue;
-                    }
-                    let proxy = OverrideProxy::Variable(v_id);
-                    let sig = self.signature(proxy);
+        result
+    }
 
-                    if !seen_in_this_base.contains(&sig) {
-                        result.entry(sig).or_default().push(proxy);
-                        seen_in_this_base.insert(sig);
-                    }
+    /// Get inherited functions for a specific contract (used recursively).
+    fn inherited_functions_for(
+        &self,
+        contract_id: ContractId,
+    ) -> FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> {
+        let contract = self.gcx.hir.contract(contract_id);
+        let mut result: FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> =
+            FxHashMap::default();
+
+        for &base_id in contract.bases.iter() {
+            let base = self.gcx.hir.contract(base_id);
+
+            let mut defined_in_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
+
+            for f_id in base.functions() {
+                let f = self.gcx.hir.function(f_id);
+                if f.kind.is_constructor() || f.name.is_none() {
+                    continue;
+                }
+                let proxy = OverrideProxy::Function(f_id);
+                let sig = self.signature(proxy);
+
+                result.entry(sig).or_default().push(proxy);
+                defined_in_base.insert(sig);
+            }
+
+            for v_id in base.variables() {
+                let v = self.gcx.hir.variable(v_id);
+                if !v.is_public() {
+                    continue;
+                }
+                let proxy = OverrideProxy::Variable(v_id);
+                let sig = self.signature(proxy);
+
+                result.entry(sig).or_default().push(proxy);
+                defined_in_base.insert(sig);
+            }
+
+            let inherited = self.inherited_functions_for(base_id);
+            for (sig, proxies) in inherited {
+                if !defined_in_base.contains(&sig) {
+                    result.entry(sig).or_default().extend(proxies);
                 }
             }
         }
