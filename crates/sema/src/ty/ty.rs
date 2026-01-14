@@ -597,7 +597,117 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // TODO: more implicit conversions
+            // Integer width conversions: smaller int -> larger int (same signedness).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(UInt(from_size)), Elementary(UInt(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (Elementary(Int(from_size)), Elementary(Int(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with zeros).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
+                if from_size.bytes() <= to_size.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Tuple conversions: element-wise implicit conversion with same length.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#tuple-types>
+            (Tuple(from_tys), Tuple(to_tys)) => {
+                if from_tys.len() != to_tys.len() {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                // Empty tuples match (already handled by self == other, but be explicit).
+                if from_tys.is_empty() {
+                    return Ok(());
+                }
+                // Each element must be implicitly convertible.
+                for (&from_ty, &to_ty) in from_tys.iter().zip(to_tys.iter()) {
+                    from_ty.try_convert_implicit_to(to_ty, gcx)?;
+                }
+                Ok(())
+            }
+
+            // Array conversions (underlying types, not Ref-wrapped).
+            // Dynamic arrays: same base type required.
+            (DynArray(from_elem), DynArray(to_elem)) => {
+                from_elem.try_convert_implicit_to(to_elem, gcx)
+            }
+            // Fixed arrays: same base type and same length required.
+            (Array(from_elem, from_len), Array(to_elem, to_len)) => {
+                if from_len != to_len {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                from_elem.try_convert_implicit_to(to_elem, gcx)
+            }
+
+            // Function pointer conversions.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                // Parameter and return types must match exactly (no implicit conversion).
+                if from_fn.parameters.len() != to_fn.parameters.len()
+                    || from_fn.returns.len() != to_fn.returns.len()
+                {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                for (&from_param, &to_param) in
+                    from_fn.parameters.iter().zip(to_fn.parameters.iter())
+                {
+                    if from_param != to_param {
+                        return Result::Err(TyConvertError::Incompatible);
+                    }
+                }
+                for (&from_ret, &to_ret) in from_fn.returns.iter().zip(to_fn.returns.iter()) {
+                    if from_ret != to_ret {
+                        return Result::Err(TyConvertError::Incompatible);
+                    }
+                }
+
+                // Visibility must match.
+                if from_fn.visibility != to_fn.visibility {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // State mutability compatibility:
+                // - pure can convert to view or non-payable (more restrictive -> less restrictive)
+                // - view can convert to non-payable
+                // - payable can convert to non-payable (you can pay 0)
+                // - non-payable cannot convert to payable
+                use StateMutability::*;
+                let mutability_ok = match (from_fn.state_mutability, to_fn.state_mutability) {
+                    (a, b) if a == b => true,
+                    // pure is the most restrictive, can convert to anything except payable.
+                    (Pure, View) | (Pure, NonPayable) => true,
+                    // view can convert to non-payable.
+                    (View, NonPayable) => true,
+                    // payable can convert to non-payable.
+                    (Payable, NonPayable) => true,
+                    _ => false,
+                };
+                if mutability_ok {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // UDVT: user-defined value types are NOT implicitly convertible to their underlying
+            // type or vice versa. Explicit wrap/unwrap is required.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#user-defined-value-types>
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
