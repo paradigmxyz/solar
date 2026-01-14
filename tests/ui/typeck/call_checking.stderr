@@ -216,5 +216,45 @@ note: call expression requires function
 LL │         x(1);
    ╰╴        ━━━━
 
-error: aborting due to 31 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({b: 1, a: "hi"});
+   ╰╴                   ━ expected `bytes32`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         emit E({b: 1, a: "hi"});
+   ╰╴                         ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         internalTarget(1);
+   │         ━━━━━━━━━━━━━━┬──
+   │                       │
+   ╰╴                      expected 2 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         internalTarget("hi", 1);
+   ╰╴                       ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         internalTarget("hi", 1);
+   ╰╴                             ━ expected `bytes32`, found `int_literal[1]`
+
+error: wrong number of arguments: expected 2, got 1
+   ╭▸ ROOT/tests/ui/typeck/call_checking.sol:LL:CC
+   │
+LL │         other.target(1);
+   │         ━━━━━━━━━━━━┬──
+   │                     │
+   ╰╴                    expected 2 arguments, found 1
+
+error: aborting due to 37 previous errors
 

@@ -163,4 +163,31 @@ contract CallChecking {
         uint x = 42;
         x(1); //~ ERROR: expected function
     }
+
+    // === Named args with wrong types in reordered positions ===
+    function testNamedArgTypesMismatch() public {
+        // Named args should match by name, not position
+        // So {b: 1, a: "hi"} should fail because a expects uint and b expects bytes32
+        emit E({b: 1, a: "hi"});
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === Internal function calls ===
+    function internalTarget(uint a, bytes32 b) internal pure returns (uint) {
+        return a;
+    }
+    function testInternalCall() public pure {
+        internalTarget(1, "hi"); // OK
+        internalTarget(1); //~ ERROR: wrong number of arguments
+        internalTarget("hi", 1);
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // === External contract calls ===
+    function testExternalCall(CallChecking other) public {
+        other.target(1, "hi"); // OK
+        other.target(1); //~ ERROR: wrong number of arguments
+    }
 }
