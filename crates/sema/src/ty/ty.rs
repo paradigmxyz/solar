@@ -725,6 +725,44 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // UDVT <-> underlying type (explicit wrap/unwrap).
+            // UDVT -> underlying: unwrap
+            (Udvt(underlying, _), _) if underlying == other => Ok(()),
+            // underlying -> UDVT: wrap
+            (_, Udvt(underlying, _)) if self == underlying => Ok(()),
+
+            // bytes <-> string (explicit conversion, same location required).
+            // See: https://docs.soliditylang.org/en/latest/types.html#explicit-conversions
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) if from_loc == to_loc => {
+                match (from_inner.kind, to_inner.kind) {
+                    // bytes -> string
+                    (Elementary(Bytes), Elementary(String)) => Ok(()),
+                    // string -> bytes
+                    (Elementary(String), Elementary(Bytes)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+
+            // Function type explicit conversions.
+            // Only allowed between function types (different visibility/mutability).
+            // Declaration types can only convert to declaration types.
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                // Both must have the same parameters and return types
+                if from_fn.parameters == to_fn.parameters && from_fn.returns == to_fn.returns {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::InvalidConversion)
+                }
+            }
+
+            // Tuple explicit conversions: element-wise.
+            (Tuple(from_tys), Tuple(to_tys)) if from_tys.len() == to_tys.len() => {
+                for (from_ty, to_ty) in from_tys.iter().zip(to_tys.iter()) {
+                    from_ty.try_convert_explicit_to(*to_ty, gcx)?;
+                }
+                Ok(())
+            }
+
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
     }
