@@ -672,7 +672,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .emit();
             }
             if let TyKind::FnPtr(f) = ty.kind
-                && f.visibility <= hir::Visibility::Internal
+                && f.visibility == hir::Visibility::External
             {
                 self.dcx()
                     .err("immutable variables of external function type are not yet supported")
