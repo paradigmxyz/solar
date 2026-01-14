@@ -20,6 +20,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/lvalue/literals.sol:LL:CC
    │
 LL │ ┏     function testInt() external {
+LL │ ┃
 LL │ ┃         1 = state;
 LL │ ┃
 LL │ ┃     }
@@ -29,6 +30,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/lvalue/literals.sol:LL:CC
    │
 LL │ ┏     function testBool() external {
+LL │ ┃
 LL │ ┃         true = boolState;
 LL │ ┃     }
    ╰╴┗━━━━━┛

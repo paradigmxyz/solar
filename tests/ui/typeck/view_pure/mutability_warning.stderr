@@ -1,0 +1,18 @@
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/view_pure/mutability_warning.sol:LL:CC
+   │
+LL │ ┏     function overlyPermissiveView() public view returns (uint256) {
+LL │ ┃
+LL │ ┃         return 42;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+warning[2018]: function state mutability can be restricted to view
+   ╭▸ ROOT/tests/ui/typeck/view_pure/mutability_warning.sol:LL:CC
+   │
+LL │ ┏     function overlyPermissiveNonPayable() public returns (uint256) {
+LL │ ┃
+LL │ ┃         return x;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+

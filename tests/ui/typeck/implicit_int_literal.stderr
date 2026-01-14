@@ -32,9 +32,6 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
    │
 LL │ ┏ function f() {
-LL │ ┃     // === Non-negative literals to uint ===
-LL │ ┃     // Value must fit in the unsigned range [0, 2^N - 1]
-LL │ ┃     uint8 u8_max = 255;
    ‡ ┃
 LL │ ┃     uint256 neg_to_uint256 = -42;
 LL │ ┃ }

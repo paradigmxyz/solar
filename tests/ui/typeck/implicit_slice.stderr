@@ -26,6 +26,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
    │
 LL │ ┏     function toStoragePointer(uint256[] calldata data, uint256 start, uint256 end) external {
+LL │ ┃
 LL │ ┃         uint256[] storage t = s;
 LL │ ┃         t = data[start:end];
 LL │ ┃     }

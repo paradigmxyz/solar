@@ -26,6 +26,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
    │
 LL │ ┏     function storageToStorage() internal {
+LL │ ┃
 LL │ ┃         uint256[] storage a = storageArr;
 LL │ ┃         uint256[] storage b = a;
 LL │ ┃     }
@@ -35,6 +36,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
    │
 LL │ ┏     function storageToCalldata() external {
+LL │ ┃
 LL │ ┃         uint256[] calldata a = storageArr;
 LL │ ┃     }
    ╰╴┗━━━━━┛
@@ -43,6 +45,7 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/location_coercion.sol:LL:CC
    │
 LL │ ┏     function memoryToCalldata(uint256[] memory a) external {
+LL │ ┃
 LL │ ┃         uint256[] calldata b = a;
 LL │ ┃     }
    ╰╴┗━━━━━┛

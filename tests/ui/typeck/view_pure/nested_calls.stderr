@@ -1,0 +1,30 @@
+error: not yet implemented: Expr { id: ExprId(4), kind: Call(Expr { id: ExprId(3), kind: Ident([Res::Item(ItemId::FunctionId(1))]), span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC
+   │
+LL │         return pureFunc();
+   ╰╴               ━━━━━━━━━━
+
+error: not yet implemented: Expr { id: ExprId(6), kind: Call(Expr { id: ExprId(5), kind: Ident([Res::Item(ItemId::FunctionId(2))]), span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC }, CallArgs { span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC, kind: Unnamed([]) }, None), span: ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC }
+   ╭▸ ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC
+   │
+LL │         return viewFunc();
+   ╰╴               ━━━━━━━━━━
+
+warning[2018]: function state mutability can be restricted to pure
+   ╭▸ ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC
+   │
+LL │ ┏     function viewCallsPure() public view returns (uint256) {
+LL │ ┃
+LL │ ┃         return pureFunc();
+LL │ ┃
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error[2527]: function declared as pure, but this expression (potentially) reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/view_pure/nested_calls.sol:LL:CC
+   │
+LL │         return viewFunc();
+   ╰╴               ━━━━━━━━━━
+
+error: aborting due to 3 previous errors; 1 warning emitted
+

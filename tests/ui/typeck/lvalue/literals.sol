@@ -6,11 +6,13 @@ contract Test {
     bool boolState;
 
     function testInt() external {
+    //~^ WARN: function state mutability can be restricted to view
         1 = state; //~ ERROR: expression has to be an lvalue
         //~^ ERROR: mismatched types
     }
 
     function testBool() external {
+    //~^ WARN: function state mutability can be restricted to view
         true = boolState; //~ ERROR: expression has to be an lvalue
     }
 }

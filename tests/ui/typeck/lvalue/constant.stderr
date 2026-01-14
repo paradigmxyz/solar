@@ -14,6 +14,7 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
    │
 LL │ ┏     function test() external {
+LL │ ┃
 LL │ ┃         CONST = 2;
 LL │ ┃     }
    ╰╴┗━━━━━┛
@@ -22,6 +23,7 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/lvalue/constant.sol:LL:CC
    │
 LL │ ┏ function fileLevel() {
+LL │ ┃
 LL │ ┃     FILE_CONST = 2;
 LL │ ┃ }
    ╰╴┗━┛

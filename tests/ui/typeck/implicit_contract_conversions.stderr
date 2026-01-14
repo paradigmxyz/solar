@@ -26,6 +26,7 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/implicit_contract_conversions.sol:LL:CC
    │
 LL │ ┏     function testUnrelated(Unrelated u) public {
+LL │ ┃
 LL │ ┃         Base b1 = u;
 LL │ ┃         Base b2 = Base(u);
 LL │ ┃     }

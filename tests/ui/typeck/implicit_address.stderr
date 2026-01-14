@@ -14,6 +14,7 @@ warning[2018]: function state mutability can be restricted to pure
    ╭▸ ROOT/tests/ui/typeck/implicit_address.sol:LL:CC
    │
 LL │ ┏ function f() {
+LL │ ┃
 LL │ ┃     address payable e = 0x14aF3198B9Dd911fc828434f8D97df0C0Ff979Ee;
    ‡ ┃
 LL │ ┃     address payable p2 = a;

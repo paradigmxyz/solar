@@ -8,6 +8,7 @@ contract MoreDerived is Derived {}
 
 contract Test {
     function testUnrelated(Unrelated u) public {
+    //~^ WARN: function state mutability can be restricted to pure
         Base b1 = u;  //~ ERROR: mismatched types
         Base b2 = Base(u); //~ ERROR: invalid explicit type conversion
     }

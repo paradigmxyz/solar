@@ -1,5 +1,6 @@
 //@compile-flags: -Ztypeck
 function f() {
+//~^ WARN: function state mutability can be restricted to pure
     // === Non-negative literals to uint ===
     // Value must fit in the unsigned range [0, 2^N - 1]
     uint8 u8_max = 255;

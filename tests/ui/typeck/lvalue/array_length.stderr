@@ -20,6 +20,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/lvalue/array_length.sol:LL:CC
    │
 LL │ ┏     function testParam(uint256[] memory arr) internal {
+LL │ ┃
 LL │ ┃         arr.length = state;
 LL │ ┃     }
    ╰╴┗━━━━━┛

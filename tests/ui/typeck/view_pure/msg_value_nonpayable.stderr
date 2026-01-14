@@ -1,0 +1,17 @@
+error[5887]: "msg.value" and "callvalue()" can only be used in payable public functions. Make the function "payable" or use an internal function to avoid this error.
+   ╭▸ ROOT/tests/ui/typeck/view_pure/msg_value_nonpayable.sol:LL:CC
+   │
+LL │         return msg.value;
+   ╰╴               ━━━━━━━━━
+
+warning[2018]: function state mutability can be restricted to payable
+   ╭▸ ROOT/tests/ui/typeck/view_pure/msg_value_nonpayable.sol:LL:CC
+   │
+LL │ ┏     function nonPayableMsgValue() public returns (uint256) {
+LL │ ┃
+LL │ ┃         return msg.value;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 1 previous error; 1 warning emitted
+

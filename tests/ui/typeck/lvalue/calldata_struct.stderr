@@ -14,6 +14,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_struct.sol:LL:CC
    │
 LL │ ┏     function test(S calldata s) external {
+LL │ ┃
 LL │ ┃         s.x = state;
 LL │ ┃     }
    ╰╴┗━━━━━┛
@@ -22,6 +23,7 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_struct.sol:LL:CC
    │
 LL │ ┏     function testNested(Nested calldata n) external {
+LL │ ┃
 LL │ ┃         n.inner.x = state;
 LL │ ┃     }
    ╰╴┗━━━━━┛

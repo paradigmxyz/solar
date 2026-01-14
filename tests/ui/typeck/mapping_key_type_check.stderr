@@ -26,9 +26,9 @@ warning[2018]: function state mutability can be restricted to view
    ╭▸ ROOT/tests/ui/typeck/mapping_key_type_check.sol:LL:CC
    │
 LL │ ┏     function access(uint u, string memory s, bytes memory b, E e, U ud, L.E1 e1, C c) public {
+LL │ ┃
 LL │ ┃         m0[u];
 LL │ ┃         m1[s];
-LL │ ┃         m1b[b];
    ‡ ┃
 LL │ ┃         m4b[c];
 LL │ ┃     }
