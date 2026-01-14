@@ -1,5 +1,6 @@
 use crate::{
     builtins::Builtin,
+    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -22,6 +23,9 @@ struct TypeChecker<'gcx> {
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
+
+    /// The current function's state mutability (if inside a function).
+    function_state_mutability: Option<hir::StateMutability>,
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +41,14 @@ enum NotLvalueReason {
 
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
-        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+        Self {
+            gcx,
+            source,
+            contract: None,
+            types: Default::default(),
+            lvalue_context: None,
+            function_state_mutability: None,
+        }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -199,6 +210,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
                     self.try_set_not_lvalue(reason);
                 }
+                // Check if pure/view function is accessing state.
+                self.check_state_access(expr.span, res);
                 self.type_of_res(res)
             }
             hir::ExprKind::Index(lhs, index) => {
@@ -529,6 +542,36 @@ impl<'gcx> TypeChecker<'gcx> {
         op: hir::BinOp,
         assign: bool,
     ) -> Ty<'gcx> {
+        // For power operations with integer literals, validate the result is computable.
+        if op.kind == hir::BinOpKind::Pow
+            && matches!(lhs.peel_refs().kind, TyKind::IntLiteral(..))
+            && matches!(rhs.peel_refs().kind, TyKind::IntLiteral(..))
+        {
+            // Both operands are integer literals; try to evaluate the expression.
+            // If it fails (e.g., overflow or exponent too large), report an error.
+            let mut evaluator = ConstantEvaluator::new(self.gcx);
+            let eval_result = evaluator.try_eval(lhs_e).and_then(|l| {
+                evaluator.try_eval(rhs_e).and_then(|r| l.binop(&r, op.kind).map_err(Into::into))
+            });
+            if let Err(err) = eval_result {
+                // The constant evaluation failed (e.g., overflow).
+                let msg = format!(
+                    "built-in binary operator `{op}` cannot be applied to types `{}` and `{}`",
+                    lhs.display(self.gcx),
+                    rhs.display(self.gcx),
+                );
+                let mut diag = self.dcx().err(msg).span(op.span);
+                diag = diag.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
+                diag = diag.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
+                if !err.span.is_dummy() {
+                    diag = diag.span_note(err.span, err.kind.msg());
+                } else {
+                    diag = diag.note(err.kind.msg());
+                }
+                return self.gcx.mk_ty_err(diag.emit());
+            }
+        }
+
         let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
         // TODO: custom operators
         if let Some(common) = common
@@ -724,6 +767,31 @@ impl<'gcx> TypeChecker<'gcx> {
         self.lvalue_context.is_some()
     }
 
+    /// Checks if accessing a resolved identifier is valid given the current function's state
+    /// mutability.
+    fn check_state_access(&self, span: Span, res: hir::Res) {
+        // Only check if we're in a function with restricted mutability.
+        let Some(mutability) = self.function_state_mutability else {
+            return;
+        };
+
+        // Check if this is a state variable access.
+        if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+            let var = self.gcx.hir.variable(var_id);
+            // State variables that aren't constant or immutable require at least view.
+            if var.is_state_variable()
+                && !var.is_constant()
+                && !var.is_immutable()
+                && mutability.is_pure()
+            {
+                self.dcx()
+                    .err("function declared as pure, but this expression reads from the environment or state and thus requires \"view\"")
+                    .span(span)
+                    .emit();
+            }
+        }
+    }
+
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
         match self.try_resolve_overloads(res) {
             Ok(res) => res,
@@ -793,6 +861,14 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         let prev = self.contract.replace(id);
         let r = self.walk_nested_contract(id);
         self.contract = prev;
+        r
+    }
+
+    fn visit_function(&mut self, func: &'gcx hir::Function<'gcx>) -> ControlFlow<Self::BreakValue> {
+        // Track function state mutability for checking state access.
+        let prev = self.function_state_mutability.replace(func.state_mutability);
+        let r = self.walk_function(func);
+        self.function_state_mutability = prev;
         r
     }
 

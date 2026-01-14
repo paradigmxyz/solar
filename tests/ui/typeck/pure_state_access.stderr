@@ -1,0 +1,8 @@
+error: function declared as pure, but this expression reads from the environment or state and thus requires "view"
+   ╭▸ ROOT/tests/ui/typeck/pure_state_access.sol:LL:CC
+   │
+LL │         return stateVar;
+   ╰╴               ━━━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -1,0 +1,22 @@
+error: built-in binary operator `**` cannot be applied to types `int_literal[4]` and `int_literal[34]`
+   ╭▸ ROOT/tests/ui/typeck/literal_pow_overflow.sol:LL:CC
+   │
+LL │         uint256 result = 10 ** 1e10;
+   │                          ┬─ ━━ ──── int_literal[34]
+   │                          │
+   │                          int_literal[4]
+   │
+   ╰ note: arithmetic overflow
+
+error: built-in binary operator `**` cannot be applied to types `int_literal[2]` and `int_literal[9]`
+   ╭▸ ROOT/tests/ui/typeck/literal_pow_overflow.sol:LL:CC
+   │
+LL │         uint256 result = 2 ** 256;
+   │                          ┬ ━━ ─── int_literal[9]
+   │                          │
+   │                          int_literal[2]
+   │
+   ╰ note: arithmetic overflow
+
+error: aborting due to 2 previous errors
+

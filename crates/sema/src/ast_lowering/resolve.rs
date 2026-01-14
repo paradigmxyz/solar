@@ -903,7 +903,7 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_slice_fill_iter(vars.iter().map(|var| self.lower_variable(var, kind).0))
     }
 
-    /// Lowers `var` to HIR and declares it in the current scope.
+    /// Lowers `var` to HIR and declares it in the current scope (if applicable).
     fn lower_variable(
         &mut self,
         var: &ast::VariableDefinition<'_>,
@@ -920,7 +920,17 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
         let mut guar = Ok(());
-        if let Some(name) = var.name {
+        // Don't declare parameters for events, errors, structs, or function type signatures
+        // in scope, as they don't create a lexical scope where names can be used.
+        let declares_in_scope = !matches!(
+            kind,
+            hir::VarKind::Event
+                | hir::VarKind::Error
+                | hir::VarKind::Struct
+                | hir::VarKind::FunctionTyParam
+                | hir::VarKind::FunctionTyReturn
+        );
+        if declares_in_scope && let Some(name) = var.name {
             let res = Res::Item(hir::ItemId::Variable(id));
             guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         }
@@ -1560,6 +1570,8 @@ impl Declarations {
             let same_kind = |decl2: &Declaration| match decl2.res {
                 Item(Variable(v)) => hir.variable(v).getter == getter,
                 Item(Function(f)) => hir.function(f).kind.is_ordinary(),
+                // Events can coexist with builtins like `this` and `super`.
+                Builtin(_) if matches!(decl.res, Item(Event(_))) => true,
                 ref k => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
