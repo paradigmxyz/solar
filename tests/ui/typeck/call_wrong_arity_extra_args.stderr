@@ -1,0 +1,14 @@
+error: wrong number of arguments: expected 2, found 3
+   ╭▸ ROOT/tests/ui/typeck/call_wrong_arity_extra_args.sol:LL:CC
+   │
+LL │         add(1, 2, id(true));
+   ╰╴           ━━━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/call_wrong_arity_extra_args.sol:LL:CC
+   │
+LL │         add(1, 2, id(true));
+   ╰╴                     ━━━━ expected `uint256`, found `bool`
+
+error: aborting due to 2 previous errors
+

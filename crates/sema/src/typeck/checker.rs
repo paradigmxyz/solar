@@ -747,6 +747,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.register_ty(arg_expr, actual_ty);
                     self.check_expected(arg_expr, actual_ty, *expected_ty);
                 }
+
+                for arg_expr in exprs.iter().skip(named_params.len()) {
+                    let _ = self.check_expr(arg_expr);
+                }
             }
             hir::CallArgsKind::Named(named_args) => {
                 if named_params.iter().any(|(name, _)| name.is_none()) {
