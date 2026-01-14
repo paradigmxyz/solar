@@ -624,6 +624,38 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // Function pointer conversions.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                // Parameter and return types must match exactly (no implicit conversion).
+                if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // Visibility must match.
+                if from_fn.visibility != to_fn.visibility {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // State mutability compatibility:
+                // - pure can convert to view or non-payable (more restrictive -> less restrictive)
+                // - view can convert to non-payable
+                // - payable can convert to non-payable (you can pay 0)
+                // - non-payable cannot convert to payable
+                use StateMutability::*;
+                let mutability_ok = match (from_fn.state_mutability, to_fn.state_mutability) {
+                    (a, b) if a == b => true,
+                    // pure is the most restrictive, can convert to anything except payable.
+                    (Pure, View) | (Pure, NonPayable) => true,
+                    // view can convert to non-payable.
+                    (View, NonPayable) => true,
+                    // payable can convert to non-payable.
+                    (Payable, NonPayable) => true,
+                    _ => false,
+                };
+                if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
