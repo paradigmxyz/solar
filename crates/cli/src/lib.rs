@@ -14,6 +14,8 @@ pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 pub mod utils;
 
+pub mod standard_json;
+
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod signal_handler;
 
@@ -45,6 +47,15 @@ where
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
+    // Handle --standard-json mode
+    if opts.standard_json {
+        if let Err(e) = standard_json::run_standard_json() {
+            eprintln!("Error in standard-json mode: {e}");
+            return Err(solar_interface::diagnostics::ErrorGuaranteed::new_unchecked());
+        }
+        return Ok(());
+    }
+
     run_compiler_with(opts, run_default)
 }
 
