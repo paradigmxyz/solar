@@ -16,5 +16,11 @@ error: types in storage containing (nested) mappings cannot be assigned to
 LL │         x = y;
    ╰╴        ━
 
-error: aborting due to 3 previous errors
+error: types in storage containing (nested) mappings cannot be assigned to
+   ╭▸ ROOT/tests/ui/typeck/mapping_assignment.sol:LL:CC
+   │
+LL │         (a, x) = (b, y);
+   ╰╴         ━
+
+error: aborting due to 4 previous errors
 

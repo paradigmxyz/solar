@@ -31,3 +31,14 @@ contract StructWithMapping {
         x = y; //~ ERROR: types in storage containing (nested) mappings cannot be assigned to
     }
 }
+
+contract TupleAssignment {
+    mapping(uint => uint) a;
+    mapping(uint => uint) b;
+    uint x;
+    uint y;
+
+    function tupleAssign() public {
+        (a, x) = (b, y); //~ ERROR: types in storage containing (nested) mappings cannot be assigned to
+    }
+}

@@ -516,9 +516,24 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if let hir::ExprKind::Tuple(components) = &expr.kind {
+            if components.is_empty() {
+                self.dcx().err("empty tuple on the left hand side").span(expr.span).emit();
+                return;
+            }
+            let types =
+                if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
+            for (component, &component_ty) in components.iter().zip(types.iter()) {
+                if let Some(component) = component {
+                    self.check_assign(component_ty, component);
+                }
+            }
+            return;
+        }
+
         // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
         // variable (local storage pointers are OK).
-        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
         if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
             self.dcx()
                 .err("types in storage containing (nested) mappings cannot be assigned to")
