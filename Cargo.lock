@@ -2739,6 +2739,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-codegen"
+version = "0.1.8"
+dependencies = [
+ "alloy-primitives",
+ "solar-ast",
+ "solar-sema",
+]
+
+[[package]]
 name = "solar-compiler"
 version = "0.1.8"
 dependencies = [

@@ -97,6 +97,7 @@ solar-interface = { version = "=0.1.8", path = "crates/interface", default-featu
 solar-macros = { version = "=0.1.8", path = "crates/macros", default-features = false }
 solar-parse = { version = "=0.1.8", path = "crates/parse", default-features = false }
 solar-sema = { version = "=0.1.8", path = "crates/sema", default-features = false }
+solar-codegen = { version = "=0.1.8", path = "crates/codegen", default-features = false }
 
 # internal crates
 solar-tester = { path = "tools/tester" }

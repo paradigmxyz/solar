@@ -1,0 +1,21 @@
+[package]
+name = "solar-codegen"
+description = "EVM bytecode code generation for Solar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-ast.workspace = true
+solar-sema.workspace = true
+alloy-primitives.workspace = true
+
+[dev-dependencies]
