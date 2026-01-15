@@ -417,7 +417,7 @@ impl EvmCodegen {
             InstKind::Sar(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SAR),
             InstKind::Byte(i, x) => self.emit_binary_op(func, *i, *x, opcodes::BYTE),
 
-            // Comparison operations - track results since they're used as branch conditions
+            // Comparison operations - track results for branch conditions and Select
             InstKind::Lt(a, b) => {
                 self.emit_binary_op_with_result(func, *a, *b, opcodes::LT, result_value)
             }
@@ -549,13 +549,31 @@ impl EvmCodegen {
             // Select is like a ternary conditional
             InstKind::Select(cond, true_val, false_val) => {
                 // select(cond, t, f) = f + cond * (t - f)
-                // Or use JUMPI-based approach
-                self.emit_value(func, *false_val);
-                self.emit_value(func, *true_val);
-                self.emit_value(func, *cond);
-                // Stack: [cond, true_val, false_val]
-                // Use conditional swap approach
-                // This is simplified - proper impl uses JUMPI
+                //
+                // We emit all three values to the stack, then do inline computation.
+                // After emitting, the scheduler thinks [f, t, cond] are on stack.
+                // We do: DUP3 SUB MUL ADD to compute the result.
+                // Then we tell the scheduler we consumed 3 and produced 1.
+
+                self.emit_value(func, *false_val); // Stack: [f]
+                self.emit_value(func, *true_val); // Stack: [f, t]
+                self.emit_value(func, *cond); // Stack: [f, t, cond]
+
+                // Now compute: f + cond * (t - f)
+                // Stack is [f, t, cond] with cond on top
+                // Step 1: Get t-f onto stack
+                self.asm.emit_op(opcodes::dup(2)); // [f, t, cond, t]
+                self.asm.emit_op(opcodes::dup(4)); // [f, t, cond, t, f]
+                self.asm.emit_op(opcodes::SUB); // [f, t, cond, t-f]
+                // Step 2: Multiply by cond
+                self.asm.emit_op(opcodes::MUL); // [f, t, cond*(t-f)]
+                // Step 3: Add f (which is now at depth 2)
+                self.asm.emit_op(opcodes::swap(2)); // [cond*(t-f), t, f]
+                self.asm.emit_op(opcodes::POP); // [cond*(t-f), f]
+                self.asm.emit_op(opcodes::ADD); // [result]
+
+                // Tell scheduler: consumed 3, produced 1
+                self.scheduler.instruction_executed(3, result_value);
             }
 
             // Sign extend
