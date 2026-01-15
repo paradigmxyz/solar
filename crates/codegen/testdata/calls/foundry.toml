@@ -1,4 +1,5 @@
 [profile.default]
 src = "src"
-test = "test"
-libs = []
+out = "out"
+libs = ["lib"]
+optimizer = false
