@@ -554,6 +554,40 @@ impl InstKind {
             Self::SignExtend(_, _) => "signextend",
         }
     }
+
+    /// Returns true if this instruction has side effects.
+    /// Side-effect instructions must not be eliminated by DCE.
+    #[must_use]
+    pub const fn has_side_effects(&self) -> bool {
+        matches!(
+            self,
+            // Storage writes
+            Self::SStore(_, _)
+            | Self::TStore(_, _)
+            // Memory writes (may affect external calls)
+            | Self::MStore(_, _)
+            | Self::MStore8(_, _)
+            | Self::MCopy(_, _, _)
+            // External calls
+            | Self::Call { .. }
+            | Self::StaticCall { .. }
+            | Self::DelegateCall { .. }
+            // Contract creation
+            | Self::Create(_, _, _)
+            | Self::Create2(_, _, _, _)
+            // Event emission
+            | Self::Log0(_, _)
+            | Self::Log1(_, _, _)
+            | Self::Log2(_, _, _, _)
+            | Self::Log3(_, _, _, _, _)
+            | Self::Log4(_, _, _, _, _, _)
+            // Data copy operations (write to memory)
+            | Self::CalldataCopy(_, _, _)
+            | Self::CodeCopy(_, _, _)
+            | Self::ExtCodeCopy(_, _, _, _)
+            | Self::ReturnDataCopy(_, _, _)
+        )
+    }
 }
 
 impl fmt::Display for InstKind {

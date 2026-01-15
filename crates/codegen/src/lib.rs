@@ -30,3 +30,6 @@ pub use codegen::{
     AssembledCode, Assembler, EvmCodegen, Label, SpillManager, SpillSlot, StackModel,
     StackScheduler,
 };
+
+pub mod transform;
+pub use transform::{ConstantFolder, DeadCodeEliminator};
