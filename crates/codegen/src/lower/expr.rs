@@ -1192,14 +1192,19 @@ impl<'gcx> Lowerer<'gcx> {
         // Try to get the type of the base expression and find the function
         // For contract types, we look up the function in the contract's interface
 
-        // Helper to look up selector from a contract
+        // Helper to look up selector from a contract, including inherited functions.
+        // Searches through the linearized inheritance chain.
         let lookup_in_contract = |contract_id: hir::ContractId| -> Option<u32> {
             let contract = self.gcx.hir.contract(contract_id);
-            for func_id in contract.all_functions() {
-                let func = self.gcx.hir.function(func_id);
-                if func.name.is_some_and(|n| n.name == member.name) {
-                    let selector = self.gcx.function_selector(func_id);
-                    return Some(u32::from_be_bytes(selector.0));
+            // Search through the inheritance chain (linearized_bases includes self at index 0)
+            for &base_id in contract.linearized_bases.iter() {
+                let base_contract = self.gcx.hir.contract(base_id);
+                for func_id in base_contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        let selector = self.gcx.function_selector(func_id);
+                        return Some(u32::from_be_bytes(selector.0));
+                    }
                 }
             }
             None
@@ -1253,13 +1258,18 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> usize {
-        // Helper to look up return count from a contract
+        // Helper to look up return count from a contract, including inherited functions.
+        // Searches through the linearized inheritance chain.
         let lookup_in_contract = |contract_id: hir::ContractId| -> Option<usize> {
             let contract = self.gcx.hir.contract(contract_id);
-            for func_id in contract.all_functions() {
-                let func = self.gcx.hir.function(func_id);
-                if func.name.is_some_and(|n| n.name == member.name) {
-                    return Some(func.returns.len());
+            // Search through the inheritance chain (linearized_bases includes self at index 0)
+            for &base_id in contract.linearized_bases.iter() {
+                let base_contract = self.gcx.hir.contract(base_id);
+                for func_id in base_contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        return Some(func.returns.len());
+                    }
                 }
             }
             None
