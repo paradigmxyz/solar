@@ -294,6 +294,22 @@ impl<'a> FunctionBuilder<'a> {
         )
     }
 
+    /// Emits a delegatecall instruction (call with caller's context).
+    pub fn delegatecall(
+        &mut self,
+        gas: ValueId,
+        addr: ValueId,
+        args_offset: ValueId,
+        args_size: ValueId,
+        ret_offset: ValueId,
+        ret_size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size },
+            Some(MirType::uint256()),
+        )
+    }
+
     /// Emits a create instruction (deploy a contract).
     pub fn create(&mut self, value: ValueId, offset: ValueId, size: ValueId) -> ValueId {
         self.emit_inst(InstKind::Create(value, offset, size), Some(MirType::Address))

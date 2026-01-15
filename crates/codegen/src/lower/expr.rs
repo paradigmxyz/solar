@@ -838,6 +838,30 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
+            Builtin::AbiEncode | Builtin::AbiEncodePacked => {
+                // abi.encode/encodePacked: for single 32-byte values, just return the value
+                // For multiple values, encode them sequentially in memory
+                let arg_vals: Vec<ValueId> =
+                    args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+
+                if arg_vals.is_empty() {
+                    return builder.imm_u64(0);
+                }
+
+                if arg_vals.len() == 1 {
+                    // Single value - just return it (keccak256 will store it to memory)
+                    return arg_vals[0];
+                }
+
+                // Multiple values - store them at scratch memory and return pointer
+                // Write to memory starting at offset 0
+                for (i, &val) in arg_vals.iter().enumerate() {
+                    let offset = builder.imm_u64((i * 32) as u64);
+                    builder.mstore(offset, val);
+                }
+                // Return pointer to the encoded data (offset 0)
+                builder.imm_u64(0)
+            }
             _ => builder.imm_u64(0),
         }
     }
@@ -851,6 +875,14 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
+        // Handle builtin member calls: abi.encode(), abi.encodePacked(), etc.
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(base_builtin)) = res_slice.first()
+            && let Some(member_builtin) = self.resolve_builtin_member(*base_builtin, member.name)
+        {
+            return self.lower_builtin_call(builder, member_builtin, args);
+        }
+
         // Handle library function calls: Library.func(args)
         // The base is an Ident resolving to a ContractId for a library
         if let ExprKind::Ident(res_slice) = &base.kind
@@ -911,6 +943,79 @@ impl<'gcx> Lowerer<'gcx> {
                 return builder.imm_u64(0);
             }
             // send returns success bool
+            return success;
+        }
+
+        // Handle low-level call/staticcall/delegatecall
+        // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
+        // addr.staticcall(data) returns (bool success, bytes memory returndata)
+        // addr.delegatecall(data) returns (bool success, bytes memory returndata)
+        if member_name == "call" || member_name == "staticcall" || member_name == "delegatecall" {
+            let addr = self.lower_expr(builder, base);
+
+            // Get the calldata bytes argument
+            let mut exprs = args.exprs();
+            let (calldata_offset, calldata_size) = if let Some(data_arg) = exprs.next() {
+                // The data argument is bytes - could be a literal, memory reference, etc.
+                // For now, handle string/bytes literals and empty bytes
+                self.lower_bytes_arg_to_memory(builder, data_arg)
+            } else {
+                // No argument means empty calldata
+                (builder.imm_u64(0), builder.imm_u64(0))
+            };
+
+            // Gas: use all available gas
+            let gas = builder.gas();
+
+            // Value: extract from call options {value: X} or default to 0
+            let value = if member_name == "call" {
+                self.extract_call_value(builder, call_opts)
+            } else {
+                // staticcall and delegatecall don't transfer value
+                builder.imm_u64(0)
+            };
+
+            // Return data location - we store at a fixed offset after calldata
+            // Use offset 0 for return data since we don't need calldata after call
+            let ret_offset = builder.imm_u64(0);
+            // We'll store the return data size at runtime via RETURNDATASIZE
+            // For now, assume no return data copying (size 0)
+            let ret_size = builder.imm_u64(0);
+
+            // Emit the appropriate CALL/STATICCALL/DELEGATECALL instruction
+            let success = match member_name {
+                "call" => builder.call(
+                    gas,
+                    addr,
+                    value,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                "staticcall" => builder.staticcall(
+                    gas,
+                    addr,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                "delegatecall" => builder.delegatecall(
+                    gas,
+                    addr,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                _ => unreachable!(),
+            };
+
+            // Low-level calls return (bool success, bytes memory returndata)
+            // For now, we just return the success bool. The returndata can be accessed
+            // via returndatasize()/returndatacopy() if needed.
+            // TODO: Support returning the bytes memory returndata as second value
             return success;
         }
 
@@ -1614,5 +1719,77 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => builder.imm_u64(0),
         }
+    }
+
+    /// Lowers a bytes argument to memory and returns (offset, size).
+    /// Used for low-level calls: addr.call(data), addr.staticcall(data), addr.delegatecall(data).
+    fn lower_bytes_arg_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> (ValueId, ValueId) {
+        // Handle literal strings/bytes: "" or hex"..."
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Str(kind, bytes, _) = &lit.kind
+        {
+            let bytes = bytes.as_byte_str();
+            let len = bytes.len();
+
+            if len == 0 {
+                // Empty bytes - no calldata
+                return (builder.imm_u64(0), builder.imm_u64(0));
+            }
+
+            // Write bytes to memory at offset 0
+            // For bytes up to 32, we can use a single MSTORE
+            // For longer bytes, we need multiple MSTOREs
+            let mut offset = 0u64;
+            for chunk in bytes.chunks(32) {
+                let mut padded = [0u8; 32];
+                match kind {
+                    StrKind::Str | StrKind::Unicode => {
+                        // Left-aligned for strings
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                    }
+                    StrKind::Hex => {
+                        // Left-aligned for hex bytes
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                    }
+                }
+                let val = builder.imm_u256(U256::from_be_bytes(padded));
+                let offset_val = builder.imm_u64(offset);
+                builder.mstore(offset_val, val);
+                offset += 32;
+            }
+
+            return (builder.imm_u64(0), builder.imm_u64(len as u64));
+        }
+
+        // Handle abi.encodeWithSelector and similar
+        if let ExprKind::Call(callee, args, _) = &expr.kind
+            && let ExprKind::Member(base, member) = &callee.kind
+            && let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::Abi)) = res_slice.first()
+        {
+            let member_name = member.name.as_str();
+            if member_name == "encodeWithSelector"
+                || member_name == "encodeWithSignature"
+                || member_name == "encode"
+                || member_name == "encodePacked"
+            {
+                // Lower the abi.encode* call which writes to memory and returns length
+                let result = self.lower_builtin_call(builder, Builtin::AbiEncode, args);
+                // The result is the size of encoded data, data is at offset 0
+                return (builder.imm_u64(0), result);
+            }
+        }
+
+        // For other expressions (e.g., variables containing bytes), we need to:
+        // 1. Get the memory location of the bytes
+        // 2. Return (offset, size)
+        // For now, fall back to evaluating the expression and treating it as empty
+        // TODO: Support bytes memory variables
+        let _val = self.lower_expr(builder, expr);
+        (builder.imm_u64(0), builder.imm_u64(0))
     }
 }

@@ -238,14 +238,8 @@ impl EvmCodegen {
     /// ```
     fn generate_dispatcher(&mut self, module: &Module) {
         // Find receive and fallback functions
-        let receive_idx = module
-            .functions
-            .iter()
-            .position(|f| f.attributes.is_receive);
-        let fallback_idx = module
-            .functions
-            .iter()
-            .position(|f| f.attributes.is_fallback);
+        let receive_idx = module.functions.iter().position(|f| f.attributes.is_receive);
+        let fallback_idx = module.functions.iter().position(|f| f.attributes.is_fallback);
 
         // Create labels for each function
         let mut func_labels: Vec<Label> = Vec::new();
@@ -261,7 +255,8 @@ impl EvmCodegen {
         self.asm.emit_op(opcodes::JUMPI);
 
         // calldatasize == 0: Handle receive/fallback
-        // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else revert
+        // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else
+        // revert
         if let Some(recv_idx) = receive_idx {
             self.asm.emit_push_label(func_labels[recv_idx]);
             self.asm.emit_op(opcodes::JUMP);
