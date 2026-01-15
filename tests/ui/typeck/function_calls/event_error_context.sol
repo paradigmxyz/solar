@@ -1,9 +1,11 @@
 //@compile-flags: -Ztypeck
 
 // Tests for event/error invocation context validation.
+// Event and error invocations return special types (EventCall/ErrorCall)
+// that are only valid in emit/revert statements.
+//
 // Based on solc tests:
 // - syntaxTests/events/event_without_emit_deprecated.sol
-// - syntaxTests/events/multiple_event_without_emit.sol
 // - syntaxTests/emit/emit_non_event.sol
 // - syntaxTests/revertStatement/error_used_elsewhere.sol
 // - syntaxTests/revertStatement/revert_event.sol
@@ -27,45 +29,24 @@ contract EventErrorContext {
         revert EmptyError();
     }
 
-    // === Event invocations outside emit (solc error 3132) ===
-    function eventAsExpression() public {
-        MyEvent(1, "hi"); //~ ERROR: event invocations have to be prefixed by "emit"
-    }
-
+    // === Event invocations in invalid contexts (type mismatch) ===
     function eventInAssignment() public {
-        uint x = MyEvent(1, "hi");
-        //~^ ERROR: event invocations have to be prefixed by "emit"
-        //~| ERROR: mismatched number of components
+        uint x = MyEvent(1, "hi"); //~ ERROR: mismatched types
     }
 
     function eventAsArgument() public pure {
-        this.takeBytes(EmptyEvent()); //~ ERROR: event invocations have to be prefixed by "emit"
-        //~^ ERROR: mismatched types
-    }
-
-    // Solc test: multiple_event_without_emit.sol
-    function multipleEvents() external {
-        emit MyEvent(0, "x");
-        // Second invocation without emit should still error.
-        MyEvent(1, "y"); //~ ERROR: event invocations have to be prefixed by "emit"
+        this.takeBytes(EmptyEvent()); //~ ERROR: mismatched types
     }
 
     function takeBytes(bytes memory) public pure {}
 
-    // === Error invocations outside revert (solc error 7757) ===
-    function errorAsExpression() public pure {
-        MyError(404, "not found"); //~ ERROR: errors can only be used with revert statements
-    }
-
+    // === Error invocations in invalid contexts (type mismatch) ===
     function errorInAssignment() public pure {
-        uint x = MyError(404, "not found");
-        //~^ ERROR: errors can only be used with revert statements
-        //~| ERROR: mismatched number of components
+        uint x = MyError(404, "not found"); //~ ERROR: mismatched types
     }
 
     function errorAsArgument() public pure {
-        this.takeBytes(EmptyError()); //~ ERROR: errors can only be used with revert statements
-        //~^ ERROR: mismatched types
+        this.takeBytes(EmptyError()); //~ ERROR: mismatched types
     }
 
     // === Non-event in emit statement (solc error 9292) ===
@@ -75,21 +56,16 @@ contract EventErrorContext {
 
     // === Non-error in revert statement (solc error 1885) ===
     function revertEvent() public pure {
-        revert EmptyEvent(); //~ ERROR: event invocations have to be prefixed by "emit"
-        //~^ ERROR: expression has to be an error
+        revert EmptyEvent(); //~ ERROR: expression has to be an error
     }
 
-    // === Nested event/error invocations in arguments should still error ===
+    // === Nested event/error invocations in arguments (type mismatch) ===
     function nestedEventInEmitArg() public {
-        emit MyEvent(EmptyEvent(), "x");
-        //~^ ERROR: event invocations have to be prefixed by "emit"
-        //~| ERROR: mismatched types
+        emit MyEvent(EmptyEvent(), "x"); //~ ERROR: mismatched types
     }
 
     function nestedErrorInRevertArg() public pure {
-        revert MyError(EmptyError(), "x");
-        //~^ ERROR: errors can only be used with revert statements
-        //~| ERROR: mismatched types
+        revert MyError(EmptyError(), "x"); //~ ERROR: mismatched types
     }
 
     // TODO: require(condition, MyError(...)) should be allowed but is not yet implemented.

@@ -330,6 +330,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
             | TyKind::Struct(_)
+            | TyKind::ErrorCall(_)
+            | TyKind::EventCall(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
             TyKind::Ref(ty, _)
@@ -938,11 +940,17 @@ pub enum TyKind<'gcx> {
     /// An enum.
     Enum(hir::EnumId),
 
-    /// A custom error.
+    /// A custom error definition (callable).
     Error(&'gcx [Ty<'gcx>], hir::ErrorId),
 
-    /// An event.
+    /// An event definition (callable).
     Event(&'gcx [Ty<'gcx>], hir::EventId),
+
+    /// The result of invoking a custom error. Only valid in `revert` statements.
+    ErrorCall(hir::ErrorId),
+
+    /// The result of invoking an event. Only valid in `emit` statements.
+    EventCall(hir::EventId),
 
     /// A user-defined value type. `Ty` can only be `Elementary`.
     Udvt(Ty<'gcx>, hir::UdvtId),
@@ -1009,7 +1017,9 @@ impl TyFlags {
             | TyKind::FnPtr(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
-            | TyKind::BuiltinModule(_) => {}
+            | TyKind::BuiltinModule(_)
+            | TyKind::ErrorCall(_)
+            | TyKind::EventCall(_) => {}
 
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
