@@ -736,6 +736,7 @@ impl EvmCodegen {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
             self.asm.emit_op(opcodes::SWAP1);
+            self.scheduler.stack_swapped();
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
