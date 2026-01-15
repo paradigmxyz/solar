@@ -151,24 +151,21 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Member(base, member) => {
                 // Check if this is a builtin module member access (e.g., msg.sender,
                 // block.timestamp)
-                if let ExprKind::Ident(res_slice) = &base.kind {
-                    if let Some(hir::Res::Builtin(base_builtin)) = res_slice.first() {
-                        // Try to find the corresponding builtin member
-                        if let Some(member_builtin) =
-                            self.resolve_builtin_member(*base_builtin, member.name)
-                        {
-                            return self.lower_builtin(builder, member_builtin);
-                        }
-                    }
+                if let ExprKind::Ident(res_slice) = &base.kind
+                    && let Some(hir::Res::Builtin(base_builtin)) = res_slice.first()
+                    && let Some(member_builtin) =
+                        self.resolve_builtin_member(*base_builtin, member.name)
+                {
+                    return self.lower_builtin(builder, member_builtin);
                 }
 
                 // Handle dynamic array .length
-                if member.name.as_str() == "length" {
-                    if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
-                        // Length is stored directly at the base slot
-                        let slot_val = builder.imm_u64(slot);
-                        return builder.sload(slot_val);
-                    }
+                if member.name.as_str() == "length"
+                    && let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base)
+                {
+                    // Length is stored directly at the base slot
+                    let slot_val = builder.imm_u64(slot);
+                    return builder.sload(slot_val);
                 }
 
                 // Regular struct/memory member access
@@ -803,13 +800,11 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(*var_id);
             // Check if this variable has dynamic array type (Array with no size)
-            if let hir::TypeKind::Array(arr) = &var.ty.kind {
-                if arr.size.is_none() {
-                    // Dynamic array
-                    if let Some(&slot) = self.storage_slots.get(var_id) {
-                        return Some((*var_id, slot));
-                    }
-                }
+            if let hir::TypeKind::Array(arr) = &var.ty.kind
+                && arr.size.is_none()
+                && let Some(&slot) = self.storage_slots.get(var_id)
+            {
+                return Some((*var_id, slot));
             }
         }
         None
@@ -1004,24 +999,21 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(*var_id);
             let ty = self.gcx.type_of_hir_ty(&var.ty);
-            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
-                if let Some(sel) = lookup_in_contract(contract_id) {
-                    return sel;
-                }
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
+                && let Some(sel) = lookup_in_contract(contract_id)
+            {
+                return sel;
             }
         }
 
         // Case 2: base is a type conversion call like ICallee(addr)
         // The call's callee is an Ident resolving to a Contract/Interface
-        if let ExprKind::Call(callee, _args, _named) = &base.kind {
-            if let ExprKind::Ident(res_slice) = &callee.kind {
-                if let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
-                {
-                    if let Some(sel) = lookup_in_contract(*contract_id) {
-                        return sel;
-                    }
-                }
-            }
+        if let ExprKind::Call(callee, _args, _named) = &base.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(sel) = lookup_in_contract(*contract_id)
+        {
+            return sel;
         }
 
         // Fallback: compute selector from member name

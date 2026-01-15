@@ -115,11 +115,10 @@ impl StackScheduler {
             return true;
         }
         // Check value type
-        match func.value(value) {
-            crate::mir::Value::Immediate(_) => true,
-            crate::mir::Value::Arg { .. } => true,
-            _ => false,
-        }
+        matches!(
+            func.value(value),
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+        )
     }
 
     /// Ensures multiple values are on top of the stack in order.
@@ -220,17 +219,17 @@ impl StackScheduler {
         // and swap them to the top to pop them
         let mut depth = 1usize;
         while depth < self.stack.depth().min(MAX_STACK_ACCESS) {
-            if let Some(val) = self.stack.peek(depth) {
-                if liveness.is_dead_after(val, block, inst_idx) {
-                    // Swap this dead value to the top and pop it
-                    let swap_n = depth as u8;
-                    ops.push(StackOp::Swap(swap_n));
-                    self.stack.swap(swap_n);
-                    ops.push(StackOp::Pop);
-                    self.stack.pop();
-                    // Don't increment depth since we removed an element
-                    continue;
-                }
+            if let Some(val) = self.stack.peek(depth)
+                && liveness.is_dead_after(val, block, inst_idx)
+            {
+                // Swap this dead value to the top and pop it
+                let swap_n = depth as u8;
+                ops.push(StackOp::Swap(swap_n));
+                self.stack.swap(swap_n);
+                ops.push(StackOp::Pop);
+                self.stack.pop();
+                // Don't increment depth since we removed an element
+                continue;
             }
             depth += 1;
         }

@@ -133,13 +133,9 @@ impl<'gcx> Lowerer<'gcx> {
         // Collect state variables with initializers
         let vars_with_init: Vec<_> = contract
             .variables()
-            .filter_map(|var_id| {
-                let var = self.gcx.hir.variable(var_id);
-                if var.is_state_variable() && var.initializer.is_some() {
-                    Some(var_id)
-                } else {
-                    None
-                }
+            .filter(|var_id| {
+                let var = self.gcx.hir.variable(*var_id);
+                var.is_state_variable() && var.initializer.is_some()
             })
             .collect();
 
