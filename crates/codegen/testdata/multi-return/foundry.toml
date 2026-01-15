@@ -1,4 +1,3 @@
 [profile.default]
-src = "src"
-test = "test"
-libs = []
+optimizer = true
+optimizer_runs = 200
