@@ -360,6 +360,8 @@ impl Liveness {
     pub fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
         match self.last_use.get(&val) {
             Some(&(last_block, Some(last_idx))) => last_block == block && last_idx == inst_idx,
+            // Value has no uses at all - it's dead from birth
+            None => true,
             _ => false,
         }
     }
