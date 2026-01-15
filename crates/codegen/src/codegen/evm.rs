@@ -218,6 +218,10 @@ impl EvmCodegen {
             self.asm.emit_op(opcodes::JUMPDEST);
             self.asm.emit_op(opcodes::POP); // Pop the selector
 
+            // Emit payable check for non-payable functions
+            // Non-payable, view, and pure functions must revert if called with value
+            self.emit_payable_check(func);
+
             // Generate function body
             self.generate_function_body(func);
         }
@@ -228,6 +232,34 @@ impl EvmCodegen {
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_op(opcodes::REVERT);
+    }
+
+    /// Emits a payable check for non-payable functions.
+    /// Non-payable, view, and pure functions revert if called with value.
+    fn emit_payable_check(&mut self, func: &Function) {
+        use solar_sema::hir::StateMutability;
+
+        match func.attributes.state_mutability {
+            StateMutability::Payable => {
+                // Payable functions accept ETH - no check needed
+            }
+            StateMutability::NonPayable | StateMutability::View | StateMutability::Pure => {
+                // CALLVALUE ISZERO ok JUMPI PUSH0 PUSH0 REVERT ok: JUMPDEST
+                let ok_label = self.asm.new_label();
+
+                self.asm.emit_op(opcodes::CALLVALUE);
+                self.asm.emit_op(opcodes::ISZERO);
+                self.asm.emit_push_label(ok_label);
+                self.asm.emit_op(opcodes::JUMPI);
+                // Revert with empty data
+                self.asm.emit_push(U256::ZERO);
+                self.asm.emit_push(U256::ZERO);
+                self.asm.emit_op(opcodes::REVERT);
+
+                self.asm.define_label(ok_label);
+                self.asm.emit_op(opcodes::JUMPDEST);
+            }
+        }
     }
 
     /// Generates bytecode for a function.

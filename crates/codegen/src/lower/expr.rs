@@ -69,7 +69,9 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.select(cond_val, then_val, else_val)
             }
 
-            ExprKind::Call(callee, args, _named_args) => self.lower_call(builder, callee, args),
+            ExprKind::Call(callee, args, call_opts) => {
+                self.lower_call(builder, callee, args, *call_opts)
+            }
 
             ExprKind::Index(base, index) => {
                 // Check if base is a mapping (state variable with mapping type)
@@ -497,6 +499,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         callee: &hir::Expr<'_>,
         args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
         if let ExprKind::Ident(res_slice) = &callee.kind
             && let Some(hir::Res::Builtin(builtin)) = res_slice.first()
@@ -505,7 +508,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
-            return self.lower_member_call(builder, base, *member, args);
+            return self.lower_member_call_with_opts(builder, base, *member, args, call_opts);
         }
 
         // Handle `new Contract(args)` - contract creation
@@ -663,12 +666,13 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a member function call (e.g., counter.increment()).
-    fn lower_member_call(
+    fn lower_member_call_with_opts(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
         member: Ident,
         args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
         // Handle address payable transfer/send builtins
         let member_name = member.name.as_str();
@@ -764,8 +768,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Gas: use all available gas
         let gas = builder.gas();
 
-        // Value: 0 for non-payable calls
-        let value = builder.imm_u64(0);
+        // Value: extract from call options {value: X} or default to 0
+        let value = self.extract_call_value(builder, call_opts);
 
         // Emit the CALL instruction
         let _success =
@@ -773,6 +777,22 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Load return value from memory
         builder.mload(ret_offset)
+    }
+
+    /// Extracts the `value` from call options `{value: X}`, or returns 0 if not present.
+    fn extract_call_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+    ) -> ValueId {
+        if let Some(opts) = call_opts {
+            for opt in opts {
+                if opt.name.name.as_str() == "value" {
+                    return self.lower_expr(builder, &opt.value);
+                }
+            }
+        }
+        builder.imm_u64(0)
     }
 
     /// Checks if an expression is a mapping state variable and returns its var_id and storage slot.
@@ -935,23 +955,52 @@ impl<'gcx> Lowerer<'gcx> {
     /// For `m[a][b]` where `m: mapping(A => mapping(B => C))`, this returns false
     /// because the value at `m[a][b]` is C, not a mapping.
     fn nested_mapping_value_is_mapping(&self, expr: &hir::Expr<'_>) -> bool {
-        if let ExprKind::Index(inner_base, _) = &expr.kind {
-            // Check if inner_base is the root mapping variable
-            if let Some((var_id, _)) = self.get_mapping_base_slot(inner_base) {
-                let var = self.gcx.hir.variable(var_id);
-                if let hir::TypeKind::Mapping(outer_map) = &var.ty.kind {
-                    // outer_map.value is the type after first index
-                    // We need to check if THAT mapping's value is also a mapping
-                    if let hir::TypeKind::Mapping(inner_map) = &outer_map.value.kind {
-                        return matches!(inner_map.value.kind, hir::TypeKind::Mapping(_));
-                    }
-                }
+        // Count how many Index levels we have
+        let depth = self.count_index_depth(expr);
+
+        // Find the root mapping variable
+        let Some(var_id) = self.find_mapping_root(expr) else {
+            return false;
+        };
+        let var = self.gcx.hir.variable(var_id);
+
+        // Navigate `depth + 1` levels into the mapping type to find the value type
+        // after indexing one more time from the current expression
+        let mut current_ty = &var.ty.kind;
+        for _ in 0..=depth {
+            if let hir::TypeKind::Mapping(map) = current_ty {
+                current_ty = &map.value.kind;
+            } else {
                 return false;
             }
-            // For deeper nesting, recurse
-            return self.nested_mapping_value_is_mapping(inner_base);
         }
-        false
+
+        matches!(current_ty, hir::TypeKind::Mapping(_))
+    }
+
+    /// Counts how many Index levels deep an expression is.
+    fn count_index_depth(&self, expr: &hir::Expr<'_>) -> usize {
+        let mut depth = 0;
+        let mut current = expr;
+        while let ExprKind::Index(inner_base, _) = &current.kind {
+            depth += 1;
+            current = inner_base;
+        }
+        depth
+    }
+
+    /// Finds the root mapping variable of a nested Index expression.
+    fn find_mapping_root(&self, expr: &hir::Expr<'_>) -> Option<hir::VariableId> {
+        let mut current = expr;
+        while let ExprKind::Index(inner_base, _) = &current.kind {
+            current = inner_base;
+        }
+        if let ExprKind::Ident(res_slice) = &current.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            return Some(*var_id);
+        }
+        None
     }
 
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
