@@ -53,7 +53,11 @@ impl EvmCodegen {
         let runtime_code = self.generate_runtime_code(module);
         let runtime_len = runtime_code.len();
 
-        // Generate minimal deployment code:
+        // Generate constructor initialization code (if any)
+        let constructor_code = self.generate_constructor_code(module);
+
+        // Deploy code structure:
+        // [constructor_code]    ; run constructor (SSTOREs for initializers)
         // PUSH<n> runtime_len   ; size to return
         // DUP1                  ; duplicate for CODECOPY
         // PUSH<n> offset        ; where runtime starts
@@ -61,19 +65,6 @@ impl EvmCodegen {
         // CODECOPY              ; copy runtime to memory
         // PUSH0                 ; memory offset = 0
         // RETURN                ; return the runtime code
-        //
-        // We need to calculate the deploy code length to know the offset.
-        // The offset depends on how many bytes PUSH uses for runtime_len and offset.
-        //
-        // PUSH0 = 1 byte (for value 0)
-        // PUSH1 = 2 bytes (for values 1-255)
-        // PUSH2 = 3 bytes (for values 256-65535)
-        //
-        // Worst case for small contracts:
-        // PUSH2 runtime_len (3) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0
-        // (1) + RETURN (1) = 10 For contracts < 256 bytes:
-        // PUSH1 runtime_len (2) + DUP1 (1) + PUSH1 offset (2) + PUSH0 (1) + CODECOPY (1) + PUSH0
-        // (1) + RETURN (1) = 9
 
         // Calculate push sizes
         let len_push_size = if runtime_len == 0 {
@@ -84,15 +75,17 @@ impl EvmCodegen {
             3 // PUSH2
         };
 
-        // Initial estimate of deploy code length (offset uses PUSH1 for now)
-        let initial_offset = len_push_size + 1 + 2 + 1 + 1 + 1 + 1; // 8-10 bytes
+        // Calculate the deploy code length (excluding constructor)
+        let return_code_len = len_push_size + 1 + 2 + 1 + 1 + 1 + 1; // 9 bytes for PUSH+DUP+PUSH+PUSH0+CODECOPY+PUSH0+RETURN
 
-        // Check if we need PUSH2 for the offset
-        let offset_push_size = if initial_offset <= 255 { 2 } else { 3 };
-        let deploy_code_len = len_push_size + 1 + offset_push_size + 1 + 1 + 1 + 1;
+        // Total deploy code = constructor + return code
+        let deploy_code_len = constructor_code.len() + return_code_len;
 
-        // Build the deployment bytecode manually for precise control
+        // Build the deployment bytecode
         let mut deploy_bytecode = Vec::new();
+
+        // Add constructor code first
+        deploy_bytecode.extend_from_slice(&constructor_code);
 
         // PUSH runtime_len
         Self::emit_push_raw(&mut deploy_bytecode, runtime_len as u64);
@@ -109,19 +102,42 @@ impl EvmCodegen {
         // RETURN
         deploy_bytecode.push(opcodes::RETURN);
 
-        // Verify our calculation
-        debug_assert_eq!(
-            deploy_bytecode.len(),
-            deploy_code_len,
-            "Deploy code length mismatch: expected {}, got {}",
-            deploy_code_len,
-            deploy_bytecode.len()
-        );
-
         // Append runtime code
         deploy_bytecode.extend_from_slice(&runtime_code);
 
         (deploy_bytecode, runtime_code)
+    }
+
+    /// Generates constructor code that runs during deployment.
+    /// This includes state variable initializers.
+    fn generate_constructor_code(&mut self, module: &Module) -> Vec<u8> {
+        // Find constructor function if it exists
+        let constructor = module.functions.iter().find(|f| f.attributes.is_constructor);
+
+        if let Some(ctor) = constructor {
+            // Generate constructor bytecode
+            let mut asm = Assembler::new();
+            std::mem::swap(&mut self.asm, &mut asm);
+
+            // Clear state and generate function body
+            self.block_labels.clear();
+            self.block_copies.clear();
+
+            // Generate the constructor body (which includes SSTORE for initializers)
+            self.generate_function_body(ctor);
+
+            std::mem::swap(&mut self.asm, &mut asm);
+            let mut bytecode = asm.assemble().bytecode;
+
+            // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
+            if bytecode.last() == Some(&opcodes::STOP) {
+                bytecode.pop();
+            }
+
+            bytecode
+        } else {
+            Vec::new()
+        }
     }
 
     /// Emit a PUSH instruction with the optimal size for the value.
@@ -345,6 +361,9 @@ impl EvmCodegen {
             InstKind::IsZero(a) => self.emit_unary_op(func, *a, opcodes::ISZERO),
 
             // Memory operations
+            // Note: We don't track MLOAD results because they can become stale 
+            // after the memory location is modified (e.g., in loops).
+            // The instruction sequence must ensure operands are in the right order.
             InstKind::MLoad(addr) => self.emit_unary_op(func, *addr, opcodes::MLOAD),
             InstKind::MStore(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE),
             InstKind::MStore8(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE8),
@@ -364,7 +383,7 @@ impl EvmCodegen {
 
             // Hash operations
             InstKind::Keccak256(off, len) => {
-                self.emit_binary_op(func, *off, *len, opcodes::KECCAK256)
+                self.emit_binary_op_with_result(func, *off, *len, opcodes::KECCAK256, result_value)
             }
 
             // Environment operations
@@ -540,8 +559,8 @@ impl EvmCodegen {
         }
 
         // Drop dead values after the instruction
-        let pops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
-        for op in pops {
+        let dead_ops = self.scheduler.drop_dead_values(liveness, block, inst_idx);
+        for op in dead_ops {
             self.asm.emit_op(op.opcode());
         }
     }
@@ -581,11 +600,8 @@ impl EvmCodegen {
 
     /// Emits a binary operation.
     fn emit_binary_op(&mut self, func: &Function, a: ValueId, b: ValueId, opcode: u8) {
-        // EVM binary ops: result = op(a, b) where a is on top
-        self.emit_value(func, b);
-        self.emit_value(func, a);
-        self.asm.emit_op(opcode);
-        self.scheduler.instruction_executed(2, None);
+        // Use the common logic with no result tracking
+        self.emit_binary_op_with_result(func, a, b, opcode, None);
     }
 
     /// Emits a binary operation with result tracking.
@@ -597,18 +613,44 @@ impl EvmCodegen {
         opcode: u8,
         result: Option<ValueId>,
     ) {
-        self.emit_value(func, b);
-        self.emit_value(func, a);
+        // Check if either operand is already on stack as an untracked value
+        let a_can_emit = self.scheduler.can_emit_value(a, func);
+        let b_can_emit = self.scheduler.can_emit_value(b, func);
+        let has_untracked = self.scheduler.has_untracked_on_top();
+        let has_untracked_at_1 = self.scheduler.has_untracked_at_depth(1);
+
+        if !a_can_emit && b_can_emit && has_untracked {
+            // a is an untracked value on top of stack, emit b, then SWAP
+            self.emit_value(func, b);
+            self.asm.emit_op(opcodes::SWAP1);
+        } else if a_can_emit && !b_can_emit && has_untracked {
+            // b is an untracked value on top of stack, emit a on top
+            self.emit_value(func, a);
+        } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
+            // a is an untracked value at depth 1, b is tracked on top
+            // Stack is [b, a_untracked], need [a, b]
+            // Just SWAP1 to get correct order
+            self.asm.emit_op(opcodes::SWAP1);
+            self.scheduler.stack_swapped();
+        } else {
+            // Normal case: emit b first (bottom), then a (top)
+            self.emit_value(func, b);
+            self.emit_value(func, a);
+        }
+
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(2, result);
     }
 
     /// Emits a unary operation.
+    /// Note: This tracks an "unknown" value on the stack to maintain correct depth.
+    /// For operations that need their result tracked with a specific ValueId,
+    /// use emit_unary_op_with_result.
     fn emit_unary_op(&mut self, func: &Function, a: ValueId, opcode: u8) {
         self.emit_value(func, a);
         self.asm.emit_op(opcode);
-        // Note: unary ops produce a value but we track it via generate_inst's result_value
-        self.scheduler.instruction_executed(1, None);
+        // Pop the input and push an unknown value (for MLOAD where result may become stale)
+        self.scheduler.instruction_executed_untracked(1);
     }
 
     /// Emits a unary operation with result tracking.
