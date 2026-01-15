@@ -106,7 +106,12 @@ contract ControlFlowTest {
         require(cf.forWithBreak(3) == 3, "break at 3: 0+1+2 = 3");
     }
 
-    // TODO: ForWithContinue skipped - continue statement has bugs
+    function test_ForWithContinue() public view {
+        // Only add odd numbers: 1+3+5+7+9 = 25
+        require(cf.forWithContinue(10) == 25, "continue: sum of odds 1-9 = 25");
+        require(cf.forWithContinue(5) == 4, "continue: sum of odds 1-4 = 1+3 = 4");
+        require(cf.forWithContinue(1) == 0, "continue: sum of odds 0 = 0");
+    }
 
     function test_WhileWithBreak() public view {
         require(cf.whileWithBreak(5) == 5, "while break at 5");

@@ -417,12 +417,22 @@ impl EvmCodegen {
             InstKind::Sar(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SAR),
             InstKind::Byte(i, x) => self.emit_binary_op(func, *i, *x, opcodes::BYTE),
 
-            // Comparison operations
-            InstKind::Lt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::LT),
-            InstKind::Gt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::GT),
-            InstKind::SLt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::SLT),
-            InstKind::SGt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::SGT),
-            InstKind::Eq(a, b) => self.emit_binary_op(func, *a, *b, opcodes::EQ),
+            // Comparison operations - track results since they're used as branch conditions
+            InstKind::Lt(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::LT, result_value)
+            }
+            InstKind::Gt(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::GT, result_value)
+            }
+            InstKind::SLt(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::SLT, result_value)
+            }
+            InstKind::SGt(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::SGT, result_value)
+            }
+            InstKind::Eq(a, b) => {
+                self.emit_binary_op_with_result(func, *a, *b, opcodes::EQ, result_value)
+            }
             InstKind::IsZero(a) => {
                 self.emit_unary_op_with_result(func, *a, opcodes::ISZERO, result_value)
             }
@@ -440,7 +450,15 @@ impl EvmCodegen {
             InstKind::SLoad(slot) => {
                 self.emit_unary_op_with_result(func, *slot, opcodes::SLOAD, result_value)
             }
-            InstKind::SStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::SSTORE),
+            InstKind::SStore(slot, val) => self.emit_store_op_live_aware(
+                func,
+                *slot,
+                *val,
+                opcodes::SSTORE,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::TLoad(slot) => self.emit_unary_op(func, *slot, opcodes::TLOAD),
             InstKind::TStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::TSTORE),
 
@@ -745,6 +763,47 @@ impl EvmCodegen {
     fn emit_store_op(&mut self, func: &Function, addr: ValueId, val: ValueId, opcode: u8) {
         self.emit_value(func, val);
         self.emit_value(func, addr);
+        self.asm.emit_op(opcode);
+        self.scheduler.instruction_executed(2, None);
+    }
+
+    /// Emits a store operation with liveness awareness.
+    /// If the value operand is still live after this instruction, we DUP it first
+    /// to preserve it on the stack for later use.
+    fn emit_store_op_live_aware(
+        &mut self,
+        func: &Function,
+        addr: ValueId,
+        val: ValueId,
+        opcode: u8,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        // Check if val is still live after this instruction
+        let val_is_live = !liveness.is_dead_after(val, block, inst_idx);
+        // Check if addr is still live after this instruction
+        let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
+
+        // Emit val
+        self.emit_value(func, val);
+
+        // If val is still live and is on top of the stack, we need to DUP it
+        // before it gets consumed by the store operation
+        if val_is_live && self.scheduler.stack.is_on_top(val) {
+            self.asm.emit_op(opcodes::dup(1));
+            self.scheduler.stack.dup(1);
+        }
+
+        // Emit addr
+        self.emit_value(func, addr);
+
+        // If addr is still live, DUP it too (rare but possible)
+        if addr_is_live && self.scheduler.stack.is_on_top(addr) {
+            self.asm.emit_op(opcodes::dup(1));
+            self.scheduler.stack.dup(1);
+        }
+
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(2, None);
     }

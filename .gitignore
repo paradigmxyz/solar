@@ -5,3 +5,4 @@
 /*.yul
 /tmp/
 .DS_Store
+.worktrees/

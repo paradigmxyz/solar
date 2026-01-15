@@ -204,7 +204,31 @@ contract ArithmeticTest {
         require(arith.complexExpr(10, 5, 2) == 29, "complex expr");
     }
 
-    // TODO: Increment/Decrement tests skipped - storage pre/post inc/dec has a bug
+    // ========== Increment/Decrement ==========
+
+    function test_PreIncrement() public {
+        arith.resetCounter();
+        require(arith.preIncrement() == 1, "pre-inc returns 1");
+        require(arith.counter() == 1, "counter is 1");
+    }
+
+    function test_PostIncrement() public {
+        arith.resetCounter();
+        require(arith.postIncrement() == 0, "post-inc returns 0");
+        require(arith.counter() == 1, "counter is 1");
+    }
+
+    function test_PreDecrement() public {
+        arith.setCounter(5);
+        require(arith.preDecrement() == 4, "pre-dec returns 4");
+        require(arith.counter() == 4, "counter is 4");
+    }
+
+    function test_PostDecrement() public {
+        arith.setCounter(5);
+        require(arith.postDecrement() == 5, "post-dec returns 5");
+        require(arith.counter() == 4, "counter is 4");
+    }
 
     // ========== Compound Assignments ==========
 
