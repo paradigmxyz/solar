@@ -54,4 +54,27 @@ contract NestedCallsTest {
     function test_DeepNested() public view {
         require(nc.deepNested(10) == 16, "((10+1)+2)+3=16");
     }
+
+    // ========== External nested call tests ==========
+
+    function test_Inner() public view {
+        require(nc.inner(5) == 10, "inner(5) = 10");
+    }
+
+    function test_Outer() public view {
+        // outer(x) = inner(inner(x)) = x * 2 * 2 = x * 4
+        require(nc.outer(3) == 12, "outer(3) = 12");
+        require(nc.outer(10) == 40, "outer(10) = 40");
+    }
+
+    function test_MixedBitwise() public view {
+        // mixedBitwise(0xAB, 0xCD) = bitwiseOr(bitwiseAnd(0xAB, 0xF0), bitwiseAnd(0xCD, 0x0F))
+        //                         = bitwiseOr(0xA0, 0x0D) = 0xAD
+        require(nc.mixedBitwise(0xAB, 0xCD) == 0xAD, "mixedBitwise(AB, CD) = AD");
+    }
+
+    function test_NestedShifts() public view {
+        // nestedShifts ignores arg, returns shiftRight(shiftLeft(1, 8), 4) = 256 >> 4 = 16
+        require(nc.nestedShifts(0) == 16, "nestedShifts = 16");
+    }
 }
