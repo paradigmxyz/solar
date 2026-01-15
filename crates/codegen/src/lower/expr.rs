@@ -95,7 +95,8 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(computed_slot);
                 }
 
-                // Check if base is a nested mapping access (e.g., m[a][b] where m[a] returns a slot)
+                // Check if base is a nested mapping access (e.g., m[a][b] where m[a] returns a
+                // slot)
                 if self.is_nested_mapping_index(base) {
                     // This is a nested mapping access
                     let inner_slot = self.lower_nested_mapping_slot(builder, base);
@@ -148,7 +149,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Member(base, member) => {
-                // Check if this is a builtin module member access (e.g., msg.sender, block.timestamp)
+                // Check if this is a builtin module member access (e.g., msg.sender,
+                // block.timestamp)
                 if let ExprKind::Ident(res_slice) = &base.kind {
                     if let Some(hir::Res::Builtin(base_builtin)) = res_slice.first() {
                         // Try to find the corresponding builtin member

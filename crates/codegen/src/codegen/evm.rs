@@ -361,7 +361,7 @@ impl EvmCodegen {
             InstKind::IsZero(a) => self.emit_unary_op(func, *a, opcodes::ISZERO),
 
             // Memory operations
-            // Note: We don't track MLOAD results because they can become stale 
+            // Note: We don't track MLOAD results because they can become stale
             // after the memory location is modified (e.g., in loops).
             // The instruction sequence must ensure operands are in the right order.
             InstKind::MLoad(addr) => self.emit_unary_op(func, *addr, opcodes::MLOAD),

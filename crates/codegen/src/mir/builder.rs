@@ -315,6 +315,46 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::CodeCopy(dest, offset, size), None)
     }
 
+    /// Emits a log0 instruction (event with no topics).
+    pub fn log0(&mut self, offset: ValueId, size: ValueId) {
+        self.emit_inst(InstKind::Log0(offset, size), None);
+    }
+
+    /// Emits a log1 instruction (event with 1 topic).
+    pub fn log1(&mut self, offset: ValueId, size: ValueId, topic1: ValueId) {
+        self.emit_inst(InstKind::Log1(offset, size, topic1), None);
+    }
+
+    /// Emits a log2 instruction (event with 2 topics).
+    pub fn log2(&mut self, offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId) {
+        self.emit_inst(InstKind::Log2(offset, size, topic1, topic2), None);
+    }
+
+    /// Emits a log3 instruction (event with 3 topics).
+    pub fn log3(
+        &mut self,
+        offset: ValueId,
+        size: ValueId,
+        topic1: ValueId,
+        topic2: ValueId,
+        topic3: ValueId,
+    ) {
+        self.emit_inst(InstKind::Log3(offset, size, topic1, topic2, topic3), None);
+    }
+
+    /// Emits a log4 instruction (event with 4 topics).
+    pub fn log4(
+        &mut self,
+        offset: ValueId,
+        size: ValueId,
+        topic1: ValueId,
+        topic2: ValueId,
+        topic3: ValueId,
+        topic4: ValueId,
+    ) {
+        self.emit_inst(InstKind::Log4(offset, size, topic1, topic2, topic3, topic4), None);
+    }
+
     /// Emits a select instruction.
     pub fn select(&mut self, cond: ValueId, then_val: ValueId, else_val: ValueId) -> ValueId {
         self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(MirType::uint256()))

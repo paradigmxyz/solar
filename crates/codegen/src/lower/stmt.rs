@@ -54,7 +54,9 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.revert(zero, zero);
             }
 
-            StmtKind::Emit(_expr) => {}
+            StmtKind::Emit(expr) => {
+                self.lower_emit(builder, expr);
+            }
 
             StmtKind::Try(_try_stmt) => {}
 
@@ -189,6 +191,101 @@ impl<'gcx> Lowerer<'gcx> {
             builder.ret([ret_val]);
         } else {
             builder.ret([]);
+        }
+    }
+
+    /// Lowers an emit statement.
+    fn lower_emit(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
+        // expr is always a Call expression: EventName(args)
+        if let hir::ExprKind::Call(callee, args, _named) = &expr.kind {
+            // Get the event from the callee
+            if let hir::ExprKind::Ident(res_slice) = &callee.kind {
+                if let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = res_slice.first() {
+                    let event = self.gcx.hir.event(*event_id);
+
+                    // Compute event signature hash (topic0 for non-anonymous events)
+                    let sig = self.compute_event_signature(event);
+                    let sig_hash = alloy_primitives::keccak256(sig.as_bytes());
+                    let topic0 =
+                        builder.imm_u256(alloy_primitives::U256::from_be_bytes(sig_hash.0));
+
+                    // Collect indexed parameters (additional topics) and non-indexed (data)
+                    let mut topics = vec![topic0];
+                    let mut data_values = Vec::new();
+
+                    for (i, param_id) in event.parameters.iter().enumerate() {
+                        let param = self.gcx.hir.variable(*param_id);
+                        let arg_expr = args.exprs().nth(i);
+
+                        if let Some(arg) = arg_expr {
+                            let arg_val = self.lower_expr(builder, arg);
+
+                            if param.indexed {
+                                topics.push(arg_val);
+                            } else {
+                                data_values.push(arg_val);
+                            }
+                        }
+                    }
+
+                    // ABI-encode non-indexed data to memory
+                    let data_size = data_values.len() * 32;
+                    let mem_offset = builder.imm_u64(0);
+                    for (i, val) in data_values.iter().enumerate() {
+                        let offset = builder.imm_u64(i as u64 * 32);
+                        builder.mstore(offset, *val);
+                    }
+                    let size = builder.imm_u64(data_size as u64);
+
+                    // Emit the appropriate LOG instruction based on number of topics
+                    match topics.len() {
+                        0 => builder.log0(mem_offset, size),
+                        1 => builder.log1(mem_offset, size, topics[0]),
+                        2 => builder.log2(mem_offset, size, topics[0], topics[1]),
+                        3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
+                        4 => builder
+                            .log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
+                        _ => {} // More than 4 topics not supported by EVM
+                    }
+                }
+            }
+        }
+    }
+
+    /// Computes the event signature string: "EventName(type1,type2,...)"
+    fn compute_event_signature(&self, event: &hir::Event<'_>) -> String {
+        let params: Vec<String> = event
+            .parameters
+            .iter()
+            .map(|param_id| {
+                let param = self.gcx.hir.variable(*param_id);
+                self.type_to_abi_string(&param.ty)
+            })
+            .collect();
+        format!("{}({})", event.name.name, params.join(","))
+    }
+
+    /// Converts a HIR type to its ABI string representation
+    fn type_to_abi_string(&self, ty: &hir::Type<'_>) -> String {
+        match &ty.kind {
+            hir::TypeKind::Elementary(elem) => elem.to_abi_str().to_string(),
+            hir::TypeKind::Custom(item_id) => {
+                // For contracts, use "address"
+                if let hir::ItemId::Contract(_) = item_id {
+                    "address".to_string()
+                } else {
+                    "uint256".to_string() // Fallback
+                }
+            }
+            hir::TypeKind::Array(arr) => {
+                let inner = self.type_to_abi_string(&arr.element);
+                if let Some(_size) = arr.size {
+                    format!("{}[]", inner) // Fixed size arrays treated as dynamic for simplicity
+                } else {
+                    format!("{}[]", inner)
+                }
+            }
+            _ => "uint256".to_string(), // Fallback for other types
         }
     }
 }
