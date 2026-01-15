@@ -138,6 +138,51 @@ contract ArithmeticTest {
 
     // TODO: BitwiseNot test skipped - NOT opcode not yet implemented
 
+    // ========== Signed Arithmetic ==========
+
+    function test_SignedAdd() public view {
+        require(arith.signedAdd(5, 3) == 8, "5+3=8");
+        require(arith.signedAdd(-5, 3) == -2, "-5+3=-2");
+        require(arith.signedAdd(-5, -3) == -8, "-5+-3=-8");
+        require(arith.signedAdd(0, 0) == 0, "0+0=0");
+    }
+
+    function test_SignedSub() public view {
+        require(arith.signedSub(5, 3) == 2, "5-3=2");
+        require(arith.signedSub(3, 5) == -2, "3-5=-2");
+        require(arith.signedSub(-5, -3) == -2, "-5--3=-2");
+        require(arith.signedSub(-5, 3) == -8, "-5-3=-8");
+    }
+
+    function test_SignedMul() public view {
+        require(arith.signedMul(3, 4) == 12, "3*4=12");
+        require(arith.signedMul(-3, 4) == -12, "-3*4=-12");
+        require(arith.signedMul(-3, -4) == 12, "-3*-4=12");
+        require(arith.signedMul(0, -100) == 0, "0*-100=0");
+    }
+
+    function test_SignedDiv() public view {
+        require(arith.signedDiv(10, 2) == 5, "10/2=5");
+        require(arith.signedDiv(-10, 2) == -5, "-10/2=-5");
+        require(arith.signedDiv(10, -2) == -5, "10/-2=-5");
+        require(arith.signedDiv(-10, -2) == 5, "-10/-2=5");
+        require(arith.signedDiv(-7, 2) == -3, "-7/2=-3 (truncate toward zero)");
+    }
+
+    function test_SignedLt() public view {
+        require(arith.signedLt(-5, 0) == true, "-5<0");
+        require(arith.signedLt(-10, -5) == true, "-10<-5");
+        require(arith.signedLt(5, -5) == false, "5<-5 false");
+        require(arith.signedLt(0, 0) == false, "0<0 false");
+    }
+
+    function test_SignedGt() public view {
+        require(arith.signedGt(0, -5) == true, "0>-5");
+        require(arith.signedGt(-5, -10) == true, "-5>-10");
+        require(arith.signedGt(-5, 5) == false, "-5>5 false");
+        require(arith.signedGt(0, 0) == false, "0>0 false");
+    }
+
     function test_ShiftLeft() public view {
         require(arith.shiftLeft(1, 0) == 1, "1<<0=1");
         require(arith.shiftLeft(1, 1) == 2, "1<<1=2");

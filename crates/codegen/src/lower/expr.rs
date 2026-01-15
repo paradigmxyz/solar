@@ -364,17 +364,19 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
                     let var = self.gcx.hir.variable(*var_id);
-                    return self.is_hir_type_signed(&var.ty);
+                    self.is_hir_type_signed(&var.ty)
+                } else {
+                    false
                 }
-                false
             }
             ExprKind::Unary(_, inner) => self.is_expr_signed(inner),
             ExprKind::Binary(lhs, _, _) => self.is_expr_signed(lhs),
             ExprKind::Tuple(elements) => {
                 if let Some(Some(inner)) = elements.first() {
-                    return self.is_expr_signed(inner);
+                    self.is_expr_signed(inner)
+                } else {
+                    false
                 }
-                false
             }
             _ => false,
         }
