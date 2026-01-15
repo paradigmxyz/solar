@@ -14,6 +14,9 @@ impl<'gcx> Lowerer<'gcx> {
     ) {
         for stmt in block.stmts {
             self.lower_stmt(builder, stmt);
+            if builder.func().block(builder.current_block()).terminator.is_some() {
+                break;
+            }
         }
     }
 
