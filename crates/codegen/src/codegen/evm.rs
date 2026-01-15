@@ -224,19 +224,64 @@ impl EvmCodegen {
     }
 
     /// Generates the function dispatcher.
+    ///
+    /// The dispatcher logic is:
+    /// ```text
+    /// if calldatasize == 0:
+    ///     if has_receive: jump to receive
+    ///     elif has_fallback: jump to fallback
+    ///     else: revert
+    /// else:
+    ///     match selector...
+    ///     if no match and has_fallback: jump to fallback
+    ///     else: revert
+    /// ```
     fn generate_dispatcher(&mut self, module: &Module) {
-        // Load selector from calldata
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(opcodes::CALLDATALOAD);
-        self.asm.emit_push(U256::from(0xe0));
-        self.asm.emit_op(opcodes::SHR);
+        // Find receive and fallback functions
+        let receive_idx = module
+            .functions
+            .iter()
+            .position(|f| f.attributes.is_receive);
+        let fallback_idx = module
+            .functions
+            .iter()
+            .position(|f| f.attributes.is_fallback);
 
         // Create labels for each function
         let mut func_labels: Vec<Label> = Vec::new();
         for _ in module.functions.iter() {
             func_labels.push(self.asm.new_label());
         }
-        let fallback_label = self.asm.new_label();
+        let revert_label = self.asm.new_label();
+        let has_calldata_label = self.asm.new_label();
+
+        // Check if calldatasize == 0
+        self.asm.emit_op(opcodes::CALLDATASIZE);
+        self.asm.emit_push_label(has_calldata_label);
+        self.asm.emit_op(opcodes::JUMPI);
+
+        // calldatasize == 0: Handle receive/fallback
+        // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else revert
+        if let Some(recv_idx) = receive_idx {
+            self.asm.emit_push_label(func_labels[recv_idx]);
+            self.asm.emit_op(opcodes::JUMP);
+        } else if let Some(fb_idx) = fallback_idx {
+            self.asm.emit_push_label(func_labels[fb_idx]);
+            self.asm.emit_op(opcodes::JUMP);
+        } else {
+            self.asm.emit_push_label(revert_label);
+            self.asm.emit_op(opcodes::JUMP);
+        }
+
+        // calldatasize > 0: Load selector and match
+        self.asm.define_label(has_calldata_label);
+        self.asm.emit_op(opcodes::JUMPDEST);
+
+        // Load selector from calldata
+        self.asm.emit_push(U256::ZERO);
+        self.asm.emit_op(opcodes::CALLDATALOAD);
+        self.asm.emit_push(U256::from(0xe0));
+        self.asm.emit_op(opcodes::SHR);
 
         // Compare against each function's selector
         for (i, func) in module.functions.iter().enumerate() {
@@ -249,26 +294,36 @@ impl EvmCodegen {
             }
         }
 
-        // No match - jump to fallback
-        self.asm.emit_push_label(fallback_label);
-        self.asm.emit_op(opcodes::JUMP);
+        // No selector match - jump to fallback or revert
+        if let Some(fb_idx) = fallback_idx {
+            // Pop selector and jump to fallback
+            self.asm.emit_op(opcodes::POP);
+            self.asm.emit_push_label(func_labels[fb_idx]);
+            self.asm.emit_op(opcodes::JUMP);
+        } else {
+            self.asm.emit_push_label(revert_label);
+            self.asm.emit_op(opcodes::JUMP);
+        }
 
         // Define function entry points
         for (i, func) in module.functions.iter().enumerate() {
             self.asm.define_label(func_labels[i]);
             self.asm.emit_op(opcodes::JUMPDEST);
-            self.asm.emit_op(opcodes::POP); // Pop the selector
+
+            // Pop the selector for regular functions (receive/fallback don't have it on stack)
+            if func.selector.is_some() {
+                self.asm.emit_op(opcodes::POP);
+            }
 
             // Emit payable check for non-payable functions
-            // Non-payable, view, and pure functions must revert if called with value
             self.emit_payable_check(func);
 
             // Generate function body
             self.generate_function_body(func);
         }
 
-        // Fallback - revert
-        self.asm.define_label(fallback_label);
+        // Revert label
+        self.asm.define_label(revert_label);
         self.asm.emit_op(opcodes::JUMPDEST);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
@@ -739,6 +794,17 @@ impl EvmCodegen {
         opcode: u8,
         result: Option<ValueId>,
     ) {
+        // Special case: same operand used twice (e.g., a - a, a % a)
+        // Need to emit the value once, then DUP1 to have two copies
+        if a == b {
+            self.emit_value(func, a);
+            self.asm.emit_op(opcodes::DUP1);
+            self.scheduler.stack.dup(1);
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+
         // Check if either operand is already on stack as an untracked value
         let a_can_emit = self.scheduler.can_emit_value(a, func);
         let b_can_emit = self.scheduler.can_emit_value(b, func);

@@ -332,7 +332,12 @@ impl<'gcx> Lowerer<'gcx> {
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
         };
 
-        if mir_func.is_public() && !mir_func.attributes.is_constructor {
+        // Only regular public/external functions get selectors.
+        // Constructor, receive, and fallback don't have selectors.
+        let is_special = mir_func.attributes.is_constructor
+            || mir_func.attributes.is_receive
+            || mir_func.attributes.is_fallback;
+        if mir_func.is_public() && !is_special {
             mir_func.selector = Some(self.compute_selector(hir_func));
         }
 
@@ -414,9 +419,9 @@ impl<'gcx> Lowerer<'gcx> {
                     let s = self.gcx.hir.strukt(*struct_id);
                     s.name.to_string()
                 }
-                hir::ItemId::Enum(enum_id) => {
-                    let e = self.gcx.hir.enumm(*enum_id);
-                    e.name.to_string()
+                hir::ItemId::Enum(_) => {
+                    // Enums are represented as uint8 in ABI encoding
+                    "uint8".to_string()
                 }
                 hir::ItemId::Contract(contract_id) => {
                     let c = self.gcx.hir.contract(*contract_id);

@@ -179,6 +179,12 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot_val);
                 }
 
+                // Handle address member access: addr.balance
+                if member.name.as_str() == "balance" {
+                    let addr = self.lower_expr(builder, base);
+                    return builder.balance(addr);
+                }
+
                 // Regular struct/memory member access
                 let base_val = self.lower_expr(builder, base);
                 builder.mload(base_val)
