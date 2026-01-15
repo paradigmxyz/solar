@@ -90,12 +90,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -148,33 +142,67 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
-                let mut callee_ty = self.check_expr(callee);
-                // Get the function type for struct constructors.
-                if let TyKind::Type(struct_ty) = callee_ty.kind
-                    && let TyKind::Struct(id) = struct_ty.kind
-                {
-                    callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                }
+                let callee_ty = self.check_expr(callee);
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
-                let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
-                    }
-                    TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) => {
-                        // return callee_ty
-                        todo!()
-                    }
-                    TyKind::Err(_) => callee_ty,
-                    _ => {
-                        let msg =
-                            format!("expected function, found `{}`", callee_ty.display(self.gcx));
-                        let mut err = self.dcx().err(msg).span(callee.span);
-                        err = err.span_note(expr.span, "call expression requires function");
-                        self.gcx.mk_ty_err(err.emit())
+
+                // Handle struct constructors specially to support named arguments.
+                let struct_id = match callee_ty.kind {
+                    TyKind::Type(inner) => match inner.kind {
+                        TyKind::Struct(id) => Some(id),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+
+                let ty = if let Some(id) = struct_id {
+                    let struct_ty = match callee_ty.kind {
+                        TyKind::Type(inner) => inner,
+                        _ => unreachable!(),
+                    };
+                    let ctor_ty = struct_constructor(self.gcx, struct_ty, id);
+                    let TyKind::FnPtr(f) = ctor_ty.kind else { unreachable!() };
+                    let param_names = self.get_struct_field_names(id);
+                    self.check_call_args(expr.span, args, f.parameters, Some(&param_names));
+                    self.fn_call_return_type(f.returns)
+                } else {
+                    match callee_ty.kind {
+                        TyKind::FnPtr(f) => {
+                            let param_names = f.function_id.map(|id| {
+                                self.get_param_names(self.gcx.hir.function(id).parameters)
+                            });
+                            self.check_call_args(
+                                expr.span,
+                                args,
+                                f.parameters,
+                                param_names.as_deref(),
+                            );
+                            self.fn_call_return_type(f.returns)
+                        }
+                        TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
+                        TyKind::Event(param_tys, id) => {
+                            let event = self.gcx.hir.event(id);
+                            let param_names = self.get_param_names(event.parameters);
+                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                            self.gcx.types.unit
+                        }
+                        TyKind::Error(param_tys, id) => {
+                            let error = self.gcx.hir.error(id);
+                            let param_names = self.get_param_names(error.parameters);
+                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                            self.gcx.types.unit
+                        }
+                        TyKind::Err(_) => callee_ty,
+                        _ => {
+                            let msg = format!(
+                                "expected function, found `{}`",
+                                callee_ty.display(self.gcx)
+                            );
+                            let mut err = self.dcx().err(msg).span(callee.span);
+                            err = err.span_note(expr.span, "call expression requires function");
+                            self.gcx.mk_ty_err(err.emit())
+                        }
                     }
                 };
 
@@ -637,6 +665,161 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
         diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
         diag.emit();
+    }
+
+    fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        match returns {
+            [] => self.gcx.types.unit,
+            [ty] => *ty,
+            tys => self.gcx.mk_ty_tuple(tys),
+        }
+    }
+
+    fn get_param_names(
+        &self,
+        params: &[hir::VariableId],
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
+    }
+
+    fn get_struct_field_names(
+        &self,
+        id: hir::StructId,
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        self.gcx
+            .hir
+            .strukt(id)
+            .fields
+            .iter()
+            .map(|&fid| self.gcx.hir.variable(fid).name.map(|i| i.name))
+            .collect()
+    }
+
+    fn check_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
+    ) {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if let Some(names) = param_names {
+                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
+                } else {
+                    self.dcx()
+                        .err("named arguments cannot be used for functions that take arbitrary parameters")
+                        .span(args.span)
+                        .emit();
+                    for arg in named_args {
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_positional_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        param_tys: &[Ty<'gcx>],
+    ) {
+        if exprs.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    exprs.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        exprs.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let count = std::cmp::min(exprs.len(), param_tys.len());
+        for i in 0..count {
+            let _ = self.expect_ty(&exprs[i], param_tys[i]);
+        }
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr(expr);
+        }
+    }
+
+    fn check_named_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+        param_tys: &[Ty<'gcx>],
+        param_names: &[Option<solar_interface::Symbol>],
+    ) {
+        debug_assert_eq!(param_tys.len(), param_names.len());
+
+        if named_args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    named_args.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        named_args.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
+
+        for arg in named_args {
+            let arg_name = arg.name.name;
+
+            if seen_names.contains(&arg_name) {
+                self.dcx()
+                    .err(format!("duplicate named argument `{arg_name}`"))
+                    .span(arg.name.span)
+                    .emit();
+                let _ = self.check_expr(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            let param_idx = param_names.iter().position(|n| n.is_some_and(|name| name == arg_name));
+
+            match param_idx {
+                Some(idx) => {
+                    let _ = self.expect_ty(&arg.value, param_tys[idx]);
+                }
+                None => {
+                    self.dcx()
+                        .err(format!(
+                            "named argument `{arg_name}` does not match function declaration"
+                        ))
+                        .span(arg.name.span)
+                        .emit();
+                    let _ = self.check_expr(&arg.value);
+                }
+            }
+        }
     }
 
     #[must_use]
