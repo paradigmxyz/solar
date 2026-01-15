@@ -723,8 +723,22 @@ impl EvmCodegen {
         // now represents the destination ValueId
     }
 
+    /// Pops all remaining values from the stack.
+    /// This ensures the stack is empty before control flow transfer to another block.
+    fn pop_all_stack_values(&mut self) {
+        while self.scheduler.stack_depth() > 0 {
+            self.asm.emit_op(opcodes::POP);
+            self.scheduler.stack.pop();
+        }
+    }
+
     /// Generates bytecode for a terminator.
     fn generate_terminator(&mut self, func: &Function, term: &Terminator) {
+        // Pop any remaining values from the stack before control flow transfer.
+        // Each block starts with an empty stack, so we must ensure the stack is
+        // clean before jumping to another block (especially important for loops).
+        self.pop_all_stack_values();
+
         match term {
             Terminator::Jump(target) => {
                 self.asm.emit_push_label(self.block_labels[target]);
