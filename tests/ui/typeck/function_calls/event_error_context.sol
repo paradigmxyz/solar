@@ -68,6 +68,53 @@ contract EventErrorContext {
         revert MyError(EmptyError(), "x"); //~ ERROR: mismatched types
     }
 
+    // === Event/error in various invalid contexts ===
+
+    // In binary operations
+    function eventInBinaryOp() public {
+        bool b = EmptyEvent() == EmptyEvent(); //~ ERROR: cannot apply builtin operator
+    }
+
+    function errorInBinaryOp() public pure {
+        bool b = EmptyError() == EmptyError(); //~ ERROR: cannot apply builtin operator
+    }
+
+    // In array literal
+    function eventInArray() public {
+        uint[2] memory arr = [EmptyEvent(), EmptyEvent()]; //~ ERROR: cannot infer array element type
+    }
+
+    // In ternary operator
+    function eventInTernary() public {
+        uint x = true ? EmptyEvent() : EmptyEvent();
+        //~^ ERROR: mismatched types
+        //~| ERROR: mismatched types
+        //~| ERROR: mismatched types
+    }
+
+    // In struct constructor
+    struct S { uint x; }
+    function eventInStruct() public {
+        S memory s = S(EmptyEvent()); //~ ERROR: mismatched types
+    }
+
+    // In mapping access
+    mapping(uint => uint) m;
+    function eventInMappingKey() public {
+        uint v = m[EmptyEvent()]; //~ ERROR: mismatched types
+    }
+
+    // In array index
+    function eventInArrayIndex() public {
+        uint[] memory arr;
+        uint v = arr[EmptyEvent()]; //~ ERROR: mismatched types
+    }
+
+    // Multiple events/errors in same expression
+    function multipleEventsInExpr() public {
+        uint x = EmptyEvent() + EmptyEvent(); //~ ERROR: cannot apply builtin operator
+    }
+
     // TODO: require(condition, MyError(...)) should be allowed but is not yet implemented.
     // See: syntaxTests/errors/require_custom.sol
 }

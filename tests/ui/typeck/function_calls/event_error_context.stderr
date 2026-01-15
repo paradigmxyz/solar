@@ -46,5 +46,71 @@ error: mismatched types
 LL │         revert MyError(EmptyError(), "x");
    ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyError`
 
-error: aborting due to 8 previous errors
+error: cannot apply builtin operator `==` to `EventErrorContext.EmptyEvent` and `EventErrorContext.EmptyEvent`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyEvent() == EmptyEvent();
+   │                  ┬─────────── ━━ ──────────── EventErrorContext.EmptyEvent
+   │                  │
+   ╰╴                 EventErrorContext.EmptyEvent
+
+error: cannot apply builtin operator `==` to `EventErrorContext.EmptyError` and `EventErrorContext.EmptyError`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyError() == EmptyError();
+   │                  ┬─────────── ━━ ──────────── EventErrorContext.EmptyError
+   │                  │
+   ╰╴                 EventErrorContext.EmptyError
+
+error: cannot infer array element type
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
+   ╰╴                             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = true ? EmptyEvent() : EmptyEvent();
+   ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = true ? EmptyEvent() : EmptyEvent();
+   ╰╴                                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = true ? EmptyEvent() : EmptyEvent();
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         S memory s = S(EmptyEvent());
+   ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint v = m[EmptyEvent()];
+   ╰╴                   ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint v = arr[EmptyEvent()];
+   ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+
+error: cannot apply builtin operator `+` to `EventErrorContext.EmptyEvent` and `EventErrorContext.EmptyEvent`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = EmptyEvent() + EmptyEvent();
+   │                  ┬─────────── ━ ──────────── EventErrorContext.EmptyEvent
+   │                  │
+   ╰╴                 EventErrorContext.EmptyEvent
+
+error: aborting due to 18 previous errors
 
