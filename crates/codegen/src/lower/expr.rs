@@ -7,7 +7,7 @@ use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
-    hir::{self, CallArgs, ExprKind},
+    hir::{self, CallArgs, ElementaryType, ExprKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -31,7 +31,8 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Binary(lhs, op, rhs) => {
                 let lhs_val = self.lower_expr(builder, lhs);
                 let rhs_val = self.lower_expr(builder, rhs);
-                self.lower_binary_op(builder, lhs_val, *op, rhs_val)
+                let is_signed = self.is_expr_signed(lhs);
+                self.lower_binary_op(builder, lhs_val, *op, rhs_val, is_signed)
             }
 
             ExprKind::Unary(op, operand) => {
@@ -161,6 +162,14 @@ impl<'gcx> Lowerer<'gcx> {
                     return self.lower_builtin(builder, member_builtin);
                 }
 
+                // Handle type(T).min and type(T).max
+                if let ExprKind::TypeCall(ty) = &base.kind {
+                    let member_name = member.name.as_str();
+                    if member_name == "max" || member_name == "min" {
+                        return self.lower_type_minmax(builder, ty, member_name == "max");
+                    }
+                }
+
                 // Handle dynamic array .length
                 if member.name.as_str() == "length"
                     && let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base)
@@ -181,7 +190,8 @@ impl<'gcx> Lowerer<'gcx> {
                 let final_val = if let Some(bin_op) = op {
                     // Read current value, apply operator, then assign
                     let lhs_val = self.lower_expr(builder, lhs);
-                    self.lower_binary_op(builder, lhs_val, *bin_op, rhs_val)
+                    let is_signed = self.is_expr_signed(lhs);
+                    self.lower_binary_op(builder, lhs_val, *bin_op, rhs_val, is_signed)
                 } else {
                     rhs_val
                 };
@@ -342,6 +352,34 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Checks if a HIR type is a signed integer type.
+    fn is_hir_type_signed(&self, ty: &hir::Type<'_>) -> bool {
+        matches!(ty.kind, hir::TypeKind::Elementary(ElementaryType::Int(_)))
+    }
+
+    /// Checks if an expression has a signed integer type.
+    /// This is a best-effort check based on the expression structure.
+    fn is_expr_signed(&self, expr: &hir::Expr<'_>) -> bool {
+        match &expr.kind {
+            ExprKind::Ident(res_slice) => {
+                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+                    let var = self.gcx.hir.variable(*var_id);
+                    return self.is_hir_type_signed(&var.ty);
+                }
+                false
+            }
+            ExprKind::Unary(_, inner) => self.is_expr_signed(inner),
+            ExprKind::Binary(lhs, _, _) => self.is_expr_signed(lhs),
+            ExprKind::Tuple(elements) => {
+                if let Some(Some(inner)) = elements.first() {
+                    return self.is_expr_signed(inner);
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+
     /// Lowers a binary operation.
     fn lower_binary_op(
         &mut self,
@@ -349,6 +387,7 @@ impl<'gcx> Lowerer<'gcx> {
         lhs: ValueId,
         op: hir::BinOp,
         rhs: ValueId,
+        is_signed: bool,
     ) -> ValueId {
         use hir::BinOpKind;
 
@@ -356,8 +395,20 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::Add => builder.add(lhs, rhs),
             BinOpKind::Sub => builder.sub(lhs, rhs),
             BinOpKind::Mul => builder.mul(lhs, rhs),
-            BinOpKind::Div => builder.div(lhs, rhs),
-            BinOpKind::Rem => builder.mod_(lhs, rhs),
+            BinOpKind::Div => {
+                if is_signed {
+                    builder.sdiv(lhs, rhs)
+                } else {
+                    builder.div(lhs, rhs)
+                }
+            }
+            BinOpKind::Rem => {
+                if is_signed {
+                    builder.smod(lhs, rhs)
+                } else {
+                    builder.mod_(lhs, rhs)
+                }
+            }
             BinOpKind::Pow => builder.exp(lhs, rhs),
             BinOpKind::And => {
                 let lhs_not = builder.iszero(lhs);
@@ -377,23 +428,104 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::BitOr => builder.or(lhs, rhs),
             BinOpKind::BitXor => builder.xor(lhs, rhs),
             BinOpKind::Shl => builder.shl(rhs, lhs),
-            BinOpKind::Shr => builder.shr(rhs, lhs),
+            BinOpKind::Shr => {
+                // For signed types, >> is arithmetic shift (SAR)
+                if is_signed {
+                    builder.sar(rhs, lhs)
+                } else {
+                    builder.shr(rhs, lhs)
+                }
+            }
             BinOpKind::Sar => builder.sar(rhs, lhs),
-            BinOpKind::Lt => builder.lt(lhs, rhs),
-            BinOpKind::Gt => builder.gt(lhs, rhs),
+            BinOpKind::Lt => {
+                if is_signed {
+                    builder.slt(lhs, rhs)
+                } else {
+                    builder.lt(lhs, rhs)
+                }
+            }
+            BinOpKind::Gt => {
+                if is_signed {
+                    builder.sgt(lhs, rhs)
+                } else {
+                    builder.gt(lhs, rhs)
+                }
+            }
             BinOpKind::Le => {
-                let gt = builder.gt(lhs, rhs);
-                builder.iszero(gt)
+                if is_signed {
+                    let gt = builder.sgt(lhs, rhs);
+                    builder.iszero(gt)
+                } else {
+                    let gt = builder.gt(lhs, rhs);
+                    builder.iszero(gt)
+                }
             }
             BinOpKind::Ge => {
-                let lt = builder.lt(lhs, rhs);
-                builder.iszero(lt)
+                if is_signed {
+                    let lt = builder.slt(lhs, rhs);
+                    builder.iszero(lt)
+                } else {
+                    let lt = builder.lt(lhs, rhs);
+                    builder.iszero(lt)
+                }
             }
             BinOpKind::Eq => builder.eq(lhs, rhs),
             BinOpKind::Ne => {
                 let eq = builder.eq(lhs, rhs);
                 builder.iszero(eq)
             }
+        }
+    }
+
+    /// Lowers type(T).min or type(T).max to a constant value.
+    fn lower_type_minmax(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        is_max: bool,
+    ) -> ValueId {
+        match &ty.kind {
+            hir::TypeKind::Elementary(elem) => match elem {
+                ElementaryType::UInt(size) => {
+                    let bits = size.bits() as u32;
+                    if is_max {
+                        // max = 2^bits - 1
+                        if bits == 256 {
+                            builder.imm_u256(U256::MAX)
+                        } else {
+                            let max_val = (U256::from(1) << bits) - U256::from(1);
+                            builder.imm_u256(max_val)
+                        }
+                    } else {
+                        // min = 0 for unsigned
+                        builder.imm_u256(U256::ZERO)
+                    }
+                }
+                ElementaryType::Int(size) => {
+                    let bits = size.bits() as u32;
+                    if is_max {
+                        // max = 2^(bits-1) - 1
+                        let max_val = (U256::from(1) << (bits - 1)) - U256::from(1);
+                        builder.imm_u256(max_val)
+                    } else {
+                        // min = -2^(bits-1), stored as two's complement
+                        // For signed int, min is represented as 2^256 - 2^(bits-1) in unsigned
+                        // But for intN where N < 256, the value 0x80..0 with N bits sign-extended
+                        // to 256 bits is: NOT((2^(bits-1) - 1))
+                        if bits == 256 {
+                            // int256 min = -2^255 = 0x8000...0000 (2^255)
+                            builder.imm_u256(U256::from(1) << 255)
+                        } else {
+                            // For smaller types, min as two's complement 256-bit:
+                            // -2^(bits-1) = 2^256 - 2^(bits-1)
+                            let min_val = U256::MAX - (U256::from(1) << (bits - 1)) + U256::from(1);
+                            builder.imm_u256(min_val)
+                        }
+                    }
+                }
+                _ => builder.imm_u64(0),
+            },
+            _ => builder.imm_u64(0),
         }
     }
 
