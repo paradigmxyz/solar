@@ -103,6 +103,25 @@ impl StackScheduler {
         &self.ops
     }
 
+    /// Checks if we can emit a value (it's an immediate, arg, on stack, or spilled).
+    /// Returns false for instruction results that aren't tracked.
+    pub fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
+        // Check if on stack
+        if self.stack.find(value).is_some() {
+            return true;
+        }
+        // Check if spilled
+        if self.spills.get(value).is_some() {
+            return true;
+        }
+        // Check value type
+        match func.value(value) {
+            crate::mir::Value::Immediate(_) => true,
+            crate::mir::Value::Arg { .. } => true,
+            _ => false,
+        }
+    }
+
     /// Ensures multiple values are on top of the stack in order.
     /// The first value will be at the top, second below it, etc.
     pub fn ensure_on_top_many(&mut self, values: &[ValueId], func: &Function) -> Vec<ScheduledOp> {
@@ -150,27 +169,73 @@ impl StackScheduler {
         }
     }
 
+    /// Records that an instruction consumed inputs and produced an untracked output.
+    /// The output is on the EVM stack but we don't track which ValueId it corresponds to.
+    /// This is used for MLOAD where the value may become stale in loops.
+    pub fn instruction_executed_untracked(&mut self, consumed: usize) {
+        // Pop consumed values
+        for _ in 0..consumed {
+            self.stack.pop();
+        }
+        // Push an unknown value to keep stack depth correct
+        self.stack.push_unknown();
+    }
+
+    /// Checks if there's an untracked value on top of the stack.
+    pub fn has_untracked_on_top(&self) -> bool {
+        self.stack.depth() > 0 && self.stack.top().is_none()
+    }
+
+    /// Checks if there's an untracked value at a specific depth.
+    pub fn has_untracked_at_depth(&self, depth: usize) -> bool {
+        self.stack.depth() > depth && self.stack.peek(depth).is_none()
+    }
+
+    /// Records that a SWAP1 was executed, updating the stack model.
+    pub fn stack_swapped(&mut self) {
+        self.stack.swap(1);
+    }
+
     /// Drops dead values from the stack.
-    /// Returns POP operations for values that are at the top and dead.
+    /// Returns operations (SWAPs and POPs) to remove dead values.
     pub fn drop_dead_values(
         &mut self,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
     ) -> Vec<StackOp> {
-        let mut pops = Vec::new();
+        let mut ops = Vec::new();
 
-        // Only pop from the top of the stack
+        // First, pop dead values from the top
         while let Some(top_val) = self.stack.top() {
             if liveness.is_dead_after(top_val, block, inst_idx) {
                 self.stack.pop();
-                pops.push(StackOp::Pop);
+                ops.push(StackOp::Pop);
             } else {
                 break;
             }
         }
 
-        pops
+        // Then, look for dead values deeper in the stack (up to depth 16)
+        // and swap them to the top to pop them
+        let mut depth = 1usize;
+        while depth < self.stack.depth().min(MAX_STACK_ACCESS) {
+            if let Some(val) = self.stack.peek(depth) {
+                if liveness.is_dead_after(val, block, inst_idx) {
+                    // Swap this dead value to the top and pop it
+                    let swap_n = depth as u8;
+                    ops.push(StackOp::Swap(swap_n));
+                    self.stack.swap(swap_n);
+                    ops.push(StackOp::Pop);
+                    self.stack.pop();
+                    // Don't increment depth since we removed an element
+                    continue;
+                }
+            }
+            depth += 1;
+        }
+
+        ops
     }
 
     /// Spills values to memory to make room on the stack.
