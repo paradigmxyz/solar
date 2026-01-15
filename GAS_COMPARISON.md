@@ -1,49 +1,25 @@
-# Gas Comparison: Solar vs solc (with and without optimizer)
+# Solar vs solc Gas Comparison
+
+Generated: 2026-01-15 18:05:05 UTC
+
+| Suite | solc Pass | Solar Pass | solc Gas (avg) | Solar Gas (avg) | Δ% |
+|-------|-----------|------------|----------------|-----------------|-----|
+| arithmetic | 38 | 38 | 16661 | 13477 | -19.1% |
+| calls | 14 | 11 | 9538 | 6460 | -32.2% |
+| constructor-args | 4 | 0 | 7847 | 0 | N/A% |
+| control-flow | 43 | 26 | 12040 | 6438 | -46.5% |
+| events | 2 | 2 | 7742 | 4961 | -35.9% |
+| inheritance | 5 | 0 | 38468 | 0 | N/A% |
+| interfaces | 4 | 0 | 34099 | 0 | N/A% |
+| libraries | 9 | 0 | 7044 | 0 | N/A% |
+| multi-return | 12 | 12 | 5182 | 3768 | -27.2% |
+| stack-deep | 0 | 4 | 0 | 2563 | N/A% |
+| storage | 37 | 37 | 43089 | 40122 | -6.8% |
 
 ## Summary
 
-**Only `multi-return` tests pass with Solar codegen.** Other tests fail with `StackUnderflow` errors.
+- **Total solc tests passed:** 168
+- **Total Solar tests passed:** 130
+- **Average gas (passing suites):** solc=15708, Solar=12537 (Δ=-20.1%)
 
-## multi-return Contract Results
-
-### Deployment Cost
-
-| Compiler          | Deployment Cost | Deployment Size |
-|-------------------|-----------------|-----------------|
-| solc (no opt)     | 401,888         | 1,640 bytes     |
-| solc (opt=200)    | 259,540         | 982 bytes       |
-| Solar (no opt)    | 126,136         | 640 bytes       |
-| Solar (opt=200)   | 126,136         | 640 bytes       |
-
-**Solar deployment is 3.2x cheaper than unoptimized solc, 2x cheaper than optimized solc.**
-
-### Function Gas Costs
-
-| Function      | solc (no opt) | solc (opt=200) | Solar (no opt) | Solar (opt=200) |
-|---------------|---------------|----------------|----------------|-----------------|
-| getTwo        | 510           | 284            | 21,160         | 21,160          |
-| getThree      | 557           | 218            | 21,182         | 21,182          |
-| simpleReturn  | 488           | 262            | 21,258         | 21,258          |
-| callVia       | 4,487         | 3,585          | N/A (fails)    | N/A (fails)     |
-
-**Note:** Solar function execution costs are ~40x higher than solc. This appears to be a codegen issue with base transaction overhead (21,000 gas) being included.
-
-## Other Tests Status
-
-| Test Directory    | solc  | Solar |
-|-------------------|-------|-------|
-| arithmetic        | ✅    | ❌ StackUnderflow |
-| calls             | ✅    | ❌ StackUnderflow |
-| constructor-args  | ✅    | ❌ compile fails  |
-| control-flow      | ✅    | ❌ StackUnderflow |
-| events            | ✅    | ❌ compile fails  |
-| multi-return      | ✅    | ⚠️ partial (callVia fails) |
-| stack-deep        | ✅    | ❌ StackUnderflow |
-| storage           | ✅    | ❌ compile fails  |
-
-## Observations
-
-1. **Solar optimizer has no effect** - Gas costs are identical with and without optimizer flag
-2. **Deployment size is significantly smaller** with Solar (640 vs 982-1640 bytes)
-3. **Runtime gas is much higher** in Solar due to apparent base cost inclusion
-4. **Most tests fail** due to StackUnderflow or compilation errors in Solar codegen
+**Legend:** Δ% = (Solar - solc) / solc × 100. Negative = Solar uses less gas.

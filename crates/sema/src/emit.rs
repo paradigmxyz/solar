@@ -58,9 +58,12 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
     }
     // Only output if there's actual ABI/hashes content AND no bytecode requests
     // (when bytecode is requested, CLI handles combined output)
-    let has_bytecode_request = gcx.sess.opts.emit.iter().any(|e| {
-        matches!(e, CompilerOutput::Bin | CompilerOutput::BinRuntime)
-    });
+    let has_bytecode_request = gcx
+        .sess
+        .opts
+        .emit
+        .iter()
+        .any(|e| matches!(e, CompilerOutput::Bin | CompilerOutput::BinRuntime));
     let has_content = output.contracts.values().any(|c| c.abi.is_some() || c.hashes.is_some());
     let has_content = has_content && !has_bytecode_request;
     if has_content {

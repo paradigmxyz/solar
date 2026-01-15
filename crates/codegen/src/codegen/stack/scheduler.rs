@@ -164,11 +164,7 @@ impl StackScheduler {
             self.stack.push(val);
         }
 
-        debug_assert!(
-            self.stack.depth() <= 1024,
-            "Stack overflow: depth {}",
-            self.stack.depth()
-        );
+        debug_assert!(self.stack.depth() <= 1024, "Stack overflow: depth {}", self.stack.depth());
     }
 
     /// Records that an instruction consumed inputs and produced an untracked output.

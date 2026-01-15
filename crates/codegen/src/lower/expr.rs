@@ -412,20 +412,12 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             BinOpKind::Pow => builder.exp(lhs, rhs),
-            BinOpKind::And => {
-                let lhs_not = builder.iszero(lhs);
-                let lhs_bool = builder.iszero(lhs_not);
-                let rhs_not = builder.iszero(rhs);
-                let rhs_bool = builder.iszero(rhs_not);
-                builder.and(lhs_bool, rhs_bool)
-            }
-            BinOpKind::Or => {
-                let lhs_not = builder.iszero(lhs);
-                let lhs_bool = builder.iszero(lhs_not);
-                let rhs_not = builder.iszero(rhs);
-                let rhs_bool = builder.iszero(rhs_not);
-                builder.or(lhs_bool, rhs_bool)
-            }
+            // Logical AND: for bool inputs (guaranteed by type checker), just use bitwise AND.
+            // Bool values are already 0 or 1, so a && b == a & b.
+            BinOpKind::And => builder.and(lhs, rhs),
+            // Logical OR: for bool inputs (guaranteed by type checker), just use bitwise OR.
+            // Bool values are already 0 or 1, so a || b == a | b.
+            BinOpKind::Or => builder.or(lhs, rhs),
             BinOpKind::BitAnd => builder.and(lhs, rhs),
             BinOpKind::BitOr => builder.or(lhs, rhs),
             BinOpKind::BitXor => builder.xor(lhs, rhs),
@@ -644,6 +636,13 @@ impl<'gcx> Lowerer<'gcx> {
         // Handle `new Contract(args)` - contract creation
         if let ExprKind::New(ty) = &callee.kind {
             return self.lower_new_contract(builder, ty, args);
+        }
+
+        // Handle internal function calls: func(args) where func is a function in the same contract
+        if let ExprKind::Ident(res_slice) = &callee.kind {
+            if let Some(hir::Res::Item(hir::ItemId::Function(func_id))) = res_slice.first() {
+                return self.lower_internal_call(builder, *func_id, args);
+            }
         }
 
         // Handle type conversion calls: Type(expr)
@@ -1229,6 +1228,18 @@ impl<'gcx> Lowerer<'gcx> {
             return sel;
         }
 
+        // Case 3: base is `this` (Builtin::This)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+        {
+            // Look up the function in the current contract
+            for contract_id in self.gcx.hir.contract_ids() {
+                if let Some(sel) = lookup_in_contract(contract_id) {
+                    return sel;
+                }
+            }
+        }
+
         // Fallback: compute selector from member name
         // This is a simplified version - proper implementation would use full signature
         let sig = format!("{}()", member.name);
@@ -1363,6 +1374,43 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         None
+    }
+
+    /// Lowers an internal function call by inlining it.
+    /// This handles calls like `add(a, b)` where `add` is a function in the same contract.
+    fn lower_internal_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+
+        // Collect argument values FIRST (before modifying any state)
+        let arg_vals: Vec<ValueId> =
+            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+
+        // Save current locals
+        let saved_locals = std::mem::take(&mut self.locals);
+
+        // Bind parameters to argument values directly (SSA style)
+        for (i, &param_id) in func.parameters.iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        // For simple functions with a single return statement, extract and evaluate directly
+        let result = if let Some(body) = &func.body {
+            self.lower_library_body_simple(builder, body, func)
+        } else {
+            builder.imm_u64(0)
+        };
+
+        // Restore locals
+        self.locals = saved_locals;
+
+        result
     }
 
     /// Lowers an internal library function call by inlining it.
