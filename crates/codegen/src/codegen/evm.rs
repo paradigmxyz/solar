@@ -27,6 +27,11 @@ pub struct EvmCodegen {
     block_labels: FxHashMap<BlockId, Label>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
+    /// Whether we're currently generating constructor code.
+    /// When true, LoadArg uses CODECOPY from the end of code instead of CALLDATALOAD.
+    in_constructor: bool,
+    /// Number of constructor parameters (used for CODECOPY offset calculation).
+    constructor_param_count: u32,
 }
 
 impl EvmCodegen {
@@ -38,6 +43,8 @@ impl EvmCodegen {
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
             block_copies: FxHashMap::default(),
+            in_constructor: false,
+            constructor_param_count: 0,
         }
     }
 
@@ -110,6 +117,9 @@ impl EvmCodegen {
 
     /// Generates constructor code that runs during deployment.
     /// This includes state variable initializers.
+    ///
+    /// Constructor arguments are read from the end of the initcode using CODECOPY.
+    /// The args are ABI-encoded and appended after the deployment bytecode.
     fn generate_constructor_code(&mut self, module: &Module) -> Vec<u8> {
         // Find constructor function if it exists
         let constructor = module.functions.iter().find(|f| f.attributes.is_constructor);
@@ -123,8 +133,31 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
 
+            // Set constructor context for LoadArg handling
+            self.in_constructor = true;
+            self.constructor_param_count = ctor.params.len() as u32;
+
+            // If constructor has parameters, emit code to copy args from code end to memory
+            // Constructor args are appended after bytecode, read via CODECOPY
+            if !ctor.params.is_empty() {
+                let args_size = ctor.params.len() * 32;
+                // CODESIZE - args_size = offset where args start
+                // CODECOPY(destOffset=0x80, offset=CODESIZE-args_size, size=args_size)
+                // We use memory starting at 0x80 (after Solidity's scratch space)
+                self.asm.emit_push(U256::from(args_size)); // size
+                self.asm.emit_push(U256::from(args_size)); // for subtraction
+                self.asm.emit_op(opcodes::CODESIZE);
+                self.asm.emit_op(opcodes::SUB); // CODESIZE - args_size = offset
+                self.asm.emit_push(U256::from(0x80)); // destOffset in memory
+                self.asm.emit_op(opcodes::CODECOPY);
+            }
+
             // Generate the constructor body (which includes SSTORE for initializers)
             self.generate_function_body(ctor);
+
+            // Reset constructor context
+            self.in_constructor = false;
+            self.constructor_param_count = 0;
 
             std::mem::swap(&mut self.asm, &mut asm);
             let mut bytecode = asm.assemble().bytecode;
@@ -619,12 +652,20 @@ impl EvmCodegen {
                     self.asm.emit_op(opcodes::MSTORE);
                 }
                 ScheduledOp::LoadArg(index) => {
-                    // Load function argument from calldata
-                    // ABI encoding: selector (4 bytes) + args (32 bytes each)
-                    // Offset = 4 + index * 32
-                    let offset = 4 + (*index as u64) * 32;
-                    self.asm.emit_push(U256::from(offset));
-                    self.asm.emit_op(opcodes::CALLDATALOAD);
+                    if self.in_constructor {
+                        // Constructor args were copied to memory at 0x80
+                        // Load from memory: 0x80 + index * 32
+                        let offset = 0x80 + (*index as u64) * 32;
+                        self.asm.emit_push(U256::from(offset));
+                        self.asm.emit_op(opcodes::MLOAD);
+                    } else {
+                        // Runtime function: load from calldata
+                        // ABI encoding: selector (4 bytes) + args (32 bytes each)
+                        // Offset = 4 + index * 32
+                        let offset = 4 + (*index as u64) * 32;
+                        self.asm.emit_push(U256::from(offset));
+                        self.asm.emit_op(opcodes::CALLDATALOAD);
+                    }
                 }
             }
         }

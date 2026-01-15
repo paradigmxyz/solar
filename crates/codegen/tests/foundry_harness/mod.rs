@@ -725,6 +725,11 @@ mod tests {
     }
 
     #[test]
+    fn test_constructor_args() {
+        test_project_solar("constructor_args", "testdata/constructor-args");
+    }
+
+    #[test]
     #[ignore] // Some stack-deep tests fail due to unimplemented codegen features
     fn test_stack_deep() {
         // Stack-deep tests can't compile with solc - use Solar for everything
