@@ -668,6 +668,11 @@ impl EvmCodegen {
         for op in dead_ops {
             self.asm.emit_op(op.opcode());
         }
+
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(self.scheduler.depth() <= 1024);
+        }
     }
 
     /// Emits a value to the stack.
