@@ -27,8 +27,8 @@ pub use lower::Lowerer;
 
 pub mod codegen;
 pub use codegen::{
-    AssembledCode, Assembler, EvmCodegen, Label, SpillManager, SpillSlot, StackModel,
-    StackScheduler,
+    AssembledCode, Assembler, EvmCodegen, Label, PeepholeOptimizer, SpillManager, SpillSlot,
+    StackModel, StackScheduler,
 };
 
 pub mod transform;

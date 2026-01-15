@@ -877,23 +877,33 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(0)
             }
             "pop" => {
-                // 1. Load current length
-                let length = builder.sload(slot_val);
+                // pop() decrements length and clears the last element
+                // Storage layout:
+                // - Length at slot
+                // - Elements at keccak256(slot) + index
 
-                // 2. Decrement length
+                // 1. Load current length and decrement
+                let length = builder.sload(slot_val);
                 let one = builder.imm_u64(1);
                 let new_length = builder.sub(length, one);
 
-                // 3. Store new length
+                // 2. Store decremented length back
                 let slot_val2 = builder.imm_u64(slot);
                 builder.sstore(slot_val2, new_length);
 
-                // 4. Clear the popped element (optional but matches Solidity behavior)
+                // 3. Compute data slot: keccak256(slot)
+                let slot_val3 = builder.imm_u64(slot);
                 let mem_0 = builder.imm_u64(0);
-                builder.mstore(mem_0, slot_val);
+                builder.mstore(mem_0, slot_val3);
                 let size_32 = builder.imm_u64(32);
                 let data_slot = builder.keccak256(mem_0, size_32);
-                let element_slot = builder.add(data_slot, new_length);
+
+                // 4. Compute element slot using stored length (already decremented)
+                let slot_val4 = builder.imm_u64(slot);
+                let length2 = builder.sload(slot_val4);
+                let element_slot = builder.add(data_slot, length2);
+
+                // 5. Clear the popped element
                 let zero = builder.imm_u64(0);
                 builder.sstore(element_slot, zero);
 
