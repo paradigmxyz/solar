@@ -4,7 +4,7 @@ use super::Lowerer;
 use crate::mir::{FunctionBuilder, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ExprKind},
@@ -35,8 +35,31 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Unary(op, operand) => {
-                let operand_val = self.lower_expr(builder, operand);
-                self.lower_unary_op(builder, *op, operand_val)
+                use hir::UnOpKind;
+                match op.kind {
+                    UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec => {
+                        // Increment/decrement need to read, compute, store, and return
+                        let operand_val = self.lower_expr(builder, operand);
+                        let one = builder.imm_u64(1);
+                        let new_val = match op.kind {
+                            UnOpKind::PreInc | UnOpKind::PostInc => builder.add(operand_val, one),
+                            UnOpKind::PreDec | UnOpKind::PostDec => builder.sub(operand_val, one),
+                            _ => unreachable!(),
+                        };
+                        // Store the new value back
+                        self.lower_assign(builder, operand, new_val);
+                        // Return old value for post, new value for pre
+                        match op.kind {
+                            UnOpKind::PostInc | UnOpKind::PostDec => operand_val,
+                            UnOpKind::PreInc | UnOpKind::PreDec => new_val,
+                            _ => unreachable!(),
+                        }
+                    }
+                    _ => {
+                        let operand_val = self.lower_expr(builder, operand);
+                        self.lower_unary_op(builder, *op, operand_val)
+                    }
+                }
             }
 
             ExprKind::Ternary(cond, then_expr, else_expr) => {
@@ -72,6 +95,46 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(computed_slot);
                 }
 
+                // Check if base is a nested mapping access (e.g., m[a][b] where m[a] returns a slot)
+                if self.is_nested_mapping_index(base) {
+                    // This is a nested mapping access
+                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let computed_slot = self.compute_mapping_slot(builder, index_val, inner_slot);
+
+                    // Check if the value is another nested mapping
+                    if self.nested_mapping_value_is_mapping(base) {
+                        return computed_slot;
+                    }
+
+                    return builder.sload(computed_slot);
+                }
+
+                // Check if base is a dynamic array in storage
+                if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
+                    // Dynamic array access: array[idx]
+                    // Data is stored at keccak256(slot) + idx
+                    let slot_val = builder.imm_u64(slot);
+
+                    // Compute data slot: keccak256(slot)
+                    let mem_0 = builder.imm_u64(0);
+                    builder.mstore(mem_0, slot_val);
+                    let size_32 = builder.imm_u64(32);
+                    let data_slot = builder.keccak256(mem_0, size_32);
+
+                    // Compute element slot: data_slot + index
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let element_slot = builder.add(data_slot, index_val);
+
+                    return builder.sload(element_slot);
+                }
+
                 // Regular array/memory access
                 let base_val = self.lower_expr(builder, base);
                 let index_val = match index {
@@ -84,7 +147,29 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mload(addr)
             }
 
-            ExprKind::Member(base, _member) => {
+            ExprKind::Member(base, member) => {
+                // Check if this is a builtin module member access (e.g., msg.sender, block.timestamp)
+                if let ExprKind::Ident(res_slice) = &base.kind {
+                    if let Some(hir::Res::Builtin(base_builtin)) = res_slice.first() {
+                        // Try to find the corresponding builtin member
+                        if let Some(member_builtin) =
+                            self.resolve_builtin_member(*base_builtin, member.name)
+                        {
+                            return self.lower_builtin(builder, member_builtin);
+                        }
+                    }
+                }
+
+                // Handle dynamic array .length
+                if member.name.as_str() == "length" {
+                    if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
+                        // Length is stored directly at the base slot
+                        let slot_val = builder.imm_u64(slot);
+                        return builder.sload(slot_val);
+                    }
+                }
+
+                // Regular struct/memory member access
                 let base_val = self.lower_expr(builder, base);
                 builder.mload(base_val)
             }
@@ -376,6 +461,18 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 }
 
+                // Check if base is a nested mapping access (e.g., m[a][b] = value)
+                if self.is_nested_mapping_index(base) {
+                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let computed_slot = self.compute_mapping_slot(builder, index_val, inner_slot);
+                    builder.sstore(computed_slot, rhs);
+                    return;
+                }
+
                 // Regular array/memory assignment
                 let base_val = self.lower_expr(builder, base);
                 let index_val = match index {
@@ -415,6 +512,29 @@ impl<'gcx> Lowerer<'gcx> {
         // Handle `new Contract(args)` - contract creation
         if let ExprKind::New(ty) = &callee.kind {
             return self.lower_new_contract(builder, ty, args);
+        }
+
+        // Handle type conversion calls: Type(expr)
+        // e.g., ICallee(addr), uint256(x), address(y)
+        // The callee is an Ident resolving to a contract/interface type
+        if let ExprKind::Ident(res_slice) = &callee.kind {
+            // Check if this resolves to a contract or interface type
+            if let Some(hir::Res::Item(hir::ItemId::Contract(_))) = res_slice.first() {
+                // Type conversion: just return the first argument unchanged
+                // (The actual conversion is a no-op at the EVM level for addresses/contracts)
+                if let Some(first_arg) = args.exprs().next() {
+                    return self.lower_expr(builder, first_arg);
+                }
+            }
+        }
+
+        // Handle Type(expr) where callee is an explicit Type expression
+        // e.g., uint256(x), address(y), bytes32(z)
+        if let ExprKind::Type(_ty) = &callee.kind {
+            // Type conversion: return the first argument
+            if let Some(first_arg) = args.exprs().next() {
+                return self.lower_expr(builder, first_arg);
+            }
         }
 
         builder.imm_u64(0)
@@ -600,6 +720,11 @@ impl<'gcx> Lowerer<'gcx> {
             return success;
         }
 
+        // Handle dynamic array methods (push, pop)
+        if let Some((var_id, slot)) = self.get_dyn_array_base_slot(base) {
+            return self.lower_array_method_call(builder, var_id, slot, member_name, args);
+        }
+
         // Look up the function being called to get its selector
         let selector = self.compute_member_selector(base, member);
 
@@ -668,6 +793,170 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
+    /// Checks if an expression is a dynamic array state variable and returns its var_id and
+    /// storage slot.
+    fn get_dyn_array_base_slot(&self, expr: &hir::Expr<'_>) -> Option<(hir::VariableId, u64)> {
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            // Check if this variable has dynamic array type (Array with no size)
+            if let hir::TypeKind::Array(arr) = &var.ty.kind {
+                if arr.size.is_none() {
+                    // Dynamic array
+                    if let Some(&slot) = self.storage_slots.get(var_id) {
+                        return Some((*var_id, slot));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Lowers dynamic array method calls (push, pop).
+    /// For dynamic arrays:
+    /// - Length is stored at the base slot
+    /// - Elements are stored at keccak256(slot) + index
+    fn lower_array_method_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        _var_id: hir::VariableId,
+        slot: u64,
+        method: &str,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let slot_val = builder.imm_u64(slot);
+
+        match method {
+            "push" => {
+                // 1. Load current length from slot
+                let length = builder.sload(slot_val);
+
+                // 2. Compute data slot: keccak256(slot)
+                let mem_0 = builder.imm_u64(0);
+                builder.mstore(mem_0, slot_val);
+                let size_32 = builder.imm_u64(32);
+                let data_slot = builder.keccak256(mem_0, size_32);
+
+                // 3. Compute element slot: data_slot + length
+                let element_slot = builder.add(data_slot, length);
+
+                // 4. Store the new value at element slot
+                let mut exprs = args.exprs();
+                let value = if let Some(first) = exprs.next() {
+                    self.lower_expr(builder, first)
+                } else {
+                    builder.imm_u64(0)
+                };
+                builder.sstore(element_slot, value);
+
+                // 5. Increment length and store back
+                let one = builder.imm_u64(1);
+                let new_length = builder.add(length, one);
+                let slot_val2 = builder.imm_u64(slot);
+                builder.sstore(slot_val2, new_length);
+
+                // push returns void, return dummy
+                builder.imm_u64(0)
+            }
+            "pop" => {
+                // 1. Load current length
+                let length = builder.sload(slot_val);
+
+                // 2. Decrement length
+                let one = builder.imm_u64(1);
+                let new_length = builder.sub(length, one);
+
+                // 3. Store new length
+                let slot_val2 = builder.imm_u64(slot);
+                builder.sstore(slot_val2, new_length);
+
+                // 4. Clear the popped element (optional but matches Solidity behavior)
+                let mem_0 = builder.imm_u64(0);
+                builder.mstore(mem_0, slot_val);
+                let size_32 = builder.imm_u64(32);
+                let data_slot = builder.keccak256(mem_0, size_32);
+                let element_slot = builder.add(data_slot, new_length);
+                let zero = builder.imm_u64(0);
+                builder.sstore(element_slot, zero);
+
+                builder.imm_u64(0)
+            }
+            _ => {
+                // Unknown method, fall back to dummy
+                builder.imm_u64(0)
+            }
+        }
+    }
+
+    /// Checks if an expression is an Index into a nested mapping (e.g., m[a][b]).
+    /// Returns true if the expression is a nested mapping access.
+    fn is_nested_mapping_index(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Index(inner_base, _) = &expr.kind {
+            // Check if inner_base is a direct mapping variable access
+            if self.get_mapping_base_slot(inner_base).is_some() {
+                return true;
+            }
+            // Recursively check for deeper nesting
+            return self.is_nested_mapping_index(inner_base);
+        }
+        false
+    }
+
+    /// Computes the storage slot for a nested mapping access.
+    /// For m[a][b], this computes: keccak256(b, keccak256(a, base_slot))
+    fn lower_nested_mapping_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Index(inner_base, inner_index) = &expr.kind {
+            // Check if inner_base is the root mapping variable
+            if let Some((_var_id, slot)) = self.get_mapping_base_slot(inner_base) {
+                // Compute the slot for the inner access
+                let inner_index_val = match inner_index {
+                    Some(idx) => self.lower_expr(builder, idx),
+                    None => builder.imm_u64(0),
+                };
+                let slot_val = builder.imm_u64(slot);
+                return self.compute_mapping_slot(builder, inner_index_val, slot_val);
+            }
+
+            // Recursively compute deeper nesting slot
+            let deeper_slot = self.lower_nested_mapping_slot(builder, inner_base);
+            let inner_index_val = match inner_index {
+                Some(idx) => self.lower_expr(builder, idx),
+                None => builder.imm_u64(0),
+            };
+            return self.compute_mapping_slot(builder, inner_index_val, deeper_slot);
+        }
+        // Should not reach here if is_nested_mapping_index returned true
+        builder.imm_u64(0)
+    }
+
+    /// Checks if the value type at this nesting level is itself a mapping.
+    /// For m[a][b] where m: mapping(A => mapping(B => C)), this returns false
+    /// because the value at m[a][b] is C, not a mapping.
+    fn nested_mapping_value_is_mapping(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Index(inner_base, _) = &expr.kind {
+            // Check if inner_base is the root mapping variable
+            if let Some((var_id, _)) = self.get_mapping_base_slot(inner_base) {
+                let var = self.gcx.hir.variable(var_id);
+                if let hir::TypeKind::Mapping(outer_map) = &var.ty.kind {
+                    // outer_map.value is the type after first index
+                    // We need to check if THAT mapping's value is also a mapping
+                    if let hir::TypeKind::Mapping(inner_map) = &outer_map.value.kind {
+                        return matches!(inner_map.value.kind, hir::TypeKind::Mapping(_));
+                    }
+                }
+                return false;
+            }
+            // For deeper nesting, recurse
+            return self.nested_mapping_value_is_mapping(inner_base);
+        }
+        false
+    }
+
     /// Computes the storage slot for a mapping access: keccak256(abi.encode(key, slot))
     /// Memory layout: key at offset 0, slot at offset 32, hash from [0, 64)
     fn compute_mapping_slot(
@@ -694,22 +983,40 @@ impl<'gcx> Lowerer<'gcx> {
         // Try to get the type of the base expression and find the function
         // For contract types, we look up the function in the contract's interface
 
-        // First, try to get the contract type from the base expression
+        // Helper to look up selector from a contract
+        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<u32> {
+            let contract = self.gcx.hir.contract(contract_id);
+            for func_id in contract.all_functions() {
+                let func = self.gcx.hir.function(func_id);
+                if func.name.is_some_and(|n| n.name == member.name) {
+                    let selector = self.gcx.function_selector(func_id);
+                    return Some(u32::from_be_bytes(selector.0));
+                }
+            }
+            None
+        };
+
+        // Case 1: base is an identifier (variable with contract type)
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
             let var = self.gcx.hir.variable(*var_id);
-            // Get the type of the variable
             let ty = self.gcx.type_of_hir_ty(&var.ty);
             if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
-                // Find the function with this name in the contract
-                let contract = self.gcx.hir.contract(contract_id);
-                for func_id in contract.all_functions() {
-                    let func = self.gcx.hir.function(func_id);
-                    if func.name.is_some_and(|n| n.name == member.name) {
-                        // Found the function, get its selector
-                        let selector = self.gcx.function_selector(func_id);
-                        return u32::from_be_bytes(selector.0);
+                if let Some(sel) = lookup_in_contract(contract_id) {
+                    return sel;
+                }
+            }
+        }
+
+        // Case 2: base is a type conversion call like ICallee(addr)
+        // The call's callee is an Ident resolving to a Contract/Interface
+        if let ExprKind::Call(callee, _args, _named) = &base.kind {
+            if let ExprKind::Ident(res_slice) = &callee.kind {
+                if let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+                {
+                    if let Some(sel) = lookup_in_contract(*contract_id) {
+                        return sel;
                     }
                 }
             }
@@ -720,5 +1027,60 @@ impl<'gcx> Lowerer<'gcx> {
         let sig = format!("{}()", member.name);
         let hash = alloy_primitives::keccak256(sig.as_bytes());
         u32::from_be_bytes(hash[..4].try_into().unwrap())
+    }
+
+    /// Resolves a member of a builtin module to its corresponding builtin.
+    /// For example, (Builtin::Msg, "sender") -> Some(Builtin::MsgSender)
+    fn resolve_builtin_member(&self, base: Builtin, member: Symbol) -> Option<Builtin> {
+        match base {
+            Builtin::Msg => {
+                if member == sym::sender {
+                    Some(Builtin::MsgSender)
+                } else if member == sym::value {
+                    Some(Builtin::MsgValue)
+                } else if member == sym::data {
+                    Some(Builtin::MsgData)
+                } else if member == sym::sig {
+                    Some(Builtin::MsgSig)
+                } else if member == kw::Gas {
+                    Some(Builtin::MsgGas)
+                } else {
+                    None
+                }
+            }
+            Builtin::Block => {
+                if member == kw::Coinbase {
+                    Some(Builtin::BlockCoinbase)
+                } else if member == kw::Timestamp {
+                    Some(Builtin::BlockTimestamp)
+                } else if member == kw::Difficulty {
+                    Some(Builtin::BlockDifficulty)
+                } else if member == kw::Prevrandao {
+                    Some(Builtin::BlockPrevrandao)
+                } else if member == kw::Number {
+                    Some(Builtin::BlockNumber)
+                } else if member == kw::Gaslimit {
+                    Some(Builtin::BlockGaslimit)
+                } else if member == kw::Chainid {
+                    Some(Builtin::BlockChainid)
+                } else if member == kw::Basefee {
+                    Some(Builtin::BlockBasefee)
+                } else if member == kw::Blobbasefee {
+                    Some(Builtin::BlockBlobbasefee)
+                } else {
+                    None
+                }
+            }
+            Builtin::Tx => {
+                if member == kw::Origin {
+                    Some(Builtin::TxOrigin)
+                } else if member == kw::Gasprice {
+                    Some(Builtin::TxGasPrice)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 }
