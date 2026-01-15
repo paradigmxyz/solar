@@ -65,7 +65,7 @@ contract ControlFlowTest {
         require(cf.nestedIf(5, 5) == 1, "both <= 10");
     }
 
-    // TODO: Ternary tests skipped - ternary operator has bugs
+    // TODO: Ternary tests skipped - ternary operator has bugs (function dispatch issue, not Select stack model)
 
     // ========== For Loops ==========
 
