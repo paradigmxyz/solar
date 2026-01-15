@@ -197,58 +197,62 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers an emit statement.
     fn lower_emit(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
         // expr is always a Call expression: EventName(args)
-        if let hir::ExprKind::Call(callee, args, _named) = &expr.kind {
-            // Get the event from the callee
-            if let hir::ExprKind::Ident(res_slice) = &callee.kind {
-                if let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = res_slice.first() {
-                    let event = self.gcx.hir.event(*event_id);
+        let hir::ExprKind::Call(callee, args, _named) = &expr.kind else {
+            return;
+        };
 
-                    // Compute event signature hash (topic0 for non-anonymous events)
-                    let sig = self.compute_event_signature(event);
-                    let sig_hash = alloy_primitives::keccak256(sig.as_bytes());
-                    let topic0 =
-                        builder.imm_u256(alloy_primitives::U256::from_be_bytes(sig_hash.0));
+        // Get the event from the callee
+        let hir::ExprKind::Ident(res_slice) = &callee.kind else {
+            return;
+        };
 
-                    // Collect indexed parameters (additional topics) and non-indexed (data)
-                    let mut topics = vec![topic0];
-                    let mut data_values = Vec::new();
+        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = res_slice.first() else {
+            return;
+        };
 
-                    for (i, param_id) in event.parameters.iter().enumerate() {
-                        let param = self.gcx.hir.variable(*param_id);
-                        let arg_expr = args.exprs().nth(i);
+        let event = self.gcx.hir.event(*event_id);
 
-                        if let Some(arg) = arg_expr {
-                            let arg_val = self.lower_expr(builder, arg);
+        // Compute event signature hash (topic0 for non-anonymous events)
+        let sig = self.compute_event_signature(event);
+        let sig_hash = alloy_primitives::keccak256(sig.as_bytes());
+        let topic0 = builder.imm_u256(alloy_primitives::U256::from_be_bytes(sig_hash.0));
 
-                            if param.indexed {
-                                topics.push(arg_val);
-                            } else {
-                                data_values.push(arg_val);
-                            }
-                        }
-                    }
+        // Collect indexed parameters (additional topics) and non-indexed (data)
+        let mut topics = vec![topic0];
+        let mut data_values = Vec::new();
 
-                    // ABI-encode non-indexed data to memory
-                    let data_size = data_values.len() * 32;
-                    let mem_offset = builder.imm_u64(0);
-                    for (i, val) in data_values.iter().enumerate() {
-                        let offset = builder.imm_u64(i as u64 * 32);
-                        builder.mstore(offset, *val);
-                    }
-                    let size = builder.imm_u64(data_size as u64);
+        for (i, param_id) in event.parameters.iter().enumerate() {
+            let param = self.gcx.hir.variable(*param_id);
+            let arg_expr = args.exprs().nth(i);
 
-                    // Emit the appropriate LOG instruction based on number of topics
-                    match topics.len() {
-                        0 => builder.log0(mem_offset, size),
-                        1 => builder.log1(mem_offset, size, topics[0]),
-                        2 => builder.log2(mem_offset, size, topics[0], topics[1]),
-                        3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
-                        4 => builder
-                            .log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
-                        _ => {} // More than 4 topics not supported by EVM
-                    }
+            if let Some(arg) = arg_expr {
+                let arg_val = self.lower_expr(builder, arg);
+
+                if param.indexed {
+                    topics.push(arg_val);
+                } else {
+                    data_values.push(arg_val);
                 }
             }
+        }
+
+        // ABI-encode non-indexed data to memory
+        let data_size = data_values.len() * 32;
+        let mem_offset = builder.imm_u64(0);
+        for (i, val) in data_values.iter().enumerate() {
+            let offset = builder.imm_u64(i as u64 * 32);
+            builder.mstore(offset, *val);
+        }
+        let size = builder.imm_u64(data_size as u64);
+
+        // Emit the appropriate LOG instruction based on number of topics
+        match topics.len() {
+            0 => builder.log0(mem_offset, size),
+            1 => builder.log1(mem_offset, size, topics[0]),
+            2 => builder.log2(mem_offset, size, topics[0], topics[1]),
+            3 => builder.log3(mem_offset, size, topics[0], topics[1], topics[2]),
+            4 => builder.log4(mem_offset, size, topics[0], topics[1], topics[2], topics[3]),
+            _ => {} // More than 4 topics not supported by EVM
         }
     }
 
@@ -279,11 +283,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             hir::TypeKind::Array(arr) => {
                 let inner = self.type_to_abi_string(&arr.element);
-                if let Some(_size) = arr.size {
-                    format!("{}[]", inner) // Fixed size arrays treated as dynamic for simplicity
-                } else {
-                    format!("{}[]", inner)
-                }
+                format!("{inner}[]")
             }
             _ => "uint256".to_string(), // Fallback for other types
         }
