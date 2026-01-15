@@ -869,8 +869,18 @@ impl<'gcx> Lowerer<'gcx> {
         let num_args = args.exprs().count();
         let calldata_size_bytes = 4 + num_args * 32;
 
+        // IMPORTANT: Evaluate all arguments FIRST before writing to memory.
+        // This ensures nested external calls complete and their results are captured
+        // before we overwrite memory with the current call's calldata.
+        // Without this, nested call results stored at mem[0] would be clobbered
+        // when we write the selector for the current call.
+        let arg_vals: Vec<ValueId> = args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+
+        // Also evaluate the address before writing to memory
+        let addr = self.lower_expr(builder, base);
+
+        // Now write the selector and arguments to memory
         // ABI encode the call: selector (4 bytes) + args (32 bytes each)
-        // Write selector to memory at offset 0
         let selector_word = U256::from(selector) << 224; // Left-align 4 bytes in 32-byte word
         let selector_val = builder.imm_u256(selector_word);
         let mem_start = builder.imm_u64(0);
@@ -878,15 +888,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Write arguments after selector
         let mut arg_offset = 4u64; // Start after 4-byte selector
-        for arg in args.exprs() {
-            let arg_val = self.lower_expr(builder, arg);
+        for arg_val in arg_vals {
             let offset = builder.imm_u64(arg_offset);
             builder.mstore(offset, arg_val);
             arg_offset += 32;
         }
-
-        // Get the address AFTER writing to memory to keep stack simpler
-        let addr = self.lower_expr(builder, base);
 
         // Total calldata size = 4 (selector) + 32 * num_args
         let calldata_size = builder.imm_u64(calldata_size_bytes as u64);

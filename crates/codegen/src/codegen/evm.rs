@@ -438,10 +438,12 @@ impl EvmCodegen {
             }
 
             // Memory operations
-            // Note: We don't track MLOAD results because they can become stale
-            // after the memory location is modified (e.g., in loops).
-            // The instruction sequence must ensure operands are in the right order.
-            InstKind::MLoad(addr) => self.emit_unary_op(func, *addr, opcodes::MLOAD),
+            // Track MLOAD results so they can be used as operands in subsequent instructions.
+            // This is essential for nested external calls where the return value from one call
+            // becomes an argument to another call.
+            InstKind::MLoad(addr) => {
+                self.emit_unary_op_with_result(func, *addr, opcodes::MLOAD, result_value)
+            }
             InstKind::MStore(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE),
             InstKind::MStore8(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE8),
             InstKind::MSize => self.asm.emit_op(opcodes::MSIZE),
