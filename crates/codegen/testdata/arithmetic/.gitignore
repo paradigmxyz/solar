@@ -2,3 +2,4 @@ out/
 cache/
 out-*/
 cache-*/
+*-test-output-*.json

@@ -10,9 +10,9 @@
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime},
 };
 
 /// Gets the path to the Solar binary (debug build).
@@ -38,6 +38,71 @@ struct TestResult {
     name: String,
     passed: bool,
     gas: u64,
+}
+
+/// Generates a timestamp string for file naming.
+fn timestamp_suffix() -> String {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// Saves JSON output to a file for debugging.
+fn save_json_output(project_dir: &Path, filename: &str, content: &str) -> PathBuf {
+    let timestamp = timestamp_suffix();
+    let json_path = project_dir.join(format!("{}-{}.json", filename, timestamp));
+    if let Err(e) = std::fs::write(&json_path, content) {
+        eprintln!("⚠️  Failed to save JSON to {:?}: {}", json_path, e);
+    }
+    json_path
+}
+
+/// Compares Solar and solc test results and prints a diff summary.
+fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label: &str) {
+    let solar_map: HashMap<&str, &TestResult> = solar_tests.iter().map(|t| (t.name.as_str(), t)).collect();
+    let solc_map: HashMap<&str, &TestResult> = solc_tests.iter().map(|t| (t.name.as_str(), t)).collect();
+
+    let mut regressions = Vec::new();
+    let mut gas_diffs = Vec::new();
+
+    for (name, solc_test) in &solc_map {
+        match solar_map.get(name) {
+            Some(solar_test) => {
+                // Test exists in both - check for regression
+                if solc_test.passed && !solar_test.passed {
+                    regressions.push(*name);
+                }
+                // Track gas difference for passing tests
+                if solar_test.passed && solc_test.passed && solc_test.gas > 0 {
+                    let diff_pct = ((solar_test.gas as f64 / solc_test.gas as f64) - 1.0) * 100.0;
+                    gas_diffs.push((*name, solar_test.gas, solc_test.gas, diff_pct));
+                }
+            }
+            None => {
+                // Test only in solc
+                if solc_test.passed {
+                    regressions.push(*name);
+                }
+            }
+        }
+    }
+
+    if !regressions.is_empty() {
+        eprintln!("\n❌ [{}] REGRESSIONS: {} tests pass in solc but fail in Solar:", label, regressions.len());
+        for name in &regressions {
+            eprintln!("   - {}", name);
+        }
+    }
+
+    if !gas_diffs.is_empty() {
+        eprintln!("\n⛽ [{}] Gas comparison (Solar vs solc):", label);
+        for (name, solar_gas, solc_gas, diff_pct) in &gas_diffs {
+            let indicator = if *diff_pct > 5.0 { "📈" } else if *diff_pct < -5.0 { "📉" } else { "≈" };
+            eprintln!("   {} {:40} Solar: {:>8} | solc: {:>8} | {:>+6.1}%", 
+                indicator, name, solar_gas, solc_gas, diff_pct);
+        }
+    }
 }
 
 /// Result of running a compiler on a project.
@@ -246,9 +311,13 @@ fn run_forge_test_with_solar_bytecode(
     let mut tests = Vec::new();
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Print full JSON for debugging when there are failures
+    // Always save JSON output for debugging
+    let json_path = save_json_output(project_dir, "solar-test-output", &stdout);
+
+    // Print info when there are failures
     if !output.status.success() || stdout.contains("\"status\":\"Failure\"") {
-        eprintln!("\n🔍 [{}] Full forge test JSON output:", label);
+        eprintln!("\n🔍 [{}] Full JSON saved to: {:?}", label, json_path);
+        eprintln!("[{}] Full forge test JSON output:", label);
         eprintln!("{}", stdout);
         if !output.stderr.is_empty() {
             eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
@@ -309,6 +378,9 @@ fn run_forge_test_solc(project_dir: &PathBuf) -> (Duration, Vec<TestResult>) {
 
     let mut tests = Vec::new();
     let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Save JSON output for debugging (always, for later comparison)
+    let _json_path = save_json_output(project_dir, "solc-test-output", &stdout);
 
     if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
         if let Some(obj) = json.as_object() {
@@ -396,6 +468,11 @@ fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRu
         total_failed: solc_failed,
         bytecode_sizes: solc_sizes,
     };
+
+    // Print diff summary if there are regressions
+    if solar_run.total_failed > 0 && solc_run.total_failed < solar_run.total_failed {
+        print_test_diff(&solar_run.tests, &solc_run.tests, project_name);
+    }
 
     // Print comparison
     println!("\n{}", "=".repeat(70));
