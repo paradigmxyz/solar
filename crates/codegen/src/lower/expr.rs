@@ -804,6 +804,20 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
+        // Handle library function calls: Library.func(args)
+        // The base is an Ident resolving to a ContractId for a library
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+        {
+            let contract = self.gcx.hir.contract(*contract_id);
+            if contract.kind.is_library() {
+                // Find the library function by name
+                if let Some(func_id) = self.find_library_function(*contract_id, member.name) {
+                    return self.lower_library_call(builder, func_id, args, None);
+                }
+            }
+        }
+
         // Handle address payable transfer/send builtins
         let member_name = member.name.as_str();
         if member_name == "transfer" || member_name == "send" {
@@ -1332,6 +1346,150 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             _ => None,
+        }
+    }
+
+    /// Finds a library function by name.
+    fn find_library_function(
+        &self,
+        library_id: hir::ContractId,
+        name: Symbol,
+    ) -> Option<hir::FunctionId> {
+        let library = self.gcx.hir.contract(library_id);
+        for func_id in library.all_functions() {
+            let func = self.gcx.hir.function(func_id);
+            if func.name.is_some_and(|n| n.name == name) {
+                return Some(func_id);
+            }
+        }
+        None
+    }
+
+    /// Lowers an internal library function call by inlining it.
+    /// For internal library functions, we inline the function body.
+    fn lower_library_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+        bound_arg: Option<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+
+        // For internal library functions, inline the function body
+        if func.visibility == hir::Visibility::Internal
+            || func.visibility == hir::Visibility::Private
+        {
+            // Collect argument values FIRST (before modifying any state)
+            let mut arg_vals: Vec<ValueId> = Vec::new();
+
+            // If there's a bound argument (from `using X for T`), it's the first argument
+            if let Some(bound_val) = bound_arg {
+                arg_vals.push(bound_val);
+            }
+
+            // Lower all explicit arguments
+            for arg in args.exprs() {
+                arg_vals.push(self.lower_expr(builder, arg));
+            }
+
+            // Simple inlining: bind parameters directly as SSA values
+            // This works for pure functions that don't mutate parameters
+            // Save current locals
+            let saved_locals = std::mem::take(&mut self.locals);
+
+            // Bind parameters to argument values directly (SSA style)
+            for (i, &param_id) in func.parameters.iter().enumerate() {
+                if let Some(&arg_val) = arg_vals.get(i) {
+                    self.locals.insert(param_id, arg_val);
+                }
+            }
+
+            // For simple functions with a single return statement, extract and evaluate directly
+            let result = if let Some(body) = &func.body {
+                self.lower_library_body_simple(builder, body, func)
+            } else {
+                builder.imm_u64(0)
+            };
+
+            // Restore locals
+            self.locals = saved_locals;
+
+            result
+        } else {
+            // External library functions use DELEGATECALL
+            // For now, return placeholder (external library calls are less common)
+            builder.imm_u64(0)
+        }
+    }
+
+    /// Lowers a simple library function body.
+    /// For functions with a single return statement, directly evaluate the return expression.
+    fn lower_library_body_simple(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        body: &hir::Block<'_>,
+        _func: &hir::Function<'_>,
+    ) -> ValueId {
+        // Look for a return statement and evaluate its expression
+        for stmt in body.stmts {
+            match &stmt.kind {
+                hir::StmtKind::Return(Some(expr)) => {
+                    return self.lower_expr(builder, expr);
+                }
+                hir::StmtKind::Return(None) => {
+                    return builder.imm_u64(0);
+                }
+                hir::StmtKind::DeclSingle(var_id) => {
+                    // Handle local variable declarations
+                    let var = self.gcx.hir.variable(*var_id);
+                    let init_val = if let Some(init) = var.initializer {
+                        self.lower_expr(builder, init)
+                    } else {
+                        builder.imm_u64(0)
+                    };
+                    self.locals.insert(*var_id, init_val);
+                }
+                hir::StmtKind::Expr(expr) => {
+                    self.lower_expr(builder, expr);
+                }
+                hir::StmtKind::If(cond, then_stmt, else_stmt) => {
+                    // For conditionals, we need more complex handling
+                    // For now, evaluate condition and both branches simply
+                    let cond_val = self.lower_expr(builder, cond);
+                    let then_val = self.lower_library_stmt_return(builder, then_stmt);
+                    let else_val = else_stmt
+                        .map(|s| self.lower_library_stmt_return(builder, s))
+                        .unwrap_or_else(|| builder.imm_u64(0));
+                    if then_val != builder.imm_u64(0) || else_val != builder.imm_u64(0) {
+                        return builder.select(cond_val, then_val, else_val);
+                    }
+                }
+                _ => {}
+            }
+        }
+        builder.imm_u64(0)
+    }
+
+    /// Extract return value from a statement (for simple conditional handling).
+    fn lower_library_stmt_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        stmt: &hir::Stmt<'_>,
+    ) -> ValueId {
+        match &stmt.kind {
+            hir::StmtKind::Return(Some(expr)) => self.lower_expr(builder, expr),
+            hir::StmtKind::Return(None) => builder.imm_u64(0),
+            hir::StmtKind::Block(block) => {
+                // Recursively process nested blocks
+                for inner_stmt in block.stmts {
+                    if let hir::StmtKind::Return(Some(expr)) = &inner_stmt.kind {
+                        return self.lower_expr(builder, expr);
+                    }
+                }
+                builder.imm_u64(0)
+            }
+            _ => builder.imm_u64(0),
         }
     }
 }

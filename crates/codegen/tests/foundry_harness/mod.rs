@@ -705,6 +705,11 @@ mod tests {
     }
 
     #[test]
+    fn test_libraries() {
+        test_project_solar("libraries", "testdata/libraries");
+    }
+
+    #[test]
     fn test_constructor_args() {
         test_project_solar("constructor_args", "testdata/constructor-args");
     }
