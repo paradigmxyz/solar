@@ -49,13 +49,21 @@ impl EvmCodegen {
     }
 
     /// Generates bytecode for a module (runtime code only).
+    /// Returns empty bytecode for interfaces (they have no implementation).
     pub fn generate_module(&mut self, module: &Module) -> Vec<u8> {
+        if module.is_interface {
+            return Vec::new();
+        }
         self.generate_runtime_code(module)
     }
 
     /// Generates deployment bytecode for a module.
     /// Returns (deployment_bytecode, runtime_bytecode).
+    /// Returns empty bytecodes for interfaces (they have no implementation).
     pub fn generate_deployment_bytecode(&mut self, module: &Module) -> (Vec<u8>, Vec<u8>) {
+        if module.is_interface {
+            return (Vec::new(), Vec::new());
+        }
         // First generate the runtime code
         let runtime_code = self.generate_runtime_code(module);
         let runtime_len = runtime_code.len();

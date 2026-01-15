@@ -16,6 +16,8 @@ pub struct Module {
     pub data_segments: Vec<DataSegment>,
     /// Storage layout.
     pub storage_layout: Vec<StorageSlot>,
+    /// Whether this is an interface (no bytecode generation).
+    pub is_interface: bool,
 }
 
 impl Module {
@@ -27,6 +29,7 @@ impl Module {
             functions: IndexVec::new(),
             data_segments: Vec::new(),
             storage_layout: Vec::new(),
+            is_interface: false,
         }
     }
 

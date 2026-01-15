@@ -111,6 +111,11 @@ impl<'gcx> Lowerer<'gcx> {
     pub fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
 
+        // Mark interfaces - they don't generate deployable bytecode
+        if contract.kind == hir::ContractKind::Interface {
+            self.module.is_interface = true;
+        }
+
         self.allocate_storage(contract);
 
         // Check if contract has an explicit constructor
