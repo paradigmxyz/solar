@@ -790,6 +790,7 @@ impl EvmCodegen {
     /// Emits a store operation with liveness awareness.
     /// If the value operand is still live after this instruction, we DUP it first
     /// to preserve it on the stack for later use.
+    #[allow(clippy::too_many_arguments)]
     fn emit_store_op_live_aware(
         &mut self,
         func: &Function,

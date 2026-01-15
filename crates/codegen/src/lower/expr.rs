@@ -432,11 +432,7 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::Shl => builder.shl(rhs, lhs),
             BinOpKind::Shr => {
                 // For signed types, >> is arithmetic shift (SAR)
-                if is_signed {
-                    builder.sar(rhs, lhs)
-                } else {
-                    builder.shr(rhs, lhs)
-                }
+                if is_signed { builder.sar(rhs, lhs) } else { builder.shr(rhs, lhs) }
             }
             BinOpKind::Sar => builder.sar(rhs, lhs),
             BinOpKind::Lt => {
@@ -875,7 +871,8 @@ impl<'gcx> Lowerer<'gcx> {
         // before we overwrite memory with the current call's calldata.
         // Without this, nested call results stored at mem[0] would be clobbered
         // when we write the selector for the current call.
-        let arg_vals: Vec<ValueId> = args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+        let arg_vals: Vec<ValueId> =
+            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
 
         // Also evaluate the address before writing to memory
         let addr = self.lower_expr(builder, base);

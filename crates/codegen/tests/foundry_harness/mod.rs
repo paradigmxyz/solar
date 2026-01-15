@@ -6,7 +6,7 @@
 //! 3. Running tests with Solar bytecode injected via env vars
 //!
 //! Run with: cargo test -p solar-codegen --test foundry
-#![allow(clippy::uninlined_format_args)]
+#![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
 use std::{
     collections::HashMap,
@@ -60,8 +60,10 @@ fn save_json_output(project_dir: &Path, filename: &str, content: &str) -> PathBu
 
 /// Compares Solar and solc test results and prints a diff summary.
 fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label: &str) {
-    let solar_map: HashMap<&str, &TestResult> = solar_tests.iter().map(|t| (t.name.as_str(), t)).collect();
-    let solc_map: HashMap<&str, &TestResult> = solc_tests.iter().map(|t| (t.name.as_str(), t)).collect();
+    let solar_map: HashMap<&str, &TestResult> =
+        solar_tests.iter().map(|t| (t.name.as_str(), t)).collect();
+    let solc_map: HashMap<&str, &TestResult> =
+        solc_tests.iter().map(|t| (t.name.as_str(), t)).collect();
 
     let mut regressions = Vec::new();
     let mut gas_diffs = Vec::new();
@@ -89,7 +91,11 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
     }
 
     if !regressions.is_empty() {
-        eprintln!("\n❌ [{}] REGRESSIONS: {} tests pass in solc but fail in Solar:", label, regressions.len());
+        eprintln!(
+            "\n❌ [{}] REGRESSIONS: {} tests pass in solc but fail in Solar:",
+            label,
+            regressions.len()
+        );
         for name in &regressions {
             eprintln!("   - {}", name);
         }
@@ -98,15 +104,24 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
     if !gas_diffs.is_empty() {
         eprintln!("\n⛽ [{}] Gas comparison (Solar vs solc):", label);
         for (name, solar_gas, solc_gas, diff_pct) in &gas_diffs {
-            let indicator = if *diff_pct > 5.0 { "📈" } else if *diff_pct < -5.0 { "📉" } else { "≈" };
-            eprintln!("   {} {:40} Solar: {:>8} | solc: {:>8} | {:>+6.1}%", 
-                indicator, name, solar_gas, solc_gas, diff_pct);
+            let indicator = if *diff_pct > 5.0 {
+                "📈"
+            } else if *diff_pct < -5.0 {
+                "📉"
+            } else {
+                "≈"
+            };
+            eprintln!(
+                "   {} {:40} Solar: {:>8} | solc: {:>8} | {:>+6.1}%",
+                indicator, name, solar_gas, solc_gas, diff_pct
+            );
         }
     }
 }
 
 /// Result of running a compiler on a project.
 #[derive(Debug)]
+#[allow(dead_code)]
 struct CompilerRun {
     compiler: String,
     compile_time: Duration,
@@ -120,8 +135,8 @@ struct CompilerRun {
 #[derive(Debug, Clone)]
 struct ContractBytecode {
     name: String,
-    creation_code: String,  // hex without 0x prefix
-    deployed_code: String,  // hex without 0x prefix
+    creation_code: String, // hex without 0x prefix
+    deployed_code: String, // hex without 0x prefix
 }
 
 /// Compiles everything with Solar and extracts bytecode for src contracts only.
@@ -144,10 +159,7 @@ fn compile_with_solar(project_dir: &PathBuf) -> (Duration, Vec<ContractBytecode>
     let compile_time = start.elapsed();
 
     if !output.status.success() {
-        eprintln!(
-            "[solar] Build failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        eprintln!("[solar] Build failed: {}", String::from_utf8_lossy(&output.stderr));
     }
 
     // Extract bytecode from src/*.sol artifacts only (skip test contracts)
@@ -162,13 +174,15 @@ fn compile_with_solar(project_dir: &PathBuf) -> (Duration, Vec<ContractBytecode>
                 if dir_name.ends_with(".t.sol") {
                     continue; // Skip test contract artifacts
                 }
-                
+
                 if let Ok(files) = std::fs::read_dir(&path) {
                     for file in files.flatten() {
                         let file_path = file.path();
                         if file_path.extension().is_some_and(|e| e == "json") {
                             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(&content)
+                                {
                                     let creation_code = json
                                         .get("bytecode")
                                         .and_then(|b| b.get("object"))
@@ -177,7 +191,7 @@ fn compile_with_solar(project_dir: &PathBuf) -> (Duration, Vec<ContractBytecode>
                                         .strip_prefix("0x")
                                         .unwrap_or("")
                                         .to_string();
-                                    
+
                                     let deployed_code = json
                                         .get("deployedBytecode")
                                         .and_then(|b| b.get("object"))
@@ -230,10 +244,7 @@ fn run_forge_build_solc(project_dir: &PathBuf) -> (Duration, HashMap<String, usi
     let compile_time = start.elapsed();
 
     if !output.status.success() {
-        eprintln!(
-            "[solc] Build failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        eprintln!("[solc] Build failed: {}", String::from_utf8_lossy(&output.stderr));
     }
 
     // Parse bytecode sizes from artifacts
@@ -248,7 +259,9 @@ fn run_forge_build_solc(project_dir: &PathBuf) -> (Duration, HashMap<String, usi
                         let file_path = file.path();
                         if file_path.extension().is_some_and(|e| e == "json") {
                             if let Ok(content) = std::fs::read_to_string(&file_path) {
-                                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Ok(json) =
+                                    serde_json::from_str::<serde_json::Value>(&content)
+                                {
                                     if let Some(bytecode) = json
                                         .get("deployedBytecode")
                                         .and_then(|b| b.get("object"))
@@ -284,7 +297,7 @@ fn run_forge_test_with_solar_bytecode(
     solar_bytecodes: &[ContractBytecode],
     label: &str,
 ) -> (Duration, Vec<TestResult>) {
-    let out_dir = "out-solc";  // Always use solc-compiled tests
+    let out_dir = "out-solc"; // Always use solc-compiled tests
     let cache_dir = "cache-solc";
 
     let mut cmd = Command::new("forge");
@@ -341,11 +354,7 @@ fn run_forge_test_with_solar_bytecode(
                                 .and_then(|u| u.get("gas"))
                                 .and_then(|g| g.as_u64())
                                 .unwrap_or(0);
-                            tests.push(TestResult {
-                                name: name.clone(),
-                                passed,
-                                gas,
-                            });
+                            tests.push(TestResult { name: name.clone(), passed, gas });
                         }
                     }
                 }
@@ -399,11 +408,7 @@ fn run_forge_test_solc(project_dir: &PathBuf) -> (Duration, Vec<TestResult>) {
                                 .and_then(|u| u.get("gas"))
                                 .and_then(|g| g.as_u64())
                                 .unwrap_or(0);
-                            tests.push(TestResult {
-                                name: name.clone(),
-                                passed,
-                                gas,
-                            });
+                            tests.push(TestResult { name: name.clone(), passed, gas });
                         }
                     }
                 }
@@ -420,12 +425,16 @@ fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRu
 
     // Step 1: Compile everything with Solar, extract src contract bytecodes
     let (solar_compile_time, solar_bytecodes) = compile_with_solar(&project_dir);
-    
+
     // Print extracted bytecodes
     eprintln!("\n📦 [{}] Solar bytecodes extracted:", project_name);
     for bc in &solar_bytecodes {
-        eprintln!("   {} - creation: {}B, deployed: {}B", 
-            bc.name, bc.creation_code.len() / 2, bc.deployed_code.len() / 2);
+        eprintln!(
+            "   {} - creation: {}B, deployed: {}B",
+            bc.name,
+            bc.creation_code.len() / 2,
+            bc.deployed_code.len() / 2
+        );
     }
 
     // Step 2: Build entire project with solc (tests need solc)
@@ -433,7 +442,7 @@ fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRu
 
     // Step 3: Run tests with Solar bytecode injected
     let (solar_test_time, solar_tests) = run_forge_test_with_solar_bytecode(
-        &project_dir, 
+        &project_dir,
         &solar_bytecodes,
         &format!("{}-solar", project_name),
     );
@@ -485,27 +494,19 @@ fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRu
         "   Solar: {:>6.2}s | solc: {:>6.2}s | {:+.0}%",
         solar_run.compile_time.as_secs_f64(),
         solc_run.compile_time.as_secs_f64(),
-        ((solar_run.compile_time.as_secs_f64() / solc_run.compile_time.as_secs_f64()) - 1.0) * 100.0
+        ((solar_run.compile_time.as_secs_f64() / solc_run.compile_time.as_secs_f64()) - 1.0)
+            * 100.0
     );
 
     // Test results
     println!("\n✅ Test Results:");
-    println!(
-        "   Solar: {} passed, {} failed",
-        solar_run.total_passed, solar_run.total_failed
-    );
-    println!(
-        "   solc:  {} passed, {} failed",
-        solc_run.total_passed, solc_run.total_failed
-    );
+    println!("   Solar: {} passed, {} failed", solar_run.total_passed, solar_run.total_failed);
+    println!("   solc:  {} passed, {} failed", solc_run.total_passed, solc_run.total_failed);
 
     // Bytecode sizes
     println!("\n📏 Bytecode Sizes (deployed):");
-    let mut all_contracts: Vec<_> = solar_run
-        .bytecode_sizes
-        .keys()
-        .chain(solc_run.bytecode_sizes.keys())
-        .collect();
+    let mut all_contracts: Vec<_> =
+        solar_run.bytecode_sizes.keys().chain(solc_run.bytecode_sizes.keys()).collect();
     all_contracts.sort();
     all_contracts.dedup();
 
@@ -573,10 +574,7 @@ fn test_project_solar_only(project_name: &str, project_path: &str) {
 
     let solar_binary = get_solar_binary();
     if !solar_binary.exists() {
-        eprintln!(
-            "Skipping {}: Solar binary not found at {:?}",
-            project_name, solar_binary
-        );
+        eprintln!("Skipping {}: Solar binary not found at {:?}", project_name, solar_binary);
         return;
     }
 
@@ -634,16 +632,8 @@ fn test_project_solar_only(project_name: &str, project_path: &str) {
         project_name, total_passed, total_failed
     );
 
-    assert_eq!(
-        total_failed, 0,
-        "[{}] {} Solar tests failed",
-        project_name, total_failed
-    );
-    assert!(
-        total_passed > 0,
-        "[{}] No Solar tests ran",
-        project_name
-    );
+    assert_eq!(total_failed, 0, "[{}] {} Solar tests failed", project_name, total_failed);
+    assert!(total_passed > 0, "[{}] No Solar tests ran", project_name);
 }
 
 /// Tests a project with Solar bytecode injection.
@@ -655,10 +645,7 @@ fn test_project_solar(project_name: &str, project_path: &str) {
 
     let solar_binary = get_solar_binary();
     if !solar_binary.exists() {
-        eprintln!(
-            "Skipping {}: Solar binary not found at {:?}",
-            project_name, solar_binary
-        );
+        eprintln!("Skipping {}: Solar binary not found at {:?}", project_name, solar_binary);
         return;
     }
 
@@ -675,11 +662,7 @@ fn test_project_solar(project_name: &str, project_path: &str) {
         "[{}] {} Solar tests failed",
         project_name, solar_run.total_failed
     );
-    assert!(
-        solar_run.total_passed > 0,
-        "[{}] No Solar tests ran",
-        project_name
-    );
+    assert!(solar_run.total_passed > 0, "[{}] No Solar tests ran", project_name);
 
     if solc_run.total_passed > solar_run.total_passed {
         eprintln!(
@@ -689,10 +672,7 @@ fn test_project_solar(project_name: &str, project_path: &str) {
         );
     }
 
-    println!(
-        "\n✓ [{}] {} tests passed with Solar",
-        project_name, solar_run.total_passed
-    );
+    println!("\n✓ [{}] {} tests passed with Solar", project_name, solar_run.total_passed);
 }
 
 #[cfg(test)]

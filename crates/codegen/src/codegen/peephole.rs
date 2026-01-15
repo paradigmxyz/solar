@@ -46,28 +46,19 @@ impl PeepholeOptimizer {
         let remaining = &bytecode[pos..];
 
         // Pattern: PUSH0 ADD -> (nop) - adding zero is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && remaining[1] == opcodes::ADD
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::ADD {
             return Some((2, vec![]));
         }
 
         // Pattern: PUSH0 SUB -> (nop) - subtracting zero is identity (x - 0 = x)
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && remaining[1] == opcodes::SUB
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::SUB {
             return Some((2, vec![]));
         }
 
         // Pattern: PUSH0 MUL -> PUSH0 POP PUSH0 -> POP PUSH0
         // Actually: x * 0 = 0, but we need to consume x from stack
         // This is: [x] PUSH0 MUL -> [0], so we replace with POP PUSH0
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && remaining[1] == opcodes::MUL
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::MUL {
             return Some((2, vec![opcodes::POP, opcodes::PUSH0]));
         }
 
@@ -108,10 +99,7 @@ impl PeepholeOptimizer {
         }
 
         // Pattern: DUP1 POP -> (nop) - dup then immediate pop is useless
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::dup(1)
-            && remaining[1] == opcodes::POP
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::dup(1) && remaining[1] == opcodes::POP {
             return Some((2, vec![]));
         }
 
@@ -136,26 +124,17 @@ impl PeepholeOptimizer {
         }
 
         // Pattern: NOT NOT -> (nop) - double bitwise not is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::NOT
-            && remaining[1] == opcodes::NOT
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::NOT && remaining[1] == opcodes::NOT {
             return Some((2, vec![]));
         }
 
         // Pattern: PUSH0 OR -> (nop) - OR with 0 is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && remaining[1] == opcodes::OR
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::OR {
             return Some((2, vec![]));
         }
 
         // Pattern: PUSH0 XOR -> (nop) - XOR with 0 is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && remaining[1] == opcodes::XOR
-        {
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::XOR {
             return Some((2, vec![]));
         }
 
@@ -164,10 +143,8 @@ impl PeepholeOptimizer {
 
         // Pattern: PUSH<n> <val> POP -> (nop) - push followed by immediate pop
         // PUSH0 = 0x5f, PUSH1-PUSH32 = 0x60-0x7f
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 {
-            if remaining[1] == opcodes::POP {
-                return Some((2, vec![]));
-            }
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::POP {
+            return Some((2, vec![]));
         }
 
         // PUSH1-PUSH32 followed by POP
@@ -309,8 +286,10 @@ mod tests {
     fn test_preserves_valid_code() {
         // Valid code should not be modified
         let input = vec![
-            0x60, 0x42, // PUSH1 42
-            0x60, 0x10, // PUSH1 16
+            0x60,
+            0x42, // PUSH1 42
+            0x60,
+            0x10,         // PUSH1 16
             opcodes::ADD, // ADD
             opcodes::STOP,
         ];

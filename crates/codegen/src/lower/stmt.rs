@@ -303,7 +303,9 @@ impl<'gcx> Lowerer<'gcx> {
                 // The EVM codegen handles storing them to memory at offsets 0, 32, 64, etc.
                 let ret_vals: Vec<_> = elements
                     .iter()
-                    .filter_map(|elem_opt| elem_opt.as_ref().map(|elem| self.lower_expr(builder, elem)))
+                    .filter_map(|elem_opt| {
+                        elem_opt.as_ref().map(|elem| self.lower_expr(builder, elem))
+                    })
                     .collect();
                 builder.ret(ret_vals);
             } else {

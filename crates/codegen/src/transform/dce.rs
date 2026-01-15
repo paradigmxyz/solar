@@ -131,10 +131,10 @@ impl DeadCodeEliminator {
                 let result_value = self.find_result_value(func, inst_id);
 
                 // If the instruction has a result and it's not used, mark as dead
-                if let Some(result) = result_value {
-                    if !used_values.contains(&result) {
-                        dead.push((block_id, inst_id));
-                    }
+                if let Some(result) = result_value
+                    && !used_values.contains(&result)
+                {
+                    dead.push((block_id, inst_id));
                 }
             }
         }
@@ -146,13 +146,12 @@ impl DeadCodeEliminator {
     fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
         // Search through values to find one that references this instruction
         for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value {
-                if *id == inst_id {
-                    return Some(value_id);
-                }
+            if let Value::Inst(id) = value
+                && *id == inst_id
+            {
+                return Some(value_id);
             }
         }
         None
     }
 }
-
