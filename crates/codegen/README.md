@@ -4,8 +4,8 @@ Solidity MIR (Mid-level Intermediate Representation) and EVM code generation for
 
 ## Architecture
 
-```
-HIR (from solar-sema) → Lowering → MIR → Code Generation → EVM Bytecode
+```text
+HIR (from solar-sema) -> Lowering -> MIR -> Code Generation -> EVM Bytecode
 ```
 
 ### MIR Structure

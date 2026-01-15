@@ -115,10 +115,7 @@ impl StackScheduler {
             return true;
         }
         // Check value type
-        matches!(
-            func.value(value),
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
-        )
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
     }
 
     /// Ensures multiple values are on top of the stack in order.

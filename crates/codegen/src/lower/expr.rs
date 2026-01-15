@@ -886,7 +886,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Checks if an expression is an Index into a nested mapping (e.g., m[a][b]).
+    /// Checks if an expression is an Index into a nested mapping (e.g., `m[a][b]`).
     /// Returns true if the expression is a nested mapping access.
     fn is_nested_mapping_index(&self, expr: &hir::Expr<'_>) -> bool {
         if let ExprKind::Index(inner_base, _) = &expr.kind {
@@ -901,7 +901,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Computes the storage slot for a nested mapping access.
-    /// For m[a][b], this computes: keccak256(b, keccak256(a, base_slot))
+    /// For `m[a][b]`, this computes: `keccak256(b, keccak256(a, base_slot))`
     fn lower_nested_mapping_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -932,8 +932,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Checks if the value type at this nesting level is itself a mapping.
-    /// For m[a][b] where m: mapping(A => mapping(B => C)), this returns false
-    /// because the value at m[a][b] is C, not a mapping.
+    /// For `m[a][b]` where `m: mapping(A => mapping(B => C))`, this returns false
+    /// because the value at `m[a][b]` is C, not a mapping.
     fn nested_mapping_value_is_mapping(&self, expr: &hir::Expr<'_>) -> bool {
         if let ExprKind::Index(inner_base, _) = &expr.kind {
             // Check if inner_base is the root mapping variable

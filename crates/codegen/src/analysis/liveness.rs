@@ -157,7 +157,7 @@ impl Liveness {
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             let bidx = block_id.index();
-            // Process instructions in forward order to compute UEUse and Def
+            // Process instructions in forward order to compute upward-exposed uses and defs
             for &inst_id in &block.instructions {
                 let inst = func.instruction(inst_id);
 

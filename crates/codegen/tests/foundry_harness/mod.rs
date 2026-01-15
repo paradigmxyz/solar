@@ -312,6 +312,7 @@ mod tests {
 
     /// Level 0: Simplest possible contract - just deploys with no functions
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level0_empty_contract() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -339,6 +340,7 @@ contract Empty {}
 
     /// Level 1: Contract with a single public view function returning a constant
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level1_constant_return() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -391,6 +393,7 @@ contract Constant {
 
     /// Level 2: Contract with storage variable and getter
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level2_storage_read() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -427,6 +430,7 @@ contract Storage {
 
     /// Level 3: Contract with storage write (increment)
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level3_storage_write() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -479,6 +483,7 @@ contract Counter {
 
     /// Level 4: Multiple functions with storage
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level4_multiple_functions() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -531,6 +536,7 @@ contract Counter {
 
     /// Level 5: Arithmetic operations
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level5_arithmetic() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -568,6 +574,7 @@ contract Math {
 
     /// Level 6: Multiple storage slots
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level6_multiple_storage() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -624,6 +631,7 @@ contract MultiStorage {
 
     /// Level 7: Comparisons and conditionals
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level7_conditionals() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -654,6 +662,7 @@ contract Conditionals {
 
     /// Level 8: Loops
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level8_loops() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -691,6 +700,7 @@ contract Loops {
 
     /// Level 9: Boolean type
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level9_booleans() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -732,6 +742,7 @@ contract Booleans {
 
     /// Level 10: Address type and msg.sender
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level10_address() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -765,6 +776,7 @@ contract AddressTest {
 
     /// Level 11: Verify arithmetic runtime behavior
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level11_arithmetic_runtime() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -809,6 +821,7 @@ contract Math {
 
     /// Level 12: Verify conditional runtime behavior
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_level12_conditional_runtime() {
         let source = r#"
 // SPDX-License-Identifier: MIT
@@ -864,6 +877,7 @@ contract Max {
 
     /// Summary test: Print compilation stats
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_summary_stats() {
         let contracts = vec![
             ("Empty", r#"contract Empty {}"#),
@@ -906,6 +920,7 @@ contract Max {
 
     /// Test: Contract creation with `new`
     #[test]
+    #[ignore = "requires anvil and solc"]
     fn test_wip_contract_creation() {
         let source = r#"
 // SPDX-License-Identifier: MIT
