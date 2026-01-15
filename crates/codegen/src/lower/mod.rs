@@ -113,9 +113,74 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.allocate_storage(contract);
 
+        // Check if contract has an explicit constructor
+        let has_constructor = contract
+            .all_functions()
+            .any(|f| self.gcx.hir.function(f).kind == hir::FunctionKind::Constructor);
+
+        // Generate synthetic constructor for state variable initialization if needed
+        if !has_constructor {
+            self.generate_synthetic_constructor(contract);
+        }
+
         for func_id in contract.all_functions() {
             self.lower_function(func_id);
         }
+    }
+
+    /// Generates a synthetic constructor to initialize state variables with initializers.
+    fn generate_synthetic_constructor(&mut self, contract: &hir::Contract<'_>) {
+        // Collect state variables with initializers
+        let vars_with_init: Vec<_> = contract
+            .variables()
+            .filter_map(|var_id| {
+                let var = self.gcx.hir.variable(var_id);
+                if var.is_state_variable() && var.initializer.is_some() {
+                    Some(var_id)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if vars_with_init.is_empty() {
+            return;
+        }
+
+        // Create constructor function
+        let ctor_name =
+            Ident::new(solar_interface::Symbol::intern("constructor"), solar_interface::Span::DUMMY);
+        let mut mir_func = Function::new(ctor_name);
+        mir_func.attributes = FunctionAttributes {
+            visibility: hir::Visibility::Public,
+            state_mutability: hir::StateMutability::NonPayable,
+            is_constructor: true,
+            is_fallback: false,
+            is_receive: false,
+        };
+
+        {
+            let mut builder = FunctionBuilder::new(&mut mir_func);
+
+            // Initialize each state variable
+            for var_id in vars_with_init {
+                let var = self.gcx.hir.variable(var_id);
+                if let Some(init) = var.initializer {
+                    // Get the storage slot for this variable
+                    if let Some(&slot) = self.storage_slots.get(&var_id) {
+                        // Lower the initializer expression
+                        let init_val = self.lower_expr(&mut builder, init);
+                        // Store to the slot
+                        let slot_val = builder.imm_u64(slot);
+                        builder.sstore(slot_val, init_val);
+                    }
+                }
+            }
+
+            builder.stop();
+        }
+
+        self.module.add_function(mir_func);
     }
 
     /// Allocates storage slots for state variables.
