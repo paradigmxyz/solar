@@ -722,6 +722,12 @@ mod tests {
     }
 
     #[test]
+    fn test_stack_deep_solar_only() {
+        // Solar-only test for stack depth >16 - solc cannot compile these contracts
+        test_project_solar_only("stack_deep_solar", "testdata/stack-deep-solar");
+    }
+
+    #[test]
     fn test_compilation() {
         if !forge_available() {
             eprintln!("Skipping: forge not found");
