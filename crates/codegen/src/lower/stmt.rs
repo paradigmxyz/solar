@@ -105,17 +105,27 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a multi-variable declaration.
+    /// For external calls with multiple returns, the return data is written to memory
+    /// at offsets 0, 32, 64, etc. after the CALL instruction.
     fn lower_multi_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
-        let init_val = self.lower_expr(builder, init);
+        // lower_expr for an external call returns the first value (from memory offset 0)
+        // and leaves additional return values at memory offsets 32, 64, etc.
+        let first_val = self.lower_expr(builder, init);
 
         for (i, var_id_opt) in var_ids.iter().enumerate() {
             if let Some(var_id) = var_id_opt {
-                let val = if i == 0 { init_val } else { builder.imm_u256(U256::ZERO) };
+                let val = if i == 0 {
+                    first_val
+                } else {
+                    // Read additional return values from memory at offset i * 32
+                    let mem_offset = builder.imm_u64((i * 32) as u64);
+                    builder.mload(mem_offset)
+                };
                 // Allocate memory slot and store value
                 let offset = self.alloc_local_memory(*var_id);
                 let offset_val = builder.imm_u64(offset);
@@ -287,8 +297,19 @@ impl<'gcx> Lowerer<'gcx> {
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
         if let Some(expr) = value {
-            let ret_val = self.lower_expr(builder, expr);
-            builder.ret([ret_val]);
+            // Check if this is a tuple return (multiple values)
+            if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                // For multi-value returns, collect all values and pass to ret().
+                // The EVM codegen handles storing them to memory at offsets 0, 32, 64, etc.
+                let ret_vals: Vec<_> = elements
+                    .iter()
+                    .filter_map(|elem_opt| elem_opt.as_ref().map(|elem| self.lower_expr(builder, elem)))
+                    .collect();
+                builder.ret(ret_vals);
+            } else {
+                let ret_val = self.lower_expr(builder, expr);
+                builder.ret([ret_val]);
+            }
         } else {
             builder.ret([]);
         }

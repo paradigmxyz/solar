@@ -862,8 +862,9 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_array_method_call(builder, var_id, slot, member_name, args);
         }
 
-        // Look up the function being called to get its selector
+        // Look up the function being called to get its selector and return count
         let selector = self.compute_member_selector(base, member);
+        let num_returns = self.get_member_function_return_count(base, member);
 
         // Calculate calldata size first
         let num_args = args.exprs().count();
@@ -901,9 +902,9 @@ impl<'gcx> Lowerer<'gcx> {
         let args_offset = builder.imm_u64(0);
 
         // Return data location (use offset 0, overwriting calldata since we don't need it after
-        // call)
+        // call). Allocate space for all return values (32 bytes each).
         let ret_offset = builder.imm_u64(0);
-        let ret_size = builder.imm_u64(32);
+        let ret_size = builder.imm_u64((num_returns * 32) as u64);
 
         // Gas: use all available gas
         let gas = builder.gas();
@@ -915,7 +916,9 @@ impl<'gcx> Lowerer<'gcx> {
         let _success =
             builder.call(gas, addr, value, args_offset, calldata_size, ret_offset, ret_size);
 
-        // Load return value from memory
+        // Load first return value from memory
+        // Note: for multi-return calls, lower_multi_var_decl will read additional values
+        // from memory at offsets 32, 64, etc.
         builder.mload(ret_offset)
     }
 
@@ -1220,6 +1223,60 @@ impl<'gcx> Lowerer<'gcx> {
         let sig = format!("{}()", member.name);
         let hash = alloy_primitives::keccak256(sig.as_bytes());
         u32::from_be_bytes(hash[..4].try_into().unwrap())
+    }
+
+    /// Gets the number of return values for a member function call.
+    fn get_member_function_return_count(&self, base: &hir::Expr<'_>, member: Ident) -> usize {
+        // Helper to look up return count from a contract
+        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<usize> {
+            let contract = self.gcx.hir.contract(contract_id);
+            for func_id in contract.all_functions() {
+                let func = self.gcx.hir.function(func_id);
+                if func.name.is_some_and(|n| n.name == member.name) {
+                    return Some(func.returns.len());
+                }
+            }
+            None
+        };
+
+        // Case 1: base is an identifier (variable with contract type)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
+                && let Some(count) = lookup_in_contract(contract_id)
+            {
+                return count;
+            }
+        }
+
+        // Case 2: base is a type conversion call like ICallee(addr)
+        if let ExprKind::Call(callee, _args, _named) = &base.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(count) = lookup_in_contract(*contract_id)
+        {
+            return count;
+        }
+
+        // Case 3: base is `this` (Builtin::This)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+        {
+            // Look up the function in the current contract
+            // We need to find it through the module's functions
+            // For now, iterate all contracts and find the function
+            for contract_id in self.gcx.hir.contract_ids() {
+                if let Some(count) = lookup_in_contract(contract_id) {
+                    return count;
+                }
+            }
+        }
+
+        // Default: assume single return value
+        1
     }
 
     /// Resolves a member of a builtin module to its corresponding builtin.

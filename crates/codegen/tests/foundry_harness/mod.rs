@@ -730,6 +730,11 @@ mod tests {
     }
 
     #[test]
+    fn test_multi_return() {
+        test_project_solar("multi_return", "testdata/multi-return");
+    }
+
+    #[test]
     #[ignore] // Some stack-deep tests fail due to unimplemented codegen features
     fn test_stack_deep() {
         // Stack-deep tests can't compile with solc - use Solar for everything

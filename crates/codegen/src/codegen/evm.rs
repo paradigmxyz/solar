@@ -896,14 +896,36 @@ impl EvmCodegen {
                 if values.is_empty() {
                     self.asm.emit_push(U256::ZERO);
                     self.asm.emit_push(U256::ZERO);
+                } else if values.len() == 1 {
+                    // Single return value - simple case
+                    self.emit_value(func, values[0]);
+                    self.asm.emit_push(U256::ZERO);
+                    self.asm.emit_op(opcodes::MSTORE);
+                    self.asm.emit_push(U256::from(32));
+                    self.asm.emit_push(U256::ZERO);
                 } else {
-                    // Store return values in memory and return
-                    for (i, &val) in values.iter().enumerate() {
-                        self.emit_value(func, val);
+                    // For multiple return values, we need to emit each value and store it
+                    // at the correct memory offset (0, 32, 64, etc.).
+                    //
+                    // The tricky part is that emit_value uses DUP to get values onto the
+                    // stack, and we need to properly track the scheduler state so each
+                    // subsequent emit_value finds its value at the correct position.
+                    let n = values.len();
+
+                    // Emit each value and immediately store it. After each MSTORE,
+                    // update the scheduler to reflect that we consumed the value.
+                    for (i, &value) in values.iter().enumerate() {
+                        self.emit_value(func, value);
                         self.asm.emit_push(U256::from(i * 32));
                         self.asm.emit_op(opcodes::MSTORE);
+                        // The PUSH added an unknown value, and MSTORE consumed 2.
+                        // Since emit_value used DUP, the original is still in the scheduler model.
+                        // We need to tell scheduler that 1 value was consumed (the DUP'd copy).
+                        self.scheduler.instruction_executed(1, None);
                     }
-                    self.asm.emit_push(U256::from(values.len() * 32));
+
+                    // Return size and offset
+                    self.asm.emit_push(U256::from(n * 32));
                     self.asm.emit_push(U256::ZERO);
                 }
                 self.asm.emit_op(opcodes::RETURN);
