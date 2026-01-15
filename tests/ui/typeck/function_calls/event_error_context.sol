@@ -1,10 +1,20 @@
 //@compile-flags: -Ztypeck
 
+// Tests for event/error invocation context validation.
+// Based on solc tests:
+// - syntaxTests/events/event_without_emit_deprecated.sol
+// - syntaxTests/events/multiple_event_without_emit.sol
+// - syntaxTests/emit/emit_non_event.sol
+// - syntaxTests/revertStatement/error_used_elsewhere.sol
+// - syntaxTests/revertStatement/revert_event.sol
+
 contract EventErrorContext {
     event MyEvent(uint a, bytes32 b);
     event EmptyEvent();
     error MyError(uint code, bytes32 message);
     error EmptyError();
+
+    function() Test;
 
     // === Valid usage ===
     function validEmit() public {
@@ -17,25 +27,32 @@ contract EventErrorContext {
         revert EmptyError();
     }
 
-    // === Invalid: Event construction outside emit ===
+    // === Event invocations outside emit (solc error 3132) ===
     function eventAsExpression() public {
-        MyEvent(1, "hi"); //~ ERROR: event invocations must be prefixed by "emit"
+        MyEvent(1, "hi"); //~ ERROR: event invocations have to be prefixed by "emit"
     }
 
     function eventInAssignment() public {
         uint x = MyEvent(1, "hi");
-        //~^ ERROR: event invocations must be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by "emit"
         //~| ERROR: mismatched number of components
     }
 
     function eventAsArgument() public pure {
-        this.takeBytes(EmptyEvent()); //~ ERROR: event invocations must be prefixed by "emit"
+        this.takeBytes(EmptyEvent()); //~ ERROR: event invocations have to be prefixed by "emit"
         //~^ ERROR: mismatched types
+    }
+
+    // Solc test: multiple_event_without_emit.sol
+    function multipleEvents() external {
+        emit MyEvent(0, "x");
+        // Second invocation without emit should still error.
+        MyEvent(1, "y"); //~ ERROR: event invocations have to be prefixed by "emit"
     }
 
     function takeBytes(bytes memory) public pure {}
 
-    // === Invalid: Error construction outside revert ===
+    // === Error invocations outside revert (solc error 7757) ===
     function errorAsExpression() public pure {
         MyError(404, "not found"); //~ ERROR: errors can only be used with revert statements
     }
@@ -51,4 +68,30 @@ contract EventErrorContext {
         //~^ ERROR: mismatched types
     }
 
+    // === Non-event in emit statement (solc error 9292) ===
+    function emitNonEvent() public {
+        emit Test(); //~ ERROR: expression has to be an event invocation
+    }
+
+    // === Non-error in revert statement (solc error 1885) ===
+    function revertEvent() public pure {
+        revert EmptyEvent(); //~ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: expression has to be an error
+    }
+
+    // === Nested event/error invocations in arguments should still error ===
+    function nestedEventInEmitArg() public {
+        emit MyEvent(EmptyEvent(), "x");
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: mismatched types
+    }
+
+    function nestedErrorInRevertArg() public pure {
+        revert MyError(EmptyError(), "x");
+        //~^ ERROR: errors can only be used with revert statements
+        //~| ERROR: mismatched types
+    }
+
+    // TODO: require(condition, MyError(...)) should be allowed but is not yet implemented.
+    // See: syntaxTests/errors/require_custom.sol
 }
