@@ -162,6 +162,40 @@ impl<'gcx> Lowerer<'gcx> {
                     return self.lower_builtin(builder, member_builtin);
                 }
 
+                // Handle enum variant access (e.g., Status.Active)
+                if let ExprKind::Ident(res_slice) = &base.kind
+                    && let Some(hir::Res::Item(hir::ItemId::Enum(enum_id))) = res_slice.first()
+                {
+                    let enum_def = self.gcx.hir.enumm(*enum_id);
+                    for (i, variant) in enum_def.variants.iter().enumerate() {
+                        if variant.name == member.name {
+                            return builder.imm_u64(i as u64);
+                        }
+                    }
+                }
+
+                // Handle nested enum variant access (e.g., Contract.Status.Active)
+                // base is Member(Ident(Contract), enum_name)
+                if let ExprKind::Member(contract_expr, enum_name) = &base.kind
+                    && let ExprKind::Ident(res_slice) = &contract_expr.kind
+                    && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
+                        res_slice.first()
+                {
+                    let contract = self.gcx.hir.contract(*contract_id);
+                    for &item_id in contract.items {
+                        if let hir::ItemId::Enum(enum_id) = item_id {
+                            let enum_def = self.gcx.hir.enumm(enum_id);
+                            if enum_def.name.name == enum_name.name {
+                                for (i, variant) in enum_def.variants.iter().enumerate() {
+                                    if variant.name == member.name {
+                                        return builder.imm_u64(i as u64);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Handle type(T).min and type(T).max
                 if let ExprKind::TypeCall(ty) = &base.kind {
                     let member_name = member.name.as_str();
@@ -652,13 +686,21 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle type conversion calls: Type(expr)
-        // e.g., ICallee(addr), uint256(x), address(y)
-        // The callee is an Ident resolving to a contract/interface type
+        // e.g., ICallee(addr), uint256(x), address(y), Status(n)
+        // The callee is an Ident resolving to a contract/interface/enum type
         if let ExprKind::Ident(res_slice) = &callee.kind {
             // Check if this resolves to a contract or interface type
             if let Some(hir::Res::Item(hir::ItemId::Contract(_))) = res_slice.first() {
                 // Type conversion: just return the first argument unchanged
                 // (The actual conversion is a no-op at the EVM level for addresses/contracts)
+                if let Some(first_arg) = args.exprs().next() {
+                    return self.lower_expr(builder, first_arg);
+                }
+            }
+            // Check if this resolves to an enum type (e.g., Status(n))
+            if let Some(hir::Res::Item(hir::ItemId::Enum(_))) = res_slice.first() {
+                // Enum conversion: just return the first argument unchanged
+                // (Enums are represented as uint8 at the EVM level)
                 if let Some(first_arg) = args.exprs().next() {
                     return self.lower_expr(builder, first_arg);
                 }
@@ -1368,6 +1410,23 @@ impl<'gcx> Lowerer<'gcx> {
                     Some(Builtin::TxOrigin)
                 } else if member == kw::Gasprice {
                     Some(Builtin::TxGasPrice)
+                } else {
+                    None
+                }
+            }
+            Builtin::Abi => {
+                if member == sym::encode {
+                    Some(Builtin::AbiEncode)
+                } else if member == sym::encodePacked {
+                    Some(Builtin::AbiEncodePacked)
+                } else if member == sym::encodeWithSelector {
+                    Some(Builtin::AbiEncodeWithSelector)
+                } else if member == sym::encodeCall {
+                    Some(Builtin::AbiEncodeCall)
+                } else if member == sym::encodeWithSignature {
+                    Some(Builtin::AbiEncodeWithSignature)
+                } else if member == sym::decode {
+                    Some(Builtin::AbiDecode)
                 } else {
                     None
                 }
