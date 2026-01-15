@@ -390,7 +390,9 @@ impl EvmCodegen {
             InstKind::SLt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::SLT),
             InstKind::SGt(a, b) => self.emit_binary_op(func, *a, *b, opcodes::SGT),
             InstKind::Eq(a, b) => self.emit_binary_op(func, *a, *b, opcodes::EQ),
-            InstKind::IsZero(a) => self.emit_unary_op(func, *a, opcodes::ISZERO),
+            InstKind::IsZero(a) => {
+                self.emit_unary_op_with_result(func, *a, opcodes::ISZERO, result_value)
+            }
 
             // Memory operations
             // Note: We don't track MLOAD results because they can become stale
