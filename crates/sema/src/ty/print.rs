@@ -220,8 +220,6 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Mapping(..)
             | TyKind::Error(..)
             | TyKind::Event(..)
-            | TyKind::ErrorCall(_)
-            | TyKind::EventCall(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
             | TyKind::Type(_)
@@ -347,12 +345,6 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.buf.write_str("event ")?;
                 write!(self.buf, "{}", self.gcx.item_canonical_name(id))?;
                 self.print_tuple(tys)
-            }
-            TyKind::ErrorCall(id) => {
-                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
-            }
-            TyKind::EventCall(id) => {
-                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
             }
 
             TyKind::Err(_) => self.buf.write_str("<error>"),

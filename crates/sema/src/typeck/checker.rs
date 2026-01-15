@@ -22,6 +22,16 @@ struct TypeChecker<'gcx> {
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
+
+    /// The specific call expression that is allowed to be an event/error invocation.
+    /// This is set to the direct callee of emit/revert statements only, not nested calls.
+    allowed_event_error_call: Option<(hir::ExprId, AllowedCallKind)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AllowedCallKind {
+    Event,
+    Error,
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +47,14 @@ enum NotLvalueReason {
 
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
-        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+        Self {
+            gcx,
+            source,
+            contract: None,
+            types: Default::default(),
+            lvalue_context: None,
+            allowed_event_error_call: None,
+        }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -171,19 +188,33 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
                     TyKind::Event(param_tys, id) => {
+                        let is_allowed = self.allowed_event_error_call
+                            == Some((expr.id, AllowedCallKind::Event));
+                        if !is_allowed {
+                            self.dcx()
+                                .err("event invocations have to be prefixed by \"emit\"")
+                                .span(expr.span)
+                                .emit();
+                        }
                         let event = self.gcx.hir.event(id);
                         let param_names = self.get_param_names(event.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
-                        // Return EventCall type; only valid in emit statements.
-                        self.gcx.mk_ty(TyKind::EventCall(id))
+                        self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
+                        // TODO: Also allow errors in require(condition, MyError(...)).
+                        let is_allowed = self.allowed_event_error_call
+                            == Some((expr.id, AllowedCallKind::Error));
+                        if !is_allowed {
+                            self.dcx()
+                                .err("errors can only be used with revert statements")
+                                .span(expr.span)
+                                .emit();
+                        }
                         let error = self.gcx.hir.error(id);
                         let param_names = self.get_param_names(error.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
-                        // Return ErrorCall type; only valid in revert statements.
-                        // TODO: Also allow in require(condition, MyError(...)).
-                        self.gcx.mk_ty(TyKind::ErrorCall(id))
+                        self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
                     _ => {
@@ -1149,14 +1180,24 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
-                let call_ty = self.check_expr(call_expr);
-                if !call_ty.references_error() {
-                    let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
-                        unreachable!("bad Emit|Revert");
-                    };
+                // Allow exactly this call expression to be an event/error invocation.
+                let kind = match stmt.kind {
+                    hir::StmtKind::Emit(_) => AllowedCallKind::Event,
+                    hir::StmtKind::Revert(_) => AllowedCallKind::Error,
+                    _ => unreachable!(),
+                };
+                let prev = self.allowed_event_error_call.replace((call_expr.id, kind));
+                let _ty = self.check_expr(call_expr);
+                self.allowed_event_error_call = prev;
+
+                let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
+                    unreachable!("bad Emit|Revert");
+                };
+                let callee_ty = self.get(callee);
+                if !callee_ty.references_error() {
                     match stmt.kind {
                         hir::StmtKind::Emit(_) => {
-                            if !matches!(call_ty.kind, TyKind::EventCall(..)) {
+                            if !matches!(callee_ty.kind, TyKind::Event(..)) {
                                 self.dcx()
                                     .err("expression has to be an event invocation")
                                     .span(callee.span)
@@ -1164,7 +1205,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                             }
                         }
                         hir::StmtKind::Revert(_) => {
-                            if !matches!(call_ty.kind, TyKind::ErrorCall(..)) {
+                            if !matches!(callee_ty.kind, TyKind::Error(..)) {
                                 self.dcx()
                                     .err("expression has to be an error")
                                     .span(callee.span)
@@ -1381,9 +1422,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
         | TyKind::Type(_)
-        | TyKind::Meta(_)
-        | TyKind::ErrorCall(_)
-        | TyKind::EventCall(_) => None,
+        | TyKind::Meta(_) => None,
 
         TyKind::Err(_) => Some(ty),
 

@@ -58,7 +58,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             .collect(),
         TyKind::Type(ty) => type_type(gcx, ty),
         TyKind::Meta(ty) => meta(gcx, ty),
-        TyKind::Err(_) | TyKind::EventCall(_) | TyKind::ErrorCall(_) => Default::default(),
+        TyKind::Err(_guar) => Default::default(),
     })
 }
 

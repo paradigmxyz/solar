@@ -311,8 +311,6 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Module(..)
         | TyKind::BuiltinModule(..)
         | TyKind::Event(..)
-        | TyKind::EventCall(..)
-        | TyKind::ErrorCall(..)
         | TyKind::Meta(..)
         | TyKind::Err(..)
         | TyKind::Error(..) => {
