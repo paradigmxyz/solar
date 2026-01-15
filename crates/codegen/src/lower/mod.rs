@@ -148,8 +148,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Create constructor function
-        let ctor_name =
-            Ident::new(solar_interface::Symbol::intern("constructor"), solar_interface::Span::DUMMY);
+        let ctor_name = Ident::new(
+            solar_interface::Symbol::intern("constructor"),
+            solar_interface::Span::DUMMY,
+        );
         let mut mir_func = Function::new(ctor_name);
         mir_func.attributes = FunctionAttributes {
             visibility: hir::Visibility::Public,
