@@ -163,6 +163,12 @@ impl StackScheduler {
         if let Some(val) = produced {
             self.stack.push(val);
         }
+
+        debug_assert!(
+            self.stack.depth() <= 1024,
+            "Stack overflow: depth {}",
+            self.stack.depth()
+        );
     }
 
     /// Records that an instruction consumed inputs and produced an untracked output.
@@ -253,6 +259,12 @@ impl StackScheduler {
     /// Returns the current stack depth.
     #[must_use]
     pub fn stack_depth(&self) -> usize {
+        self.stack.depth()
+    }
+
+    /// Returns the current stack depth (alias for `stack_depth`).
+    #[must_use]
+    pub fn depth(&self) -> usize {
         self.stack.depth()
     }
 

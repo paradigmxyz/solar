@@ -59,6 +59,7 @@ impl StackModel {
     /// Pops the top value from the stack.
     /// Returns the value that was at the top, if known.
     pub fn pop(&mut self) -> Option<ValueId> {
+        debug_assert!(!self.stack.is_empty(), "Stack underflow");
         if self.stack.is_empty() { None } else { self.stack.remove(0) }
     }
 
