@@ -516,8 +516,27 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
-        let _ = (ty, expr);
+        // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
+        // variable (local storage pointers are OK).
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+            self.dcx()
+                .err("types in storage containing (nested) mappings cannot be assigned to")
+                .span(expr.span)
+                .emit();
+        }
+    }
+
+    /// Returns true if the expression refers to a local or return variable.
+    fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                let var = self.gcx.hir.variable(var_id);
+                return var.is_local_or_return();
+            }
+        }
+        false
     }
 
     fn check_binop(
@@ -656,11 +675,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err("types in storage containing (nested) mappings cannot be assigned to")
                     .span(var.span)
                     .emit();
-            } else {
-                self.check_assign(ty, init);
-                if expect {
-                    let _ = self.expect_ty(init, ty);
-                }
+            } else if expect {
+                let _ = self.expect_ty(init, ty);
             }
         }
 
