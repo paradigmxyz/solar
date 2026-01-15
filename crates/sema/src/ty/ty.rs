@@ -1004,8 +1004,6 @@ impl TyFlags {
                 if f.visibility < hir::Visibility::Public {
                     self.add(Self::HAS_INTERNAL_FN);
                 }
-                self.add_tys(f.parameters);
-                self.add_tys(f.returns);
             }
 
             TyKind::Ref(ty, _)
