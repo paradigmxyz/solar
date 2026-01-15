@@ -22,6 +22,15 @@ struct TypeChecker<'gcx> {
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
+
+    /// Tracks whether we're inside an emit or revert statement for validating event/error calls.
+    emit_revert_context: Option<EmitRevertContext>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EmitRevertContext {
+    Emit,
+    Revert,
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +46,14 @@ enum NotLvalueReason {
 
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
-        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+        Self {
+            gcx,
+            source,
+            contract: None,
+            types: Default::default(),
+            lvalue_context: None,
+            emit_revert_context: None,
+        }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -142,67 +158,65 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
-                let callee_ty = self.check_expr(callee);
+                let mut callee_ty = self.check_expr(callee);
+
+                // Get the function type for struct constructors, keeping struct_id for field names.
+                let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
+                    && let TyKind::Struct(id) = struct_ty.kind
+                {
+                    callee_ty = struct_constructor(self.gcx, struct_ty, id);
+                    Some(id)
+                } else {
+                    None
+                };
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
 
-                // Handle struct constructors specially to support named arguments.
-                let struct_id = match callee_ty.kind {
-                    TyKind::Type(inner) => match inner.kind {
-                        TyKind::Struct(id) => Some(id),
-                        _ => None,
-                    },
-                    _ => None,
-                };
-
-                let ty = if let Some(id) = struct_id {
-                    let struct_ty = match callee_ty.kind {
-                        TyKind::Type(inner) => inner,
-                        _ => unreachable!(),
-                    };
-                    let ctor_ty = struct_constructor(self.gcx, struct_ty, id);
-                    let TyKind::FnPtr(f) = ctor_ty.kind else { unreachable!() };
-                    let param_names = self.get_struct_field_names(id);
-                    self.check_call_args(expr.span, args, f.parameters, Some(&param_names));
-                    self.fn_call_return_type(f.returns)
-                } else {
-                    match callee_ty.kind {
-                        TyKind::FnPtr(f) => {
-                            let param_names = f.function_id.map(|id| {
+                let ty = match callee_ty.kind {
+                    TyKind::FnPtr(f) => {
+                        let param_names = if let Some(struct_id) = struct_id {
+                            Some(self.get_struct_field_names(struct_id))
+                        } else {
+                            f.function_id.map(|id| {
                                 self.get_param_names(self.gcx.hir.function(id).parameters)
-                            });
-                            self.check_call_args(
-                                expr.span,
-                                args,
-                                f.parameters,
-                                param_names.as_deref(),
-                            );
-                            self.fn_call_return_type(f.returns)
+                            })
+                        };
+                        self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
+                        self.fn_call_return_type(f.returns)
+                    }
+                    TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
+                    TyKind::Event(param_tys, id) => {
+                        if self.emit_revert_context != Some(EmitRevertContext::Emit) {
+                            self.dcx()
+                                .err("event invocations must be prefixed by \"emit\"")
+                                .span(expr.span)
+                                .emit();
                         }
-                        TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                        TyKind::Event(param_tys, id) => {
-                            let event = self.gcx.hir.event(id);
-                            let param_names = self.get_param_names(event.parameters);
-                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
-                            self.gcx.types.unit
+                        let event = self.gcx.hir.event(id);
+                        let param_names = self.get_param_names(event.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Error(param_tys, id) => {
+                        if self.emit_revert_context != Some(EmitRevertContext::Revert) {
+                            self.dcx()
+                                .err("errors can only be used with revert statements")
+                                .span(expr.span)
+                                .emit();
                         }
-                        TyKind::Error(param_tys, id) => {
-                            let error = self.gcx.hir.error(id);
-                            let param_names = self.get_param_names(error.parameters);
-                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
-                            self.gcx.types.unit
-                        }
-                        TyKind::Err(_) => callee_ty,
-                        _ => {
-                            let msg = format!(
-                                "expected function, found `{}`",
-                                callee_ty.display(self.gcx)
-                            );
-                            let mut err = self.dcx().err(msg).span(callee.span);
-                            err = err.span_note(expr.span, "call expression requires function");
-                            self.gcx.mk_ty_err(err.emit())
-                        }
+                        let error = self.gcx.hir.error(id);
+                        let param_names = self.get_param_names(error.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Err(_) => callee_ty,
+                    _ => {
+                        let msg =
+                            format!("expected function, found `{}`", callee_ty.display(self.gcx));
+                        let mut err = self.dcx().err(msg).span(callee.span);
+                        err = err.span_note(expr.span, "call expression requires function");
+                        self.gcx.mk_ty_err(err.emit())
                     }
                 };
 
@@ -1160,7 +1174,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => {
+                let ctx = match stmt.kind {
+                    hir::StmtKind::Emit(_) => EmitRevertContext::Emit,
+                    hir::StmtKind::Revert(_) => EmitRevertContext::Revert,
+                    _ => unreachable!(),
+                };
+                let prev_ctx = self.emit_revert_context.replace(ctx);
                 let _ty = self.check_expr(expr);
+                self.emit_revert_context = prev_ctx;
+
                 let hir::ExprKind::Call(callee, ..) = expr.kind else {
                     unreachable!("bad Emit|Revert");
                 };

@@ -172,7 +172,7 @@ impl<'gcx> Ty<'gcx> {
             },
             state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
-            function_id: self.function_id(),
+            function_id: None,
         })
     }
 

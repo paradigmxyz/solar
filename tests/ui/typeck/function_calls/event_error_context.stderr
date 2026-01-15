@@ -1,0 +1,66 @@
+error: event invocations must be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         MyEvent(1, "hi");
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+error: event invocations must be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyEvent(1, "hi");
+   ╰╴                 ━━━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyEvent(1, "hi");
+   │         ━━━━━━━━━┬───────────────━
+   │                  │
+   ╰╴                 expected a tuple with 1 element, found one with 0 elements
+
+error: event invocations must be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyEvent());
+   ╰╴                       ━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyEvent());
+   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         MyError(404, "not found");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyError(404, "not found");
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyError(404, "not found");
+   │         ━━━━━━━━━┬────────────────────────━
+   │                  │
+   ╰╴                 expected a tuple with 1 element, found one with 0 elements
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyError());
+   ╰╴                       ━━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyError());
+   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
+
+error: aborting due to 10 previous errors
+
