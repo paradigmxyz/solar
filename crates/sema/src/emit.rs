@@ -19,6 +19,10 @@ struct CombinedJsonContract {
     #[serde(skip_serializing_if = "Option::is_none")]
     abi: Option<Abi>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    bin: Option<String>,
+    #[serde(rename = "bin-runtime", skip_serializing_if = "Option::is_none")]
+    bin_runtime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
 }
 
@@ -46,18 +50,29 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
                     }
                     contract_output.hashes = Some(hashes);
                 }
-                emit => todo!("{emit:?}"),
+                // Bytecode emission is handled by solar-cli since sema can't depend on codegen
+                CompilerOutput::Bin | CompilerOutput::BinRuntime => {}
+                _ => {}
             }
         }
     }
-    let _ = (|| {
-        let out_path = gcx.sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.json"));
-        let mut writer = out_writer(out_path.as_deref())?;
-        to_json(&mut writer, &output, gcx.sess.opts.pretty_json)?;
-        writer.flush()?;
-        Ok::<_, io::Error>(())
-    })()
-    .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit());
+    // Only output if there's actual ABI/hashes content AND no bytecode requests
+    // (when bytecode is requested, CLI handles combined output)
+    let has_bytecode_request = gcx.sess.opts.emit.iter().any(|e| {
+        matches!(e, CompilerOutput::Bin | CompilerOutput::BinRuntime)
+    });
+    let has_content = output.contracts.values().any(|c| c.abi.is_some() || c.hashes.is_some());
+    let has_content = has_content && !has_bytecode_request;
+    if has_content {
+        let _ = (|| {
+            let out_path = gcx.sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.json"));
+            let mut writer = out_writer(out_path.as_deref())?;
+            to_json(&mut writer, &output, gcx.sess.opts.pretty_json)?;
+            writer.flush()?;
+            Ok::<_, io::Error>(())
+        })()
+        .map_err(|e| gcx.dcx().err(format!("failed to write to output: {e}")).emit());
+    }
 }
 
 fn out_writer(path: Option<&Path>) -> io::Result<impl io::Write> {
