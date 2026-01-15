@@ -10,10 +10,10 @@ use crate::mir::{
     StorageSlot, ValueId,
 };
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use solar_interface::Ident;
 use solar_sema::{
-    hir::{self, ContractId, VariableId},
+    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
     ty::Gcx,
 };
 
@@ -116,33 +116,123 @@ impl<'gcx> Lowerer<'gcx> {
             self.module.is_interface = true;
         }
 
-        self.allocate_storage(contract);
+        self.allocate_storage(contract_id);
+
+        // Collect all functions from the inheritance chain, handling overrides.
+        // Functions are collected from most-derived to most-base, so if a function
+        // with the same selector already exists, we skip the base version.
+        let functions = self.collect_inherited_functions(contract_id);
 
         // Check if contract has an explicit constructor
-        let has_constructor = contract
-            .all_functions()
-            .any(|f| self.gcx.hir.function(f).kind == hir::FunctionKind::Constructor);
+        let has_constructor = functions
+            .iter()
+            .any(|&f| self.gcx.hir.function(f).kind == hir::FunctionKind::Constructor);
 
         // Generate synthetic constructor for state variable initialization if needed
         if !has_constructor {
-            self.generate_synthetic_constructor(contract);
+            self.generate_synthetic_constructor(contract_id);
         }
 
-        for func_id in contract.all_functions() {
+        for func_id in functions {
             self.lower_function(func_id);
         }
     }
 
+    /// Collects all functions from the inheritance chain, handling overrides.
+    ///
+    /// Functions from more-derived contracts take precedence over base contracts.
+    /// For regular functions, we use the selector to determine uniqueness.
+    /// For constructor/fallback/receive, we use the function kind.
+    fn collect_inherited_functions(&self, contract_id: ContractId) -> Vec<HirFunctionId> {
+        let contract = self.gcx.hir.contract(contract_id);
+        let linearized_bases = contract.linearized_bases;
+
+        let mut seen_selectors: FxHashSet<[u8; 4]> = FxHashSet::default();
+        let mut has_constructor = false;
+        let mut has_fallback = false;
+        let mut has_receive = false;
+        let mut functions = Vec::new();
+
+        // Iterate from most-derived (index 0) to most-base (last index).
+        // The first function with a given selector wins (override behavior).
+        for &base_id in linearized_bases.iter() {
+            let base_contract = self.gcx.hir.contract(base_id);
+
+            for func_id in base_contract.all_functions() {
+                let func = self.gcx.hir.function(func_id);
+
+                // Handle special functions by kind
+                match func.kind {
+                    hir::FunctionKind::Constructor => {
+                        // Only include constructor from the most-derived contract
+                        if !has_constructor {
+                            has_constructor = true;
+                            functions.push(func_id);
+                        }
+                    }
+                    hir::FunctionKind::Fallback => {
+                        if !has_fallback {
+                            has_fallback = true;
+                            functions.push(func_id);
+                        }
+                    }
+                    hir::FunctionKind::Receive => {
+                        if !has_receive {
+                            has_receive = true;
+                            functions.push(func_id);
+                        }
+                    }
+                    hir::FunctionKind::Function | hir::FunctionKind::Modifier => {
+                        // Skip private functions from base contracts - they're not inherited
+                        if base_id != contract_id && func.visibility == hir::Visibility::Private {
+                            continue;
+                        }
+
+                        // For regular functions, use selector to determine uniqueness.
+                        // Only external/public functions have selectors.
+                        let is_external_abi = matches!(
+                            func.visibility,
+                            hir::Visibility::External | hir::Visibility::Public
+                        );
+                        if is_external_abi {
+                            let selector = self.compute_selector(func);
+                            if seen_selectors.insert(selector) {
+                                functions.push(func_id);
+                            }
+                        } else {
+                            // Internal functions: use function identity
+                            // For simplicity, we include internal functions from all bases
+                            // (they won't have selectors in the dispatcher anyway)
+                            functions.push(func_id);
+                        }
+                    }
+                }
+            }
+        }
+
+        functions
+    }
+
     /// Generates a synthetic constructor to initialize state variables with initializers.
-    fn generate_synthetic_constructor(&mut self, contract: &hir::Contract<'_>) {
-        // Collect state variables with initializers
-        let vars_with_init: Vec<_> = contract
-            .variables()
-            .filter(|var_id| {
-                let var = self.gcx.hir.variable(*var_id);
-                var.is_state_variable() && var.initializer.is_some()
-            })
-            .collect();
+    ///
+    /// For inheritance, this initializes state variables from all base contracts in the
+    /// correct order (most base first, most derived last).
+    fn generate_synthetic_constructor(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let linearized_bases = contract.linearized_bases;
+
+        // Collect state variables with initializers from all base contracts
+        // in reverse order (most base first) for proper initialization order.
+        let mut vars_with_init: Vec<VariableId> = Vec::new();
+        for &base_id in linearized_bases.iter().rev() {
+            let base_contract = self.gcx.hir.contract(base_id);
+            for var_id in base_contract.variables() {
+                let var = self.gcx.hir.variable(var_id);
+                if var.is_state_variable() && var.initializer.is_some() {
+                    vars_with_init.push(var_id);
+                }
+            }
+        }
 
         if vars_with_init.is_empty() {
             return;
@@ -187,22 +277,39 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Allocates storage slots for state variables.
-    fn allocate_storage(&mut self, contract: &hir::Contract<'_>) {
-        for var_id in contract.variables() {
-            let var = self.gcx.hir.variable(var_id);
-            if var.is_state_variable() {
-                let slot = self.next_storage_slot;
-                self.next_storage_slot += 1;
+    ///
+    /// For inheritance, state variables are allocated starting from the most base contract
+    /// (last in linearized_bases) to the most derived (first in linearized_bases).
+    /// This ensures parent storage comes before child storage in the layout.
+    fn allocate_storage(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+        let linearized_bases = contract.linearized_bases;
 
-                self.storage_slots.insert(var_id, slot);
+        // Iterate in reverse order (most base first) to get correct storage layout.
+        // Skip index 0 since that's the contract itself - we handle it last.
+        for &base_id in linearized_bases.iter().rev() {
+            let base_contract = self.gcx.hir.contract(base_id);
+            for var_id in base_contract.variables() {
+                // Skip if we already allocated this variable (shouldn't happen, but safety check)
+                if self.storage_slots.contains_key(&var_id) {
+                    continue;
+                }
 
-                let mir_ty = self.lower_type_from_var(var);
-                self.module.add_storage_slot(StorageSlot {
-                    slot,
-                    offset: 0,
-                    ty: mir_ty,
-                    name: var.name,
-                });
+                let var = self.gcx.hir.variable(var_id);
+                if var.is_state_variable() {
+                    let slot = self.next_storage_slot;
+                    self.next_storage_slot += 1;
+
+                    self.storage_slots.insert(var_id, slot);
+
+                    let mir_ty = self.lower_type_from_var(var);
+                    self.module.add_storage_slot(StorageSlot {
+                        slot,
+                        offset: 0,
+                        ty: mir_ty,
+                        name: var.name,
+                    });
+                }
             }
         }
     }
