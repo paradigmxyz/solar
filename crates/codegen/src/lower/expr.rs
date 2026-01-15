@@ -920,7 +920,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Extracts the `value` from call options `{value: X}`, or returns 0 if not present.
-    fn extract_call_value(
+    pub(super) fn extract_call_value(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
@@ -1175,7 +1175,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Computes the function selector for a member call.
-    fn compute_member_selector(&self, base: &hir::Expr<'_>, member: Ident) -> u32 {
+    pub(super) fn compute_member_selector(&self, base: &hir::Expr<'_>, member: Ident) -> u32 {
         // Try to get the type of the base expression and find the function
         // For contract types, we look up the function in the contract's interface
 
@@ -1223,7 +1223,11 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the number of return values for a member function call.
-    fn get_member_function_return_count(&self, base: &hir::Expr<'_>, member: Ident) -> usize {
+    pub(super) fn get_member_function_return_count(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> usize {
         // Helper to look up return count from a contract
         let lookup_in_contract = |contract_id: hir::ContractId| -> Option<usize> {
             let contract = self.gcx.hir.contract(contract_id);

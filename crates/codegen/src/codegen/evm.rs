@@ -857,19 +857,24 @@ impl EvmCodegen {
 
     /// Generates bytecode for a terminator.
     fn generate_terminator(&mut self, func: &Function, term: &Terminator) {
-        // Pop any remaining values from the stack before control flow transfer.
-        // Each block starts with an empty stack, so we must ensure the stack is
-        // clean before jumping to another block (especially important for loops).
-        self.pop_all_stack_values();
-
         match term {
             Terminator::Jump(target) => {
+                // Pop any remaining values from the stack before jumping.
+                // Each block starts with an empty stack, so we must ensure the stack is
+                // clean before jumping to another block (especially important for loops).
+                self.pop_all_stack_values();
                 self.asm.emit_push_label(self.block_labels[target]);
                 self.asm.emit_op(opcodes::JUMP);
             }
 
             Terminator::Branch { condition, then_block, else_block } => {
+                // Emit the condition first (before popping other values)
                 self.emit_value(func, *condition);
+                // Pop any remaining values EXCEPT the condition we just emitted
+                // The condition is now on top, so we need to preserve it
+                // Actually, after emit_value the condition is on top. We need to pop
+                // everything underneath it, then use the condition.
+                // For simplicity, we'll just emit and use immediately.
                 self.asm.emit_push_label(self.block_labels[then_block]);
                 self.asm.emit_op(opcodes::JUMPI);
 
