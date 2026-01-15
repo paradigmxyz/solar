@@ -3,11 +3,20 @@ pragma solidity ^0.8.0;
 
 import "../src/Showcase.sol";
 
+interface Vm { function envBytes(string calldata) external view returns (bytes memory); }
+
 contract ShowcaseTest {
+    Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
     Showcase public showcase;
 
+    function _deploy(string memory n) internal returns (address d) {
+        try vm.envBytes(string.concat("SOLAR_", n, "_BYTECODE")) returns (bytes memory c) {
+            assembly { d := create(0, add(c, 0x20), mload(c)) }
+        } catch { d = address(new Showcase()); }
+    }
+
     function setUp() public {
-        showcase = new Showcase();
+        showcase = Showcase(_deploy("SHOWCASE"));
     }
 
     function test_UltimateStressTest() public view {

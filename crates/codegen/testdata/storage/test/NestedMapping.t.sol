@@ -3,15 +3,24 @@ pragma solidity ^0.8.0;
 
 import "../src/NestedMapping.sol";
 
+interface Vm { function envBytes(string calldata) external view returns (bytes memory); }
+
 contract NestedMappingTest {
+    Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
     NestedMapping public nm;
     
     address constant ALICE = address(0x1111);
     address constant BOB = address(0x2222);
     address constant CHARLIE = address(0x3333);
 
+    function _deploy(string memory n) internal returns (address d) {
+        try vm.envBytes(string.concat("SOLAR_", n, "_BYTECODE")) returns (bytes memory c) {
+            assembly { d := create(0, add(c, 0x20), mload(c)) }
+        } catch { d = address(new NestedMapping()); }
+    }
+
     function setUp() public {
-        nm = new NestedMapping();
+        nm = NestedMapping(_deploy("NESTEDMAPPING"));
     }
 
     function test_SetAndGetAllowance() public {

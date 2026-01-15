@@ -3,11 +3,20 @@ pragma solidity ^0.8.24;
 
 import "../src/Payable.sol";
 
+interface Vm { function envBytes(string calldata) external view returns (bytes memory); }
+
 contract PayableTest {
+    Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
     Payable payable_contract;
 
+    function _deploy(string memory n) internal returns (address d) {
+        try vm.envBytes(string.concat("SOLAR_", n, "_BYTECODE")) returns (bytes memory c) {
+            assembly { d := create(0, add(c, 0x20), mload(c)) }
+        } catch { d = address(new Payable()); }
+    }
+
     function setUp() public {
-        payable_contract = new Payable();
+        payable_contract = Payable(_deploy("PAYABLE"));
     }
 
     function test_InitialBalanceZero() public view {
