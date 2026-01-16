@@ -253,6 +253,12 @@ impl<'gcx> Ty<'gcx> {
         self.flags.contains(TyFlags::HAS_MAPPING)
     }
 
+    /// Returns `true` if this type contains a non-public (internal/private) function pointer.
+    #[inline]
+    pub fn has_internal_function(self) -> bool {
+        self.flags.contains(TyFlags::HAS_INTERNAL_FN)
+    }
+
     /// Returns `Err(guar)` if this type contains an error.
     #[inline]
     pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
@@ -268,7 +274,10 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.references_error())
+        !(self.is_recursive()
+            || self.has_mapping()
+            || self.has_internal_function()
+            || self.references_error())
     }
 
     /// Returns the parameter types of the type.
@@ -693,11 +702,7 @@ impl<'gcx> Ty<'gcx> {
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    pub fn try_convert_explicit_to(
-        self,
-        other: Self,
-        gcx: Gcx<'gcx>,
-    ) -> Result<(), TyConvertError> {
+    fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -828,6 +833,37 @@ impl<'gcx> Ty<'gcx> {
 
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
+    }
+
+    /// Performs an explicit type conversion, returning the result type.
+    ///
+    /// For most conversions this is `other`, but for bytes <-> string with unlocated target,
+    /// the result type inherits the source's data location.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<Self, TyConvertError> {
+        self.can_convert_explicit_to(other, gcx)?;
+
+        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        use ElementaryType::*;
+        use TyKind::*;
+        Ok(match (self.kind, other.kind) {
+            (Ref(from_inner, loc), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                gcx.types.bytes.with_loc(gcx, loc)
+            }
+            (Ref(from_inner, loc), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                gcx.types.string.with_loc(gcx, loc)
+            }
+            _ => other,
+        })
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
@@ -990,6 +1026,8 @@ bitflags::bitflags! {
         const HAS_MAPPING  = 1 << 1;
         /// Whether an error is reachable.
         const HAS_ERROR    = 1 << 2;
+        /// Whether this type contains a non-public (internal/private) function pointer.
+        const HAS_INTERNAL_FN = 1 << 3;
     }
 }
 
@@ -1006,10 +1044,15 @@ impl TyFlags {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
+
+            TyKind::FnPtr(f) => {
+                if f.visibility < hir::Visibility::Public {
+                    self.add(Self::HAS_INTERNAL_FN);
+                }
+            }
 
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)

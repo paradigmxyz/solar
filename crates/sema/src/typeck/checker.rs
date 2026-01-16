@@ -450,13 +450,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let target_ty = self.gcx.types.address_payable;
-                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
-                    return target_ty;
-                };
-
-                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
-                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
-                self.gcx.mk_ty_err(diag.emit())
+                match ty.try_convert_explicit_to(target_ty, self.gcx) {
+                    Ok(target_ty) => target_ty,
+                    Err(err) => {
+                        let mut diag =
+                            self.dcx().err("invalid explicit type conversion").span(expr.span);
+                        diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                        self.gcx.mk_ty_err(diag.emit())
+                    }
+                }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -562,8 +564,42 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
-        let _ = (ty, expr);
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if let hir::ExprKind::Tuple(components) = &expr.kind {
+            if components.is_empty() {
+                self.dcx().err("empty tuple on the left hand side").span(expr.span).emit();
+                return;
+            }
+            let types =
+                if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
+            for (component, &component_ty) in components.iter().zip(types.iter()) {
+                if let Some(component) = component {
+                    self.check_assign(component_ty, component);
+                }
+            }
+            return;
+        }
+
+        // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
+        // variable (local storage pointers are OK).
+        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+            self.dcx()
+                .err("types in storage containing (nested) mappings cannot be assigned to")
+                .span(expr.span)
+                .emit();
+        }
+    }
+
+    /// Returns true if the expression refers to a local or return variable.
+    fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                let var = self.gcx.hir.variable(var_id);
+                return var.is_local_or_return();
+            }
+        }
+        false
     }
 
     fn check_binop(
@@ -626,48 +662,13 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else {
-            // For bytes <-> string conversions with unlocated target,
-            // return the target type with source's location.
-            return self.resolve_cast_result_type(from, to);
-        };
-
-        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
-        diag = diag.span_label(span, err.message(from, to, self.gcx));
-        self.gcx.mk_ty_err(diag.emit())
-    }
-
-    /// Resolves the result type for an explicit cast.
-    /// For most conversions, returns `to`. For bytes <-> string with unlocated target,
-    /// returns the target type with the source's data location.
-    fn resolve_cast_result_type(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> Ty<'gcx> {
-        use TyKind::{Elementary, Ref};
-        use solar_ast::ElementaryType::{Bytes, String};
-
-        match (from.kind, to.kind) {
-            // string memory -> bytes: return bytes memory.
-            (Ref(from_inner, loc), Elementary(Bytes))
-                if matches!(from_inner.kind, Elementary(String)) =>
-            {
-                match loc {
-                    DataLocation::Memory => self.gcx.types.bytes_ref.memory,
-                    DataLocation::Calldata => self.gcx.types.bytes_ref.calldata,
-                    DataLocation::Storage => self.gcx.types.bytes_ref.storage,
-                    DataLocation::Transient => self.gcx.types.bytes_ref.transient,
-                }
+        match from.try_convert_explicit_to(to, self.gcx) {
+            Ok(result_ty) => result_ty,
+            Err(err) => {
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+                diag = diag.span_label(span, err.message(from, to, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
             }
-            // bytes memory -> string: return string memory.
-            (Ref(from_inner, loc), Elementary(String))
-                if matches!(from_inner.kind, Elementary(Bytes)) =>
-            {
-                match loc {
-                    DataLocation::Memory => self.gcx.types.string_ref.memory,
-                    DataLocation::Calldata => self.gcx.types.string_ref.calldata,
-                    DataLocation::Storage => self.gcx.types.string_ref.storage,
-                    DataLocation::Transient => self.gcx.types.string_ref.transient,
-                }
-            }
-            _ => to,
         }
     }
 
@@ -857,11 +858,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err("types in storage containing (nested) mappings cannot be assigned to")
                     .span(var.span)
                     .emit();
-            } else {
-                self.check_assign(ty, init);
-                if expect {
-                    let _ = self.expect_ty(init, ty);
-                }
+            } else if expect {
+                let _ = self.expect_ty(init, ty);
             }
         }
 
@@ -904,7 +902,8 @@ impl<'gcx> TypeChecker<'gcx> {
             && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
         {
             self.dcx()
-                .err("uninitialized mapping; mappings cannot be created dynamically, you have to assign them from a state variable")
+                .err("uninitialized mapping")
+                .note("mappings cannot be created dynamically, you have to assign them from a state variable")
                 .span(var.span)
                 .emit();
         }
