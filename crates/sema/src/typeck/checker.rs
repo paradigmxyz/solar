@@ -23,15 +23,10 @@ struct TypeChecker<'gcx> {
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
-    /// The specific call expression that is allowed to be an event/error invocation.
-    /// This is set to the direct callee of emit/revert statements only, not nested calls.
-    allowed_event_error_call: Option<(hir::ExprId, AllowedCallKind)>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum AllowedCallKind {
-    Event,
-    Error,
+    /// Whether we're directly inside an emit statement (for the immediate call only).
+    in_emit: bool,
+    /// Whether we're directly inside a revert statement (for the immediate call only).
+    in_revert: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -53,7 +48,8 @@ impl<'gcx> TypeChecker<'gcx> {
             contract: None,
             types: Default::default(),
             lvalue_context: None,
-            allowed_event_error_call: None,
+            in_emit: false,
+            in_revert: false,
         }
     }
 
@@ -188,29 +184,31 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
                     TyKind::Event(param_tys, id) => {
-                        let is_allowed = self.allowed_event_error_call
-                            == Some((expr.id, AllowedCallKind::Event));
-                        if !is_allowed {
+                        if !self.in_emit {
                             self.dcx()
                                 .err("event invocations have to be prefixed by \"emit\"")
                                 .span(expr.span)
                                 .emit();
                         }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
                         let event = self.gcx.hir.event(id);
                         let param_names = self.get_param_names(event.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
-                        // TODO: Also allow errors in require(condition, MyError(...)).
-                        let is_allowed = self.allowed_event_error_call
-                            == Some((expr.id, AllowedCallKind::Error));
-                        if !is_allowed {
+                        // TODO: Also allow in require(condition, MyError(...)).
+                        if !self.in_revert {
                             self.dcx()
                                 .err("errors can only be used with revert statements")
                                 .span(expr.span)
                                 .emit();
                         }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
                         let error = self.gcx.hir.error(id);
                         let param_names = self.get_param_names(error.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
@@ -1180,15 +1178,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 return ControlFlow::Continue(());
             }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
-                // Allow exactly this call expression to be an event/error invocation.
-                let kind = match stmt.kind {
-                    hir::StmtKind::Emit(_) => AllowedCallKind::Event,
-                    hir::StmtKind::Revert(_) => AllowedCallKind::Error,
-                    _ => unreachable!(),
-                };
-                let prev = self.allowed_event_error_call.replace((call_expr.id, kind));
+                let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
+                if is_emit {
+                    self.in_emit = true;
+                } else {
+                    self.in_revert = true;
+                }
                 let _ty = self.check_expr(call_expr);
-                self.allowed_event_error_call = prev;
+                self.in_emit = false;
+                self.in_revert = false;
 
                 let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
                     unreachable!("bad Emit|Revert");

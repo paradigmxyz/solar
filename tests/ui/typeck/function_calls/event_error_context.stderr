@@ -1,26 +1,72 @@
-error: mismatched types
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         MyEvent(1, "hi");
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+error: event invocations have to be prefixed by "emit"
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = MyEvent(1, "hi");
-   ╰╴                 ━━━━━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.MyEvent`
+   ╰╴                 ━━━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyEvent(1, "hi");
+   │         ━━━━━━━━━┬───────────────━
+   │                  │
+   ╰╴                 expected a tuple with 1 element, found one with 0 elements
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyEvent());
+   ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         this.takeBytes(EmptyEvent());
-   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `EventErrorContext.EmptyEvent`
+   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
 
-error: mismatched types
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         MyEvent(1, "y");
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         MyError(404, "not found");
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: errors can only be used with revert statements
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = MyError(404, "not found");
-   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.MyError`
+   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = MyError(404, "not found");
+   │         ━━━━━━━━━┬────────────────────────━
+   │                  │
+   ╰╴                 expected a tuple with 1 element, found one with 0 elements
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         this.takeBytes(EmptyError());
+   ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         this.takeBytes(EmptyError());
-   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `EventErrorContext.EmptyError`
+   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
 
 error: expression has to be an event invocation
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
@@ -28,39 +74,93 @@ error: expression has to be an event invocation
 LL │         emit Test();
    ╰╴             ━━━━
 
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         revert EmptyEvent();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━
+
 error: expression has to be an error
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         revert EmptyEvent();
    ╰╴               ━━━━━━━━━━
 
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         emit MyEvent(EmptyEvent(), "x");
+   ╰╴                     ━━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         emit MyEvent(EmptyEvent(), "x");
-   ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         revert MyError(EmptyError(), "x");
+   ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         revert MyError(EmptyError(), "x");
-   ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyError`
+   ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: cannot apply builtin operator `==` to `EventErrorContext.EmptyEvent` and `EventErrorContext.EmptyEvent`
+error: event invocations have to be prefixed by "emit"
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
-   │                  ┬─────────── ━━ ──────────── EventErrorContext.EmptyEvent
-   │                  │
-   ╰╴                 EventErrorContext.EmptyEvent
+   ╰╴                 ━━━━━━━━━━━━
 
-error: cannot apply builtin operator `==` to `EventErrorContext.EmptyError` and `EventErrorContext.EmptyError`
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyEvent() == EmptyEvent();
+   ╰╴                                 ━━━━━━━━━━━━
+
+error: cannot apply builtin operator `==` to `tuple()` and `tuple()`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyEvent() == EmptyEvent();
+   │                  ┬─────────── ━━ ──────────── tuple()
+   │                  │
+   ╰╴                 tuple()
+
+error: errors can only be used with revert statements
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         bool b = EmptyError() == EmptyError();
-   │                  ┬─────────── ━━ ──────────── EventErrorContext.EmptyError
+   ╰╴                 ━━━━━━━━━━━━
+
+error: errors can only be used with revert statements
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyError() == EmptyError();
+   ╰╴                                 ━━━━━━━━━━━━
+
+error: cannot apply builtin operator `==` to `tuple()` and `tuple()`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         bool b = EmptyError() == EmptyError();
+   │                  ┬─────────── ━━ ──────────── tuple()
    │                  │
-   ╰╴                 EventErrorContext.EmptyError
+   ╰╴                 tuple()
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
+   ╰╴                              ━━━━━━━━━━━━
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
+   ╰╴                                            ━━━━━━━━━━━━
 
 error: cannot infer array element type
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
@@ -68,49 +168,93 @@ error: cannot infer array element type
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: mismatched types
+error: event invocations have to be prefixed by "emit"
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
-   ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                        ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
-   ╰╴                                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = true ? EmptyEvent() : EmptyEvent();
+   ╰╴                                       ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
-   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = true ? EmptyEvent() : EmptyEvent();
+   │         ━━━━━━━━━┬─────────────────────────────────━
+   │                  │
+   ╰╴                 expected a tuple with 1 element, found one with 0 elements
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         S memory s = S(EmptyEvent());
+   ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         S memory s = S(EmptyEvent());
-   ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint v = m[EmptyEvent()];
+   ╰╴                   ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint v = m[EmptyEvent()];
-   ╰╴                   ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                   ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
+
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint v = arr[EmptyEvent()];
+   ╰╴                     ━━━━━━━━━━━━
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint v = arr[EmptyEvent()];
-   ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `EventErrorContext.EmptyEvent`
+   ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: cannot apply builtin operator `+` to `EventErrorContext.EmptyEvent` and `EventErrorContext.EmptyEvent`
+error: event invocations have to be prefixed by "emit"
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();
-   │                  ┬─────────── ━ ──────────── EventErrorContext.EmptyEvent
-   │                  │
-   ╰╴                 EventErrorContext.EmptyEvent
+   ╰╴                 ━━━━━━━━━━━━
 
-error: aborting due to 18 previous errors
+error: event invocations have to be prefixed by "emit"
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = EmptyEvent() + EmptyEvent();
+   ╰╴                                ━━━━━━━━━━━━
+
+error: cannot apply builtin operator `+` to `tuple()` and `tuple()`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
+   │
+LL │         uint x = EmptyEvent() + EmptyEvent();
+   │                  ┬─────────── ━ ──────────── tuple()
+   │                  │
+   ╰╴                 tuple()
+
+error: aborting due to 41 previous errors
 

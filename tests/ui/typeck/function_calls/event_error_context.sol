@@ -96,47 +96,67 @@ contract EventErrorContext {
 
     // In binary operations
     function eventInBinaryOp() public {
-        bool b = EmptyEvent() == EmptyEvent(); //~ ERROR: cannot apply builtin operator
+        bool b = EmptyEvent() == EmptyEvent();
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: cannot apply builtin operator
     }
 
     function errorInBinaryOp() public pure {
-        bool b = EmptyError() == EmptyError(); //~ ERROR: cannot apply builtin operator
+        bool b = EmptyError() == EmptyError();
+        //~^ ERROR: errors can only be used with revert statements
+        //~| ERROR: errors can only be used with revert statements
+        //~| ERROR: cannot apply builtin operator
     }
 
     // In array literal
     function eventInArray() public {
-        uint[2] memory arr = [EmptyEvent(), EmptyEvent()]; //~ ERROR: cannot infer array element type
+        uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: cannot infer array element type
     }
 
     // In ternary operator
     function eventInTernary() public {
         uint x = true ? EmptyEvent() : EmptyEvent();
-        //~^ ERROR: mismatched types
+        //~^ ERROR: event invocations have to be prefixed by "emit"
         //~| ERROR: mismatched types
+        //~| ERROR: event invocations have to be prefixed by "emit"
         //~| ERROR: mismatched types
+        //~| ERROR: mismatched number of components
     }
 
     // In struct constructor
     struct S { uint x; }
     function eventInStruct() public {
-        S memory s = S(EmptyEvent()); //~ ERROR: mismatched types
+        S memory s = S(EmptyEvent());
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: mismatched types
     }
 
     // In mapping access
     mapping(uint => uint) m;
     function eventInMappingKey() public {
-        uint v = m[EmptyEvent()]; //~ ERROR: mismatched types
+        uint v = m[EmptyEvent()];
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: mismatched types
     }
 
     // In array index
     function eventInArrayIndex() public {
         uint[] memory arr;
-        uint v = arr[EmptyEvent()]; //~ ERROR: mismatched types
+        uint v = arr[EmptyEvent()];
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: mismatched types
     }
 
     // Multiple events/errors in same expression
     function multipleEventsInExpr() public {
-        uint x = EmptyEvent() + EmptyEvent(); //~ ERROR: cannot apply builtin operator
+        uint x = EmptyEvent() + EmptyEvent();
+        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: cannot apply builtin operator
     }
 
     // TODO: require(condition, MyError(...)) should be allowed but is not yet implemented.
