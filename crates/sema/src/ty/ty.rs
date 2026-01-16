@@ -671,23 +671,18 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if the type is explicitly convertible to the given type.
     ///
-    /// Prefer using [`Ty::can_convert_explicit_to`] if you need the error,
-    /// or [`Ty::try_convert_explicit_to`] if you need the result type.
+    /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
     #[inline]
     #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
     pub fn convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
-        self.can_convert_explicit_to(other, gcx).is_ok()
+        self.try_convert_explicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    pub fn can_convert_explicit_to(
-        self,
-        other: Self,
-        gcx: Gcx<'gcx>,
-    ) -> Result<(), TyConvertError> {
+    fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
