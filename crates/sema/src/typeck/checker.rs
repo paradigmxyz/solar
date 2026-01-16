@@ -404,13 +404,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let target_ty = self.gcx.types.address_payable;
-                let Err(err) = ty.can_convert_explicit_to(target_ty, self.gcx) else {
-                    return target_ty;
-                };
-
-                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
-                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
-                self.gcx.mk_ty_err(diag.emit())
+                match ty.try_convert_explicit_to(target_ty, self.gcx) {
+                    Ok(target_ty) => target_ty,
+                    Err(err) => {
+                        let mut diag =
+                            self.dcx().err("invalid explicit type conversion").span(expr.span);
+                        diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                        self.gcx.mk_ty_err(diag.emit())
+                    }
+                }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
