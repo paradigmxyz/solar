@@ -404,7 +404,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let target_ty = self.gcx.types.address_payable;
-                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
+                let Err(err) = ty.can_convert_explicit_to(target_ty, self.gcx) else {
                     return target_ty;
                 };
 
@@ -614,48 +614,13 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else {
-            // For bytes <-> string conversions with unlocated target,
-            // return the target type with source's location.
-            return self.resolve_cast_result_type(from, to);
-        };
-
-        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
-        diag = diag.span_label(span, err.message(from, to, self.gcx));
-        self.gcx.mk_ty_err(diag.emit())
-    }
-
-    /// Resolves the result type for an explicit cast.
-    /// For most conversions, returns `to`. For bytes <-> string with unlocated target,
-    /// returns the target type with the source's data location.
-    fn resolve_cast_result_type(&self, from: Ty<'gcx>, to: Ty<'gcx>) -> Ty<'gcx> {
-        use TyKind::{Elementary, Ref};
-        use solar_ast::ElementaryType::{Bytes, String};
-
-        match (from.kind, to.kind) {
-            // string memory -> bytes: return bytes memory.
-            (Ref(from_inner, loc), Elementary(Bytes))
-                if matches!(from_inner.kind, Elementary(String)) =>
-            {
-                match loc {
-                    DataLocation::Memory => self.gcx.types.bytes_ref.memory,
-                    DataLocation::Calldata => self.gcx.types.bytes_ref.calldata,
-                    DataLocation::Storage => self.gcx.types.bytes_ref.storage,
-                    DataLocation::Transient => self.gcx.types.bytes_ref.transient,
-                }
+        match from.try_convert_explicit_to(to, self.gcx) {
+            Ok(result_ty) => result_ty,
+            Err(err) => {
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+                diag = diag.span_label(span, err.message(from, to, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
             }
-            // bytes memory -> string: return string memory.
-            (Ref(from_inner, loc), Elementary(String))
-                if matches!(from_inner.kind, Elementary(Bytes)) =>
-            {
-                match loc {
-                    DataLocation::Memory => self.gcx.types.string_ref.memory,
-                    DataLocation::Calldata => self.gcx.types.string_ref.calldata,
-                    DataLocation::Storage => self.gcx.types.string_ref.storage,
-                    DataLocation::Transient => self.gcx.types.string_ref.transient,
-                }
-            }
-            _ => to,
         }
     }
 

@@ -671,18 +671,19 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if the type is explicitly convertible to the given type.
     ///
-    /// Prefer using [`Ty::try_convert_explicit_to`] if you need to handle the error case.
+    /// Prefer using [`Ty::can_convert_explicit_to`] if you need the error,
+    /// or [`Ty::try_convert_explicit_to`] if you need the result type.
     #[inline]
     #[doc(alias = "is_explicitly_convertible_to")]
     #[must_use]
     pub fn convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> bool {
-        self.try_convert_explicit_to(other, gcx).is_ok()
+        self.can_convert_explicit_to(other, gcx).is_ok()
     }
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    pub fn try_convert_explicit_to(
+    pub fn can_convert_explicit_to(
         self,
         other: Self,
         gcx: Gcx<'gcx>,
@@ -817,6 +818,37 @@ impl<'gcx> Ty<'gcx> {
 
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
+    }
+
+    /// Performs an explicit type conversion, returning the result type.
+    ///
+    /// For most conversions this is `other`, but for bytes <-> string with unlocated target,
+    /// the result type inherits the source's data location.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<Self, TyConvertError> {
+        self.can_convert_explicit_to(other, gcx)?;
+
+        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        use ElementaryType::*;
+        use TyKind::*;
+        Ok(match (self.kind, other.kind) {
+            (Ref(from_inner, loc), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                gcx.types.bytes.with_loc(gcx, loc)
+            }
+            (Ref(from_inner, loc), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                gcx.types.string.with_loc(gcx, loc)
+            }
+            _ => other,
+        })
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
