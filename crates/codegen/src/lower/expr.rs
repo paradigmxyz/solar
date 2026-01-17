@@ -696,7 +696,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle `new Contract(args)` - contract creation
         if let ExprKind::New(ty) = &callee.kind {
-            return self.lower_new_contract(builder, ty, args);
+            return self.lower_new_contract(builder, ty, args, call_opts);
         }
 
         // Handle internal function calls: func(args) where func is a function in the same contract
@@ -741,11 +741,13 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a `new Contract(args)` expression.
+    /// Supports call options like `new Contract{salt: s, value: v}(args)`.
     fn lower_new_contract(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: &hir::Type<'_>,
         args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
         // Extract ContractId from the type
         let contract_id = match &ty.kind {
@@ -767,6 +769,27 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let bytecode_len = bytecode.len();
+
+        // Extract call options (salt, value)
+        let mut salt_opt: Option<ValueId> = None;
+        let mut value_opt: Option<ValueId> = None;
+
+        if let Some(opts) = call_opts {
+            for opt in opts {
+                let name = opt.name.name.as_str();
+                match name {
+                    "salt" => {
+                        salt_opt = Some(self.lower_expr(builder, &opt.value));
+                    }
+                    "value" => {
+                        value_opt = Some(self.lower_expr(builder, &opt.value));
+                    }
+                    _ => {
+                        // gas option is not supported for contract creation
+                    }
+                }
+            }
+        }
 
         // Allocate memory for bytecode + constructor args
         // We'll put the bytecode starting at a free memory offset
@@ -801,11 +824,15 @@ impl<'gcx> Lowerer<'gcx> {
         // Total size = bytecode + args
         let total_size = builder.imm_u64(args_offset);
 
-        // Value to send with CREATE (0 for non-payable)
-        let value = builder.imm_u64(0);
+        // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
+        let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
 
-        // Emit CREATE instruction
-        builder.create(value, mem_offset, total_size)
+        // Emit CREATE2 if salt is provided, otherwise CREATE
+        if let Some(salt) = salt_opt {
+            builder.create2(value, mem_offset, total_size, salt)
+        } else {
+            builder.create(value, mem_offset, total_size)
+        }
     }
 
     /// Lowers a builtin function call.

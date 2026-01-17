@@ -619,4 +619,10 @@ mod tests {
 
         assert!(!tests.is_empty(), "No tests ran");
     }
+
+    #[test]
+    #[ignore] // Some tests fail due to unimplemented codegen features (create2, complex inheritance)
+    fn test_uniswapv2() {
+        test_project_solar("uniswapv2", "testdata/uniswapv2");
+    }
 }

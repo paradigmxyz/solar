@@ -715,10 +715,12 @@ impl EvmCodegen {
             }
 
             InstKind::Create2(value, offset, size, salt) => {
-                self.emit_value(func, *salt);
-                self.emit_value(func, *size);
-                self.emit_value(func, *offset);
+                // CREATE2 expects stack (top to bottom): salt, size, offset, value
+                // So we push in reverse order: value first (goes deepest), then offset, size, salt
                 self.emit_value(func, *value);
+                self.emit_value(func, *offset);
+                self.emit_value(func, *size);
+                self.emit_value(func, *salt);
                 self.asm.emit_op(opcodes::CREATE2);
                 // CREATE2 consumes 4 values and produces 1 (new contract address)
                 self.scheduler.instruction_executed(4, result_value);

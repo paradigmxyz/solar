@@ -1,1 +1,0 @@
-{"abi":[{"type":"function","name":"envBytes","inputs":[{"name":"key","type":"string","internalType":"string"}],"outputs":[{"name":"","type":"bytes","internalType":"bytes"}],"stateMutability":"view"}],"bytecode":{"object":"0x","linkReferences":{}},"deployedBytecode":{"object":"0x","linkReferences":{}},"methodIdentifiers":{},"id":1}
