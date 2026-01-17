@@ -922,12 +922,11 @@ impl<'gcx> ResolveContext<'gcx> {
         let mut guar = Ok(());
         // Only declare the name in scope if it can be referenced (i.e., not for
         // error/event/struct parameters which don't have bodies).
-        if let Some(name) = var.name {
-            if kind.declares_in_scope() {
-                let res = Res::Item(hir::ItemId::Variable(id));
-                guar =
-                    self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-            }
+        if let Some(name) = var.name
+            && kind.declares_in_scope()
+        {
+            let res = Res::Item(hir::ItemId::Variable(id));
+            guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         }
         (id, guar)
     }
