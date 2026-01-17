@@ -1,0 +1,8 @@
+error: named argument `x` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/function_calls/named_arguments_invalid_name.sol:LL:CC
+   │
+LL │         r = f({c: "abc", x: 1, e: true, a: 11, b: true});
+   ╰╴                         ━
+
+error: aborting due to 1 previous error
+

@@ -172,6 +172,7 @@ impl<'gcx> Ty<'gcx> {
             },
             state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
+            function_id: None,
         })
     }
 
@@ -312,6 +313,15 @@ impl<'gcx> Ty<'gcx> {
     pub fn visibility(self) -> Option<Visibility> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.visibility),
+            _ => None,
+        }
+    }
+
+    /// Returns the function ID if this is a function pointer type with a specific function.
+    #[inline]
+    pub fn function_id(self) -> Option<hir::FunctionId> {
+        match self.kind {
+            TyKind::FnPtr(f) => f.function_id,
             _ => None,
         }
     }
@@ -643,6 +653,16 @@ impl<'gcx> Ty<'gcx> {
 
                 // Visibility must match.
                 if from_fn.visibility != to_fn.visibility {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // Function ID: a FnPtr with an ID can coerce to one without an ID, but not vice
+                // versa.
+                let function_id_ok = match (from_fn.function_id, to_fn.function_id) {
+                    (_, None) => true,
+                    (a, b) => a == b,
+                };
+                if !function_id_ok {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
@@ -986,6 +1006,7 @@ pub struct TyFnPtr<'gcx> {
     pub returns: &'gcx [Ty<'gcx>],
     pub state_mutability: StateMutability,
     pub visibility: Visibility,
+    pub function_id: Option<hir::FunctionId>,
 }
 
 impl<'gcx> TyFnPtr<'gcx> {
