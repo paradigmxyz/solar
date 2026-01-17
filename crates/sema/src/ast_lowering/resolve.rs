@@ -920,9 +920,14 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
         let mut guar = Ok(());
+        // Only declare the name in scope if it can be referenced (i.e., not for
+        // error/event/struct parameters which don't have bodies).
         if let Some(name) = var.name {
-            let res = Res::Item(hir::ItemId::Variable(id));
-            guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+            if kind.declares_in_scope() {
+                let res = Res::Item(hir::ItemId::Variable(id));
+                guar =
+                    self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+            }
         }
         (id, guar)
     }
@@ -1560,6 +1565,8 @@ impl Declarations {
             let same_kind = |decl2: &Declaration| match decl2.res {
                 Item(Variable(v)) => hir.variable(v).getter == getter,
                 Item(Function(f)) => hir.function(f).kind.is_ordinary(),
+                // `this` and `super` builtins can be shadowed by functions/events.
+                Builtin(crate::builtins::Builtin::This | crate::builtins::Builtin::Super) => true,
                 ref k => k.matches(&decl.res),
             };
             declarations.iter().find(|&decl2| !same_kind(decl2)).copied()
