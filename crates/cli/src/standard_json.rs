@@ -327,8 +327,12 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
             let deployment_hex = alloy_primitives::hex::encode(&deployment_bytecode);
             let runtime_hex = alloy_primitives::hex::encode(&runtime_bytecode);
 
-            // Generate ABI (simplified - just function signatures for now)
-            let abi = generate_abi(gcx, contract_id);
+            // Generate ABI using proper method that includes inherited functions
+            let abi = gcx
+                .contract_abi(contract_id)
+                .into_iter()
+                .map(|item| serde_json::to_value(&item).unwrap())
+                .collect();
 
             let contract_name = contract.name.to_string();
             contracts_output
@@ -378,110 +382,4 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
     }
 
     output
-}
-
-/// Generates a simplified ABI for a contract.
-fn generate_abi(gcx: solar_sema::Gcx<'_>, contract_id: solar_sema::hir::ContractId) -> Vec<Value> {
-    let mut abi = Vec::new();
-    let contract = gcx.hir.contract(contract_id);
-
-    // Iterate over contract items
-    for item_id in contract.items {
-        if let solar_sema::hir::ItemId::Function(func_id) = item_id {
-            let func = gcx.hir.function(*func_id);
-
-            // Skip internal/private functions
-            if !matches!(
-                func.visibility,
-                solar_sema::hir::Visibility::Public | solar_sema::hir::Visibility::External
-            ) {
-                continue;
-            }
-
-            // Skip constructor/fallback/receive for now
-            if func.name.is_none() {
-                continue;
-            }
-
-            let name = func.name.map(|n| n.to_string()).unwrap_or_default();
-
-            // Build inputs
-            let inputs: Vec<Value> = func
-                .parameters
-                .iter()
-                .enumerate()
-                .map(|(i, var_id)| {
-                    let var = gcx.hir.variable(*var_id);
-                    serde_json::json!({
-                        "internalType": format_type(&var.ty),
-                        "name": var.name.map(|n| n.to_string()).unwrap_or_else(|| format!("arg{i}")),
-                        "type": format_type(&var.ty)
-                    })
-                })
-                .collect();
-
-            // Build outputs
-            let outputs: Vec<Value> = func
-                .returns
-                .iter()
-                .map(|var_id| {
-                    let var = gcx.hir.variable(*var_id);
-                    serde_json::json!({
-                        "internalType": format_type(&var.ty),
-                        "name": var.name.map(|n| n.to_string()).unwrap_or_default(),
-                        "type": format_type(&var.ty)
-                    })
-                })
-                .collect();
-
-            // State mutability
-            let state_mutability = match func.state_mutability {
-                solar_sema::hir::StateMutability::Pure => "pure",
-                solar_sema::hir::StateMutability::View => "view",
-                solar_sema::hir::StateMutability::Payable => "payable",
-                solar_sema::hir::StateMutability::NonPayable => "nonpayable",
-            };
-
-            abi.push(serde_json::json!({
-                "inputs": inputs,
-                "name": name,
-                "outputs": outputs,
-                "stateMutability": state_mutability,
-                "type": "function"
-            }));
-        }
-    }
-
-    abi
-}
-
-/// Formats a type for ABI output.
-fn format_type(ty: &solar_sema::hir::Type<'_>) -> String {
-    use solar_sema::hir::TypeKind;
-
-    match &ty.kind {
-        TypeKind::Elementary(elem) => {
-            use solar_sema::ast::ElementaryType;
-            match elem {
-                ElementaryType::Bool => "bool".to_string(),
-                ElementaryType::Int(size) => {
-                    let bits = size.bits();
-                    format!("int{bits}")
-                }
-                ElementaryType::UInt(size) => {
-                    let bits = size.bits();
-                    format!("uint{bits}")
-                }
-                ElementaryType::Address(_) => "address".to_string(),
-                ElementaryType::String => "string".to_string(),
-                ElementaryType::Bytes => "bytes".to_string(),
-                ElementaryType::FixedBytes(size) => {
-                    let n = size.bytes();
-                    format!("bytes{n}")
-                }
-                _ => "unknown".to_string(),
-            }
-        }
-        _ => "unknown".to_string(),
-    }
 }

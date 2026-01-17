@@ -813,10 +813,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
-                ErrorGuaranteed::new_unchecked(),
-            ),
+            ast::StmtKind::Assembly(_) => hir::StmtKind::Err(ErrorGuaranteed::new_unchecked()),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
