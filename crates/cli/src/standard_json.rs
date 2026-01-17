@@ -295,12 +295,12 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
 
         for (contract_id, _contract) in gcx.hir.contracts_enumerated() {
             // Lower to MIR (without child bytecodes for first pass)
-            let module = lower::lower_contract(gcx, contract_id);
+            let mut module = lower::lower_contract(gcx, contract_id);
 
             // Generate deployment bytecode
             let mut codegen = EvmCodegen::new();
             let (deployment_bytecode, _runtime_bytecode) =
-                codegen.generate_deployment_bytecode(&module);
+                codegen.generate_deployment_bytecode(&mut module);
 
             all_bytecodes.insert(contract_id, deployment_bytecode);
         }
@@ -318,12 +318,12 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
                 .unwrap_or_else(|| "Unknown.sol".to_string());
 
             // Lower to MIR with all bytecodes available
-            let module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
+            let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
 
             // Generate bytecode (deployment and runtime)
             let mut codegen = EvmCodegen::new();
             let (deployment_bytecode, runtime_bytecode) =
-                codegen.generate_deployment_bytecode(&module);
+                codegen.generate_deployment_bytecode(&mut module);
             let deployment_hex = alloy_primitives::hex::encode(&deployment_bytecode);
             let runtime_hex = alloy_primitives::hex::encode(&runtime_bytecode);
 

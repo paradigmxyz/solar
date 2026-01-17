@@ -59,7 +59,7 @@ fn main() {
             println!("=== Contract: {} ===", contract.name);
 
             // Lower to MIR
-            let module = lower::lower_contract(gcx, contract_id);
+            let mut module = lower::lower_contract(gcx, contract_id);
 
             if emit_dot {
                 // Output DOT format CFG
@@ -70,7 +70,7 @@ fn main() {
 
                 // Generate bytecode
                 let mut codegen = EvmCodegen::new();
-                let bytecode = codegen.generate_module(&module);
+                let bytecode = codegen.generate_module(&mut module);
 
                 println!("\n--- Bytecode ({} bytes) ---", bytecode.len());
                 println!("0x{}", alloy_primitives::hex::encode(&bytecode));

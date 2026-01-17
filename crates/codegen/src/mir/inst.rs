@@ -1,6 +1,7 @@
 //! MIR instructions.
 
 use super::{BlockId, MirType, ValueId};
+use smallvec::{SmallVec, smallvec};
 use std::fmt;
 
 /// An instruction in the MIR.
@@ -21,7 +22,7 @@ impl Instruction {
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub fn operands(&self) -> &[ValueId] {
+    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
     }
 }
@@ -385,35 +386,35 @@ impl InstKind {
 
     /// Returns the operands of this instruction.
     #[must_use]
-    pub fn operands(&self) -> &[ValueId] {
+    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
         match self {
-            Self::Add(a, _)
-            | Self::Sub(a, _)
-            | Self::Mul(a, _)
-            | Self::Div(a, _)
-            | Self::SDiv(a, _)
-            | Self::Mod(a, _)
-            | Self::SMod(a, _)
-            | Self::Exp(a, _)
-            | Self::And(a, _)
-            | Self::Or(a, _)
-            | Self::Xor(a, _)
-            | Self::Shl(a, _)
-            | Self::Shr(a, _)
-            | Self::Sar(a, _)
-            | Self::Byte(a, _)
-            | Self::Lt(a, _)
-            | Self::Gt(a, _)
-            | Self::SLt(a, _)
-            | Self::SGt(a, _)
-            | Self::Eq(a, _)
-            | Self::MStore(a, _)
-            | Self::MStore8(a, _)
-            | Self::SStore(a, _)
-            | Self::TStore(a, _)
-            | Self::Keccak256(a, _)
-            | Self::Log0(a, _)
-            | Self::SignExtend(a, _) => std::slice::from_ref(a),
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::SDiv(a, b)
+            | Self::Mod(a, b)
+            | Self::SMod(a, b)
+            | Self::Exp(a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b)
+            | Self::Xor(a, b)
+            | Self::Shl(a, b)
+            | Self::Shr(a, b)
+            | Self::Sar(a, b)
+            | Self::Byte(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b)
+            | Self::Eq(a, b)
+            | Self::MStore(a, b)
+            | Self::MStore8(a, b)
+            | Self::SStore(a, b)
+            | Self::TStore(a, b)
+            | Self::Keccak256(a, b)
+            | Self::Log0(a, b)
+            | Self::SignExtend(a, b) => smallvec![*a, *b],
 
             Self::Not(a)
             | Self::IsZero(a)
@@ -425,29 +426,35 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => std::slice::from_ref(a),
+            | Self::BlobHash(a) => smallvec![*a],
 
-            Self::MCopy(a, _, _)
-            | Self::CalldataCopy(a, _, _)
-            | Self::CodeCopy(a, _, _)
-            | Self::ReturnDataCopy(a, _, _)
-            | Self::AddMod(a, _, _)
-            | Self::MulMod(a, _, _)
-            | Self::Create(a, _, _)
-            | Self::Log1(a, _, _)
-            | Self::Select(a, _, _) => std::slice::from_ref(a),
+            Self::MCopy(a, b, c)
+            | Self::CalldataCopy(a, b, c)
+            | Self::CodeCopy(a, b, c)
+            | Self::ReturnDataCopy(a, b, c)
+            | Self::AddMod(a, b, c)
+            | Self::MulMod(a, b, c)
+            | Self::Create(a, b, c)
+            | Self::Log1(a, b, c)
+            | Self::Select(a, b, c) => smallvec![*a, *b, *c],
 
-            Self::ExtCodeCopy(a, _, _, _) | Self::Create2(a, _, _, _) | Self::Log2(a, _, _, _) => {
-                std::slice::from_ref(a)
+            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
+                smallvec![*a, *b, *c, *d]
             }
 
-            Self::Log3(a, _, _, _, _) => std::slice::from_ref(a),
+            Self::Log3(a, b, c, d, e) => smallvec![*a, *b, *c, *d, *e],
 
-            Self::Log4(a, _, _, _, _, _) => std::slice::from_ref(a),
+            Self::Log4(a, b, c, d, e, f) => smallvec![*a, *b, *c, *d, *e, *f],
 
-            Self::Call { gas, .. } => std::slice::from_ref(gas),
-            Self::StaticCall { gas, .. } => std::slice::from_ref(gas),
-            Self::DelegateCall { gas, .. } => std::slice::from_ref(gas),
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                smallvec![*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size]
+            }
+            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
+            }
+            Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
+            }
 
             Self::MSize
             | Self::CalldataSize
@@ -467,9 +474,9 @@ impl InstKind {
             | Self::SelfBalance
             | Self::Gas
             | Self::BaseFee
-            | Self::BlobBaseFee => &[],
+            | Self::BlobBaseFee => smallvec![],
 
-            Self::Phi(_) => &[],
+            Self::Phi(_) => smallvec![],
         }
     }
 

@@ -1,7 +1,10 @@
 //! Expression lowering.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, MirType, ValueId};
+use crate::{
+    mir::{FunctionBuilder, MirType, ValueId},
+    transform::{ConstantFolder, FoldResult},
+};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Symbol, kw, sym};
@@ -29,6 +32,15 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Binary(lhs, op, rhs) => {
+                // Try constant folding first
+                let folder = ConstantFolder::new(&self.gcx.hir);
+                if let Some(folded) = folder.fold_to_integer(expr) {
+                    return builder.imm_u256(folded);
+                }
+                if let FoldResult::Bool(b) = folder.try_fold(expr) {
+                    return builder.imm_bool(b);
+                }
+
                 let lhs_val = self.lower_expr(builder, lhs);
                 let rhs_val = self.lower_expr(builder, rhs);
                 let is_signed = self.is_expr_signed(lhs);
@@ -57,6 +69,15 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                     _ => {
+                        // Try constant folding for non-mutating unary ops
+                        let folder = ConstantFolder::new(&self.gcx.hir);
+                        if let Some(folded) = folder.fold_to_integer(expr) {
+                            return builder.imm_u256(folded);
+                        }
+                        if let FoldResult::Bool(b) = folder.try_fold(expr) {
+                            return builder.imm_bool(b);
+                        }
+
                         let operand_val = self.lower_expr(builder, operand);
                         self.lower_unary_op(builder, *op, operand_val)
                     }

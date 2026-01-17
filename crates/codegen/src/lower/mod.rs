@@ -37,7 +37,7 @@ pub struct Lowerer<'gcx> {
     /// Next available storage slot.
     next_storage_slot: u64,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
-    /// For SSA-style immutable variables (function params).
+    /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
     /// Mapping from HIR variable IDs to memory offsets (for mutable locals).
     /// Memory layout: starts at offset 0x80 (after scratch space).
@@ -49,6 +49,9 @@ pub struct Lowerer<'gcx> {
     contract_bytecodes: FxHashMap<ContractId, (Vec<u8>, usize)>,
     /// Stack of loop contexts for nested loops.
     loop_stack: Vec<LoopContext>,
+    /// Variables that are assigned after declaration (need memory storage).
+    /// Variables not in this set can be kept as SSA values.
+    assigned_vars: FxHashSet<VariableId>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -64,6 +67,7 @@ impl<'gcx> Lowerer<'gcx> {
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
+            assigned_vars: FxHashSet::default(),
         }
     }
 
@@ -344,6 +348,13 @@ impl<'gcx> Lowerer<'gcx> {
         self.locals.clear();
         self.local_memory_slots.clear();
         self.next_local_memory_offset = 0x80;
+        self.assigned_vars.clear();
+
+        // Pre-analyze function body to find variables that are assigned after declaration.
+        // Variables that are only initialized (never reassigned) can stay as SSA values.
+        if let Some(body) = &hir_func.body {
+            self.collect_assigned_vars_block(body);
+        }
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
@@ -359,6 +370,9 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
+                // Allocate memory for return variables so they can be assigned to
+                // within the function body (e.g., `liquidity = 1` in if/else branches)
+                self.alloc_local_memory(ret_id);
             }
 
             if let Some(body) = &hir_func.body {
@@ -369,8 +383,20 @@ impl<'gcx> Lowerer<'gcx> {
                 if builder.func().returns.is_empty() {
                     builder.stop();
                 } else {
-                    let zero = builder.imm_u256(U256::ZERO);
-                    builder.ret([zero]);
+                    // Load return values from memory (where they were stored during execution)
+                    let ret_vals: Vec<ValueId> = hir_func
+                        .returns
+                        .iter()
+                        .map(|&ret_id| {
+                            if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                                let offset_val = builder.imm_u64(offset);
+                                builder.mload(offset_val)
+                            } else {
+                                builder.imm_u256(U256::ZERO)
+                            }
+                        })
+                        .collect();
+                    builder.ret(ret_vals);
                 }
             }
         }
@@ -469,6 +495,213 @@ impl<'gcx> Lowerer<'gcx> {
     #[must_use]
     pub fn finish(self) -> Module {
         self.module
+    }
+
+    /// Collects variables that are assigned after declaration in a block.
+    fn collect_assigned_vars_block(&mut self, block: &hir::Block<'_>) {
+        for stmt in block.stmts {
+            self.collect_assigned_vars_stmt(stmt);
+        }
+    }
+
+    /// Collects variables that are assigned after declaration in a statement.
+    fn collect_assigned_vars_stmt(&mut self, stmt: &hir::Stmt<'_>) {
+        use hir::StmtKind;
+        match &stmt.kind {
+            StmtKind::Expr(expr) => self.collect_assigned_vars_expr(expr),
+            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) => {
+                self.collect_assigned_vars_block(block)
+            }
+            StmtKind::If(cond, then_stmt, else_stmt) => {
+                self.collect_assigned_vars_expr(cond);
+                self.collect_assigned_vars_stmt(then_stmt);
+                if let Some(else_s) = else_stmt {
+                    self.collect_assigned_vars_stmt(else_s);
+                }
+            }
+            StmtKind::Loop(block, _) => self.collect_assigned_vars_block(block),
+            StmtKind::Return(Some(expr)) | StmtKind::Revert(expr) | StmtKind::Emit(expr) => {
+                self.collect_assigned_vars_expr(expr)
+            }
+            StmtKind::Try(try_stmt) => {
+                self.collect_assigned_vars_expr(&try_stmt.expr);
+                for clause in try_stmt.clauses {
+                    self.collect_assigned_vars_block(&clause.block);
+                }
+            }
+            StmtKind::DeclSingle(_)
+            | StmtKind::DeclMulti(_, _)
+            | StmtKind::Return(None)
+            | StmtKind::Continue
+            | StmtKind::Break
+            | StmtKind::Placeholder
+            | StmtKind::Err(_) => {}
+        }
+    }
+
+    /// Collects variables that are assigned in an expression.
+    fn collect_assigned_vars_expr(&mut self, expr: &hir::Expr<'_>) {
+        use hir::ExprKind;
+        match &expr.kind {
+            ExprKind::Assign(lhs, _, rhs) => {
+                // Record assignment targets
+                self.mark_assigned_var(lhs);
+                self.collect_assigned_vars_expr(rhs);
+            }
+            ExprKind::Binary(lhs, _, rhs) => {
+                self.collect_assigned_vars_expr(lhs);
+                self.collect_assigned_vars_expr(rhs);
+            }
+            ExprKind::Unary(op, operand) => {
+                // ++x, x++, --x, x-- are unary ops that mutate the operand
+                use solar_ast::UnOpKind;
+                if matches!(
+                    op.kind,
+                    UnOpKind::PreInc | UnOpKind::PostInc | UnOpKind::PreDec | UnOpKind::PostDec
+                ) {
+                    self.mark_assigned_var(operand);
+                }
+                self.collect_assigned_vars_expr(operand);
+            }
+            ExprKind::Ternary(cond, true_val, false_val) => {
+                self.collect_assigned_vars_expr(cond);
+                self.collect_assigned_vars_expr(true_val);
+                self.collect_assigned_vars_expr(false_val);
+            }
+            ExprKind::Call(callee, args, _) => {
+                self.collect_assigned_vars_expr(callee);
+                for arg in args.kind.exprs() {
+                    self.collect_assigned_vars_expr(arg);
+                }
+            }
+            ExprKind::Index(base, idx) => {
+                self.collect_assigned_vars_expr(base);
+                if let Some(i) = idx {
+                    self.collect_assigned_vars_expr(i);
+                }
+            }
+            ExprKind::Slice(base, start, end) => {
+                self.collect_assigned_vars_expr(base);
+                if let Some(s) = start {
+                    self.collect_assigned_vars_expr(s);
+                }
+                if let Some(e) = end {
+                    self.collect_assigned_vars_expr(e);
+                }
+            }
+            ExprKind::Member(base, _) => self.collect_assigned_vars_expr(base),
+            ExprKind::Array(elems) => {
+                for elem in elems.iter() {
+                    self.collect_assigned_vars_expr(elem);
+                }
+            }
+            ExprKind::Tuple(elems) => {
+                for elem in elems.iter().flatten() {
+                    self.collect_assigned_vars_expr(elem);
+                }
+            }
+            ExprKind::Payable(inner) | ExprKind::Delete(inner) => {
+                self.collect_assigned_vars_expr(inner)
+            }
+            ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Lit(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => {}
+        }
+    }
+
+    /// Marks a variable as being assigned (needs memory storage).
+    fn mark_assigned_var(&mut self, expr: &hir::Expr<'_>) {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            self.assigned_vars.insert(*var_id);
+        }
+    }
+
+    /// Returns true if a variable is assigned after declaration.
+    pub fn is_var_assigned(&self, var_id: &VariableId) -> bool {
+        self.assigned_vars.contains(var_id)
+    }
+
+    /// Checks if an expression contains an external call.
+    /// External calls write their return data to shared memory at offset 0,
+    /// so variables initialized from them must be stored in memory to preserve the value
+    /// across subsequent calls.
+    pub fn has_external_call(&self, expr: &hir::Expr<'_>) -> bool {
+        use hir::ExprKind;
+        match &expr.kind {
+            ExprKind::Call(callee, args, _) => {
+                // Check if this is an external call (method call on a contract)
+                if self.is_external_call(callee) {
+                    return true;
+                }
+                // Check callee and arguments for nested external calls
+                if self.has_external_call(callee) {
+                    return true;
+                }
+                for arg in args.kind.exprs() {
+                    if self.has_external_call(arg) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::Member(base, _) => {
+                // Member access itself doesn't contain external calls
+                // but the base might
+                self.has_external_call(base)
+            }
+            ExprKind::Binary(lhs, _, rhs) => {
+                self.has_external_call(lhs) || self.has_external_call(rhs)
+            }
+            ExprKind::Unary(_, operand) => self.has_external_call(operand),
+            ExprKind::Ternary(cond, true_val, false_val) => {
+                self.has_external_call(cond)
+                    || self.has_external_call(true_val)
+                    || self.has_external_call(false_val)
+            }
+            ExprKind::Index(base, idx) => {
+                self.has_external_call(base) || idx.is_some_and(|i| self.has_external_call(i))
+            }
+            ExprKind::Array(elems) => elems.iter().any(|e| self.has_external_call(e)),
+            ExprKind::Tuple(elems) => {
+                elems.iter().any(|e| e.is_some_and(|expr| self.has_external_call(expr)))
+            }
+            ExprKind::Payable(inner) | ExprKind::Delete(inner) => self.has_external_call(inner),
+            ExprKind::Slice(base, start, end) => {
+                self.has_external_call(base)
+                    || start.is_some_and(|s| self.has_external_call(s))
+                    || end.is_some_and(|e| self.has_external_call(e))
+            }
+            ExprKind::Assign(lhs, _, rhs) => {
+                self.has_external_call(lhs) || self.has_external_call(rhs)
+            }
+            ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Lit(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => false,
+        }
+    }
+
+    /// Checks if a call expression is an external call (method on a contract).
+    fn is_external_call(&self, callee: &hir::Expr<'_>) -> bool {
+        // External calls are Member expressions where the base is a contract
+        if let hir::ExprKind::Member(base, _) = &callee.kind
+            && let hir::ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            // Contract type variables are external call targets
+            if matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_))) {
+                return true;
+            }
+        }
+        false
     }
 }
 

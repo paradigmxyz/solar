@@ -159,11 +159,11 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
         // Skip bytecode generation for interfaces and abstract contracts
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
             // Lower to MIR
-            let module = lower::lower_contract(gcx, id);
+            let mut module = lower::lower_contract(gcx, id);
 
             // Generate bytecode
             let mut codegen = EvmCodegen::new();
-            let (deployment, runtime) = codegen.generate_deployment_bytecode(&module);
+            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
 
             if emit_bin {
                 obj.insert(

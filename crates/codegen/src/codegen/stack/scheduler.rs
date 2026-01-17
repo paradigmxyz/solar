@@ -96,7 +96,7 @@ impl StackScheduler {
                     self.ops.push(ScheduledOp::LoadArg(*index));
                     self.stack.push(value);
                 }
-                _ => {}
+                _other => {}
             }
         }
 

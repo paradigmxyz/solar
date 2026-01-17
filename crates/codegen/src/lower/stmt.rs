@@ -88,7 +88,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a single variable declaration.
-    /// Local variables are stored in memory to support mutation in loops.
+    /// Variables that are never assigned after declaration and don't involve external calls
+    /// are kept as SSA values. Variables that are assigned later or initialized from external
+    /// calls (which use shared memory) are stored in memory.
     fn lower_single_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -97,16 +99,26 @@ impl<'gcx> Lowerer<'gcx> {
         let var = self.gcx.hir.variable(var_id);
         let _ty = self.lower_type_from_var(var);
 
+        // Check if initializer involves external calls (results stored in shared memory)
+        let has_external_call = var.initializer.is_some_and(|init| self.has_external_call(init));
+
         let initial_value = if let Some(init) = var.initializer {
             self.lower_expr(builder, init)
         } else {
             builder.imm_u256(U256::ZERO)
         };
 
-        // Allocate memory slot and store initial value
-        let offset = self.alloc_local_memory(var_id);
-        let offset_val = builder.imm_u64(offset);
-        builder.mstore(offset_val, initial_value);
+        // Variables need memory storage if:
+        // 1. They are assigned after declaration, OR
+        // 2. They are initialized from external calls (which write to shared memory at offset 0)
+        if self.is_var_assigned(&var_id) || has_external_call {
+            let offset = self.alloc_local_memory(var_id);
+            let offset_val = builder.imm_u64(offset);
+            builder.mstore(offset_val, initial_value);
+        } else {
+            // Variable is never reassigned and not from external call - keep as SSA value
+            self.locals.insert(var_id, initial_value);
+        }
     }
 
     /// Lowers a multi-variable declaration.

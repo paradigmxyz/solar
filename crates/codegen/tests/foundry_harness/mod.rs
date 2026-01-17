@@ -1,9 +1,9 @@
 //! Foundry integration test harness.
 //!
 //! This module tests Solar's codegen by:
-//! 1. Compiling src/*.sol with Solar to get bytecode
-//! 2. Compiling test/*.t.sol with solc (test harness must work correctly)
-//! 3. Running tests with Solar bytecode injected via env vars
+//! 1. Running `forge test` with `FOUNDRY_SOLC=solar` (compiles everything with Solar)
+//! 2. Running `forge test` with solc (baseline)
+//! 3. Comparing gas usage and test results
 //!
 //! Run with: cargo test -p solar-codegen --test foundry
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
@@ -15,10 +15,17 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-/// Gets the path to the Solar binary (debug build).
+/// Gets the path to the Solar binary (release build preferred, falls back to debug).
 fn get_solar_binary() -> PathBuf {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
+
+    // Prefer release build for accurate benchmarks
+    let release_binary = workspace_root.join("target/release/solar");
+    if release_binary.exists() {
+        return release_binary;
+    }
+
     workspace_root.join("target/debug/solar")
 }
 
@@ -131,90 +138,28 @@ struct CompilerRun {
     bytecode_sizes: HashMap<String, usize>,
 }
 
-/// Bytecode extracted from Solar compilation.
-#[derive(Debug, Clone)]
-struct ContractBytecode {
-    name: String,
-    creation_code: String, // hex without 0x prefix
-    deployed_code: String, // hex without 0x prefix
-}
+/// Parses test results from forge JSON output.
+fn parse_test_results(stdout: &str) -> Vec<TestResult> {
+    let mut tests = Vec::new();
 
-/// Compiles everything with Solar and extracts bytecode for src contracts only.
-fn compile_with_solar(project_dir: &PathBuf) -> (Duration, Vec<ContractBytecode>) {
-    let out_dir = "out-solar";
-    let cache_dir = "cache-solar";
-
-    let mut cmd = Command::new("forge");
-    cmd.current_dir(project_dir)
-        .arg("build")
-        .arg("--force")
-        .arg("--out")
-        .arg(out_dir)
-        .arg("--cache-path")
-        .arg(cache_dir)
-        .env("FOUNDRY_SOLC", get_solar_binary());
-
-    let start = Instant::now();
-    let output = cmd.output().expect("failed to run forge build for Solar");
-    let compile_time = start.elapsed();
-
-    if !output.status.success() {
-        eprintln!("[solar] Build failed: {}", String::from_utf8_lossy(&output.stderr));
-    }
-
-    // Extract bytecode from src/*.sol artifacts only (skip test contracts)
-    let mut bytecodes = Vec::new();
-    let out_path = project_dir.join(out_dir);
-    if let Ok(entries) = std::fs::read_dir(&out_path) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            // Only process directories that don't end with .t.sol (test files)
-            if path.is_dir() {
-                let dir_name = path.file_name().unwrap().to_string_lossy();
-                if dir_name.ends_with(".t.sol") {
-                    continue; // Skip test contract artifacts
-                }
-
-                if let Ok(files) = std::fs::read_dir(&path) {
-                    for file in files.flatten() {
-                        let file_path = file.path();
-                        if file_path.extension().is_some_and(|e| e == "json") {
-                            if let Ok(content) = std::fs::read_to_string(&file_path) {
-                                if let Ok(json) =
-                                    serde_json::from_str::<serde_json::Value>(&content)
-                                {
-                                    let creation_code = json
-                                        .get("bytecode")
-                                        .and_then(|b| b.get("object"))
-                                        .and_then(|o| o.as_str())
-                                        .unwrap_or("")
-                                        .strip_prefix("0x")
-                                        .unwrap_or("")
-                                        .to_string();
-
-                                    let deployed_code = json
-                                        .get("deployedBytecode")
-                                        .and_then(|b| b.get("object"))
-                                        .and_then(|o| o.as_str())
-                                        .unwrap_or("")
-                                        .strip_prefix("0x")
-                                        .unwrap_or("")
-                                        .to_string();
-
-                                    if !creation_code.is_empty() {
-                                        let name = file_path
-                                            .file_stem()
-                                            .unwrap()
-                                            .to_string_lossy()
-                                            .to_string();
-                                        bytecodes.push(ContractBytecode {
-                                            name,
-                                            creation_code,
-                                            deployed_code,
-                                        });
-                                    }
-                                }
-                            }
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(stdout) {
+        if let Some(obj) = json.as_object() {
+            for (_contract, contract_data) in obj {
+                if let Some(test_results) = contract_data.get("test_results") {
+                    if let Some(tests_obj) = test_results.as_object() {
+                        for (name, result) in tests_obj {
+                            let passed = result
+                                .get("status")
+                                .and_then(|s| s.as_str())
+                                .map(|s| s == "Success")
+                                .unwrap_or(false);
+                            let gas = result
+                                .get("kind")
+                                .and_then(|k| k.get("Unit"))
+                                .and_then(|u| u.get("gas"))
+                                .and_then(|g| g.as_u64())
+                                .unwrap_or(0);
+                            tests.push(TestResult { name: name.clone(), passed, gas });
                         }
                     }
                 }
@@ -222,38 +167,23 @@ fn compile_with_solar(project_dir: &PathBuf) -> (Duration, Vec<ContractBytecode>
         }
     }
 
-    (compile_time, bytecodes)
+    tests
 }
 
-/// Runs forge build with solc for entire project (tests always use solc).
-fn run_forge_build_solc(project_dir: &PathBuf) -> (Duration, HashMap<String, usize>) {
-    let out_dir = "out-solc";
-    let cache_dir = "cache-solc";
-
-    let mut cmd = Command::new("forge");
-    cmd.current_dir(project_dir)
-        .arg("build")
-        .arg("--force")
-        .arg("--out")
-        .arg(out_dir)
-        .arg("--cache-path")
-        .arg(cache_dir);
-
-    let start = Instant::now();
-    let output = cmd.output().expect("failed to run forge build");
-    let compile_time = start.elapsed();
-
-    if !output.status.success() {
-        eprintln!("[solc] Build failed: {}", String::from_utf8_lossy(&output.stderr));
-    }
-
-    // Parse bytecode sizes from artifacts
+/// Extracts bytecode sizes from forge output directory.
+fn extract_bytecode_sizes(out_path: &Path) -> HashMap<String, usize> {
     let mut sizes = HashMap::new();
-    let out_path = project_dir.join(out_dir);
-    if let Ok(entries) = std::fs::read_dir(&out_path) {
+
+    if let Ok(entries) = std::fs::read_dir(out_path) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
+                // Skip test contract artifacts
+                let dir_name = path.file_name().unwrap().to_string_lossy();
+                if dir_name.ends_with(".t.sol") {
+                    continue;
+                }
+
                 if let Ok(files) = std::fs::read_dir(&path) {
                     for file in files.flatten() {
                         let file_path = file.path();
@@ -287,191 +217,115 @@ fn run_forge_build_solc(project_dir: &PathBuf) -> (Duration, HashMap<String, usi
         }
     }
 
-    (compile_time, sizes)
+    sizes
 }
 
-/// Runs forge test with Solar bytecode injected via env vars.
-/// Tests are always compiled with solc, only src contracts use Solar bytecode.
-fn run_forge_test_with_solar_bytecode(
+/// Runs forge test with Solar as the compiler.
+fn run_forge_test_solar(
     project_dir: &PathBuf,
-    solar_bytecodes: &[ContractBytecode],
     label: &str,
-) -> (Duration, Vec<TestResult>) {
-    let out_dir = "out-solc"; // Always use solc-compiled tests
-    let cache_dir = "cache-solc";
+) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
+    let out_dir = "out-solar";
+    let cache_dir = "cache-solar";
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
         .arg("test")
+        .arg("--force")
         .arg("--json")
         .arg("-vvvvv")
         .arg("--decode-internal")
         .arg("--out")
         .arg(out_dir)
         .arg("--cache-path")
-        .arg(cache_dir);
-
-    // Inject Solar bytecode via env vars
-    for bc in solar_bytecodes {
-        let env_name = format!("SOLAR_{}_BYTECODE", bc.name.to_uppercase());
-        cmd.env(&env_name, format!("0x{}", &bc.creation_code));
-    }
+        .arg(cache_dir)
+        .env("FOUNDRY_SOLC", get_solar_binary());
 
     let start = Instant::now();
-    let output = cmd.output().expect("failed to run forge test");
+    let output = cmd.output().expect("failed to run forge test for Solar");
     let test_time = start.elapsed();
 
-    let mut tests = Vec::new();
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Always save JSON output for debugging
+    // Save JSON output for debugging
     let json_path = save_json_output(project_dir, "solar-test-output", &stdout);
 
     // Print info when there are failures
     if !output.status.success() || stdout.contains("\"status\":\"Failure\"") {
         eprintln!("\n🔍 [{}] Full JSON saved to: {:?}", label, json_path);
-        eprintln!("[{}] Full forge test JSON output:", label);
-        eprintln!("{}", stdout);
         if !output.stderr.is_empty() {
             eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
     }
 
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
-        if let Some(obj) = json.as_object() {
-            for (_contract, contract_data) in obj {
-                if let Some(test_results) = contract_data.get("test_results") {
-                    if let Some(tests_obj) = test_results.as_object() {
-                        for (name, result) in tests_obj {
-                            let passed = result
-                                .get("status")
-                                .and_then(|s| s.as_str())
-                                .map(|s| s == "Success")
-                                .unwrap_or(false);
-                            let gas = result
-                                .get("kind")
-                                .and_then(|k| k.get("Unit"))
-                                .and_then(|u| u.get("gas"))
-                                .and_then(|g| g.as_u64())
-                                .unwrap_or(0);
-                            tests.push(TestResult { name: name.clone(), passed, gas });
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let tests = parse_test_results(&stdout);
+    let sizes = extract_bytecode_sizes(&project_dir.join(out_dir));
 
-    (test_time, tests)
+    (test_time, tests, sizes)
 }
 
-/// Runs forge test with pure solc (baseline).
-fn run_forge_test_solc(project_dir: &PathBuf) -> (Duration, Vec<TestResult>) {
+/// Runs forge test with solc (baseline).
+fn run_forge_test_solc(
+    project_dir: &PathBuf,
+) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
     let out_dir = "out-solc";
     let cache_dir = "cache-solc";
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
         .arg("test")
+        .arg("--force")
         .arg("--json")
         .arg("-vvvvv")
         .arg("--decode-internal")
         .arg("--out")
         .arg(out_dir)
         .arg("--cache-path")
-        .arg(cache_dir);
+        .arg(cache_dir)
+        .env("RUST_LOG", "foundry_compilers=trace");
 
     let start = Instant::now();
     let output = cmd.output().expect("failed to run forge test");
     let test_time = start.elapsed();
 
-    let mut tests = Vec::new();
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Save JSON output for debugging (always, for later comparison)
+    // Save JSON output for debugging
     let _json_path = save_json_output(project_dir, "solc-test-output", &stdout);
 
-    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&stdout) {
-        if let Some(obj) = json.as_object() {
-            for (_contract, contract_data) in obj {
-                if let Some(test_results) = contract_data.get("test_results") {
-                    if let Some(tests_obj) = test_results.as_object() {
-                        for (name, result) in tests_obj {
-                            let passed = result
-                                .get("status")
-                                .and_then(|s| s.as_str())
-                                .map(|s| s == "Success")
-                                .unwrap_or(false);
-                            let gas = result
-                                .get("kind")
-                                .and_then(|k| k.get("Unit"))
-                                .and_then(|u| u.get("gas"))
-                                .and_then(|g| g.as_u64())
-                                .unwrap_or(0);
-                            tests.push(TestResult { name: name.clone(), passed, gas });
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let tests = parse_test_results(&stdout);
+    let sizes = extract_bytecode_sizes(&project_dir.join(out_dir));
 
-    (test_time, tests)
+    (test_time, tests, sizes)
 }
 
 /// Runs a full comparison between Solar and solc for a project.
 fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRun, CompilerRun) {
     let project_dir = get_crate_dir().join(project_path);
 
-    // Step 1: Compile everything with Solar, extract src contract bytecodes
-    let (solar_compile_time, solar_bytecodes) = compile_with_solar(&project_dir);
-
-    // Print extracted bytecodes
-    eprintln!("\n📦 [{}] Solar bytecodes extracted:", project_name);
-    for bc in &solar_bytecodes {
-        eprintln!(
-            "   {} - creation: {}B, deployed: {}B",
-            bc.name,
-            bc.creation_code.len() / 2,
-            bc.deployed_code.len() / 2
-        );
-    }
-
-    // Step 2: Build entire project with solc (tests need solc)
-    let (solc_compile_time, solc_sizes) = run_forge_build_solc(&project_dir);
-
-    // Step 3: Run tests with Solar bytecode injected
-    let (solar_test_time, solar_tests) = run_forge_test_with_solar_bytecode(
-        &project_dir,
-        &solar_bytecodes,
-        &format!("{}-solar", project_name),
-    );
+    // Step 1: Run tests with Solar
+    let (solar_test_time, solar_tests, solar_sizes) =
+        run_forge_test_solar(&project_dir, &format!("{}-solar", project_name));
     let solar_passed = solar_tests.iter().filter(|t| t.passed).count();
     let solar_failed = solar_tests.iter().filter(|t| !t.passed).count();
 
-    // Calculate Solar bytecode sizes
-    let mut solar_sizes = HashMap::new();
-    for bc in &solar_bytecodes {
-        solar_sizes.insert(bc.name.clone(), bc.deployed_code.len() / 2);
-    }
-
     let solar_run = CompilerRun {
         compiler: "solar".to_string(),
-        compile_time: solar_compile_time + solar_test_time,
+        compile_time: solar_test_time,
         tests: solar_tests,
         total_passed: solar_passed,
         total_failed: solar_failed,
         bytecode_sizes: solar_sizes,
     };
 
-    // Step 4: Run tests with pure solc (baseline)
-    let (solc_test_time, solc_tests) = run_forge_test_solc(&project_dir);
+    // Step 2: Run tests with solc
+    let (solc_test_time, solc_tests, solc_sizes) = run_forge_test_solc(&project_dir);
     let solc_passed = solc_tests.iter().filter(|t| t.passed).count();
     let solc_failed = solc_tests.iter().filter(|t| !t.passed).count();
 
     let solc_run = CompilerRun {
         compiler: "solc".to_string(),
-        compile_time: solc_compile_time + solc_test_time,
+        compile_time: solc_test_time,
         tests: solc_tests,
         total_passed: solc_passed,
         total_failed: solc_failed,
@@ -488,14 +342,18 @@ fn run_project_comparison(project_name: &str, project_path: &str) -> (CompilerRu
     println!(" {} ", project_name.to_uppercase());
     println!("{}", "=".repeat(70));
 
-    // Compilation time
-    println!("\n📦 Compilation + Test Time:");
+    // Test time
+    println!("\n📦 Test Time:");
+    let time_diff = if solc_run.compile_time.as_secs_f64() > 0.0 {
+        ((solar_run.compile_time.as_secs_f64() / solc_run.compile_time.as_secs_f64()) - 1.0) * 100.0
+    } else {
+        0.0
+    };
     println!(
         "   Solar: {:>6.2}s | solc: {:>6.2}s | {:+.0}%",
         solar_run.compile_time.as_secs_f64(),
         solc_run.compile_time.as_secs_f64(),
-        ((solar_run.compile_time.as_secs_f64() / solc_run.compile_time.as_secs_f64()) - 1.0)
-            * 100.0
+        time_diff
     );
 
     // Test results
@@ -592,11 +450,14 @@ fn test_project_solar_only(project_name: &str, project_path: &str) {
         .arg("test")
         .arg("--force")
         .arg("--json")
+        .arg("-vvvvv")
+        .arg("--decode-internal")
         .arg("--out")
         .arg(out_dir)
         .arg("--cache-path")
         .arg(cache_dir)
-        .env("FOUNDRY_SOLC", &solar_binary);
+        .env("FOUNDRY_SOLC", &solar_binary)
+        .env("RUST_LOG", "foundry_compilers=trace");
 
     let output = cmd.output().expect("failed to run forge test");
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -636,7 +497,7 @@ fn test_project_solar_only(project_name: &str, project_path: &str) {
     assert!(total_passed > 0, "[{}] No Solar tests ran", project_name);
 }
 
-/// Tests a project with Solar bytecode injection.
+/// Tests a project with Solar vs solc comparison.
 fn test_project_solar(project_name: &str, project_path: &str) {
     if !forge_available() {
         eprintln!("Skipping {}: forge not found in PATH", project_name);
@@ -750,11 +611,12 @@ mod tests {
         }
 
         let project_dir = get_crate_dir().join("testdata/arithmetic");
-        let (compile_time, bytecodes) = compile_with_solar(&project_dir);
+        let (test_time, tests, sizes) = run_forge_test_solar(&project_dir, "compilation-test");
 
-        println!("Compilation time: {:?}", compile_time);
-        println!("Bytecodes: {:?}", bytecodes.iter().map(|b| &b.name).collect::<Vec<_>>());
+        println!("Test time: {:?}", test_time);
+        println!("Tests: {:?}", tests.iter().map(|t| &t.name).collect::<Vec<_>>());
+        println!("Bytecode sizes: {:?}", sizes);
 
-        assert!(!bytecodes.is_empty(), "No bytecode produced");
+        assert!(!tests.is_empty(), "No tests ran");
     }
 }

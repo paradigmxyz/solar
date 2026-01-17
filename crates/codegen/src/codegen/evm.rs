@@ -7,12 +7,13 @@
 //! - Two-pass assembly for label resolution
 
 use crate::{
-    analysis::{Liveness, ParallelCopy, eliminate_phis},
+    analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     codegen::{
         assembler::{Assembler, Label, opcodes},
         stack::{ScheduledOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
+    transform::DeadCodeEliminator,
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -50,20 +51,26 @@ impl EvmCodegen {
 
     /// Generates bytecode for a module (runtime code only).
     /// Returns empty bytecode for interfaces (they have no implementation).
-    pub fn generate_module(&mut self, module: &Module) -> Vec<u8> {
+    ///
+    /// This runs optimization passes (including DCE) on the module before codegen.
+    pub fn generate_module(&mut self, module: &mut Module) -> Vec<u8> {
         if module.is_interface {
             return Vec::new();
         }
+        self.run_optimization_passes(module);
         self.generate_runtime_code(module)
     }
 
     /// Generates deployment bytecode for a module.
     /// Returns (deployment_bytecode, runtime_bytecode).
     /// Returns empty bytecodes for interfaces (they have no implementation).
-    pub fn generate_deployment_bytecode(&mut self, module: &Module) -> (Vec<u8>, Vec<u8>) {
+    ///
+    /// This runs optimization passes (including DCE) on the module before codegen.
+    pub fn generate_deployment_bytecode(&mut self, module: &mut Module) -> (Vec<u8>, Vec<u8>) {
         if module.is_interface {
             return (Vec::new(), Vec::new());
         }
+        self.run_optimization_passes(module);
         // First generate the runtime code
         let runtime_code = self.generate_runtime_code(module);
         let runtime_len = runtime_code.len();
@@ -141,6 +148,11 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
 
+            // Initialize free memory pointer: MSTORE(0x40, 0x80)
+            self.asm.emit_push(U256::from(0x80));
+            self.asm.emit_push(U256::from(0x40));
+            self.asm.emit_op(opcodes::MSTORE);
+
             // Set constructor context for LoadArg handling
             self.in_constructor = true;
             self.constructor_param_count = ctor.params.len() as u32;
@@ -208,11 +220,24 @@ impl EvmCodegen {
         }
     }
 
+    /// Runs optimization passes on all functions in the module.
+    fn run_optimization_passes(&mut self, module: &mut Module) {
+        let mut dce = DeadCodeEliminator::new();
+        for func in module.functions.iter_mut() {
+            dce.run_to_fixpoint(func);
+        }
+    }
+
     /// Generates runtime bytecode for a module.
     fn generate_runtime_code(&mut self, module: &Module) -> Vec<u8> {
         self.asm = Assembler::new();
         self.block_labels.clear();
         self.block_copies.clear();
+
+        // Initialize free memory pointer: MSTORE(0x40, 0x80)
+        self.asm.emit_push(U256::from(0x80));
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MSTORE);
 
         if !module.functions.is_empty() {
             // The dispatcher generates function bodies inline
@@ -410,8 +435,9 @@ impl EvmCodegen {
 
             // Insert phi copies before terminator
             if let Some(copies) = self.block_copies.remove(&block_id) {
+                let mut temps = FxHashMap::default();
                 for copy in &copies {
-                    self.generate_copy(func, copy);
+                    self.generate_copy(func, copy, &mut temps);
                 }
             }
 
@@ -469,11 +495,21 @@ impl EvmCodegen {
             InstKind::Xor(a, b) => {
                 self.emit_binary_op_with_result(func, *a, *b, opcodes::XOR, result_value)
             }
-            InstKind::Not(a) => self.emit_unary_op(func, *a, opcodes::NOT),
-            InstKind::Shl(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SHL),
-            InstKind::Shr(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SHR),
-            InstKind::Sar(shift, val) => self.emit_binary_op(func, *shift, *val, opcodes::SAR),
-            InstKind::Byte(i, x) => self.emit_binary_op(func, *i, *x, opcodes::BYTE),
+            InstKind::Not(a) => {
+                self.emit_unary_op_with_result(func, *a, opcodes::NOT, result_value)
+            }
+            InstKind::Shl(shift, val) => {
+                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SHL, result_value)
+            }
+            InstKind::Shr(shift, val) => {
+                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SHR, result_value)
+            }
+            InstKind::Sar(shift, val) => {
+                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SAR, result_value)
+            }
+            InstKind::Byte(i, x) => {
+                self.emit_binary_op_with_result(func, *i, *x, opcodes::BYTE, result_value)
+            }
 
             // Comparison operations - track results for branch conditions and Select
             InstKind::Lt(a, b) => {
@@ -504,7 +540,10 @@ impl EvmCodegen {
             }
             InstKind::MStore(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE),
             InstKind::MStore8(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE8),
-            InstKind::MSize => self.asm.emit_op(opcodes::MSIZE),
+            InstKind::MSize => {
+                self.asm.emit_op(opcodes::MSIZE);
+                self.scheduler.instruction_executed(0, result_value);
+            }
 
             // Storage operations
             InstKind::SLoad(slot) => {
@@ -519,12 +558,19 @@ impl EvmCodegen {
                 block,
                 inst_idx,
             ),
-            InstKind::TLoad(slot) => self.emit_unary_op(func, *slot, opcodes::TLOAD),
+            InstKind::TLoad(slot) => {
+                self.emit_unary_op_with_result(func, *slot, opcodes::TLOAD, result_value)
+            }
             InstKind::TStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::TSTORE),
 
             // Calldata operations
-            InstKind::CalldataLoad(off) => self.emit_unary_op(func, *off, opcodes::CALLDATALOAD),
-            InstKind::CalldataSize => self.asm.emit_op(opcodes::CALLDATASIZE),
+            InstKind::CalldataLoad(off) => {
+                self.emit_unary_op_with_result(func, *off, opcodes::CALLDATALOAD, result_value)
+            }
+            InstKind::CalldataSize => {
+                self.asm.emit_op(opcodes::CALLDATASIZE);
+                self.scheduler.instruction_executed(0, result_value);
+            }
 
             // Hash operations
             InstKind::Keccak256(off, len) => {
@@ -592,13 +638,29 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::PREVRANDAO);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::Balance(addr) => self.emit_unary_op(func, *addr, opcodes::BALANCE),
-            InstKind::BlockHash(num) => self.emit_unary_op(func, *num, opcodes::BLOCKHASH),
-            InstKind::BlobHash(idx) => self.emit_unary_op(func, *idx, opcodes::BLOBHASH),
-            InstKind::ExtCodeSize(addr) => self.emit_unary_op(func, *addr, opcodes::EXTCODESIZE),
-            InstKind::ExtCodeHash(addr) => self.emit_unary_op(func, *addr, opcodes::EXTCODEHASH),
-            InstKind::CodeSize => self.asm.emit_op(opcodes::CODESIZE),
-            InstKind::ReturnDataSize => self.asm.emit_op(opcodes::RETURNDATASIZE),
+            InstKind::Balance(addr) => {
+                self.emit_unary_op_with_result(func, *addr, opcodes::BALANCE, result_value)
+            }
+            InstKind::BlockHash(num) => {
+                self.emit_unary_op_with_result(func, *num, opcodes::BLOCKHASH, result_value)
+            }
+            InstKind::BlobHash(idx) => {
+                self.emit_unary_op_with_result(func, *idx, opcodes::BLOBHASH, result_value)
+            }
+            InstKind::ExtCodeSize(addr) => {
+                self.emit_unary_op_with_result(func, *addr, opcodes::EXTCODESIZE, result_value)
+            }
+            InstKind::ExtCodeHash(addr) => {
+                self.emit_unary_op_with_result(func, *addr, opcodes::EXTCODEHASH, result_value)
+            }
+            InstKind::CodeSize => {
+                self.asm.emit_op(opcodes::CODESIZE);
+                self.scheduler.instruction_executed(0, result_value);
+            }
+            InstKind::ReturnDataSize => {
+                self.asm.emit_op(opcodes::RETURNDATASIZE);
+                self.scheduler.instruction_executed(0, result_value);
+            }
 
             // Ternary operations
             InstKind::AddMod(a, b, n) => self.emit_ternary_op(func, *a, *b, *n, opcodes::ADDMOD),
@@ -635,7 +697,9 @@ impl EvmCodegen {
             }
 
             // Sign extend
-            InstKind::SignExtend(b, x) => self.emit_binary_op(func, *b, *x, opcodes::SIGNEXTEND),
+            InstKind::SignExtend(b, x) => {
+                self.emit_binary_op_with_result(func, *b, *x, opcodes::SIGNEXTEND, result_value)
+            }
 
             // Phi nodes are skipped (handled by copies)
             InstKind::Phi(_) => {}
@@ -646,7 +710,8 @@ impl EvmCodegen {
                 self.emit_value(func, *offset);
                 self.emit_value(func, *value);
                 self.asm.emit_op(opcodes::CREATE);
-                self.scheduler.instruction_executed(3, None);
+                // CREATE consumes 3 values and produces 1 (new contract address)
+                self.scheduler.instruction_executed(3, result_value);
             }
 
             InstKind::Create2(value, offset, size, salt) => {
@@ -655,7 +720,8 @@ impl EvmCodegen {
                 self.emit_value(func, *offset);
                 self.emit_value(func, *value);
                 self.asm.emit_op(opcodes::CREATE2);
-                self.scheduler.instruction_executed(4, None);
+                // CREATE2 consumes 4 values and produces 1 (new contract address)
+                self.scheduler.instruction_executed(4, result_value);
             }
 
             // External calls
@@ -717,8 +783,99 @@ impl EvmCodegen {
                 self.scheduler.instruction_executed(6, result_value);
             }
 
-            // TODO: Implement remaining operations
-            _ => {}
+            // Log operations
+            InstKind::Log0(offset, size) => {
+                // LOG0(offset, size) - stack order: offset on top, then size
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::LOG0);
+                self.scheduler.instruction_executed(2, None);
+            }
+            InstKind::Log1(offset, size, topic1) => {
+                // LOG1(offset, size, topic1) - stack order: offset, size, topic1
+                self.emit_value(func, *topic1);
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::LOG1);
+                self.scheduler.instruction_executed(3, None);
+            }
+            InstKind::Log2(offset, size, topic1, topic2) => {
+                // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
+                self.emit_value(func, *topic2);
+                self.emit_value(func, *topic1);
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::LOG2);
+                self.scheduler.instruction_executed(4, None);
+            }
+            InstKind::Log3(offset, size, topic1, topic2, topic3) => {
+                // LOG3(offset, size, topic1, topic2, topic3)
+                self.emit_value(func, *topic3);
+                self.emit_value(func, *topic2);
+                self.emit_value(func, *topic1);
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::LOG3);
+                self.scheduler.instruction_executed(5, None);
+            }
+            InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
+                // LOG4(offset, size, topic1, topic2, topic3, topic4)
+                self.emit_value(func, *topic4);
+                self.emit_value(func, *topic3);
+                self.emit_value(func, *topic2);
+                self.emit_value(func, *topic1);
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::LOG4);
+                self.scheduler.instruction_executed(6, None);
+            }
+
+            // Memory copy operations
+            InstKind::CalldataCopy(dest, offset, size) => {
+                // CALLDATACOPY(destOffset, offset, size)
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.emit_value(func, *dest);
+                self.asm.emit_op(opcodes::CALLDATACOPY);
+                self.scheduler.instruction_executed(3, None);
+            }
+
+            InstKind::CodeCopy(dest, offset, size) => {
+                // CODECOPY(destOffset, offset, size)
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.emit_value(func, *dest);
+                self.asm.emit_op(opcodes::CODECOPY);
+                self.scheduler.instruction_executed(3, None);
+            }
+
+            InstKind::ReturnDataCopy(dest, offset, size) => {
+                // RETURNDATACOPY(destOffset, offset, size)
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.emit_value(func, *dest);
+                self.asm.emit_op(opcodes::RETURNDATACOPY);
+                self.scheduler.instruction_executed(3, None);
+            }
+
+            InstKind::MCopy(dest, src, size) => {
+                // MCOPY(destOffset, srcOffset, size)
+                self.emit_value(func, *size);
+                self.emit_value(func, *src);
+                self.emit_value(func, *dest);
+                self.asm.emit_op(opcodes::MCOPY);
+                self.scheduler.instruction_executed(3, None);
+            }
+
+            InstKind::ExtCodeCopy(addr, dest, offset, size) => {
+                // EXTCODECOPY(address, destOffset, offset, size)
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.emit_value(func, *dest);
+                self.emit_value(func, *addr);
+                self.asm.emit_op(opcodes::EXTCODECOPY);
+                self.scheduler.instruction_executed(4, None);
+            }
         }
 
         // Drop dead values after the instruction
@@ -774,12 +931,6 @@ impl EvmCodegen {
         }
     }
 
-    /// Emits a binary operation.
-    fn emit_binary_op(&mut self, func: &Function, a: ValueId, b: ValueId, opcode: u8) {
-        // Use the common logic with no result tracking
-        self.emit_binary_op_with_result(func, a, b, opcode, None);
-    }
-
     /// Emits a binary operation with result tracking.
     fn emit_binary_op_with_result(
         &mut self,
@@ -828,17 +979,6 @@ impl EvmCodegen {
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(2, result);
-    }
-
-    /// Emits a unary operation.
-    /// Note: This tracks an "unknown" value on the stack to maintain correct depth.
-    /// For operations that need their result tracked with a specific ValueId,
-    /// use emit_unary_op_with_result.
-    fn emit_unary_op(&mut self, func: &Function, a: ValueId, opcode: u8) {
-        self.emit_value(func, a);
-        self.asm.emit_op(opcode);
-        // Pop the input and push an unknown value (for MLOAD where result may become stale)
-        self.scheduler.instruction_executed_untracked(1);
     }
 
     /// Emits a unary operation with result tracking.
@@ -914,11 +1054,40 @@ impl EvmCodegen {
     }
 
     /// Generates a parallel copy.
-    fn generate_copy(&mut self, func: &Function, copy: &ParallelCopy) {
-        // Simply push the source value - it becomes the destination
-        self.emit_value(func, copy.src);
-        // In a real implementation, we'd need to track that this value
-        // now represents the destination ValueId
+    fn generate_copy(
+        &mut self,
+        func: &Function,
+        copy: &ParallelCopy,
+        temps: &mut FxHashMap<u32, ()>,
+    ) {
+        // Handle source: either a MIR value or a temporary
+        match &copy.src {
+            CopySource::Value(val) => {
+                self.emit_value(func, *val);
+            }
+            CopySource::Temp(temp_id) => {
+                // Temporaries are kept on stack - this should DUP from the temp's position
+                // For now, we assume temps are managed by the stack scheduler
+                // This is a simplified implementation
+                if !temps.contains_key(temp_id) {
+                    // First reference to this temp - it should already be on stack
+                    // from a prior copy to CopyDest::Temp
+                }
+            }
+        }
+
+        // Handle destination: either a MIR value or a temporary
+        match &copy.dst {
+            CopyDest::Value(_val) => {
+                // The value is now on stack representing the destination
+                // In a real implementation, we'd track that this stack slot
+                // now represents the destination ValueId
+            }
+            CopyDest::Temp(temp_id) => {
+                // Mark this temporary as defined - it's now on the stack
+                temps.insert(*temp_id, ());
+            }
+        }
     }
 
     /// Pops all remaining values from the stack.

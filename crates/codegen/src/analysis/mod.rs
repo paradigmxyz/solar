@@ -8,4 +8,6 @@ mod liveness;
 pub use liveness::{LiveSet, Liveness, LivenessInfo};
 
 mod phi_elimination;
-pub use phi_elimination::{BlockCopies, ParallelCopy, PhiEliminationResult, eliminate_phis};
+pub use phi_elimination::{
+    BlockCopies, CopyDest, CopySource, ParallelCopy, PhiEliminationResult, eliminate_phis,
+};

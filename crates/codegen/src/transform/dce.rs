@@ -74,7 +74,7 @@ impl DeadCodeEliminator {
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
                 for val in inst.kind.operands() {
-                    used.insert(*val);
+                    used.insert(val);
                 }
             }
         }
