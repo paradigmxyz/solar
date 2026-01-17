@@ -88,6 +88,12 @@ impl StackModel {
         self.find(value).is_some()
     }
 
+    /// Counts how many times a value appears on the stack.
+    #[must_use]
+    pub fn count(&self, value: ValueId) -> usize {
+        self.stack.iter().filter(|&&v| v == Some(value)).count()
+    }
+
     /// Returns true if the value is at the top of the stack.
     #[must_use]
     pub fn is_on_top(&self, value: ValueId) -> bool {

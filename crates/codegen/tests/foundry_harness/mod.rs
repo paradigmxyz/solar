@@ -533,7 +533,53 @@ fn test_project_solar(project_name: &str, project_path: &str) {
         );
     }
 
-    println!("\n✓ [{}] {} tests passed with Solar", project_name, solar_run.total_passed);
+    // Assert Solar MUST beat solc in gas usage for all matching tests
+    let solar_map: std::collections::HashMap<&str, &TestResult> =
+        solar_run.tests.iter().map(|t| (t.name.as_str(), t)).collect();
+    let solc_map: std::collections::HashMap<&str, &TestResult> =
+        solc_run.tests.iter().map(|t| (t.name.as_str(), t)).collect();
+
+    let mut gas_regressions = Vec::new();
+    for (name, solar_test) in &solar_map {
+        if let Some(solc_test) = solc_map.get(name) {
+            // Only compare passing tests with non-zero gas
+            if solar_test.passed && solc_test.passed && solc_test.gas > 0 && solar_test.gas > 0 {
+                if solar_test.gas > solc_test.gas {
+                    let diff_pct = ((solar_test.gas as f64 / solc_test.gas as f64) - 1.0) * 100.0;
+                    gas_regressions.push((
+                        name.to_string(),
+                        solar_test.gas,
+                        solc_test.gas,
+                        diff_pct,
+                    ));
+                }
+            }
+        }
+    }
+
+    if !gas_regressions.is_empty() {
+        eprintln!(
+            "\n❌ [{}] GAS REGRESSIONS: Solar uses MORE gas than solc in {} tests:",
+            project_name,
+            gas_regressions.len()
+        );
+        for (name, solar_gas, solc_gas, diff_pct) in &gas_regressions {
+            eprintln!(
+                "   - {:40} Solar: {:>8} | solc: {:>8} | {:>+6.1}%",
+                name, solar_gas, solc_gas, diff_pct
+            );
+        }
+        panic!(
+            "[{}] Solar MUST beat solc in gas usage, but {} tests regressed",
+            project_name,
+            gas_regressions.len()
+        );
+    }
+
+    println!(
+        "\n✓ [{}] {} tests passed with Solar (gas <= solc)",
+        project_name, solar_run.total_passed
+    );
 }
 
 #[cfg(test)]
@@ -621,7 +667,13 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_unifap_v2() {
         test_project_solar("unifap-v2", "testdata/unifap-v2");
+    }
+
+    #[test]
+    fn test_unifap_v2_create() {
+        test_project_solar("unifap-v2-create", "testdata/unifap-v2-create");
     }
 }

@@ -340,6 +340,8 @@ impl<'gcx> Lowerer<'gcx> {
         match res {
             hir::Res::Item(item_id) => {
                 if let hir::ItemId::Variable(var_id) = item_id {
+                    let var = self.gcx.hir.variable(*var_id);
+
                     // First check if it's a function parameter (SSA value)
                     if let Some(&val) = self.locals.get(var_id) {
                         return val;
@@ -349,6 +351,13 @@ impl<'gcx> Lowerer<'gcx> {
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
                         let offset_val = builder.imm_u64(offset);
                         return builder.mload(offset_val);
+                    }
+
+                    // Check if it's a constant - inline its value
+                    if var.is_constant() {
+                        if let Some(init) = var.initializer {
+                            return self.lower_expr(builder, init);
+                        }
                     }
 
                     // Check if it's a storage variable
@@ -701,8 +710,32 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle internal function calls: func(args) where func is a function in the same contract
         if let ExprKind::Ident(res_slice) = &callee.kind {
-            if let Some(hir::Res::Item(hir::ItemId::Function(func_id))) = res_slice.first() {
-                return self.lower_internal_call(builder, *func_id, args);
+            let arg_count = args.exprs().count();
+
+            // Find the best matching overload based on argument count
+            // First, collect all function resolutions
+            let func_resolutions: Vec<_> = res_slice
+                .iter()
+                .filter_map(|r| {
+                    if let hir::Res::Item(hir::ItemId::Function(fid)) = r {
+                        Some(*fid)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            // Select the overload that matches the argument count
+            let selected_func = func_resolutions
+                .iter()
+                .find(|&&fid| {
+                    let f = self.gcx.hir.function(fid);
+                    f.parameters.len() == arg_count
+                })
+                .or_else(|| func_resolutions.first());
+
+            if let Some(&func_id) = selected_func {
+                return self.lower_internal_call(builder, func_id, args);
             }
         }
 
@@ -938,16 +971,21 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let contract = self.gcx.hir.contract(*contract_id);
             if contract.kind.is_library() {
-                // Find the library function by name
-                if let Some(func_id) = self.find_library_function(*contract_id, member.name) {
+                // Find the library function by name, matching argument count for overloads
+                let arg_count = args.exprs().count();
+                if let Some(func_id) =
+                    self.find_library_function(*contract_id, member.name, arg_count)
+                {
                     return self.lower_library_call(builder, func_id, args, None);
                 }
             }
         }
 
         // Handle address payable transfer/send builtins
+        // Only treat as address builtins if base is NOT a contract type
         let member_name = member.name.as_str();
-        if member_name == "transfer" || member_name == "send" {
+        if (member_name == "transfer" || member_name == "send") && !self.is_contract_type_expr(base)
+        {
             // payable(addr).transfer(amount) or payable(addr).send(amount)
             // CALL(2300, addr, amount, 0, 0, 0, 0)
             let addr = self.lower_expr(builder, base);
@@ -1588,20 +1626,32 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Finds a library function by name.
+    /// Finds a library function by name, preferring the overload matching arg_count.
     fn find_library_function(
         &self,
         library_id: hir::ContractId,
         name: Symbol,
+        arg_count: usize,
     ) -> Option<hir::FunctionId> {
         let library = self.gcx.hir.contract(library_id);
+        let mut candidates: Vec<hir::FunctionId> = Vec::new();
+
         for func_id in library.all_functions() {
             let func = self.gcx.hir.function(func_id);
             if func.name.is_some_and(|n| n.name == name) {
-                return Some(func_id);
+                candidates.push(func_id);
             }
         }
-        None
+
+        // Select the overload that matches the argument count
+        candidates
+            .iter()
+            .find(|&&fid| {
+                let f = self.gcx.hir.function(fid);
+                f.parameters.len() == arg_count
+            })
+            .copied()
+            .or_else(|| candidates.first().copied())
     }
 
     /// Lowers an internal function call by inlining it.
@@ -1614,9 +1664,17 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
 
-        // Collect argument values FIRST (before modifying any state)
+        // Collect argument values FIRST (before entering inline tracking)
+        // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
+        // because we evaluate arguments before marking ourselves as "in progress"
         let arg_vals: Vec<ValueId> =
             args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+
+        // Check for recursive inlining cycle AFTER evaluating arguments
+        if !self.try_enter_inline(func_id) {
+            // Cycle detected or max depth exceeded - return placeholder
+            return builder.imm_u64(0);
+        }
 
         // Save current locals
         let saved_locals = std::mem::take(&mut self.locals);
@@ -1638,6 +1696,9 @@ impl<'gcx> Lowerer<'gcx> {
         // Restore locals
         self.locals = saved_locals;
 
+        // Exit inline tracking
+        self.exit_inline();
+
         result
     }
 
@@ -1656,7 +1717,9 @@ impl<'gcx> Lowerer<'gcx> {
         if func.visibility == hir::Visibility::Internal
             || func.visibility == hir::Visibility::Private
         {
-            // Collect argument values FIRST (before modifying any state)
+            // Collect argument values FIRST (before entering inline tracking)
+            // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
+            // because we evaluate arguments before marking ourselves as "in progress"
             let mut arg_vals: Vec<ValueId> = Vec::new();
 
             // If there's a bound argument (from `using X for T`), it's the first argument
@@ -1667,6 +1730,12 @@ impl<'gcx> Lowerer<'gcx> {
             // Lower all explicit arguments
             for arg in args.exprs() {
                 arg_vals.push(self.lower_expr(builder, arg));
+            }
+
+            // Check for recursive inlining cycle AFTER evaluating arguments
+            if !self.try_enter_inline(func_id) {
+                // Cycle detected or max depth exceeded - return placeholder
+                return builder.imm_u64(0);
             }
 
             // Simple inlining: bind parameters directly as SSA values
@@ -1690,6 +1759,9 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Restore locals
             self.locals = saved_locals;
+
+            // Exit inline tracking
+            self.exit_inline();
 
             result
         } else {
@@ -1730,16 +1802,39 @@ impl<'gcx> Lowerer<'gcx> {
                     self.lower_expr(builder, expr);
                 }
                 hir::StmtKind::If(cond, then_stmt, else_stmt) => {
-                    // For conditionals, we need more complex handling
-                    // For now, evaluate condition and both branches simply
+                    // Check if this is an early return pattern: `if (cond) return val;`
+                    // followed by more code (no else branch)
                     let cond_val = self.lower_expr(builder, cond);
-                    let then_val = self.lower_library_stmt_return(builder, then_stmt);
-                    let else_val = else_stmt
-                        .map(|s| self.lower_library_stmt_return(builder, s))
-                        .unwrap_or_else(|| builder.imm_u64(0));
-                    if then_val != builder.imm_u64(0) || else_val != builder.imm_u64(0) {
-                        return builder.select(cond_val, then_val, else_val);
+                    let then_return = self.lower_library_stmt_return(builder, then_stmt);
+
+                    if else_stmt.is_none() && then_return != builder.imm_u64(0) {
+                        // Early return pattern: `if (cond) return val;`
+                        // We need to continue processing remaining statements for the else case
+                        // The remaining statements in the current body are the "else" branch
+                        // We'll process them and create a Select between early return and result
+                        // Store cond and then_return, continue processing remaining stmts
+                        // This is handled by building proper control flow with branches
+                        // For now, use proper branching via lower_if
+                        let then_block = builder.create_block();
+                        let merge_block = builder.create_block();
+
+                        builder.branch(cond_val, then_block, merge_block);
+
+                        // Then block: return the early return value
+                        builder.switch_to_block(then_block);
+                        builder.ret([then_return]);
+
+                        // Merge block: continue with rest of function
+                        builder.switch_to_block(merge_block);
+                        // Continue processing remaining statements (fall through to next iteration)
+                    } else if else_stmt.is_some() {
+                        // If-else: both branches have potential returns
+                        let else_val = self.lower_library_stmt_return(builder, else_stmt.unwrap());
+                        if then_return != builder.imm_u64(0) || else_val != builder.imm_u64(0) {
+                            return builder.select(cond_val, then_return, else_val);
+                        }
                     }
+                    // If no return in either branch, continue processing
                 }
                 _ => {}
             }
@@ -1839,5 +1934,30 @@ impl<'gcx> Lowerer<'gcx> {
         // TODO: Support bytes memory variables
         let _val = self.lower_expr(builder, expr);
         (builder.imm_u64(0), builder.imm_u64(0))
+    }
+
+    /// Checks if an expression has a contract type (as opposed to address type).
+    /// Used to distinguish between address.transfer(amount) and token.transfer(to, amount).
+    fn is_contract_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        // Case 1: Variable with contract type (e.g., `token` where `MinimalERC20 token`)
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if matches!(ty.kind, solar_sema::ty::TyKind::Contract(_)) {
+                return true;
+            }
+        }
+
+        // Case 2: Type conversion call like IToken(addr)
+        if let ExprKind::Call(callee, _, _) = &expr.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(_))) = res_slice.first()
+        {
+            return true;
+        }
+
+        false
     }
 }

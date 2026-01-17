@@ -96,7 +96,15 @@ impl StackScheduler {
                     self.ops.push(ScheduledOp::LoadArg(*index));
                     self.stack.push(value);
                 }
-                _other => {}
+                other => {
+                    debug_assert!(
+                        false,
+                        "Value {:?} is not on stack, not spilled, and not an immediate/arg. \
+                         This usually means a cross-block value wasn't spilled before the block exit. \
+                         Value kind: {:?}",
+                        value, other
+                    );
+                }
             }
         }
 

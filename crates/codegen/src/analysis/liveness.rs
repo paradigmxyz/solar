@@ -124,9 +124,10 @@ struct BlockLiveness {
 pub struct Liveness {
     /// Per-block liveness information (indexed by block index).
     block_liveness: Vec<BlockLiveness>,
-    /// The last use location of each value: (block, instruction index within block).
-    /// None means it's used in a terminator or is live-out.
-    last_use: FxHashMap<ValueId, (BlockId, Option<usize>)>,
+    /// The last use location of each value within each block: (block, instruction index).
+    /// The key is (ValueId, BlockId), and value is the instruction index (None = terminator).
+    /// This tracks the last use of a value *within* each block where it's used.
+    last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>>,
     /// Number of values in the function.
     #[allow(dead_code)]
     num_values: usize,
@@ -209,6 +210,13 @@ impl Liveness {
         // live_in(B) = use(B) ∪ (live_out(B) - def(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().collect();
 
+        // Initialize live_in for all blocks from their upward-exposed uses.
+        // This is necessary because the worklist algorithm only updates live_in
+        // when live_out changes, but initially live_out is empty everywhere.
+        for bidx in 0..num_blocks {
+            block_liveness[bidx].live_in = block_uses[bidx].clone();
+        }
+
         while let Some(block_id) = worklist.pop_front() {
             let bidx = block_id.index();
             let block = &func.blocks[block_id];
@@ -242,37 +250,34 @@ impl Liveness {
             }
         }
 
-        // Compute last use locations
-        let mut last_use = FxHashMap::default();
+        // Compute last use locations per block
+        // For each value, track the last instruction index where it's used within each block.
+        let mut last_use_in_block: FxHashMap<(ValueId, BlockId), Option<usize>> =
+            FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
-            let bidx = block_id.index();
-            // Values that are live_out have their last use elsewhere
-            for _val in block_liveness[bidx].live_out.iter() {
-                // Don't overwrite if already recorded - we want the first (latest) occurrence
-                // in reverse program order
-            }
-
-            // Check terminator uses
+            // Check terminator uses - these are the last use in this block
             if let Some(term) = &block.terminator {
                 let mut term_uses = Vec::new();
                 collect_terminator_uses(term, &mut term_uses);
                 for operand in term_uses {
-                    last_use.entry(operand).or_insert((block_id, None));
+                    // Terminator is represented by None for inst_idx
+                    last_use_in_block.entry((operand, block_id)).or_insert(None);
                 }
             }
 
             // Check instruction uses in reverse order
+            // The first occurrence in reverse order is the last use in forward order
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 let inst = func.instruction(inst_id);
                 operand_buf.clear();
                 inst.kind.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
-                    last_use.entry(operand).or_insert((block_id, Some(inst_idx)));
+                    last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
                 }
             }
         }
 
-        Self { block_liveness, last_use, num_values }
+        Self { block_liveness, last_use_in_block, num_values }
     }
 
     /// Returns the values live at the entry of a block.
@@ -347,22 +352,35 @@ impl Liveness {
         LivenessInfo { live_before: live.clone(), live_after: live }
     }
 
-    /// Returns the last use location of a value, if known.
-    /// Returns (block, Some(inst_idx)) if last used at an instruction,
-    /// (block, None) if last used in a terminator.
+    /// Returns the last use location of a value within a specific block, if any.
+    /// Returns `Some(Some(inst_idx))` if last used at an instruction,
+    /// `Some(None)` if last used in a terminator,
+    /// `None` if the value is not used in this block.
     #[must_use]
-    pub fn last_use(&self, val: ValueId) -> Option<(BlockId, Option<usize>)> {
-        self.last_use.get(&val).copied()
+    pub fn last_use_in_block(&self, val: ValueId, block: BlockId) -> Option<Option<usize>> {
+        self.last_use_in_block.get(&(val, block)).copied()
     }
 
     /// Returns true if the value is dead after the given instruction in the given block.
+    ///
+    /// A value is dead after an instruction if:
+    /// 1. The instruction is the last use of the value within this block, AND
+    /// 2. The value is NOT in live_out (meaning no successor blocks use it)
     #[must_use]
     pub fn is_dead_after(&self, val: ValueId, block: BlockId, inst_idx: usize) -> bool {
-        match self.last_use.get(&val) {
-            Some(&(last_block, Some(last_idx))) => last_block == block && last_idx == inst_idx,
-            // Value has no uses at all - it's dead from birth
+        // If the value is in live_out, it's used by successor blocks, so it's not dead
+        if self.block_liveness[block.index()].live_out.contains(val) {
+            return false;
+        }
+
+        // Check if this instruction is the last use within this block
+        match self.last_use_in_block.get(&(val, block)) {
+            Some(&Some(last_idx)) => last_idx == inst_idx,
+            // Last use is in terminator - not dead after any instruction
+            Some(&None) => false,
+            // Value not used in this block at all - should not happen if we're asking
+            // but conservatively say it's dead
             None => true,
-            _ => false,
         }
     }
 }

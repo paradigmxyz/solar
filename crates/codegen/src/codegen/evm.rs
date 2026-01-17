@@ -91,17 +91,45 @@ impl EvmCodegen {
         // Calculate push sizes
         let len_push_size = if runtime_len == 0 {
             1 // PUSH0
-        } else if runtime_len <= 255 {
+        } else if runtime_len <= 0xFF {
             2 // PUSH1
-        } else {
+        } else if runtime_len <= 0xFFFF {
             3 // PUSH2
+        } else {
+            4 // PUSH3
         };
 
-        // Calculate the deploy code length (excluding constructor)
-        let return_code_len = len_push_size + 1 + 2 + 1 + 1 + 1 + 1; // 9 bytes for PUSH+DUP+PUSH+PUSH0+CODECOPY+PUSH0+RETURN
+        // We need to calculate deploy_code_len, but it depends on the push size for
+        // deploy_code_len itself (circular). We solve by computing iteratively:
+        // - Start with minimum offset_push_size = 2 (PUSH1 for offset up to 255)
+        // - Compute deploy_code_len
+        // - Adjust offset_push_size if needed
+        //
+        // Return code structure:
+        // 1. PUSH runtime_len     (len_push_size bytes)
+        // 2. DUP1                 (1 byte)
+        // 3. PUSH deploy_code_len (offset_push_size bytes)
+        // 4. PUSH0                (1 byte - memory destination)
+        // 5. CODECOPY             (1 byte)
+        // 6. PUSH0                (1 byte - return offset)
+        // 7. RETURN               (1 byte)
+        // Total: len_push_size + offset_push_size + 5
 
-        // Total deploy code = constructor + return code
-        let deploy_code_len = constructor_code.len() + return_code_len;
+        // First estimate with PUSH1 for offset (2 bytes)
+        let mut offset_push_size = 2;
+        let mut deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
+
+        // Check if we need PUSH2 for the offset
+        if deploy_code_len > 255 {
+            offset_push_size = 3; // PUSH2
+            deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
+        }
+
+        // Check if we need PUSH3 for the offset (very large contracts)
+        if deploy_code_len > 65535 {
+            offset_push_size = 4; // PUSH3
+            deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
+        }
 
         // Build the deployment bytecode
         let mut deploy_bytecode = Vec::new();
@@ -410,7 +438,7 @@ impl EvmCodegen {
             self.asm.define_label(self.block_labels[&block_id]);
             self.asm.emit_op(opcodes::JUMPDEST);
 
-            // Reset stack at block entry (simplified - real impl needs canonical shapes)
+            // Reset stack at block entry - all cross-block values should be in spill slots
             self.scheduler.clear_stack();
 
             // Generate instructions
@@ -441,9 +469,78 @@ impl EvmCodegen {
                 }
             }
 
+            // Spill all live-out values before the terminator so they can be reloaded
+            // in successor blocks
+            self.spill_live_out_values(func, &liveness, block_id);
+
             // Generate terminator
             if let Some(term) = &block.terminator {
                 self.generate_terminator(func, term);
+            }
+        }
+    }
+
+    /// Spills all live-out values that are currently on the stack to memory.
+    /// This ensures values that need to be accessed in successor blocks can be reloaded.
+    fn spill_live_out_values(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
+        let live_out = liveness.live_out(block_id);
+
+        for val in live_out.iter() {
+            self.spill_value_if_needed(func, val);
+        }
+    }
+
+    /// Spills a single value to memory if it's on the stack and not already spilled.
+    /// Skips immediates and args since they can be re-emitted without spilling.
+    fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
+        // Skip immediates and args - they can be re-emitted without spilling
+        match func.value(val) {
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. } => return,
+            _ => {}
+        }
+
+        // If the value is not already spilled, spill it
+        if !self.scheduler.spills.is_spilled(val) {
+            // Check if value is on the stack
+            if let Some(depth) = self.scheduler.stack.find(val) {
+                // Allocate a spill slot
+                let slot = self.scheduler.spills.allocate(val);
+
+                // DUP the value to top of stack for storing.
+                // We need to DUP (not just use ensure_on_top) because:
+                // 1. If value is on top, ensure_on_top does nothing but we need a copy
+                // 2. MSTORE will consume the value, and we want to preserve the original
+                let dup_n = (depth + 1) as u8;
+                self.asm.emit_op(opcodes::dup(dup_n));
+                self.scheduler.stack.dup(dup_n);
+
+                // Store to spill slot: PUSH offset, MSTORE
+                // The PUSH creates an untracked stack entry, so we track it as unknown
+                self.asm.emit_push(U256::from(slot.byte_offset()));
+                self.scheduler.stack.push_unknown();
+
+                self.asm.emit_op(opcodes::MSTORE);
+                // MSTORE consumes 2 values: the untracked offset and the DUP'd value
+                self.scheduler.stack.pop(); // pop the untracked offset
+                self.scheduler.stack.pop(); // pop the DUP'd value (original remains)
+            }
+        }
+    }
+
+    /// Spills operands that are live-out before an instruction consumes them.
+    /// This ensures cross-block values are preserved in memory.
+    fn spill_live_out_operands(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block_id: BlockId,
+        operands: &[ValueId],
+    ) {
+        let live_out = liveness.live_out(block_id);
+
+        for &op in operands {
+            if live_out.contains(op) {
+                self.spill_value_if_needed(func, op);
             }
         }
     }
@@ -458,97 +555,282 @@ impl EvmCodegen {
         inst_idx: usize,
         result_value: Option<ValueId>,
     ) {
+        // Spill any operands that are live-out before they get consumed.
+        // This ensures cross-block values are preserved in memory.
+        let operands = kind.operands();
+        self.spill_live_out_operands(func, liveness, block, &operands);
+
         match kind {
             // Binary arithmetic operations
-            InstKind::Add(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::ADD, result_value)
-            }
-            InstKind::Sub(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::SUB, result_value)
-            }
-            InstKind::Mul(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::MUL, result_value)
-            }
-            InstKind::Div(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::DIV, result_value)
-            }
-            InstKind::SDiv(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::SDIV, result_value)
-            }
-            InstKind::Mod(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::MOD, result_value)
-            }
-            InstKind::SMod(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::SMOD, result_value)
-            }
-            InstKind::Exp(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::EXP, result_value)
-            }
+            InstKind::Add(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::ADD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Sub(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::SUB,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Mul(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::MUL,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Div(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::DIV,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::SDiv(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::SDIV,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Mod(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::MOD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::SMod(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::SMOD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Exp(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::EXP,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Bitwise operations
-            InstKind::And(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::AND, result_value)
-            }
-            InstKind::Or(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::OR, result_value)
-            }
-            InstKind::Xor(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::XOR, result_value)
-            }
-            InstKind::Not(a) => {
-                self.emit_unary_op_with_result(func, *a, opcodes::NOT, result_value)
-            }
-            InstKind::Shl(shift, val) => {
-                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SHL, result_value)
-            }
-            InstKind::Shr(shift, val) => {
-                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SHR, result_value)
-            }
-            InstKind::Sar(shift, val) => {
-                self.emit_binary_op_with_result(func, *shift, *val, opcodes::SAR, result_value)
-            }
-            InstKind::Byte(i, x) => {
-                self.emit_binary_op_with_result(func, *i, *x, opcodes::BYTE, result_value)
-            }
+            InstKind::And(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::AND,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Or(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::OR,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Xor(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::XOR,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Not(a) => self.emit_unary_op_with_result(
+                func,
+                *a,
+                opcodes::NOT,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Shl(shift, val) => self.emit_binary_op_with_result(
+                func,
+                *shift,
+                *val,
+                opcodes::SHL,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Shr(shift, val) => self.emit_binary_op_with_result(
+                func,
+                *shift,
+                *val,
+                opcodes::SHR,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Sar(shift, val) => self.emit_binary_op_with_result(
+                func,
+                *shift,
+                *val,
+                opcodes::SAR,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Byte(i, x) => self.emit_binary_op_with_result(
+                func,
+                *i,
+                *x,
+                opcodes::BYTE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Comparison operations - track results for branch conditions and Select
-            InstKind::Lt(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::LT, result_value)
-            }
-            InstKind::Gt(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::GT, result_value)
-            }
-            InstKind::SLt(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::SLT, result_value)
-            }
-            InstKind::SGt(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::SGT, result_value)
-            }
-            InstKind::Eq(a, b) => {
-                self.emit_binary_op_with_result(func, *a, *b, opcodes::EQ, result_value)
-            }
-            InstKind::IsZero(a) => {
-                self.emit_unary_op_with_result(func, *a, opcodes::ISZERO, result_value)
-            }
+            InstKind::Lt(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::LT,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Gt(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::GT,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::SLt(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::SLT,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::SGt(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::SGT,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::Eq(a, b) => self.emit_binary_op_with_result(
+                func,
+                *a,
+                *b,
+                opcodes::EQ,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::IsZero(a) => self.emit_unary_op_with_result(
+                func,
+                *a,
+                opcodes::ISZERO,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Memory operations
             // Track MLOAD results so they can be used as operands in subsequent instructions.
             // This is essential for nested external calls where the return value from one call
             // becomes an argument to another call.
-            InstKind::MLoad(addr) => {
-                self.emit_unary_op_with_result(func, *addr, opcodes::MLOAD, result_value)
-            }
-            InstKind::MStore(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE),
-            InstKind::MStore8(addr, val) => self.emit_store_op(func, *addr, *val, opcodes::MSTORE8),
+            InstKind::MLoad(addr) => self.emit_unary_op_with_result(
+                func,
+                *addr,
+                opcodes::MLOAD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::MStore(addr, val) => self.emit_store_op_live_aware(
+                func,
+                *addr,
+                *val,
+                opcodes::MSTORE,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::MStore8(addr, val) => self.emit_store_op_live_aware(
+                func,
+                *addr,
+                *val,
+                opcodes::MSTORE8,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::MSize => {
                 self.asm.emit_op(opcodes::MSIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
             // Storage operations
-            InstKind::SLoad(slot) => {
-                self.emit_unary_op_with_result(func, *slot, opcodes::SLOAD, result_value)
-            }
+            InstKind::SLoad(slot) => self.emit_unary_op_with_result(
+                func,
+                *slot,
+                opcodes::SLOAD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::SStore(slot, val) => self.emit_store_op_live_aware(
                 func,
                 *slot,
@@ -558,24 +840,43 @@ impl EvmCodegen {
                 block,
                 inst_idx,
             ),
-            InstKind::TLoad(slot) => {
-                self.emit_unary_op_with_result(func, *slot, opcodes::TLOAD, result_value)
-            }
+            InstKind::TLoad(slot) => self.emit_unary_op_with_result(
+                func,
+                *slot,
+                opcodes::TLOAD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::TStore(slot, val) => self.emit_store_op(func, *slot, *val, opcodes::TSTORE),
 
             // Calldata operations
-            InstKind::CalldataLoad(off) => {
-                self.emit_unary_op_with_result(func, *off, opcodes::CALLDATALOAD, result_value)
-            }
+            InstKind::CalldataLoad(off) => self.emit_unary_op_with_result(
+                func,
+                *off,
+                opcodes::CALLDATALOAD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::CalldataSize => {
                 self.asm.emit_op(opcodes::CALLDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
             // Hash operations
-            InstKind::Keccak256(off, len) => {
-                self.emit_binary_op_with_result(func, *off, *len, opcodes::KECCAK256, result_value)
-            }
+            InstKind::Keccak256(off, len) => self.emit_binary_op_with_result(
+                func,
+                *off,
+                *len,
+                opcodes::KECCAK256,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Environment operations
             InstKind::Caller => {
@@ -638,21 +939,51 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::PREVRANDAO);
                 self.scheduler.instruction_executed(0, result_value);
             }
-            InstKind::Balance(addr) => {
-                self.emit_unary_op_with_result(func, *addr, opcodes::BALANCE, result_value)
-            }
-            InstKind::BlockHash(num) => {
-                self.emit_unary_op_with_result(func, *num, opcodes::BLOCKHASH, result_value)
-            }
-            InstKind::BlobHash(idx) => {
-                self.emit_unary_op_with_result(func, *idx, opcodes::BLOBHASH, result_value)
-            }
-            InstKind::ExtCodeSize(addr) => {
-                self.emit_unary_op_with_result(func, *addr, opcodes::EXTCODESIZE, result_value)
-            }
-            InstKind::ExtCodeHash(addr) => {
-                self.emit_unary_op_with_result(func, *addr, opcodes::EXTCODEHASH, result_value)
-            }
+            InstKind::Balance(addr) => self.emit_unary_op_with_result(
+                func,
+                *addr,
+                opcodes::BALANCE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::BlockHash(num) => self.emit_unary_op_with_result(
+                func,
+                *num,
+                opcodes::BLOCKHASH,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::BlobHash(idx) => self.emit_unary_op_with_result(
+                func,
+                *idx,
+                opcodes::BLOBHASH,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::ExtCodeSize(addr) => self.emit_unary_op_with_result(
+                func,
+                *addr,
+                opcodes::EXTCODESIZE,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::ExtCodeHash(addr) => self.emit_unary_op_with_result(
+                func,
+                *addr,
+                opcodes::EXTCODEHASH,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
             InstKind::CodeSize => {
                 self.asm.emit_op(opcodes::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
@@ -697,9 +1028,16 @@ impl EvmCodegen {
             }
 
             // Sign extend
-            InstKind::SignExtend(b, x) => {
-                self.emit_binary_op_with_result(func, *b, *x, opcodes::SIGNEXTEND, result_value)
-            }
+            InstKind::SignExtend(b, x) => self.emit_binary_op_with_result(
+                func,
+                *b,
+                *x,
+                opcodes::SIGNEXTEND,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Phi nodes are skipped (handled by copies)
             InstKind::Phi(_) => {}
@@ -933,7 +1271,9 @@ impl EvmCodegen {
         }
     }
 
-    /// Emits a binary operation with result tracking.
+    /// Emits a binary operation with result tracking and liveness awareness.
+    /// If an operand is still live after this instruction, we DUP it before it gets consumed.
+    #[allow(clippy::too_many_arguments)]
     fn emit_binary_op_with_result(
         &mut self,
         func: &Function,
@@ -941,11 +1281,30 @@ impl EvmCodegen {
         b: ValueId,
         opcode: u8,
         result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
     ) {
-        // Special case: same operand used twice (e.g., a - a, a % a)
-        // Need to emit the value once, then DUP1 to have two copies
+        // Check if operands are still live after this instruction
+        let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
+        let b_is_live = !liveness.is_dead_after(b, block, inst_idx);
+
+        // Helper to check if a value can be re-emitted (immediates and args don't need DUP)
+        let can_reemit = |v: ValueId| {
+            matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        };
+
+        // Special case: same operand used twice (e.g., a + a, a - a)
         if a == b {
             self.emit_value(func, a);
+            // If the value is still live after this instruction and only appears once,
+            // DUP it to preserve (if it appears more than once, a copy already exists).
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
+            // Now DUP for the second operand
             self.asm.emit_op(opcodes::DUP1);
             self.scheduler.stack.dup(1);
             self.asm.emit_op(opcode);
@@ -962,11 +1321,23 @@ impl EvmCodegen {
         if !a_can_emit && b_can_emit && has_untracked {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
+            // DUP b if still live and this is the only copy.
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
             self.asm.emit_op(opcodes::SWAP1);
             self.scheduler.stack_swapped();
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
+            // DUP a if still live and this is the only copy.
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
             // a is an untracked value at depth 1, b is tracked on top
             // Stack is [b, a_untracked], need [a, b]
@@ -976,22 +1347,56 @@ impl EvmCodegen {
         } else {
             // Normal case: emit b first (bottom), then a (top)
             self.emit_value(func, b);
+            // DUP b if still live and this is the only copy.
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
             self.emit_value(func, a);
+            // DUP a if still live and this is the only copy.
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
         }
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(2, result);
     }
 
-    /// Emits a unary operation with result tracking.
+    /// Emits a unary operation with result tracking and liveness awareness.
+    /// If the operand is still live after this instruction, we DUP it before it gets consumed.
     fn emit_unary_op_with_result(
         &mut self,
         func: &Function,
         a: ValueId,
         opcode: u8,
         result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
     ) {
+        // Check if the operand is still live after this instruction
+        let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
+
+        // Check if value can be re-emitted (immediates and args don't need DUP)
+        let can_reemit = matches!(
+            func.value(a),
+            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+        );
+
         self.emit_value(func, a);
+
+        // If the operand is still live and this is the only copy on stack, DUP to preserve
+        // (if there are multiple copies, the operation consuming one still leaves others).
+        // Skip DUP for immediates/args since they can be re-emitted.
+        if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit {
+            self.asm.emit_op(opcodes::dup(1));
+            self.scheduler.stack.dup(1);
+        }
+
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(1, result);
     }
@@ -1023,12 +1428,18 @@ impl EvmCodegen {
         // Check if addr is still live after this instruction
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
 
+        // Helper to check if a value can be re-emitted (immediates and args don't need DUP)
+        let can_reemit = |v: ValueId| {
+            matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+        };
+
         // Emit val
         self.emit_value(func, val);
 
-        // If val is still live and is on top of the stack, we need to DUP it
-        // before it gets consumed by the store operation
-        if val_is_live && self.scheduler.stack.is_on_top(val) {
+        // If val is still live and this is the only copy on stack, we need to DUP it
+        // before it gets consumed by the store operation.
+        // Skip DUP for immediates/args since they can be re-emitted.
+        if val_is_live && self.scheduler.stack.count(val) == 1 && !can_reemit(val) {
             self.asm.emit_op(opcodes::dup(1));
             self.scheduler.stack.dup(1);
         }
@@ -1036,8 +1447,12 @@ impl EvmCodegen {
         // Emit addr
         self.emit_value(func, addr);
 
-        // If addr is still live, DUP it too (rare but possible)
-        if addr_is_live && self.scheduler.stack.is_on_top(addr) {
+        // If addr is still live and this is the only copy, DUP it too (rare but possible).
+        // Skip DUP for immediates/args since they can be re-emitted.
+        // NOTE: DUPing addr here would corrupt the stack layout since it was just pushed
+        // on top of val. For non-immediate/arg values that are live, the caller must
+        // ensure they are available via spilling or other means.
+        if addr_is_live && self.scheduler.stack.count(addr) == 1 && !can_reemit(addr) {
             self.asm.emit_op(opcodes::dup(1));
             self.scheduler.stack.dup(1);
         }
@@ -1056,11 +1471,15 @@ impl EvmCodegen {
     }
 
     /// Generates a parallel copy.
+    ///
+    /// Phi copies move values from source to destination. The destination is typically
+    /// a phi result that needs to be available in the successor block. We handle this
+    /// by spilling the source value to the destination's spill slot.
     fn generate_copy(
         &mut self,
         func: &Function,
         copy: &ParallelCopy,
-        temps: &mut FxHashMap<u32, ()>,
+        temps: &mut FxHashMap<u32, ValueId>,
     ) {
         // Handle source: either a MIR value or a temporary
         match &copy.src {
@@ -1068,26 +1487,36 @@ impl EvmCodegen {
                 self.emit_value(func, *val);
             }
             CopySource::Temp(temp_id) => {
-                // Temporaries are kept on stack - this should DUP from the temp's position
-                // For now, we assume temps are managed by the stack scheduler
-                // This is a simplified implementation
-                if !temps.contains_key(temp_id) {
-                    // First reference to this temp - it should already be on stack
-                    // from a prior copy to CopyDest::Temp
+                // Temporaries are tracked in our temps map with their ValueId
+                if let Some(&temp_val) = temps.get(temp_id) {
+                    // DUP the temp value to top of stack
+                    if let Some(depth) = self.scheduler.stack.find(temp_val) {
+                        let dup_n = (depth + 1) as u8;
+                        self.asm.emit_op(opcodes::dup(dup_n));
+                        self.scheduler.stack.dup(dup_n);
+                    }
                 }
             }
         }
 
         // Handle destination: either a MIR value or a temporary
         match &copy.dst {
-            CopyDest::Value(_val) => {
-                // The value is now on stack representing the destination
-                // In a real implementation, we'd track that this stack slot
-                // now represents the destination ValueId
+            CopyDest::Value(dst_val) => {
+                // Spill the value on top of stack to the destination's spill slot
+                // This allows the successor block to reload it
+                let slot = self.scheduler.spills.allocate(*dst_val);
+                self.asm.emit_push(U256::from(slot.byte_offset()));
+                self.scheduler.stack.push_unknown();
+                self.asm.emit_op(opcodes::MSTORE);
+                self.scheduler.stack.pop(); // pop the untracked offset
+                self.scheduler.stack.pop(); // pop the value
             }
             CopyDest::Temp(temp_id) => {
                 // Mark this temporary as defined - it's now on the stack
-                temps.insert(*temp_id, ());
+                // Get the ValueId of the value currently on top
+                if let Some(val_on_top) = self.scheduler.stack.top() {
+                    temps.insert(*temp_id, val_on_top);
+                }
             }
         }
     }
@@ -1114,32 +1543,51 @@ impl EvmCodegen {
             }
 
             Terminator::Branch { condition, then_block, else_block } => {
-                // Emit the condition first (before popping other values)
+                // Emit the condition first (it's still on the stack)
                 self.emit_value(func, *condition);
-                // Pop any remaining values EXCEPT the condition we just emitted
-                // The condition is now on top, so we need to preserve it
-                // Actually, after emit_value the condition is on top. We need to pop
-                // everything underneath it, then use the condition.
-                // For simplicity, we'll just emit and use immediately.
+
+                // Now pop all OTHER values (condition is on top, keep it)
+                // We do this by tracking that condition was just pushed and emitting POPs for
+                // everything else
+                while self.scheduler.depth() > 1 {
+                    // SWAP to get unwanted value to top, then POP
+                    self.asm.emit_op(opcodes::SWAP1);
+                    self.scheduler.stack_swapped();
+                    self.asm.emit_op(opcodes::POP);
+                    self.scheduler.stack.pop();
+                }
+
+                // JUMPI consumes the condition
                 self.asm.emit_push_label(self.block_labels[then_block]);
                 self.asm.emit_op(opcodes::JUMPI);
+                self.scheduler.stack.pop(); // condition consumed by JUMPI
 
                 self.asm.emit_push_label(self.block_labels[else_block]);
                 self.asm.emit_op(opcodes::JUMP);
             }
 
-            Terminator::Switch { value: _, default, cases } => {
+            Terminator::Switch { value, default, cases } => {
+                // Pop all stack values first (live-out values are already spilled)
+                self.pop_all_stack_values();
+
+                // Emit the switch value (will reload from spill if needed)
+                self.emit_value(func, *value);
+
                 for (case_val, target) in cases {
                     // DUP the value, compare, jump if equal
-                    self.asm.emit_op(opcodes::dup(1));
+                    self.asm.emit_op(opcodes::DUP1);
+                    self.scheduler.stack.dup(1);
                     self.emit_value(func, *case_val);
                     self.asm.emit_op(opcodes::EQ);
+                    self.scheduler.instruction_executed(2, None); // EQ consumes 2, pushes 1
                     self.asm.emit_push_label(self.block_labels[target]);
                     self.asm.emit_op(opcodes::JUMPI);
+                    self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
                 }
 
                 // Pop the value and jump to default
                 self.asm.emit_op(opcodes::POP);
+                self.scheduler.stack.pop();
                 self.asm.emit_push_label(self.block_labels[default]);
                 self.asm.emit_op(opcodes::JUMP);
             }
@@ -1208,5 +1656,101 @@ impl EvmCodegen {
 impl Default for EvmCodegen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lower;
+    use solar_interface::Session;
+    use solar_sema::Compiler;
+    use std::{ops::ControlFlow, path::PathBuf};
+
+    /// Helper to compile Solidity source to bytecode, returning Result.
+    fn compile_source(source: &str) -> Result<Vec<u8>, String> {
+        let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+        let mut compiler = Compiler::new(sess);
+
+        // Parse
+        let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<_> {
+            let mut ctx = c.parse();
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("test.sol"), source.to_string())
+                .unwrap();
+            ctx.add_file(file);
+            ctx.parse();
+            Ok(())
+        });
+        if parse_result.is_err() {
+            return Err("Parse error".to_string());
+        }
+
+        // Lower and codegen
+        let result = compiler.enter_mut(|c| -> Result<Vec<u8>, String> {
+            let ControlFlow::Continue(()) = c.lower_asts().map_err(|_| "Lower AST error")? else {
+                return Err("Lower AST break".to_string());
+            };
+            let ControlFlow::Continue(()) = c.analysis().map_err(|_| "Analysis error")? else {
+                return Err("Analysis break".to_string());
+            };
+
+            let gcx = c.gcx();
+            for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                if contract.name.as_str() == "Test" {
+                    let mut module = lower::lower_contract(gcx, contract_id);
+                    let mut codegen = EvmCodegen::new();
+                    let bytecode = codegen.generate_module(&mut module);
+                    return Ok(bytecode);
+                }
+            }
+            Err("Contract 'Test' not found".to_string())
+        });
+
+        result
+    }
+
+    #[test]
+    fn test_local_var_in_conditional_ice() {
+        // Minimal repro for stack underflow ICE:
+        // 1. Read storage into local variable
+        // 2. Use local variable in conditional check
+        // 3. Use local variable inside the conditional body
+        let source = r#"
+            // SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+            contract Test {
+                uint256 public value;
+                function test() public {
+                    uint256 v = value;
+                    if (v != 0) value = v - 1;
+                }
+            }
+        "#;
+
+        let result = compile_source(source);
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        let bytecode = result.unwrap();
+        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
+    }
+
+    #[test]
+    fn test_direct_storage_in_conditional_works() {
+        // This works: directly referencing storage in both condition and body
+        let source = r#"
+            // SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+            contract Test {
+                uint256 public value;
+                function test() public {
+                    if (value != 0) value = value - 1;
+                }
+            }
+        "#;
+
+        let result = compile_source(source);
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
     }
 }

@@ -52,6 +52,8 @@ pub struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: FxHashSet<VariableId>,
+    /// Stack of function IDs currently being inlined (for cycle detection).
+    inline_stack: Vec<HirFunctionId>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -68,6 +70,7 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: FxHashSet::default(),
+            inline_stack: Vec::new(),
         }
     }
 
@@ -84,6 +87,29 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the current loop context, if any.
     pub fn current_loop(&self) -> Option<&LoopContext> {
         self.loop_stack.last()
+    }
+
+    /// Maximum inline depth to prevent excessive recursion.
+    const MAX_INLINE_DEPTH: usize = 32;
+
+    /// Attempts to enter inlining for a function. Returns false if a cycle is detected
+    /// or the max inline depth is exceeded.
+    fn try_enter_inline(&mut self, func_id: HirFunctionId) -> bool {
+        // Check for cycle
+        if self.inline_stack.contains(&func_id) {
+            return false;
+        }
+        // Check depth limit
+        if self.inline_stack.len() >= Self::MAX_INLINE_DEPTH {
+            return false;
+        }
+        self.inline_stack.push(func_id);
+        true
+    }
+
+    /// Exits inlining for a function.
+    fn exit_inline(&mut self) {
+        self.inline_stack.pop();
     }
 
     /// Allocates a memory slot for a local variable.
@@ -232,7 +258,8 @@ impl<'gcx> Lowerer<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             for var_id in base_contract.variables() {
                 let var = self.gcx.hir.variable(var_id);
-                if var.is_state_variable() && var.initializer.is_some() {
+                // Skip constant variables - they don't have storage slots
+                if var.is_state_variable() && !var.is_constant() && var.initializer.is_some() {
                     vars_with_init.push(var_id);
                 }
             }
@@ -300,7 +327,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                if var.is_state_variable() {
+                // Skip constant variables - they are inlined and don't use storage
+                if var.is_state_variable() && !var.is_constant() {
                     let slot = self.next_storage_slot;
                     self.next_storage_slot += 1;
 
