@@ -621,8 +621,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Some tests fail due to unimplemented codegen features (create2, complex inheritance)
-    fn test_uniswapv2() {
-        test_project_solar("uniswapv2", "testdata/uniswapv2");
+    fn test_unifap_v2() {
+        test_project_solar("unifap-v2", "testdata/unifap-v2");
     }
 }
