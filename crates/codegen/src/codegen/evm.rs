@@ -13,7 +13,7 @@ use crate::{
         stack::{ScheduledOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
-    transform::DeadCodeEliminator,
+    transform::{DeadCodeEliminator, JumpThreader},
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -251,7 +251,11 @@ impl EvmCodegen {
     /// Runs optimization passes on all functions in the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
         let mut dce = DeadCodeEliminator::new();
+        let mut jump_threader = JumpThreader::new();
         for func in module.functions.iter_mut() {
+            // Run jump threading to eliminate unnecessary jumps (saves 8 gas per threaded jump)
+            jump_threader.run_to_fixpoint(func);
+            // Run DCE to remove dead code (including unreachable blocks after threading)
             dce.run_to_fixpoint(func);
         }
     }

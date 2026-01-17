@@ -109,7 +109,18 @@ impl StackModel {
     /// Simulates a DUP operation.
     /// `n` is 1-indexed (DUP1 = duplicate top, DUP2 = duplicate second from top).
     pub fn dup(&mut self, n: u8) {
+        debug_assert!(
+            n >= 1 && n <= 16,
+            "DUP depth out of range: DUP{} (valid: 1-16)",
+            n
+        );
         let depth = (n - 1) as usize;
+        debug_assert!(
+            depth < self.stack.len(),
+            "DUP{} attempted but stack only has {} elements",
+            n,
+            self.stack.len()
+        );
         if let Some(&value) = self.stack.get(depth) {
             self.stack.insert(0, value);
         }
@@ -118,7 +129,18 @@ impl StackModel {
     /// Simulates a SWAP operation.
     /// `n` is 1-indexed (SWAP1 = swap top with second, SWAP2 = swap top with third).
     pub fn swap(&mut self, n: u8) {
+        debug_assert!(
+            n >= 1 && n <= 16,
+            "SWAP depth out of range: SWAP{} (valid: 1-16)",
+            n
+        );
         let depth = n as usize;
+        debug_assert!(
+            depth < self.stack.len(),
+            "SWAP{} attempted but stack only has {} elements",
+            n,
+            self.stack.len()
+        );
         if depth < self.stack.len() {
             self.stack.swap(0, depth);
         }

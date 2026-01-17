@@ -20,7 +20,7 @@ pub use mir::{
 };
 
 pub mod analysis;
-pub use analysis::{Liveness, LivenessInfo};
+pub use analysis::{InductionVariable, Liveness, LivenessInfo, Loop, LoopAnalyzer, LoopInfo};
 
 pub mod lower;
 pub use lower::Lowerer;
@@ -32,4 +32,8 @@ pub use codegen::{
 };
 
 pub mod transform;
-pub use transform::{ConstantFolder, DeadCodeEliminator};
+pub use transform::{
+    CommonSubexprEliminator, ConstantFolder, DceStats, DeadCodeEliminator, FunctionInlineInfo,
+    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, JumpThreader, JumpThreadingStats,
+    LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
+};

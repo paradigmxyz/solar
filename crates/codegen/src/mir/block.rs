@@ -49,7 +49,7 @@ impl Default for BasicBlock {
 }
 
 /// A block terminator instruction.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Terminator {
     /// Unconditional jump to another block.
     Jump(BlockId),

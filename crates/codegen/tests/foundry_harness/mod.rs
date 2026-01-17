@@ -814,4 +814,11 @@ mod tests {
             .test_filter("testSwap")
             .run();
     }
+
+    // ========== Struct Tests ==========
+
+    #[test]
+    fn test_structs() {
+        test_project_solar("structs", "testdata/structs");
+    }
 }

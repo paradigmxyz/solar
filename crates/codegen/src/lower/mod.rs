@@ -54,6 +54,10 @@ pub struct Lowerer<'gcx> {
     assigned_vars: FxHashSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
+    /// Mapping from struct state variable ID to base storage slot.
+    pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
+    pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -71,6 +75,8 @@ impl<'gcx> Lowerer<'gcx> {
             loop_stack: Vec::new(),
             assigned_vars: FxHashSet::default(),
             inline_stack: Vec::new(),
+            struct_storage_base_slots: FxHashMap::default(),
+            struct_field_offsets: FxHashMap::default(),
         }
     }
 
@@ -329,14 +335,22 @@ impl<'gcx> Lowerer<'gcx> {
                 let var = self.gcx.hir.variable(var_id);
                 // Skip constant variables - they are inlined and don't use storage
                 if var.is_state_variable() && !var.is_constant() {
-                    let slot = self.next_storage_slot;
-                    self.next_storage_slot += 1;
+                    let base_slot = self.next_storage_slot;
 
-                    self.storage_slots.insert(var_id, slot);
+                    // Calculate how many slots this variable needs
+                    let num_slots = self.calculate_storage_slots_for_type(&var.ty);
+                    self.next_storage_slot += num_slots;
+
+                    // Track struct base slots for field access
+                    if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
+                        self.struct_storage_base_slots.insert(var_id, base_slot);
+                    }
+
+                    self.storage_slots.insert(var_id, base_slot);
 
                     let mir_ty = self.lower_type_from_var(var);
                     self.module.add_storage_slot(StorageSlot {
-                        slot,
+                        slot: base_slot,
                         offset: 0,
                         ty: mir_ty,
                         name: var.name,
@@ -344,6 +358,46 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
         }
+    }
+
+    /// Calculates the number of storage slots needed for a type.
+    fn calculate_storage_slots_for_type(&self, ty: &hir::Type<'_>) -> u64 {
+        match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
+                let strukt = self.gcx.hir.strukt(*struct_id);
+                let mut total = 0u64;
+                for &field_id in strukt.fields {
+                    let field = self.gcx.hir.variable(field_id);
+                    total += self.calculate_storage_slots_for_type(&field.ty);
+                }
+                total.max(1)
+            }
+            _ => 1,
+        }
+    }
+
+    /// Gets the storage slot offset for a struct field.
+    pub fn get_struct_field_slot_offset(
+        &mut self,
+        struct_id: hir::StructId,
+        field_index: usize,
+    ) -> u64 {
+        if let Some(&offset) = self.struct_field_offsets.get(&(struct_id, field_index)) {
+            return offset;
+        }
+
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut offset = 0u64;
+        for (i, &field_id) in strukt.fields.iter().enumerate() {
+            if i == field_index {
+                break;
+            }
+            let field = self.gcx.hir.variable(field_id);
+            offset += self.calculate_storage_slots_for_type(&field.ty);
+        }
+
+        self.struct_field_offsets.insert((struct_id, field_index), offset);
+        offset
     }
 
     /// Lowers a function to MIR.
@@ -404,10 +458,12 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
+                std::fs::write("/tmp/solar_body.log", format!("lower_block called for func {:?} with {} stmts\n", hir_func.name, body.stmts.len())).ok();
                 self.lower_block(&mut builder, body);
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
+                std::fs::write("/tmp/solar_debug.log", format!("[DEBUG] Block not terminated for function {:?}, using implicit return\n", hir_func.name)).ok();
                 if builder.func().returns.is_empty() {
                     builder.stop();
                 } else {

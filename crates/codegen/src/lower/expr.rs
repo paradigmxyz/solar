@@ -240,7 +240,31 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.balance(addr);
                 }
 
-                // Regular struct/memory member access
+                // Check if this is a storage struct member access (e.g., storedPoint.x)
+                if let Some((base_slot, struct_id, field_index)) =
+                    self.get_storage_struct_field_info(base, *member)
+                {
+                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    let slot = base_slot + field_offset;
+                    let slot_val = builder.imm_u64(slot);
+                    return builder.sload(slot_val);
+                }
+
+                // Regular memory struct member access
+                if let Some((_struct_id, field_index)) =
+                    self.get_memory_struct_field_info(base, *member)
+                {
+                    let base_val = self.lower_expr(builder, base);
+                    let field_offset = field_index as u64 * 32;
+                    if field_offset == 0 {
+                        return builder.mload(base_val);
+                    }
+                    let offset_val = builder.imm_u64(field_offset);
+                    let field_addr = builder.add(base_val, offset_val);
+                    return builder.mload(field_addr);
+                }
+
+                // Fallback: just load from base address
                 let base_val = self.lower_expr(builder, base);
                 builder.mload(base_val)
             }
@@ -677,7 +701,35 @@ impl<'gcx> Lowerer<'gcx> {
                 let addr = builder.add(base_val, byte_offset);
                 builder.mstore(addr, rhs);
             }
-            ExprKind::Member(base, _member) => {
+            ExprKind::Member(base, member) => {
+                // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
+                if let Some((base_slot, struct_id, field_index)) =
+                    self.get_storage_struct_field_info(base, *member)
+                {
+                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    let slot = base_slot + field_offset;
+                    let slot_val = builder.imm_u64(slot);
+                    builder.sstore(slot_val, rhs);
+                    return;
+                }
+
+                // Regular memory struct member assignment
+                if let Some((_struct_id, field_index)) =
+                    self.get_memory_struct_field_info(base, *member)
+                {
+                    let base_val = self.lower_expr(builder, base);
+                    let field_offset = field_index as u64 * 32;
+                    if field_offset == 0 {
+                        builder.mstore(base_val, rhs);
+                        return;
+                    }
+                    let offset_val = builder.imm_u64(field_offset);
+                    let field_addr = builder.add(base_val, offset_val);
+                    builder.mstore(field_addr, rhs);
+                    return;
+                }
+
+                // Fallback: store at base address
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
@@ -758,6 +810,11 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(first_arg) = args.exprs().next() {
                     return self.lower_expr(builder, first_arg);
                 }
+            }
+            // Check if this resolves to a struct type (struct constructor call)
+            // e.g., Point(10, 20) creates a memory struct
+            if let Some(hir::Res::Item(hir::ItemId::Struct(struct_id))) = res_slice.first() {
+                return self.lower_struct_constructor(builder, *struct_id, args);
             }
         }
 
@@ -1222,6 +1279,118 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
+    /// Lowers a struct constructor call (e.g., Point(10, 20)).
+    /// Allocates memory for the struct and stores each field value.
+    fn lower_struct_constructor(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let num_fields = strukt.fields.len();
+
+        // Allocate memory for the struct (each field is 32 bytes)
+        let struct_size = (num_fields as u64) * 32;
+        let struct_ptr = self.allocate_memory(builder, struct_size);
+
+        // Store each argument into the corresponding field
+        for (i, arg) in args.exprs().enumerate() {
+            if i >= num_fields {
+                break;
+            }
+            let field_val = self.lower_expr(builder, arg);
+            let field_offset = (i as u64) * 32;
+            if field_offset == 0 {
+                builder.mstore(struct_ptr, field_val);
+            } else {
+                let offset_val = builder.imm_u64(field_offset);
+                let field_addr = builder.add(struct_ptr, offset_val);
+                builder.mstore(field_addr, field_val);
+            }
+        }
+
+        // Return the pointer to the struct
+        struct_ptr
+    }
+
+    /// Allocates memory for a given size and returns the pointer.
+    /// Uses the Solidity free memory pointer pattern.
+    fn allocate_memory(&mut self, builder: &mut FunctionBuilder<'_>, size: u64) -> ValueId {
+        // Load free memory pointer from 0x40
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_ptr_addr);
+
+        // Update free memory pointer: free_ptr + size
+        let size_val = builder.imm_u64(size);
+        let new_free_ptr = builder.add(ptr, size_val);
+        let free_ptr_addr2 = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr2, new_free_ptr);
+
+        ptr
+    }
+
+    /// Checks if a member access is on a storage struct variable.
+    /// Returns (base_slot, struct_id, field_index) if the base expression is a storage struct.
+    fn get_storage_struct_field_info(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(u64, hir::StructId, usize)> {
+        // The base must be an identifier resolving to a variable with struct type
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            // Check if the variable has a struct type and is stored in storage
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                if let Some(&base_slot) = self.struct_storage_base_slots.get(var_id) {
+                    // Find the field index by name
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    for (i, &field_id) in strukt.fields.iter().enumerate() {
+                        let field = self.gcx.hir.variable(field_id);
+                        if let Some(field_name) = field.name
+                            && field_name.name == member.name
+                        {
+                            return Some((base_slot, *struct_id, i));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Checks if a member access is on a memory struct.
+    /// Returns (struct_id, field_index) if the base expression is a memory struct.
+    fn get_memory_struct_field_info(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(hir::StructId, usize)> {
+        // The base is a local variable (memory struct) - check if it's in local_memory_slots
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                // For memory structs, we need to verify this is NOT a storage struct
+                if !self.struct_storage_base_slots.contains_key(var_id) {
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    for (i, &field_id) in strukt.fields.iter().enumerate() {
+                        let field = self.gcx.hir.variable(field_id);
+                        if let Some(field_name) = field.name
+                            && field_name.name == member.name
+                        {
+                            return Some((*struct_id, i));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
     /// Lowers dynamic array method calls (push, pop).
     /// For dynamic arrays:
     /// - Length is stored at the base slot
@@ -1497,6 +1666,24 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> usize {
+        // Helper to count the number of 32-byte slots a return type occupies.
+        // Structs are expanded to their number of fields.
+        let count_return_slots = |returns: &[hir::VariableId]| -> usize {
+            let mut total = 0;
+            for &var_id in returns {
+                let var = self.gcx.hir.variable(var_id);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                    // Struct: count its fields
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    total += strukt.fields.len();
+                } else {
+                    // Non-struct: 1 slot
+                    total += 1;
+                }
+            }
+            total.max(1)
+        };
+
         // Helper to look up return count from a contract, including inherited functions.
         // Searches through the linearized inheritance chain.
         let lookup_in_contract = |contract_id: hir::ContractId| -> Option<usize> {
@@ -1507,7 +1694,7 @@ impl<'gcx> Lowerer<'gcx> {
                 for func_id in base_contract.all_functions() {
                     let func = self.gcx.hir.function(func_id);
                     if func.name.is_some_and(|n| n.name == member.name) {
-                        return Some(func.returns.len());
+                        return Some(count_return_slots(func.returns));
                     }
                 }
             }

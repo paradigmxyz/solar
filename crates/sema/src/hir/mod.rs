@@ -22,6 +22,8 @@ pub use ast::{
 mod visit;
 pub use visit::Visit;
 
+pub mod yul;
+
 /// HIR arena allocator.
 pub struct Arena {
     bump: bumpalo::Bump,
