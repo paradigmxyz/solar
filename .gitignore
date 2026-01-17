@@ -10,7 +10,6 @@
 # Compilation artifacts
 /cache/
 /out/
-**/testdata/**/cache/
-**/testdata/**/out/
-**/testdata/**/out-solc/
+**/testdata/**/cache*/
+**/testdata/**/out*/
 **/testdata/**/*-test-output-*.json
