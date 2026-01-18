@@ -30,4 +30,25 @@ contract Caller {
         uint256 multiplied = ICallee(callee).multiply(added, 2);
         return multiplied;
     }
+
+    /// @notice Regression test: multiple external calls with assert
+    /// This tests that stack model stays in sync after multiple CALL instructions.
+    /// Previously, POPs after CALL weren't reflected in StackScheduler, causing
+    /// incorrect DUP depths for subsequent values.
+    function multipleCallsWithAssert(address callee, uint256 x) external view returns (uint256) {
+        uint256 a = ICallee(callee).add(x, 1);
+        uint256 b = ICallee(callee).add(x, 1);
+        assert(a == b);
+        return a + b;
+    }
+
+    /// @notice Three consecutive calls with assertion
+    function threeCallsWithAssert(address callee, uint256 x) external view returns (uint256) {
+        uint256 a = ICallee(callee).add(x, 0);
+        uint256 b = ICallee(callee).add(x, 0);
+        uint256 c = ICallee(callee).add(x, 0);
+        assert(a == b);
+        assert(b == c);
+        return a + b + c;
+    }
 }
