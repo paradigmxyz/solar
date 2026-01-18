@@ -147,7 +147,7 @@ jobs:
           category: "/language:${{matrix.language}}"
 
   deny:
-    uses: ithacaxyz/ci/.github/workflows/deny.yml@main
+    uses: tempoxyz/ci/.github/workflows/deny.yml@main
     permissions:
       contents: read
 
