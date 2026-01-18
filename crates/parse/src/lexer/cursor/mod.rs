@@ -312,24 +312,8 @@ impl<'a> Cursor<'a> {
 
     fn whitespace(&mut self) -> RawTokenKind {
         debug_assert!(is_whitespace_byte(self.prev()));
-        self.eat_whitespace();
+        self.eat_while(is_whitespace_byte);
         RawTokenKind::Whitespace
-    }
-
-    /// SIMD-optimized whitespace skipping.
-    ///
-    /// Instead of checking byte-by-byte with `eat_while`, this finds the first non-whitespace
-    /// byte in bulk using iterator position.
-    #[inline]
-    fn eat_whitespace(&mut self) {
-        let bytes = self.as_bytes();
-        // Find the first non-whitespace byte.
-        // Whitespace in Solidity is: space, tab, newline, carriage return.
-        let ws_end = bytes
-            .iter()
-            .position(|&b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
-            .unwrap_or(bytes.len());
-        self.ignore_bytes(ws_end);
     }
 
     fn ident_or_prefixed_literal(&mut self, first: u8) -> RawTokenKind {

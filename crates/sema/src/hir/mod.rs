@@ -1130,13 +1130,6 @@ impl VarKind {
             Self::TryCatch => "try/catch clause",
         }
     }
-
-    /// Returns `true` if the variable should be declared in the current scope for name
-    /// resolution. Error, event, and struct parameters don't have bodies that can reference them,
-    /// so they shouldn't be added to scope (and shouldn't shadow type names).
-    pub fn declares_in_scope(self) -> bool {
-        !matches!(self, Self::Error | Self::Event | Self::Struct)
-    }
 }
 
 /// A block of statements.
