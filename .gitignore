@@ -5,11 +5,7 @@
 /*.yul
 /tmp/
 .DS_Store
-.worktrees/
-
-# Compilation artifacts
+solc-test-output*
+solar-test-output*
 /cache/
 /out/
-**/testdata/**/cache*/
-**/testdata/**/out*/
-**/testdata/**/*-test-output-*.json
