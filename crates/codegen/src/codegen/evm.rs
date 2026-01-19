@@ -1693,7 +1693,7 @@ mod tests {
         }
 
         // Lower and codegen
-        let result = compiler.enter_mut(|c| -> Result<Vec<u8>, String> {
+        compiler.enter_mut(|c| -> Result<Vec<u8>, String> {
             let ControlFlow::Continue(()) = c.lower_asts().map_err(|_| "Lower AST error")? else {
                 return Err("Lower AST break".to_string());
             };
@@ -1711,9 +1711,7 @@ mod tests {
                 }
             }
             Err("Contract 'Test' not found".to_string())
-        });
-
-        result
+        })
     }
 
     #[test]

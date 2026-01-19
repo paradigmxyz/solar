@@ -349,8 +349,6 @@ mod tests {
         builder.switch_to_block(bb4);
         builder.stop();
 
-        drop(builder);
-
         let entry = func.entry_block;
         let mut threader = JumpThreader::new();
         threader.run(&mut func);
@@ -391,8 +389,6 @@ mod tests {
 
         builder.switch_to_block(bb2);
         builder.stop();
-
-        drop(builder);
 
         let mut threader = JumpThreader::new();
         let changed = threader.run(&mut func);

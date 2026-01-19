@@ -22,6 +22,11 @@ struct TypeChecker<'gcx> {
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
+
+    /// Whether we're directly inside an emit statement (for the immediate call only).
+    in_emit: bool,
+    /// Whether we're directly inside a revert statement (for the immediate call only).
+    in_revert: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -37,7 +42,15 @@ enum NotLvalueReason {
 
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
-        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+        Self {
+            gcx,
+            source,
+            contract: None,
+            types: Default::default(),
+            lvalue_context: None,
+            in_emit: false,
+            in_revert: false,
+        }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -90,12 +103,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -149,24 +156,63 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
                 let mut callee_ty = self.check_expr(callee);
-                // Get the function type for struct constructors.
-                if let TyKind::Type(struct_ty) = callee_ty.kind
+
+                // Get the function type for struct constructors, keeping struct_id for field names.
+                let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
                     && let TyKind::Struct(id) = struct_ty.kind
                 {
                     callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                }
+                    Some(id)
+                } else {
+                    None
+                };
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
+
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
+                    TyKind::FnPtr(f) => {
+                        let param_names = if let Some(struct_id) = struct_id {
+                            Some(self.get_struct_field_names(struct_id))
+                        } else {
+                            f.function_id.map(|id| {
+                                self.get_param_names(self.gcx.hir.function(id).parameters)
+                            })
+                        };
+                        self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
+                        self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) => {
-                        // return callee_ty
-                        todo!()
+                    TyKind::Event(param_tys, id) => {
+                        if !self.in_emit {
+                            self.dcx()
+                                .err("event invocations have to be prefixed by \"emit\"")
+                                .span(expr.span)
+                                .emit();
+                        }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
+                        let event = self.gcx.hir.event(id);
+                        let param_names = self.get_param_names(event.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Error(param_tys, id) => {
+                        // TODO: Also allow in require(condition, MyError(...)).
+                        if !self.in_revert {
+                            self.dcx()
+                                .err("errors can only be used with revert statements")
+                                .span(expr.span)
+                                .emit();
+                        }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
+                        let error = self.gcx.hir.error(id);
+                        let param_names = self.get_param_names(error.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
                     _ => {
@@ -404,13 +450,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let target_ty = self.gcx.types.address_payable;
-                let Err(err) = ty.try_convert_explicit_to(target_ty, self.gcx) else {
-                    return target_ty;
-                };
-
-                let mut diag = self.dcx().err("invalid explicit type conversion").span(expr.span);
-                diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
-                self.gcx.mk_ty_err(diag.emit())
+                match ty.try_convert_explicit_to(target_ty, self.gcx) {
+                    Ok(target_ty) => target_ty,
+                    Err(err) => {
+                        let mut diag =
+                            self.dcx().err("invalid explicit type conversion").span(expr.span);
+                        diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                        self.gcx.mk_ty_err(diag.emit())
+                    }
+                }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -516,8 +564,42 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
-        let _ = (ty, expr);
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if let hir::ExprKind::Tuple(components) = &expr.kind {
+            if components.is_empty() {
+                self.dcx().err("empty tuple on the left hand side").span(expr.span).emit();
+                return;
+            }
+            let types =
+                if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
+            for (component, &component_ty) in components.iter().zip(types.iter()) {
+                if let Some(component) = component {
+                    self.check_assign(component_ty, component);
+                }
+            }
+            return;
+        }
+
+        // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
+        // variable (local storage pointers are OK).
+        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+            self.dcx()
+                .err("types in storage containing (nested) mappings cannot be assigned to")
+                .span(expr.span)
+                .emit();
+        }
+    }
+
+    /// Returns true if the expression refers to a local or return variable.
+    fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                let var = self.gcx.hir.variable(var_id);
+                return var.is_local_or_return();
+            }
+        }
+        false
     }
 
     fn check_binop(
@@ -580,11 +662,14 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(err) = from.try_convert_explicit_to(to, self.gcx) else { return to };
-
-        let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
-        diag = diag.span_label(span, err.message(from, to, self.gcx));
-        self.gcx.mk_ty_err(diag.emit())
+        match from.try_convert_explicit_to(to, self.gcx) {
+            Ok(result_ty) => result_ty,
+            Err(err) => {
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+                diag = diag.span_label(span, err.message(from, to, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
+            }
+        }
     }
 
     #[track_caller]
@@ -601,6 +686,161 @@ impl<'gcx> TypeChecker<'gcx> {
         diag.emit();
     }
 
+    fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        match returns {
+            [] => self.gcx.types.unit,
+            [ty] => *ty,
+            tys => self.gcx.mk_ty_tuple(tys),
+        }
+    }
+
+    fn get_param_names(
+        &self,
+        params: &[hir::VariableId],
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
+    }
+
+    fn get_struct_field_names(
+        &self,
+        id: hir::StructId,
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        self.gcx
+            .hir
+            .strukt(id)
+            .fields
+            .iter()
+            .map(|&fid| self.gcx.hir.variable(fid).name.map(|i| i.name))
+            .collect()
+    }
+
+    fn check_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
+    ) {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if let Some(names) = param_names {
+                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
+                } else {
+                    self.dcx()
+                        .err("named arguments cannot be used for functions that take arbitrary parameters")
+                        .span(args.span)
+                        .emit();
+                    for arg in named_args {
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_positional_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        param_tys: &[Ty<'gcx>],
+    ) {
+        if exprs.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    exprs.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        exprs.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let count = std::cmp::min(exprs.len(), param_tys.len());
+        for i in 0..count {
+            let _ = self.expect_ty(&exprs[i], param_tys[i]);
+        }
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr(expr);
+        }
+    }
+
+    fn check_named_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+        param_tys: &[Ty<'gcx>],
+        param_names: &[Option<solar_interface::Symbol>],
+    ) {
+        debug_assert_eq!(param_tys.len(), param_names.len());
+
+        if named_args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    named_args.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        named_args.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
+
+        for arg in named_args {
+            let arg_name = arg.name.name;
+
+            if seen_names.contains(&arg_name) {
+                self.dcx()
+                    .err(format!("duplicate named argument `{arg_name}`"))
+                    .span(arg.name.span)
+                    .emit();
+                let _ = self.check_expr(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            let param_idx = param_names.iter().position(|n| n.is_some_and(|name| name == arg_name));
+
+            match param_idx {
+                Some(idx) => {
+                    let _ = self.expect_ty(&arg.value, param_tys[idx]);
+                }
+                None => {
+                    self.dcx()
+                        .err(format!(
+                            "named argument `{arg_name}` does not match function declaration"
+                        ))
+                        .span(arg.name.span)
+                        .emit();
+                    let _ = self.check_expr(&arg.value);
+                }
+            }
+        }
+    }
+
     #[must_use]
     fn check_var(&mut self, id: hir::VariableId) -> Ty<'gcx> {
         self.check_var_(id, true)
@@ -611,14 +851,63 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+
         if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assignment
-            self.check_assign(ty, init);
-            if expect {
+            if var.is_state_variable() && ty.has_mapping() {
+                self.dcx()
+                    .err("types in storage containing (nested) mappings cannot be assigned to")
+                    .span(var.span)
+                    .emit();
+            } else if expect {
                 let _ = self.expect_ty(init, ty);
             }
         }
-        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
+
+        if var.is_immutable() {
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+            }
+            if let TyKind::FnPtr(f) = ty.kind
+                && f.visibility == hir::Visibility::External
+            {
+                self.dcx()
+                    .err("immutable variables of external function type are not yet supported")
+                    .span(var.span)
+                    .emit();
+            }
+        }
+
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "type `{}` is only valid in storage because it contains a (nested) mapping",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+        }
+
+        // Uninitialized local mapping variables are invalid (error 4182).
+        if var.kind == hir::VarKind::Statement
+            && var.initializer.is_none()
+            && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            self.dcx()
+                .err("uninitialized mapping")
+                .note("mappings cannot be created dynamically, you have to assign them from a state variable")
+                .span(var.span)
+                .emit();
+        }
+
         ty
     }
 
@@ -887,9 +1176,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
-            hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => {
-                let _ty = self.check_expr(expr);
-                let hir::ExprKind::Call(callee, ..) = expr.kind else {
+            hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
+                let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
+                if is_emit {
+                    self.in_emit = true;
+                } else {
+                    self.in_revert = true;
+                }
+                let _ty = self.check_expr(call_expr);
+                self.in_emit = false;
+                self.in_revert = false;
+
+                let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
                     unreachable!("bad Emit|Revert");
                 };
                 let callee_ty = self.get(callee);
@@ -898,7 +1196,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         hir::StmtKind::Emit(_) => {
                             if !matches!(callee_ty.kind, TyKind::Event(..)) {
                                 self.dcx()
-                                    .err("expression is not an event")
+                                    .err("expression has to be an event invocation")
                                     .span(callee.span)
                                     .emit();
                             }
@@ -906,7 +1204,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         hir::StmtKind::Revert(_) => {
                             if !matches!(callee_ty.kind, TyKind::Error(..)) {
                                 self.dcx()
-                                    .err("expression is not an error")
+                                    .err("expression has to be an error")
                                     .span(callee.span)
                                     .emit();
                             }

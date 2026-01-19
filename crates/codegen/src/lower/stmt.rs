@@ -22,11 +22,6 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a statement to MIR.
     fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
-        use std::fs::OpenOptions;
-        use std::io::Write;
-        let mut file = OpenOptions::new().create(true).append(true).open("/tmp/solar_stmt.log").unwrap();
-        writeln!(file, "lower_stmt: {:?}", std::mem::discriminant(&stmt.kind)).ok();
-        
         match &stmt.kind {
             StmtKind::DeclSingle(var_id) => {
                 self.lower_single_var_decl(builder, *var_id);
@@ -318,9 +313,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
-        std::fs::write("/tmp/solar_lower_return.log", format!("lower_return called with value={}\n", value.is_some())).ok();
         if let Some(expr) = value {
-            std::fs::write("/tmp/solar_lower_return.log", format!("  expr.kind = {:?}\n", std::mem::discriminant(&expr.kind))).ok();
             // Check if this is a tuple return (multiple values)
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
                 // For multi-value returns, collect all values and pass to ret().
@@ -358,23 +351,15 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Gets the struct ID if the expression returns a memory struct.
     fn get_return_struct_type(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
-        let mut debug_log = String::new();
-        debug_log.push_str(&format!("[get_return_struct_type] expr.kind: {:?}\n", std::mem::discriminant(&expr.kind)));
-        
-        let result = match &expr.kind {
+        match &expr.kind {
             // Variable with struct type
             hir::ExprKind::Ident(res_slice) => {
-                debug_log.push_str(&format!("  Ident with {} resolutions\n", res_slice.len()));
                 for res in res_slice.iter() {
-                    debug_log.push_str(&format!("  res: {:?}\n", std::mem::discriminant(res)));
                     if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
                         let var = self.gcx.hir.variable(*var_id);
-                        debug_log.push_str(&format!("  var.ty.kind: {:?}\n", std::mem::discriminant(&var.ty.kind)));
                         // Check if this variable has a struct type
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
-                            debug_log.push_str("  FOUND struct type!\n");
-                            std::fs::write("/tmp/solar_debug.log", &debug_log).ok();
                             return Some(*struct_id);
                         }
                     }
@@ -393,9 +378,7 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             _ => None,
-        };
-        std::fs::write("/tmp/solar_debug.log", &debug_log).ok();
-        result
+        }
     }
 
     /// Lowers an emit statement.

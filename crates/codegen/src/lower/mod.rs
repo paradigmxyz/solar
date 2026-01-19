@@ -458,12 +458,10 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             if let Some(body) = &hir_func.body {
-                std::fs::write("/tmp/solar_body.log", format!("lower_block called for func {:?} with {} stmts\n", hir_func.name, body.stmts.len())).ok();
                 self.lower_block(&mut builder, body);
             }
 
             if !builder.func().block(builder.current_block()).is_terminated() {
-                std::fs::write("/tmp/solar_debug.log", format!("[DEBUG] Block not terminated for function {:?}, using implicit return\n", hir_func.name)).ok();
                 if builder.func().returns.is_empty() {
                     builder.stop();
                 } else {

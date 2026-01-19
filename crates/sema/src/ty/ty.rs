@@ -172,6 +172,7 @@ impl<'gcx> Ty<'gcx> {
             },
             state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
+            function_id: None,
         })
     }
 
@@ -252,6 +253,12 @@ impl<'gcx> Ty<'gcx> {
         self.flags.contains(TyFlags::HAS_MAPPING)
     }
 
+    /// Returns `true` if this type contains a non-public (internal/private) function pointer.
+    #[inline]
+    pub fn has_internal_function(self) -> bool {
+        self.flags.contains(TyFlags::HAS_INTERNAL_FN)
+    }
+
     /// Returns `Err(guar)` if this type contains an error.
     #[inline]
     pub fn error_reported(self) -> Result<(), ErrorGuaranteed> {
@@ -267,7 +274,10 @@ impl<'gcx> Ty<'gcx> {
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
     pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive() || self.has_mapping() || self.references_error())
+        !(self.is_recursive()
+            || self.has_mapping()
+            || self.has_internal_function()
+            || self.references_error())
     }
 
     /// Returns the parameter types of the type.
@@ -303,6 +313,15 @@ impl<'gcx> Ty<'gcx> {
     pub fn visibility(self) -> Option<Visibility> {
         match self.kind {
             TyKind::FnPtr(f) => Some(f.visibility),
+            _ => None,
+        }
+    }
+
+    /// Returns the function ID if this is a function pointer type with a specific function.
+    #[inline]
+    pub fn function_id(self) -> Option<hir::FunctionId> {
+        match self.kind {
+            TyKind::FnPtr(f) => f.function_id,
             _ => None,
         }
     }
@@ -597,7 +616,75 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
-            // TODO: more implicit conversions
+            // Integer width conversions: smaller int -> larger int (same signedness).
+            // See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(UInt(from_size)), Elementary(UInt(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+            (Elementary(Int(from_size)), Elementary(Int(to_size))) => {
+                if from_size.bits() <= to_size.bits() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // FixedBytes size conversions: smaller bytesN -> larger bytesN (right-padded with
+            // zeros). See: <https://docs.soliditylang.org/en/latest/types.html#implicit-conversions>
+            (Elementary(FixedBytes(from_size)), Elementary(FixedBytes(to_size))) => {
+                if from_size.bytes() <= to_size.bytes() {
+                    Ok(())
+                } else {
+                    Result::Err(TyConvertError::Incompatible)
+                }
+            }
+
+            // Function pointer conversions.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
+            (FnPtr(from_fn), FnPtr(to_fn)) => {
+                // Parameter and return types must match exactly (no implicit conversion).
+                if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // Visibility must match.
+                if from_fn.visibility != to_fn.visibility {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // Function ID: a FnPtr with an ID can coerce to one without an ID, but not vice
+                // versa.
+                let function_id_ok = match (from_fn.function_id, to_fn.function_id) {
+                    (_, None) => true,
+                    (a, b) => a == b,
+                };
+                if !function_id_ok {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
+                // State mutability compatibility:
+                // - pure can convert to view or non-payable (more restrictive -> less restrictive)
+                // - view can convert to non-payable
+                // - payable can convert to non-payable (you can pay 0)
+                // - non-payable cannot convert to payable
+                use StateMutability::*;
+                let mutability_ok = match (from_fn.state_mutability, to_fn.state_mutability) {
+                    (a, b) if a == b => true,
+                    // pure is the most restrictive, can convert to anything except payable.
+                    (Pure, View) | (Pure, NonPayable) => true,
+                    // view can convert to non-payable.
+                    (View, NonPayable) => true,
+                    // payable can convert to non-payable.
+                    (Payable, NonPayable) => true,
+                    _ => false,
+                };
+                if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
@@ -615,11 +702,7 @@ impl<'gcx> Ty<'gcx> {
     /// Checks if the type is explicitly convertible to the given type.
     ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
-    pub fn try_convert_explicit_to(
-        self,
-        other: Self,
-        gcx: Gcx<'gcx>,
-    ) -> Result<(), TyConvertError> {
+    fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
         use TyKind::*;
 
@@ -659,12 +742,12 @@ impl<'gcx> Ty<'gcx> {
             }
 
             // address <-> bytes20.
-            (Elementary(Address(_)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
-            (Elementary(FixedBytes(s)), Elementary(Address(_))) if s.bytes() == 20 => Ok(()),
+            (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),
+            (Elementary(FixedBytes(s)), Elementary(Address(false))) if s.bytes() == 20 => Ok(()),
 
             // address <-> uint160.
-            (Elementary(Address(_)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
-            (Elementary(UInt(s)), Elementary(Address(_))) if s.bits() == 160 => Ok(()),
+            (Elementary(Address(false)), Elementary(UInt(s))) if s.bits() == 160 => Ok(()),
+            (Elementary(UInt(s)), Elementary(Address(false))) if s.bits() == 160 => Ok(()),
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
@@ -725,8 +808,62 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // bytes <-> string (explicit conversion).
+            // See: https://docs.soliditylang.org/en/latest/types.html#explicit-conversions
+            // When target is Ref with location, locations must match.
+            (Ref(from_inner, from_loc), Ref(to_inner, to_loc)) if from_loc == to_loc => {
+                match (from_inner.kind, to_inner.kind) {
+                    (Elementary(Bytes), Elementary(String)) => Ok(()),
+                    (Elementary(String), Elementary(Bytes)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+            // When target is unlocated (e.g., `bytes(s)` where s is `string memory`),
+            // the location is inherited from the source.
+            (Ref(from_inner, _), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
+            (Ref(from_inner, _), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
+
             _ => Result::Err(TyConvertError::InvalidConversion),
         }
+    }
+
+    /// Performs an explicit type conversion, returning the result type.
+    ///
+    /// For most conversions this is `other`, but for bytes <-> string with unlocated target,
+    /// the result type inherits the source's data location.
+    ///
+    /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
+    pub fn try_convert_explicit_to(
+        self,
+        other: Self,
+        gcx: Gcx<'gcx>,
+    ) -> Result<Self, TyConvertError> {
+        self.can_convert_explicit_to(other, gcx)?;
+
+        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        use ElementaryType::*;
+        use TyKind::*;
+        Ok(match (self.kind, other.kind) {
+            (Ref(from_inner, loc), Elementary(Bytes))
+                if matches!(from_inner.kind, Elementary(String)) =>
+            {
+                gcx.types.bytes.with_loc(gcx, loc)
+            }
+            (Ref(from_inner, loc), Elementary(String))
+                if matches!(from_inner.kind, Elementary(Bytes)) =>
+            {
+                gcx.types.string.with_loc(gcx, loc)
+            }
+            _ => other,
+        })
     }
 
     /// Returns the mobile (in contrast to static) type corresponding to the given type.
@@ -869,6 +1006,7 @@ pub struct TyFnPtr<'gcx> {
     pub returns: &'gcx [Ty<'gcx>],
     pub state_mutability: StateMutability,
     pub visibility: Visibility,
+    pub function_id: Option<hir::FunctionId>,
 }
 
 impl<'gcx> TyFnPtr<'gcx> {
@@ -888,6 +1026,8 @@ bitflags::bitflags! {
         const HAS_MAPPING  = 1 << 1;
         /// Whether an error is reachable.
         const HAS_ERROR    = 1 << 2;
+        /// Whether this type contains a non-public (internal/private) function pointer.
+        const HAS_INTERNAL_FN = 1 << 3;
     }
 }
 
@@ -904,10 +1044,15 @@ impl TyFlags {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
+
+            TyKind::FnPtr(f) => {
+                if f.visibility < hir::Visibility::Public {
+                    self.add(Self::HAS_INTERNAL_FN);
+                }
+            }
 
             TyKind::Ref(ty, _)
             | TyKind::DynArray(ty)
