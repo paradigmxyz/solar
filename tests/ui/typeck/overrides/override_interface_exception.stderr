@@ -1,0 +1,32 @@
+error[9456]: overriding function is missing "override" specifier
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_interface_exception.sol:LL:CC
+   │
+LL │     function f() external {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_interface_exception.sol:LL:CC
+   │
+LL │     function f() external virtual;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4327]: Function needs to specify overridden contracts "IDiamond1" and "IDiamond2"
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_interface_exception.sol:LL:CC
+   │
+LL │     function f() external {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4327]: Function needs to specify overridden contracts "IDiamond1" and "IDiamond2"
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_interface_exception.sol:LL:CC
+   │
+LL │     function g() external override {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4327]: Function needs to specify overridden contracts "IDiamond2"
+   ╭▸ ROOT/tests/ui/typeck/overrides/override_interface_exception.sol:LL:CC
+   │
+LL │     function h() external override(IDiamond1) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+
