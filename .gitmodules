@@ -4,9 +4,3 @@
 	shallow = true
 	fetchRecurseSubmodules = false
 	update = none # Makes `cargo` not clone the submodule: https://github.com/rust-lang/cargo/issues/4247#issuecomment-1149178736
-[submodule "lib/forge-std"]
-	path = lib/forge-std
-	url = https://github.com/foundry-rs/forge-std
-[submodule "lib/solmate"]
-	path = lib/solmate
-	url = https://github.com/transmissions11/solmate
