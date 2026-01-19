@@ -598,7 +598,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         if overriding.overrides(self.gcx).len() != specified_contracts.len() {
             self.dcx()
                 .err(format!(
-                    "duplicate contract found in override list of \"{}\"",
+                    "duplicate contract found in override list of `{}`",
                     overriding.name(self.gcx).unwrap()
                 ))
                 .code(error_code!(4520))
@@ -625,7 +625,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             if !missing.is_empty() {
                 let missing_names: Vec<_> = missing
                     .iter()
-                    .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
+                    .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
                     .collect();
                 self.dcx()
                     .err(format!(
@@ -648,7 +648,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         if !surplus.is_empty() {
             let surplus_names: Vec<_> = surplus
                 .iter()
-                .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
+                .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
                 .collect();
             self.dcx()
                 .err(format!(
@@ -670,7 +670,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         if !overriding.has_override(gcx) && !base_in_interface {
             self.dcx()
                 .err(format!(
-                    "overriding {} is missing \"override\" specifier",
+                    "overriding {} is missing `override` specifier",
                     overriding.ast_node_name(gcx)
                 ))
                 .code(error_code!(9456))
@@ -698,7 +698,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         if !base.is_virtual(gcx) {
             self.dcx()
                 .err(format!(
-                    "trying to override non-virtual {}. Did you forget to add \"virtual\"?",
+                    "trying to override non-virtual {}. Did you forget to add `virtual`?",
                     base.ast_node_name(gcx)
                 ))
                 .code(error_code!(4334))
@@ -806,7 +806,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         {
             self.dcx()
                 .err(format!(
-                    "overriding {} changes state mutability from \"{}\" to \"{}\"",
+                    "overriding {} changes state mutability from `{}` to `{}`",
                     overriding.ast_node_name(gcx),
                     base_mut.to_str(),
                     overriding_mut.to_str()
@@ -1034,7 +1034,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         let base_names: Vec<_> = unique_contracts
             .iter()
-            .map(|&c| format!("\"{}\"", self.gcx.hir.contract(c).name.as_str()))
+            .map(|&c| format!("`{}`", self.gcx.hir.contract(c).name.as_str()))
             .collect();
 
         let kind = if sig.kind.is_modifier() { "modifier" } else { "function" };
@@ -1042,7 +1042,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let has_variable = remaining.iter().any(|p| p.is_variable());
         let name_display = sig.name.map(|n| n.to_string()).unwrap_or_else(|| sig.kind.to_string());
         let mut msg = format!(
-            "derived contract must override {} \"{}\". Two or more base classes define {} with same {}",
+            "derived contract must override {} `{}`. Two or more base classes define {} with same {}",
             kind,
             name_display,
             kind,
@@ -1112,7 +1112,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             let base_name = self.gcx.hir.contract(base_id).name.as_str();
             self.dcx()
                 .err(format!(
-                    "contract \"{}\" should be marked as abstract",
+                    "contract `{}` should be marked as abstract",
                     contract.name.as_str()
                 ))
                 .code(error_code!(3656))
@@ -1120,7 +1120,7 @@ impl<'gcx> OverrideChecker<'gcx> {
                 .span_note(
                     proxy.span(self.gcx),
                     format!(
-                        "unimplemented {} \"{}\" defined in \"{}\"",
+                        "unimplemented {} `{}` defined in `{}`",
                         proxy.ast_node_name(self.gcx),
                         proxy.name(self.gcx).unwrap(),
                         base_name

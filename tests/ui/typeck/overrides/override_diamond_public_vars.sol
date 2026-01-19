@@ -57,4 +57,4 @@ contract ImplVarA is ImplBase {
 }
 contract ImplVarB is ImplBase {}
 contract Bad3 is ImplVarA, ImplVarB {}
-//~^ ERROR: derived contract must override function "x"
+//~^ ERROR: derived contract must override function `x`

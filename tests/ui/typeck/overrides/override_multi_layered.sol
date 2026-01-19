@@ -24,8 +24,8 @@ contract GoodImpl is Ext1, Ext2 {
 // ==== Invalid: missing override specifier in multi-layered ====
 contract Bad1 is Ext1, Ext2 {
     function foo() public view {}
-    //~^ ERROR: overriding function is missing "override" specifier
-    //~| ERROR: overriding function is missing "override" specifier
+    //~^ ERROR: overriding function is missing `override` specifier
+    //~| ERROR: overriding function is missing `override` specifier
     //~| ERROR: Function needs to specify overridden contracts
 }
 
@@ -73,4 +73,4 @@ contract UnresolvedB is IUnresolved {
     function h() external virtual {}
 }
 contract Bad4 is UnresolvedA, UnresolvedB {}
-//~^ ERROR: derived contract must override function "h"
+//~^ ERROR: derived contract must override function `h`

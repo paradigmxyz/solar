@@ -1,4 +1,4 @@
-error[9456]: overriding function is missing "override" specifier
+error[9456]: overriding function is missing `override` specifier
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │     function foo() public view {}
@@ -10,7 +10,7 @@ note: overridden function is here
 LL │ contract Base1 is IBase { function foo() public virtual view {} }
    ╰╴                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[9456]: overriding function is missing "override" specifier
+error[9456]: overriding function is missing `override` specifier
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │     function foo() public view {}
@@ -22,31 +22,31 @@ note: overridden function is here
 LL │ contract Base2 is IBase { function foo() public virtual view {} }
    ╰╴                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[4327]: Function needs to specify overridden contracts "IBase" and "Base1" and "Base2"
+error[4327]: Function needs to specify overridden contracts `IBase` and `Base1` and `Base2`
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │     function foo() public view {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[4327]: Function needs to specify overridden contracts "IBase" and "Base2"
+error[4327]: Function needs to specify overridden contracts `IBase` and `Base2`
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │     function foo() public view override(Base1) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[4327]: Function needs to specify overridden contracts "Base2"
+error[4327]: Function needs to specify overridden contracts `Base2`
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │     function foo() public view override(IBase, Base1) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[6480]: derived contract must override function "h". Two or more base classes define function with same name and parameter types
+error[6480]: derived contract must override function `h`. Two or more base classes define function with same name and parameter types
    ╭▸ ROOT/tests/ui/typeck/overrides/override_multi_layered.sol:LL:CC
    │
 LL │ contract Bad4 is UnresolvedA, UnresolvedB {}
    │          ━━━━
    │
-   ╰ note: defined in: "UnresolvedA", "UnresolvedB"
+   ╰ note: defined in: `UnresolvedA`, `UnresolvedB`
 
 error: aborting due to 6 previous errors
 

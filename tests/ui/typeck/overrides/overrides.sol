@@ -21,7 +21,7 @@ interface IBase {
 // ERROR 9456: missing override specifier
 contract Bad1 is Base {
     function mustOverride() public returns (uint) { return 100; }
-    //~^ ERROR: overriding function is missing "override" specifier
+    //~^ ERROR: overriding function is missing `override` specifier
 }
 
 // ERROR 4334: base not virtual (error is on Base.notVirtual line 5)
@@ -43,11 +43,11 @@ contract Bad4 {
 
 // ERROR 6480: diamond inheritance - must override conflicting function
 contract Bad5 is Base, Base2 {}
-//~^ ERROR: derived contract must override function "mustOverride"
+//~^ ERROR: derived contract must override function `mustOverride`
 
 // ERROR 3656: non-abstract with unimplemented function
 contract Bad6 is IBase {}
-//~^ ERROR: contract "Bad6" should be marked as abstract
+//~^ ERROR: contract `Bad6` should be marked as abstract
 
 // ERROR 9098: visibility compatibility
 contract Bad7 is Base {
@@ -58,13 +58,13 @@ contract Bad7 is Base {
 // ERROR 6959: mutability compatibility (less strict)
 contract Bad8 is Base {
     function viewFn() public override returns (uint) { return 600; }
-    //~^ ERROR: overriding function changes state mutability from "view" to "nonpayable"
+    //~^ ERROR: overriding function changes state mutability from `view` to `nonpayable`
 }
 
 // ERROR 6959: payable cannot be overridden by non-payable
 contract Bad9 is Base {
     function payableFn() public override returns (uint) { return 700; }
-    //~^ ERROR: overriding function changes state mutability from "payable" to "nonpayable"
+    //~^ ERROR: overriding function changes state mutability from `payable` to `nonpayable`
 }
 
 // ERROR 4822: return type mismatch

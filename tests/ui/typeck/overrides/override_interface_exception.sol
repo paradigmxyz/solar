@@ -20,7 +20,7 @@ abstract contract AbstractBase {
 }
 contract BadAbstractImpl is AbstractBase {
     function f() external {}
-    //~^ ERROR: overriding function is missing "override" specifier
+    //~^ ERROR: overriding function is missing `override` specifier
 }
 
 // ==== Valid: abstract contract with override ====

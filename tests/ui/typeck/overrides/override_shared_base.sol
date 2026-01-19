@@ -39,7 +39,7 @@ contract GoodPartial is PartialA, PartialB {
 
 // ==== Invalid: missing override in diamond ====
 contract Bad1 is VirtualA, VirtualB {}
-//~^ ERROR: derived contract must override function "set"
+//~^ ERROR: derived contract must override function `set`
 
 // ==== Invalid: incomplete override list in diamond ====
 contract Bad2 is VirtualA, VirtualB {
@@ -92,4 +92,4 @@ contract DeepImplB is DeepBase {
 contract DeepImplAA is DeepImplA {}
 contract DeepImplBB is DeepImplB {}
 contract Bad4 is DeepImplAA, DeepImplBB {}
-//~^ ERROR: derived contract must override function "g"
+//~^ ERROR: derived contract must override function `g`

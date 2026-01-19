@@ -34,19 +34,19 @@ contract PayableBase1 {
 }
 contract Bad1 is PayableBase1 {
     function foo() public override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "payable" to "nonpayable"
+    //~^ ERROR: overriding function changes state mutability from `payable` to `nonpayable`
 }
 
 // ==== Invalid: payable -> view ====
 contract Bad2 is PayableBase1 {
     function foo() public view override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "payable" to "view"
+    //~^ ERROR: overriding function changes state mutability from `payable` to `view`
 }
 
 // ==== Invalid: payable -> pure ====
 contract Bad3 is PayableBase1 {
     function foo() public pure override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "payable" to "pure"
+    //~^ ERROR: overriding function changes state mutability from `payable` to `pure`
 }
 
 // ==== Invalid: nonpayable -> payable ====
@@ -55,7 +55,7 @@ contract NonpayableBase {
 }
 contract Bad4 is NonpayableBase {
     function foo() public payable override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "nonpayable" to "payable"
+    //~^ ERROR: overriding function changes state mutability from `nonpayable` to `payable`
 }
 
 // ==== Invalid: view -> payable ====
@@ -64,7 +64,7 @@ contract ViewBase2 {
 }
 contract Bad5 is ViewBase2 {
     function foo() public payable override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "view" to "payable"
+    //~^ ERROR: overriding function changes state mutability from `view` to `payable`
 }
 
 // ==== Invalid: pure -> view (less strict) ====
@@ -73,7 +73,7 @@ contract PureBase {
 }
 contract Bad6 is PureBase {
     function foo() external view override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "pure" to "view"
+    //~^ ERROR: overriding function changes state mutability from `pure` to `view`
 }
 
 // ==== Invalid: multiple less strict overrides ====
@@ -82,13 +82,13 @@ contract PureViewDiamondB is PureBase {
 }
 contract PureViewDiamondC is PureBase {
     function foo() external view override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "pure" to "view"
+    //~^ ERROR: overriding function changes state mutability from `pure` to `view`
 }
 contract Bad7 is PureViewDiamondB, PureViewDiamondC {
     // nonpayable is less strict than both pure and view
     function foo() external override(PureViewDiamondB, PureViewDiamondC) virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "pure" to "nonpayable"
-    //~| ERROR: overriding function changes state mutability from "view" to "nonpayable"
+    //~^ ERROR: overriding function changes state mutability from `pure` to `nonpayable`
+    //~| ERROR: overriding function changes state mutability from `view` to `nonpayable`
 }
 
 // ==== Valid: pure overriding both ====
@@ -99,6 +99,6 @@ contract Good1 is PureViewDiamondC, PureViewDiamondB {
 // ==== Invalid: payable is less strict than everything ====
 contract Bad8 is PureViewDiamondC, PureViewDiamondB {
     function foo() external payable override(PureViewDiamondB, PureViewDiamondC) virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from "view" to "payable"
-    //~| ERROR: overriding function changes state mutability from "pure" to "payable"
+    //~^ ERROR: overriding function changes state mutability from `view` to `payable`
+    //~| ERROR: overriding function changes state mutability from `pure` to `payable`
 }

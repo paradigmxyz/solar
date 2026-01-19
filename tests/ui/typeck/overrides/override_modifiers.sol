@@ -18,7 +18,7 @@ contract BaseWithFunction {
 // ERROR 9456: missing override on modifier
 contract BadMod1 is BaseModifier {
     modifier onlyOwner() { _; }
-    //~^ ERROR: overriding modifier is missing "override" specifier
+    //~^ ERROR: overriding modifier is missing `override` specifier
 }
 
 // ERROR 4334: base modifier not virtual (error on line 5)
@@ -40,7 +40,7 @@ contract BadMod4 {
 
 // ERROR 6480: diamond inheritance - must override conflicting modifier
 contract BadMod5 is BaseModifier, BaseModifier2 {}
-//~^ ERROR: derived contract must override modifier "onlyOwner"
+//~^ ERROR: derived contract must override modifier `onlyOwner`
 
 // ERROR 1078: modifier signature mismatch
 contract BadMod6 is BaseModifier {

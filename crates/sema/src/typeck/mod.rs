@@ -165,7 +165,7 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
         if f.marked_virtual && f.visibility == Visibility::Private {
             gcx.dcx()
-                .err("\"virtual\" and \"private\" cannot be used together")
+                .err("`virtual` and `private` cannot be used together")
                 .code(error_code!(3942))
                 .span(f.span)
                 .emit();

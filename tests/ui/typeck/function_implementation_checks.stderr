@@ -4,19 +4,19 @@ error[5424]: functions without implementation must be marked virtual
 LL │     function f() public;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━
 
-error[3656]: contract "A" should be marked as abstract
+error[3656]: contract `A` should be marked as abstract
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │ contract A {
    │          ━
    ╰╴
-note: unimplemented function "f" defined in "A"
+note: unimplemented function `f` defined in `A`
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │     function f() public;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━
 
-error[3942]: "virtual" and "private" cannot be used together
+error[3942]: `virtual` and `private` cannot be used together
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │     function f() private virtual {}
@@ -28,13 +28,13 @@ error[9231]: library functions must be implemented if declared
 LL │     function f() public;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━
 
-error[3656]: contract "L" should be marked as abstract
+error[3656]: contract `L` should be marked as abstract
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │ library L {
    │         ━
    ╰╴
-note: unimplemented function "f" defined in "L"
+note: unimplemented function `f` defined in `L`
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │     function f() public;
