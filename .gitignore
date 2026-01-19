@@ -5,3 +5,11 @@
 /*.yul
 /tmp/
 .DS_Store
+.worktrees/
+
+# Compilation artifacts
+/cache/
+/out/
+**/testdata/**/cache*/
+**/testdata/**/out*/
+**/testdata/**/*-test-output-*.json

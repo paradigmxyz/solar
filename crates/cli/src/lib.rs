@@ -6,6 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use clap::Parser as _;
+use solar_config::CompilerOutput;
 use solar_interface::{Result, Session};
 use solar_sema::CompilerRef;
 use std::ops::ControlFlow;
@@ -13,6 +14,8 @@ use std::ops::ControlFlow;
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 pub mod utils;
+
+pub mod standard_json;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod signal_handler;
@@ -45,6 +48,15 @@ where
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
+    // Handle --standard-json mode
+    if opts.standard_json {
+        if let Err(e) = standard_json::run_standard_json() {
+            eprintln!("Error in standard-json mode: {e}");
+            return Err(solar_interface::diagnostics::ErrorGuaranteed::new_unchecked());
+        }
+        return Ok(());
+    }
+
     run_compiler_with(opts, run_default)
 }
 
@@ -91,6 +103,96 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
     compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+
+    // Handle bytecode emit if requested
+    let needs_bytecode = sess
+        .opts
+        .emit
+        .iter()
+        .any(|e| matches!(e, CompilerOutput::Bin | CompilerOutput::BinRuntime));
+
+    if needs_bytecode {
+        emit_bytecode(compiler)?;
+    }
+
+    Ok(())
+}
+
+/// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
+fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
+    use solar_codegen::{EvmCodegen, lower};
+    use std::collections::BTreeMap;
+
+    let gcx = compiler.gcx();
+    let sess = gcx.sess;
+
+    let emit_abi = sess.opts.emit.contains(&CompilerOutput::Abi);
+    let emit_bin = sess.opts.emit.contains(&CompilerOutput::Bin);
+    let emit_bin_runtime = sess.opts.emit.contains(&CompilerOutput::BinRuntime);
+    let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
+
+    let mut json_output: BTreeMap<String, serde_json::Value> = BTreeMap::new();
+
+    for id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(id);
+        let name = gcx.contract_fully_qualified_name(id).to_string();
+        let mut obj = serde_json::Map::new();
+
+        // Add ABI if requested
+        if emit_abi {
+            let abi = gcx.contract_abi(id);
+            obj.insert("abi".to_string(), serde_json::to_value(&abi).unwrap());
+        }
+
+        // Add hashes if requested
+        if emit_hashes {
+            let mut hashes = BTreeMap::new();
+            for f in gcx.interface_functions(id) {
+                hashes.insert(
+                    gcx.item_signature(f.id.into()).to_string(),
+                    alloy_primitives::hex::encode(f.selector),
+                );
+            }
+            obj.insert("hashes".to_string(), serde_json::to_value(&hashes).unwrap());
+        }
+
+        // Skip bytecode generation for interfaces and abstract contracts
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            // Lower to MIR
+            let mut module = lower::lower_contract(gcx, id);
+
+            // Generate bytecode
+            let mut codegen = EvmCodegen::new();
+            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+
+            if emit_bin {
+                obj.insert(
+                    "bin".to_string(),
+                    serde_json::Value::String(alloy_primitives::hex::encode(&deployment)),
+                );
+            }
+
+            if emit_bin_runtime {
+                obj.insert(
+                    "bin-runtime".to_string(),
+                    serde_json::Value::String(alloy_primitives::hex::encode(&runtime)),
+                );
+            }
+        }
+
+        json_output.insert(name, serde_json::Value::Object(obj));
+    }
+
+    let output_json = serde_json::json!({
+        "contracts": json_output,
+        "version": solar_config::version::SEMVER_VERSION
+    });
+
+    if sess.opts.pretty_json {
+        println!("{}", serde_json::to_string_pretty(&output_json).unwrap());
+    } else {
+        println!("{}", serde_json::to_string(&output_json).unwrap());
+    }
 
     Ok(())
 }

@@ -2727,15 +2727,37 @@ dependencies = [
  "clap",
  "libc",
  "mimalloc",
+ "serde",
+ "serde_json",
+ "solar-codegen",
  "solar-config",
  "solar-interface",
  "solar-sema",
+ "tempfile",
  "tikv-jemallocator",
  "tracing",
  "tracing-chrome",
  "tracing-samply",
  "tracing-subscriber",
  "tracing-tracy",
+]
+
+[[package]]
+name = "solar-codegen"
+version = "0.1.8"
+dependencies = [
+ "alloy-primitives",
+ "derive_more",
+ "rustc-hash",
+ "serde_json",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-sema",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]

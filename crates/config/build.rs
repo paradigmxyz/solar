@@ -38,7 +38,7 @@ fn main() {
 
     // Use the out dir to determine the profile being used
     let out_dir = env::var("OUT_DIR").unwrap();
-    let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
+    let _profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
 
     let mut cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
     let ignore = ["clap", "version", "serde"];
@@ -48,16 +48,24 @@ fn main() {
             .replace(&format!("{feature},"), "")
             .replace(feature, "");
     }
+    // Format version to be compatible with solc for tools like Foundry
+    // solc format: "solc, the solidity compiler commandline interface\nVersion:
+    // 0.8.15+commit.xxx.OS.compiler" We match exactly - Foundry parses the second line for
+    // semver
+    let solc_compat_version = format!("0.8.28+commit.{sha_short}.solar.{version}");
+
+    // Output exactly 2 lines like solc does
     let long_version = format!(
-        "Version: {version}\n\
-         Commit SHA: {sha}\n\
-         Build Timestamp: {timestamp}\n\
-         Build Features: {cargo_features}\n\
-         Build Profile: {profile}",
+        "the Solidity compiler\n\
+         Version: {solc_compat_version}",
     );
-    assert_eq!(long_version.lines().count(), 5); // `version.rs` must be updated as well.
+    // We changed from 5 lines to 2 lines, update version.rs accordingly
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
+    }
+    // Pad remaining slots with empty strings
+    for i in long_version.lines().count()..5 {
+        println!("cargo:rustc-env=LONG_VERSION{i}=");
     }
 }
 

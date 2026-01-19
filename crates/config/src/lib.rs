@@ -146,10 +146,10 @@ str_enum! {
     pub enum CompilerOutput {
         /// JSON ABI.
         Abi,
-        // /// Creation bytecode.
-        // Bin,
-        // /// Runtime bytecode.
-        // BinRuntime,
+        /// Creation bytecode (deployment).
+        Bin,
+        /// Runtime bytecode (deployed).
+        BinRuntime,
         /// Function signature hashes.
         Hashes,
     }

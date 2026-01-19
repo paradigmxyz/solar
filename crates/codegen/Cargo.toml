@@ -1,0 +1,41 @@
+[package]
+name = "solar-codegen"
+description = "Solidity MIR and EVM code generation"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/codegen"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+solar-ast.workspace = true
+solar-data-structures.workspace = true
+solar-interface.workspace = true
+solar-sema.workspace = true
+
+alloy-primitives.workspace = true
+derive_more.workspace = true
+rustc-hash.workspace = true
+smallvec.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+snapbox.workspace = true
+tempfile.workspace = true
+serde_json.workspace = true
+
+[features]
+nightly = [
+    "solar-ast/nightly",
+    "solar-data-structures/nightly",
+    "solar-interface/nightly",
+    "solar-sema/nightly",
+]

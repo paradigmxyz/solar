@@ -100,6 +100,12 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
 
+    /// Switch to Standard JSON input / output mode.
+    /// Reads a JSON object from stdin, compiles, and outputs a JSON object to stdout.
+    /// This is compatible with solc's --standard-json mode for use with tools like Foundry.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json: bool,
+
     /// Coloring.
     #[cfg_attr(
         feature = "clap",

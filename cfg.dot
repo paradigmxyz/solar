@@ -1,0 +1,35 @@
+digraph "count" {
+    node [shape=box, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
+
+    bb0 [label="bb0 (entry):\l  v1 = sload 0\l  ret v1\l", fillcolor="#e0ffe0", style=filled];
+
+}
+
+
+digraph "increment" {
+    node [shape=box, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
+
+    bb0 [label="bb0 (entry):\l  v1 = sload 0\l  v3 = add v1, 1\l  v5 = sstore 0, v3\l  stop\l", fillcolor="#e0ffe0", style=filled];
+
+}
+
+
+digraph "decrement" {
+    node [shape=box, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
+
+    bb0 [label="bb0 (entry):\l  v1 = sload 0\l  v3 = sub v1, 1\l  v5 = sstore 0, v3\l  stop\l", fillcolor="#e0ffe0", style=filled];
+
+}
+
+
+digraph "getCount" {
+    node [shape=box, fontname="Courier", fontsize=10];
+    edge [fontname="Courier", fontsize=9];
+
+    bb0 [label="bb0 (entry):\l  v1 = sload 0\l  ret v1\l", fillcolor="#e0ffe0", style=filled];
+
+}
+

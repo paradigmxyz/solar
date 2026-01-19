@@ -16,6 +16,7 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+solar-codegen.workspace = true
 solar-config = { workspace = true, features = ["clap"] }
 solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
@@ -23,6 +24,9 @@ solar-sema.workspace = true
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tempfile.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [
