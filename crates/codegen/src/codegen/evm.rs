@@ -1372,6 +1372,7 @@ impl EvmCodegen {
 
     /// Emits a unary operation with result tracking and liveness awareness.
     /// If the operand is still live after this instruction, we DUP it before it gets consumed.
+    #[allow(clippy::too_many_arguments)]
     fn emit_unary_op_with_result(
         &mut self,
         func: &Function,

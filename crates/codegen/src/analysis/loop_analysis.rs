@@ -157,21 +157,21 @@ impl LoopAnalyzer {
         for (block_id, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
                 for succ in term.successors() {
-                    if let Some(doms) = self.dominators.get(&block_id) {
-                        if doms.contains(&succ) {
-                            let loop_info = loops.entry(succ).or_insert_with(|| Loop {
-                                header: succ,
-                                blocks: FxHashSet::default(),
-                                back_edges: SmallVec::new(),
-                                exit_blocks: SmallVec::new(),
-                                preheader: None,
-                                induction_vars: Vec::new(),
-                                invariant_insts: FxHashSet::default(),
-                                trip_count: None,
-                            });
-                            loop_info.back_edges.push(block_id);
-                            self.collect_loop_blocks(func, succ, block_id, &mut loop_info.blocks);
-                        }
+                    if let Some(doms) = self.dominators.get(&block_id)
+                        && doms.contains(&succ)
+                    {
+                        let loop_info = loops.entry(succ).or_insert_with(|| Loop {
+                            header: succ,
+                            blocks: FxHashSet::default(),
+                            back_edges: SmallVec::new(),
+                            exit_blocks: SmallVec::new(),
+                            preheader: None,
+                            induction_vars: Vec::new(),
+                            invariant_insts: FxHashSet::default(),
+                            trip_count: None,
+                        });
+                        loop_info.back_edges.push(block_id);
+                        self.collect_loop_blocks(func, succ, block_id, &mut loop_info.blocks);
                     }
                 }
             }
@@ -243,21 +243,17 @@ impl LoopAnalyzer {
 
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
                     let phi_value = self.find_result_value(func, inst_id);
-                    if let Some(phi_val) = phi_value {
-                        if let Some(update_inst) =
+                    if let Some(phi_val) = phi_value
+                        && let Some(update_inst) =
                             self.find_update_instruction(func, phi_val, step_val)
-                        {
-                            if let Some(step_amount) =
-                                self.get_step_amount(func, update_inst, phi_val)
-                            {
-                                loop_info.induction_vars.push(InductionVariable {
-                                    value: phi_val,
-                                    init,
-                                    step: step_amount,
-                                    update_inst: Some(update_inst),
-                                });
-                            }
-                        }
+                        && let Some(step_amount) = self.get_step_amount(func, update_inst, phi_val)
+                    {
+                        loop_info.induction_vars.push(InductionVariable {
+                            value: phi_val,
+                            init,
+                            step: step_amount,
+                            update_inst: Some(update_inst),
+                        });
                     }
                 }
             }
@@ -369,12 +365,12 @@ impl LoopAnalyzer {
             return;
         }
 
-        if let Some(bound) = self.find_loop_bound(func, loop_info, iv.value) {
-            if bound >= init {
-                let diff = bound - init;
-                let trip = diff / step;
-                loop_info.trip_count = trip.try_into().ok();
-            }
+        if let Some(bound) = self.find_loop_bound(func, loop_info, iv.value)
+            && bound >= init
+        {
+            let diff = bound - init;
+            let trip = diff / step;
+            loop_info.trip_count = trip.try_into().ok();
         }
     }
 
@@ -385,22 +381,22 @@ impl LoopAnalyzer {
         iv_value: ValueId,
     ) -> Option<alloy_primitives::U256> {
         for &block_id in &loop_info.blocks {
-            if let Some(Terminator::Branch { condition, .. }) = &func.blocks[block_id].terminator {
-                if let Value::Inst(cond_inst) = &func.values[*condition] {
-                    let inst = &func.instructions[*cond_inst];
-                    match &inst.kind {
-                        InstKind::Lt(a, b) if *a == iv_value => {
-                            if let Value::Immediate(imm) = &func.values[*b] {
-                                return imm.as_u256();
-                            }
+            if let Some(Terminator::Branch { condition, .. }) = &func.blocks[block_id].terminator
+                && let Value::Inst(cond_inst) = &func.values[*condition]
+            {
+                let inst = &func.instructions[*cond_inst];
+                match &inst.kind {
+                    InstKind::Lt(a, b) if *a == iv_value => {
+                        if let Value::Immediate(imm) = &func.values[*b] {
+                            return imm.as_u256();
                         }
-                        InstKind::Gt(a, b) if *b == iv_value => {
-                            if let Value::Immediate(imm) = &func.values[*a] {
-                                return imm.as_u256();
-                            }
-                        }
-                        _ => {}
                     }
+                    InstKind::Gt(a, b) if *b == iv_value => {
+                        if let Value::Immediate(imm) = &func.values[*a] {
+                            return imm.as_u256();
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -409,10 +405,10 @@ impl LoopAnalyzer {
 
     fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
         for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value {
-                if *id == inst_id {
-                    return Some(value_id);
-                }
+            if let Value::Inst(id) = value
+                && *id == inst_id
+            {
+                return Some(value_id);
             }
         }
         None

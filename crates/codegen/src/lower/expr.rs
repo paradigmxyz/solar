@@ -378,10 +378,10 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     // Check if it's a constant - inline its value
-                    if var.is_constant() {
-                        if let Some(init) = var.initializer {
-                            return self.lower_expr(builder, init);
-                        }
+                    if var.is_constant()
+                        && let Some(init) = var.initializer
+                    {
+                        return self.lower_expr(builder, init);
                     }
 
                     // Check if it's a storage variable
@@ -1343,17 +1343,17 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(*var_id);
             // Check if the variable has a struct type and is stored in storage
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
-                if let Some(&base_slot) = self.struct_storage_base_slots.get(var_id) {
-                    // Find the field index by name
-                    let strukt = self.gcx.hir.strukt(*struct_id);
-                    for (i, &field_id) in strukt.fields.iter().enumerate() {
-                        let field = self.gcx.hir.variable(field_id);
-                        if let Some(field_name) = field.name
-                            && field_name.name == member.name
-                        {
-                            return Some((base_slot, *struct_id, i));
-                        }
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
+                && let Some(&base_slot) = self.struct_storage_base_slots.get(var_id)
+            {
+                // Find the field index by name
+                let strukt = self.gcx.hir.strukt(*struct_id);
+                for (i, &field_id) in strukt.fields.iter().enumerate() {
+                    let field = self.gcx.hir.variable(field_id);
+                    if let Some(field_name) = field.name
+                        && field_name.name == member.name
+                    {
+                        return Some((base_slot, *struct_id, i));
                     }
                 }
             }

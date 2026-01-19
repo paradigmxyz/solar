@@ -18,10 +18,13 @@
 //! - Unrolling: Reduces JUMP/JUMPI costs (8 gas each)
 //! - Strength Reduction: MUL costs 5 gas vs ADD costs 3 gas
 
+#[cfg(test)]
+use crate::mir::Terminator;
 use crate::{
     analysis::{Loop, LoopAnalyzer},
-    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
 };
+#[cfg(test)]
 use alloy_primitives::U256;
 use rustc_hash::FxHashSet;
 
