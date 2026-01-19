@@ -1,0 +1,8 @@
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/named_arguments_duplicate_parameter.sol:LL:CC
+   │
+LL │         r = a({a: 1, a: 2});
+   ╰╴                     ━
+
+error: aborting due to 1 previous error
+

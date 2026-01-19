@@ -386,6 +386,7 @@ impl<'gcx> Gcx<'gcx> {
             returns: self.mk_tys(returns),
             state_mutability,
             visibility,
+            function_id: None,
         })
     }
 
@@ -591,6 +592,7 @@ impl<'gcx> Gcx<'gcx> {
                     returns: self.mk_item_tys(f.returns),
                     state_mutability: f.state_mutability,
                     visibility: f.visibility,
+                    function_id: None,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -754,6 +756,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.is_recursive() {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_internal_function() {
+                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
@@ -815,6 +819,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
+                function_id: Some(id),
             }))
         }
         hir::ItemId::Variable(id) => {

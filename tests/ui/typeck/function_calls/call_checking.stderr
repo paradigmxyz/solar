@@ -1,0 +1,156 @@
+error: wrong argument count for function call: 1 arguments given but expected 0
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         emit EmptyEvent(1);
+   │         ━━━━━━━━━━━━━━━┬──━
+   │                        │
+   ╰╴                       expected 0 arguments, found 1
+
+error: wrong argument count for function call: 1 arguments given but expected 0
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         revert EmptyError(1);
+   │         ━━━━━━━━━━━━━━━━━┬──━
+   │                          │
+   ╰╴                         expected 0 arguments, found 1
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target(1);
+   │         ━━━━━━┬──
+   │               │
+   ╰╴              expected 2 arguments, found 1
+
+error: wrong argument count for function call: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target(1, "hi", 3);
+   │         ━━━━━━┬───────────
+   │               │
+   ╰╴              expected 2 arguments, found 3
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target("hi", 1);
+   ╰╴               ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target("hi", 1);
+   ╰╴                     ━ expected `bytes32`, found `int_literal[1]`
+
+error: wrong argument count for function call: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, x: 2, y: "hi"});
+   │         ━━━━━━┬──────────────────────
+   │               │
+   ╰╴              expected 2 arguments, found 3
+
+error: duplicate named argument `x`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, x: 2, y: "hi"});
+   ╰╴                      ━
+
+error: named argument `z` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1, z: "hi"});
+   ╰╴                      ━
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         target({x: 1});
+   │         ━━━━━━┬───────
+   │               │
+   ╰╴              expected 2 arguments, found 1
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1});
+   │         ━━━━━━┬───────━
+   │               │
+   ╰╴              expected 2 arguments, found 1
+
+error: wrong argument count for function call: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1, a: 2, b: "hi"});
+   │         ━━━━━━┬──────────────────────━
+   │               │
+   ╰╴              expected 2 arguments, found 3
+
+error: duplicate named argument `a`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         emit E({a: 1, a: 2, b: "hi"});
+   ╰╴                      ━
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         revert MyError(404);
+   │         ━━━━━━━━━━━━━━┬────━
+   │                       │
+   ╰╴                      expected 2 arguments, found 1
+
+error: wrong argument count for function call: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, code: 2, message: "hi"});
+   │         ━━━━━━━━━━━━━━┬──────────────────────────────────━
+   │                       │
+   ╰╴                      expected 2 arguments, found 3
+
+error: duplicate named argument `code`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, code: 2, message: "hi"});
+   ╰╴                                 ━━━━
+
+error: named argument `msg` does not match function declaration
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         revert MyError({code: 1, msg: "hi"});
+   ╰╴                                 ━━━
+
+error: expected function, found `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         ((1(3)), 2);
+   │           ━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         ((1(3)), 2);
+   ╰╴          ━━━━
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         MyStruct(1);
+   │         ━━━━━━━━┬──
+   │                 │
+   ╰╴                expected 2 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         MyStruct("hi", 1);
+   ╰╴                 ━━━━ expected `uint256`, found `utf8_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_checking.sol:LL:CC
+   │
+LL │         MyStruct("hi", 1);
+   ╰╴                       ━ expected `bytes32`, found `int_literal[1]`
+
+error: aborting due to 21 previous errors
+

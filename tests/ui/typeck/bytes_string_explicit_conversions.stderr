@@ -1,0 +1,20 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/bytes_string_explicit_conversions.sol:LL:CC
+   │
+LL │         string calldata s = string(b);
+   ╰╴                            ━━━━━━━━━ expected `string calldata`, found `string memory`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/bytes_string_explicit_conversions.sol:LL:CC
+   │
+LL │         string memory s = string(x);
+   ╰╴                          ━━━━━━━━━ cannot convert `uint256` to `string`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/bytes_string_explicit_conversions.sol:LL:CC
+   │
+LL │         uint256 x = uint256(s);
+   ╰╴                    ━━━━━━━━━━ cannot convert `string memory` to `uint256`
+
+error: aborting due to 3 previous errors
+
