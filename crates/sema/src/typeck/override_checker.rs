@@ -32,9 +32,12 @@ pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     checker.check();
 }
 
+type InheritedFunctions<'gcx> = FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
+
 struct OverrideChecker<'gcx> {
     gcx: Gcx<'gcx>,
     contract_id: ContractId,
+    inherited: InheritedFunctions<'gcx>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -373,7 +376,9 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
 
 impl<'gcx> OverrideChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
-        Self { gcx, contract_id }
+        let mut this = Self { gcx, contract_id, inherited: FxHashMap::default() };
+        this.inherited = this.compute_inherited_functions(contract_id);
+        this
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -408,10 +413,13 @@ impl<'gcx> OverrideChecker<'gcx> {
         OverrideSignature { name, kind, param_types }
     }
 
-    fn inherited_functions(&self) -> FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> {
-        let contract = self.contract();
-        let mut result: FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> =
-            FxHashMap::default();
+    /// Compute inherited functions for a contract.
+    ///
+    /// This matches solc's logic: inherited functions are added unless the direct
+    /// base defines a function with the same signature.
+    fn compute_inherited_functions(&self, contract_id: ContractId) -> InheritedFunctions<'gcx> {
+        let contract = self.gcx.hir.contract(contract_id);
+        let mut result: InheritedFunctions<'gcx> = FxHashMap::default();
 
         for &base_id in contract.bases.iter() {
             let base = self.gcx.hir.contract(base_id);
@@ -444,9 +452,7 @@ impl<'gcx> OverrideChecker<'gcx> {
             }
 
             // Get inherited functions from ancestors and add those NOT defined in base.
-            // This matches solc's logic: inherited functions are added unless the direct
-            // base defines a function with the same signature.
-            let inherited = self.inherited_functions_for(base_id);
+            let inherited = self.compute_inherited_functions(base_id);
             for (sig, proxies) in inherited {
                 if !defined_in_base.contains(&sig) {
                     result.entry(sig).or_default().extend(proxies);
@@ -457,64 +463,27 @@ impl<'gcx> OverrideChecker<'gcx> {
         result
     }
 
-    /// Get inherited functions for a specific contract (used recursively).
-    fn inherited_functions_for(
-        &self,
-        contract_id: ContractId,
-    ) -> FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> {
-        let contract = self.gcx.hir.contract(contract_id);
-        let mut result: FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>> =
-            FxHashMap::default();
-
-        for &base_id in contract.bases.iter() {
-            let base = self.gcx.hir.contract(base_id);
-
-            let mut defined_in_base: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
-
-            for f_id in base.functions() {
-                let f = self.gcx.hir.function(f_id);
-                if f.kind.is_constructor() {
-                    continue;
-                }
-                let proxy = OverrideProxy::Function(f_id);
-                let sig = self.signature(proxy);
-
-                result.entry(sig).or_default().push(proxy);
-                defined_in_base.insert(sig);
-            }
-
-            for v_id in base.variables() {
-                let v = self.gcx.hir.variable(v_id);
-                if !v.is_public() {
-                    continue;
-                }
-                let proxy = OverrideProxy::Variable(v_id);
-                let sig = self.signature(proxy);
-
-                result.entry(sig).or_default().push(proxy);
-                defined_in_base.insert(sig);
-            }
-
-            let inherited = self.inherited_functions_for(base_id);
-            for (sig, proxies) in inherited {
-                if !defined_in_base.contains(&sig) {
-                    result.entry(sig).or_default().extend(proxies);
-                }
-            }
-        }
-
-        result
+    fn inherited_functions(&self) -> &InheritedFunctions<'gcx> {
+        &self.inherited
     }
 
     fn check_illegal_overrides(&self) {
         let contract = self.contract();
         let inherited = self.inherited_functions();
 
-        let inherited_modifiers: FxHashSet<Ident> =
-            inherited.keys().filter(|s| s.kind.is_modifier()).filter_map(|s| s.name).collect();
-
-        let inherited_functions: FxHashSet<Ident> =
-            inherited.keys().filter(|s| !s.kind.is_modifier()).filter_map(|s| s.name).collect();
+        let (inherited_modifiers, inherited_functions) = inherited.keys().fold(
+            (FxHashSet::<Ident>::default(), FxHashSet::<Ident>::default()),
+            |(mut modifiers, mut functions), sig| {
+                if let Some(name) = sig.name {
+                    if sig.kind.is_modifier() {
+                        modifiers.insert(name);
+                    } else {
+                        functions.insert(name);
+                    }
+                }
+                (modifiers, functions)
+            },
+        );
 
         for f_id in contract.functions() {
             let f = self.gcx.hir.function(f_id);
@@ -960,7 +929,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let contract = self.contract();
         let inherited = self.inherited_functions();
 
-        let own_functions: FxHashSet<OverrideSignature<'gcx>> = contract
+        let own_signatures: FxHashSet<OverrideSignature<'gcx>> = contract
             .functions()
             .filter_map(|f_id| {
                 let f = self.gcx.hir.function(f_id);
@@ -969,21 +938,17 @@ impl<'gcx> OverrideChecker<'gcx> {
                 }
                 Some(self.signature(OverrideProxy::Function(f_id)))
             })
-            .collect();
-
-        let own_variables: FxHashSet<OverrideSignature<'gcx>> = contract
-            .variables()
-            .filter_map(|v_id| {
+            .chain(contract.variables().filter_map(|v_id| {
                 let v = self.gcx.hir.variable(v_id);
                 if !v.is_public() {
                     return None;
                 }
                 Some(self.signature(OverrideProxy::Variable(v_id)))
-            })
+            }))
             .collect();
 
-        for (sig, bases) in &inherited {
-            if own_functions.contains(sig) || own_variables.contains(sig) {
+        for (sig, bases) in inherited {
+            if own_signatures.contains(sig) {
                 continue;
             }
 
