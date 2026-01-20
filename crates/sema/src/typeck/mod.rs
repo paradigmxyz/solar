@@ -215,7 +215,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check visibility
         if f.visibility != Visibility::External {
             gcx.dcx()
-                .err("receive ether function must be defined as \"external\"")
+                .err("receive ether function must be defined as `external`")
                 .span(gcx.item_span(receive))
                 .emit();
         }

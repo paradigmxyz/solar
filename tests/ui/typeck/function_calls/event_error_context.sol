@@ -29,17 +29,17 @@ contract EventErrorContext {
 
     // === Event invocations outside emit (solc error 3132) ===
     function eventAsExpression() public {
-        MyEvent(1, "hi"); //~ ERROR: event invocations have to be prefixed by "emit"
+        MyEvent(1, "hi"); //~ ERROR: event invocations have to be prefixed by `emit`
     }
 
     function eventInAssignment() public {
         uint x = MyEvent(1, "hi");
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched number of components
     }
 
     function eventAsArgument() public pure {
-        this.takeBytes(EmptyEvent()); //~ ERROR: event invocations have to be prefixed by "emit"
+        this.takeBytes(EmptyEvent()); //~ ERROR: event invocations have to be prefixed by `emit`
         //~^ ERROR: mismatched types
     }
 
@@ -47,7 +47,7 @@ contract EventErrorContext {
     function multipleEvents() external {
         emit MyEvent(0, "x");
         // Second invocation without emit should still error.
-        MyEvent(1, "y"); //~ ERROR: event invocations have to be prefixed by "emit"
+        MyEvent(1, "y"); //~ ERROR: event invocations have to be prefixed by `emit`
     }
 
     function takeBytes(bytes memory) public pure {}
@@ -75,14 +75,14 @@ contract EventErrorContext {
 
     // === Non-error in revert statement (solc error 1885) ===
     function revertEvent() public pure {
-        revert EmptyEvent(); //~ ERROR: event invocations have to be prefixed by "emit"
+        revert EmptyEvent(); //~ ERROR: event invocations have to be prefixed by `emit`
         //~^ ERROR: expression has to be an error
     }
 
     // === Nested event/error invocations in arguments should still error ===
     function nestedEventInEmitArg() public {
         emit MyEvent(EmptyEvent(), "x");
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
     }
 
@@ -97,8 +97,8 @@ contract EventErrorContext {
     // In binary operations
     function eventInBinaryOp() public {
         bool b = EmptyEvent() == EmptyEvent();
-        //~^ ERROR: event invocations have to be prefixed by "emit"
-        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
+        //~| ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: cannot apply builtin operator
     }
 
@@ -112,17 +112,17 @@ contract EventErrorContext {
     // In array literal
     function eventInArray() public {
         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
-        //~^ ERROR: event invocations have to be prefixed by "emit"
-        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
+        //~| ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: cannot infer array element type
     }
 
     // In ternary operator
     function eventInTernary() public {
         uint x = true ? EmptyEvent() : EmptyEvent();
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
-        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~| ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
         //~| ERROR: mismatched number of components
     }
@@ -131,7 +131,7 @@ contract EventErrorContext {
     struct S { uint x; }
     function eventInStruct() public {
         S memory s = S(EmptyEvent());
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
     }
 
@@ -139,7 +139,7 @@ contract EventErrorContext {
     mapping(uint => uint) m;
     function eventInMappingKey() public {
         uint v = m[EmptyEvent()];
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
     }
 
@@ -147,15 +147,15 @@ contract EventErrorContext {
     function eventInArrayIndex() public {
         uint[] memory arr;
         uint v = arr[EmptyEvent()];
-        //~^ ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: mismatched types
     }
 
     // Multiple events/errors in same expression
     function multipleEventsInExpr() public {
         uint x = EmptyEvent() + EmptyEvent();
-        //~^ ERROR: event invocations have to be prefixed by "emit"
-        //~| ERROR: event invocations have to be prefixed by "emit"
+        //~^ ERROR: event invocations have to be prefixed by `emit`
+        //~| ERROR: event invocations have to be prefixed by `emit`
         //~| ERROR: cannot apply builtin operator
     }
 

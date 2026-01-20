@@ -49,14 +49,15 @@ error[3656]: contract `Bad6` has unimplemented functions
    ╭▸ ROOT/tests/ui/typeck/overrides/overrides.sol:LL:CC
    │
 LL │ contract Bad6 is IBase {}
-   │          ━━━━
+   │ ┬─────── ━━━━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
    ╰╴
 note: unimplemented function `interfaceFn` defined in `IBase`
    ╭▸ ROOT/tests/ui/typeck/overrides/overrides.sol:LL:CC
    │
 LL │     function interfaceFn() external returns (uint);
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ╰ help: mark the contract as `abstract` or implement all functions
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[9098]: overriding function changes visibility from `external` to `internal`
    ╭▸ ROOT/tests/ui/typeck/overrides/overrides.sol:LL:CC

@@ -8,14 +8,15 @@ error[3656]: contract `A` has unimplemented functions
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │ contract A {
-   │          ━
+   │ ┬─────── ━
+   │ │
+   │ help: mark the contract as abstract: `abstract contract`
    ╰╴
 note: unimplemented function `f` defined in `A`
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
    │
 LL │     function f() public;
-   │     ━━━━━━━━━━━━━━━━━━━━
-   ╰ help: mark the contract as `abstract` or implement all functions
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━
 
 error[3942]: `virtual` and `private` cannot be used together
    ╭▸ ROOT/tests/ui/typeck/function_implementation_checks.sol:LL:CC
@@ -40,7 +41,7 @@ note: unimplemented function `f` defined in `L`
    │
 LL │     function f() public;
    │     ━━━━━━━━━━━━━━━━━━━━
-   ╰ help: mark the contract as `abstract` or implement all functions
+   ╰ help: implement all functions
 
 error: aborting due to 5 previous errors
 
