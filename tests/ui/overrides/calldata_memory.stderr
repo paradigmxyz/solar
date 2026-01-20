@@ -1,0 +1,41 @@
+error[7723]: parameter data locations differ when overriding non-external function
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function foo(uint[] calldata x) public override returns (uint[] memory) { return x; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function foo(uint[] memory x) public virtual returns (uint[] memory) { return x; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: data locations must match when overriding non-external functions
+
+error[1443]: return variable data locations differ when overriding non-external function
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function foo(uint[] memory x) public override returns (uint[] calldata) {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function foo(uint[] memory x) public virtual returns (uint[] memory) { return x; }
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: data locations must match when overriding non-external functions
+
+error[7723]: parameter data locations differ when overriding non-external function
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function f(bytes calldata) public override {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/calldata_memory.sol:LL:CC
+   │
+LL │     function f(bytes memory) public virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: data locations must match when overriding non-external functions
+
+error: aborting due to 3 previous errors
+
