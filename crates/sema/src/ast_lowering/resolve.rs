@@ -9,7 +9,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    sym,
+    error_code, sym,
 };
 use std::fmt;
 
@@ -338,13 +338,24 @@ impl<'gcx> ResolveContext<'gcx> {
                         else {
                             continue;
                         };
-                        // TODO: Move to override checker.
                         let Some(c) = func.contract else {
-                            self.dcx().err("free functions cannot override").span(ov.span).emit();
+                            self.dcx()
+                                .err("free functions cannot override")
+                                .code(error_code!(1750))
+                                .span(ov.span)
+                                .emit();
                             continue;
                         };
                         if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
-                            self.dcx().err("override is not a base contract").span(ov.span).emit();
+                            self.dcx()
+                                .err(format!(
+                                    "invalid contract `{}` specified in override list",
+                                    self.hir.contract(id).name.as_str()
+                                ))
+                                .code(error_code!(2353))
+                                .span(ov.span)
+                                .note("contract is not a direct or indirect base")
+                                .emit();
                             continue;
                         }
                         overrides.push(id);
