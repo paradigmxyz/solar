@@ -1,23 +1,23 @@
 error[4327]: Public state variable needs to specify overridden contracts `FuncB` and `FuncC`
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_diamond_public_vars.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │     uint public override foo;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[4327]: Public state variable needs to specify overridden contracts `FuncD`
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_diamond_public_vars.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │     uint public override(FuncBase, FuncE) foo2;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[2353]: invalid contract specified in override list: `FuncBase`
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_diamond_public_vars.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │     uint public override(FuncBase, FuncE) foo2;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[6480]: derived contract must override function `x`. Two or more base classes define function with same name and parameter types. Since one of the bases defines a public state variable which cannot be overridden, you have to change the inheritance layout or the names of the functions
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_diamond_public_vars.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │ contract Bad3 is ImplVarA, ImplVarB {}
    │          ━━━━

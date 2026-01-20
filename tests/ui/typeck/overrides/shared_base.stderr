@@ -1,5 +1,5 @@
 error[6480]: derived contract must override function `set`. Two or more base classes define function with same name and parameter types
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_shared_base.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │ contract Bad1 is VirtualA, VirtualB {}
    │          ━━━━
@@ -7,19 +7,19 @@ LL │ contract Bad1 is VirtualA, VirtualB {}
    ╰ note: defined in: `VirtualA`, `VirtualB`
 
 error[4327]: Function needs to specify overridden contracts `VirtualB`
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_shared_base.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │     function set() public override(VirtualA) { super.set(); }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[4327]: Function needs to specify overridden contracts `ThreeWayC`
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_shared_base.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │     function f() public override(ThreeWayA, ThreeWayB) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[6480]: derived contract must override function `g`. Two or more base classes define function with same name and parameter types
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_shared_base.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │ contract Bad4 is DeepImplAA, DeepImplBB {}
    │          ━━━━

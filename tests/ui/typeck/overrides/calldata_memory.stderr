@@ -1,35 +1,35 @@
 error[7723]: data locations of parameters have to be the same when overriding non-external functions, but they differ
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function foo(uint[] calldata x) public override returns (uint[] memory) { return x; }
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: overridden function is here
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function foo(uint[] memory x) public virtual returns (uint[] memory) { return x; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[1443]: data locations of return variables have to be the same when overriding non-external functions, but they differ
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function foo(uint[] memory x) public override returns (uint[] calldata) {}
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: overridden function is here
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function foo(uint[] memory x) public virtual returns (uint[] memory) { return x; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[7723]: data locations of parameters have to be the same when overriding non-external functions, but they differ
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function f(bytes calldata) public override {}
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: overridden function is here
-   ╭▸ ROOT/tests/ui/typeck/overrides/override_calldata_memory.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/overrides/calldata_memory.sol:LL:CC
    │
 LL │     function f(bytes memory) public virtual {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
