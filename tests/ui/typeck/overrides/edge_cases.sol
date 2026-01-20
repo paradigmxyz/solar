@@ -23,7 +23,7 @@ contract Bad1 is Base, Base2 {
 // ERROR 4593: overriding implemented with unimplemented
 abstract contract Bad2 is Base {
     function implemented() public override virtual returns (uint);
-    //~^ ERROR: overriding an implemented function with an unimplemented function
+    //~^ ERROR: cannot override implemented function with unimplemented function
 }
 
 // ERROR 2353: invalid contract in override list

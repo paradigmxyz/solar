@@ -16,7 +16,7 @@ contract BaseWithExternalFuncWrongReturn {
 // ERROR 5225: variable overriding non-external function
 contract Bad1 is BaseWithPublicFunc {
     uint public override getValue;
-    //~^ ERROR: public state variables can only override functions with external visibility
+    //~^ ERROR: public state variable can only override external function
 }
 
 // OK: variable overriding external function with matching return type
@@ -27,5 +27,5 @@ contract Good1 is BaseWithExternalFunc {
 // ERROR 4822: variable overriding function with different return type
 contract Bad2 is BaseWithExternalFuncWrongReturn {
     uint public override getValue;
-    //~^ ERROR: overriding public state variable return types differ
+    //~^ ERROR: overriding public state variable has different return types
 }

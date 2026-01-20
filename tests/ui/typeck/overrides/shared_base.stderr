@@ -1,9 +1,10 @@
-error[6480]: derived contract must override function `set`. Two or more base classes define function with same name and parameter types
+error[6480]: derived contract must override function `set`
    ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │ contract Bad1 is VirtualA, VirtualB {}
    │          ━━━━
    │
+   ├ note: two or more base classes define function with same name and parameter types
    ╰ note: defined in: `VirtualA`, `VirtualB`
 
 error[4327]: Function needs to specify overridden contracts `VirtualB`
@@ -18,12 +19,13 @@ error[4327]: Function needs to specify overridden contracts `ThreeWayC`
 LL │     function f() public override(ThreeWayA, ThreeWayB) {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[6480]: derived contract must override function `g`. Two or more base classes define function with same name and parameter types
+error[6480]: derived contract must override function `g`
    ╭▸ ROOT/tests/ui/typeck/overrides/shared_base.sol:LL:CC
    │
 LL │ contract Bad4 is DeepImplAA, DeepImplBB {}
    │          ━━━━
    │
+   ├ note: two or more base classes define function with same name and parameter types
    ╰ note: defined in: `DeepImplA`, `DeepImplB`
 
 error: aborting due to 4 previous errors

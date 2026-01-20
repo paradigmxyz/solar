@@ -1,4 +1,4 @@
-error[5225]: public state variables can only override functions with external visibility
+error[5225]: public state variable can only override external function
    ╭▸ ROOT/tests/ui/typeck/overrides/variables_ext.sol:LL:CC
    │
 LL │     uint public override getValue;
@@ -8,9 +8,10 @@ note: overridden function is here
    ╭▸ ROOT/tests/ui/typeck/overrides/variables_ext.sol:LL:CC
    │
 LL │     function getValue() public virtual returns (uint) { return 1; }
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ note: base function has `public` visibility
 
-error[4822]: overriding public state variable return types differ
+error[4822]: overriding public state variable has different return types
    ╭▸ ROOT/tests/ui/typeck/overrides/variables_ext.sol:LL:CC
    │
 LL │     uint public override getValue;

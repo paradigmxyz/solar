@@ -59,6 +59,29 @@ contract Test {
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
 
+## Diagnostics Style
+
+Error messages should follow these conventions:
+
+- **No full stops**: Error messages should not end with periods
+- **Use backticks for code**: Use `` `identifier` `` instead of `"identifier"` for code references
+- **Main message is concise**: Keep the primary error message short and direct
+- **Use subdiagnostics**: Add context via `note`, `help`, and `span_note`:
+  - `note`: Additional context about why the error occurred
+  - `help`: Actionable suggestion for how to fix the error
+  - `span_note`: Point to related code locations (e.g., "overridden function is here")
+
+Example:
+```rust
+self.dcx()
+    .err("cannot override non-virtual function")
+    .code(error_code!(4334))
+    .span(base.span)
+    .span_note(overriding.span, "overriding function is here")
+    .help("add `virtual` to the base function to allow overriding")
+    .emit();
+```
+
 ## Notes
 
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.

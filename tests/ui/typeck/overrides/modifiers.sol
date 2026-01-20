@@ -3,7 +3,7 @@
 contract BaseModifier {
     modifier onlyOwner() virtual { _; }
     modifier notVirtualMod() { _; }
-    //~^ ERROR: trying to override non-virtual modifier
+    //~^ ERROR: cannot override non-virtual modifier
     modifier withParam(uint x) virtual { _; }
 }
 

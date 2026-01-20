@@ -3,7 +3,7 @@
 contract Base {
     function mustOverride() public virtual returns (uint) { return 1; }
     function notVirtual() public returns (uint) { return 2; }
-    //~^ ERROR: trying to override non-virtual function
+    //~^ ERROR: cannot override non-virtual function
     function viewFn() public view virtual returns (uint) { return 3; }
     function pureFn() public pure virtual returns (uint) { return 4; }
     function externalFn() external virtual returns (uint) { return 5; }
@@ -47,12 +47,12 @@ contract Bad5 is Base, Base2 {}
 
 // ERROR 3656: non-abstract with unimplemented function
 contract Bad6 is IBase {}
-//~^ ERROR: contract `Bad6` should be marked as abstract
+//~^ ERROR: contract `Bad6` has unimplemented functions
 
 // ERROR 9098: visibility compatibility
 contract Bad7 is Base {
     function externalFn() internal override returns (uint) { return 500; }
-    //~^ ERROR: overriding function visibility differs
+    //~^ ERROR: overriding function changes visibility from `external` to `internal`
 }
 
 // ERROR 6959: mutability compatibility (less strict)
@@ -70,7 +70,7 @@ contract Bad9 is Base {
 // ERROR 4822: return type mismatch
 contract Bad10 is Base {
     function mustOverride() public override returns (int) { return 800; }
-    //~^ ERROR: overriding function return types differ
+    //~^ ERROR: overriding function has different return types
 }
 
 // OK: proper single inheritance override
@@ -114,13 +114,13 @@ contract BasePublic {
 // ERROR 7723: parameter data location mismatch
 contract Bad11 is BasePublic {
     function foo(uint[] calldata x) public override returns (uint[] memory) { return x; }
-    //~^ ERROR: data locations of parameters have to be the same
+    //~^ ERROR: parameter data locations differ when overriding non-external function
 }
 
 // ERROR 1443: return data location mismatch
 contract Bad12 is BasePublic {
     function foo(uint[] memory x) public override returns (uint[] calldata) {}
-    //~^ ERROR: data locations of return variables have to be the same
+    //~^ ERROR: return variable data locations differ when overriding non-external function
 }
 
 // OK: external base allows calldata->memory conversion

@@ -4,7 +4,7 @@ error[4520]: duplicate contract found in override list of `mustOverride`
 LL │     function mustOverride() public override(Base, Base2, Base) returns (uint) { return 900; }
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[4593]: overriding an implemented function with an unimplemented function is not allowed
+error[4593]: cannot override implemented function with unimplemented function
    ╭▸ ROOT/tests/ui/typeck/overrides/edge_cases.sol:LL:CC
    │
 LL │     function implemented() public override virtual returns (uint);
@@ -14,7 +14,8 @@ note: overridden function is here
    ╭▸ ROOT/tests/ui/typeck/overrides/edge_cases.sol:LL:CC
    │
 LL │     function implemented() public virtual returns (uint) { return 2; }
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: provide an implementation for the overriding function
 
 error[2353]: invalid contract specified in override list: `Base3`
    ╭▸ ROOT/tests/ui/typeck/overrides/edge_cases.sol:LL:CC

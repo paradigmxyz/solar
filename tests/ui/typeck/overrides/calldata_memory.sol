@@ -46,13 +46,13 @@ contract MemoryBase {
 }
 contract Bad1 is MemoryBase {
     function foo(uint[] calldata x) public override returns (uint[] memory) { return x; }
-    //~^ ERROR: data locations of parameters have to be the same
+    //~^ ERROR: parameter data locations differ when overriding non-external function
 }
 
 // ==== Invalid: return location mismatch ====
 contract Bad2 is MemoryBase {
     function foo(uint[] memory x) public override returns (uint[] calldata) {}
-    //~^ ERROR: data locations of return variables have to be the same
+    //~^ ERROR: return variable data locations differ when overriding non-external function
 }
 
 // ==== Valid: bytes and string also follow the same rules ====
@@ -71,5 +71,5 @@ contract BytesMemoryBase {
 }
 contract Bad3 is BytesMemoryBase {
     function f(bytes calldata) public override {}
-    //~^ ERROR: data locations of parameters have to be the same
+    //~^ ERROR: parameter data locations differ when overriding non-external function
 }

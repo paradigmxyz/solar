@@ -16,13 +16,15 @@ error[2353]: invalid contract specified in override list: `FuncBase`
 LL │     uint public override(FuncBase, FuncE) foo2;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error[6480]: derived contract must override function `x`. Two or more base classes define function with same name and parameter types. Since one of the bases defines a public state variable which cannot be overridden, you have to change the inheritance layout or the names of the functions
+error[6480]: derived contract must override function `x`
    ╭▸ ROOT/tests/ui/typeck/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │ contract Bad3 is ImplVarA, ImplVarB {}
    │          ━━━━
    │
-   ╰ note: defined in: `ImplBase`, `ImplVarA`
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `ImplBase`, `ImplVarA`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
 
 error: aborting due to 4 previous errors
 
