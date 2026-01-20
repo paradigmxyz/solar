@@ -330,39 +330,8 @@ impl<'gcx> ResolveContext<'gcx> {
             self.init(func.source, func.contract, Some(id));
 
             let func = self.hir.function(id);
-            self.hir.functions[id].overrides = {
-                let mut overrides = SmallVec::<[_; 8]>::new();
-                if let Some(ov) = &ast_func.header.override_ {
-                    for path in ov.paths.iter() {
-                        let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract")
-                        else {
-                            continue;
-                        };
-                        let Some(c) = func.contract else {
-                            self.dcx()
-                                .err("free functions cannot override")
-                                .code(error_code!(1750))
-                                .span(ov.span)
-                                .emit();
-                            continue;
-                        };
-                        if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
-                            self.dcx()
-                                .err(format!(
-                                    "invalid contract `{}` specified in override list",
-                                    self.hir.contract(id).name.as_str()
-                                ))
-                                .code(error_code!(2353))
-                                .span(ov.span)
-                                .note("contract is not a direct or indirect base")
-                                .emit();
-                            continue;
-                        }
-                        overrides.push(id);
-                    }
-                }
-                self.arena.alloc_smallvec(overrides)
-            };
+            self.hir.functions[id].overrides =
+                self.lower_overrides(ast_func.header.override_.as_ref(), func.contract, true);
 
             self.hir.functions[id].parameters =
                 self.lower_variables(*ast_func.header.parameters, hir::VarKind::FunctionParam);
@@ -536,27 +505,7 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
 
-        let overrides = {
-            let mut overrides = SmallVec::<[_; 8]>::new();
-            if let Some(ov) = &ast_var.override_ {
-                for path in ov.paths.iter() {
-                    let Ok(contract_id) =
-                        self.resolver.resolve_path_as(path, &self.scopes, "contract")
-                    else {
-                        continue;
-                    };
-                    let Some(c) = var_contract else {
-                        continue;
-                    };
-                    if !self.hir.contract(c).linearized_bases[1..].contains(&contract_id) {
-                        self.dcx().err("override is not a base contract").span(ov.span).emit();
-                        continue;
-                    }
-                    overrides.push(contract_id);
-                }
-            }
-            self.arena.alloc_smallvec(overrides)
-        };
+        let overrides = self.lower_overrides(ast_var.override_.as_ref(), var_contract, false);
         self.hir.variables[id].overrides = overrides;
         if let Some(getter_id) = var_getter {
             self.hir.functions[getter_id].overrides = overrides;
@@ -1229,6 +1178,55 @@ impl<'gcx> ResolveContext<'gcx> {
     /// Creates a HIR builder.
     fn hir_builder(&self) -> hir::HirBuilder<'gcx, '_> {
         hir::Hir::builder(self.arena, &self.next_id)
+    }
+
+    /// Lowers an override specifier, validating that all specified contracts are bases.
+    ///
+    /// Returns `None` if there's no override specifier.
+    fn lower_overrides(
+        &mut self,
+        override_: Option<&ast::Override<'_>>,
+        contract: Option<hir::ContractId>,
+        is_function: bool,
+    ) -> &'gcx [hir::ContractId] {
+        let Some(ov) = override_ else {
+            return &[];
+        };
+
+        let mut overrides = SmallVec::<[hir::ContractId; 8]>::new();
+        for path in ov.paths.iter() {
+            let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
+                continue;
+            };
+
+            let Some(c) = contract else {
+                if is_function {
+                    self.dcx()
+                        .err("free functions cannot override")
+                        .code(error_code!(1750))
+                        .span(ov.span)
+                        .emit();
+                }
+                continue;
+            };
+
+            if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+                self.dcx()
+                    .err(format!(
+                        "invalid contract `{}` specified in override list",
+                        self.hir.contract(id).name.as_str()
+                    ))
+                    .code(error_code!(2353))
+                    .span(ov.span)
+                    .note("contract is not a direct or indirect base")
+                    .emit();
+                continue;
+            }
+
+            overrides.push(id);
+        }
+
+        self.arena.alloc_smallvec(overrides)
     }
 }
 
