@@ -1111,10 +1111,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
             let base_name = self.gcx.hir.contract(base_id).name.as_str();
             self.dcx()
-                .err(format!(
-                    "contract `{}` should be marked as abstract",
-                    contract.name.as_str()
-                ))
+                .err(format!("contract `{}` should be marked as abstract", contract.name.as_str()))
                 .code(error_code!(3656))
                 .span(contract.name.span)
                 .span_note(
