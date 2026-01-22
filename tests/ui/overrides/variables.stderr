@@ -1,0 +1,14 @@
+error[8022]: override can only be used with public state variables
+   ╭▸ ROOT/tests/ui/overrides/variables.sol:LL:CC
+   │
+LL │     uint internal override x;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[7792]: public state variable has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/overrides/variables.sol:LL:CC
+   │
+LL │     uint public override noBase;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

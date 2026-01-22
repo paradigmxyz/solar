@@ -13,6 +13,7 @@ use solar_data_structures::{
 use solar_interface::error_code;
 
 mod checker;
+mod override_checker;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -23,6 +24,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
+            check_unimplemented_functions(gcx, id);
+            override_checker::check(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
@@ -154,6 +157,46 @@ fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool 
     key(a) == key(b)
 }
 
+fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
+    let contract = gcx.hir.contract(contract_id);
+
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+
+        if f.marked_virtual && f.visibility == Visibility::Private {
+            gcx.dcx()
+                .err("`virtual` and `private` cannot be used together")
+                .code(error_code!(3942))
+                .span(f.span)
+                .emit();
+        }
+
+        if f.body.is_some() {
+            continue;
+        }
+
+        if f.kind.is_constructor() {
+            gcx.dcx()
+                .err("constructor must be implemented if declared")
+                .code(error_code!(5700))
+                .span(f.span)
+                .emit();
+        } else if contract.kind.is_library() {
+            gcx.dcx()
+                .err("library functions must be implemented if declared")
+                .code(error_code!(9231))
+                .span(f.span)
+                .emit();
+        } else if !f.virtual_ {
+            gcx.dcx()
+                .err("functions without implementation must be marked virtual")
+                .code(error_code!(5424))
+                .span(f.span)
+                .emit();
+        }
+    }
+}
+
 fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
 
@@ -172,7 +215,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check visibility
         if f.visibility != Visibility::External {
             gcx.dcx()
-                .err("receive ether function must be defined as \"external\"")
+                .err("receive ether function must be defined as `external`")
                 .span(gcx.item_span(receive))
                 .emit();
         }

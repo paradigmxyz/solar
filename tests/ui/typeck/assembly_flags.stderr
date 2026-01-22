@@ -1,14 +1,14 @@
 error: inline assembly marked memory-safe multiple times
-  --> ROOT/tests/ui/typeck/assembly_flags.sol:LL:CC
-   |
-LL |         assembly ("memory-safe", "memory-safe") {
-   |                                  ^^^^^^^^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/assembly_flags.sol:LL:CC
+   │
+LL │         assembly ("memory-safe", "memory-safe") {
+   ╰╴                                 ━━━━━━━━━━━━━
 
 warning: unknown inline assembly flag
-  --> ROOT/tests/ui/typeck/assembly_flags.sol:LL:CC
-   |
-LL |         assembly ("unknown-flag") {
-   |                   ^^^^^^^^^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/assembly_flags.sol:LL:CC
+   │
+LL │         assembly ("unknown-flag") {
+   ╰╴                  ━━━━━━━━━━━━━━
 
 error: aborting due to 1 previous error; 1 warning emitted
 

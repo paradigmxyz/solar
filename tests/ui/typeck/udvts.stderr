@@ -1,32 +1,32 @@
 error: the underlying type of UDVTs must be an elementary value type
-  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
-   |
-LL | type U01 is U01;
-   |             ^^^
+   ╭▸ ROOT/tests/ui/typeck/udvts.sol:LL:CC
+   │
+LL │ type U01 is U01;
+   ╰╴            ━━━
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
-   |
-LL | type U02 is string;
-   |             ^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/udvts.sol:LL:CC
+   │
+LL │ type U02 is string;
+   ╰╴            ━━━━━━
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
-   |
-LL | type U03 is bytes;
-   |             ^^^^^
+   ╭▸ ROOT/tests/ui/typeck/udvts.sol:LL:CC
+   │
+LL │ type U03 is bytes;
+   ╰╴            ━━━━━
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
-   |
-LL | type U04 is uint[];
-   |             ^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/udvts.sol:LL:CC
+   │
+LL │ type U04 is uint[];
+   ╰╴            ━━━━━━
 
 error: the underlying type of UDVTs must be an elementary value type
-  --> ROOT/tests/ui/typeck/udvts.sol:LL:CC
-   |
-LL | type U05 is U06;
-   |             ^^^
+   ╭▸ ROOT/tests/ui/typeck/udvts.sol:LL:CC
+   │
+LL │ type U05 is U06;
+   ╰╴            ━━━
 
 error: aborting due to 5 previous errors
 

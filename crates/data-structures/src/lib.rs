@@ -40,6 +40,28 @@ pub use thin_slice::{RawThinSlice, ThinSlice};
 
 pub use smallvec;
 
+/// Pluralize a word based on a count.
+#[macro_export]
+#[rustfmt::skip]
+macro_rules! pluralize {
+    // Pluralize based on count (e.g., apples)
+    ($x:expr) => {
+        if $x == 1 { "" } else { "s" }
+    };
+    ("has", $x:expr) => {
+        if $x == 1 { "has" } else { "have" }
+    };
+    ("is", $x:expr) => {
+        if $x == 1 { "is" } else { "are" }
+    };
+    ("was", $x:expr) => {
+        if $x == 1 { "was" } else { "were" }
+    };
+    ("this", $x:expr) => {
+        if $x == 1 { "this" } else { "these" }
+    };
+}
+
 /// This calls the passed function while ensuring it won't be inlined into the caller.
 #[inline(never)]
 #[cold]

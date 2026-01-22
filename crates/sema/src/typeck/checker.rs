@@ -5,8 +5,8 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
-use solar_data_structures::{Never, map::FxHashMap, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, pluralize};
+use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -21,12 +21,36 @@ struct TypeChecker<'gcx> {
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
-    lvalue_context: Option<bool>,
+    lvalue_context: Option<Result<(), NotLvalueReason>>,
+
+    /// Whether we're directly inside an emit statement (for the immediate call only).
+    in_emit: bool,
+    /// Whether we're directly inside a revert statement (for the immediate call only).
+    in_revert: bool,
+}
+
+#[derive(Clone, Copy)]
+enum NotLvalueReason {
+    Constant,
+    Immutable,
+    CalldataArray,
+    CalldataStruct,
+    FixedBytesIndex,
+    ArrayLength,
+    Generic,
 }
 
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
-        Self { gcx, source, contract: None, types: Default::default(), lvalue_context: None }
+        Self {
+            gcx,
+            source,
+            contract: None,
+            types: Default::default(),
+            lvalue_context: None,
+            in_emit: false,
+            in_revert: false,
+        }
     }
 
     fn dcx(&self) -> &'gcx DiagCtxt {
@@ -79,12 +103,6 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        macro_rules! todo {
-            () => {{
-                let msg = format!("not yet implemented: {expr:?}");
-                return self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit());
-            }};
-        }
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
@@ -138,22 +156,65 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
                 let mut callee_ty = self.check_expr(callee);
-                // Get the function type for struct constructors.
-                if let TyKind::Type(struct_ty) = callee_ty.kind
+
+                // Get the function type for struct constructors, keeping struct_id for field names.
+                let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
                     && let TyKind::Struct(id) = struct_ty.kind
                 {
                     callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                }
+                    Some(id)
+                } else {
+                    None
+                };
 
                 // TODO: `array.push() = x;` is the only valid call lvalue
                 let is_array_push = false;
+
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(_f) => {
-                        // dbg!(callee_ty);
-                        todo!()
+                    TyKind::FnPtr(f) => {
+                        let param_names = if let Some(struct_id) = struct_id {
+                            Some(self.get_struct_field_names(struct_id))
+                        } else {
+                            f.function_id.map(|id| {
+                                self.get_param_names(self.gcx.hir.function(id).parameters)
+                            })
+                        };
+                        self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
+                        self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(..) | TyKind::Error(..) | TyKind::Err(_) => callee_ty,
+                    TyKind::Event(param_tys, id) => {
+                        if !self.in_emit {
+                            self.dcx()
+                                .err("event invocations have to be prefixed by `emit`")
+                                .span(expr.span)
+                                .emit();
+                        }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
+                        let event = self.gcx.hir.event(id);
+                        let param_names = self.get_param_names(event.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Error(param_tys, id) => {
+                        // TODO: Also allow in require(condition, MyError(...)).
+                        if !self.in_revert {
+                            self.dcx()
+                                .err("errors can only be used with revert statements")
+                                .span(expr.span)
+                                .emit();
+                        }
+                        // Clear context so nested calls in args are not considered in emit/revert.
+                        self.in_emit = false;
+                        self.in_revert = false;
+                        let error = self.gcx.hir.error(id);
+                        let param_names = self.get_param_names(error.parameters);
+                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        self.gcx.types.unit
+                    }
+                    TyKind::Err(_) => callee_ty,
                     _ => {
                         let msg =
                             format!("expected function, found `{}`", callee_ty.display(self.gcx));
@@ -164,7 +225,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 if !is_array_push {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
                 ty
@@ -181,8 +242,8 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if !res_is_lvalue(self.gcx, res) {
-                    self.not_lvalue();
+                if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                    self.try_set_not_lvalue(reason);
                 }
                 self.type_of_res(res)
             }
@@ -192,7 +253,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     return ty;
                 }
                 if ty.loc() == Some(DataLocation::Calldata) {
-                    self.not_lvalue();
+                    self.try_set_not_lvalue(NotLvalueReason::CalldataArray);
+                }
+                if matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+                {
+                    self.try_set_not_lvalue(NotLvalueReason::FixedBytesIndex);
                 }
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
@@ -283,18 +348,36 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                match expr_ty.kind {
-                    TyKind::Ref(_, d) if d.is_calldata() => self.not_lvalue(),
+                let not_lvalue_reason = match expr_ty.kind {
+                    _ if matches!(
+                        expr_ty.peel_refs().kind,
+                        TyKind::Array(..) | TyKind::DynArray(_)
+                    ) && possible_members.len() == 1
+                        && possible_members[0].name == sym::length =>
+                    {
+                        Some(NotLvalueReason::ArrayLength)
+                    }
+                    TyKind::Ref(inner, d) if d.is_calldata() => {
+                        let reason = if matches!(inner.kind, TyKind::Struct(_)) {
+                            NotLvalueReason::CalldataStruct
+                        } else {
+                            NotLvalueReason::CalldataArray
+                        };
+                        Some(reason)
+                    }
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
-                            && !possible_members[0]
-                                .res
-                                .is_some_and(|res| res_is_lvalue(self.gcx, res)) =>
+                            && possible_members[0].res.is_some_and(|res| {
+                                res_not_lvalue_reason(self.gcx, res).is_some()
+                            }) =>
                     {
-                        self.not_lvalue();
+                        Some(NotLvalueReason::Generic)
                     }
-                    _ => {}
+                    _ => None,
+                };
+                if let Some(reason) = not_lvalue_reason {
+                    self.try_set_not_lvalue(reason);
                 }
 
                 ty
@@ -361,8 +444,21 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Payable(expr) => {
-                let ty = self.expect_ty(expr, self.gcx.types.address);
-                if ty.references_error() { ty } else { self.gcx.types.address_payable }
+                let ty = self.check_expr(expr);
+                if ty.references_error() {
+                    return ty;
+                }
+
+                let target_ty = self.gcx.types.address_payable;
+                match ty.try_convert_explicit_to(target_ty, self.gcx) {
+                    Ok(target_ty) => target_ty,
+                    Err(err) => {
+                        let mut diag =
+                            self.dcx().err("invalid explicit type conversion").span(expr.span);
+                        diag = diag.span_label(expr.span, err.message(ty, target_ty, self.gcx));
+                        self.gcx.mk_ty_err(diag.emit())
+                    }
+                }
             }
             hir::ExprKind::Ternary(cond, true_, false_) => {
                 let _ = self.expect_ty(cond, self.gcx.types.bool);
@@ -434,13 +530,25 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, expr) => {
+                // For negation, don't propagate expected type to the inner expression
+                // because we'll modify the type (flipping the sign for int literals).
+                let propagate_expected = op.kind != hir::UnOpKind::Neg
+                    || !matches!(expected, Some(ty) if ty.is_signed());
                 let ty = if op.kind.has_side_effects() {
                     self.require_lvalue(expr)
-                } else {
+                } else if propagate_expected {
                     self.check_expr_with(expr, expected)
+                } else {
+                    self.check_expr(expr)
                 };
                 // TODO: custom operators
                 if valid_unop(ty, op.kind) {
+                    // Propagate negativity for integer literals under unary negation.
+                    if op.kind == hir::UnOpKind::Neg
+                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                    {
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                    }
                     ty
                 } else {
                     let msg = format!(
@@ -456,8 +564,42 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_assign(&self, ty: Ty<'gcx>, expr: &'gcx hir::Expr<'gcx>) {
-        // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
-        let _ = (ty, expr);
+        // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
+        if let hir::ExprKind::Tuple(components) = &expr.kind {
+            if components.is_empty() {
+                self.dcx().err("empty tuple on the left hand side").span(expr.span).emit();
+                return;
+            }
+            let types =
+                if let TyKind::Tuple(types) = ty.kind { types } else { std::slice::from_ref(&ty) };
+            for (component, &component_ty) in components.iter().zip(types.iter()) {
+                if let Some(component) = component {
+                    self.check_assign(component_ty, component);
+                }
+            }
+            return;
+        }
+
+        // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
+        // variable (local storage pointers are OK).
+        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+            self.dcx()
+                .err("types in storage containing (nested) mappings cannot be assigned to")
+                .span(expr.span)
+                .emit();
+        }
+    }
+
+    /// Returns true if the expression refers to a local or return variable.
+    fn is_local_or_return_variable(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        if let hir::ExprKind::Ident(res_slice) = &expr.kind {
+            let res = self.resolve_overloads(res_slice, expr.span);
+            if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
+                let var = self.gcx.hir.variable(var_id);
+                return var.is_local_or_return();
+            }
+        }
+        false
     }
 
     fn check_binop(
@@ -502,10 +644,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => {
-                debug_assert!(!key.is_reference_type(), "invalid mapping key {key:?}");
-                (key, value.with_loc_if_ref_opt(self.gcx, loc))
-            }
+            TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
     }
@@ -523,13 +662,14 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        let Err(()) = from.try_convert_explicit_to(to) else { return to };
-
-        let msg =
-            format!("cannot convert `{}` to `{}`", from.display(self.gcx), to.display(self.gcx));
-        let mut err = self.dcx().err(msg).span(span);
-        err = err.span_label(span, "invalid explicit type conversion");
-        self.gcx.mk_ty_err(err.emit())
+        match from.try_convert_explicit_to(to, self.gcx) {
+            Ok(result_ty) => result_ty,
+            Err(err) => {
+                let mut diag = self.dcx().err("invalid explicit type conversion").span(span);
+                diag = diag.span_label(span, err.message(from, to, self.gcx));
+                self.gcx.mk_ty_err(diag.emit())
+            }
+        }
     }
 
     #[track_caller]
@@ -539,18 +679,166 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        let Err(()) = actual.try_convert_implicit_to(expected) else { return };
+        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
-        let mut err = self.dcx().err("mismatched types").span(expr.span);
-        err = err.span_label(
-            expr.span,
-            format!(
-                "expected `{}`, found `{}`",
-                expected.display(self.gcx),
-                actual.display(self.gcx)
-            ),
-        );
-        err.emit();
+        let mut diag = self.dcx().err("mismatched types").span(expr.span);
+        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
+        diag.emit();
+    }
+
+    fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        match returns {
+            [] => self.gcx.types.unit,
+            [ty] => *ty,
+            tys => self.gcx.mk_ty_tuple(tys),
+        }
+    }
+
+    fn get_param_names(
+        &self,
+        params: &[hir::VariableId],
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
+    }
+
+    fn get_struct_field_names(
+        &self,
+        id: hir::StructId,
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        self.gcx
+            .hir
+            .strukt(id)
+            .fields
+            .iter()
+            .map(|&fid| self.gcx.hir.variable(fid).name.map(|i| i.name))
+            .collect()
+    }
+
+    fn check_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
+    ) {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                if let Some(names) = param_names {
+                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
+                } else {
+                    self.dcx()
+                        .err("named arguments cannot be used for functions that take arbitrary parameters")
+                        .span(args.span)
+                        .emit();
+                    for arg in named_args {
+                        let _ = self.check_expr(&arg.value);
+                    }
+                }
+            }
+        }
+    }
+
+    fn check_positional_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        param_tys: &[Ty<'gcx>],
+    ) {
+        if exprs.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    exprs.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        exprs.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let count = std::cmp::min(exprs.len(), param_tys.len());
+        for i in 0..count {
+            let _ = self.expect_ty(&exprs[i], param_tys[i]);
+        }
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr(expr);
+        }
+    }
+
+    fn check_named_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+        param_tys: &[Ty<'gcx>],
+        param_names: &[Option<solar_interface::Symbol>],
+    ) {
+        debug_assert_eq!(param_tys.len(), param_names.len());
+
+        if named_args.len() != param_tys.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected {}",
+                    named_args.len(),
+                    param_tys.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected {} argument{}, found {}",
+                        param_tys.len(),
+                        pluralize!(param_tys.len()),
+                        named_args.len()
+                    ),
+                )
+                .emit();
+        }
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
+
+        for arg in named_args {
+            let arg_name = arg.name.name;
+
+            if seen_names.contains(&arg_name) {
+                self.dcx()
+                    .err(format!("duplicate named argument `{arg_name}`"))
+                    .span(arg.name.span)
+                    .emit();
+                let _ = self.check_expr(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            let param_idx = param_names.iter().position(|n| n.is_some_and(|name| name == arg_name));
+
+            match param_idx {
+                Some(idx) => {
+                    let _ = self.expect_ty(&arg.value, param_tys[idx]);
+                }
+                None => {
+                    self.dcx()
+                        .err(format!(
+                            "named argument `{arg_name}` does not match function declaration"
+                        ))
+                        .span(arg.name.span)
+                        .emit();
+                    let _ = self.check_expr(&arg.value);
+                }
+            }
+        }
     }
 
     #[must_use]
@@ -563,14 +851,63 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+
         if let Some(init) = var.initializer {
-            // TODO: might have different logic vs assignment
-            self.check_assign(ty, init);
-            if expect {
+            if var.is_state_variable() && ty.has_mapping() {
+                self.dcx()
+                    .err("types in storage containing (nested) mappings cannot be assigned to")
+                    .span(var.span)
+                    .emit();
+            } else if expect {
                 let _ = self.expect_ty(init, ty);
             }
         }
-        // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L472
+
+        if var.is_immutable() {
+            if !ty.is_value_type() {
+                self.dcx()
+                    .err("immutable variables cannot have a non-value type")
+                    .span(var.span)
+                    .emit();
+            }
+            if let TyKind::FnPtr(f) = ty.kind
+                && f.visibility == hir::Visibility::External
+            {
+                self.dcx()
+                    .err("immutable variables of external function type are not yet supported")
+                    .span(var.span)
+                    .emit();
+            }
+        }
+
+        if !var.is_state_variable()
+            && matches!(
+                var.data_location,
+                Some(DataLocation::Calldata) | Some(DataLocation::Memory)
+            )
+            && ty.has_mapping()
+        {
+            self.dcx()
+                .err(format!(
+                    "type `{}` is only valid in storage because it contains a (nested) mapping",
+                    ty.display(self.gcx)
+                ))
+                .span(var.span)
+                .emit();
+        }
+
+        // Uninitialized local mapping variables are invalid (error 4182).
+        if var.kind == hir::VarKind::Statement
+            && var.initializer.is_none()
+            && matches!(ty.peel_refs().kind, TyKind::Mapping(..))
+        {
+            self.dcx()
+                .err("uninitialized mapping")
+                .note("mappings cannot be created dynamically, you have to assign them from a state variable")
+                .span(var.span)
+                .emit();
+        }
+
         ty
     }
 
@@ -626,27 +963,49 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     #[must_use]
+    fn check_mapping_key_type(&mut self, key: &'gcx hir::Type<'gcx>) -> Ty<'gcx> {
+        let ty = self.gcx.type_of_hir_ty(key);
+        if !matches!(
+            ty.kind,
+            TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
+        ) {
+            self.dcx().err("only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
+        }
+        ty
+    }
+
+    #[must_use]
     fn require_lvalue(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        let prev = self.lvalue_context.replace(true);
+        let prev = self.lvalue_context.replace(Ok(()));
         let ty = self.check_expr(expr);
-        let ctx = self.lvalue_context;
-        debug_assert!(ctx.is_some());
+        let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
-        // TODO: check ctx
-        if is_syntactic_lvalue(expr) {
+
+        if result.is_ok() && is_syntactic_lvalue(expr) {
             return ty;
         }
 
-        // TODO: better error message https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L4143
-
-        self.dcx().err("expected lvalue").span(expr.span).emit();
+        let msg = match result {
+            Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
+            Err(NotLvalueReason::Immutable) => "cannot assign to an immutable variable",
+            Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
+            Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
+            Err(NotLvalueReason::FixedBytesIndex) => {
+                "single bytes in fixed bytes arrays cannot be modified"
+            }
+            Err(NotLvalueReason::ArrayLength) => {
+                "member `length` is read-only and cannot be used to resize arrays"
+            }
+            Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
+        };
+        self.dcx().err(msg).span(expr.span).emit();
 
         ty
     }
 
-    fn not_lvalue(&mut self) {
-        if let Some(v) = &mut self.lvalue_context {
-            *v = false;
+    fn try_set_not_lvalue(&mut self, reason: NotLvalueReason) {
+        if let Some(Ok(())) = self.lvalue_context {
+            self.lvalue_context = Some(Err(reason));
         }
     }
 
@@ -726,12 +1085,50 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_contract(
+        &mut self,
+        contract: &'gcx hir::Contract<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        // Check base constructor arguments
+        for (&base_id, modifier) in
+            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
+        {
+            // Get constructor parameters if the base has a constructor
+            let base_contract = self.gcx.hir.contract(base_id);
+            if let Some(ctor_id) = base_contract.ctor {
+                let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
+                // Check if arguments were provided and validate count
+                if let Some(modifier) = modifier {
+                    let arg_count = modifier.args.exprs().len();
+                    if arg_count != ctor_param_types.len() {
+                        self.dcx()
+                            .err(format!(
+                                "wrong number of arguments for base constructor: expected {}, found {}",
+                                ctor_param_types.len(),
+                                arg_count
+                            ))
+                            .span(modifier.span)
+                            .emit();
+                    } else {
+                        for (arg_expr, expected_arg_ty) in
+                            modifier.args.exprs().zip(ctor_param_types.iter())
+                        {
+                            let actual_arg_ty =
+                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                        }
+                    }
+                }
+            }
+        }
+        self.walk_contract(contract)
+    }
+
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
         let _ = self.check_var(id);
         ControlFlow::Continue(())
     }
 
-    #[expect(clippy::single_match)]
     fn visit_ty(&mut self, hir_ty: &'gcx hir::Type<'gcx>) -> ControlFlow<Self::BreakValue> {
         match hir_ty.kind {
             hir::TypeKind::Array(array) => {
@@ -739,6 +1136,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     let _ = self.expect_ty(size, self.gcx.types.uint(256));
                 }
                 return self.visit_ty(&array.element);
+            }
+            hir::TypeKind::Mapping(mapping) => {
+                let _ = self.check_mapping_key_type(&mapping.key);
+                self.visit_ty(&mapping.value)?;
             }
             // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
             // hir::TypeKind::Function(func) => {
@@ -775,9 +1176,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
-            hir::StmtKind::Emit(expr) | hir::StmtKind::Revert(expr) => {
-                let _ty = self.check_expr(expr);
-                let hir::ExprKind::Call(callee, ..) = expr.kind else {
+            hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
+                let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
+                if is_emit {
+                    self.in_emit = true;
+                } else {
+                    self.in_revert = true;
+                }
+                let _ty = self.check_expr(call_expr);
+                self.in_emit = false;
+                self.in_revert = false;
+
+                let hir::ExprKind::Call(callee, ..) = call_expr.kind else {
                     unreachable!("bad Emit|Revert");
                 };
                 let callee_ty = self.get(callee);
@@ -786,7 +1196,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         hir::StmtKind::Emit(_) => {
                             if !matches!(callee_ty.kind, TyKind::Event(..)) {
                                 self.dcx()
-                                    .err("expression is not an event")
+                                    .err("expression has to be an event invocation")
                                     .span(callee.span)
                                     .emit();
                             }
@@ -794,7 +1204,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         hir::StmtKind::Revert(_) => {
                             if !matches!(callee_ty.kind, TyKind::Error(..)) {
                                 self.dcx()
-                                    .err("expression is not an error")
+                                    .err("expression has to be an error")
                                     .span(callee.span)
                                     .emit();
                             }
@@ -857,20 +1267,25 @@ impl<T> FromIterator<T> for WantOne<T> {
                 let first = iter.next().unwrap();
                 match iter.peek() {
                     None => Self::One(first),
-                    Some(_) => Self::Many
-                    // (std::iter::once(first).chain(iter).collect())
-                    ,
+                    Some(_) => Self::Many, // (std::iter::once(first).chain(iter).collect()),
                 }
             }
         }
     }
 }
 
-fn res_is_lvalue(gcx: Gcx<'_>, res: hir::Res) -> bool {
+fn res_not_lvalue_reason(gcx: Gcx<'_>, res: hir::Res) -> Option<NotLvalueReason> {
     match res {
-        hir::Res::Item(hir::ItemId::Variable(var)) => !gcx.hir.variable(var).is_constant(),
-        hir::Res::Err(_) => true,
-        _ => false,
+        hir::Res::Item(hir::ItemId::Variable(var)) => {
+            let var = gcx.hir.variable(var);
+            match var.mutability {
+                Some(m) if m.is_constant() => Some(NotLvalueReason::Constant),
+                Some(m) if m.is_immutable() => Some(NotLvalueReason::Immutable),
+                _ => None,
+            }
+        }
+        hir::Res::Err(_) => None,
+        _ => Some(NotLvalueReason::Generic),
     }
 }
 
@@ -896,15 +1311,25 @@ fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
 
     let ty = ty.peel_refs();
     match ty.kind {
-        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
-        | TyKind::IntLiteral(..) => match op {
-            hir::UnOpKind::Neg => ty.is_signed(),
-            hir::UnOpKind::Not => false,
-            hir::UnOpKind::PreInc
+        TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_)) => {
+            match op {
+                hir::UnOpKind::Neg => ty.is_signed(),
+                hir::UnOpKind::Not => false,
+                hir::UnOpKind::PreInc
+                | hir::UnOpKind::PreDec
+                | hir::UnOpKind::BitNot
+                | hir::UnOpKind::PostInc
+                | hir::UnOpKind::PostDec => true,
+            }
+        }
+        // IntLiteral can always be negated (it becomes a negative literal).
+        TyKind::IntLiteral(..) => match op {
+            hir::UnOpKind::Neg | hir::UnOpKind::BitNot => true,
+            hir::UnOpKind::Not
+            | hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
-            | hir::UnOpKind::BitNot
             | hir::UnOpKind::PostInc
-            | hir::UnOpKind::PostDec => true,
+            | hir::UnOpKind::PostDec => false,
         },
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => op == hir::UnOpKind::BitNot,
         TyKind::Elementary(hir::ElementaryType::Bool) => op == hir::UnOpKind::Not,
