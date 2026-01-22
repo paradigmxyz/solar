@@ -527,7 +527,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.107",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -977,7 +977,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim",
- "syn 2.0.107",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -988,7 +988,7 @@ checksum = "d38308df82d1080de0afee5d069fa14b0326a88c14f15c5ccda35b4a6c414c81"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.107",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -1356,7 +1356,7 @@ dependencies = [
  "proc-macro-error2",
  "proc-macro2",
  "quote",
- "syn 2.0.107",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -2153,6 +2153,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac17546d82912e64874e3d5b40681ce32eac4e5834344f51efcf689ff1550a65"
 dependencies = [
  "owo-colors",
+]
+
+[[package]]
+name = "prettyplease"
+version = "0.2.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
+dependencies = [
+ "proc-macro2",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -3536,9 +3546,9 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vergen"
-version = "10.0.0-beta.3"
+version = "10.0.0-beta.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "441060f5f6e4995fd7366712ba62d273fd06bc9a787ca0102484a1fb71bb71ff"
+checksum = "4065d92137ae477a3701e18a7afccdf584229fe504eaa4d290bc722df4076141"
 dependencies = [
  "anyhow",
  "bon",
@@ -3549,9 +3559,9 @@ dependencies = [
 
 [[package]]
 name = "vergen-gitcl"
-version = "2.1.0-beta.9"
+version = "10.0.0-beta.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa221f0895e4391a4ca85d5e7d3c7e064fc53318fba97f6f6e80c3df19ea99ba"
+checksum = "ba3911418c678932ff5b8f8162bfb73753b6f3d1e22bf37d07d53aff44a6f224"
 dependencies = [
  "anyhow",
  "bon",
@@ -3563,9 +3573,9 @@ dependencies = [
 
 [[package]]
 name = "vergen-lib"
-version = "1.0.0-beta.3"
+version = "10.0.0-beta.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ba40a0dc46b02c63e88255b4a087b9421148d0241098d71a5818bac9ffd799"
+checksum = "fbabf186269781b2b81f38937d07c37bbd980853dea6edc89b90820c09aab4c3"
 dependencies = [
  "anyhow",
  "bon",
