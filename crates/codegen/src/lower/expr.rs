@@ -1250,11 +1250,15 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
             let var = self.gcx.hir.variable(*var_id);
+            eprintln!("DEBUG get_mapping_base_slot: var_id={:?}, name={:?}, is_mapping={}", var_id, var.name, matches!(var.ty.kind, hir::TypeKind::Mapping(_)));
             // Check if this variable has mapping type
             if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
                 // Look up the storage slot
                 if let Some(&slot) = self.storage_slots.get(var_id) {
+                    eprintln!("DEBUG   -> found slot {}", slot);
                     return Some((*var_id, slot));
+                } else {
+                    eprintln!("DEBUG   -> NOT FOUND in storage_slots! keys={:?}", self.storage_slots.keys().collect::<Vec<_>>());
                 }
             }
         }

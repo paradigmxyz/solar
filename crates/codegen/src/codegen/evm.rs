@@ -1345,7 +1345,12 @@ impl EvmCodegen {
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
             // a is an untracked value at depth 1, b is tracked on top
             // Stack is [b, a_untracked], need [a, b]
-            // Just SWAP1 to get correct order
+            // DUP b if still live and this is the only copy before SWAP.
+            // Skip DUP for immediates/args since they can be re-emitted.
+            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
+                self.asm.emit_op(opcodes::dup(1));
+                self.scheduler.stack.dup(1);
+            }
             self.asm.emit_op(opcodes::SWAP1);
             self.scheduler.stack_swapped();
         } else {
@@ -1755,5 +1760,94 @@ mod tests {
 
         let result = compile_source(source);
         assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_phi_value_used_after_if_else() {
+        // Test case for phi node handling when a variable is assigned in both
+        // if/else branches and then used after the if/else.
+        // This pattern is common in Uniswap V2 and similar contracts.
+        let source = r#"
+            // SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+            contract Test {
+                uint256 public totalSupply;
+                function mint() external returns (uint256 liquidity) {
+                    if (totalSupply == 0) {
+                        liquidity = 1;
+                    } else {
+                        liquidity = 2;
+                    }
+                    totalSupply += liquidity;
+                }
+            }
+        "#;
+
+        let result = compile_source(source);
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        let bytecode = result.unwrap();
+        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
+    }
+
+    #[test]
+    fn test_phi_value_used_multiple_times_after_if_else() {
+        // Test case where the phi result is used multiple times after the if/else
+        let source = r#"
+            // SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+            contract Test {
+                uint256 public totalSupply;
+                function mint() external returns (uint256 result) {
+                    uint256 liquidity;
+                    if (totalSupply == 0) {
+                        liquidity = 1;
+                    } else {
+                        liquidity = 2;
+                    }
+                    totalSupply += liquidity;
+                    uint256 x = liquidity * 2;
+                    result = x + liquidity;
+                }
+            }
+        "#;
+
+        let result = compile_source(source);
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        let bytecode = result.unwrap();
+        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
+    }
+
+    #[test]
+    fn test_phi_with_ternary_in_branch() {
+        // Complex phi case with nested ternary operators
+        let source = r#"
+            // SPDX-License-Identifier: MIT
+            pragma solidity ^0.8.0;
+            contract Test {
+                uint256 public totalSupply;
+                uint256 public reserve0;
+                uint256 public reserve1;
+                
+                function mint() external returns (uint256 liquidity) {
+                    uint256 amount0 = 100;
+                    uint256 amount1 = 200;
+                    
+                    if (totalSupply == 0) {
+                        liquidity = amount0 * amount1;
+                    } else {
+                        uint256 l1 = (amount0 * totalSupply) / reserve0;
+                        uint256 l2 = (amount1 * totalSupply) / reserve1;
+                        liquidity = l1 < l2 ? l1 : l2;
+                    }
+                    
+                    totalSupply += liquidity;
+                }
+            }
+        "#;
+
+        let result = compile_source(source);
+        assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
+        let bytecode = result.unwrap();
+        assert!(!bytecode.is_empty(), "Bytecode should not be empty");
     }
 }
