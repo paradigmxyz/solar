@@ -1293,7 +1293,7 @@ impl EvmCodegen {
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
         let b_is_live = !liveness.is_dead_after(b, block, inst_idx);
 
-        // Helper to check if a value can be re-emitted (immediates and args don't need DUP)
+        // Helper to check if a value can be re-emitted (immediates and args don't need spilling)
         let can_reemit = |v: ValueId| {
             matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
         };
@@ -1301,14 +1301,11 @@ impl EvmCodegen {
         // Special case: same operand used twice (e.g., a + a, a - a)
         if a == b {
             self.emit_value(func, a);
-            // If the value is still live after this instruction and only appears once,
-            // DUP it to preserve (if it appears more than once, a copy already exists).
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
+            // Spill if live-after (now that it's on stack)
+            if a_is_live && !can_reemit(a) {
+                self.spill_value_if_needed(func, a);
             }
-            // Now DUP for the second operand
+            // DUP for the second operand
             self.asm.emit_op(opcodes::DUP1);
             self.scheduler.stack.dup(1);
             self.asm.emit_op(opcode);
@@ -1325,49 +1322,35 @@ impl EvmCodegen {
         if !a_can_emit && b_can_emit && has_untracked {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
-            // DUP b if still live and this is the only copy.
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
+            // Spill b if live-after (it's now at depth 0)
+            if b_is_live && !can_reemit(b) {
+                self.spill_value_if_needed(func, b);
             }
             self.asm.emit_op(opcodes::SWAP1);
             self.scheduler.stack_swapped();
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
-            // DUP a if still live and this is the only copy.
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
+            // Spill a if live-after (it's now at depth 0)
+            if a_is_live && !can_reemit(a) {
+                self.spill_value_if_needed(func, a);
             }
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
             // a is an untracked value at depth 1, b is tracked on top
             // Stack is [b, a_untracked], need [a, b]
-            // DUP b if still live and this is the only copy before SWAP.
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
-            }
             self.asm.emit_op(opcodes::SWAP1);
             self.scheduler.stack_swapped();
         } else {
             // Normal case: emit b first (bottom), then a (top)
             self.emit_value(func, b);
-            // DUP b if still live and this is the only copy.
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if b_is_live && self.scheduler.stack.count(b) == 1 && !can_reemit(b) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
+            // Spill b if live-after (it's now at depth 0)
+            if b_is_live && !can_reemit(b) {
+                self.spill_value_if_needed(func, b);
             }
             self.emit_value(func, a);
-            // DUP a if still live and this is the only copy.
-            // Skip DUP for immediates/args since they can be re-emitted.
-            if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit(a) {
-                self.asm.emit_op(opcodes::dup(1));
-                self.scheduler.stack.dup(1);
+            // Spill a if live-after (it's now at depth 0)
+            if a_is_live && !can_reemit(a) {
+                self.spill_value_if_needed(func, a);
             }
         }
 
@@ -1376,7 +1359,7 @@ impl EvmCodegen {
     }
 
     /// Emits a unary operation with result tracking and liveness awareness.
-    /// If the operand is still live after this instruction, we DUP it before it gets consumed.
+    /// If the operand is still live after this instruction, we spill it after emitting.
     #[allow(clippy::too_many_arguments)]
     fn emit_unary_op_with_result(
         &mut self,
@@ -1391,7 +1374,7 @@ impl EvmCodegen {
         // Check if the operand is still live after this instruction
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
 
-        // Check if value can be re-emitted (immediates and args don't need DUP)
+        // Check if value can be re-emitted (immediates and args don't need spilling)
         let can_reemit = matches!(
             func.value(a),
             crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
@@ -1399,12 +1382,9 @@ impl EvmCodegen {
 
         self.emit_value(func, a);
 
-        // If the operand is still live and this is the only copy on stack, DUP to preserve
-        // (if there are multiple copies, the operation consuming one still leaves others).
-        // Skip DUP for immediates/args since they can be re-emitted.
-        if a_is_live && self.scheduler.stack.count(a) == 1 && !can_reemit {
-            self.asm.emit_op(opcodes::dup(1));
-            self.scheduler.stack.dup(1);
+        // Spill the operand AFTER emitting if it's live-after (now it's on stack at depth 0)
+        if a_is_live && !can_reemit {
+            self.spill_value_if_needed(func, a);
         }
 
         self.asm.emit_op(opcode);
@@ -1420,8 +1400,8 @@ impl EvmCodegen {
     }
 
     /// Emits a store operation with liveness awareness.
-    /// If the value operand is still live after this instruction, we DUP it first
-    /// to preserve it on the stack for later use.
+    /// If the value operand is still live after this instruction, we spill it after emitting
+    /// to preserve it for later use.
     #[allow(clippy::too_many_arguments)]
     fn emit_store_op_live_aware(
         &mut self,
@@ -1438,33 +1418,23 @@ impl EvmCodegen {
         // Check if addr is still live after this instruction
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
 
-        // Helper to check if a value can be re-emitted (immediates and args don't need DUP)
+        // Helper to check if a value can be re-emitted (immediates and args don't need spilling)
         let can_reemit = |v: ValueId| {
             matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
         };
 
         // Emit val
         self.emit_value(func, val);
-
-        // If val is still live and this is the only copy on stack, we need to DUP it
-        // before it gets consumed by the store operation.
-        // Skip DUP for immediates/args since they can be re-emitted.
-        if val_is_live && self.scheduler.stack.count(val) == 1 && !can_reemit(val) {
-            self.asm.emit_op(opcodes::dup(1));
-            self.scheduler.stack.dup(1);
+        // Spill val if live-after (it's now at depth 0)
+        if val_is_live && !can_reemit(val) {
+            self.spill_value_if_needed(func, val);
         }
 
         // Emit addr
         self.emit_value(func, addr);
-
-        // If addr is still live and this is the only copy, DUP it too (rare but possible).
-        // Skip DUP for immediates/args since they can be re-emitted.
-        // NOTE: DUPing addr here would corrupt the stack layout since it was just pushed
-        // on top of val. For non-immediate/arg values that are live, the caller must
-        // ensure they are available via spilling or other means.
-        if addr_is_live && self.scheduler.stack.count(addr) == 1 && !can_reemit(addr) {
-            self.asm.emit_op(opcodes::dup(1));
-            self.scheduler.stack.dup(1);
+        // Spill addr if live-after (it's now at depth 0)
+        if addr_is_live && !can_reemit(addr) {
+            self.spill_value_if_needed(func, addr);
         }
 
         self.asm.emit_op(opcode);
@@ -1616,22 +1586,17 @@ impl EvmCodegen {
                 } else {
                     // For multiple return values, we need to emit each value and store it
                     // at the correct memory offset (0, 32, 64, etc.).
-                    //
-                    // The tricky part is that emit_value uses DUP to get values onto the
-                    // stack, and we need to properly track the scheduler state so each
-                    // subsequent emit_value finds its value at the correct position.
                     let n = values.len();
 
-                    // Emit each value and immediately store it. After each MSTORE,
-                    // update the scheduler to reflect that we consumed the value.
+                    // Emit each value and immediately store it.
                     for (i, &value) in values.iter().enumerate() {
                         self.emit_value(func, value);
                         self.asm.emit_push(U256::from(i * 32));
+                        // Model the PUSH in the scheduler
+                        self.scheduler.stack.push_unknown();
                         self.asm.emit_op(opcodes::MSTORE);
-                        // The PUSH added an unknown value, and MSTORE consumed 2.
-                        // Since emit_value used DUP, the original is still in the scheduler model.
-                        // We need to tell scheduler that 1 value was consumed (the DUP'd copy).
-                        self.scheduler.instruction_executed(1, None);
+                        // MSTORE consumes 2 values (offset and value)
+                        self.scheduler.instruction_executed(2, None);
                     }
 
                     // Return size and offset

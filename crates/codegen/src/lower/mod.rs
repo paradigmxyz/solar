@@ -446,11 +446,48 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
+            // Track the ABI offset for each parameter (for flattened struct fields)
+            let mut abi_param_index = 0u32;
+
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
                 let ty = self.lower_type_from_var(param);
-                let val = builder.add_param(ty);
-                self.locals.insert(param_id, val);
+
+                // Check if this is a struct parameter that needs special handling
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &param.ty.kind {
+                    // Struct parameters: copy fields from calldata to memory
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    let num_fields = strukt.fields.len();
+
+                    // Allocate memory for the struct
+                    let struct_size = (num_fields as u64) * 32;
+                    let struct_ptr = self.allocate_memory(&mut builder, struct_size);
+
+                    // Add MIR params for each struct field (they come from calldata)
+                    for field_idx in 0..num_fields {
+                        let field_ty = MirType::uint256();
+                        let field_val = builder.add_param(field_ty);
+
+                        // Store the field value into the struct memory
+                        let field_offset = (field_idx as u64) * 32;
+                        if field_offset == 0 {
+                            builder.mstore(struct_ptr, field_val);
+                        } else {
+                            let offset_val = builder.imm_u64(field_offset);
+                            let field_addr = builder.add(struct_ptr, offset_val);
+                            builder.mstore(field_addr, field_val);
+                        }
+                    }
+
+                    // Store the memory pointer as the local (not the Arg value)
+                    self.locals.insert(param_id, struct_ptr);
+                    abi_param_index += num_fields as u32;
+                } else {
+                    // Non-struct parameters: use normal Arg handling
+                    let val = builder.add_param(ty);
+                    self.locals.insert(param_id, val);
+                    abi_param_index += 1;
+                }
             }
 
             for &ret_id in hir_func.returns {
@@ -529,8 +566,18 @@ impl<'gcx> Lowerer<'gcx> {
             hir::TypeKind::Function(_) => "function".to_string(),
             hir::TypeKind::Custom(item_id) => match item_id {
                 hir::ItemId::Struct(struct_id) => {
+                    // Structs are encoded as tuples in ABI signatures
                     let s = self.gcx.hir.strukt(*struct_id);
-                    s.name.to_string()
+                    let mut tuple = String::from("(");
+                    for (i, &field_id) in s.fields.iter().enumerate() {
+                        if i > 0 {
+                            tuple.push(',');
+                        }
+                        let field = self.gcx.hir.variable(field_id);
+                        tuple.push_str(&self.type_kind_canonical_name(&field.ty.kind));
+                    }
+                    tuple.push(')');
+                    tuple
                 }
                 hir::ItemId::Enum(_) => {
                     // Enums are represented as uint8 in ABI encoding

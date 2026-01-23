@@ -250,6 +250,12 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot_val);
                 }
 
+                // Check if this is a nested storage struct access (e.g., storedNested.point.x)
+                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                    let slot_val = builder.imm_u64(slot);
+                    return builder.sload(slot_val);
+                }
+
                 // Regular memory struct member access
                 if let Some((_struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
@@ -386,6 +392,32 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Check if it's a storage variable
                     if let Some(&slot) = self.storage_slots.get(var_id) {
+                        // For storage structs, we need to copy to memory and return the pointer
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                            let strukt = self.gcx.hir.strukt(*struct_id);
+                            let num_fields = strukt.fields.len();
+                            let struct_size = (num_fields as u64) * 32;
+                            let struct_ptr = self.allocate_memory(builder, struct_size);
+
+                            // Load each field from storage and store to memory
+                            for i in 0..num_fields {
+                                let field_slot = slot + (i as u64);
+                                let field_slot_val = builder.imm_u64(field_slot);
+                                let field_val = builder.sload(field_slot_val);
+
+                                let field_mem_offset = (i as u64) * 32;
+                                if field_mem_offset == 0 {
+                                    builder.mstore(struct_ptr, field_val);
+                                } else {
+                                    let offset_val = builder.imm_u64(field_mem_offset);
+                                    let field_addr = builder.add(struct_ptr, offset_val);
+                                    builder.mstore(field_addr, field_val);
+                                }
+                            }
+                            return struct_ptr;
+                        }
+
+                        // For scalar storage variables, just load the value
                         let slot_val = builder.imm_u64(slot);
                         return builder.sload(slot_val);
                     }
@@ -650,6 +682,8 @@ impl<'gcx> Lowerer<'gcx> {
         match &lhs.kind {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+                    let var = self.gcx.hir.variable(*var_id);
+
                     // Check if it's a local variable stored in memory
                     if let Some(offset) = self.get_local_memory_offset(var_id) {
                         let offset_val = builder.imm_u64(offset);
@@ -657,9 +691,33 @@ impl<'gcx> Lowerer<'gcx> {
                     } else if self.locals.contains_key(var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         self.locals.insert(*var_id, rhs);
-                    } else if let Some(&slot) = self.storage_slots.get(var_id) {
-                        let slot_val = builder.imm_u64(slot);
-                        builder.sstore(slot_val, rhs);
+                    } else if let Some(&base_slot) = self.storage_slots.get(var_id) {
+                        // Check if this is a struct assignment (memory struct -> storage struct)
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                            // Copy each field from memory to storage
+                            let strukt = self.gcx.hir.strukt(*struct_id);
+                            for (i, &_field_id) in strukt.fields.iter().enumerate() {
+                                let field_slot_offset = self.get_struct_field_slot_offset(*struct_id, i);
+                                let slot = base_slot + field_slot_offset;
+                                let slot_val = builder.imm_u64(slot);
+
+                                // Load field from memory (rhs is memory pointer)
+                                let field_mem_offset = (i as u64) * 32;
+                                let field_val = if field_mem_offset == 0 {
+                                    builder.mload(rhs)
+                                } else {
+                                    let offset_val = builder.imm_u64(field_mem_offset);
+                                    let field_addr = builder.add(rhs, offset_val);
+                                    builder.mload(field_addr)
+                                };
+
+                                builder.sstore(slot_val, field_val);
+                            }
+                        } else {
+                            // Simple scalar storage assignment
+                            let slot_val = builder.imm_u64(base_slot);
+                            builder.sstore(slot_val, rhs);
+                        }
                     }
                 }
             }
@@ -708,6 +766,13 @@ impl<'gcx> Lowerer<'gcx> {
                 {
                     let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
                     let slot = base_slot + field_offset;
+                    let slot_val = builder.imm_u64(slot);
+                    builder.sstore(slot_val, rhs);
+                    return;
+                }
+
+                // Check if this is a nested storage struct assignment (e.g., storedNested.point.x = value)
+                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u64(slot);
                     builder.sstore(slot_val, rhs);
                     return;
@@ -1027,6 +1092,17 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
         {
             let contract = self.gcx.hir.contract(*contract_id);
+
+            // Check if member is a struct type defined in this contract: Contract.StructType(args)
+            for &item_id in contract.items {
+                if let hir::ItemId::Struct(struct_id) = item_id {
+                    let strukt = self.gcx.hir.strukt(struct_id);
+                    if strukt.name.name == member.name {
+                        return self.lower_struct_constructor(builder, struct_id, args);
+                    }
+                }
+            }
+
             if contract.kind.is_library() {
                 // Find the library function by name, matching argument count for overloads
                 let arg_count = args.exprs().count();
@@ -1171,46 +1247,104 @@ impl<'gcx> Lowerer<'gcx> {
         let selector = self.compute_member_selector(base, member);
         let num_returns = self.get_member_function_return_count(base, member);
 
-        // Calculate calldata size first
-        let num_args = args.exprs().count();
-        let calldata_size_bytes = 4 + num_args * 32;
+        // Collect argument info: for structs we need the field count, for scalars just 1 slot
+        let arg_infos: Vec<_> = args
+            .exprs()
+            .map(|arg| {
+                let struct_info = self.get_expr_struct_info(arg);
+                (arg, struct_info)
+            })
+            .collect();
+
+        // Calculate calldata size: 4 bytes selector + sum of all argument slots
+        let total_arg_slots: usize = arg_infos
+            .iter()
+            .map(|(_, info)| info.map(|(_, n)| n).unwrap_or(1))
+            .sum();
+        let calldata_size_bytes = 4 + total_arg_slots * 32;
 
         // IMPORTANT: Evaluate all arguments FIRST before writing to memory.
-        // This ensures nested external calls complete and their results are captured
-        // before we overwrite memory with the current call's calldata.
-        // Without this, nested call results stored at mem[0] would be clobbered
-        // when we write the selector for the current call.
-        let arg_vals: Vec<ValueId> =
-            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+        // For structs, lower_expr returns the memory pointer.
+        let arg_vals: Vec<ValueId> = arg_infos
+            .iter()
+            .map(|(arg, _)| self.lower_expr(builder, *arg))
+            .collect();
 
         // Also evaluate the address before writing to memory
         let addr = self.lower_expr(builder, base);
 
-        // Now write the selector and arguments to memory
-        // ABI encode the call: selector (4 bytes) + args (32 bytes each)
-        let selector_word = U256::from(selector) << 224; // Left-align 4 bytes in 32-byte word
+        // Allocate calldata from the free memory pointer (like solc does).
+        // This avoids clobbering the free memory pointer at 0x40 when encoding
+        // calldata with 2+ arguments (which would span 0x04-0x43+).
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let calldata_start = builder.mload(free_ptr_addr);
+
+        // Write the selector at calldata_start (left-aligned in 32-byte word)
+        let selector_word = U256::from(selector) << 224;
         let selector_val = builder.imm_u256(selector_word);
-        let mem_start = builder.imm_u64(0);
-        builder.mstore(mem_start, selector_val);
+        builder.mstore(calldata_start, selector_val);
 
         // Write arguments after selector
-        let mut arg_offset = 4u64; // Start after 4-byte selector
-        for arg_val in arg_vals {
-            let offset = builder.imm_u64(arg_offset);
-            builder.mstore(offset, arg_val);
-            arg_offset += 32;
+        // For struct arguments, we need to load each field from memory and write them
+        let mut arg_offset = 4u64;
+        for (i, arg_val) in arg_vals.iter().enumerate() {
+            let struct_info = &arg_infos[i].1;
+
+            if let Some((_, field_count)) = struct_info {
+                // Struct argument: load each field from memory and write to calldata
+                for field_idx in 0..*field_count {
+                    let field_mem_offset = (field_idx as u64) * 32;
+                    let field_val = if field_mem_offset == 0 {
+                        builder.mload(*arg_val)
+                    } else {
+                        let field_offset_val = builder.imm_u64(field_mem_offset);
+                        let field_addr = builder.add(*arg_val, field_offset_val);
+                        builder.mload(field_addr)
+                    };
+
+                    let offset_val = builder.imm_u64(arg_offset);
+                    let write_addr = builder.add(calldata_start, offset_val);
+                    builder.mstore(write_addr, field_val);
+                    arg_offset += 32;
+                }
+            } else {
+                // Scalar argument: write directly
+                let offset_val = builder.imm_u64(arg_offset);
+                let write_addr = builder.add(calldata_start, offset_val);
+                builder.mstore(write_addr, *arg_val);
+                arg_offset += 32;
+            }
         }
+
+        // Check if the return type is a struct - need special handling for return data
+        let struct_return_info = self.get_member_function_struct_return(base, member);
+
+        // Determine where to store return data and whether it's a struct
+        let (ret_offset, ret_size, struct_ptr_opt) = if let Some((_struct_id, field_count)) =
+            struct_return_info
+        {
+            // For struct returns: allocate space after calldata for the return value
+            let struct_size = (field_count as u64) * 32;
+            let calldata_end_offset = builder.imm_u64(calldata_size_bytes as u64);
+            let struct_ptr = builder.add(calldata_start, calldata_end_offset);
+
+            // Update free memory pointer past the struct
+            let struct_size_val = builder.imm_u64(struct_size);
+            let new_free_ptr = builder.add(struct_ptr, struct_size_val);
+            builder.mstore(free_ptr_addr, new_free_ptr);
+
+            let ret_size = builder.imm_u64(struct_size);
+            (struct_ptr, ret_size, Some(struct_ptr))
+        } else {
+            // For non-struct returns: use scratch space at offset 0
+            // (safe because we're done with calldata after the CALL)
+            let ret_offset = builder.imm_u64(0);
+            let ret_size = builder.imm_u64((num_returns * 32) as u64);
+            (ret_offset, ret_size, None)
+        };
 
         // Total calldata size = 4 (selector) + 32 * num_args
         let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
-
-        // Args offset is 0 (where calldata starts)
-        let args_offset = builder.imm_u64(0);
-
-        // Return data location (use offset 0, overwriting calldata since we don't need it after
-        // call). Allocate space for all return values (32 bytes each).
-        let ret_offset = builder.imm_u64(0);
-        let ret_size = builder.imm_u64((num_returns * 32) as u64);
 
         // Gas: use all available gas
         let gas = builder.gas();
@@ -1220,7 +1354,13 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Emit the CALL instruction
         let _success =
-            builder.call(gas, addr, value, args_offset, calldata_size, ret_offset, ret_size);
+            builder.call(gas, addr, value, calldata_start, calldata_size, ret_offset, ret_size);
+
+        // For struct returns, the data is already in the right place (at struct_ptr).
+        // Just return the pointer.
+        if let Some(struct_ptr) = struct_ptr_opt {
+            return struct_ptr;
+        }
 
         // Load first return value from memory
         // Note: for multi-return calls, lower_multi_var_decl will read additional values
@@ -1320,7 +1460,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates memory for a given size and returns the pointer.
     /// Uses the Solidity free memory pointer pattern.
-    fn allocate_memory(&mut self, builder: &mut FunctionBuilder<'_>, size: u64) -> ValueId {
+    pub(super) fn allocate_memory(&mut self, builder: &mut FunctionBuilder<'_>, size: u64) -> ValueId {
         // Load free memory pointer from 0x40
         let free_ptr_addr = builder.imm_u64(0x40);
         let ptr = builder.mload(free_ptr_addr);
@@ -1387,6 +1527,44 @@ impl<'gcx> Lowerer<'gcx> {
                             && field_name.name == member.name
                         {
                             return Some((*struct_id, i));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Computes the storage slot for a nested struct member access.
+    /// For expressions like `storedNested.point.x` where `storedNested` is a storage struct
+    /// with a nested struct field `point`.
+    fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<u64> {
+        // The base must be a Member expression on a storage struct
+        if let ExprKind::Member(inner_base, inner_member) = &base.kind {
+            // Try to get the base storage slot from the innermost variable
+            if let Some((base_slot, struct_id, field_index)) =
+                self.get_storage_struct_field_info(inner_base, *inner_member)
+            {
+                // Get the type of the accessed field
+                let strukt = self.gcx.hir.strukt(struct_id);
+                if field_index < strukt.fields.len() {
+                    let field_var = self.gcx.hir.variable(strukt.fields[field_index]);
+                    // Check if this field is itself a struct
+                    if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field_var.ty.kind {
+                        // Calculate the slot of the nested struct field
+                        let inner_field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                        let nested_base_slot = base_slot + inner_field_offset;
+
+                        // Now find the member within the inner struct
+                        let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
+                        for (i, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
+                            let inner_field = self.gcx.hir.variable(inner_field_id);
+                            if let Some(field_name) = inner_field.name
+                                && field_name.name == member.name
+                            {
+                                let inner_offset = self.get_struct_field_slot_offset(*inner_struct_id, i);
+                                return Some(nested_base_slot + inner_offset);
+                            }
                         }
                     }
                 }
@@ -1743,6 +1921,77 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Default: assume single return value
         1
+    }
+
+    /// Gets struct return info for a member function call.
+    /// Returns Some((struct_id, field_count)) if the function returns a single struct.
+    pub(super) fn get_member_function_struct_return(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(hir::StructId, usize)> {
+        // Helper to check if the function returns a single struct and get its info.
+        let check_struct_return = |returns: &[hir::VariableId]| -> Option<(hir::StructId, usize)> {
+            if returns.len() == 1 {
+                let var = self.gcx.hir.variable(returns[0]);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    return Some((*struct_id, strukt.fields.len()));
+                }
+            }
+            None
+        };
+
+        // Helper to look up struct return from a contract, including inherited functions.
+        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<(hir::StructId, usize)> {
+            let contract = self.gcx.hir.contract(contract_id);
+            for &base_id in contract.linearized_bases.iter() {
+                let base_contract = self.gcx.hir.contract(base_id);
+                for func_id in base_contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        return check_struct_return(func.returns);
+                    }
+                }
+            }
+            None
+        };
+
+        // Case 1: base is an identifier (variable with contract type)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
+                if let Some(info) = lookup_in_contract(contract_id) {
+                    return Some(info);
+                }
+            }
+        }
+
+        // Case 2: base is a type conversion call like ICallee(addr)
+        if let ExprKind::Call(callee, _args, _named) = &base.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+        {
+            if let Some(info) = lookup_in_contract(*contract_id) {
+                return Some(info);
+            }
+        }
+
+        // Case 3: base is `this` (Builtin::This)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+        {
+            for contract_id in self.gcx.hir.contract_ids() {
+                if let Some(info) = lookup_in_contract(contract_id) {
+                    return Some(info);
+                }
+            }
+        }
+
+        None
     }
 
     /// Resolves a member of a builtin module to its corresponding builtin.
@@ -2150,5 +2399,31 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         false
+    }
+
+    /// Gets struct info for an expression if it has a struct type.
+    /// Returns (struct_id, field_count) if the expression is a struct.
+    fn get_expr_struct_info(&self, expr: &hir::Expr<'_>) -> Option<(hir::StructId, usize)> {
+        // Case 1: Variable with struct type (e.g., `p` where `Point memory p`)
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                let strukt = self.gcx.hir.strukt(*struct_id);
+                return Some((*struct_id, strukt.fields.len()));
+            }
+        }
+
+        // Case 2: Struct constructor call like Point(x, y)
+        if let ExprKind::Call(callee, _, _) = &expr.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Struct(struct_id))) = res_slice.first()
+        {
+            let strukt = self.gcx.hir.strukt(*struct_id);
+            return Some((*struct_id, strukt.fields.len()));
+        }
+
+        None
     }
 }

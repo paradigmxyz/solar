@@ -102,6 +102,10 @@ impl<'gcx> Lowerer<'gcx> {
         // Check if initializer involves external calls (results stored in shared memory)
         let has_external_call = var.initializer.is_some_and(|init| self.has_external_call(init));
 
+        // Check if this is a struct type - struct returns from external calls are already
+        // allocated in proper memory, so they don't need extra local memory storage
+        let is_struct_type = matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_)));
+
         let initial_value = if let Some(init) = var.initializer {
             self.lower_expr(builder, init)
         } else {
@@ -111,7 +115,11 @@ impl<'gcx> Lowerer<'gcx> {
         // Variables need memory storage if:
         // 1. They are assigned after declaration, OR
         // 2. They are initialized from external calls (which write to shared memory at offset 0)
-        if self.is_var_assigned(&var_id) || has_external_call {
+        //    EXCEPT for struct types, which already have properly allocated memory
+        let needs_local_memory =
+            self.is_var_assigned(&var_id) || (has_external_call && !is_struct_type);
+
+        if needs_local_memory {
             let offset = self.alloc_local_memory(var_id);
             let offset_val = builder.imm_u64(offset);
             builder.mstore(offset_val, initial_value);

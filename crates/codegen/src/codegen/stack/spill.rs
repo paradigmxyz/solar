@@ -17,9 +17,11 @@ impl SpillSlot {
     /// Returns the memory offset in bytes for this spill slot.
     #[must_use]
     pub const fn byte_offset(&self) -> u32 {
-        // Spill area starts after free memory pointer (0x80 = 128)
-        // Each slot is 32 bytes
-        0x80 + self.offset * 32
+        // Spill area is at a high fixed address to avoid conflicts with:
+        // - Scratch memory (0x00-0x7F) used by external calls
+        // - Dynamic allocations starting at free memory pointer (0x80+)
+        // Using 0x10000 (64KB) as base - far above typical allocation sizes
+        0x10000 + self.offset * 32
     }
 }
 

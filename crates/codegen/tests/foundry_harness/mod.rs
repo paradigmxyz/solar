@@ -746,7 +746,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Some stack-deep tests fail due to unimplemented codegen features
     fn test_stack_deep() {
         test_project_solar_only("stack_deep", "testdata/stack-deep");
     }
@@ -777,7 +776,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2() {
         test_project_solar("unifap-v2", "testdata/unifap-v2");
     }

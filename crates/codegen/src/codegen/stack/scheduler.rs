@@ -97,6 +97,11 @@ impl StackScheduler {
                     self.stack.push(value);
                 }
                 other => {
+                    eprintln!(
+                        "ERROR: Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
+                         Stack: {:?}, Spills: {:?}, Value kind: {other:?}",
+                        self.stack, self.spills
+                    );
                     debug_assert!(
                         false,
                         "Value {value:?} is not on stack, not spilled, and not an immediate/arg. \

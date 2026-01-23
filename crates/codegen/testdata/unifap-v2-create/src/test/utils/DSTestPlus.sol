@@ -6,7 +6,7 @@ import {XConsole} from "./Console.sol";
 import {DSTest} from "@ds/test.sol";
 import {ERC20} from "@solmate/tokens/ERC20.sol";
 
-import {Test, stdError} from "@std/test.sol";
+import {Test, stdError} from "@std/Test.sol";
 import {Vm} from "@std/Vm.sol";
 
 contract DSTestPlus is DSTest, Test {

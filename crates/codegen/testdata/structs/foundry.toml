@@ -2,5 +2,5 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-solc_version = "0.8.28"
+# solc_version = "0.8.28" # Commented out to allow FOUNDRY_SOLC env var to work
 optimizer = false

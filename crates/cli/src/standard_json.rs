@@ -164,6 +164,8 @@ pub struct SourceOutput {
 
 /// Runs the compiler in standard JSON mode.
 pub fn run_standard_json() -> io::Result<()> {
+    eprintln!("DEBUG: run_standard_json called");
+    std::io::stderr().flush().unwrap();
     // Read input from stdin
     let mut input_str = String::new();
     io::stdin().read_to_string(&mut input_str)?;
@@ -269,8 +271,10 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
 
     let mut compiler = Compiler::new(sess);
 
+    eprintln!("DEBUG: entering compiler.enter_mut");
     // Parse and compile
     let compile_result = compiler.enter_mut(|compiler| -> solar_interface::Result<ContractsMap> {
+        eprintln!("DEBUG: inside enter_mut, parsing files");
         // Parse files
         let mut pcx = compiler.parse();
         let paths: Vec<&std::path::Path> = source_paths.iter().map(|(_, p)| p.as_path()).collect();
@@ -278,15 +282,20 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
         pcx.parse();
 
         // Lower ASTs
+        eprintln!("DEBUG: lowering ASTs");
         let ControlFlow::Continue(()) = compiler.lower_asts()? else {
+            eprintln!("DEBUG: lower_asts() returned early");
             return Ok(BTreeMap::new());
         };
 
         // Analysis
+        eprintln!("DEBUG: running analysis");
         let ControlFlow::Continue(()) = compiler.analysis()? else {
+            eprintln!("DEBUG: analysis() returned early");
             return Ok(BTreeMap::new());
         };
 
+        eprintln!("DEBUG: analysis complete, starting codegen");
         let gcx = compiler.gcx();
 
         // Two-pass compilation to support `new Contract()` expressions:
@@ -321,9 +330,11 @@ fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
             let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
 
             // Generate bytecode (deployment and runtime)
+            eprintln!("DEBUG: Generating bytecode for {:?}", contract.name);
             let mut codegen = EvmCodegen::new();
             let (deployment_bytecode, runtime_bytecode) =
                 codegen.generate_deployment_bytecode(&mut module);
+            eprintln!("DEBUG: Done generating bytecode, {} bytes", deployment_bytecode.len());
             let deployment_hex = alloy_primitives::hex::encode(&deployment_bytecode);
             let runtime_hex = alloy_primitives::hex::encode(&runtime_bytecode);
 
