@@ -662,6 +662,19 @@ impl ItemId {
     }
 }
 
+/// A `using` directive: `using LibraryName for Type`.
+///
+/// Attaches library functions to a type, enabling method call syntax.
+#[derive(Clone, Debug)]
+pub struct UsingDirective<'hir> {
+    /// The library contract whose functions are being attached.
+    pub library: ContractId,
+    /// The type this directive applies to. `None` means `*` (all types).
+    pub ty: Option<Type<'hir>>,
+    /// Whether this is a global using directive.
+    pub global: bool,
+}
+
 /// A contract, interface, or library.
 #[derive(Debug)]
 pub struct Contract<'hir> {
@@ -701,6 +714,8 @@ pub struct Contract<'hir> {
     /// Note that this only includes items defined in the contract itself, not inherited items.
     /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
+    /// Using directives defined in this contract.
+    pub using_directives: &'hir [UsingDirective<'hir>],
 }
 
 impl Contract<'_> {

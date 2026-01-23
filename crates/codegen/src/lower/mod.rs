@@ -32,6 +32,8 @@ pub struct Lowerer<'gcx> {
     gcx: Gcx<'gcx>,
     /// The current module being built.
     module: Module,
+    /// The current contract being lowered.
+    current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
     storage_slots: FxHashMap<VariableId, u64>,
     /// Next available storage slot.
@@ -66,6 +68,7 @@ impl<'gcx> Lowerer<'gcx> {
         Self {
             gcx,
             module: Module::new(name),
+            current_contract_id: None,
             storage_slots: FxHashMap::default(),
             next_storage_slot: 0,
             locals: FxHashMap::default(),
@@ -147,6 +150,9 @@ impl<'gcx> Lowerer<'gcx> {
     pub fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
 
+        // Track the current contract for using directive resolution
+        self.current_contract_id = Some(contract_id);
+
         // Mark interfaces - they don't generate deployable bytecode
         if contract.kind == hir::ContractKind::Interface {
             self.module.is_interface = true;
@@ -172,6 +178,8 @@ impl<'gcx> Lowerer<'gcx> {
         for func_id in functions {
             self.lower_function(func_id);
         }
+
+        self.current_contract_id = None;
     }
 
     /// Collects all functions from the inheritance chain, handling overrides.

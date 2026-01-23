@@ -1247,6 +1247,12 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_array_method_call(builder, var_id, slot, member_name, args);
         }
 
+        // Handle `using X for Y` library calls: x.method(args) -> Library.method(x, args)
+        if let Some(func_id) = self.resolve_using_directive_call(base, member.name) {
+            let bound_arg = self.lower_expr(builder, base);
+            return self.lower_library_call(builder, func_id, args, Some(bound_arg));
+        }
+
         // Look up the function being called to get its selector and return count
         let selector = self.compute_member_selector(base, member);
         let num_returns = self.get_member_function_return_count(base, member);
@@ -2413,6 +2419,118 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         false
+    }
+
+    /// Resolves a member call that may be a `using X for Y` library extension call.
+    ///
+    /// If `base.member` matches a using directive, returns the library function ID.
+    /// The caller should pass the evaluated `base` as the first (bound) argument.
+    fn resolve_using_directive_call(
+        &self,
+        base: &hir::Expr<'_>,
+        member_name: Symbol,
+    ) -> Option<hir::FunctionId> {
+        let contract_id = self.current_contract_id?;
+        let contract = self.gcx.hir.contract(contract_id);
+
+        // Get the type of the base expression
+        let base_ty = self.get_expr_type(base)?;
+
+        // Search through using directives in the contract
+        for using in contract.using_directives {
+            // Check if this using directive applies to the base type
+            let type_matches = if let Some(ref target_ty) = using.ty {
+                // Check if the types match
+                self.types_match_for_using(&base_ty, target_ty)
+            } else {
+                // `using X for *` matches all types
+                true
+            };
+
+            if !type_matches {
+                continue;
+            }
+
+            // Look for a matching function in the library
+            let library = self.gcx.hir.contract(using.library);
+            for func_id in library.functions() {
+                let func = self.gcx.hir.function(func_id);
+
+                // Check if the function name matches
+                if func.name.map(|n| n.name) != Some(member_name) {
+                    continue;
+                }
+
+                // The function must be internal or private (library functions called via using)
+                if !matches!(
+                    func.visibility,
+                    hir::Visibility::Internal | hir::Visibility::Private
+                ) {
+                    continue;
+                }
+
+                // Found a matching function
+                return Some(func_id);
+            }
+        }
+
+        None
+    }
+
+    /// Gets the type of an expression for using directive matching.
+    fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
+        // Case 1: Variable - get its declared type
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            return Some(self.gcx.type_of_hir_ty(&var.ty));
+        }
+
+        // Case 2: Literal - could be integer, string, etc.
+        if let ExprKind::Lit(lit) = &expr.kind {
+            use solar_ast::{LitKind, StrKind};
+            return match &lit.kind {
+                LitKind::Number(_) => Some(self.gcx.types.uint(256)),
+                LitKind::Bool(_) => Some(self.gcx.types.bool),
+                LitKind::Address(_) => Some(self.gcx.types.address),
+                LitKind::Str(StrKind::Hex, ..) => Some(self.gcx.types.bytes),
+                LitKind::Str(..) => Some(self.gcx.types.string),
+                LitKind::Rational(_) | LitKind::Err(_) => None,
+            };
+        }
+
+        // Case 3: Binary/unary operations - typically return the operand type
+        if let ExprKind::Binary(lhs, _, _) = &expr.kind {
+            return self.get_expr_type(lhs);
+        }
+        if let ExprKind::Unary(_, operand) = &expr.kind {
+            return self.get_expr_type(operand);
+        }
+
+        None
+    }
+
+    /// Checks if an expression type matches a using directive target type.
+    fn types_match_for_using(
+        &self,
+        expr_ty: &solar_sema::ty::Ty<'_>,
+        target_ty: &hir::Type<'_>,
+    ) -> bool {
+        use hir::TypeKind;
+        use solar_sema::ty::TyKind;
+
+        match (&expr_ty.kind, &target_ty.kind) {
+            // Elementary types (uint256, bool, etc.)
+            (TyKind::Elementary(e1), TypeKind::Elementary(e2)) => e1 == e2,
+            // Contract types
+            (TyKind::Contract(c1), TypeKind::Custom(hir::ItemId::Contract(c2))) => c1 == c2,
+            // Struct types
+            (TyKind::Struct(s1), TypeKind::Custom(hir::ItemId::Struct(s2))) => s1 == s2,
+            // Enum types
+            (TyKind::Enum(e1), TypeKind::Custom(hir::ItemId::Enum(e2))) => e1 == e2,
+            _ => false,
+        }
     }
 
     /// Gets struct info for an expression if it has a struct type.

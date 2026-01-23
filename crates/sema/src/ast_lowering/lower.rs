@@ -57,6 +57,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             fallback: None,
             receive: None,
             items: &[],
+            using_directives: &[],
         });
         let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);

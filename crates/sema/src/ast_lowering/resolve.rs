@@ -270,6 +270,56 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_using_directives(&mut self) {
+        for contract_id in self.hir.contract_ids() {
+            let item = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
+            let ast::ItemKind::Contract(ast_contract) = &item.kind else { unreachable!() };
+
+            self.scopes.clear();
+            self.scopes.source = Some(self.hir.contract(contract_id).source);
+            self.scopes.contract = Some(contract_id);
+
+            let mut using_directives = SmallVec::<[hir::UsingDirective<'_>; 4]>::new();
+            for body_item in ast_contract.body.iter() {
+                let ast::ItemKind::Using(using) = &body_item.kind else { continue };
+
+                // Only handle single library path for now (e.g., `using MathLib for uint256`)
+                let path = match &using.list {
+                    ast::UsingList::Single(path) => path,
+                    ast::UsingList::Multiple(_) => continue, // TODO: Support multiple paths
+                };
+
+                let Ok(library_id) = self
+                    .resolver
+                    .resolve_path_as::<hir::ContractId>(path, &self.scopes, "library")
+                else {
+                    continue;
+                };
+
+                // Verify it's a library
+                if !self.hir.contract(library_id).kind.is_library() {
+                    self.dcx()
+                        .err("using directive must reference a library")
+                        .span(path.span())
+                        .emit();
+                    continue;
+                }
+
+                // Lower the type if present (None means `*`)
+                let ty = using.ty.as_ref().map(|ast_ty| self.lower_type(ast_ty));
+
+                using_directives.push(hir::UsingDirective {
+                    library: library_id,
+                    ty,
+                    global: using.global,
+                });
+            }
+            self.hir.contracts[contract_id].using_directives =
+                self.arena.alloc_smallvec(using_directives);
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_symbols(&mut self) {
         mk_init_cx!(self);
 

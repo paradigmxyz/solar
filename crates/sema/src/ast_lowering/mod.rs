@@ -34,6 +34,11 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     lcx.linearize_contracts();
     lcx.assign_constructors();
 
+    // Resolve using directives (after contract scopes are set up).
+    let mut rcx = resolve::ResolveContext::new(lcx);
+    rcx.resolve_using_directives();
+    lcx = rcx.lcx;
+
     let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     rcx.resolve_symbols();
