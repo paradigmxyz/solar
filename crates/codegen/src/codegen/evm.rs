@@ -10,13 +10,34 @@ use crate::{
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     codegen::{
         assembler::{Assembler, Label, opcodes},
-        stack::{ScheduledOp, StackScheduler},
+        stack::{ScheduledOp, StackOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
     transform::{DeadCodeEliminator, JumpThreader},
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
+
+/// Describes the stack effect of an EVM instruction.
+/// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
+#[derive(Clone, Copy, Debug)]
+struct StackEffect {
+    /// Number of values popped from the stack.
+    pops: usize,
+    /// Number of values pushed to the stack.
+    pushes: usize,
+}
+
+/// What value to track for a pushed stack entry.
+#[derive(Clone, Copy, Debug)]
+enum StackPush {
+    /// No value is pushed (pushes == 0).
+    None,
+    /// Push a tracked ValueId (pushes == 1).
+    Tracked(ValueId),
+    /// Push an unknown/untracked value (pushes == 1).
+    Unknown,
+}
 
 /// EVM code generator.
 pub struct EvmCodegen {
@@ -46,6 +67,71 @@ impl EvmCodegen {
             block_copies: FxHashMap::default(),
             in_constructor: false,
             constructor_param_count: 0,
+        }
+    }
+
+    // ==================== Stack-Aware Emitter API ====================
+    //
+    // These helpers ensure that all EVM stack mutations are tracked by the scheduler.
+    // Any opcode that changes the EVM stack must be emitted through these methods
+    // to keep the scheduler's StackModel in sync with the actual EVM stack.
+
+    /// Emits a stack manipulation operation (DUP, SWAP, POP) and updates the scheduler.
+    fn emit_stack_op(&mut self, op: StackOp) {
+        self.asm.emit_op(op.opcode());
+        match op {
+            StackOp::Dup(n) => self.scheduler.stack.dup(n),
+            StackOp::Swap(n) => self.scheduler.stack.swap(n),
+            StackOp::Pop => {
+                self.scheduler.stack.pop();
+            }
+        }
+    }
+
+    /// Emits an opcode with known stack effects and updates the scheduler.
+    ///
+    /// This is the core method for stack-aware emission. After emitting the opcode:
+    /// - `effect.pops` values are removed from the scheduler's stack model
+    /// - Values are pushed according to `push`:
+    ///   - `StackPush::None`: no value pushed (effect.pushes must be 0)
+    ///   - `StackPush::Tracked(v)`: push a tracked ValueId (effect.pushes must be 1)
+    ///   - `StackPush::Unknown`: push an untracked value (effect.pushes must be 1)
+    fn emit_op_with_effect(&mut self, opcode: u8, effect: StackEffect, push: StackPush) {
+        #[cfg(debug_assertions)]
+        let before = self.scheduler.depth();
+
+        self.asm.emit_op(opcode);
+
+        // Pop consumed values
+        for _ in 0..effect.pops {
+            self.scheduler.stack.pop();
+        }
+
+        // Push produced values
+        match (effect.pushes, push) {
+            (0, StackPush::None) => {}
+            (1, StackPush::Tracked(v)) => self.scheduler.stack.push(v),
+            (1, StackPush::Unknown) => self.scheduler.stack.push_unknown(),
+            (n, _) if n > 1 => {
+                // Multi-push: push unknown values
+                for _ in 0..n {
+                    self.scheduler.stack.push_unknown();
+                }
+            }
+            _ => {}
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            let expected = before + effect.pushes - effect.pops;
+            debug_assert_eq!(
+                self.scheduler.depth(),
+                expected,
+                "Stack model drift after opcode 0x{:02x}: expected depth {}, got {}",
+                opcode,
+                expected,
+                self.scheduler.depth()
+            );
         }
     }
 
@@ -1006,29 +1092,38 @@ impl EvmCodegen {
                 // select(cond, t, f) = f + cond * (t - f)
                 //
                 // We emit all three values to the stack, then do inline computation.
-                // After emitting, the scheduler thinks [f, t, cond] are on stack.
-                // We do: DUP3 SUB MUL ADD to compute the result.
-                // Then we tell the scheduler we consumed 3 and produced 1.
+                // Stack after emit_value calls: [f, t, cond] with cond on top.
+                // Using stack-aware API to track each operation.
 
                 self.emit_value(func, *false_val); // Stack: [f]
                 self.emit_value(func, *true_val); // Stack: [f, t]
                 self.emit_value(func, *cond); // Stack: [f, t, cond]
 
                 // Now compute: f + cond * (t - f)
-                // Stack is [f, t, cond] with cond on top
-                // Step 1: Get t-f onto stack
-                self.asm.emit_op(opcodes::dup(2)); // [f, t, cond, t]
-                self.asm.emit_op(opcodes::dup(4)); // [f, t, cond, t, f]
-                self.asm.emit_op(opcodes::SUB); // [f, t, cond, t-f]
-                // Step 2: Multiply by cond
-                self.asm.emit_op(opcodes::MUL); // [f, t, cond*(t-f)]
-                // Step 3: Add f (which is now at depth 2)
-                self.asm.emit_op(opcodes::swap(2)); // [cond*(t-f), t, f]
-                self.asm.emit_op(opcodes::POP); // [cond*(t-f), f]
-                self.asm.emit_op(opcodes::ADD); // [result]
-
-                // Tell scheduler: consumed 3, produced 1
-                self.scheduler.instruction_executed(3, result_value);
+                // Stack is [f, t, cond] with cond on top (depth 0)
+                // Step 1: DUP2 to get t -> [f, t, cond, t]
+                self.emit_stack_op(StackOp::Dup(2));
+                // Step 2: DUP4 to get f -> [f, t, cond, t, f]
+                self.emit_stack_op(StackOp::Dup(4));
+                // Step 3: SUB -> [f, t, cond, t-f]
+                self.emit_op_with_effect(
+                    opcodes::SUB,
+                    StackEffect { pops: 2, pushes: 1 },
+                    StackPush::Unknown,
+                );
+                // Step 4: MUL -> [f, t, cond*(t-f)]
+                self.emit_op_with_effect(
+                    opcodes::MUL,
+                    StackEffect { pops: 2, pushes: 1 },
+                    StackPush::Unknown,
+                );
+                // Step 5: SWAP2 -> [cond*(t-f), t, f]
+                self.emit_stack_op(StackOp::Swap(2));
+                // Step 6: POP -> [cond*(t-f), f]
+                self.emit_stack_op(StackOp::Pop);
+                // Step 7: ADD -> [result]
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(opcodes::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }
 
             // Sign extend
@@ -1069,62 +1164,59 @@ impl EvmCodegen {
             }
 
             // External calls
+            //
+            // These use emit_value_fresh to guarantee correct values regardless of scheduler state.
+            // The stack-aware emit_op_with_effect ensures proper tracking after emission.
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
-                // Stack needs (top to bottom): gas, addr, value, argsOffset, argsSize, retOffset,
-                // retSize
-                //
-                // NOTE: Due to how MIR is structured, `gas` and `addr` are instruction results
-                // that were emitted immediately before this CALL. They are already on the stack.
-                // We only need to emit the immediate values in the right positions.
-                //
-                // Stack state before this: [..., addr_value, gas_value]
-                // We need: [gas, addr, value, argsOffset, argsSize, retOffset, retSize]
-                //
-                // Since gas and addr are on top, we need to:
-                // 1. Push all the immediate values
-                // 2. Then swap to get the order right
-                //
-                // For simplicity, emit all as immediates - the computed values (gas, addr)
-                // will be pushed fresh since they're immediate in our lowering.
+                // EVM pops in order: gas (TOS), addr, value, argsOffset, argsSize, retOffset,
+                // retSize So we push in reverse order: retSize first (deepest), gas
+                // last (TOS)
+                self.emit_value_fresh(func, *ret_size);
+                self.emit_value_fresh(func, *ret_offset);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *value);
+                self.emit_value_fresh(func, *addr);
+                self.emit_value_fresh(func, *gas);
 
-                self.emit_value(func, *ret_size);
-                self.emit_value(func, *ret_offset);
-                self.emit_value(func, *args_size);
-                self.emit_value(func, *args_offset);
-                self.emit_value(func, *value);
-                self.emit_value(func, *addr);
-                self.emit_value(func, *gas);
-
-                self.asm.emit_op(opcodes::CALL);
                 // CALL consumes 7 values and produces 1 (success bool)
-                self.scheduler.instruction_executed(7, result_value);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(opcodes::CALL, StackEffect { pops: 7, pushes: 1 }, push);
             }
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // STATICCALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
-                self.emit_value(func, *ret_size);
-                self.emit_value(func, *ret_offset);
-                self.emit_value(func, *args_size);
-                self.emit_value(func, *args_offset);
-                self.emit_value(func, *addr);
-                self.emit_value(func, *gas);
-                self.asm.emit_op(opcodes::STATICCALL);
+                self.emit_value_fresh(func, *ret_size);
+                self.emit_value_fresh(func, *ret_offset);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *addr);
+                self.emit_value_fresh(func, *gas);
                 // STATICCALL consumes 6 values and produces 1 (success bool)
-                self.scheduler.instruction_executed(6, result_value);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(
+                    opcodes::STATICCALL,
+                    StackEffect { pops: 6, pushes: 1 },
+                    push,
+                );
             }
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
-                self.emit_value(func, *ret_size);
-                self.emit_value(func, *ret_offset);
-                self.emit_value(func, *args_size);
-                self.emit_value(func, *args_offset);
-                self.emit_value(func, *addr);
-                self.emit_value(func, *gas);
-                self.asm.emit_op(opcodes::DELEGATECALL);
+                self.emit_value_fresh(func, *ret_size);
+                self.emit_value_fresh(func, *ret_offset);
+                self.emit_value_fresh(func, *args_size);
+                self.emit_value_fresh(func, *args_offset);
+                self.emit_value_fresh(func, *addr);
+                self.emit_value_fresh(func, *gas);
                 // DELEGATECALL consumes 6 values and produces 1 (success bool)
-                self.scheduler.instruction_executed(6, result_value);
+                let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
+                self.emit_op_with_effect(
+                    opcodes::DELEGATECALL,
+                    StackEffect { pops: 6, pushes: 1 },
+                    push,
+                );
             }
 
             // Log operations
@@ -1271,6 +1363,80 @@ impl EvmCodegen {
                         self.asm.emit_op(opcodes::CALLDATALOAD);
                     }
                 }
+            }
+        }
+    }
+
+    /// Emits a value fresh, without trying to DUP from the stack.
+    /// This is used for CALL operands where we need to guarantee correct values
+    /// regardless of scheduler stack tracking state.
+    fn emit_value_fresh(&mut self, func: &Function, val: ValueId) {
+        match func.value(val) {
+            crate::mir::Value::Immediate(imm) => {
+                if let Some(u256) = imm.as_u256() {
+                    self.asm.emit_push(u256);
+                    self.scheduler.stack.push(val);
+                }
+            }
+            crate::mir::Value::Arg { index, .. } => {
+                if self.in_constructor {
+                    let offset = 0x80 + (*index as u64) * 32;
+                    self.asm.emit_push(U256::from(offset));
+                    self.asm.emit_op(opcodes::MLOAD);
+                } else {
+                    let offset = 4 + (*index as u64) * 32;
+                    self.asm.emit_push(U256::from(offset));
+                    self.asm.emit_op(opcodes::CALLDATALOAD);
+                }
+                self.scheduler.stack.push(val);
+            }
+            crate::mir::Value::Inst(inst_id) => {
+                // For instruction results, we need to check if they're spilled
+                // or if they're instruction results that produce fresh values (like GAS, MLOAD)
+                if let Some(slot) = self.scheduler.spills.get(val) {
+                    // Load from spill slot
+                    self.asm.emit_push(U256::from(slot.byte_offset()));
+                    self.asm.emit_op(opcodes::MLOAD);
+                    self.scheduler.stack.push(val);
+                } else {
+                    // Check if the instruction is one that we can "re-execute" to get a fresh value
+                    // This handles GAS (which is always fresh) and MLOAD (which re-reads from
+                    // memory)
+                    let inst_kind = &func.instruction(*inst_id).kind;
+                    match inst_kind {
+                        crate::mir::InstKind::Gas => {
+                            self.asm.emit_op(opcodes::GAS);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::MLoad(offset) => {
+                            // Re-emit the MLOAD - emit offset fresh, then MLOAD
+                            self.emit_value_fresh(func, *offset);
+                            self.asm.emit_op(opcodes::MLOAD);
+                            // Pop offset, push result
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
+                        other => {
+                            // For other instruction results that aren't spilled and can't be
+                            // re-executed, this is a bug - the lowering
+                            // should have ensured all CALL operands are
+                            // either immediates, spilled, or re-executable instructions.
+                            panic!(
+                                "emit_value_fresh: unhandled instruction kind {:?} for value {:?}. \
+                                 CALL operands should be immediates, spilled values, GAS, or MLOAD.",
+                                other, val
+                            );
+                        }
+                    }
+                }
+            }
+            crate::mir::Value::Phi { .. } | crate::mir::Value::Undef(_) => {
+                // Phi nodes and undef values shouldn't appear in CALL operands
+                panic!(
+                    "emit_value_fresh: unexpected phi/undef value {:?}. \
+                     CALL operands should be concrete values.",
+                    val
+                );
             }
         }
     }

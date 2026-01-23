@@ -1276,14 +1276,26 @@ impl<'gcx> Lowerer<'gcx> {
         let arg_vals: Vec<ValueId> =
             arg_infos.iter().map(|(arg, _)| self.lower_expr(builder, arg)).collect();
 
-        // Also evaluate the address before writing to memory
-        let addr = self.lower_expr(builder, base);
+        // Evaluate the address and spill it to scratch memory at 0x00.
+        // This ensures it survives all the MSTORE operations for calldata setup.
+        // We reload it right before the CALL.
+        let addr_expr = self.lower_expr(builder, base);
+        let scratch_addr = builder.imm_u64(0x00);
+        builder.mstore(scratch_addr, addr_expr);
 
         // Allocate calldata from the free memory pointer (like solc does).
         // This avoids clobbering the free memory pointer at 0x40 when encoding
         // calldata with 2+ arguments (which would span 0x04-0x43+).
         let free_ptr_addr = builder.imm_u64(0x40);
         let calldata_start = builder.mload(free_ptr_addr);
+
+        // Store calldata_start to scratch memory at 0x20.
+        // We need to reload it right before the CALL because:
+        // 1. The scheduler may lose track of this value after many MSTOREs
+        // 2. For struct returns, we update the free memory pointer, so reading 0x40 again would be
+        //    wrong
+        let scratch_calldata = builder.imm_u64(0x20);
+        builder.mstore(scratch_calldata, calldata_start);
 
         // Write the selector at calldata_start (left-aligned in 32-byte word)
         let selector_word = U256::from(selector) << 224;
@@ -1351,15 +1363,32 @@ impl<'gcx> Lowerer<'gcx> {
         // Total calldata size = 4 (selector) + 32 * num_args
         let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
 
-        // Gas: use all available gas
-        let gas = builder.gas();
-
         // Value: extract from call options {value: X} or default to 0
         let value = self.extract_call_value(builder, call_opts);
 
+        // Reload the address from scratch memory (0x00) where we stored it earlier.
+        // This avoids stack depth issues after all the MSTORE operations.
+        let scratch_addr_reload = builder.imm_u64(0x00);
+        let addr = builder.mload(scratch_addr_reload);
+
+        // Gas: use all available gas (must be right before CALL to be on top of stack)
+        let gas = builder.gas();
+
+        // Reload calldata_start from scratch memory at 0x20.
+        // Cannot re-read from 0x40 because struct return handling may have updated it.
+        let scratch_calldata_reload = builder.imm_u64(0x20);
+        let calldata_start_reload = builder.mload(scratch_calldata_reload);
+
         // Emit the CALL instruction
-        let _success =
-            builder.call(gas, addr, value, calldata_start, calldata_size, ret_offset, ret_size);
+        let _success = builder.call(
+            gas,
+            addr,
+            value,
+            calldata_start_reload,
+            calldata_size,
+            ret_offset,
+            ret_size,
+        );
 
         // For struct returns, the data is already in the right place (at struct_ptr).
         // Just return the pointer.
@@ -2462,10 +2491,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // The function must be internal or private (library functions called via using)
-                if !matches!(
-                    func.visibility,
-                    hir::Visibility::Internal | hir::Visibility::Private
-                ) {
+                if !matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private)
+                {
                     continue;
                 }
 

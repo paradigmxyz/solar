@@ -17,11 +17,17 @@ impl SpillSlot {
     /// Returns the memory offset in bytes for this spill slot.
     #[must_use]
     pub const fn byte_offset(&self) -> u32 {
-        // Spill area is at a high fixed address to avoid conflicts with:
-        // - Scratch memory (0x00-0x7F) used by external calls
-        // - Dynamic allocations starting at free memory pointer (0x80+)
-        // Using 0x10000 (64KB) as base - far above typical allocation sizes
-        0x10000 + self.offset * 32
+        // Spill area uses scratch memory slots starting at 0x20.
+        // Memory layout:
+        // - 0x00-0x1F: Scratch space for external call address spill
+        // - 0x20-0x3F: Free memory pointer storage (we repurpose for spills)
+        // - 0x40-0x5F: Standard free memory pointer location
+        // - 0x60-0x7F: Zero slot
+        // - 0x80+: Dynamic allocations
+        //
+        // We use 0x100+ for spill slots to stay below dynamic allocations
+        // while leaving room for standard memory usage.
+        0x100 + self.offset * 32
     }
 }
 
@@ -115,8 +121,8 @@ mod tests {
 
         assert_eq!(slot0.offset, 0);
         assert_eq!(slot1.offset, 1);
-        assert_eq!(slot0.byte_offset(), 0x80);
-        assert_eq!(slot1.byte_offset(), 0x80 + 32);
+        assert_eq!(slot0.byte_offset(), 0x100);
+        assert_eq!(slot1.byte_offset(), 0x100 + 32);
     }
 
     #[test]

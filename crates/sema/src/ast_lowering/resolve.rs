@@ -289,9 +289,8 @@ impl<'gcx> ResolveContext<'gcx> {
                     ast::UsingList::Multiple(_) => continue, // TODO: Support multiple paths
                 };
 
-                let Ok(library_id) = self
-                    .resolver
-                    .resolve_path_as::<hir::ContractId>(path, &self.scopes, "library")
+                let Ok(library_id) =
+                    self.resolver.resolve_path_as::<hir::ContractId>(path, &self.scopes, "library")
                 else {
                     continue;
                 };
