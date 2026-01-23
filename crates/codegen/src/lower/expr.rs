@@ -393,7 +393,8 @@ impl<'gcx> Lowerer<'gcx> {
                     // Check if it's a storage variable
                     if let Some(&slot) = self.storage_slots.get(var_id) {
                         // For storage structs, we need to copy to memory and return the pointer
-                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
+                        {
                             let strukt = self.gcx.hir.strukt(*struct_id);
                             let num_fields = strukt.fields.len();
                             let struct_size = (num_fields as u64) * 32;
@@ -693,11 +694,13 @@ impl<'gcx> Lowerer<'gcx> {
                         self.locals.insert(*var_id, rhs);
                     } else if let Some(&base_slot) = self.storage_slots.get(var_id) {
                         // Check if this is a struct assignment (memory struct -> storage struct)
-                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
+                        {
                             // Copy each field from memory to storage
                             let strukt = self.gcx.hir.strukt(*struct_id);
                             for (i, &_field_id) in strukt.fields.iter().enumerate() {
-                                let field_slot_offset = self.get_struct_field_slot_offset(*struct_id, i);
+                                let field_slot_offset =
+                                    self.get_struct_field_slot_offset(*struct_id, i);
                                 let slot = base_slot + field_slot_offset;
                                 let slot_val = builder.imm_u64(slot);
 
@@ -771,7 +774,8 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 }
 
-                // Check if this is a nested storage struct assignment (e.g., storedNested.point.x = value)
+                // Check if this is a nested storage struct assignment (e.g., storedNested.point.x =
+                // value)
                 if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
                     let slot_val = builder.imm_u64(slot);
                     builder.sstore(slot_val, rhs);
@@ -1257,18 +1261,14 @@ impl<'gcx> Lowerer<'gcx> {
             .collect();
 
         // Calculate calldata size: 4 bytes selector + sum of all argument slots
-        let total_arg_slots: usize = arg_infos
-            .iter()
-            .map(|(_, info)| info.map(|(_, n)| n).unwrap_or(1))
-            .sum();
+        let total_arg_slots: usize =
+            arg_infos.iter().map(|(_, info)| info.map(|(_, n)| n).unwrap_or(1)).sum();
         let calldata_size_bytes = 4 + total_arg_slots * 32;
 
         // IMPORTANT: Evaluate all arguments FIRST before writing to memory.
         // For structs, lower_expr returns the memory pointer.
-        let arg_vals: Vec<ValueId> = arg_infos
-            .iter()
-            .map(|(arg, _)| self.lower_expr(builder, *arg))
-            .collect();
+        let arg_vals: Vec<ValueId> =
+            arg_infos.iter().map(|(arg, _)| self.lower_expr(builder, arg)).collect();
 
         // Also evaluate the address before writing to memory
         let addr = self.lower_expr(builder, base);
@@ -1320,28 +1320,27 @@ impl<'gcx> Lowerer<'gcx> {
         let struct_return_info = self.get_member_function_struct_return(base, member);
 
         // Determine where to store return data and whether it's a struct
-        let (ret_offset, ret_size, struct_ptr_opt) = if let Some((_struct_id, field_count)) =
-            struct_return_info
-        {
-            // For struct returns: allocate space after calldata for the return value
-            let struct_size = (field_count as u64) * 32;
-            let calldata_end_offset = builder.imm_u64(calldata_size_bytes as u64);
-            let struct_ptr = builder.add(calldata_start, calldata_end_offset);
+        let (ret_offset, ret_size, struct_ptr_opt) =
+            if let Some((_struct_id, field_count)) = struct_return_info {
+                // For struct returns: allocate space after calldata for the return value
+                let struct_size = (field_count as u64) * 32;
+                let calldata_end_offset = builder.imm_u64(calldata_size_bytes as u64);
+                let struct_ptr = builder.add(calldata_start, calldata_end_offset);
 
-            // Update free memory pointer past the struct
-            let struct_size_val = builder.imm_u64(struct_size);
-            let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-            builder.mstore(free_ptr_addr, new_free_ptr);
+                // Update free memory pointer past the struct
+                let struct_size_val = builder.imm_u64(struct_size);
+                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
+                builder.mstore(free_ptr_addr, new_free_ptr);
 
-            let ret_size = builder.imm_u64(struct_size);
-            (struct_ptr, ret_size, Some(struct_ptr))
-        } else {
-            // For non-struct returns: use scratch space at offset 0
-            // (safe because we're done with calldata after the CALL)
-            let ret_offset = builder.imm_u64(0);
-            let ret_size = builder.imm_u64((num_returns * 32) as u64);
-            (ret_offset, ret_size, None)
-        };
+                let ret_size = builder.imm_u64(struct_size);
+                (struct_ptr, ret_size, Some(struct_ptr))
+            } else {
+                // For non-struct returns: use scratch space at offset 0
+                // (safe because we're done with calldata after the CALL)
+                let ret_offset = builder.imm_u64(0);
+                let ret_size = builder.imm_u64((num_returns * 32) as u64);
+                (ret_offset, ret_size, None)
+            };
 
         // Total calldata size = 4 (selector) + 32 * num_args
         let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
@@ -1390,15 +1389,23 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
             let var = self.gcx.hir.variable(*var_id);
-            eprintln!("DEBUG get_mapping_base_slot: var_id={:?}, name={:?}, is_mapping={}", var_id, var.name, matches!(var.ty.kind, hir::TypeKind::Mapping(_)));
+            eprintln!(
+                "DEBUG get_mapping_base_slot: var_id={:?}, name={:?}, is_mapping={}",
+                var_id,
+                var.name,
+                matches!(var.ty.kind, hir::TypeKind::Mapping(_))
+            );
             // Check if this variable has mapping type
             if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
                 // Look up the storage slot
                 if let Some(&slot) = self.storage_slots.get(var_id) {
-                    eprintln!("DEBUG   -> found slot {}", slot);
+                    eprintln!("DEBUG   -> found slot {slot}");
                     return Some((*var_id, slot));
                 } else {
-                    eprintln!("DEBUG   -> NOT FOUND in storage_slots! keys={:?}", self.storage_slots.keys().collect::<Vec<_>>());
+                    eprintln!(
+                        "DEBUG   -> NOT FOUND in storage_slots! keys={:?}",
+                        self.storage_slots.keys().collect::<Vec<_>>()
+                    );
                 }
             }
         }
@@ -1460,7 +1467,11 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Allocates memory for a given size and returns the pointer.
     /// Uses the Solidity free memory pointer pattern.
-    pub(super) fn allocate_memory(&mut self, builder: &mut FunctionBuilder<'_>, size: u64) -> ValueId {
+    pub(super) fn allocate_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: u64,
+    ) -> ValueId {
         // Load free memory pointer from 0x40
         let free_ptr_addr = builder.imm_u64(0x40);
         let ptr = builder.mload(free_ptr_addr);
@@ -1550,9 +1561,12 @@ impl<'gcx> Lowerer<'gcx> {
                 if field_index < strukt.fields.len() {
                     let field_var = self.gcx.hir.variable(strukt.fields[field_index]);
                     // Check if this field is itself a struct
-                    if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field_var.ty.kind {
+                    if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                        &field_var.ty.kind
+                    {
                         // Calculate the slot of the nested struct field
-                        let inner_field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                        let inner_field_offset =
+                            self.get_struct_field_slot_offset(struct_id, field_index);
                         let nested_base_slot = base_slot + inner_field_offset;
 
                         // Now find the member within the inner struct
@@ -1562,7 +1576,8 @@ impl<'gcx> Lowerer<'gcx> {
                             if let Some(field_name) = inner_field.name
                                 && field_name.name == member.name
                             {
-                                let inner_offset = self.get_struct_field_slot_offset(*inner_struct_id, i);
+                                let inner_offset =
+                                    self.get_struct_field_slot_offset(*inner_struct_id, i);
                                 return Some(nested_base_slot + inner_offset);
                             }
                         }
@@ -1963,10 +1978,10 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let var = self.gcx.hir.variable(*var_id);
             let ty = self.gcx.type_of_hir_ty(&var.ty);
-            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind {
-                if let Some(info) = lookup_in_contract(contract_id) {
-                    return Some(info);
-                }
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
+                && let Some(info) = lookup_in_contract(contract_id)
+            {
+                return Some(info);
             }
         }
 
@@ -1974,10 +1989,9 @@ impl<'gcx> Lowerer<'gcx> {
         if let ExprKind::Call(callee, _args, _named) = &base.kind
             && let ExprKind::Ident(res_slice) = &callee.kind
             && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(info) = lookup_in_contract(*contract_id)
         {
-            if let Some(info) = lookup_in_contract(*contract_id) {
-                return Some(info);
-            }
+            return Some(info);
         }
 
         // Case 3: base is `this` (Builtin::This)

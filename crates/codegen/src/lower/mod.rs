@@ -322,7 +322,10 @@ impl<'gcx> Lowerer<'gcx> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
 
-        eprintln!("DEBUG allocate_storage: contract={:?}, linearized_bases={:?}", contract.name, linearized_bases);
+        eprintln!(
+            "DEBUG allocate_storage: contract={:?}, linearized_bases={:?}",
+            contract.name, linearized_bases
+        );
 
         // Iterate in reverse order (most base first) to get correct storage layout.
         // Skip index 0 since that's the contract itself - we handle it last.
@@ -336,11 +339,17 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                eprintln!("DEBUG     var {:?} ({:?}): is_state={}, is_const={}", var.name, var_id, var.is_state_variable(), var.is_constant());
+                eprintln!(
+                    "DEBUG     var {:?} ({:?}): is_state={}, is_const={}",
+                    var.name,
+                    var_id,
+                    var.is_state_variable(),
+                    var.is_constant()
+                );
                 // Skip constant variables - they are inlined and don't use storage
                 if var.is_state_variable() && !var.is_constant() {
                     let base_slot = self.next_storage_slot;
-                    eprintln!("DEBUG       -> assigned slot {}", base_slot);
+                    eprintln!("DEBUG       -> assigned slot {base_slot}");
 
                     // Calculate how many slots this variable needs
                     let num_slots = self.calculate_storage_slots_for_type(&var.ty);
@@ -446,9 +455,6 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
-            // Track the ABI offset for each parameter (for flattened struct fields)
-            let mut abi_param_index = 0u32;
-
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
                 let ty = self.lower_type_from_var(param);
@@ -481,12 +487,10 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Store the memory pointer as the local (not the Arg value)
                     self.locals.insert(param_id, struct_ptr);
-                    abi_param_index += num_fields as u32;
                 } else {
                     // Non-struct parameters: use normal Arg handling
                     let val = builder.add_param(ty);
                     self.locals.insert(param_id, val);
-                    abi_param_index += 1;
                 }
             }
 

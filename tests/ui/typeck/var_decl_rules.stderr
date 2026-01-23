@@ -63,3 +63,4 @@ LL │         mapping(uint => uint) storage s;
    ╰ note: mappings cannot be created dynamically, you have to assign them from a state variable
 
 error: aborting due to 10 previous errors
+
