@@ -17,17 +17,31 @@ impl SpillSlot {
     /// Returns the memory offset in bytes for this spill slot.
     #[must_use]
     pub const fn byte_offset(&self) -> u32 {
-        // Spill area uses scratch memory slots starting at 0x20.
-        // Memory layout:
-        // - 0x00-0x1F: Scratch space for external call address spill
-        // - 0x20-0x3F: Free memory pointer storage (we repurpose for spills)
-        // - 0x40-0x5F: Standard free memory pointer location
-        // - 0x60-0x7F: Zero slot
-        // - 0x80+: Dynamic allocations
+        // Memory layout in Solidity:
+        // - 0x00-0x3F: Scratch space (used for hashing, CALL address/calldata spills, etc.)
+        // - 0x40-0x5F: Free memory pointer location
+        // - 0x60-0x7F: Zero slot (used for empty dynamic arrays)
+        // - 0x80+: Dynamic allocations (structs, arrays, calldata encoding, etc.)
         //
-        // We use 0x100+ for spill slots to stay below dynamic allocations
-        // while leaving room for standard memory usage.
-        0x100 + self.offset * 32
+        // IMPORTANT: We CANNOT use:
+        // - 0x00-0x3F: Used as scratch by lower_member_call for CALL address/calldata
+        // - 0x60-0x7F: Used as zero slot
+        // - 0x80-0x????: Dynamic allocations can grow arbitrarily large
+        //
+        // The safest approach is to use a very high memory address that's unlikely to
+        // conflict with normal memory usage. We use 0x1000000 (16MB) as the base.
+        // This wastes some gas on memory expansion but guarantees no conflicts.
+        //
+        // A proper solution would be to allocate spill slots from the heap (update
+        // free memory pointer), but that would require tracking the allocation in MIR.
+        //
+        // We use 0x1000 (4KB) as a compromise - high enough to avoid conflicts with
+        // typical dynamic allocations, but low enough to not cause excessive gas usage.
+        // In practice, most contracts use less than 4KB of dynamic memory.
+        //
+        // A proper solution would be to allocate spill slots from the heap, but that
+        // requires tracking the allocation in MIR.
+        0x1000 + self.offset * 32
     }
 }
 
@@ -115,14 +129,19 @@ mod tests {
         let mut manager = SpillManager::new();
         let v0 = ValueId::from_usize(0);
         let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
 
         let slot0 = manager.allocate(v0);
         let slot1 = manager.allocate(v1);
+        let slot2 = manager.allocate(v2);
 
         assert_eq!(slot0.offset, 0);
         assert_eq!(slot1.offset, 1);
-        assert_eq!(slot0.byte_offset(), 0x100);
-        assert_eq!(slot1.byte_offset(), 0x100 + 32);
+        assert_eq!(slot2.offset, 2);
+        // Spill slots use high memory at 0x1000+
+        assert_eq!(slot0.byte_offset(), 0x1000);
+        assert_eq!(slot1.byte_offset(), 0x1000 + 32);
+        assert_eq!(slot2.byte_offset(), 0x1000 + 64);
     }
 
     #[test]

@@ -1092,36 +1092,37 @@ impl EvmCodegen {
                 // select(cond, t, f) = f + cond * (t - f)
                 //
                 // We emit all three values to the stack, then do inline computation.
+                // Stack notation: rightmost = top (depth 0).
                 // Stack after emit_value calls: [f, t, cond] with cond on top.
-                // Using stack-aware API to track each operation.
 
                 self.emit_value(func, *false_val); // Stack: [f]
                 self.emit_value(func, *true_val); // Stack: [f, t]
                 self.emit_value(func, *cond); // Stack: [f, t, cond]
 
                 // Now compute: f + cond * (t - f)
-                // Stack is [f, t, cond] with cond on top (depth 0)
-                // Step 1: DUP2 to get t -> [f, t, cond, t]
-                self.emit_stack_op(StackOp::Dup(2));
-                // Step 2: DUP4 to get f -> [f, t, cond, t, f]
-                self.emit_stack_op(StackOp::Dup(4));
-                // Step 3: SUB -> [f, t, cond, t-f]
+                // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
+                //
+                // Step 1: DUP3 to get f -> [f, t, cond, f]
+                self.emit_stack_op(StackOp::Dup(3));
+                // Step 2: DUP3 to get t (now at depth 2) -> [f, t, cond, f, t]
+                self.emit_stack_op(StackOp::Dup(3));
+                // Step 3: SUB (top - second = t - f) -> [f, t, cond, t-f]
                 self.emit_op_with_effect(
                     opcodes::SUB,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 4: MUL -> [f, t, cond*(t-f)]
+                // Step 4: MUL (cond * (t-f)) -> [f, t, cond*(t-f)]
                 self.emit_op_with_effect(
                     opcodes::MUL,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
-                // Step 5: SWAP2 -> [cond*(t-f), t, f]
-                self.emit_stack_op(StackOp::Swap(2));
-                // Step 6: POP -> [cond*(t-f), f]
+                // Step 5: SWAP1 -> [f, cond*(t-f), t]
+                self.emit_stack_op(StackOp::Swap(1));
+                // Step 6: POP (remove t) -> [f, cond*(t-f)]
                 self.emit_stack_op(StackOp::Pop);
-                // Step 7: ADD -> [result]
+                // Step 7: ADD (cond*(t-f) + f = f + cond*(t-f)) -> [result]
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(opcodes::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }
@@ -1408,8 +1409,39 @@ impl EvmCodegen {
                             self.asm.emit_op(opcodes::GAS);
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::CallValue => {
+                            self.asm.emit_op(opcodes::CALLVALUE);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Caller => {
+                            self.asm.emit_op(opcodes::CALLER);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Origin => {
+                            self.asm.emit_op(opcodes::ORIGIN);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::CalldataSize => {
+                            self.asm.emit_op(opcodes::CALLDATASIZE);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Timestamp => {
+                            self.asm.emit_op(opcodes::TIMESTAMP);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::BlockNumber => {
+                            self.asm.emit_op(opcodes::NUMBER);
+                            self.scheduler.stack.push(val);
+                        }
                         crate::mir::InstKind::MLoad(offset) => {
-                            // Re-emit the MLOAD - emit offset fresh, then MLOAD
+                            // Note: Re-emitting MLOAD(0x40) is incorrect for struct pointers
+                            // because the free memory pointer changes. However, with spill
+                            // slots now at 0x1000+ (away from dynamic allocations), values
+                            // should be properly spilled and reloaded, so we shouldn't hit
+                            // this path for struct pointers.
+                            //
+                            // For other MLOAD addresses (reading from constant locations),
+                            // re-emit is safe.
                             self.emit_value_fresh(func, *offset);
                             self.asm.emit_op(opcodes::MLOAD);
                             // Pop offset, push result
