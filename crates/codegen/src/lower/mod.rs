@@ -60,6 +60,8 @@ pub struct Lowerer<'gcx> {
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
+    pub struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -80,6 +82,7 @@ impl<'gcx> Lowerer<'gcx> {
             inline_stack: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
+            struct_field_memory_offsets: FxHashMap::default(),
         }
     }
 
@@ -419,6 +422,46 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         self.struct_field_offsets.insert((struct_id, field_index), offset);
+        offset
+    }
+
+    /// Calculates the number of 32-byte memory words needed for a type (flattened for structs).
+    pub fn calculate_memory_words_for_type(&self, ty: &hir::Type<'_>) -> u64 {
+        match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
+                let strukt = self.gcx.hir.strukt(*struct_id);
+                let mut total = 0u64;
+                for &field_id in strukt.fields {
+                    let field = self.gcx.hir.variable(field_id);
+                    total += self.calculate_memory_words_for_type(&field.ty);
+                }
+                total.max(1)
+            }
+            _ => 1,
+        }
+    }
+
+    /// Gets the memory byte offset for a struct field (flattened for nested structs).
+    pub fn get_struct_field_memory_offset(
+        &mut self,
+        struct_id: hir::StructId,
+        field_index: usize,
+    ) -> u64 {
+        if let Some(&offset) = self.struct_field_memory_offsets.get(&(struct_id, field_index)) {
+            return offset;
+        }
+
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut offset = 0u64;
+        for (i, &field_id) in strukt.fields.iter().enumerate() {
+            if i == field_index {
+                break;
+            }
+            let field = self.gcx.hir.variable(field_id);
+            offset += self.calculate_memory_words_for_type(&field.ty) * 32;
+        }
+
+        self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
         offset
     }
 

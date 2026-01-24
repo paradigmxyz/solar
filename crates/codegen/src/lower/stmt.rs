@@ -108,6 +108,26 @@ impl<'gcx> Lowerer<'gcx> {
 
         let initial_value = if let Some(init) = var.initializer {
             self.lower_expr(builder, init)
+        } else if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+            // Struct without initializer: allocate memory and zero-initialize
+            let total_words = self.calculate_memory_words_for_type(&var.ty);
+            let struct_size = total_words * 32;
+            let struct_ptr = self.allocate_memory(builder, struct_size);
+            
+            // Zero-initialize all fields
+            for i in 0..total_words {
+                let field_offset = i * 32;
+                if field_offset == 0 {
+                    let zero = builder.imm_u256(U256::ZERO);
+                    builder.mstore(struct_ptr, zero);
+                } else {
+                    let offset_val = builder.imm_u64(field_offset);
+                    let field_addr = builder.add(struct_ptr, offset_val);
+                    let zero = builder.imm_u256(U256::ZERO);
+                    builder.mstore(field_addr, zero);
+                }
+            }
+            struct_ptr
         } else {
             builder.imm_u256(U256::ZERO)
         };

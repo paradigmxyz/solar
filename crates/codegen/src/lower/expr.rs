@@ -256,12 +256,36 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot_val);
                 }
 
+                // Check if this is a nested memory struct access (e.g., o.inner.a)
+                if let Some((var_id, total_offset, _inner_struct_id)) =
+                    self.compute_nested_memory_struct_info(base, *member)
+                {
+                    // Get the base pointer for the outermost struct
+                    let base_ptr = if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                        // Variable is stored in local memory slot
+                        let offset_val = builder.imm_u64(offset);
+                        builder.mload(offset_val)
+                    } else if let Some(&val) = self.locals.get(&var_id) {
+                        // Variable is an SSA value (pointer to struct)
+                        val
+                    } else {
+                        builder.imm_u64(0)
+                    };
+
+                    if total_offset == 0 {
+                        return builder.mload(base_ptr);
+                    }
+                    let offset_val = builder.imm_u64(total_offset);
+                    let field_addr = builder.add(base_ptr, offset_val);
+                    return builder.mload(field_addr);
+                }
+
                 // Regular memory struct member access
-                if let Some((_struct_id, field_index)) =
+                if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = field_index as u64 * 32;
+                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
                     if field_offset == 0 {
                         return builder.mload(base_val);
                     }
@@ -782,12 +806,38 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 }
 
+                // Check if this is a nested memory struct assignment (e.g., o.inner.a = value)
+                if let Some((var_id, total_offset, _inner_struct_id)) =
+                    self.compute_nested_memory_struct_info(base, *member)
+                {
+                    // Get the base pointer for the outermost struct
+                    let base_ptr = if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                        // Variable is stored in local memory slot
+                        let offset_val = builder.imm_u64(offset);
+                        builder.mload(offset_val)
+                    } else if let Some(&val) = self.locals.get(&var_id) {
+                        // Variable is an SSA value (pointer to struct)
+                        val
+                    } else {
+                        builder.imm_u64(0)
+                    };
+
+                    if total_offset == 0 {
+                        builder.mstore(base_ptr, rhs);
+                        return;
+                    }
+                    let offset_val = builder.imm_u64(total_offset);
+                    let field_addr = builder.add(base_ptr, offset_val);
+                    builder.mstore(field_addr, rhs);
+                    return;
+                }
+
                 // Regular memory struct member assignment
-                if let Some((_struct_id, field_index)) =
+                if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = field_index as u64 * 32;
+                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
                     if field_offset == 0 {
                         builder.mstore(base_val, rhs);
                         return;
@@ -1573,6 +1623,67 @@ impl<'gcx> Lowerer<'gcx> {
                             && field_name.name == member.name
                         {
                             return Some((*struct_id, i));
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Computes the memory byte offset for a nested memory struct member access.
+    /// For expressions like `o.inner.a` where `o` is a memory struct with nested struct `inner`.
+    /// Returns (base_variable_id, total_byte_offset, inner_struct_id) if successful.
+    fn compute_nested_memory_struct_info(
+        &mut self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(hir::VariableId, u64, hir::StructId)> {
+        // The base must be a Member expression (e.g., `o.inner`)
+        if let ExprKind::Member(inner_base, inner_member) = &base.kind {
+            // Check if inner_base is a memory struct variable
+            if let ExprKind::Ident(res_slice) = &inner_base.kind
+                && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            {
+                let var = self.gcx.hir.variable(*var_id);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                    // Ensure this is a memory struct, not storage
+                    if !self.struct_storage_base_slots.contains_key(var_id) {
+                        let strukt = self.gcx.hir.strukt(*struct_id);
+                        // Find the intermediate field (e.g., `inner`)
+                        for (i, &field_id) in strukt.fields.iter().enumerate() {
+                            let field = self.gcx.hir.variable(field_id);
+                            if let Some(field_name) = field.name
+                                && field_name.name == inner_member.name
+                            {
+                                // Check if this field is itself a struct
+                                if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                                    &field.ty.kind
+                                {
+                                    // Get the base offset to the nested struct
+                                    let base_offset =
+                                        self.get_struct_field_memory_offset(*struct_id, i);
+
+                                    // Find the final member within the inner struct
+                                    let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
+                                    for (j, &inner_field_id) in
+                                        inner_strukt.fields.iter().enumerate()
+                                    {
+                                        let inner_field = self.gcx.hir.variable(inner_field_id);
+                                        if let Some(inner_field_name) = inner_field.name
+                                            && inner_field_name.name == member.name
+                                        {
+                                            let inner_offset = self
+                                                .get_struct_field_memory_offset(*inner_struct_id, j);
+                                            return Some((
+                                                *var_id,
+                                                base_offset + inner_offset,
+                                                *inner_struct_id,
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
