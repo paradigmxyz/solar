@@ -419,26 +419,13 @@ impl<'gcx> Lowerer<'gcx> {
                         // For storage structs, we need to copy to memory and return the pointer
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
-                            let strukt = self.gcx.hir.strukt(*struct_id);
-                            let num_fields = strukt.fields.len();
-                            let struct_size = (num_fields as u64) * 32;
+                            // Calculate total flattened size (handles nested structs)
+                            let total_words = self.calculate_memory_words_for_type(&var.ty);
+                            let struct_size = total_words * 32;
                             let struct_ptr = self.allocate_memory(builder, struct_size);
 
-                            // Load each field from storage and store to memory
-                            for i in 0..num_fields {
-                                let field_slot = slot + (i as u64);
-                                let field_slot_val = builder.imm_u64(field_slot);
-                                let field_val = builder.sload(field_slot_val);
-
-                                let field_mem_offset = (i as u64) * 32;
-                                if field_mem_offset == 0 {
-                                    builder.mstore(struct_ptr, field_val);
-                                } else {
-                                    let offset_val = builder.imm_u64(field_mem_offset);
-                                    let field_addr = builder.add(struct_ptr, offset_val);
-                                    builder.mstore(field_addr, field_val);
-                                }
-                            }
+                            // Recursively copy all fields (handles nested structs)
+                            self.copy_storage_to_memory(builder, *struct_id, slot, struct_ptr, 0);
                             return struct_ptr;
                         }
 
@@ -720,26 +707,8 @@ impl<'gcx> Lowerer<'gcx> {
                         // Check if this is a struct assignment (memory struct -> storage struct)
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
-                            // Copy each field from memory to storage
-                            let strukt = self.gcx.hir.strukt(*struct_id);
-                            for (i, &_field_id) in strukt.fields.iter().enumerate() {
-                                let field_slot_offset =
-                                    self.get_struct_field_slot_offset(*struct_id, i);
-                                let slot = base_slot + field_slot_offset;
-                                let slot_val = builder.imm_u64(slot);
-
-                                // Load field from memory (rhs is memory pointer)
-                                let field_mem_offset = (i as u64) * 32;
-                                let field_val = if field_mem_offset == 0 {
-                                    builder.mload(rhs)
-                                } else {
-                                    let offset_val = builder.imm_u64(field_mem_offset);
-                                    let field_addr = builder.add(rhs, offset_val);
-                                    builder.mload(field_addr)
-                                };
-
-                                builder.sstore(slot_val, field_val);
-                            }
+                            // Recursively copy all fields (handles nested structs)
+                            self.copy_memory_to_storage(builder, *struct_id, base_slot, rhs, 0);
                         } else {
                             // Simple scalar storage assignment
                             let slot_val = builder.imm_u64(base_slot);
@@ -849,6 +818,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Fallback: store at base address
+                // This should only be reached for memory structs, not storage
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
@@ -1474,23 +1444,11 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
         {
             let var = self.gcx.hir.variable(*var_id);
-            eprintln!(
-                "DEBUG get_mapping_base_slot: var_id={:?}, name={:?}, is_mapping={}",
-                var_id,
-                var.name,
-                matches!(var.ty.kind, hir::TypeKind::Mapping(_))
-            );
             // Check if this variable has mapping type
             if matches!(var.ty.kind, hir::TypeKind::Mapping(_)) {
                 // Look up the storage slot
                 if let Some(&slot) = self.storage_slots.get(var_id) {
-                    eprintln!("DEBUG   -> found slot {slot}");
                     return Some((*var_id, slot));
-                } else {
-                    eprintln!(
-                        "DEBUG   -> NOT FOUND in storage_slots! keys={:?}",
-                        self.storage_slots.keys().collect::<Vec<_>>()
-                    );
                 }
             }
         }
@@ -1631,18 +1589,15 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    /// Computes the memory byte offset for a nested memory struct member access.
-    /// For expressions like `o.inner.a` where `o` is a memory struct with nested struct `inner`.
-    /// Returns (base_variable_id, total_byte_offset, inner_struct_id) if successful.
-    fn compute_nested_memory_struct_info(
+    /// Helper to get memory struct info with type for recursive traversal.
+    /// Returns (var_id, byte_offset, struct_id_of_field_type) if the member is a struct field.
+    fn compute_nested_memory_struct_info_with_type(
         &mut self,
-        base: &hir::Expr<'_>,
-        member: Ident,
-    ) -> Option<(hir::VariableId, u64, hir::StructId)> {
-        // The base must be a Member expression (e.g., `o.inner`)
-        if let ExprKind::Member(inner_base, inner_member) = &base.kind {
-            // Check if inner_base is a memory struct variable
-            if let ExprKind::Ident(res_slice) = &inner_base.kind
+        expr: &hir::Expr<'_>,
+    ) -> Option<(hir::VariableId, u64, Option<hir::StructId>)> {
+        if let ExprKind::Member(base, member) = &expr.kind {
+            // Base case: base is a memory struct variable
+            if let ExprKind::Ident(res_slice) = &base.kind
                 && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
             {
                 let var = self.gcx.hir.variable(*var_id);
@@ -1650,21 +1605,95 @@ impl<'gcx> Lowerer<'gcx> {
                     // Ensure this is a memory struct, not storage
                     if !self.struct_storage_base_slots.contains_key(var_id) {
                         let strukt = self.gcx.hir.strukt(*struct_id);
-                        // Find the intermediate field (e.g., `inner`)
+                        for (i, &field_id) in strukt.fields.iter().enumerate() {
+                            let field = self.gcx.hir.variable(field_id);
+                            if let Some(field_name) = field.name
+                                && field_name.name == member.name
+                            {
+                                let offset = self.get_struct_field_memory_offset(*struct_id, i);
+                                if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                                    &field.ty.kind
+                                {
+                                    return Some((*var_id, offset, Some(*inner_struct_id)));
+                                }
+                                return Some((*var_id, offset, None));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Recursive case: base is itself a nested member access
+            if let Some((var_id, parent_offset, Some(parent_struct_id))) =
+                self.compute_nested_memory_struct_info_with_type(base)
+            {
+                let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
+                for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
+                    let field = self.gcx.hir.variable(field_id);
+                    if let Some(field_name) = field.name
+                        && field_name.name == member.name
+                    {
+                        let field_offset = self.get_struct_field_memory_offset(parent_struct_id, i);
+                        let total_offset = parent_offset + field_offset;
+
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                            &field.ty.kind
+                        {
+                            return Some((var_id, total_offset, Some(*inner_struct_id)));
+                        }
+                        return Some((var_id, total_offset, None));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Computes the memory byte offset for a nested memory struct member access.
+    /// For expressions like `o.l2.l1.a` where `o` is a memory struct with arbitrarily deep nesting.
+    /// Returns (base_variable_id, total_byte_offset, inner_struct_id) if successful.
+    fn compute_nested_memory_struct_info(
+        &mut self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(hir::VariableId, u64, hir::StructId)> {
+        // Get the info for the base expression (which should be a struct-typed field)
+        if let Some((var_id, parent_offset, Some(parent_struct_id))) =
+            self.compute_nested_memory_struct_info_with_type(base)
+        {
+            // Find the final member within the parent struct
+            let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
+            for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
+                let field = self.gcx.hir.variable(field_id);
+                if let Some(field_name) = field.name
+                    && field_name.name == member.name
+                {
+                    let field_offset = self.get_struct_field_memory_offset(parent_struct_id, i);
+                    return Some((var_id, parent_offset + field_offset, parent_struct_id));
+                }
+            }
+        }
+
+        // Fallback: try the original 2-level approach for backward compatibility
+        if let ExprKind::Member(inner_base, inner_member) = &base.kind {
+            if let ExprKind::Ident(res_slice) = &inner_base.kind
+                && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            {
+                let var = self.gcx.hir.variable(*var_id);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                    if !self.struct_storage_base_slots.contains_key(var_id) {
+                        let strukt = self.gcx.hir.strukt(*struct_id);
                         for (i, &field_id) in strukt.fields.iter().enumerate() {
                             let field = self.gcx.hir.variable(field_id);
                             if let Some(field_name) = field.name
                                 && field_name.name == inner_member.name
                             {
-                                // Check if this field is itself a struct
                                 if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
                                     &field.ty.kind
                                 {
-                                    // Get the base offset to the nested struct
                                     let base_offset =
                                         self.get_struct_field_memory_offset(*struct_id, i);
 
-                                    // Find the final member within the inner struct
                                     let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
                                     for (j, &inner_field_id) in
                                         inner_strukt.fields.iter().enumerate()
@@ -1673,8 +1702,10 @@ impl<'gcx> Lowerer<'gcx> {
                                         if let Some(inner_field_name) = inner_field.name
                                             && inner_field_name.name == member.name
                                         {
-                                            let inner_offset = self
-                                                .get_struct_field_memory_offset(*inner_struct_id, j);
+                                            let inner_offset = self.get_struct_field_memory_offset(
+                                                *inner_struct_id,
+                                                j,
+                                            );
                                             return Some((
                                                 *var_id,
                                                 base_offset + inner_offset,
@@ -1693,29 +1724,95 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Computes the storage slot for a nested struct member access.
-    /// For expressions like `storedNested.point.x` where `storedNested` is a storage struct
-    /// with a nested struct field `point`.
+    /// For expressions like `stored.l2.l1.a` where `stored` is a storage struct
+    /// with arbitrarily deep nested struct fields.
+    /// Returns (slot, struct_id_of_field_type) if the member is a struct, or just slot if scalar.
+    fn compute_nested_storage_slot_with_type(
+        &mut self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(u64, Option<hir::StructId>)> {
+        if let ExprKind::Member(base, member) = &expr.kind {
+            // First try: base is a direct storage struct variable
+            if let Some((base_slot, struct_id, field_index)) =
+                self.get_storage_struct_field_info(base, *member)
+            {
+                let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                let slot = base_slot + field_offset;
+
+                // Check if the field itself is a struct
+                let strukt = self.gcx.hir.strukt(struct_id);
+                let field_var = self.gcx.hir.variable(strukt.fields[field_index]);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                    &field_var.ty.kind
+                {
+                    return Some((slot, Some(*inner_struct_id)));
+                }
+                return Some((slot, None));
+            }
+
+            // Recursive case: base is itself a nested member access
+            if let Some((parent_slot, Some(parent_struct_id))) =
+                self.compute_nested_storage_slot_with_type(base)
+            {
+                // Find the member within the parent struct
+                let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
+                for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
+                    let field = self.gcx.hir.variable(field_id);
+                    if let Some(field_name) = field.name
+                        && field_name.name == member.name
+                    {
+                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
+                        let slot = parent_slot + field_offset;
+
+                        // Check if this field is also a struct
+                        if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                            &field.ty.kind
+                        {
+                            return Some((slot, Some(*inner_struct_id)));
+                        }
+                        return Some((slot, None));
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Computes the storage slot for a nested struct member access (scalar fields only).
     fn compute_nested_storage_slot(&mut self, base: &hir::Expr<'_>, member: Ident) -> Option<u64> {
-        // The base must be a Member expression on a storage struct
+        // Check if base is a Member expression (needed for 2+ level nesting)
         if let ExprKind::Member(inner_base, inner_member) = &base.kind {
-            // Try to get the base storage slot from the innermost variable
+            // Get the slot and type info for the base member expression
+            if let Some((parent_slot, Some(parent_struct_id))) =
+                self.compute_nested_storage_slot_with_type(base)
+            {
+                // Find the final member within the parent struct
+                let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
+                for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
+                    let field = self.gcx.hir.variable(field_id);
+                    if let Some(field_name) = field.name
+                        && field_name.name == member.name
+                    {
+                        let field_offset = self.get_struct_field_slot_offset(parent_struct_id, i);
+                        return Some(parent_slot + field_offset);
+                    }
+                }
+            }
+
+            // Fallback: try the original 2-level approach
             if let Some((base_slot, struct_id, field_index)) =
                 self.get_storage_struct_field_info(inner_base, *inner_member)
             {
-                // Get the type of the accessed field
                 let strukt = self.gcx.hir.strukt(struct_id);
                 if field_index < strukt.fields.len() {
                     let field_var = self.gcx.hir.variable(strukt.fields[field_index]);
-                    // Check if this field is itself a struct
                     if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
                         &field_var.ty.kind
                     {
-                        // Calculate the slot of the nested struct field
                         let inner_field_offset =
                             self.get_struct_field_slot_offset(struct_id, field_index);
                         let nested_base_slot = base_slot + inner_field_offset;
 
-                        // Now find the member within the inner struct
                         let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
                         for (i, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
                             let inner_field = self.gcx.hir.variable(inner_field_id);

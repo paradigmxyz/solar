@@ -333,16 +333,10 @@ impl<'gcx> Lowerer<'gcx> {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
 
-        eprintln!(
-            "DEBUG allocate_storage: contract={:?}, linearized_bases={:?}",
-            contract.name, linearized_bases
-        );
-
         // Iterate in reverse order (most base first) to get correct storage layout.
         // Skip index 0 since that's the contract itself - we handle it last.
         for &base_id in linearized_bases.iter().rev() {
             let base_contract = self.gcx.hir.contract(base_id);
-            eprintln!("DEBUG   processing base_contract={:?}", base_contract.name);
             for var_id in base_contract.variables() {
                 // Skip if we already allocated this variable (shouldn't happen, but safety check)
                 if self.storage_slots.contains_key(&var_id) {
@@ -350,17 +344,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                eprintln!(
-                    "DEBUG     var {:?} ({:?}): is_state={}, is_const={}",
-                    var.name,
-                    var_id,
-                    var.is_state_variable(),
-                    var.is_constant()
-                );
                 // Skip constant variables - they are inlined and don't use storage
                 if var.is_state_variable() && !var.is_constant() {
                     let base_slot = self.next_storage_slot;
-                    eprintln!("DEBUG       -> assigned slot {base_slot}");
 
                     // Calculate how many slots this variable needs
                     let num_slots = self.calculate_storage_slots_for_type(&var.ty);
@@ -463,6 +449,107 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
         offset
+    }
+
+    /// Recursively copies a struct from storage to memory.
+    /// Handles nested structs by flattening them into contiguous memory.
+    /// Returns the next memory offset after all fields are copied.
+    pub fn copy_storage_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: u64,
+        mem_ptr: ValueId,
+        mem_offset: u64,
+    ) -> u64 {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut current_slot_offset = 0u64;
+        let mut current_mem_offset = mem_offset;
+
+        for &field_id in strukt.fields {
+            let field = self.gcx.hir.variable(field_id);
+
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+                // Recursively copy nested struct
+                current_mem_offset = self.copy_storage_to_memory(
+                    builder,
+                    *inner_struct_id,
+                    base_slot + current_slot_offset,
+                    mem_ptr,
+                    current_mem_offset,
+                );
+                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
+            } else {
+                // Copy scalar field: SLOAD from storage, MSTORE to memory
+                let slot = base_slot + current_slot_offset;
+                let slot_val = builder.imm_u64(slot);
+                let field_val = builder.sload(slot_val);
+
+                if current_mem_offset == 0 {
+                    builder.mstore(mem_ptr, field_val);
+                } else {
+                    let offset_val = builder.imm_u64(current_mem_offset);
+                    let field_addr = builder.add(mem_ptr, offset_val);
+                    builder.mstore(field_addr, field_val);
+                }
+
+                current_slot_offset += 1;
+                current_mem_offset += 32;
+            }
+        }
+
+        current_mem_offset
+    }
+
+    /// Recursively copies a struct from memory to storage.
+    /// Handles nested structs by reading from flattened memory layout.
+    /// Returns the next memory offset after all fields are read.
+    pub fn copy_memory_to_storage(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        base_slot: u64,
+        mem_ptr: ValueId,
+        mem_offset: u64,
+    ) -> u64 {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut current_slot_offset = 0u64;
+        let mut current_mem_offset = mem_offset;
+
+        for &field_id in strukt.fields {
+            let field = self.gcx.hir.variable(field_id);
+
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+                // Recursively copy nested struct
+                current_mem_offset = self.copy_memory_to_storage(
+                    builder,
+                    *inner_struct_id,
+                    base_slot + current_slot_offset,
+                    mem_ptr,
+                    current_mem_offset,
+                );
+                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
+            } else {
+                // Copy scalar field: MLOAD from memory, SSTORE to storage
+                let slot = base_slot + current_slot_offset;
+                let slot_val = builder.imm_u64(slot);
+
+                let field_val = if current_mem_offset == 0 {
+                    builder.mload(mem_ptr)
+                } else {
+                    let offset_val = builder.imm_u64(current_mem_offset);
+                    let field_addr = builder.add(mem_ptr, offset_val);
+                    builder.mload(field_addr)
+                };
+
+                builder.sstore(slot_val, field_val);
+
+                current_slot_offset += 1;
+                current_mem_offset += 32;
+            }
+        }
+
+        current_mem_offset
     }
 
     /// Lowers a function to MIR.

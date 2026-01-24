@@ -113,7 +113,7 @@ impl<'gcx> Lowerer<'gcx> {
             let total_words = self.calculate_memory_words_for_type(&var.ty);
             let struct_size = total_words * 32;
             let struct_ptr = self.allocate_memory(builder, struct_size);
-            
+
             // Zero-initialize all fields
             for i in 0..total_words {
                 let field_offset = i * 32;
