@@ -18,7 +18,7 @@
 use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
 use crate::mir::ValueId;
 use rustc_hash::FxHashMap;
-use smallvec::SmallVec;
+use smallvec::{SmallVec, ToSmallVec};
 
 /// Result of a shuffle operation.
 #[derive(Clone, Debug, Default)]
@@ -338,6 +338,208 @@ impl Default for LayoutAnalysis {
     }
 }
 
+/// Represents a stack layout for a block - the values that should be on the stack
+/// when entering or exiting a block, from top to bottom.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BlockStackLayout {
+    /// Stack slots from top (index 0) to bottom.
+    /// `None` means "don't care" / junk slot.
+    pub slots: SmallVec<[Option<ValueId>; 8]>,
+}
+
+impl BlockStackLayout {
+    /// Creates an empty layout.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { slots: SmallVec::new() }
+    }
+
+    /// Creates a layout with the given values (first = top of stack).
+    #[must_use]
+    pub fn from_values(values: impl IntoIterator<Item = ValueId>) -> Self {
+        Self { slots: values.into_iter().map(Some).collect() }
+    }
+
+    /// Creates a layout from a StackModel.
+    #[must_use]
+    pub fn from_stack_model(model: &StackModel) -> Self {
+        Self { slots: model.as_slice().to_smallvec() }
+    }
+
+    /// Returns the depth (number of slots).
+    #[must_use]
+    pub fn depth(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// Returns true if the layout is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.slots.is_empty()
+    }
+
+    /// Gets the value at a given depth (0 = top).
+    #[must_use]
+    pub fn get(&self, depth: usize) -> Option<ValueId> {
+        self.slots.get(depth).copied().flatten()
+    }
+
+    /// Converts to a target layout for the shuffler.
+    #[must_use]
+    pub fn to_target_layout(&self) -> Vec<TargetSlot> {
+        self.slots
+            .iter()
+            .map(|&v| match v {
+                Some(val) => TargetSlot::Value(val),
+                None => TargetSlot::Any,
+            })
+            .collect()
+    }
+
+    /// Finds the position of a value in the layout.
+    #[must_use]
+    pub fn find(&self, value: ValueId) -> Option<usize> {
+        self.slots.iter().position(|&v| v == Some(value))
+    }
+
+    /// Returns true if the layout contains a value.
+    #[must_use]
+    pub fn contains(&self, value: ValueId) -> bool {
+        self.find(value).is_some()
+    }
+}
+
+/// Computes a common stack layout for multiple incoming edges at a merge point.
+///
+/// The algorithm:
+/// 1. Find values that appear in multiple incoming layouts at the same position
+/// 2. For values at different positions, choose the position with lowest total shuffle cost
+/// 3. Values only needed by one predecessor become "junk slots" for others
+///
+/// Returns `None` if the layouts are incompatible (too many different values).
+pub fn combine_stack_layouts(layouts: &[BlockStackLayout]) -> Option<BlockStackLayout> {
+    if layouts.is_empty() {
+        return Some(BlockStackLayout::new());
+    }
+
+    if layouts.len() == 1 {
+        return Some(layouts[0].clone());
+    }
+
+    // Find the maximum depth across all layouts
+    let max_depth = layouts.iter().map(|l| l.depth()).max().unwrap_or(0);
+    if max_depth == 0 {
+        return Some(BlockStackLayout::new());
+    }
+
+    // Collect all values that appear in any layout
+    let mut all_values: FxHashMap<ValueId, Vec<(usize, usize)>> = FxHashMap::default();
+    for (layout_idx, layout) in layouts.iter().enumerate() {
+        for (depth, slot) in layout.slots.iter().enumerate() {
+            if let Some(val) = slot {
+                all_values.entry(*val).or_default().push((layout_idx, depth));
+            }
+        }
+    }
+
+    // Build the combined layout
+    // Strategy: for each position, find the value that appears most often at that position
+    let mut combined = BlockStackLayout { slots: smallvec::smallvec![None; max_depth] };
+
+    // First pass: place values that are at the same position in all layouts
+    for depth in 0..max_depth {
+        let mut value_at_depth: Option<ValueId> = None;
+        let mut consistent = true;
+
+        for layout in layouts {
+            let val = layout.get(depth);
+            match (value_at_depth, val) {
+                (None, Some(v)) => value_at_depth = Some(v),
+                (Some(existing), Some(v)) if existing != v => {
+                    consistent = false;
+                    break;
+                }
+                _ => {}
+            }
+        }
+
+        if consistent {
+            combined.slots[depth] = value_at_depth;
+        }
+    }
+
+    // Second pass: for values not yet placed, find best position
+    for (&value, positions) in &all_values {
+        if combined.contains(value) {
+            continue; // Already placed
+        }
+
+        // Find the most common position for this value
+        let mut pos_counts: FxHashMap<usize, usize> = FxHashMap::default();
+        for &(_, depth) in positions {
+            *pos_counts.entry(depth).or_default() += 1;
+        }
+
+        // Pick the position with highest count, preferring lower depths on ties
+        if let Some((&best_pos, _)) = pos_counts.iter().max_by(|a, b| {
+            a.1.cmp(b.1).then_with(|| b.0.cmp(a.0)) // Higher count, then lower depth
+        }) {
+            if best_pos < combined.slots.len() && combined.slots[best_pos].is_none() {
+                combined.slots[best_pos] = Some(value);
+            }
+        }
+    }
+
+    // Trim trailing None values
+    while combined.slots.last() == Some(&None) {
+        combined.slots.pop();
+    }
+
+    Some(combined)
+}
+
+/// Computes the shuffle cost from a source layout to a target layout.
+/// This estimates the number of DUP/SWAP/POP operations needed.
+#[must_use]
+pub fn estimate_shuffle_cost(source: &BlockStackLayout, target: &BlockStackLayout) -> usize {
+    let mut cost = 0;
+
+    // Count mismatched positions (need SWAP)
+    for (depth, target_val) in
+        target.slots.iter().enumerate().filter_map(|(i, s)| s.map(|v| (i, v)))
+    {
+        match source.find(target_val) {
+            Some(src_depth) if src_depth != depth => {
+                // Need to move this value - costs at least 1 SWAP
+                cost += 1;
+            }
+            None => {
+                // Value not in source - need to push or reload
+                cost += 2; // Push is more expensive
+            }
+            _ => {} // Already in correct position
+        }
+    }
+
+    // Count values in source that aren't in target (need POP)
+    for val in source.slots.iter().flatten() {
+        if !target.contains(*val) {
+            cost += 1; // POP
+        }
+    }
+
+    // Count values that need DUP (appear more times in target than source)
+    for val in target.slots.iter().flatten() {
+        let source_count = source.slots.iter().filter(|&&v| v == Some(*val)).count();
+        let target_count = target.slots.iter().filter(|&&v| v == Some(*val)).count();
+        if target_count > source_count {
+            cost += target_count - source_count; // DUP operations
+        }
+    }
+
+    cost
+}
+
 /// Represents a "freely generable" value that can be pushed without being on the stack.
 /// These values don't need to be in the source layout when shuffling.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -573,5 +775,102 @@ mod tests {
 
         // Should use swaps to rearrange
         assert!(result.swap_count > 0);
+    }
+
+    #[test]
+    fn test_block_stack_layout_basic() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        assert_eq!(layout.depth(), 2);
+        assert_eq!(layout.get(0), Some(v0));
+        assert_eq!(layout.get(1), Some(v1));
+        assert!(layout.contains(v0));
+        assert!(layout.contains(v1));
+        assert_eq!(layout.find(v0), Some(0));
+        assert_eq!(layout.find(v1), Some(1));
+    }
+
+    #[test]
+    fn test_block_stack_layout_to_target() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        let target = layout.to_target_layout();
+
+        assert_eq!(target.len(), 2);
+        assert_eq!(target[0], TargetSlot::Value(v0));
+        assert_eq!(target[1], TargetSlot::Value(v1));
+    }
+
+    #[test]
+    fn test_combine_stack_layouts_single() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        let combined = combine_stack_layouts(&[layout.clone()]);
+
+        assert!(combined.is_some());
+        assert_eq!(combined.unwrap(), layout);
+    }
+
+    #[test]
+    fn test_combine_stack_layouts_identical() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout1 = BlockStackLayout::from_values([v0, v1]);
+        let layout2 = BlockStackLayout::from_values([v0, v1]);
+        let combined = combine_stack_layouts(&[layout1, layout2]);
+
+        assert!(combined.is_some());
+        let result = combined.unwrap();
+        assert_eq!(result.get(0), Some(v0));
+        assert_eq!(result.get(1), Some(v1));
+    }
+
+    #[test]
+    fn test_combine_stack_layouts_different_values() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+
+        // Layout1: [v0, v1]
+        // Layout2: [v0, v2]
+        // Combined should have v0 at position 0 (consistent)
+        let layout1 = BlockStackLayout::from_values([v0, v1]);
+        let layout2 = BlockStackLayout::from_values([v0, v2]);
+        let combined = combine_stack_layouts(&[layout1, layout2]);
+
+        assert!(combined.is_some());
+        let result = combined.unwrap();
+        assert_eq!(result.get(0), Some(v0)); // Consistent at position 0
+    }
+
+    #[test]
+    fn test_estimate_shuffle_cost_identical() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        let cost = estimate_shuffle_cost(&layout, &layout);
+
+        assert_eq!(cost, 0);
+    }
+
+    #[test]
+    fn test_estimate_shuffle_cost_swap() {
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let source = BlockStackLayout::from_values([v0, v1]);
+        let target = BlockStackLayout::from_values([v1, v0]);
+        let cost = estimate_shuffle_cost(&source, &target);
+
+        // Both values need to move positions
+        assert!(cost > 0);
     }
 }

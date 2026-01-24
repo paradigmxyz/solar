@@ -20,7 +20,8 @@ mod spill;
 pub use model::{StackModel, StackOp};
 pub use scheduler::{ScheduledOp, StackScheduler};
 pub use shuffler::{
-    LayoutAnalysis, ShuffleResult, StackShuffler, TargetSlot, ideal_binary_op_entry,
-    ideal_operand_layout, ideal_unary_op_entry, is_freely_generable,
+    BlockStackLayout, LayoutAnalysis, ShuffleResult, StackShuffler, TargetSlot,
+    combine_stack_layouts, estimate_shuffle_cost, ideal_binary_op_entry, ideal_operand_layout,
+    ideal_unary_op_entry, is_freely_generable,
 };
 pub use spill::{SpillManager, SpillSlot};

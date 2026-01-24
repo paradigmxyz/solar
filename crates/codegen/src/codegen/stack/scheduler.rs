@@ -12,13 +12,14 @@
 
 use super::{
     model::{MAX_STACK_ACCESS, StackModel, StackOp},
-    shuffler::{ShuffleResult, StackShuffler, TargetSlot},
+    shuffler::{BlockStackLayout, ShuffleResult, StackShuffler, TargetSlot, combine_stack_layouts},
     spill::{SpillManager, SpillSlot},
 };
 use crate::{
     analysis::Liveness,
     mir::{BlockId, Function, ValueId},
 };
+use rustc_hash::FxHashMap;
 
 /// Stack scheduler that generates stack manipulation operations.
 pub struct StackScheduler {
@@ -28,6 +29,10 @@ pub struct StackScheduler {
     pub spills: SpillManager,
     /// Operations to emit.
     ops: Vec<ScheduledOp>,
+    /// Entry layouts for each block (computed from merge points).
+    block_entry_layouts: FxHashMap<BlockId, BlockStackLayout>,
+    /// Exit layouts for each block (computed after generating block).
+    block_exit_layouts: FxHashMap<BlockId, BlockStackLayout>,
 }
 
 /// A scheduled operation to emit.
@@ -50,7 +55,13 @@ impl StackScheduler {
     /// Creates a new stack scheduler.
     #[must_use]
     pub fn new() -> Self {
-        Self { stack: StackModel::new(), spills: SpillManager::new(), ops: Vec::new() }
+        Self {
+            stack: StackModel::new(),
+            spills: SpillManager::new(),
+            ops: Vec::new(),
+            block_entry_layouts: FxHashMap::default(),
+            block_exit_layouts: FxHashMap::default(),
+        }
     }
 
     /// Clears the scheduled operations (after emitting them).
@@ -375,6 +386,132 @@ impl StackScheduler {
     ) -> Vec<TargetSlot> {
         super::shuffler::ideal_unary_op_entry(operand, result, exit_layout)
     }
+
+    // ==================== Block Layout Management ====================
+    //
+    // These methods support phi node handling via stack layout merging.
+    // Instead of always spilling values at block boundaries, we can pass
+    // values through the stack by agreeing on a common layout at merge points.
+
+    /// Sets the entry layout for a block.
+    ///
+    /// This is used to specify what the stack should look like when entering
+    /// a block. Predecessors will shuffle their stacks to match this layout.
+    pub fn set_block_entry_layout(&mut self, block: BlockId, layout: BlockStackLayout) {
+        self.block_entry_layouts.insert(block, layout);
+    }
+
+    /// Gets the entry layout for a block, if one has been set.
+    #[must_use]
+    pub fn get_block_entry_layout(&self, block: BlockId) -> Option<&BlockStackLayout> {
+        self.block_entry_layouts.get(&block)
+    }
+
+    /// Records the exit layout for a block (current stack state).
+    ///
+    /// This is called after generating a block's instructions, before the terminator.
+    /// The layout is used to determine what values are on the stack when exiting.
+    pub fn record_block_exit_layout(&mut self, block: BlockId) {
+        let layout = BlockStackLayout::from_stack_model(&self.stack);
+        self.block_exit_layouts.insert(block, layout);
+    }
+
+    /// Gets the exit layout for a block, if one has been recorded.
+    #[must_use]
+    pub fn get_block_exit_layout(&self, block: BlockId) -> Option<&BlockStackLayout> {
+        self.block_exit_layouts.get(&block)
+    }
+
+    /// Computes the entry layout for a merge block from its predecessors' exit layouts.
+    ///
+    /// This is the key function for phi node handling. It finds a common stack layout
+    /// that all predecessors can shuffle to with minimal cost.
+    ///
+    /// The function also considers the live-in values for the block to ensure
+    /// all needed values are on the stack.
+    pub fn compute_merge_layout(
+        &self,
+        predecessors: &[BlockId],
+        live_in: impl IntoIterator<Item = ValueId>,
+    ) -> BlockStackLayout {
+        // Collect exit layouts from predecessors
+        let mut pred_layouts: Vec<BlockStackLayout> = Vec::new();
+        for &pred in predecessors {
+            if let Some(layout) = self.block_exit_layouts.get(&pred) {
+                pred_layouts.push(layout.clone());
+            }
+        }
+
+        // If we have no predecessor layouts, create a layout from live-in values
+        if pred_layouts.is_empty() {
+            let live_in_values: Vec<_> = live_in.into_iter().collect();
+            if live_in_values.is_empty() {
+                return BlockStackLayout::new();
+            }
+            return BlockStackLayout::from_values(live_in_values);
+        }
+
+        // Combine the layouts to find a common one
+        combine_stack_layouts(&pred_layouts).unwrap_or_default()
+    }
+
+    /// Shuffles the current stack to match a block's entry layout.
+    ///
+    /// Returns the shuffle operations needed. The caller is responsible for
+    /// emitting the actual opcodes.
+    pub fn shuffle_to_block_entry(&mut self, target_block: BlockId) -> ShuffleResult {
+        if let Some(target_layout) = self.block_entry_layouts.get(&target_block) {
+            let target_slots = target_layout.to_target_layout();
+            self.shuffle_to_layout(&target_slots)
+        } else {
+            ShuffleResult::new()
+        }
+    }
+
+    /// Initializes the stack from a block's entry layout.
+    ///
+    /// This is called when starting to generate a block that has an entry layout.
+    /// It sets up the stack model to match the expected entry state.
+    pub fn init_from_block_entry_layout(&mut self, block: BlockId) {
+        self.stack.clear();
+        if let Some(layout) = self.block_entry_layouts.get(&block).cloned() {
+            // Push values in reverse order so first slot ends up on top
+            for slot in layout.slots.iter().rev() {
+                if let Some(val) = slot {
+                    self.stack.push(*val);
+                } else {
+                    self.stack.push_unknown();
+                }
+            }
+        }
+    }
+
+    /// Clears all block layout information.
+    ///
+    /// Called when starting to generate a new function.
+    pub fn clear_block_layouts(&mut self) {
+        self.block_entry_layouts.clear();
+        self.block_exit_layouts.clear();
+    }
+
+    /// Returns true if a block has an entry layout set.
+    #[must_use]
+    pub fn has_block_entry_layout(&self, block: BlockId) -> bool {
+        self.block_entry_layouts.contains_key(&block)
+    }
+
+    /// Checks if the current stack matches a block's entry layout.
+    ///
+    /// Returns true if the stack already matches the target layout (no shuffling needed).
+    #[must_use]
+    pub fn stack_matches_entry_layout(&self, target_block: BlockId) -> bool {
+        if let Some(target_layout) = self.block_entry_layouts.get(&target_block) {
+            let current = BlockStackLayout::from_stack_model(&self.stack);
+            current == *target_layout
+        } else {
+            true // No layout specified, so any stack is fine
+        }
+    }
 }
 
 impl Default for StackScheduler {
@@ -433,5 +570,96 @@ mod tests {
         } else {
             panic!("Expected DUP operation");
         }
+    }
+
+    #[test]
+    fn test_block_layout_set_and_get() {
+        let mut scheduler = StackScheduler::new();
+        let block_id = BlockId::from_usize(0);
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        scheduler.set_block_entry_layout(block_id, layout.clone());
+
+        assert!(scheduler.has_block_entry_layout(block_id));
+        assert_eq!(scheduler.get_block_entry_layout(block_id), Some(&layout));
+    }
+
+    #[test]
+    fn test_record_block_exit_layout() {
+        let mut scheduler = StackScheduler::new();
+        let block_id = BlockId::from_usize(0);
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        scheduler.stack.push(v0);
+        scheduler.stack.push(v1);
+        // Stack: [v1, v0]
+
+        scheduler.record_block_exit_layout(block_id);
+
+        let exit_layout = scheduler.get_block_exit_layout(block_id);
+        assert!(exit_layout.is_some());
+        let layout = exit_layout.unwrap();
+        assert_eq!(layout.get(0), Some(v1)); // v1 is on top
+        assert_eq!(layout.get(1), Some(v0));
+    }
+
+    #[test]
+    fn test_init_from_block_entry_layout() {
+        let mut scheduler = StackScheduler::new();
+        let block_id = BlockId::from_usize(0);
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        scheduler.set_block_entry_layout(block_id, layout);
+
+        // Clear and reinitialize
+        scheduler.stack.push(ValueId::from_usize(99)); // Put something on stack
+        scheduler.init_from_block_entry_layout(block_id);
+
+        // Stack should now match the entry layout
+        assert_eq!(scheduler.stack.top(), Some(v0));
+        assert_eq!(scheduler.stack.peek(1), Some(v1));
+        assert_eq!(scheduler.stack.depth(), 2);
+    }
+
+    #[test]
+    fn test_stack_matches_entry_layout() {
+        let mut scheduler = StackScheduler::new();
+        let block_id = BlockId::from_usize(0);
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        let layout = BlockStackLayout::from_values([v0, v1]);
+        scheduler.set_block_entry_layout(block_id, layout);
+
+        // Stack doesn't match yet
+        assert!(!scheduler.stack_matches_entry_layout(block_id));
+
+        // Set up stack to match
+        scheduler.stack.push(v1);
+        scheduler.stack.push(v0);
+        // Stack: [v0, v1]
+
+        assert!(scheduler.stack_matches_entry_layout(block_id));
+    }
+
+    #[test]
+    fn test_clear_block_layouts() {
+        let mut scheduler = StackScheduler::new();
+        let block_id = BlockId::from_usize(0);
+        let v0 = ValueId::from_usize(0);
+
+        let layout = BlockStackLayout::from_values([v0]);
+        scheduler.set_block_entry_layout(block_id, layout);
+
+        assert!(scheduler.has_block_entry_layout(block_id));
+
+        scheduler.clear_block_layouts();
+
+        assert!(!scheduler.has_block_entry_layout(block_id));
     }
 }
