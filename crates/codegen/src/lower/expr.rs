@@ -85,10 +85,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Ternary(cond, then_expr, else_expr) => {
-                let cond_val = self.lower_expr(builder, cond);
-                let then_val = self.lower_expr(builder, then_expr);
-                let else_val = self.lower_expr(builder, else_expr);
-                builder.select(cond_val, then_val, else_val)
+                self.lower_ternary(builder, cond, then_expr, else_expr)
             }
 
             ExprKind::Call(callee, args, call_opts) => {
@@ -217,11 +214,20 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
 
-                // Handle type(T).min and type(T).max
+                // Handle type(T).min, type(T).max, type(T).creationCode, type(T).runtimeCode
                 if let ExprKind::TypeCall(ty) = &base.kind {
                     let member_name = member.name.as_str();
-                    if member_name == "max" || member_name == "min" {
-                        return self.lower_type_minmax(builder, ty, member_name == "max");
+                    match member_name {
+                        "max" | "min" => {
+                            return self.lower_type_minmax(builder, ty, member_name == "max");
+                        }
+                        "creationCode" => {
+                            return self.lower_type_creation_code(builder, ty, true);
+                        }
+                        "runtimeCode" => {
+                            return self.lower_type_creation_code(builder, ty, false);
+                        }
+                        _ => {}
                     }
                 }
 
@@ -657,6 +663,286 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Lowers `type(Contract).creationCode` or `type(Contract).runtimeCode`.
+    /// Returns a `bytes memory` pointer with layout: [length (32 bytes)][bytecode data...]
+    fn lower_type_creation_code(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        is_creation_code: bool,
+    ) -> ValueId {
+        // Extract ContractId from the type
+        let contract_id = match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
+            _ => {
+                // Not a contract type, return null pointer
+                return builder.imm_u64(0);
+            }
+        };
+
+        // Look up pre-compiled bytecode
+        // For creationCode we use the deployment bytecode (initcode)
+        // For runtimeCode we would need the runtime bytecode (not yet supported)
+        let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
+            Some(bc) => bc.clone(),
+            None => {
+                // Bytecode not available - return null pointer
+                return builder.imm_u64(0);
+            }
+        };
+
+        // For runtimeCode, we don't have a separate mechanism yet, so use creation code
+        // TODO: Support runtimeCode by storing runtime bytecode separately
+        let _ = is_creation_code;
+
+        let bytecode_len = bytecode.len();
+
+        // Allocate memory for bytes: 32 bytes length + bytecode
+        // Layout: [length (32 bytes)][data...]
+        //
+        // ptr = mload(0x40)           // get free memory pointer
+        // mstore(ptr, bytecode_len)   // store length
+        // // copy bytecode to ptr+32
+        // mstore(0x40, ptr + 32 + aligned_len)  // update free memory pointer
+
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_mem_ptr_slot);
+
+        // Store length at ptr
+        let len_val = builder.imm_u64(bytecode_len as u64);
+        builder.mstore(ptr, len_val);
+
+        // Copy bytecode to ptr+32 using MSTORE loop
+        let thirty_two = builder.imm_u64(32);
+        let data_start = builder.add(ptr, thirty_two);
+
+        let mut offset = 0u64;
+        for chunk in bytecode.chunks(32) {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let value = U256::from_be_bytes(padded);
+            let val_id = builder.imm_u256(value);
+            let offset_id = builder.imm_u64(offset);
+            let dest = builder.add(data_start, offset_id);
+            builder.mstore(dest, val_id);
+            offset += 32;
+        }
+
+        // Update free memory pointer: ptr + 32 + ceil(bytecode_len / 32) * 32
+        let aligned_data_len = ((bytecode_len + 31) / 32) * 32;
+        let total_size = 32 + aligned_data_len;
+        let total_size_val = builder.imm_u64(total_size as u64);
+        let new_free_ptr = builder.add(ptr, total_size_val);
+        builder.mstore(free_mem_ptr_slot, new_free_ptr);
+
+        // Return ptr (the bytes memory value)
+        ptr
+    }
+
+    /// Lowers a ternary conditional expression with proper branching.
+    /// This handles both scalar and tuple returns correctly by using control flow
+    /// instead of select, and storing multi-value results in scratch memory.
+    fn lower_ternary(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        cond: &hir::Expr<'_>,
+        then_expr: &hir::Expr<'_>,
+        else_expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        // Determine if this is a tuple-typed ternary by checking if either branch is a tuple
+        let is_tuple = matches!(then_expr.kind, ExprKind::Tuple(_))
+            || matches!(else_expr.kind, ExprKind::Tuple(_));
+
+        if is_tuple {
+            // For tuple ternaries, use branching to write values to scratch memory
+            let cond_val = self.lower_expr(builder, cond);
+
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            let merge_block = builder.create_block();
+
+            builder.branch(cond_val, then_block, else_block);
+
+            // Then block: evaluate then_expr and write tuple elements to memory
+            builder.switch_to_block(then_block);
+            self.lower_tuple_to_scratch(builder, then_expr);
+            builder.jump(merge_block);
+
+            // Else block: evaluate else_expr and write tuple elements to memory
+            builder.switch_to_block(else_block);
+            self.lower_tuple_to_scratch(builder, else_expr);
+            builder.jump(merge_block);
+
+            // Merge block: load first value from scratch memory
+            builder.switch_to_block(merge_block);
+            let zero = builder.imm_u64(0);
+            builder.mload(zero)
+        } else {
+            // For non-tuple ternaries, still use branching for correct semantics
+            // (only one branch should be evaluated for side effects)
+            let cond_val = self.lower_expr(builder, cond);
+
+            let then_block = builder.create_block();
+            let else_block = builder.create_block();
+            let merge_block = builder.create_block();
+
+            builder.branch(cond_val, then_block, else_block);
+
+            // Then block
+            builder.switch_to_block(then_block);
+            let then_val = self.lower_expr(builder, then_expr);
+            let zero_then = builder.imm_u64(0);
+            builder.mstore(zero_then, then_val);
+            builder.jump(merge_block);
+
+            // Else block
+            builder.switch_to_block(else_block);
+            let else_val = self.lower_expr(builder, else_expr);
+            let zero_else = builder.imm_u64(0);
+            builder.mstore(zero_else, else_val);
+            builder.jump(merge_block);
+
+            // Merge block: load result from scratch memory
+            builder.switch_to_block(merge_block);
+            let zero = builder.imm_u64(0);
+            builder.mload(zero)
+        }
+    }
+
+    /// Lowers a tuple expression by writing all elements to scratch memory.
+    /// Element i is stored at offset i*32.
+    fn lower_tuple_to_scratch(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
+        if let ExprKind::Tuple(elements) = &expr.kind {
+            for (i, elem_opt) in elements.iter().enumerate() {
+                if let Some(elem) = elem_opt {
+                    let val = self.lower_expr(builder, elem);
+                    let offset = builder.imm_u64(i as u64 * 32);
+                    builder.mstore(offset, val);
+                }
+            }
+        } else {
+            // Not a tuple - just store single value at offset 0
+            let val = self.lower_expr(builder, expr);
+            let zero = builder.imm_u64(0);
+            builder.mstore(zero, val);
+        }
+    }
+
+    /// Lowers abi.encodePacked with proper tight packing.
+    /// Returns bytes memory (pointer to length + data).
+    fn lower_abi_encode_packed(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        // Get free memory pointer
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_mem_ptr_slot);
+
+        // We'll write data starting at ptr+32 (leaving room for length)
+        let thirty_two = builder.imm_u64(32);
+        let data_start = builder.add(ptr, thirty_two);
+
+        let mut current_offset: u64 = 0;
+
+        for arg in args.exprs() {
+            let packed_size = self.get_packed_size_from_expr(arg);
+            let val = self.lower_expr(builder, arg);
+
+            if packed_size == 32 {
+                // Full 32 bytes - use MSTORE
+                let offset = builder.imm_u64(current_offset);
+                let dest = builder.add(data_start, offset);
+                builder.mstore(dest, val);
+            } else {
+                // Less than 32 bytes - need to left-align and use MSTORE
+                // Value is already right-aligned in the 256-bit word
+                // Shift left to left-align: val << (256 - packed_size*8)
+                let shift_bits = (32 - packed_size) * 8;
+                let shift_amount = builder.imm_u64(shift_bits as u64);
+                let left_aligned = builder.shl(shift_amount, val);
+
+                let offset = builder.imm_u64(current_offset);
+                let dest = builder.add(data_start, offset);
+                builder.mstore(dest, left_aligned);
+            }
+            current_offset += packed_size as u64;
+        }
+
+        // Store length at ptr
+        let length = builder.imm_u64(current_offset);
+        builder.mstore(ptr, length);
+
+        // Update free memory pointer: ptr + 32 + ceil(length/32)*32
+        let aligned_data_len = ((current_offset + 31) / 32) * 32;
+        let total_size = 32 + aligned_data_len;
+        let total_size_val = builder.imm_u64(total_size);
+        let new_free_ptr = builder.add(ptr, total_size_val);
+        builder.mstore(free_mem_ptr_slot, new_free_ptr);
+
+        // Return pointer to the bytes value
+        ptr
+    }
+
+    /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
+    fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>) -> usize {
+        use hir::ExprKind;
+        use solar_ast::{ElementaryType, LitKind, StrKind};
+
+        match &expr.kind {
+            // Literals
+            ExprKind::Lit(lit) => match &lit.kind {
+                // Hex literals: size is the actual byte length
+                LitKind::Str(StrKind::Hex, bytes, _) => bytes.as_byte_str().len(),
+                // String literals: actual byte length
+                LitKind::Str(_, bytes, _) => bytes.as_byte_str().len(),
+                // Address literal: 20 bytes
+                LitKind::Address(_) => 20,
+                // Bool: 1 byte
+                LitKind::Bool(_) => 1,
+                // Number: default to 32 bytes (uint256)
+                LitKind::Number(_) | LitKind::Rational(_) => 32,
+                LitKind::Err(_) => 32,
+            },
+
+            // Variable - try to get type from declaration
+            ExprKind::Ident(res_slice) => {
+                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+                    let var = self.gcx.hir.variable(*var_id);
+                    return self.get_packed_size_from_hir_type(&var.ty);
+                }
+                32
+            }
+
+            // For calls, default to 32 bytes (we can't easily determine the return type)
+            ExprKind::Call(_, _, _) => 32,
+
+            // Default
+            _ => 32,
+        }
+    }
+
+    /// Gets the packed size from an HIR type.
+    fn get_packed_size_from_hir_type(&self, ty: &hir::Type<'_>) -> usize {
+        use hir::TypeKind;
+        use solar_ast::ElementaryType;
+
+        match &ty.kind {
+            TypeKind::Elementary(elem) => match elem {
+                ElementaryType::FixedBytes(size) => size.bytes() as usize,
+                ElementaryType::Address(_) => 20,
+                ElementaryType::Bool => 1,
+                ElementaryType::Int(size) | ElementaryType::UInt(size) => size.bytes() as usize,
+                ElementaryType::String | ElementaryType::Bytes => 32, // Dynamic - handled specially
+                ElementaryType::Fixed(size, _) | ElementaryType::UFixed(size, _) => {
+                    size.bytes() as usize
+                }
+            },
+            // Everything else: 32 bytes default
+            _ => 32,
+        }
+    }
+
     /// Lowers a unary operation.
     fn lower_unary_op(
         &mut self,
@@ -970,38 +1256,42 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // Allocate memory for bytecode + constructor args
-        // We'll put the bytecode starting at a free memory offset
-        // For simplicity, use memory offset 0 (assuming it's available)
-        let mem_offset = builder.imm_u64(0);
+        // Allocate memory for bytecode + constructor args from free memory pointer
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let mem_offset = builder.mload(free_mem_ptr_slot);
 
-        // Copy bytecode to memory using CODECOPY isn't right here since
-        // the bytecode is from another contract. We need to use MSTORE
-        // to write the bytecode bytes to memory.
-        //
-        // For each 32-byte chunk of bytecode, emit an MSTORE
-        let mut offset = 0u64;
-        for chunk in bytecode.chunks(32) {
+        // Copy bytecode to memory using MSTORE
+        // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
+        for (i, chunk) in bytecode.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
             let value = U256::from_be_bytes(padded);
             let val_id = builder.imm_u256(value);
-            let offset_id = builder.imm_u64(offset);
-            builder.mstore(offset_id, val_id);
-            offset += 32;
+            let chunk_offset = builder.imm_u64((i as u64) * 32);
+            let dest = builder.add(mem_offset, chunk_offset);
+            builder.mstore(dest, val_id);
         }
 
         // Append constructor arguments after bytecode
         let mut args_offset = bytecode_len as u64;
         for arg in args.exprs() {
             let arg_val = self.lower_expr(builder, arg);
-            let arg_offset = builder.imm_u64(args_offset);
-            builder.mstore(arg_offset, arg_val);
+            let arg_offset_imm = builder.imm_u64(args_offset);
+            let arg_dest = builder.add(mem_offset, arg_offset_imm);
+            builder.mstore(arg_dest, arg_val);
             args_offset += 32; // Each arg is 32 bytes ABI encoded
         }
 
         // Total size = bytecode + args
         let total_size = builder.imm_u64(args_offset);
+
+        // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
+        let thirty_one = builder.imm_u64(31);
+        let aligned_size = builder.add(total_size, thirty_one);
+        let mask = builder.imm_u256(U256::from(!31u64));
+        let aligned_size = builder.and(aligned_size, mask);
+        let new_free = builder.add(mem_offset, aligned_size);
+        builder.mstore(free_mem_ptr_slot, new_free);
 
         // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
         let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
@@ -1065,9 +1355,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
-            Builtin::AbiEncode | Builtin::AbiEncodePacked => {
-                // abi.encode/encodePacked: for single 32-byte values, just return the value
-                // For multiple values, encode them sequentially in memory
+            Builtin::AbiEncode => {
+                // abi.encode: pad everything to 32 bytes
                 let arg_vals: Vec<ValueId> =
                     args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
 
@@ -1076,18 +1365,20 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 if arg_vals.len() == 1 {
-                    // Single value - just return it (keccak256 will store it to memory)
                     return arg_vals[0];
                 }
 
-                // Multiple values - store them at scratch memory and return pointer
-                // Write to memory starting at offset 0
+                // Multiple values - store at scratch memory with 32-byte padding
                 for (i, &val) in arg_vals.iter().enumerate() {
                     let offset = builder.imm_u64((i * 32) as u64);
                     builder.mstore(offset, val);
                 }
-                // Return pointer to the encoded data (offset 0)
                 builder.imm_u64(0)
+            }
+            Builtin::AbiEncodePacked => {
+                // abi.encodePacked: pack values tightly based on their types
+                // Returns bytes memory (length + data)
+                self.lower_abi_encode_packed(builder, args)
             }
             _ => builder.imm_u64(0),
         }

@@ -353,6 +353,17 @@ impl<'gcx> Lowerer<'gcx> {
                     })
                     .collect();
                 builder.ret(ret_vals);
+            } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
+                // Ternary expression returning a tuple - values are in scratch memory
+                // lower_expr already evaluated the ternary and wrote to scratch memory
+                let _ = self.lower_expr(builder, expr);
+                let mut ret_vals = Vec::new();
+                for i in 0..arity {
+                    let offset = builder.imm_u64(i as u64 * 32);
+                    let val = builder.mload(offset);
+                    ret_vals.push(val);
+                }
+                builder.ret(ret_vals);
             } else {
                 // Check if returning a memory struct - expand to individual fields
                 let struct_type = self.get_return_struct_type(expr);
@@ -375,6 +386,20 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.ret([]);
         }
+    }
+
+    /// Gets the tuple arity if this is a ternary expression with tuple branches.
+    fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
+        if let hir::ExprKind::Ternary(_, then_expr, else_expr) = &expr.kind {
+            // Check if either branch is a tuple
+            if let hir::ExprKind::Tuple(elements) = &then_expr.kind {
+                return Some(elements.len());
+            }
+            if let hir::ExprKind::Tuple(elements) = &else_expr.kind {
+                return Some(elements.len());
+            }
+        }
+        None
     }
 
     /// Gets the struct ID if the expression returns a memory struct.

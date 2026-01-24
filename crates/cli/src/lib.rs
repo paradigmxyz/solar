@@ -120,7 +120,8 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
 fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
-    use solar_codegen::{EvmCodegen, lower};
+    use solar_codegen::{EvmCodegen, FxHashMap, lower};
+    use solar_sema::hir::ContractId;
     use std::collections::BTreeMap;
 
     let gcx = compiler.gcx();
@@ -131,8 +132,22 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
     let emit_bin_runtime = sess.opts.emit.contains(&CompilerOutput::BinRuntime);
     let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
 
+    // Two-pass compilation to support `type(Contract).creationCode` and `new Contract()`:
+    // Pass 1: Compile all contracts to get their bytecodes
+    let mut all_bytecodes: FxHashMap<ContractId, Vec<u8>> = FxHashMap::default();
+    for id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(id);
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            let mut module = lower::lower_contract(gcx, id);
+            let mut codegen = EvmCodegen::new();
+            let (deployment_bytecode, _) = codegen.generate_deployment_bytecode(&mut module);
+            all_bytecodes.insert(id, deployment_bytecode);
+        }
+    }
+
     let mut json_output: BTreeMap<String, serde_json::Value> = BTreeMap::new();
 
+    // Pass 2: Recompile with bytecodes available for cross-contract references
     for id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(id);
         let name = gcx.contract_fully_qualified_name(id).to_string();
@@ -158,8 +173,8 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
 
         // Skip bytecode generation for interfaces and abstract contracts
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            // Lower to MIR
-            let mut module = lower::lower_contract(gcx, id);
+            // Lower to MIR with all bytecodes available
+            let mut module = lower::lower_contract_with_bytecodes(gcx, id, &all_bytecodes);
 
             // Generate bytecode
             let mut codegen = EvmCodegen::new();
