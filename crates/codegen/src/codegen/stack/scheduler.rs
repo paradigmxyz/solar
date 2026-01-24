@@ -2,9 +2,17 @@
 //!
 //! The scheduler takes operands needed for an instruction and generates
 //! the sequence of stack operations to arrange them on the stack.
+//!
+//! ## Backward Layout Optimization
+//!
+//! This scheduler now supports backward layout analysis:
+//! 1. Define the desired exit layout for each instruction
+//! 2. Compute the ideal entry layout that minimizes shuffling
+//! 3. Use the shuffler to generate optimal DUP/SWAP/POP sequences
 
 use super::{
     model::{MAX_STACK_ACCESS, StackModel, StackOp},
+    shuffler::{ShuffleResult, StackShuffler, TargetSlot},
     spill::{SpillManager, SpillSlot},
 };
 use crate::{
@@ -279,6 +287,93 @@ impl StackScheduler {
     /// Clears the stack model (used at block boundaries).
     pub fn clear_stack(&mut self) {
         self.stack.clear();
+    }
+
+    /// Shuffles the current stack to match the target layout.
+    ///
+    /// This uses the backward layout optimization approach:
+    /// - Given a target layout (what we want the stack to look like)
+    /// - Generate the minimal sequence of DUP/SWAP/POP operations
+    ///
+    /// Returns the shuffle result containing the operations to emit.
+    pub fn shuffle_to_layout(&mut self, target: &[TargetSlot]) -> ShuffleResult {
+        let shuffler = StackShuffler::new(&self.stack, target);
+        let result = shuffler.shuffle();
+
+        // Apply the operations to our stack model
+        for op in &result.ops {
+            match op {
+                StackOp::Dup(n) => self.stack.dup(*n),
+                StackOp::Swap(n) => self.stack.swap(*n),
+                StackOp::Pop => {
+                    self.stack.pop();
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Prepares the stack for a binary operation.
+    ///
+    /// Given operands (a, b) where a should be on top and b below:
+    /// - Computes the target layout [a, b, ...rest]
+    /// - Shuffles current stack to match
+    /// - Returns operations to emit
+    pub fn prepare_binary_op(&mut self, a: ValueId, b: ValueId, _func: &Function) -> ShuffleResult {
+        // Build target layout: [a, b]
+        let target = [TargetSlot::Value(a), TargetSlot::Value(b)];
+
+        // Check if we need to push values that aren't on stack
+        let a_on_stack = self.stack.find(a).is_some();
+        let b_on_stack = self.stack.find(b).is_some();
+
+        if !a_on_stack || !b_on_stack {
+            // Can't shuffle - values need to be pushed first
+            // Fall back to regular ensure_on_top behavior
+            return ShuffleResult::new();
+        }
+
+        self.shuffle_to_layout(&target)
+    }
+
+    /// Prepares the stack for a unary operation.
+    ///
+    /// Given operand that should be on top:
+    /// - Computes the target layout [operand, ...rest]
+    /// - Shuffles current stack to match
+    /// - Returns operations to emit
+    pub fn prepare_unary_op(&mut self, operand: ValueId, _func: &Function) -> ShuffleResult {
+        let target = [TargetSlot::Value(operand)];
+
+        if self.stack.find(operand).is_none() {
+            // Can't shuffle - value needs to be pushed first
+            return ShuffleResult::new();
+        }
+
+        self.shuffle_to_layout(&target)
+    }
+
+    /// Computes the ideal entry layout for a binary operation given the exit layout.
+    ///
+    /// For ADD(a, b) -> result, if exit layout is [result, x, y]:
+    /// - Entry layout should be [a, b, x, y]
+    pub fn compute_binary_entry_layout(
+        a: ValueId,
+        b: ValueId,
+        result: Option<ValueId>,
+        exit_layout: &[TargetSlot],
+    ) -> Vec<TargetSlot> {
+        super::shuffler::ideal_binary_op_entry(a, b, result, exit_layout)
+    }
+
+    /// Computes the ideal entry layout for a unary operation given the exit layout.
+    pub fn compute_unary_entry_layout(
+        operand: ValueId,
+        result: Option<ValueId>,
+        exit_layout: &[TargetSlot],
+    ) -> Vec<TargetSlot> {
+        super::shuffler::ideal_unary_op_entry(operand, result, exit_layout)
     }
 }
 

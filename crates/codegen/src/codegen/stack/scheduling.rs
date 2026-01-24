@@ -122,6 +122,54 @@ impl std::fmt::Display for StackMetrics {
     }
 }
 
+/// Global metrics collector for tracking stack operations across codegen.
+#[derive(Clone, Debug, Default)]
+pub struct MetricsCollector {
+    /// Accumulated metrics.
+    pub metrics: StackMetrics,
+    /// Shuffler operations saved (compared to naive approach).
+    pub shuffler_ops_saved: usize,
+    /// Number of shuffle operations performed.
+    pub shuffle_count: usize,
+}
+
+impl MetricsCollector {
+    /// Creates a new metrics collector.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Records a DUP operation.
+    pub fn record_dup(&mut self, depth: u8) {
+        self.metrics.record_dup(depth);
+    }
+
+    /// Records a SWAP operation.
+    pub fn record_swap(&mut self, depth: u8) {
+        self.metrics.record_swap(depth);
+    }
+
+    /// Records a shuffle operation and how many ops it saved.
+    pub fn record_shuffle(&mut self, ops_saved: usize) {
+        self.shuffle_count += 1;
+        self.shuffler_ops_saved += ops_saved;
+    }
+
+    /// Returns a summary string.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        format!(
+            "DUP: {}, SWAP: {}, Shuffles: {}, Ops saved: {}, Gas: {}",
+            self.metrics.dup_count,
+            self.metrics.swap_count,
+            self.shuffle_count,
+            self.shuffler_ops_saved,
+            self.metrics.estimated_gas()
+        )
+    }
+}
+
 /// Use-frequency analysis for values in a block.
 ///
 /// Tracks how many times each value is used within a block to help
