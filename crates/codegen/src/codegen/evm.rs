@@ -1448,6 +1448,43 @@ impl EvmCodegen {
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::Keccak256(offset, size) => {
+                            // Re-emit KECCAK256 - memory content should still be valid
+                            self.emit_value_fresh(func, *offset);
+                            self.emit_value_fresh(func, *size);
+                            self.asm.emit_op(opcodes::KECCAK256);
+                            // Pop offset and size, push result
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Add(a, b) => {
+                            // Re-emit ADD
+                            self.emit_value_fresh(func, *a);
+                            self.emit_value_fresh(func, *b);
+                            self.asm.emit_op(opcodes::ADD);
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Sub(a, b) => {
+                            // Re-emit SUB
+                            self.emit_value_fresh(func, *a);
+                            self.emit_value_fresh(func, *b);
+                            self.asm.emit_op(opcodes::SUB);
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::Mul(a, b) => {
+                            // Re-emit MUL
+                            self.emit_value_fresh(func, *a);
+                            self.emit_value_fresh(func, *b);
+                            self.asm.emit_op(opcodes::MUL);
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.pop();
+                            self.scheduler.stack.push(val);
+                        }
                         other => {
                             // For other instruction results that aren't spilled and can't be
                             // re-executed, this is a bug - the lowering
