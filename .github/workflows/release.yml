@@ -130,6 +130,9 @@ jobs:
           fi
       - name: Use rustup to set correct Rust version
         run: rustup update "stable" --no-self-update && rustup default "stable"
+      - name: "Build with PGO"
+        if: "${{ contains(matrix.targets, 'x86_64-unknown-linux') }}"
+        run: ".github/scripts/build-pgo.sh"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
