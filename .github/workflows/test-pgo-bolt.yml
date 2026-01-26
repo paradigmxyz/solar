@@ -60,14 +60,16 @@ jobs:
         run: |
           readarray -t TESTDATA < <(find testdata -maxdepth 1 -name '*.sol' ! -name 'Optimism.sol')
           # cargo-pgo bolt build outputs instrumented binary to target/<triple>/<profile>/solar-bolt-instrumented
-          BOLT_BIN="target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-instrumented"
+          ls -la target/x86_64-unknown-linux-gnu/dist/
+          BOLT_BIN="target/x86_64-unknown-linux-gnu/dist/solar-bolt-instrumented"
           "$BOLT_BIN" "${TESTDATA[@]}" || true
 
       - name: Build BOLT-optimized binary
         run: |
           cargo pgo bolt optimize --with-pgo -- --profile $PROFILE --features $FEATURES
           # cargo-pgo outputs to target/<triple>/<profile>/solar-bolt-optimized
-          cp target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-optimized /tmp/solar-pgo-bolt
+          ls -la target/x86_64-unknown-linux-gnu/dist/
+          cp target/x86_64-unknown-linux-gnu/dist/solar-bolt-optimized /tmp/solar-pgo-bolt
           ls -lh /tmp/solar-pgo-bolt
 
       - name: Verify binaries work
