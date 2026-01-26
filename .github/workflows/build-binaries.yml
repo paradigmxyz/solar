@@ -1,0 +1,99 @@
+name: Build binaries
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+jobs:
+  build-binaries:
+    name: build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+            pgo-bolt: true
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-22.04
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04
+          - target: x86_64-apple-darwin
+            runner: macos-14
+          - target: aarch64-apple-darwin
+            runner: macos-14
+          - target: x86_64-pc-windows-msvc
+            runner: windows-2022
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (aarch64-linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install musl tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build with PGO+BOLT
+        if: matrix.pgo-bolt
+        run: .github/scripts/build-pgo-bolt.sh
+
+      - name: Build release binary
+        if: ${{ !matrix.pgo-bolt }}
+        run: cargo build --profile dist --target ${{ matrix.target }} --features cli,asm,mimalloc
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Create archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          ARCHIVE_NAME="solar-${{ matrix.target }}"
+          mkdir -p "$ARCHIVE_NAME"
+          if [[ "${{ matrix.pgo-bolt }}" == "true" ]]; then
+            cp target/dist/solar "$ARCHIVE_NAME/"
+          else
+            cp target/${{ matrix.target }}/dist/solar "$ARCHIVE_NAME/"
+          fi
+          # Tarball must have contents nested under root dir with same name as archive
+          tar -czvf "$ARCHIVE_NAME.tar.gz" "$ARCHIVE_NAME"
+          sha256sum "$ARCHIVE_NAME.tar.gz" | cut -d' ' -f1 > "$ARCHIVE_NAME.tar.gz.sha256"
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ARCHIVE_NAME = "solar-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $ARCHIVE_NAME -Force
+          Copy-Item "target/${{ matrix.target }}/dist/solar.exe" -Destination "$ARCHIVE_NAME/"
+          # Zip files should have contents directly in root (no nesting)
+          Compress-Archive -Path "$ARCHIVE_NAME\*" -DestinationPath "$ARCHIVE_NAME.zip"
+          (Get-FileHash -Algorithm SHA256 "$ARCHIVE_NAME.zip").Hash.ToLower() | Out-File -Encoding ascii -NoNewline "$ARCHIVE_NAME.zip.sha256"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-build-local-${{ matrix.target }}
+          path: |
+            solar-*.tar.gz
+            solar-*.tar.gz.sha256
+            solar-*.zip
+            solar-*.zip.sha256
