@@ -45,6 +45,8 @@ cargo pgo bolt build --with-pgo -- "${CARGO_ARGS[@]}"
 run "target/$TARGET/$PROFILE/solar-bolt-instrumented"
 cargo pgo bolt optimize --with-pgo -- "${CARGO_ARGS[@]}"
 
-# mkdir -p "target/$PROFILE"
-# cp "target/$TARGET/$PROFILE/solar-bolt-optimized" "target/$PROFILE/solar"
-# ls -lh "target/$PROFILE/solar"
+for out in "target/$TARGET/$PROFILE" "target/$PROFILE"; do
+    mkdir -p "$out"
+    cp "target/$TARGET/$PROFILE/solar-bolt-optimized" "$out/solar"
+done
+ls -lh "target/$PROFILE/solar"
