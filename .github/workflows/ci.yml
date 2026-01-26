@@ -50,6 +50,19 @@ jobs:
       - name: doctest
         run: cargo test --doc --workspace
 
+  test-pgo-bolt:
+    name: Test PGO+BOLT
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Run build-pgo-bolt.sh
+        run: .github/scripts/build-pgo-bolt.sh
+      - name: Verify binary
+        run: |
+          target/dist/solar --version
+          target/dist/solar testdata/Counter.sol
+
   feature-checks:
     name: features
     runs-on: ubuntu-latest
