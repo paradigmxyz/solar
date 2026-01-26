@@ -1,0 +1,104 @@
+name: Test PGO+BOLT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test-pgo-bolt:
+    name: Test PGO+BOLT build
+    runs-on: ubuntu-22.04
+    env:
+      PROFILE: dist
+      FEATURES: cli,asm,mimalloc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Install Rust
+        run: rustup update stable --no-self-update && rustup default stable
+
+      - name: Build baseline (no optimization)
+        run: |
+          cargo build --profile $PROFILE --features $FEATURES
+          cp target/$PROFILE/solar /tmp/solar-baseline
+          ls -lh /tmp/solar-baseline
+
+      - name: Clean for PGO build
+        run: cargo clean
+
+      - name: Run build-pgo.sh script
+        run: |
+          export GITHUB_ENV=$(mktemp)
+          .github/scripts/build-pgo.sh
+          cat "$GITHUB_ENV"
+
+      - name: Build with PGO (using RUSTFLAGS from script)
+        run: |
+          export RUSTFLAGS="-Cprofile-use=$PWD/target/pgo-profiles/merged.profdata"
+          cargo build --profile $PROFILE --features $FEATURES
+          cp target/$PROFILE/solar /tmp/solar-pgo
+          ls -lh /tmp/solar-pgo
+
+      - name: Install BOLT
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-21 main" | sudo tee /etc/apt/sources.list.d/llvm.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bolt-21
+          sudo ln -sf /usr/bin/llvm-bolt-21 /usr/local/bin/llvm-bolt
+          sudo ln -sf /usr/bin/merge-fdata-21 /usr/local/bin/merge-fdata
+
+      - name: Build BOLT-instrumented binary (with PGO)
+        run: cargo pgo bolt build --with-pgo -- --profile $PROFILE --features $FEATURES
+
+      - name: Gather BOLT profiles
+        run: |
+          readarray -t TESTDATA < <(find testdata -maxdepth 1 -name '*.sol' ! -name 'Optimism.sol')
+          # cargo-pgo bolt build outputs instrumented binary to target/<triple>/<profile>/solar-bolt-instrumented
+          BOLT_BIN="target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-instrumented"
+          "$BOLT_BIN" "${TESTDATA[@]}" || true
+
+      - name: Build BOLT-optimized binary
+        run: |
+          cargo pgo bolt optimize --with-pgo -- --profile $PROFILE --features $FEATURES
+          # cargo-pgo outputs to target/<triple>/<profile>/solar-bolt-optimized
+          cp target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-optimized /tmp/solar-pgo-bolt
+          ls -lh /tmp/solar-pgo-bolt
+
+      - name: Verify binaries work
+        run: |
+          /tmp/solar-baseline --version && /tmp/solar-baseline testdata/Counter.sol
+          /tmp/solar-pgo --version && /tmp/solar-pgo testdata/Counter.sol
+          /tmp/solar-pgo-bolt --version && /tmp/solar-pgo-bolt testdata/Counter.sol
+
+      - name: Install hyperfine
+        run: |
+          wget -qO- https://github.com/sharkdp/hyperfine/releases/download/v1.19.0/hyperfine-v1.19.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv hyperfine-v1.19.0-x86_64-unknown-linux-gnu/hyperfine /usr/local/bin/
+
+      - name: Benchmark comparison
+        run: |
+          hyperfine --warmup 3 --min-runs 20 \
+            '/tmp/solar-baseline testdata/Counter.sol testdata/Vm.sol testdata/console.sol' \
+            '/tmp/solar-pgo testdata/Counter.sol testdata/Vm.sol testdata/console.sol' \
+            '/tmp/solar-pgo-bolt testdata/Counter.sol testdata/Vm.sol testdata/console.sol' \
+            --export-markdown /tmp/bench-small.md
+          cat /tmp/bench-small.md
+          
+          hyperfine --warmup 2 --min-runs 10 \
+            '/tmp/solar-baseline testdata/Solady.sol testdata/Seaport.sol' \
+            '/tmp/solar-pgo testdata/Solady.sol testdata/Seaport.sol' \
+            '/tmp/solar-pgo-bolt testdata/Solady.sol testdata/Seaport.sol' \
+            --export-markdown /tmp/bench-large.md
+          cat /tmp/bench-large.md
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: /tmp/bench-*.md
