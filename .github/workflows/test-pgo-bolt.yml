@@ -6,7 +6,7 @@ on:
 
 jobs:
   test-pgo-bolt:
-    name: Test PGO+BOLT scripts
+    name: Test PGO+BOLT
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,13 +17,10 @@ jobs:
       - name: Install Rust
         run: rustup update stable --no-self-update && rustup default stable
 
-      - name: Run build-pgo.sh
-        run: .github/scripts/build-pgo.sh
+      - name: Run build-pgo-bolt.sh
+        run: .github/scripts/build-pgo-bolt.sh
 
-      - name: Run apply-bolt.sh
-        run: .github/scripts/apply-bolt.sh
-
-      - name: Verify binary works
+      - name: Verify binary
         run: |
           target/dist/solar --version
           target/dist/solar testdata/Counter.sol
