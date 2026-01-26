@@ -20,14 +20,8 @@ jobs:
       - name: Run build-pgo.sh
         run: .github/scripts/build-pgo.sh
 
-      - name: Build with PGO
-        run: |
-          export RUSTFLAGS="-Cprofile-use=$PWD/target/pgo-profiles/merged.profdata"
-          cargo build --profile dist --features cli,asm,mimalloc
-          ls -lh target/dist/solar
-
       - name: Run apply-bolt.sh
-        run: .github/scripts/apply-bolt.sh target/dist/solar
+        run: .github/scripts/apply-bolt.sh
 
       - name: Verify binary works
         run: |

@@ -1,24 +1,14 @@
 #!/usr/bin/env bash
-# BOLT (Binary Optimization and Layout Tool) post-processing script.
+# BOLT optimization script using cargo-pgo.
 #
-# This script applies BOLT optimization to a PGO-optimized binary.
-# It instruments the binary, gathers profiles, and applies BOLT optimizations.
-#
-# Usage: ./apply-bolt.sh <binary-path>
+# Assumes PGO profiles already exist (run build-pgo.sh first).
+# Uses cargo-pgo's BOLT integration for instrumentation and optimization.
 set -euo pipefail
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <binary-path>"
-    exit 1
-fi
-
-BINARY="$1"
-if [[ ! -f "$BINARY" ]]; then
-    echo "Error: Binary not found: $BINARY"
-    exit 1
-fi
-
 cd "$(dirname "$0")/../.."
+
+PROFILE=dist
+FEATURES=cli,asm,mimalloc
 
 # Get LLVM version from rustc to install matching BOLT.
 LLVM_VERSION=$(rustc -Vv | grep -oP 'LLVM version: \K\d+')
@@ -33,17 +23,11 @@ install_bolt() {
         return
     fi
     
-    # Add LLVM apt repository.
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc >/dev/null
-    
-    # Detect Ubuntu codename.
     CODENAME=$(lsb_release -cs)
     echo "deb http://apt.llvm.org/$CODENAME/ llvm-toolchain-$CODENAME-$LLVM_VERSION main" | sudo tee /etc/apt/sources.list.d/llvm.list >/dev/null
-    
     sudo apt-get update -qq
     sudo apt-get install -y -qq "bolt-$LLVM_VERSION"
-    
-    # Symlink to standard names.
     sudo ln -sf "/usr/bin/llvm-bolt-$LLVM_VERSION" /usr/local/bin/llvm-bolt
     sudo ln -sf "/usr/bin/merge-fdata-$LLVM_VERSION" /usr/local/bin/merge-fdata
 }
@@ -54,57 +38,29 @@ install_bolt
 readarray -t TESTDATA < <(find testdata -maxdepth 1 -name '*.sol' ! -name 'Optimism.sol')
 echo "Profiling with ${#TESTDATA[@]} files"
 
-# Paths for BOLT workflow.
-INSTRUMENTED="${BINARY}.inst"
-PROFILE_DIR="$PWD/target/bolt-profiles"
-MERGED_PROFILE="$PROFILE_DIR/merged.fdata"
-OPTIMIZED="${BINARY}.bolt"
-
-mkdir -p "$PROFILE_DIR"
-
 # ============================================================================
-# Step 1: Instrument binary with BOLT
+# Step 1: Build BOLT-instrumented binary (with PGO)
 # ============================================================================
-echo "=== Instrumenting binary with BOLT ==="
-llvm-bolt "$BINARY" \
-    -instrument \
-    -instrumentation-file-append-pid \
-    -instrumentation-file="$PROFILE_DIR/prof" \
-    -o "$INSTRUMENTED"
+echo "=== Building BOLT-instrumented binary ==="
+cargo pgo bolt build --with-pgo -- --profile "$PROFILE" --features "$FEATURES"
 
 # ============================================================================
 # Step 2: Gather BOLT profiles
 # ============================================================================
 echo "=== Gathering BOLT profiles ==="
+INSTRUMENTED="target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-instrumented"
 "$INSTRUMENTED" "${TESTDATA[@]}" || true
 
 # ============================================================================
-# Step 3: Merge profiles
+# Step 3: Build BOLT-optimized binary
 # ============================================================================
-echo "=== Merging BOLT profiles ==="
-PROFILE_FILES=("$PROFILE_DIR"/prof.*.fdata)
-if [[ ${#PROFILE_FILES[@]} -eq 0 ]]; then
-    echo "Warning: No BOLT profiles generated, skipping optimization"
-    exit 0
-fi
+echo "=== Building BOLT-optimized binary ==="
+cargo pgo bolt optimize --with-pgo -- --profile "$PROFILE" --features "$FEATURES"
 
-merge-fdata "$PROFILE_DIR"/prof.*.fdata > "$MERGED_PROFILE"
-
-# ============================================================================
-# Step 4: Apply BOLT optimization
-# ============================================================================
-echo "=== Applying BOLT optimization ==="
-llvm-bolt "$BINARY" \
-    -o "$OPTIMIZED" \
-    -data="$MERGED_PROFILE" \
-    -reorder-blocks=ext-tsp \
-    -reorder-functions=hfsort \
-    -split-functions \
-    -split-all-cold \
-    -split-eh \
-    -dyno-stats
-
-# Replace original binary with optimized version.
-mv "$OPTIMIZED" "$BINARY"
+OPTIMIZED="target/x86_64-unknown-linux-gnu/$PROFILE/solar-bolt-optimized"
 echo "=== BOLT optimization complete ==="
-ls -lh "$BINARY"
+ls -lh "$OPTIMIZED"
+
+# Copy to standard location for cargo-dist.
+cp "$OPTIMIZED" "target/$PROFILE/solar"
+echo "Copied to target/$PROFILE/solar"
