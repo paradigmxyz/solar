@@ -130,9 +130,11 @@ jobs:
           fi
       - name: Use rustup to set correct Rust version
         run: rustup update "stable" --no-self-update && rustup default "stable"
-      - name: "Build with PGO"
-        if: "${{ contains(matrix.targets, 'x86_64-unknown-linux') }}"
-        run: ".github/scripts/build-pgo.sh"
+      - name: Build with PGO+BOLT (x86_64-linux-gnu)
+        if: contains(matrix.targets, 'x86_64-unknown-linux-gnu')
+        run: |
+          .github/scripts/build-pgo-bolt.sh
+          cp target/dist/solar /tmp/solar-pgo-bolt
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
@@ -150,6 +152,21 @@ jobs:
           # Actually do builds and make zips and whatnot
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
+      - name: Replace with PGO+BOLT binary (x86_64-linux-gnu)
+        if: contains(matrix.targets, 'x86_64-unknown-linux-gnu')
+        run: |
+          # Find and repack the tarball with the BOLT-optimized binary
+          TARBALL=$(find target/distrib -name 'solar-*-x86_64-unknown-linux-gnu.tar.gz' | head -1)
+          if [[ -n "$TARBALL" && -f /tmp/solar-pgo-bolt ]]; then
+            echo "Repacking $TARBALL with PGO+BOLT binary"
+            TMPDIR=$(mktemp -d)
+            tar -xzf "$TARBALL" -C "$TMPDIR"
+            cp /tmp/solar-pgo-bolt "$TMPDIR"/*/solar
+            tar -czf "$TARBALL" -C "$TMPDIR" .
+            rm -rf "$TMPDIR"
+            # Update checksum
+            sha256sum "$TARBALL" | cut -d' ' -f1 > "$TARBALL.sha256"
+          fi
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
