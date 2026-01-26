@@ -63,6 +63,18 @@ strip = "debuginfo" # "symbols" for less binary size but no backtraces
 panic = "abort"
 codegen-units = 16
 
+# Optimize non-perf-critical dependencies for size.
+[profile.release.package]
+annotate-snippets.opt-level = "s"
+clap.opt-level = "s"
+clap_builder.opt-level = "s"
+num-bigint.opt-level = "s"
+regex.opt-level = "s"
+regex-automata.opt-level = "s"
+regex-syntax.opt-level = "s"
+serde_json.opt-level = "s"
+tracing-subscriber.opt-level = "s"
+
 # Use the `--profile profiling` flag to show symbols in release mode.
 # e.g. `cargo build --profile profiling`
 [profile.profiling]
