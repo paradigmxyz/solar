@@ -13,6 +13,12 @@ xflags::xflags! {
 
             repeated rest: String
         }
+
+        /// Run PGO+BOLT optimized build. Designed to be invoked by cargo-dist via alias.
+        cmd pgo-build {
+            /// Arguments to pass to the final cargo build (from cargo-dist).
+            repeated args: String
+        }
     }
 }
 
@@ -27,6 +33,7 @@ pub struct Xtask {
 #[derive(Debug)]
 pub enum XtaskCmd {
     Test(Test),
+    PgoBuild(PgoBuild),
 }
 
 #[derive(Debug)]
@@ -35,6 +42,11 @@ pub struct Test {
     pub rest: Vec<String>,
 
     pub bless: bool,
+}
+
+#[derive(Debug)]
+pub struct PgoBuild {
+    pub args: Vec<String>,
 }
 
 impl Xtask {
