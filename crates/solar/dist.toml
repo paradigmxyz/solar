@@ -1,4 +1,3 @@
 # Required to override Cargo package name.
 [package]
 name = "solar"
-build-command = [".github/scripts/build_pgo_bolt.sh"]
