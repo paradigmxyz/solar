@@ -79,11 +79,6 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 
-[profile.dist-bolt]
-inherits = "dist"
-debug = "full"
-strip = false
-
 # `dist` with debug assertions.
 [profile.dist-dbg]
 inherits = "dist"

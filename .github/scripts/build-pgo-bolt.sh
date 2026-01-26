@@ -3,11 +3,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-PROFILE=dist-bolt
-PROFILE2=dist
+PROFILE="${PROFILE:-dist}"
 FEATURES="${FEATURES:-cli,asm,mimalloc}"
 CARGO_ARGS=(--profile "$PROFILE" --features "$FEATURES")
-CARGO_ARGS2=(--profile "$PROFILE2" --features "$FEATURES")
 
 TARGET=$(rustc -Vv | grep host | cut -d' ' -f2)
 LLVM_VERSION=$(rustc -Vv | grep -oP 'LLVM version: \K\d+')
@@ -25,6 +23,12 @@ install_bolt() {
     sudo ln -sf "/usr/bin/merge-fdata-$LLVM_VERSION" /usr/local/bin/merge-fdata
 }
 
+run() {
+    "$1" "${TESTDATA[@]}" --emit abi &>/dev/null || true
+}
+
+export LLVM_PROFILE_FILE=$PWD/target/pgo-profiles/solar_%m_%p.profraw
+
 cargo install cargo-pgo
 rustup component add llvm-tools-preview
 install_bolt
@@ -34,13 +38,13 @@ readarray -t TESTDATA < <(find testdata -maxdepth 1 -name '*.sol' ! -name 'Optim
 
 # PGO: build instrumented, run, gather profiles
 cargo pgo build -- "${CARGO_ARGS[@]}"
-"target/$TARGET/$PROFILE/solar" "${TESTDATA[@]}" || true
+run "target/$TARGET/$PROFILE/solar"
 
 # BOLT: build instrumented with PGO, run, optimize
 cargo pgo bolt build --with-pgo -- "${CARGO_ARGS[@]}"
-"target/$TARGET/$PROFILE/solar-bolt-instrumented" "${TESTDATA[@]}" || true
-cargo pgo bolt optimize --with-pgo -- "${CARGO_ARGS2[@]}"
+run "target/$TARGET/$PROFILE/solar-bolt-instrumented"
+cargo pgo bolt optimize --with-pgo -- "${CARGO_ARGS[@]}"
 
-mkdir -p "target/$PROFILE2"
-cp "target/$TARGET/$PROFILE2/solar-bolt-optimized" "target/$PROFILE2/solar"
-ls -lh "target/$PROFILE2/solar"
+# mkdir -p "target/$PROFILE"
+# cp "target/$TARGET/$PROFILE/solar-bolt-optimized" "target/$PROFILE/solar"
+# ls -lh "target/$PROFILE/solar"
