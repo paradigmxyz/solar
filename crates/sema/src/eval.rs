@@ -12,7 +12,10 @@ const RECURSION_LIMIT: usize = 64;
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     match ConstantEvaluator::new(gcx).eval(size) {
         Ok(int) => {
-            if int.data.is_zero() {
+            if int.is_negative() {
+                let msg = "array length cannot be negative";
+                Err(gcx.dcx().err(msg).span(size.span).emit())
+            } else if int.data.is_zero() {
                 let msg = "array length must be greater than zero";
                 Err(gcx.dcx().err(msg).span(size.span).emit())
             } else {
@@ -83,7 +86,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval(l)?;
                 let r = self.try_eval(r)?;
-                l.binop(&r, bin_op.kind).map_err(Into::into)
+                l.binop(r, bin_op.kind).map_err(Into::into)
             }
             // hir::ExprKind::Call(_, _) => unimplemented!(),
             // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
@@ -135,18 +138,50 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     }
 }
 
+/// Represents an integer value with an explicit sign for literal type tracking.
+///
+/// The `data` field always stores the absolute value of the number.
+/// The `negative` field indicates whether the value is negative.
 pub struct IntScalar {
+    /// The absolute value of the integer.
     pub data: U256,
+    /// Whether the value is negative.
+    pub negative: bool,
 }
 
 impl IntScalar {
+    /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data }
+        Self { data, negative: false }
+    }
+
+    /// Creates a new integer value with the given sign.
+    pub fn new_signed(data: U256, negative: bool) -> Self {
+        // Zero is never negative.
+        Self { data, negative: negative && !data.is_zero() }
+    }
+
+    /// Returns the bit length of the integer value.
+    ///
+    /// This is the number of bits needed to represent the value,
+    /// not including the sign bit.
+    pub fn bit_len(&self) -> u64 {
+        self.data.bit_len() as u64
+    }
+
+    /// Returns whether the value is negative.
+    pub fn is_negative(&self) -> bool {
+        self.negative
+    }
+
+    /// Returns the negation of this value.
+    pub fn negate(self) -> Self {
+        if self.data.is_zero() { self } else { Self::new_signed(self.data, !self.negative) }
     }
 
     /// Creates a new integer value from a boolean.
     pub fn from_bool(value: bool) -> Self {
-        Self { data: U256::from(value as u8) }
+        Self::new(U256::from(value as u8))
     }
 
     /// Creates a new integer value from big-endian bytes.
@@ -155,7 +190,7 @@ impl IntScalar {
     ///
     /// Panics if `bytes` is empty or has a length greater than 32.
     pub fn from_be_bytes(bytes: &[u8]) -> Self {
-        Self { data: U256::from_be_slice(bytes) }
+        Self::new(U256::from_be_slice(bytes))
     }
 
     /// Converts the integer value to a boolean.
@@ -164,64 +199,109 @@ impl IntScalar {
     }
 
     /// Applies the given unary operation to this value.
-    pub fn unop(&self, op: hir::UnOpKind) -> Result<Self, EE> {
+    pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match op {
             hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
             hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::new(!self.data),
-            hir::UnOpKind::Neg => Self::new(self.data.wrapping_neg()),
+            hir::UnOpKind::Neg => self.negate(),
         })
     }
 
     /// Applies the given binary operation to this value.
-    pub fn binop(&self, r: &Self, op: hir::BinOpKind) -> Result<Self, EE> {
-        let l = self;
+    ///
+    /// For signed arithmetic, this handles the sign tracking properly.
+    pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        use hir::BinOpKind::*;
         Ok(match op {
-            // hir::BinOpKind::Lt => Self::from_bool(l.data < r.data),
-            // hir::BinOpKind::Le => Self::from_bool(l.data <= r.data),
-            // hir::BinOpKind::Gt => Self::from_bool(l.data > r.data),
-            // hir::BinOpKind::Ge => Self::from_bool(l.data >= r.data),
-            // hir::BinOpKind::Eq => Self::from_bool(l.data == r.data),
-            // hir::BinOpKind::Ne => Self::from_bool(l.data != r.data),
-            // hir::BinOpKind::Or => Self::from_bool(l.data != 0 || r.data != 0),
-            // hir::BinOpKind::And => Self::from_bool(l.data != 0 && r.data != 0),
-            hir::BinOpKind::BitOr => Self::new(l.data | r.data),
-            hir::BinOpKind::BitAnd => Self::new(l.data & r.data),
-            hir::BinOpKind::BitXor => Self::new(l.data ^ r.data),
-            hir::BinOpKind::Shr => {
-                Self::new(l.data.wrapping_shr(r.data.try_into().unwrap_or(usize::MAX)))
-            }
-            hir::BinOpKind::Shl => {
-                Self::new(l.data.wrapping_shl(r.data.try_into().unwrap_or(usize::MAX)))
-            }
-            hir::BinOpKind::Sar => {
-                Self::new(l.data.arithmetic_shr(r.data.try_into().unwrap_or(usize::MAX)))
-            }
-            hir::BinOpKind::Add => {
-                Self::new(l.data.checked_add(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Sub => {
-                Self::new(l.data.checked_sub(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Pow => {
-                Self::new(l.data.checked_pow(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Mul => {
-                Self::new(l.data.checked_mul(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Div => Self::new(l.data.checked_div(r.data).ok_or(EE::DivisionByZero)?),
-            hir::BinOpKind::Rem => Self::new(l.data.checked_rem(r.data).ok_or(EE::DivisionByZero)?),
-            hir::BinOpKind::Lt
-            | hir::BinOpKind::Le
-            | hir::BinOpKind::Gt
-            | hir::BinOpKind::Ge
-            | hir::BinOpKind::Eq
-            | hir::BinOpKind::Ne
-            | hir::BinOpKind::Or
-            | hir::BinOpKind::And => return Err(EE::UnsupportedBinaryOp),
+            Add => self.checked_add(r).ok_or(EE::ArithmeticOverflow)?,
+            Sub => self.checked_sub(r).ok_or(EE::ArithmeticOverflow)?,
+            Mul => self.checked_mul(r).ok_or(EE::ArithmeticOverflow)?,
+            Div => self.checked_div(r).ok_or(EE::DivisionByZero)?,
+            Rem => self.checked_rem(r).ok_or(EE::DivisionByZero)?,
+            Pow => self.checked_pow(r).ok_or(EE::ArithmeticOverflow)?,
+            BitOr => Self::new(self.data | r.data),
+            BitAnd => Self::new(self.data & r.data),
+            BitXor => Self::new(self.data ^ r.data),
+            Shr => Self::new(self.data.wrapping_shr(r.data.try_into().unwrap_or(usize::MAX))),
+            Shl => Self::new(self.data.wrapping_shl(r.data.try_into().unwrap_or(usize::MAX))),
+            Sar => Self::new(self.data.arithmetic_shr(r.data.try_into().unwrap_or(usize::MAX))),
+            Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::UnsupportedBinaryOp),
         })
+    }
+
+    /// Checked addition with sign handling.
+    fn checked_add(self, r: Self) -> Option<Self> {
+        match (self.negative, r.negative) {
+            // Both non-negative: simple add
+            (false, false) => Some(Self::new(self.data.checked_add(r.data)?)),
+            // Both negative: negate(|a| + |b|)
+            (true, true) => Some(Self::new_signed(self.data.checked_add(r.data)?, true)),
+            // Different signs: subtract the smaller absolute value from the larger
+            (false, true) => {
+                // a + (-b) = a - b
+                if self.data >= r.data {
+                    Some(Self::new(self.data.checked_sub(r.data)?))
+                } else {
+                    Some(Self::new_signed(r.data.checked_sub(self.data)?, true))
+                }
+            }
+            (true, false) => {
+                // (-a) + b = b - a
+                if r.data >= self.data {
+                    Some(Self::new(r.data.checked_sub(self.data)?))
+                } else {
+                    Some(Self::new_signed(self.data.checked_sub(r.data)?, true))
+                }
+            }
+        }
+    }
+
+    /// Checked subtraction with sign handling.
+    fn checked_sub(self, r: Self) -> Option<Self> {
+        // a - b = a + (-b)
+        self.checked_add(r.negate())
+    }
+
+    /// Checked multiplication with sign handling.
+    fn checked_mul(self, r: Self) -> Option<Self> {
+        let result = self.data.checked_mul(r.data)?;
+        // Result is negative if exactly one operand is negative
+        Some(Self::new_signed(result, self.negative != r.negative))
+    }
+
+    /// Checked division with sign handling.
+    fn checked_div(self, r: Self) -> Option<Self> {
+        if r.data.is_zero() {
+            return None;
+        }
+        let result = self.data.checked_div(r.data)?;
+        // Result is negative if exactly one operand is negative
+        Some(Self::new_signed(result, self.negative != r.negative))
+    }
+
+    /// Checked remainder with sign handling.
+    fn checked_rem(self, r: Self) -> Option<Self> {
+        if r.data.is_zero() {
+            return None;
+        }
+        let result = self.data.checked_rem(r.data)?;
+        // Result has the sign of the dividend
+        Some(Self::new_signed(result, self.negative))
+    }
+
+    /// Checked exponentiation.
+    fn checked_pow(self, r: Self) -> Option<Self> {
+        // Exponent must be non-negative
+        if r.negative {
+            return None;
+        }
+        let result = self.data.checked_pow(r.data)?;
+        // Result is negative if base is negative and exponent is odd
+        let result_negative = self.negative && r.data.bit(0);
+        Some(Self::new_signed(result, result_negative))
     }
 }
 
