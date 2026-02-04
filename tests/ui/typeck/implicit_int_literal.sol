@@ -62,4 +62,21 @@ function f() {
     // Negative literals cannot coerce to unsigned types
     uint8 neg_to_uint8 = -1; //~ ERROR: mismatched types
     uint256 neg_to_uint256 = -42; //~ ERROR: mismatched types
+
+    // === Edge cases: parenthesized and compound expressions ===
+    // Parentheses don't change the semantics - still a negative literal
+    int16 paren_neg = -(1);
+    int16 double_paren_neg = -((1));
+    
+    // Double negation: negates a negative literal, result is non-negative
+    // -(-1) = 1, which is int_literal[1] non-negative
+    int16 double_neg = -(-1);
+    
+    // Negation of binary expressions - binary ops on int literals are now
+    // evaluated during type checking to preserve the literal type
+    int16 neg_binop = -(1 + 2);
+    
+    // More complex expressions with literals
+    int16 complex_lit = -(2 * 3 + 1);
+    int32 large_lit = -(256 + 1);  // Result is -257, int_literal[2]
 }
