@@ -1,0 +1,62 @@
+error: tag @title can only be given once
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL | /// @title Second title
+   |      ^^^^^
+
+error: duplicate documentation for parameter 'x'
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @param x Second documentation
+   |          ^^^^^
+   |
+note: previously documented here
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @param x First documentation
+   |          ^^^^^
+
+error: tag @inheritdoc can only be given once
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @inheritdoc DuplicateInheritdocBase
+   |          ^^^^^^^^^^
+
+error: tag `@author` not valid for functions
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @author Invalid author on function
+   |          ^^^^^^
+
+error: tag `@title` not valid for functions
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @title Invalid title on function
+   |          ^^^^^
+
+error: tag `@return` not valid for events
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @return Invalid return on event
+   |          ^^^^^^
+
+error: tag `@inheritdoc` not valid for events
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @inheritdoc InvalidInheritdocBase
+   |          ^^^^^^^^^^
+
+error: tag `@param` references non-existent parameter 'y'
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @param y Invalid parameter name
+   |          ^^^^^
+
+error: too many `@return` tags: function has 2 return values, found 3
+  --> ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   |
+LL |     /// @return Third return value
+   |          ^^^^^^
+
+error: aborting due to 9 previous errors
+
