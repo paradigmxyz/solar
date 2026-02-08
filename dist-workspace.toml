@@ -4,7 +4,7 @@ members = ["cargo:."]
 # Config for 'dist'
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.30.0"
+cargo-dist-version = "0.30.3"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
@@ -21,6 +21,8 @@ targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-da
 precise-builds = true
 # Features to pass to cargo build
 features = ["cli", "asm", "mimalloc"]
+# Enable auditable so we can override it with our PGO+BOLT build script
+cargo-auditable = true
 # Whether dist should create a Github Release or use an existing draft
 create-release = true
 # Which actions to run on pull requests

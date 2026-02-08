@@ -35,6 +35,12 @@ fn main() -> anyhow::Result<()> {
             }
             cmd.run()?;
         }
+        flags::XtaskCmd::PgoBuild(flags::PgoBuild { args }) => {
+            let sh = Shell::new()?;
+            // Pass cargo-dist's args to the PGO+BOLT build script via environment variable
+            let args_str = args.join(" ");
+            cmd!(sh, ".github/scripts/build_pgo_bolt.sh").env("CARGO_DIST_ARGS", args_str).run()?;
+        }
     }
 
     Ok(())
