@@ -364,18 +364,6 @@ impl Session {
         if self.is_sequential() { (oper_a(), oper_b()) } else { rayon::join(oper_a, oper_b) }
     }
 
-    /// Executes the given closure in a fork-join scope.
-    ///
-    /// See [`rayon::scope`] for more details.
-    #[inline]
-    pub fn scope<'scope, OP, R>(&self, op: OP) -> R
-    where
-        OP: FnOnce(solar_data_structures::sync::Scope<'_, 'scope>) -> R + Send,
-        R: Send,
-    {
-        solar_data_structures::sync::scope(self.is_parallel(), op)
-    }
-
     /// Sets up the session globals and executes the given closure in the thread pool.
     ///
     /// The thread pool and globals are stored in this [`Session`] itself, meaning multiple
