@@ -212,9 +212,25 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cfg: MyConfig<'_>) {
     let expected_errors = errors::Error::load_solc(src);
     let expected_error = expected_errors.iter().find(|e| e.is_error());
+
+    // Enable typechecking for tests with TypeError expectations in syntaxTests.
+    // Currently limited to basic cases as the typechecker develops.
+    let has_type_errors = expected_errors.iter().any(|e| {
+        e.solc_kind.is_some_and(|kind| matches!(kind, crate::solc::SolcErrorKind::TypeError))
+    }) && path.to_string_lossy().contains("syntaxTests")
+        && (
+            // Start with undeclared identifier errors as they're basic type errors
+            src.contains("Undeclared identifier")
+        );
+
     let code = if let Some(expected_error) = expected_error {
-        // Expect failure only for parser errors, otherwise ignore exit code.
-        if expected_error.solc_kind.is_some_and(|kind| kind.is_parser_error()) {
+        // Expect failure for parser errors or TypeError when typechecking enabled
+        if expected_error.solc_kind.is_some_and(|kind| kind.is_parser_error())
+            || (has_type_errors
+                && expected_error
+                    .solc_kind
+                    .is_some_and(|kind| matches!(kind, crate::solc::SolcErrorKind::TypeError)))
+        {
             Some(1)
         } else {
             None
@@ -226,6 +242,13 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 
     if matches!(cfg.mode, Mode::SolcSolidity) {
         let flags = &mut config.comment_defaults.base().compile_flags;
+
+        // Enable typechecking for qualifying TypeError tests
+        if has_type_errors {
+            config.program.args.retain(|arg| arg != "--stop-after=parsing");
+            flags.push("-Ztypeck".into());
+        }
+
         let has_delimiters = solc::solidity::handle_delimiters(src, path, cfg.tmp_dir, |arg| {
             flags.push(arg.into_string().unwrap())
         });
