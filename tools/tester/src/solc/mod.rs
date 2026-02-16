@@ -82,6 +82,10 @@ impl SolcErrorKind {
         matches!(self, Self::DocstringParsingError | Self::ParserError)
     }
 
+    pub fn is_type_error(&self) -> bool {
+        matches!(self, Self::TypeError)
+    }
+
     pub(crate) fn is_error(&self) -> bool {
         !matches!(self, Self::Info | Self::Warning)
     }

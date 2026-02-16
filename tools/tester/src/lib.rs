@@ -84,11 +84,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         program: ui_test::CommandBuilder {
             program: cmd.into(),
             args: {
-                let mut args =
+                let args =
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
-                if mode.is_solc() {
-                    args.push("--stop-after=parsing");
-                }
                 args.into_iter().map(Into::into).collect()
             },
             out_dir_flag: None,
@@ -212,6 +209,14 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cfg: MyConfig<'_>) {
     let expected_errors = errors::Error::load_solc(src);
     let expected_error = expected_errors.iter().find(|e| e.is_error());
+
+    // Enable type checking for tests that expect type errors but no parser errors.
+    let has_type_error =
+        expected_errors.iter().any(|e| e.solc_kind.is_some_and(|k| k.is_type_error()));
+    let has_parser_error =
+        expected_errors.iter().any(|e| e.solc_kind.is_some_and(|k| k.is_parser_error()));
+    let enable_typeck = has_type_error && !has_parser_error;
+
     let code = if let Some(expected_error) = expected_error {
         // Expect failure only for parser errors, otherwise ignore exit code.
         if expected_error.solc_kind.is_some_and(|kind| kind.is_parser_error()) {
@@ -224,8 +229,14 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
     };
     config.comment_defaults.base().exit_status = code.map(Spanned::dummy).into();
 
+    let flags = &mut config.comment_defaults.base().compile_flags;
+    if enable_typeck {
+        flags.push("-Ztypeck".into());
+    } else {
+        flags.push("--stop-after=parsing".into());
+    }
+
     if matches!(cfg.mode, Mode::SolcSolidity) {
-        let flags = &mut config.comment_defaults.base().compile_flags;
         let has_delimiters = solc::solidity::handle_delimiters(src, path, cfg.tmp_dir, |arg| {
             flags.push(arg.into_string().unwrap())
         });
