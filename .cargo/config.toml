@@ -1,5 +1,7 @@
 [alias]
 xtask = "run --package xtask --bin xtask --"
+# Override `cargo auditable` to run PGO+BOLT build instead (hack for cargo-dist)
+auditable = "xtask pgo-build --"
 tq = "xtask test"
 qt = "tq"
 ryul = "run --package solar-compiler --bin solar -- --language yul -Zparse-yul"
