@@ -391,52 +391,34 @@ impl<'hir, 'id> HirBuilder<'hir, 'id> {
     }
 }
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
+solar_data_structures::newtype_index! {
     /// A [`Source`] ID.
     pub struct SourceId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// A [`Contract`] ID.
     pub struct ContractId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// A [`Function`] ID.
     pub struct FunctionId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// A [`Struct`] ID.
     pub struct StructId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// An [`Enum`] ID.
     pub struct EnumId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// An [`Udvt`] ID.
     pub struct UdvtId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// An [`Event`] ID.
     pub struct EventId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// An [`Error`] ID.
     pub struct ErrorId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// A [`Variable`] ID.
     pub struct VariableId;
-}
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
     /// An [`Expr`] ID.
     pub struct ExprId;
 }

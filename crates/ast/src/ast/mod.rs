@@ -159,7 +159,7 @@ impl<'ast> SourceUnit<'ast> {
     }
 }
 
-solar_data_structures::index::define_nonmax_u32_index_type! {
+solar_data_structures::newtype_index! {
     /// A [source unit item](Item) ID. Only used in [`SourceUnit`].
     pub struct ItemId;
 }
