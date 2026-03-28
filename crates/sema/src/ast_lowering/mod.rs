@@ -73,7 +73,7 @@ impl<'gcx> LoweringContext<'gcx> {
             arena: gcx.arena(),
             sources: &gcx.sources,
             hir: Hir::new(),
-            current_source_id: hir::SourceId::MAX,
+            current_source_id: hir::SourceId::new(hir::SourceId::MAX_INDEX),
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),

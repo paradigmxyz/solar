@@ -539,7 +539,7 @@ impl<'ast> Sources<'ast> {
         }
 
         let mut order = IndexVec::with_capacity(len);
-        let mut map = index_vec![SourceId::MAX; len];
+        let mut map = index_vec![SourceId::new(SourceId::MAX_INDEX); len];
         let mut seen = FxHashSet::with_capacity_and_hasher(len, Default::default());
         debug_span!("topo_order").in_scope(|| {
             for id in self.sources.indices() {
@@ -547,7 +547,9 @@ impl<'ast> Sources<'ast> {
             }
         });
         debug_assert!(
-            order.len() == len && !map.contains(&SourceId::MAX) && seen.len() == len,
+            order.len() == len
+                && !map.contains(&SourceId::new(SourceId::MAX_INDEX))
+                && seen.len() == len,
             "topo_order did not visit all sources"
         );
 
