@@ -16,7 +16,7 @@ macro_rules! newtype_index {
 
         impl $name {
             /// The maximum index value.
-            $vis const MAX: Self = Self::from_usize_unchecked(Self::MAX_INDEX);
+            $vis const MAX: Self = Self::new(Self::MAX_INDEX);
         }
     )*};
 }
