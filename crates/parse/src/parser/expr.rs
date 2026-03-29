@@ -49,10 +49,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while precedence >= min_precedence {
             while token_precedence(self.token) == precedence {
                 // Parse a**b**c as a**(b**c)
-                let next_precedence = if self.token.kind == TokenKind::BinOp(BinOpToken::Star) {
-                    precedence + 1
-                } else {
+                let next_precedence = if self.token.kind == TokenKind::StarStar {
                     precedence
+                } else {
+                    precedence + 1
                 };
 
                 let token = self.token;
