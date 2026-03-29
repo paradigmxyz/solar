@@ -539,7 +539,7 @@ impl<'ast> Sources<'ast> {
         }
 
         let mut order = IndexVec::with_capacity(len);
-        let mut map = index_vec![None; len];
+        let mut map = index_vec![SourceId::MAX; len];
         let mut seen = FxHashSet::with_capacity_and_hasher(len, Default::default());
         debug_span!("topo_order").in_scope(|| {
             for id in self.sources.indices() {
@@ -547,19 +547,19 @@ impl<'ast> Sources<'ast> {
             }
         });
         debug_assert!(
-            order.len() == len && map.iter().all(|v| v.is_some()) && seen.len() == len,
+            order.len() == len && !map.contains(&SourceId::MAX) && seen.len() == len,
             "topo_order did not visit all sources"
         );
 
         debug_span!("remap_state").in_scope(|| {
             for source in &mut self.sources {
                 for (_, import) in &mut source.imports {
-                    *import = map[*import].unwrap();
+                    *import = map[*import];
                 }
             }
 
             for id in self.file_to_id.values_mut() {
-                *id = map[*id].unwrap();
+                *id = map[*id];
             }
         });
 
@@ -572,7 +572,7 @@ impl<'ast> Sources<'ast> {
         &self,
         id: SourceId,
         order: &mut IndexVec<SourceId, SourceId>,
-        map: &mut IndexVec<SourceId, Option<SourceId>>,
+        map: &mut IndexVec<SourceId, SourceId>,
         seen: &mut FxHashSet<SourceId>,
     ) {
         if !seen.insert(id) {
@@ -581,7 +581,7 @@ impl<'ast> Sources<'ast> {
         for &(_, import_id) in &self.sources[id].imports {
             self.topo_order(import_id, order, map, seen);
         }
-        map[id] = Some(order.push(id));
+        map[id] = order.push(id);
     }
 }
 

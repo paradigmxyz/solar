@@ -8,6 +8,7 @@ use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
+    newtype_index,
 };
 use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
@@ -391,7 +392,7 @@ impl<'hir, 'id> HirBuilder<'hir, 'id> {
     }
 }
 
-solar_data_structures::newtype_index! {
+newtype_index! {
     /// A [`Source`] ID.
     pub struct SourceId;
 

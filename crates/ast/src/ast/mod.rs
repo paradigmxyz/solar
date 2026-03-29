@@ -1,6 +1,6 @@
 //! Solidity AST.
 
-use solar_data_structures::{BumpExt, ThinSlice, index::IndexSlice};
+use solar_data_structures::{BumpExt, ThinSlice, index::IndexSlice, newtype_index};
 use std::fmt;
 
 pub use crate::token::CommentKind;
@@ -159,7 +159,7 @@ impl<'ast> SourceUnit<'ast> {
     }
 }
 
-solar_data_structures::newtype_index! {
+newtype_index! {
     /// A [source unit item](Item) ID. Only used in [`SourceUnit`].
     pub struct ItemId;
 }
