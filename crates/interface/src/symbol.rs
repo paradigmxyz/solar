@@ -211,10 +211,7 @@ impl Symbol {
     pub const DUMMY: Self = kw::Empty;
 
     const fn new(n: u32) -> Self {
-        match NonMaxU32::new(n) {
-            Some(v) => Self(v),
-            None => panic!("symbol index overflow"),
-        }
+        Self(NonMaxU32::new(n).unwrap())
     }
 
     /// Maps a string to its interned representation.
