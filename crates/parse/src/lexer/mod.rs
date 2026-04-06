@@ -393,7 +393,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Slice of the source text spanning from `start` until the end.
     #[cfg_attr(debug_assertions, track_caller)]
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
-        self.str_from_to(start, BytePos::from_usize(self.src.len()))
+        self.str_from_to(start, self.start_pos + BytePos::from_usize(self.src.len()))
     }
 
     /// Slice of the source text spanning from `start` up to but excluding `end`.

@@ -31,8 +31,8 @@ use std::{
 };
 use thread_local::ThreadLocal;
 
-mod abi;
-pub use abi::{TyAbiPrinter, TyAbiPrinterMode};
+mod print;
+pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
@@ -42,7 +42,7 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
-pub use ty::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 
@@ -143,6 +143,12 @@ impl<'gcx> std::ops::Deref for Gcx<'gcx> {
     }
 }
 
+impl<'gcx> fmt::Debug for Gcx<'gcx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// Transparent wrapper around `&'gcx mut GlobalCtxt<'gcx>`.
 ///
 /// This uses a raw pointer because using `&mut` directly would make `'gcx` covariant and this just
@@ -221,6 +227,16 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+}
+
+impl fmt::Debug for GlobalCtxt<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("GlobalCtxt")
+            .field("stage", &self.stage.get())
+            .field("sess", self.sess)
+            .field("sources", &self.sources.len())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'gcx> GlobalCtxt<'gcx> {
@@ -331,6 +347,10 @@ impl<'gcx> Gcx<'gcx> {
         self.interner.intern_ty_iter(self.bump(), tys)
     }
 
+    pub fn mk_ty_tuple(self, tys: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Tuple(tys))
+    }
+
     fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
         self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
@@ -338,12 +358,16 @@ impl<'gcx> Gcx<'gcx> {
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
         self.mk_ty(TyKind::StringLiteral(
             std::str::from_utf8(s).is_ok(),
-            TypeSize::new(s.len().min(32) as u8).unwrap(),
+            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
         ))
     }
 
-    pub fn mk_ty_int_literal(self, size: TypeSize) -> Ty<'gcx> {
-        self.mk_ty(TyKind::IntLiteral(size))
+    pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+        let bits = bits.max(1);
+        if bits > TypeSize::MAX as u64 {
+            return None;
+        }
+        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
@@ -362,6 +386,7 @@ impl<'gcx> Gcx<'gcx> {
             returns: self.mk_tys(returns),
             state_mutability,
             visibility,
+            function_id: None,
         })
     }
 
@@ -376,6 +401,14 @@ impl<'gcx> Gcx<'gcx> {
 
     pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {
         self.mk_ty(TyKind::BuiltinModule(builtin))
+    }
+
+    pub fn mk_ty_misc_err(self) -> Ty<'gcx> {
+        if let Err(e) = self.dcx().has_errors() {
+            self.mk_ty_err(e)
+        } else {
+            self.dcx().bug("mk_ty_misc_err: no errors").emit()
+        }
     }
 
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
@@ -544,21 +577,13 @@ impl<'gcx> Gcx<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
-                let ty = self.type_of_hir_ty(&array.element);
+                let elem = self.type_of_hir_ty(&array.element);
                 match array.size {
-                    Some(size) => match crate::eval::ConstantEvaluator::new(self).eval(size) {
-                        Ok(int) => {
-                            if int.data.is_zero() {
-                                let msg = "array length must be greater than zero";
-                                let guar = self.dcx().err(msg).span(size.span).emit();
-                                TyKind::Array(self.mk_ty_err(guar), int.data)
-                            } else {
-                                TyKind::Array(ty, int.data)
-                            }
-                        }
+                    Some(size) => match crate::eval::eval_array_len(self, size) {
+                        Ok(size) => TyKind::Array(elem, size),
                         Err(guar) => TyKind::Array(self.mk_ty_err(guar), U256::from(1)),
                     },
-                    None => TyKind::DynArray(ty),
+                    None => TyKind::DynArray(elem),
                 }
             }
             hir::TypeKind::Function(f) => {
@@ -567,6 +592,7 @@ impl<'gcx> Gcx<'gcx> {
                     returns: self.mk_item_tys(f.returns),
                     state_mutability: f.state_mutability,
                     visibility: f.visibility,
+                    function_id: None,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -596,11 +622,47 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the type of the given [`hir::Res`].
     pub fn type_of_res(self, res: hir::Res) -> Ty<'gcx> {
         match res {
-            hir::Res::Item(id) => self.type_of_item(id),
+            hir::Res::Item(id) => {
+                let ty = self.type_of_item(id);
+                if is_value_ns(id) { ty } else { self.mk_ty(TyKind::Type(ty)) }
+            }
             hir::Res::Namespace(id) => self.mk_ty(TyKind::Module(id)),
             hir::Res::Builtin(builtin) => builtin.ty(self),
             hir::Res::Err(guar) => self.mk_ty_err(guar),
         }
+    }
+
+    /// Returns the type of the given literal.
+    pub fn type_of_lit(self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
+        match &lit.kind {
+            solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s.as_byte_str()),
+            solar_ast::LitKind::Number(int) => {
+                self.mk_ty_int_literal(false, int.bit_len() as _).unwrap_or_else(|| {
+                    self.mk_ty_err(
+                        self.dcx()
+                            .err("integer literal is greater than 2**256")
+                            .span(lit.span)
+                            .emit(),
+                    )
+                })
+            }
+            solar_ast::LitKind::Rational(_) => self.mk_ty_err(
+                self.dcx().err("rational literals are not supported").span(lit.span).emit(),
+            ),
+            solar_ast::LitKind::Address(_) => self.types.address,
+            solar_ast::LitKind::Bool(_) => self.types.bool,
+            &solar_ast::LitKind::Err(guar) => self.mk_ty_err(guar),
+        }
+    }
+
+    pub fn members_of(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> members::MemberList<'gcx> {
+        let _ = (source, contract); // TODO
+        self.native_members(ty)
     }
 }
 
@@ -678,7 +740,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
-            if let Err(guar) = ty.has_error() {
+            if let Err(guar) = ty.error_reported() {
                 result = Err(guar);
                 continue;
             }
@@ -694,6 +756,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.is_recursive() {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_internal_function() {
+                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
@@ -755,6 +819,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
+                function_id: Some(id),
             }))
         }
         hir::ItemId::Variable(id) => {
@@ -843,9 +908,8 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-/// Returns the members of the given type.
-pub fn members_of(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
-    members::members_of(gcx, ty)
+fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
+    members::native_members(gcx, ty)
 }
 }
 
@@ -889,7 +953,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
 
     let mut var_loc = var.data_location;
     if !allowed.contains(&var_loc) {
-        if ty.has_error().is_ok() {
+        if !ty.references_error() {
             let msg = if !has_reference_or_mapping_type {
                 "data location can only be specified for array, struct or mapping types".to_string()
             } else if let Some(var_loc) = var_loc {
@@ -958,7 +1022,18 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
         }
     };
 
-    if ty.is_reference_type() { ty.with_loc(gcx, ty_loc) } else { ty }
+    ty.with_loc_if_ref(gcx, ty_loc)
+}
+
+/// True if referencing the item returns its type directly rather than wrapped in Type().
+fn is_value_ns(id: hir::ItemId) -> bool {
+    matches!(
+        id,
+        hir::ItemId::Function(_)
+            | hir::ItemId::Variable(_)
+            | hir::ItemId::Error(_)
+            | hir::ItemId::Event(_)
+    )
 }
 
 /// `OnceMap::insert` but with `Copy` keys and values.

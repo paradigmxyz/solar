@@ -13,6 +13,7 @@ use clap::{Parser, ValueHint};
 
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
+#[cfg_attr(feature = "clap", command(name = "solar"))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
     /// Files to compile, or import remappings.
@@ -289,6 +290,13 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_max_storage_sizes: bool,
 
+    /// Type check the program. WIP.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub typeck: bool,
+
+    // ----------------------------------------
+    // Please add new options above this point!
+    // ----------------------------------------
     /// Print help.
     #[cfg_attr(feature = "clap", arg(long, action = clap::ArgAction::Help))]
     pub help: (),

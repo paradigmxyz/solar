@@ -1,6 +1,10 @@
 Blazingly fast Solidity compiler
 
-Usage: solar [OPTIONS] [INPUT]...
+Usage: solar [OPTIONS] [INPUT]... [COMMAND]
+
+Commands:
+  lsp   Start the language server
+  help  Print this message or the help of the given subcommand(s)
 
 Arguments:
   [INPUT]...
@@ -86,7 +90,7 @@ Display options:
       --error-format-human <VALUE>
           Human-readable error message style
           
-          [default: ascii]
+          [default: unicode]
           [possible values: ascii, unicode, short]
 
       --diagnostic-width <WIDTH>

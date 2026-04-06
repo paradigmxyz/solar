@@ -1,13 +1,17 @@
 //! High-level intermediate representation (HIR).
 
-use crate::builtins::Builtin;
+use crate::{builtins::Builtin, ty::Gcx};
 use derive_more::derive::From;
 use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
-use solar_data_structures::{BumpExt, index::IndexVec, newtype_index};
+use solar_data_structures::{
+    BumpExt,
+    index::{Idx, IndexVec},
+    newtype_index,
+};
 use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
-use std::{fmt, ops::ControlFlow, sync::Arc};
+use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
 pub use ast::{
@@ -109,7 +113,7 @@ macro_rules! indexvec_methods {
             pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).map(|id| unsafe { $id::from_usize_unchecked(id) })
+                (0..self.$plural.len()).map(|id| $id::from_usize_unchecked(id))
             }
 
             #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
@@ -117,7 +121,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).into_par_iter().map(|id| unsafe { $id::from_usize_unchecked(id) })
+                (0..self.$plural.len()).into_par_iter().map(|id| $id::from_usize_unchecked(id))
             }
 
             #[doc = "Returns an iterator over all of the " $singular " values."]
@@ -137,7 +141,7 @@ macro_rules! indexvec_methods {
             pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + Clone {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.$plural().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
+                self.$plural().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
             }
 
             #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
@@ -145,7 +149,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.[<par_ $plural>]().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
+                self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
             }
         )*
 
@@ -264,6 +268,136 @@ impl<'hir> Hir<'hir> {
     pub fn contract_items(&self, id: ContractId) -> impl Iterator<Item = Item<'_, 'hir>> + Clone {
         self.contract_item_ids(id).map(move |id| self.item(id))
     }
+
+    /// Creates a builder for constructing HIR nodes.
+    pub fn builder<'id>(
+        arena: &'hir bumpalo::Bump,
+        next_id: &'id IdCounter,
+    ) -> HirBuilder<'hir, 'id> {
+        HirBuilder::new(arena, next_id)
+    }
+}
+
+/// A counter for generating unique IDs.
+pub struct IdCounter {
+    counter: Cell<u32>,
+}
+
+impl Default for IdCounter {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl IdCounter {
+    /// Creates a new ID counter.
+    #[inline]
+    pub fn new() -> Self {
+        Self { counter: Cell::new(0) }
+    }
+
+    /// Generates the next ID.
+    #[inline]
+    pub fn next<I: Idx>(&self) -> I {
+        I::from_usize(self.next_usize())
+    }
+
+    /// Generates the next ID as a usize.
+    #[inline]
+    pub fn next_usize(&self) -> usize {
+        let x = self.counter.get();
+        self.counter.set(x + 1);
+        x as usize
+    }
+}
+
+/// A builder for constructing HIR nodes.
+pub struct HirBuilder<'hir, 'id> {
+    arena: &'hir bumpalo::Bump,
+    next_id: &'id IdCounter,
+}
+
+impl<'hir, 'id> HirBuilder<'hir, 'id> {
+    /// Creates a new HIR builder.
+    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'id IdCounter) -> Self {
+        Self { arena, next_id }
+    }
+
+    /// Generates the next expression ID.
+    pub fn next_expr_id(&self) -> ExprId {
+        self.next_id.next()
+    }
+
+    /// Creates a HIR expression with ID, kind and span.
+    pub fn expr(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
+        self.arena.alloc(Expr { id, kind, span })
+    }
+
+    /// Creates a HIR expression with the given kind (as requested in GitHub issue).
+    pub fn expr_kind(&self, kind: ExprKind<'hir>) -> Expr<'hir> {
+        Expr { id: self.next_expr_id(), kind, span: Span::DUMMY }
+    }
+
+    /// Creates an allocated HIR expression.
+    pub fn expr_alloc(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
+        self.arena.alloc(Expr { id, kind, span })
+    }
+
+    /// Creates an allocated HIR statement.
+    pub fn stmt_alloc(&self, kind: StmtKind<'hir>, span: Span) -> &'hir Stmt<'hir> {
+        self.arena.alloc(Stmt { kind, span })
+    }
+
+    /// Creates a break statement.
+    pub fn break_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Break, span)
+    }
+
+    /// Creates a continue statement.
+    pub fn continue_stmt(&self, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Continue, span)
+    }
+
+    /// Creates a return statement.
+    pub fn return_stmt(&self, expr: Option<&'hir Expr<'hir>>, span: Span) -> &'hir Stmt<'hir> {
+        self.stmt_alloc(StmtKind::Return(expr), span)
+    }
+
+    /// Creates a binary expression kind.
+    pub fn binary_expr(
+        &self,
+        left: &'hir Expr<'hir>,
+        op: BinOp,
+        right: &'hir Expr<'hir>,
+    ) -> ExprKind<'hir> {
+        ExprKind::Binary(left, op, right)
+    }
+
+    /// Creates a literal expression kind.
+    pub fn lit_expr(&self, lit: &'hir Lit<'hir>) -> ExprKind<'hir> {
+        ExprKind::Lit(lit)
+    }
+
+    /// Creates an owned HIR expression with the given ID, kind and span.
+    pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
+        Expr { id, kind, span }
+    }
+
+    /// Creates an owned HIR expression with automatically generated ID.
+    pub fn expr_auto(&self, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
+        Expr { id: self.next_expr_id(), kind, span }
+    }
+
+    /// Creates a HIR statement with the given kind and span.
+    pub fn stmt(&self, kind: StmtKind<'hir>, span: Span) -> Stmt<'hir> {
+        Stmt { kind, span }
+    }
+
+    /// Creates a HIR block with the given statements and span.
+    pub fn block(&self, stmts: &'hir [Stmt<'hir>], span: Span) -> Block<'hir> {
+        Block { stmts, span }
+    }
 }
 
 newtype_index! {
@@ -301,6 +435,10 @@ newtype_index! {
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
+    /// The individual imports with their resolved source IDs.
+    ///
+    /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
+    /// source.
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
@@ -513,6 +651,11 @@ impl ItemId {
         if let Self::Function(v) = *self { Some(v) } else { None }
     }
 
+    /// Returns the struct ID if this is a struct.
+    pub fn as_struct(&self) -> Option<StructId> {
+        if let Self::Struct(v) = *self { Some(v) } else { None }
+    }
+
     /// Returns the variable ID if this is a variable.
     pub fn as_variable(&self) -> Option<VariableId> {
         if let Self::Variable(v) = *self { Some(v) } else { None }
@@ -599,6 +742,28 @@ impl Contract<'_> {
     pub fn description(&self) -> &'static str {
         self.kind.to_str()
     }
+}
+
+/// Returns `true` if the contract can receive ether.
+///
+/// A contract can receive ether if it has:
+/// - A `receive()` function, OR
+/// - A `fallback()` function with `payable` state mutability
+pub fn can_receive_ether(contract: &Contract<'_>, gcx: Gcx<'_>) -> bool {
+    // Check if contract has receive function
+    if contract.receive.is_some() {
+        return true;
+    }
+
+    // Check if contract has payable fallback function
+    if let Some(fallback_id) = contract.fallback {
+        let fallback = gcx.hir.function(fallback_id);
+        if fallback.state_mutability == StateMutability::Payable {
+            return true;
+        }
+    }
+
+    false
 }
 
 /// A modifier or base class call.

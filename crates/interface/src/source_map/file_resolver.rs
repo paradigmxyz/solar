@@ -52,7 +52,7 @@ impl<'a> FileResolver<'a> {
             source_map,
             include_paths: Vec::new(),
             remappings: Vec::new(),
-            custom_current_dir: None,
+            custom_current_dir: source_map.base_path(),
             env_current_dir: OnceLock::new(),
         }
     }
@@ -184,8 +184,20 @@ impl<'a> FileResolver<'a> {
     pub fn resolve_file(
         &self,
         path: &Path,
-        parent: Option<&Path>,
+        mut parent: Option<&Path>,
     ) -> Result<Arc<SourceFile>, ResolveError> {
+        // `parent` comes from `FileName::Real` so it should be an absolute path.
+        // Make it relative to the base path.
+        if let Some(parent) = &mut parent
+            && let Some(base_path) = self.try_current_dir()
+        {
+            if let Ok(new_parent) = parent.strip_prefix(base_path) {
+                *parent = new_parent;
+            } else {
+                trace!(?parent, ?base_path, "parent is not a subpath of the base path");
+            }
+        }
+
         // https://docs.soliditylang.org/en/latest/path-resolution.html
         // Only when the path starts with ./ or ../ are relative paths considered; this means
         // that `import "b.sol";` will check the import paths for b.sol, while `import "./b.sol";`
@@ -198,9 +210,11 @@ impl<'a> FileResolver<'a> {
         // remappings, which is not the case in solc, but this simplifies the implementation.
         let is_relative = path.starts_with("./") || path.starts_with("../");
         if (is_relative && parent.is_some()) || parent.is_none() {
-            let try_path = if let Some(base) = parent.filter(|_| is_relative).and_then(Path::parent)
+            let try_path = if is_relative
+                && let Some(parent) = parent
+                && let Some(parent_dir) = parent.parent()
             {
-                &base.join(path)
+                &parent_dir.join(path)
             } else {
                 path
             };
@@ -270,15 +284,19 @@ impl<'a> FileResolver<'a> {
             let context = &*sanitize_path(context);
             let prefix = &*sanitize_path(prefix);
 
+            // Skip if current context is closer.
             if context.len() < longest_context {
                 continue;
             }
+            // Skip if current context is not a prefix of the context.
             if !_context.starts_with(context) {
                 continue;
             }
-            if prefix.len() < longest_prefix {
+            // Skip if we already have a closer prefix match.
+            if prefix.len() < longest_prefix && context.len() == longest_context {
                 continue;
             }
+            // Skip if the prefix does not match.
             let Ok(up) = path.strip_prefix(prefix) else {
                 continue;
             };
@@ -301,9 +319,22 @@ impl<'a> FileResolver<'a> {
         self.source_map().load_stdin().map_err(ResolveError::ReadStdin)
     }
 
+    /// Returns the source file with the given path, if it exists, without loading it.
+    pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        self.get_file_inner(path, false).ok().flatten()
+    }
+
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
+        self.get_file_inner(path, true)
+    }
+
+    fn get_file_inner(
+        &self,
+        path: &Path,
+        load: bool,
+    ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
         // Normalize unnecessary components.
         let rpath = &*self.normalize(path);
         if let Some(file) = self.source_map().get_file(rpath) {
@@ -321,7 +352,7 @@ impl<'a> FileResolver<'a> {
         }
 
         // Canonicalize, checking symlinks and if it exists.
-        if let Ok(path) = self.canonicalize_unchecked(apath) {
+        if load && let Ok(path) = self.canonicalize_unchecked(apath) {
             return self
                 .source_map()
                 // Store the file with `apath` as the name instead of `path`.
@@ -339,4 +370,142 @@ impl<'a> FileResolver<'a> {
 fn sanitize_path(s: &str) -> impl std::ops::Deref<Target = str> + '_ {
     // TODO: Equivalent of: `boost::filesystem::path(_path).generic_string()`
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct TestCase<'a> {
+        remappings: &'a [&'a str],
+        sources: &'a [Source<'a>],
+    }
+    struct Source<'a> {
+        path: &'a str,
+        // `<import string> => <resolved path>`
+        imports: &'a [&'a str],
+    }
+
+    fn run(test_case: &TestCase<'_>) {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            tracing_subscriber::fmt::fmt()
+                .with_test_writer()
+                .with_max_level(tracing::level_filters::LevelFilter::TRACE)
+                .init();
+        });
+
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        for source in test_case.sources {
+            let path = base_path.join(source.path);
+            if let Some(parent) = path.parent() {
+                let parent = parent.to_str().unwrap();
+                std::fs::create_dir_all(parent).expect(parent);
+            }
+            std::fs::write(&path, "").expect(source.path);
+            sm.load_file(&path).expect(source.path);
+        }
+
+        let mut file_resolver = FileResolver::new(&sm);
+        for &remapping in test_case.remappings {
+            file_resolver.add_import_remapping(remapping.parse().expect(remapping));
+        }
+        for &Source { path, imports } in test_case.sources {
+            for (i, &import) in imports.iter().enumerate() {
+                let res = (|| -> Result<(), Box<dyn std::error::Error>> {
+                    let (import, expected) = import
+                        .split_once(" => ")
+                        .ok_or("import is not in the format <import string> => <resolved path>")?;
+                    let parent = base_path.join(path);
+                    let resolved = file_resolver.resolve_file(import.as_ref(), Some(&parent))?;
+                    let actual_full = resolved.name.as_real().ok_or("resolved file has no path")?;
+                    let actual = actual_full.strip_prefix(&base_path).ok().ok_or(
+                        "resolved file path is not a subpath of the base path (not absolute?)",
+                    )?;
+                    let actual =
+                        actual.to_str().ok_or("resolved file path is not a valid string")?;
+                    if actual != expected {
+                        return Err(format!(
+                            "did not resolve to the expected path ({actual} != {expected})",
+                        )
+                        .into());
+                    }
+                    Ok(())
+                })();
+                match res {
+                    Ok(()) => {}
+                    Err(e) => panic!("{path}:{i}: [{import}] {e}"),
+                }
+            }
+        }
+    }
+
+    // Taken from: https://github.com/argotorg/solidity/blob/32c8f080c4cc939df5a3c7ca5ad6b6144ee9aa66/test/libsolidity/Imports.cpp
+    #[test]
+    fn remappings() {
+        run(&TestCase {
+            remappings: &["s=s_1.4.6", "t=Tee"],
+            sources: &[
+                Source { path: "a", imports: &["s/s.sol => s_1.4.6/s.sol"] },
+                Source { path: "b", imports: &["t/tee.sol => Tee/tee.sol"] },
+                Source { path: "s_1.4.6/s.sol", imports: &[] },
+                Source { path: "Tee/tee.sol", imports: &[] },
+            ],
+        })
+    }
+
+    #[test]
+    fn context_dependent_remappings() {
+        run(&TestCase {
+            remappings: &["a:s=s_1.4.6", "b:s=s_1.4.7"],
+            sources: &[
+                Source { path: "a/a.sol", imports: &["s/s.sol => s_1.4.6/s.sol"] },
+                Source { path: "b/b.sol", imports: &["s/s.sol => s_1.4.7/s.sol"] },
+                Source { path: "s_1.4.6/s.sol", imports: &[] },
+                Source { path: "s_1.4.7/s.sol", imports: &[] },
+            ],
+        })
+    }
+
+    #[test]
+    fn context_dependent_remappings_ensure_default_and_module_preserved() {
+        run(&TestCase {
+            remappings: &[
+                "foo=vendor/foo_2.0.0",
+                "vendor/bar:foo=vendor/foo_1.0.0",
+                "bar=vendor/bar",
+            ],
+            sources: &[
+                Source {
+                    path: "main.sol",
+                    imports: &[
+                        "foo/foo.sol => vendor/foo_2.0.0/foo.sol",
+                        "bar/bar.sol => vendor/bar/bar.sol",
+                    ],
+                },
+                Source {
+                    path: "vendor/bar/bar.sol",
+                    imports: &["foo/foo.sol => vendor/foo_1.0.0/foo.sol"],
+                },
+                Source { path: "vendor/foo_1.0.0/foo.sol", imports: &[] },
+                Source { path: "vendor/foo_2.0.0/foo.sol", imports: &[] },
+            ],
+        })
+    }
+
+    #[test]
+    fn context_dependent_remappings_order_independent() {
+        let sources = &[
+            Source { path: "a/main.sol", imports: &["x/y/z/z.sol => d/z.sol"] },
+            Source { path: "a/b/main.sol", imports: &["x/y/z/z.sol => e/y/z/z.sol"] },
+            Source { path: "d/z.sol", imports: &[] },
+            Source { path: "e/y/z/z.sol", imports: &[] },
+        ];
+        run(&TestCase { remappings: &["a:x/y/z=d", "a/b:x=e"], sources });
+        run(&TestCase { remappings: &["a/b:x=e", "a:x/y/z=d"], sources });
+    }
 }

@@ -21,11 +21,11 @@ pub trait Visit<'hir> {
         match id {
             ItemId::Contract(id) => self.visit_nested_contract(id),
             ItemId::Function(id) => self.visit_nested_function(id),
-            ItemId::Struct(_id) => ControlFlow::Continue(()), // TODO
-            ItemId::Enum(_id) => ControlFlow::Continue(()), // TODO
-            ItemId::Udvt(_id) => ControlFlow::Continue(()), // TODO
-            ItemId::Error(_id) => ControlFlow::Continue(()), // TODO
-            ItemId::Event(_id) => ControlFlow::Continue(()), // TODO
+            ItemId::Struct(id) => self.visit_nested_struct(id),
+            ItemId::Enum(id) => self.visit_nested_enum(id),
+            ItemId::Udvt(id) => self.visit_nested_udvt(id),
+            ItemId::Error(id) => self.visit_nested_error(id),
+            ItemId::Event(id) => self.visit_nested_event(id),
             ItemId::Variable(id) => self.visit_nested_var(id),
         }
     }
@@ -34,11 +34,11 @@ pub trait Visit<'hir> {
         match item {
             Item::Contract(item) => self.visit_contract(item),
             Item::Function(item) => self.visit_function(item),
-            Item::Struct(_item) => ControlFlow::Continue(()), // TODO
-            Item::Enum(_item) => ControlFlow::Continue(()), // TODO
-            Item::Udvt(_item) => ControlFlow::Continue(()), // TODO
-            Item::Error(_item) => ControlFlow::Continue(()), // TODO
-            Item::Event(_item) => ControlFlow::Continue(()), // TODO
+            Item::Struct(item) => self.visit_struct(item),
+            Item::Enum(item) => self.visit_enum(item),
+            Item::Udvt(item) => self.visit_udvt(item),
+            Item::Error(item) => self.visit_error(item),
+            Item::Event(item) => self.visit_event(item),
             Item::Variable(item) => self.visit_var(item),
         }
     }
@@ -80,6 +80,55 @@ pub trait Visit<'hir> {
     fn visit_modifier(&mut self, modifier: &'hir Modifier<'hir>) -> ControlFlow<Self::BreakValue> {
         let Modifier { span: _, id: _, args } = modifier;
         self.visit_call_args(args)
+    }
+
+    fn visit_nested_struct(&mut self, id: StructId) -> ControlFlow<Self::BreakValue> {
+        self.visit_struct(self.hir().strukt(id))
+    }
+
+    fn visit_struct(&mut self, strukt: &'hir Struct<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &field in strukt.fields {
+            self.visit_nested_var(field)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_nested_enum(&mut self, id: EnumId) -> ControlFlow<Self::BreakValue> {
+        self.visit_enum(self.hir().enumm(id))
+    }
+
+    fn visit_enum(&mut self, _enumm: &'hir Enum<'hir>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
+
+    fn visit_nested_udvt(&mut self, id: UdvtId) -> ControlFlow<Self::BreakValue> {
+        self.visit_udvt(self.hir().udvt(id))
+    }
+
+    fn visit_udvt(&mut self, udvt: &'hir Udvt<'hir>) -> ControlFlow<Self::BreakValue> {
+        self.visit_ty(&udvt.ty)
+    }
+
+    fn visit_nested_error(&mut self, id: ErrorId) -> ControlFlow<Self::BreakValue> {
+        self.visit_error(self.hir().error(id))
+    }
+
+    fn visit_error(&mut self, error: &'hir Error<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &param in error.parameters {
+            self.visit_nested_var(param)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_nested_event(&mut self, id: EventId) -> ControlFlow<Self::BreakValue> {
+        self.visit_event(self.hir().event(id))
+    }
+
+    fn visit_event(&mut self, event: &'hir Event<'hir>) -> ControlFlow<Self::BreakValue> {
+        for &param in event.parameters {
+            self.visit_nested_var(param)?;
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {

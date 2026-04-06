@@ -1,0 +1,14 @@
+error: expected function, found `enum C.ActionChoices`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/enum_value_not_callable.sol:LL:CC
+   │
+LL │         ActionChoices.GoLeft();
+   │         ━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/enum_value_not_callable.sol:LL:CC
+   │
+LL │         ActionChoices.GoLeft();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

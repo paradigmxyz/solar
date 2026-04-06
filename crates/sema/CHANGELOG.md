@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Bug Fixes
+
+- [sema] Remap Sources::file_to_id when sorting ([#548](https://github.com/paradigmxyz/solar/issues/548))
+- [sema] Do not expose mutable Session access while entered ([#542](https://github.com/paradigmxyz/solar/issues/542))
+- [sema] Peel parens when lowering call args ([#495](https://github.com/paradigmxyz/solar/issues/495))
+
+### Features
+
+- [ast] Spanned optional commasep elements ([#543](https://github.com/paradigmxyz/solar/issues/543))
+- Add `ItemId::as_struct` ([#544](https://github.com/paradigmxyz/solar/issues/544))
+- [sema] Allow delaying/manual import resolution ([#531](https://github.com/paradigmxyz/solar/issues/531))
+- [sema] Add sources getters ([#528](https://github.com/paradigmxyz/solar/issues/528))
+- Checks on upper bounds of contract storage sizes ([#169](https://github.com/paradigmxyz/solar/issues/169))
+- [sema] Add validation for assembly memory-safe flags ([#263](https://github.com/paradigmxyz/solar/issues/263))
+
+### Miscellaneous Tasks
+
+- Add some traits to AstPath ([#549](https://github.com/paradigmxyz/solar/issues/549))
+- Simplify pointer projection ([#541](https://github.com/paradigmxyz/solar/issues/541))
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+- [sema] Simplify perform_imports ([#530](https://github.com/paradigmxyz/solar/issues/530))
+- [sema] Fix parse dbg log ([#527](https://github.com/paradigmxyz/solar/issues/527))
+
+### Performance
+
+- [ast] Use ThinSlice ([#546](https://github.com/paradigmxyz/solar/issues/546))
+- [sema] Pre-compute topo_sort map ([#533](https://github.com/paradigmxyz/solar/issues/533))
+- [sema] Use a map in AST Sources ([#535](https://github.com/paradigmxyz/solar/issues/535))
+
+### Styling
+
+- Implement fmt::Debug for more types ([#537](https://github.com/paradigmxyz/solar/issues/537))
+
+### Testing
+
+- Add unit test and debug assertion for sources inconsistency ([#550](https://github.com/paradigmxyz/solar/issues/550))
+- Track node sizes ([#497](https://github.com/paradigmxyz/solar/issues/497))
+
 ## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
 
 ### Bug Fixes

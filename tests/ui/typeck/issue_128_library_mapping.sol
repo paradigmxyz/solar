@@ -9,7 +9,7 @@ struct StructTest {
 }
 
 library TestLibrary {
-    function testFunction(StructTest memory testParameter) external view returns (uint256) {
+    function testFunction(StructTest storage testParameter) external view returns (uint256) {
         return testParameter.a;
     }
 }

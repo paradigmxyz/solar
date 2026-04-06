@@ -1,20 +1,20 @@
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
-   |
-LL |     f a;
-   |     ^
+   ╭▸ ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+   │
+LL │     f a;
+   ╰╴    ━
 
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
-   |
-LL |     E1 b;
-   |     ^^
+   ╭▸ ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+   │
+LL │     E1 b;
+   ╰╴    ━━
 
 error: name has to refer to a valid user-defined type
-  --> ROOT/tests/ui/typeck/function_vars.sol:LL:CC
-   |
-LL |     E2 c;
-   |     ^^
+   ╭▸ ROOT/tests/ui/typeck/function_vars.sol:LL:CC
+   │
+LL │     E2 c;
+   ╰╴    ━━
 
 error: aborting due to 3 previous errors
 

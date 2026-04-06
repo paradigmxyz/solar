@@ -1,7 +1,7 @@
 use crate::{BytePos, CharPos, pos::RelativeBytePos};
 use std::{
     fmt, io,
-    ops::RangeInclusive,
+    ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -87,6 +87,13 @@ impl From<&Self> for FileName {
 }
 
 impl FileName {
+    /// Parses a file name from a string.
+    ///
+    /// See [`SourceMap::parse_file_name`](crate::SourceMap::parse_file_name).
+    pub fn parse(sm: &crate::SourceMap, s: &str) -> Self {
+        sm.parse_file_name(s)
+    }
+
     /// Creates a new `FileName` from a path.
     pub fn real(path: impl Into<PathBuf>) -> Self {
         Self::Real(path.into())
@@ -267,6 +274,20 @@ impl SourceFile {
     /// first line, `None` is returned.
     pub fn lookup_line(&self, pos: RelativeBytePos) -> Option<usize> {
         self.lines().partition_point(|x| x <= &pos).checked_sub(1)
+    }
+
+    pub fn line_bounds(&self, line_index: usize) -> Range<BytePos> {
+        if self.is_empty() {
+            return self.start_pos..self.start_pos;
+        }
+
+        let lines = self.lines();
+        assert!(line_index < lines.len());
+        if line_index == (lines.len() - 1) {
+            self.absolute_position(lines[line_index])..self.end_position()
+        } else {
+            self.absolute_position(lines[line_index])..self.absolute_position(lines[line_index + 1])
+        }
     }
 
     /// Returns the relative byte position of the start of the line at the given

@@ -1,0 +1,66 @@
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     uint[] immutable IMMUT_ARRAY;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     S immutable IMMUT_STRUCT;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: immutable variables of external function type are not yet supported
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function(uint) external immutable IMMUT_EXT_FN;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: immutable variables cannot have a non-value type
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     WithMapping immutable IMMUT_WITH_MAPPING;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: types in storage containing (nested) mappings cannot be assigned to
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     WithMapping stateWithMapping = WithMapping();
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: type `struct C.WithMapping memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         WithMapping memory localWithMapping;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: type `mapping(uint256 => uint256)` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) memory m;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: uninitialized mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) memory m;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: mappings cannot be created dynamically, you have to assign them from a state variable
+
+error: type `struct C.WithMapping calldata` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function g(WithMapping calldata w) internal {}
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
+
+error: uninitialized mapping
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │         mapping(uint => uint) storage s;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ note: mappings cannot be created dynamically, you have to assign them from a state variable
+
+error: aborting due to 10 previous errors
+

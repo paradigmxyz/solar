@@ -1,80 +1,80 @@
 error: unresolved symbol `a`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     while (a == 0) { uint a = 0; }
-   |            ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     while (a == 0) { uint a = 0; }
+   ╰╴           ━
 
 error: unresolved symbol `a`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     a;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     a;
+   ╰╴    ━
 
 error: unresolved symbol `b`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     while (b == 0) { uint b = 0; }
-   |            ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     while (b == 0) { uint b = 0; }
+   ╰╴           ━
 
 error: unresolved symbol `b`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     b;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     b;
+   ╰╴    ━
 
 error: unresolved symbol `c`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     do { uint c; } while (c == 0);
-   |                           ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     do { uint c; } while (c == 0);
+   ╰╴                          ━
 
 error: unresolved symbol `c`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     c;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     c;
+   ╰╴    ━
 
 error: unresolved symbol `d`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     do { uint d; } while (d == 0);
-   |                           ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     do { uint d; } while (d == 0);
+   ╰╴                          ━
 
 error: unresolved symbol `d`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     d;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     d;
+   ╰╴    ━
 
 error: unresolved symbol `e`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     for (; false; e++) { uint e; }
-   |                   ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     for (; false; e++) { uint e; }
+   ╰╴                  ━
 
 error: unresolved symbol `e`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     e;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     e;
+   ╰╴    ━
 
 error: unresolved symbol `f`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     for (; false; f++) { uint f; }
-   |                   ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     for (; false; f++) { uint f; }
+   ╰╴                  ━
 
 error: unresolved symbol `f`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     f;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     f;
+   ╰╴    ━
 
 error: unresolved symbol `g`
-  --> ROOT/tests/ui/resolve/loops.sol:LL:CC
-   |
-LL |     g;
-   |     ^
+   ╭▸ ROOT/tests/ui/resolve/loops.sol:LL:CC
+   │
+LL │     g;
+   ╰╴    ━
 
 error: aborting due to 13 previous errors
 

@@ -1,0 +1,20 @@
+error: calldata arrays are read-only
+   ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_array.sol:LL:CC
+   │
+LL │         arr[idx] = state;
+   ╰╴        ━━━━━━━━
+
+error: calldata arrays are read-only
+   ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_array.sol:LL:CC
+   │
+LL │         data[idx] = b;
+   ╰╴        ━━━━━━━━━
+
+error: calldata arrays are read-only
+   ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_array.sol:LL:CC
+   │
+LL │         nested[idx][idx] = state;
+   ╰╴        ━━━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+

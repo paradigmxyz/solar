@@ -30,6 +30,9 @@ Options:
       -Zprint-max-storage-sizes
           Print contracts' max storage sizes
 
+      -Ztypeck
+          Type check the program. WIP
+
       -Zhelp
           Print help
 

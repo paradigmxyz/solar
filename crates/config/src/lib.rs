@@ -3,7 +3,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use std::{fmt, num::NonZeroUsize, sync::OnceLock};
 use strum::EnumIs;
@@ -211,10 +211,10 @@ str_enum! {
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum HumanEmitterKind {
-        /// ASCII decorations (default).
-        #[default]
+        /// ASCII decorations.
         Ascii,
-        /// Unicode decorations.
+        /// Unicode decorations (default).
+        #[default]
         Unicode,
         /// Short messages.
         Short,

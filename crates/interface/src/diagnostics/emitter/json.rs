@@ -287,7 +287,7 @@ struct Diagnostic {
     level: &'static str,
     spans: Vec<DiagnosticSpan>,
     /// Associated diagnostic messages.
-    children: Vec<Diagnostic>,
+    children: Vec<Self>,
     /// The message as the compiler would render it.
     rendered: Option<String>,
 }

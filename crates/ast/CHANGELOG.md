@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
+
+### Bug Fixes
+
+- [ast] Debug for Token ([#512](https://github.com/paradigmxyz/solar/issues/512))
+- [ast] Store yul::Expr even if only Call is allowed ([#496](https://github.com/paradigmxyz/solar/issues/496))
+- [sema] Peel parens when lowering call args ([#495](https://github.com/paradigmxyz/solar/issues/495))
+
+### Features
+
+- [ast] Spanned optional commasep elements ([#543](https://github.com/paradigmxyz/solar/issues/543))
+
+### Miscellaneous Tasks
+
+- Add some traits to AstPath ([#549](https://github.com/paradigmxyz/solar/issues/549))
+- Remove feature(doc_auto_cfg) ([#540](https://github.com/paradigmxyz/solar/issues/540))
+
+### Performance
+
+- [ast] Use ThinSlice ([#546](https://github.com/paradigmxyz/solar/issues/546))
+- [parser] General improvements ([#516](https://github.com/paradigmxyz/solar/issues/516))
+- [parser] Pass Token in registers ([#509](https://github.com/paradigmxyz/solar/issues/509))
+- [lexer] Avoid thread locals when we have a Session ([#507](https://github.com/paradigmxyz/solar/issues/507))
+
+### Refactor
+
+- [ast] Boxed `yul::StmtKind::For` to reduce the size of `yul::Stmt` ([#500](https://github.com/paradigmxyz/solar/issues/500))
+
+### Testing
+
+- Track node sizes ([#497](https://github.com/paradigmxyz/solar/issues/497))
+
 ## [0.1.7](https://github.com/paradigmxyz/solar/releases/tag/v0.1.7)
 
 ### Dependencies

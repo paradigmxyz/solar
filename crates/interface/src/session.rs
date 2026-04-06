@@ -4,6 +4,7 @@ use crate::{
 };
 use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
 use std::{
+    fmt,
     path::Path,
     sync::{Arc, OnceLock},
 };
@@ -25,6 +26,15 @@ pub struct Session {
 impl Default for Session {
     fn default() -> Self {
         Self::new(Opts::default())
+    }
+}
+
+impl fmt::Debug for Session {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Session")
+            .field("opts", &self.opts)
+            .field("dcx", &self.dcx)
+            .finish_non_exhaustive()
     }
 }
 

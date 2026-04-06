@@ -1,0 +1,110 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint8 a = u16;
+   ╰╴                  ━━━ expected `uint8`, found `uint16`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint8 b = u32;
+   ╰╴                  ━━━ expected `uint8`, found `uint32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint8 c = u256;
+   ╰╴                  ━━━━ expected `uint8`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint16 d = u32;
+   ╰╴                   ━━━ expected `uint16`, found `uint32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint16 e = u256;
+   ╰╴                   ━━━━ expected `uint16`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint32 f = u256;
+   ╰╴                   ━━━━ expected `uint32`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int8 a = i16;
+   ╰╴                 ━━━ expected `int8`, found `int16`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int8 b = i32;
+   ╰╴                 ━━━ expected `int8`, found `int32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int8 c = i256;
+   ╰╴                 ━━━━ expected `int8`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int16 d = i32;
+   ╰╴                  ━━━ expected `int16`, found `int32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int16 e = i256;
+   ╰╴                  ━━━━ expected `int16`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int32 f = i256;
+   ╰╴                  ━━━━ expected `int32`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int8 a = u8;
+   ╰╴                 ━━ expected `int8`, found `uint8`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint8 b = i8;
+   ╰╴                  ━━ expected `uint8`, found `int8`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int256 c = u256;
+   ╰╴                   ━━━━ expected `int256`, found `uint256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint256 d = i256;
+   ╰╴                    ━━━━ expected `uint256`, found `int256`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         int16 e = u8;
+   ╰╴                  ━━ expected `int16`, found `uint8`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_integer_width.sol:LL:CC
+   │
+LL │         uint16 f = i8;
+   ╰╴                   ━━ expected `uint16`, found `int8`
+
+error: aborting due to 18 previous errors
+

@@ -120,8 +120,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Err(e @ ParseInteger(_)) => panic!("failed to parse integer literal {symbol:?}: {e}"),
             // Should never happen.
             Err(
-                e @ (InvalidRational | EmptyRational | EmptyExponent | ParseRational(_)
-                | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
+                e @ (InvalidRational | RationalPlusExponent | EmptyRational | EmptyExponent
+                | ParseRational(_) | ParseExponent(_) | RationalTooLarge | ExponentTooLarge),
             ) => panic!("this error shouldn't happen for normal integer literals: {e}"),
         }
     }
@@ -137,8 +137,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             Ok(l) => Ok(l),
             // User error.
             Err(
-                e @ (EmptyRational | IntegerTooLarge | RationalTooLarge | ExponentTooLarge
-                | IntegerLeadingZeros),
+                e @ (EmptyRational | RationalPlusExponent | IntegerTooLarge | RationalTooLarge
+                | ExponentTooLarge | IntegerLeadingZeros),
             ) => Err(self.dcx().err(e.to_string())),
             // User error, but already emitted.
             Err(InvalidRational | EmptyExponent) => {
@@ -193,6 +193,7 @@ enum LitError {
     EmptyInteger,
     EmptyRational,
     EmptyExponent,
+    RationalPlusExponent,
 
     ParseInteger(num_bigint::ParseBigIntError),
     ParseRational(num_bigint::ParseBigIntError),
@@ -211,6 +212,7 @@ impl fmt::Display for LitError {
             Self::EmptyInteger => write!(f, "empty integer"),
             Self::EmptyRational => write!(f, "empty rational"),
             Self::EmptyExponent => write!(f, "empty exponent"),
+            Self::RationalPlusExponent => write!(f, "`+` is not allowed in the exponent"),
             Self::ParseInteger(e) => write!(f, "failed to parse integer: {e}"),
             Self::ParseRational(e) => write!(f, "failed to parse rational: {e}"),
             Self::ParseExponent(e) => write!(f, "failed to parse exponent: {e}"),
@@ -317,8 +319,13 @@ fn parse_rational<'ast>(
     if rat.is_some_and(str::is_empty) {
         return Err(LitError::EmptyRational);
     }
-    if exp.is_some_and(str::is_empty) {
-        return Err(LitError::EmptyExponent);
+    if let Some(exp) = exp {
+        if exp.starts_with('+') {
+            return Err(LitError::RationalPlusExponent);
+        }
+        if matches!(exp, "" | "-") {
+            return Err(LitError::EmptyExponent);
+        }
     }
 
     if int.starts_with('0') && int.len() > 1 {
@@ -677,6 +684,12 @@ mod tests {
         check_int("0001", Err(IntegerLeadingZeros));
 
         check_int("0.", Err(EmptyRational));
+        check_int_full("0e-", true, Err(EmptyExponent));
+        check_int_full("0e", true, Err(EmptyExponent));
+
+        check_int_full("0e+", true, Err(RationalPlusExponent));
+        check_int("0e+0", Err(RationalPlusExponent));
+        check_int("0e+1", Err(RationalPlusExponent));
 
         check_int("0", Ok("0"));
         check_int("0e0", Ok("0"));

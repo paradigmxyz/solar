@@ -1,7 +1,7 @@
 //! Solidity source code token.
 
 use crate::{
-    DocComment, StrKind,
+    StrKind,
     ast::{BinOp, BinOpKind, UnOp, UnOpKind},
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed};
@@ -567,24 +567,9 @@ impl Token {
 
     /// Returns the comment if the kind is [`TokenKind::Comment`], and whether it's a doc-comment.
     #[inline]
-    pub fn comment(&self) -> Option<(bool, DocComment)> {
+    pub fn comment(&self) -> Option<(bool, CommentKind, Symbol)> {
         match self.kind {
-            TokenKind::Comment(is_doc, kind, symbol) => {
-                Some((is_doc, DocComment { span: self.span, kind, symbol }))
-            }
-            _ => None,
-        }
-    }
-
-    /// Returns the comment if the kind is [`TokenKind::Comment`].
-    ///
-    /// Does not check that `is_doc` is `true`.
-    #[inline]
-    pub fn doc(&self) -> Option<DocComment> {
-        match self.kind {
-            TokenKind::Comment(_, kind, symbol) => {
-                Some(DocComment { span: self.span, kind, symbol })
-            }
+            TokenKind::Comment(is_doc, kind, symbol) => Some((is_doc, kind, symbol)),
             _ => None,
         }
     }

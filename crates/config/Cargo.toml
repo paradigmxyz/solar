@@ -18,9 +18,8 @@ workspace = true
 [build-dependencies]
 vergen = { workspace = true, optional = true, features = [
     "build",
-    "git",
-    "gitcl",
     "cargo",
+    "emit_and_set",
 ] }
 
 [dependencies]
@@ -49,3 +48,4 @@ tracing-off = []
 tracing-chrome = []
 tracy = []
 tracy-allocator = []
+tracing-samply = []

@@ -213,8 +213,9 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 write!(self.buf, "[{len}]")
             }
 
-            TyKind::StringLiteral(..)
-            | TyKind::IntLiteral(_)
+            TyKind::Slice(..)
+            | TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(..)
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Error(..)
@@ -307,8 +308,12 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 let kind = if utf8 { "utf8" } else { "bytes" };
                 write!(self.buf, "{kind}_string_literal[{}]", size.bytes())
             }
-            TyKind::IntLiteral(size) => {
-                write!(self.buf, "int_literal[{}]", size.bytes())
+            TyKind::IntLiteral(_, size) => {
+                write!(self.buf, "int_literal[{}]", size.bits())
+            }
+            TyKind::Slice(ty) => {
+                self.print(ty)?;
+                self.buf.write_str(" slice")
             }
             TyKind::Tuple(tys) => {
                 self.buf.write_str("tuple")?;
@@ -331,21 +336,19 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 self.print(ty)?; // TODO: `richIdentifier`
                 self.buf.write_str(")")
             }
-            TyKind::Error(tys, id) => self.print_function_like(tys, id.into()),
-            TyKind::Event(tys, id) => self.print_function_like(tys, id.into()),
+            TyKind::Error(tys, id) => {
+                self.buf.write_str("error ")?;
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))?;
+                self.print_tuple(tys)
+            }
+            TyKind::Event(tys, id) => {
+                self.buf.write_str("event ")?;
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))?;
+                self.print_tuple(tys)
+            }
 
             TyKind::Err(_) => self.buf.write_str("<error>"),
         }
-    }
-
-    fn print_function_like(&mut self, parameters: &[Ty<'gcx>], id: hir::ItemId) -> fmt::Result {
-        self.print_function(
-            Some(id),
-            parameters,
-            &[],
-            hir::StateMutability::NonPayable,
-            solar_ast::Visibility::Internal,
-        )
     }
 
     fn print_function(

@@ -149,11 +149,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let span = lo.to(hi);
                 Ok(StmtKind::Expr(Expr { span, kind: ExprKind::Call(call) }))
             } else if self.eat(TokenKind::Walrus) {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 let expr = self.parse_yul_expr()?;
                 Ok(StmtKind::AssignSingle(path, expr))
             } else if self.check(TokenKind::Comma) {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 let mut paths = SmallVec::<[_; 4]>::new();
                 paths.push(path);
                 while self.eat(TokenKind::Comma) {
@@ -288,7 +288,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
             } else {
-                self.check_valid_path(path);
+                self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
             }
         } else {
@@ -316,7 +316,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     fn parse_yul_path(&mut self) -> PResult<'sess, AstPath<'ast>> {
         let path = self.parse_path_any()?;
-        self.check_valid_path(path);
+        self.check_valid_path(&path);
         Ok(path)
     }
 

@@ -3,7 +3,7 @@
     html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use clap::Parser as _;
 use solar_interface::{Result, Session};
@@ -17,9 +17,6 @@ pub mod utils;
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod signal_handler;
 
-mod args;
-pub use args::{Args, Subcommands};
-
 /// Signal handler to extract a backtrace from stack overflow.
 ///
 /// This is a no-op because this platform doesn't support our signal handler's requirements.
@@ -31,6 +28,9 @@ pub mod signal_handler {
     /// No-op function.
     pub fn install() {}
 }
+
+mod args;
+pub use args::{Args, Subcommands};
 
 // `asm` feature.
 use alloy_primitives as _;
@@ -85,6 +85,13 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     pcx.par_load_files(paths)?;
 
     pcx.parse();
+
+    if compiler.gcx().sources.is_empty() {
+        let msg = "no files found";
+        let note = "if you wish to use the standard input, please specify `-` explicitly";
+        return Err(sess.dcx.err(msg).note(note).emit());
+    }
+
     let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
     compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };

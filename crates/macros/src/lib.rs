@@ -4,7 +4,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
 )]
 #![allow(unreachable_pub)]
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
