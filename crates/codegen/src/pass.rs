@@ -208,6 +208,23 @@ impl TransformPass for JumpThreadingPass {
     }
 }
 
+/// Common subexpression elimination transform.
+///
+/// Eliminates redundant computations within each basic block (local CSE).
+/// Handles commutative normalization and SLOAD caching (invalidated by SSTORE).
+/// Iterates to a fixed point.
+pub struct CsePass;
+
+impl TransformPass for CsePass {
+    fn name(&self) -> &str {
+        "cse"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::CommonSubexprEliminator::new().run_to_fixpoint(func);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

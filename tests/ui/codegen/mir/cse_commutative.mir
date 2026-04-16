@@ -1,0 +1,12 @@
+//@ignore-host: windows
+//@compile-flags: --pass cse
+// add is commutative: add(a,b) == add(b,a).
+// CSE should recognize this and eliminate the second computation.
+; module @CseCommutative
+fn @commutative(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, arg1
+    v3 = add arg1, arg0
+    v4 = add v2, v3
+    ret v4
+}
