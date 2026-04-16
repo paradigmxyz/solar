@@ -35,7 +35,10 @@
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
-    pass::{CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, PassManager, TransformPass},
+    pass::{
+        CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, PassManager, SccpTransformPass,
+        TransformPass,
+    },
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
@@ -63,6 +66,7 @@ Options:
 Passes:
     dce              Dead Code Elimination (fixed-point)
     cse              Common Subexpression Elimination (fixed-point)
+    sccp             Sparse Conditional Constant Propagation
     cfg-simplify     CFG Simplification (fixed-point)
     jump-threading   Jump Threading (fixed-point)
     none             No transform; just lower/parse and print
@@ -162,6 +166,7 @@ fn make_pass(name: &str) -> Result<Option<Box<dyn TransformPass>>, String> {
     match name {
         "dce" => Ok(Some(Box::new(DcePass))),
         "cse" => Ok(Some(Box::new(CsePass))),
+        "sccp" => Ok(Some(Box::new(SccpTransformPass))),
         "cfg-simplify" => Ok(Some(Box::new(CfgSimplifyPass))),
         "jump-threading" => Ok(Some(Box::new(JumpThreadingPass))),
         "none" => Ok(None),

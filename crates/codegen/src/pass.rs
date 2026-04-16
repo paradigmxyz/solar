@@ -208,6 +208,23 @@ impl TransformPass for JumpThreadingPass {
     }
 }
 
+/// Sparse Conditional Constant Propagation transform.
+///
+/// Propagates constants through the CFG using SSA def-use chains,
+/// evaluates branch conditions to discover unreachable paths, and
+/// folds phi nodes when all executable incoming values agree.
+pub struct SccpTransformPass;
+
+impl TransformPass for SccpTransformPass {
+    fn name(&self) -> &str {
+        "sccp"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::SccpPass::new().run(func);
+    }
+}
+
 /// Common subexpression elimination transform.
 ///
 /// Eliminates redundant computations within each basic block (local CSE).
