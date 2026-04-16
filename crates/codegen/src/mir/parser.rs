@@ -1294,13 +1294,14 @@ impl<'a> Parser<'a> {
                 (InstKind::Select(cond, then_v, else_v), Some(MirType::uint256()))
             }
             "phi" => {
-                // Format: `phi [v1, bb0], [v2, bb1]` (matches the printer)
+                // Format: `phi [bb0: v1], [bb1: v2]` — matches the printer in display.rs.
+                // Each pair is `[blockId: valueId]` separated by commas.
                 let mut incoming: Vec<(BlockId, ValueId)> = Vec::new();
                 loop {
                     self.expect_punct('[')?;
-                    let val = v!();
-                    comma!();
                     let bid = self.parse_block_id(block_labels)?;
+                    self.expect_punct(':')?;
+                    let val = v!();
                     self.expect_punct(']')?;
                     incoming.push((bid, val));
                     if !self.try_punct(',') {
@@ -1545,6 +1546,93 @@ fn @sel(arg0: bool, arg1: u256, arg2: u256) -> u256 {
 ";
             let func = parse_function(src).unwrap();
             assert_eq!(func.instructions.len(), 2);
+        });
+    }
+
+    #[test]
+    fn parse_phi_node() {
+        with_session(|| {
+            let src = "\
+fn @diamond(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 10], [bb2: 20]
+    ret v1
+}
+";
+            let func = parse_function(src).unwrap();
+            assert_eq!(func.blocks.len(), 4);
+            // Find the phi instruction.
+            let phi_inst =
+                func.instructions.iter().find(|i| matches!(i.kind, InstKind::Phi(_))).unwrap();
+            if let InstKind::Phi(args) = &phi_inst.kind {
+                assert_eq!(args.len(), 2);
+            } else {
+                panic!("expected phi");
+            }
+        });
+    }
+
+    #[test]
+    fn parse_switch_terminator() {
+        with_session(|| {
+            let src = "\
+fn @dispatch(arg0: u256) -> u256 {
+  bb0 (entry):
+    switch arg0, default bb4, [1 => bb1, 2 => bb2, 3 => bb3]
+  bb1:
+    ret arg0
+  bb2:
+    ret 0
+  bb3:
+    ret 1
+  bb4:
+    ret 2
+}
+";
+            let func = parse_function(src).unwrap();
+            assert_eq!(func.blocks.len(), 5);
+            let term = func.blocks[func.entry_block].terminator.as_ref().unwrap();
+            if let Terminator::Switch { cases, .. } = term {
+                assert_eq!(cases.len(), 3);
+            } else {
+                panic!("expected switch terminator");
+            }
+        });
+    }
+
+    #[test]
+    fn parse_phi_round_trip_with_printer() {
+        // Build a function with InstKind::Phi via the parser, print it, and
+        // verify the printer output uses the `[bbN: vN]` format we expect.
+        with_session(|| {
+            let src = "\
+fn @diamond(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 10], [bb2: 20]
+    ret v1
+}
+";
+            let func = parse_function(src).unwrap();
+            let printed = function_to_text(&func);
+            // The printer's exact format: `[bbN: <val>]`.
+            assert!(
+                printed.contains("phi [bb1:") && printed.contains("], [bb2:"),
+                "expected `phi [bb1: ..], [bb2: ..]`, got:\n{printed}"
+            );
+            // Round-trip: re-parse the printer output, must succeed.
+            let _func2 = parse_function(&printed).unwrap();
         });
     }
 }
