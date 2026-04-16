@@ -153,6 +153,10 @@ impl<'a> Parser<'a> {
     }
 
     /// Skip whitespace, newlines, and comments (`//...` and `;...`).
+    ///
+    /// Note: `;` is treated as a comment EXCEPT when followed by ` module @`,
+    /// which is the module header marker (`; module @Name`). This lets the
+    /// parser recover the module name even though `;` is otherwise comment-only.
     fn skip_blank_and_comments(&mut self) {
         loop {
             self.skip_inline_whitespace();
@@ -164,6 +168,11 @@ impl<'a> Parser<'a> {
                     self.skip_to_eol();
                 }
                 Some(';') => {
+                    // Don't eat the module header — let parse_module handle it.
+                    if self.input[self.pos..].trim_start_matches(';').trim_start().starts_with("module")
+                    {
+                        break;
+                    }
                     self.skip_to_eol();
                 }
                 _ => break,
