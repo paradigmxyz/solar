@@ -26,7 +26,7 @@ mod builder;
 pub use builder::FunctionBuilder;
 
 mod display;
-pub use display::{function_to_dot, module_to_dot};
+pub use display::{function_to_dot, function_to_text, module_to_dot, module_to_text};
 
 newtype_index! {
     /// A unique identifier for a value in the MIR.
