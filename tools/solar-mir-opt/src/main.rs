@@ -47,11 +47,15 @@ solar-mir-opt — run one or more MIR passes on a Solidity or MIR file
 Usage:
     solar-mir-opt --passes <names> [--print-after-each] <input>
     solar-mir-opt --pass <name> <input>          # alias for --passes <name>
+    solar-mir-opt --pipeline-default <input>     # canonical codegen pipeline
     solar-mir-opt -h | --help
 
 Options:
     --passes <names>     Comma-separated list of passes to run in order
     --pass <name>        Alias for --passes <name>
+    --pipeline-default   Run the same passes as EvmCodegen::run_optimization_passes
+                         (jump-threading → cfg-simplify → dce). Mutually
+                         exclusive with --pass / --passes.
     --print-after-each   Print MIR after each pass in the chain
                          (default: print only after the last pass)
     -h, --help           Print this help message
@@ -67,11 +71,19 @@ Input formats:
     *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module
 ";
 
+/// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
+/// Keep in sync with `crates/codegen/src/codegen/evm.rs`.
+const DEFAULT_PIPELINE: &[&str] = &["jump-threading", "cfg-simplify", "dce"];
+
 struct Args {
     /// Passes to run, in order. Each must satisfy `make_pass`.
     passes: Vec<String>,
     /// If true, print MIR after every pass; otherwise only after the last.
     print_after_each: bool,
+    /// If true, the user invoked `--pipeline-default`. Used as the display
+    /// label so output reads `(after pipeline-default)` instead of the
+    /// concatenated pass list.
+    pipeline_default: bool,
     /// Path to input file. Extension determines whether it's .sol or .mir.
     input: String,
 }
@@ -79,6 +91,7 @@ struct Args {
 fn parse_args() -> Result<Args, String> {
     let argv: Vec<String> = std::env::args().collect();
     let mut passes: Option<Vec<String>> = None;
+    let mut pipeline_default = false;
     let mut print_after_each = false;
     let mut input: Option<String> = None;
     let mut i = 1;
@@ -101,6 +114,10 @@ fn parse_args() -> Result<Args, String> {
                 passes = Some(vec![raw.clone()]);
                 i += 2;
             }
+            "--pipeline-default" => {
+                pipeline_default = true;
+                i += 1;
+            }
             "--print-after-each" => {
                 print_after_each = true;
                 i += 1;
@@ -117,12 +134,25 @@ fn parse_args() -> Result<Args, String> {
             }
         }
     }
-    let passes = passes.ok_or_else(|| "missing --pass / --passes <name>".to_string())?;
-    if passes.is_empty() {
-        return Err("at least one pass is required".into());
+
+    // --pipeline-default and --pass[es] are mutually exclusive.
+    if pipeline_default && passes.is_some() {
+        return Err("cannot use --pipeline-default with --pass / --passes".into());
     }
+
+    let passes = if pipeline_default {
+        DEFAULT_PIPELINE.iter().map(|s| (*s).to_string()).collect()
+    } else {
+        let p =
+            passes.ok_or_else(|| "missing --pass / --passes / --pipeline-default".to_string())?;
+        if p.is_empty() {
+            return Err("at least one pass is required".into());
+        }
+        p
+    };
+
     let input = input.ok_or_else(|| "missing input file".to_string())?;
-    Ok(Args { passes, print_after_each, input })
+    Ok(Args { passes, print_after_each, pipeline_default, input })
 }
 
 /// Returns a fresh boxed pass for the given name. The special `none` pass
@@ -167,7 +197,14 @@ fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), Stri
         for pass in &args.passes {
             run_pass(module, pass)?;
         }
-        print_module(module, name, &args.passes.join(","));
+        // For --pipeline-default, use a stable label so the output header
+        // doesn't depend on the underlying pass list (which may evolve).
+        let label = if args.pipeline_default {
+            "pipeline-default".to_string()
+        } else {
+            args.passes.join(",")
+        };
+        print_module(module, name, &label);
     }
     Ok(())
 }
