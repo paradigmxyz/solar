@@ -1,10 +1,10 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result.
-//!   They take `&Function` and store their result in [`AnalysisManager`].
-//! - **Transformation passes** ([`TransformPass`]) modify the IR. They take
-//!   `&mut Function` and should invalidate cached analyses.
+//! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
+//!   `&Function` and store their result in [`AnalysisManager`].
+//! - **Transformation passes** ([`TransformPass`]) modify the IR. They take `&mut Function` and
+//!   should invalidate cached analyses.
 //!
 //! # Usage
 //!
