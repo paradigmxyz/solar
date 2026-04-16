@@ -13,7 +13,10 @@ use crate::{
         stack::{ScheduledOp, StackOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
-    pass::{AnalysisManager, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager},
+    pass::{
+        AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis,
+        PassManager,
+    },
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -337,13 +340,17 @@ impl EvmCodegen {
     /// Runs optimization passes on all functions in the module via the PassManager.
     ///
     /// Order:
-    /// 1. Jump threading — eliminates unnecessary jumps (8 gas per threaded jump)
-    /// 2. DCE — removes dead code, including blocks made unreachable by threading
+    /// 1. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 2. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 3. DCE           — removes dead instructions and any remaining unreachable blocks
     ///
-    /// Each pass internally iterates to a fixed point.
+    /// Each pass internally iterates to a fixed point. Threading creates orphaned
+    /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
+    /// DCE handles whatever's still unreachable.
     fn run_optimization_passes(&mut self, module: &mut Module) {
         let mut pm = PassManager::new();
         pm.add_transform(Box::new(JumpThreadingPass));
+        pm.add_transform(Box::new(CfgSimplifyPass));
         pm.add_transform(Box::new(DcePass));
         for func in module.functions.iter_mut() {
             pm.run(func);
