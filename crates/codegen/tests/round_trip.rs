@@ -18,6 +18,7 @@
 #![allow(unused_crate_dependencies)]
 
 use solar_codegen::{
+    analysis::validate_module,
     lower,
     mir::{module_to_text, parse_module},
 };
@@ -74,6 +75,74 @@ fn round_trip_all_sol_files() {
         failures.len(),
         failures.join("\n  ")
     );
+}
+
+#[test]
+fn validate_all_lowered_sol_modules() {
+    // Sanity check: every .sol fixture under tests/ui/codegen/ should
+    // lower to well-formed MIR (the validator finds zero errors).
+    let dir = ui_codegen_dir();
+    let mut failures: Vec<String> = Vec::new();
+    let mut count = 0usize;
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|s| s.to_str()) != Some("sol") {
+            continue;
+        }
+        count += 1;
+        if let Err(e) = validate_sol(&path) {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            failures.push(format!("{name}: {e}"));
+        }
+    }
+    assert!(count > 0, "no .sol fixtures found");
+    assert!(
+        failures.is_empty(),
+        "{} validation failure(s):\n  {}",
+        failures.len(),
+        failures.join("\n  ")
+    );
+}
+
+fn validate_sol(path: &Path) -> Result<(), String> {
+    let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+    let mut compiler = Compiler::new(sess);
+
+    let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<()> {
+        let mut pcx = c.parse();
+        pcx.load_files([path])?;
+        pcx.parse();
+        Ok(())
+    });
+    if parse_result.is_err() {
+        return Err("parse failed".into());
+    }
+
+    let mut result: Result<(), String> = Ok(());
+    let _ = compiler.enter_mut(|c| -> solar_interface::Result<()> {
+        let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
+        let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
+        let gcx = c.gcx();
+        for id in gcx.hir.contract_ids() {
+            let contract = gcx.hir.contract(id);
+            if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                continue;
+            }
+            let module = lower::lower_contract(gcx, id);
+            let errors = validate_module(&module);
+            if !errors.is_empty() {
+                result = Err(format!(
+                    "contract `{}` has {} validation error(s):\n    {}",
+                    contract.name,
+                    errors.len(),
+                    errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n    ")
+                ));
+                return Ok(());
+            }
+        }
+        Ok(())
+    });
+    result
 }
 
 #[test]
@@ -147,6 +216,8 @@ fn round_trip_sol(path: &Path) -> Result<(), String> {
 
 /// Round-trips one `.mir` file. Skips the lowering step.
 fn round_trip_mir(path: &Path) -> Result<(), String> {
+    // Tests don't need a SourceMap; reading a fixture as plain text is fine.
+    #[allow(clippy::disallowed_methods)]
     let raw = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
     // Strip `//@compile-flags:` annotations the test harness reads — they're
     // not valid MIR and the parser would treat them as comments anyway, but
