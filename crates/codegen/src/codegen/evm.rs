@@ -13,6 +13,7 @@ use crate::{
         stack::{ScheduledOp, StackOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
+    pass::{AnalysisManager, LivenessAnalysis},
     transform::{DeadCodeEliminator, JumpThreader},
 };
 use alloy_primitives::U256;
@@ -504,8 +505,11 @@ impl EvmCodegen {
 
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func: &Function) {
-        // Compute liveness
-        let liveness = Liveness::compute(func);
+        // Run analysis pipeline via the pass manager.
+        // Currently just liveness; future analyses (dominance, loops, etc.)
+        // can be added here and queried from the same AnalysisManager.
+        let mut am = AnalysisManager::new();
+        let liveness: &Liveness = am.get_or_compute(&LivenessAnalysis, func);
 
         // Eliminate phis
         let phi_result = eliminate_phis(func);

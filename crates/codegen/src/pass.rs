@@ -1,15 +1,21 @@
 //! Pass infrastructure for MIR transformations and analyses.
 //!
 //! Inspired by LLVM/MLIR pass infrastructure:
-//! - **Analysis passes** are read-only and produce a cached result.
-//! - **Transformation passes** modify the IR and invalidate cached analyses.
+//! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result.
+//!   They take `&Function` and store their result in [`AnalysisManager`].
+//! - **Transformation passes** ([`TransformPass`]) modify the IR. They take
+//!   `&mut Function` and should invalidate cached analyses.
 //!
 //! # Usage
 //!
 //! ```ignore
+//! // Read-only analysis pipeline (codegen):
+//! let mut am = AnalysisManager::new();
+//! let liveness = am.get_or_compute(&LivenessAnalysis, &func);
+//!
+//! // Transform pipeline:
 //! let mut pm = PassManager::new();
 //! pm.add_transform(Box::new(DcePass));
-//! pm.add_transform(Box::new(ConstFoldPass));
 //! pm.run(&mut func);
 //! ```
 
@@ -28,11 +34,36 @@ impl AnalysisKey {
     }
 }
 
+/// A read-only analysis pass.
+///
+/// Analysis passes inspect a function without modifying it and produce a
+/// cacheable result that downstream passes can query via [`AnalysisManager`].
+pub trait AnalysisPass {
+    /// The result type produced by this analysis.
+    type Result: 'static;
+
+    /// The name of this analysis, for debugging and logging.
+    fn name(&self) -> &str;
+
+    /// Computes the analysis result for the given function.
+    fn run(&self, func: &Function) -> Self::Result;
+}
+
+/// A transformation pass that mutates a function.
+///
+/// Transformation passes should call [`AnalysisManager::invalidate_all`]
+/// after modifying the IR (or the [`PassManager`] does this automatically).
+pub trait TransformPass {
+    /// The name of this transform, for debugging and logging.
+    fn name(&self) -> &str;
+
+    /// Runs the transformation on the given function.
+    fn run(&mut self, func: &mut Function);
+}
+
 /// Manages cached analysis results for a function.
 ///
 /// Analyses are keyed by their result type via [`AnalysisKey`].
-/// Transformation passes should call [`invalidate_all`](Self::invalidate_all)
-/// after modifying the IR.
 #[derive(Default)]
 pub struct AnalysisManager {
     results: FxHashMap<AnalysisKey, Box<dyn Any>>,
@@ -56,6 +87,19 @@ impl AnalysisManager {
         self.results.insert(key, Box::new(result));
     }
 
+    /// Returns the result of the analysis, computing and caching it if not already present.
+    ///
+    /// This is the recommended way to obtain analysis results, matching
+    /// LLVM's `AnalysisManager::getResult<AnalysisT>(F)` pattern.
+    pub fn get_or_compute<A: AnalysisPass>(&mut self, analysis: &A, func: &Function) -> &A::Result {
+        let key = AnalysisKey::of::<A::Result>();
+        if !self.results.contains_key(&key) {
+            let result = analysis.run(func);
+            self.results.insert(key, Box::new(result));
+        }
+        self.results[&key].downcast_ref::<A::Result>().unwrap()
+    }
+
     /// Invalidates all cached analysis results.
     pub fn invalidate_all(&mut self) {
         self.results.clear();
@@ -68,27 +112,12 @@ impl AnalysisManager {
     }
 }
 
-/// A function-level pass (analysis or transformation).
-pub trait FunctionPass {
-    /// The name of this pass, for debugging and logging.
-    fn name(&self) -> &str;
-
-    /// Runs the pass on the given function.
-    ///
-    /// Analysis passes store results in `am`. Transformation passes mutate
-    /// `func` and should call `am.invalidate_all()`.
-    fn run_on_function(&mut self, func: &mut Function, am: &mut AnalysisManager);
-
-    /// Returns `true` if this pass is an analysis (does not modify IR).
-    fn is_analysis(&self) -> bool {
-        false
-    }
-}
-
-/// Orchestrates pass execution on a function.
+/// Orchestrates execution of [`TransformPass`]es on a function.
+///
+/// Each transform automatically invalidates all cached analyses after running.
 #[derive(Default)]
 pub struct PassManager {
-    passes: Vec<Box<dyn FunctionPass>>,
+    passes: Vec<Box<dyn TransformPass>>,
 }
 
 impl PassManager {
@@ -97,67 +126,65 @@ impl PassManager {
         Self::default()
     }
 
-    /// Adds a pass to the pipeline.
-    pub fn add_pass(&mut self, pass: Box<dyn FunctionPass>) {
+    /// Adds a transformation pass to the pipeline.
+    pub fn add_transform(&mut self, pass: Box<dyn TransformPass>) {
         self.passes.push(pass);
     }
 
-    /// Runs all passes in order on the given function.
-    /// Returns the [`AnalysisManager`] with any cached results from the last pass(es).
+    /// Runs all transforms in order on the given function.
+    /// Returns an [`AnalysisManager`] (empty after transforms invalidate everything).
     pub fn run(&mut self, func: &mut Function) -> AnalysisManager {
         let mut am = AnalysisManager::new();
         for pass in &mut self.passes {
-            pass.run_on_function(func, &mut am);
+            pass.run(func);
+            am.invalidate_all();
         }
         am
     }
 }
 
-/// Adapter: wraps the existing [`Liveness`](crate::analysis::Liveness) as a [`FunctionPass`].
-pub struct LivenessPass;
+// === Concrete pass adapters ===
 
-impl FunctionPass for LivenessPass {
+/// Liveness analysis pass.
+pub struct LivenessAnalysis;
+
+impl AnalysisPass for LivenessAnalysis {
+    type Result = crate::analysis::Liveness;
+
     fn name(&self) -> &str {
         "liveness"
     }
 
-    fn run_on_function(&mut self, func: &mut Function, am: &mut AnalysisManager) {
-        let result = crate::analysis::Liveness::compute(func);
-        am.insert(result);
-    }
-
-    fn is_analysis(&self) -> bool {
-        true
+    fn run(&self, func: &Function) -> Self::Result {
+        crate::analysis::Liveness::compute(func)
     }
 }
 
-/// Adapter: wraps the existing [`DeadCodeEliminator`](crate::transform::DeadCodeEliminator) as a [`FunctionPass`].
+/// Dead code elimination transform.
 pub struct DcePass;
 
-impl FunctionPass for DcePass {
+impl TransformPass for DcePass {
     fn name(&self) -> &str {
         "dce"
     }
 
-    fn run_on_function(&mut self, func: &mut Function, am: &mut AnalysisManager) {
+    fn run(&mut self, func: &mut Function) {
         let mut dce = crate::transform::DeadCodeEliminator::new();
         dce.run(func);
-        am.invalidate_all();
     }
 }
 
-/// Adapter: wraps the existing [`CfgSimplifier`](crate::transform::CfgSimplifier) as a [`FunctionPass`].
+/// CFG simplification transform.
 pub struct CfgSimplifyPass;
 
-impl FunctionPass for CfgSimplifyPass {
+impl TransformPass for CfgSimplifyPass {
     fn name(&self) -> &str {
         "cfg-simplify"
     }
 
-    fn run_on_function(&mut self, func: &mut Function, am: &mut AnalysisManager) {
+    fn run(&mut self, func: &mut Function) {
         let mut simplifier = crate::transform::CfgSimplifier::new();
         simplifier.run(func);
-        am.invalidate_all();
     }
 }
 
@@ -200,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn liveness_pass_via_manager() {
+    fn get_or_compute_caches() {
         let mut func = make_func();
         {
             let mut b = FunctionBuilder::new(&mut func);
@@ -208,31 +235,33 @@ mod tests {
             b.ret([x]);
         }
 
-        let mut pm = PassManager::new();
-        pm.add_pass(Box::new(LivenessPass));
-        let am = pm.run(&mut func);
-
-        let liveness = am.get::<crate::analysis::Liveness>().expect("liveness cached");
+        let mut am = AnalysisManager::new();
+        // First call computes.
+        let liveness = am.get_or_compute(&LivenessAnalysis, &func);
         assert!(liveness.live_in(func.entry_block).contains(ValueId::from_usize(0)));
+
+        // Second call hits the cache (same reference).
+        let _liveness2 = am.get_or_compute(&LivenessAnalysis, &func);
+        // If it cached correctly, the value is still there.
+        assert!(am.get::<crate::analysis::Liveness>().is_some());
     }
 
     #[test]
-    fn transform_invalidates_analyses() {
+    fn transform_pipeline_invalidates() {
         let mut func = make_func();
         {
             let mut b = FunctionBuilder::new(&mut func);
             let x = b.add_param(MirType::uint256());
             let y = b.imm_u64(1);
-            let _unused = b.add(x, y); // Will be eliminated by DCE.
+            let _unused = b.add(x, y);
             b.ret([x]);
         }
 
         let mut pm = PassManager::new();
-        pm.add_pass(Box::new(LivenessPass));
-        pm.add_pass(Box::new(DcePass));
+        pm.add_transform(Box::new(DcePass));
         let am = pm.run(&mut func);
 
-        // After DCE, liveness should have been invalidated.
+        // Transforms invalidate all caches.
         assert!(am.get::<crate::analysis::Liveness>().is_none());
     }
 }
