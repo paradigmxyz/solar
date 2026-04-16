@@ -13,8 +13,7 @@ use crate::{
         stack::{ScheduledOp, StackOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
-    pass::{AnalysisManager, LivenessAnalysis},
-    transform::{DeadCodeEliminator, JumpThreader},
+    pass::{AnalysisManager, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager},
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -335,15 +334,19 @@ impl EvmCodegen {
         }
     }
 
-    /// Runs optimization passes on all functions in the module.
+    /// Runs optimization passes on all functions in the module via the PassManager.
+    ///
+    /// Order:
+    /// 1. Jump threading — eliminates unnecessary jumps (8 gas per threaded jump)
+    /// 2. DCE — removes dead code, including blocks made unreachable by threading
+    ///
+    /// Each pass internally iterates to a fixed point.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let mut dce = DeadCodeEliminator::new();
-        let mut jump_threader = JumpThreader::new();
+        let mut pm = PassManager::new();
+        pm.add_transform(Box::new(JumpThreadingPass));
+        pm.add_transform(Box::new(DcePass));
         for func in module.functions.iter_mut() {
-            // Run jump threading to eliminate unnecessary jumps (saves 8 gas per threaded jump)
-            jump_threader.run_to_fixpoint(func);
-            // Run DCE to remove dead code (including unreachable blocks after threading)
-            dce.run_to_fixpoint(func);
+            pm.run(func);
         }
     }
 

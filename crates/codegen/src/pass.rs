@@ -161,6 +161,9 @@ impl AnalysisPass for LivenessAnalysis {
 }
 
 /// Dead code elimination transform.
+///
+/// Iterates `DeadCodeEliminator` to a fixed point internally so a single
+/// `run` invocation removes all dead code reachable from the entry block.
 pub struct DcePass;
 
 impl TransformPass for DcePass {
@@ -169,12 +172,14 @@ impl TransformPass for DcePass {
     }
 
     fn run(&mut self, func: &mut Function) {
-        let mut dce = crate::transform::DeadCodeEliminator::new();
-        dce.run(func);
+        crate::transform::DeadCodeEliminator::new().run_to_fixpoint(func);
     }
 }
 
 /// CFG simplification transform.
+///
+/// Iterates `CfgSimplifier` to a fixed point so chained simplifications
+/// (e.g., merging blocks made empty by previous merges) all happen.
 pub struct CfgSimplifyPass;
 
 impl TransformPass for CfgSimplifyPass {
@@ -183,8 +188,23 @@ impl TransformPass for CfgSimplifyPass {
     }
 
     fn run(&mut self, func: &mut Function) {
-        let mut simplifier = crate::transform::CfgSimplifier::new();
-        simplifier.run(func);
+        crate::transform::CfgSimplifier::new().run_to_fixpoint(func);
+    }
+}
+
+/// Jump threading transform.
+///
+/// Eliminates redundant unconditional jumps by threading control flow
+/// through forwarder blocks. Iterates to a fixed point.
+pub struct JumpThreadingPass;
+
+impl TransformPass for JumpThreadingPass {
+    fn name(&self) -> &str {
+        "jump-threading"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::JumpThreader::new().run_to_fixpoint(func);
     }
 }
 
