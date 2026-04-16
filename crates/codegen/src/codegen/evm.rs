@@ -14,8 +14,7 @@ use crate::{
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
     pass::{
-        AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis,
-        PassManager,
+        AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
     },
 };
 use alloy_primitives::U256;

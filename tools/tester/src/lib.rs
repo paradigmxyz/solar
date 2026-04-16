@@ -12,8 +12,13 @@ mod errors;
 mod solc;
 mod utils;
 
-/// Runs all the tests with the given `solar` command path.
-pub fn run_tests(cmd: &'static Path) -> Result<()> {
+/// Runs all the tests.
+///
+/// `cmd` is the path to the `solar` binary used by `Mode::Ui`,
+/// `Mode::SolcSolidity`, and `Mode::SolcYul`. `mir_opt_cmd` is the path to
+/// the `solar-mir-opt` binary used by `Mode::Mir`. If `mir_opt_cmd` is `None`,
+/// requesting `Mode::Mir` will return an error.
+pub fn run_tests(cmd: &'static Path, mir_opt_cmd: Option<&'static Path>) -> Result<()> {
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
@@ -33,18 +38,41 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
-    let mode_tmp;
-    if let Ok(mode) = std::env::var("TESTER_MODE") {
-        mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
-        modes = std::slice::from_ref(&mode_tmp);
+    // Default modes: include Mir only if we have the binary.
+    let default_modes_with_mir: &[Mode] = &[Mode::Ui, Mode::Mir, Mode::SolcSolidity, Mode::SolcYul];
+    let default_modes_no_mir: &[Mode] = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul];
+    let mut modes: Vec<Mode> = if mir_opt_cmd.is_some() {
+        default_modes_with_mir.to_vec()
+    } else {
+        default_modes_no_mir.to_vec()
+    };
+
+    // TESTER_MODE can be a single mode or a comma-separated list.
+    // The "ui" alias also implicitly runs the "mir" mode (if available),
+    // since they share the same `tests/ui/` tree and users typically want
+    // `cargo uitest` to cover both.
+    if let Ok(mode_str) = std::env::var("TESTER_MODE") {
+        let mut requested = Vec::new();
+        for name in mode_str.split(',') {
+            let m = Mode::parse(name.trim()).ok_or_else(|| eyre!("invalid mode: {name}"))?;
+            requested.push(m);
+            if name.trim() == "ui" && mir_opt_cmd.is_some() && !requested.contains(&Mode::Mir) {
+                requested.push(Mode::Mir);
+            }
+        }
+        modes = requested;
     }
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    for &mode in modes {
+    for &mode in &modes {
+        let mode_cmd = match mode {
+            Mode::Mir => mir_opt_cmd
+                .ok_or_else(|| eyre!("Mode::Mir requested but no solar-mir-opt binary path"))?,
+            _ => cmd,
+        };
         let cfg = MyConfig::<'static> { mode, tmp_dir };
-        let config = config(cmd, &args, mode);
+        let config = config(mode_cmd, &args, mode);
 
         let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
         let gha_emitter = ui_test::status_emitter::Gha { name: mode.to_string(), group: true };
@@ -66,6 +94,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
 
     let path = match mode {
         Mode::Ui => "tests/ui/",
+        Mode::Mir => "tests/ui/codegen/mir/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -84,8 +113,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         program: ui_test::CommandBuilder {
             program: cmd.into(),
             args: {
-                let mut args =
-                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
+                // solar-mir-opt doesn't accept the same flags as solar.
+                let mut args: Vec<&str> = if matches!(mode, Mode::Mir) {
+                    Vec::new()
+                } else {
+                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
+                };
                 if mode.is_solc() {
                     args.push("--stop-after=parsing");
                 }
@@ -175,12 +208,18 @@ fn get_host() -> &'static str {
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
-    path.extension().filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+    let allowed_ext = match cfg.mode {
+        Mode::Mir => path.extension().filter(|&ext| ext == "mir")?,
+        _ => path
+            .extension()
+            .filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?,
+    };
+    let _ = allowed_ext;
     if !ui_test::default_any_file_filter(path, config) {
         return Some(false);
     }
     let skip = match cfg.mode {
-        Mode::Ui => false,
+        Mode::Ui | Mode::Mir => false,
         Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
         Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
@@ -236,9 +275,12 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Ui,
+    /// MIR-level tests: runs `solar-mir-opt` on `.mir` files under
+    /// `tests/ui/codegen/mir/`.
+    Mir,
     SolcSolidity,
     SolcYul,
 }
@@ -247,6 +289,7 @@ impl Mode {
     fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "ui" => Self::Ui,
+            "mir" => Self::Mir,
             "solc-solidity" => Self::SolcSolidity,
             "solc-yul" => Self::SolcYul,
             _ => return None,
@@ -256,6 +299,7 @@ impl Mode {
     fn to_str(self) -> &'static str {
         match self {
             Self::Ui => "ui",
+            Self::Mir => "mir",
             Self::SolcSolidity => "solc-solidity",
             Self::SolcYul => "solc-yul",
         }
@@ -266,7 +310,7 @@ impl Mode {
     }
 
     fn allows_yul(self) -> bool {
-        !matches!(self, Self::SolcSolidity)
+        !matches!(self, Self::SolcSolidity | Self::Mir)
     }
 }
 

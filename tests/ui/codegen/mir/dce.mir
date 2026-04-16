@@ -1,0 +1,10 @@
+//@ignore-host: windows
+//@compile-flags: --pass dce
+; module @Dce
+fn @with_dead_code(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, 1
+    v2 = mul arg0, arg0
+    v3 = sub arg0, 1
+    ret v1
+}

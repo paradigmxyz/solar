@@ -21,16 +21,14 @@
 //!
 //! # Caveats
 //!
-//! - This parser produces a *semantically* equivalent [`Function`]; the
-//!   actual `ValueId` numbers in the result may differ from the labels
-//!   in the source text. Round-tripping
-//!   `parse → function_to_text → parse` is supported, but the textual
-//!   form may shift on the second print (different v-numbers).
-//! - Address and fixed-bytes immediate literals are not currently
-//!   parsed — they're allocated as `Immediate::uint256(0)`. If you
-//!   need them, extend `parse_value`.
-//! - Phi values (`Value::Phi { .. }`) are NOT supported as inputs;
-//!   the parser only emits phi *instructions* (`InstKind::Phi`).
+//! - This parser produces a *semantically* equivalent [`Function`]; the actual `ValueId` numbers in
+//!   the result may differ from the labels in the source text. Round-tripping `parse →
+//!   function_to_text → parse` is supported, but the textual form may shift on the second print
+//!   (different v-numbers).
+//! - Address and fixed-bytes immediate literals are not currently parsed — they're allocated as
+//!   `Immediate::uint256(0)`. If you need them, extend `parse_value`.
+//! - Phi values (`Value::Phi { .. }`) are NOT supported as inputs; the parser only emits phi
+//!   *instructions* (`InstKind::Phi`).
 //!
 //! [`function_to_text`]: super::function_to_text
 //! [`module_to_text`]: super::module_to_text
@@ -169,7 +167,10 @@ impl<'a> Parser<'a> {
                 }
                 Some(';') => {
                     // Don't eat the module header — let parse_module handle it.
-                    if self.input[self.pos..].trim_start_matches(';').trim_start().starts_with("module")
+                    if self.input[self.pos..]
+                        .trim_start_matches(';')
+                        .trim_start()
+                        .starts_with("module")
                     {
                         break;
                     }
@@ -195,16 +196,12 @@ impl<'a> Parser<'a> {
 
     // ----- token-level helpers -----
 
-    /// Skip non-newline whitespace and inline comments.
+    /// Skip non-newline whitespace.
     /// Used between tokens *within* a logical line (instruction).
+    /// Inline comments are NOT supported on instruction lines (the printer
+    /// never produces them).
     fn skip_inline(&mut self) {
-        loop {
-            self.skip_inline_whitespace();
-            // Inline comments are handled by skip_to_eol but only after we
-            // consume them — for simplicity, we don't allow trailing comments
-            // on instruction lines (the printer never produces them).
-            break;
-        }
+        self.skip_inline_whitespace();
     }
 
     /// Consume an exact literal string. Returns an error if it doesn't match.
@@ -453,9 +450,8 @@ impl<'a> Parser<'a> {
                         }
                     }
                     if self.peek_char() == Some(':') {
-                        let idx: u32 = idx_str
-                            .parse()
-                            .map_err(|_| self.error("invalid block index"))?;
+                        let idx: u32 =
+                            idx_str.parse().map_err(|_| self.error("invalid block index"))?;
                         if first_block.is_none() {
                             first_block = Some(idx);
                         }
@@ -554,8 +550,8 @@ impl<'a> Parser<'a> {
             }
 
             // Not a block header — must be an instruction or terminator.
-            let block = current_block
-                .ok_or_else(|| self.error("instruction outside of any block"))?;
+            let block =
+                current_block.ok_or_else(|| self.error("instruction outside of any block"))?;
             self.parse_instruction_or_terminator(
                 &mut func,
                 block,
@@ -641,19 +637,18 @@ impl<'a> Parser<'a> {
         Err(self.error(format!("expected value reference, got `{ident}`")))
     }
 
-    fn parse_block_id(&mut self, block_labels: &FxHashMap<u32, BlockId>) -> Result<BlockId, ParseError> {
+    fn parse_block_id(
+        &mut self,
+        block_labels: &FxHashMap<u32, BlockId>,
+    ) -> Result<BlockId, ParseError> {
         self.skip_inline();
         let id = self.parse_ident()?;
         let rest = id
             .strip_prefix("bb")
             .ok_or_else(|| self.error(format!("expected `bbN`, got `{id}`")))?;
-        let idx: u32 = rest
-            .parse()
-            .map_err(|_| self.error(format!("invalid block index `{id}`")))?;
-        block_labels
-            .get(&idx)
-            .copied()
-            .ok_or_else(|| self.error(format!("unknown block `{id}`")))
+        let idx: u32 =
+            rest.parse().map_err(|_| self.error(format!("invalid block index `{id}`")))?;
+        block_labels.get(&idx).copied().ok_or_else(|| self.error(format!("unknown block `{id}`")))
     }
 
     /// Parses one instruction line (with optional `vN =` result) or a terminator.
@@ -669,10 +664,7 @@ impl<'a> Parser<'a> {
 
         // Optional result: `vN = ...`
         let result_label: Option<u32> = if self.input[self.pos..].starts_with('v')
-            && self.input[self.pos..]
-                .chars()
-                .nth(1)
-                .is_some_and(|c| c.is_ascii_digit())
+            && self.input[self.pos..].chars().nth(1).is_some_and(|c| c.is_ascii_digit())
         {
             // Try to parse as `vN =`. If no `=` follows, it's a terminator using vN.
             let save_pos = self.pos;
