@@ -152,6 +152,8 @@ str_enum! {
         BinRuntime,
         /// Function signature hashes.
         Hashes,
+        /// Textual MIR (mid-level IR) for inspection and FileCheck-style tests.
+        Mir,
     }
 }
 

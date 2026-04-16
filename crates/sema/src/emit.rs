@@ -26,6 +26,19 @@ type Abi = Vec<alloy_json_abi::AbiItem<'static>>;
 type Hashes = BTreeMap<String, String>;
 
 pub(crate) fn emit(gcx: Gcx<'_>) {
+    // Skip JSON emission entirely if none of the requested outputs are
+    // sema-level outputs (Abi, Hashes). Other outputs (Bin/BinRuntime/Mir)
+    // are produced by the cli/codegen layer.
+    let needs_sema_emit = gcx
+        .sess
+        .opts
+        .emit
+        .iter()
+        .any(|e| matches!(e, CompilerOutput::Abi | CompilerOutput::Hashes));
+    if !needs_sema_emit {
+        return;
+    }
+
     let mut output = CombinedJson {
         contracts: Default::default(),
         version: solar_interface::config::version::SEMVER_VERSION,
@@ -46,7 +59,10 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
                     }
                     contract_output.hashes = Some(hashes);
                 }
-                emit => todo!("{emit:?}"),
+                // Bytecode and MIR are handled by the cli/codegen layer
+                // (after analysis), not by sema's emit step.
+                CompilerOutput::Bin | CompilerOutput::BinRuntime | CompilerOutput::Mir => {}
+                _ => {}
             }
         }
     }
