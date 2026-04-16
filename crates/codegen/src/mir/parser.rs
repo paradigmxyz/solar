@@ -91,11 +91,24 @@ pub struct ParseError {
     pub col: usize,
     /// Human-readable message.
     pub msg: String,
+    /// The offending source line (without trailing newline), captured at
+    /// the time the error was constructed. Used by [`Display`] to render
+    /// a rustc/clang-style snippet with a caret.
+    pub line_text: String,
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MIR parse error at line {}, col {}: {}", self.line, self.col, self.msg)
+        writeln!(f, "MIR parse error at line {}, col {}: {}", self.line, self.col, self.msg)?;
+        if !self.line_text.is_empty() {
+            writeln!(f, "   |")?;
+            writeln!(f, "{:>3} | {}", self.line, self.line_text)?;
+            // Caret aligned under col-1 spaces. This isn't tab-aware, but
+            // the printer never produces tabs in MIR text so it's fine.
+            let caret_pad = " ".repeat(self.col.saturating_sub(1));
+            write!(f, "   | {caret_pad}^")?;
+        }
+        Ok(())
     }
 }
 
@@ -191,7 +204,57 @@ impl<'a> Parser<'a> {
     }
 
     fn error(&self, msg: impl Into<String>) -> ParseError {
-        ParseError { line: self.line, col: self.col, msg: msg.into() }
+        ParseError {
+            line: self.line,
+            col: self.col,
+            msg: msg.into(),
+            line_text: self.current_line_text(),
+        }
+    }
+
+    /// Like [`Self::error`] but uses the supplied (line, col, pos) instead of
+    /// `self.line/col/pos`. Useful when the parser has already advanced past
+    /// the offending token (e.g. an unknown mnemonic) and we want the caret
+    /// to point back to its start.
+    fn error_at(
+        &self,
+        line: usize,
+        col: usize,
+        pos: usize,
+        msg: impl Into<String>,
+    ) -> ParseError {
+        // Capture the line text at `pos`, not at `self.pos`.
+        let bytes = self.input.as_bytes();
+        let p = pos.min(bytes.len());
+        let mut start = p;
+        while start > 0 && bytes[start - 1] != b'\n' {
+            start -= 1;
+        }
+        let mut end = start;
+        while end < bytes.len() && bytes[end] != b'\n' {
+            end += 1;
+        }
+        let line_text = self.input[start..end].trim_end_matches('\r').to_string();
+        ParseError { line, col, msg: msg.into(), line_text }
+    }
+
+    /// Returns the contents of the current source line (without the trailing
+    /// newline). Used by [`Self::error`] to populate
+    /// [`ParseError::line_text`] for snippet rendering.
+    fn current_line_text(&self) -> String {
+        let bytes = self.input.as_bytes();
+        let pos = self.pos.min(bytes.len());
+        // Walk backward to start-of-line.
+        let mut start = pos;
+        while start > 0 && bytes[start - 1] != b'\n' {
+            start -= 1;
+        }
+        // Walk forward to end-of-line.
+        let mut end = start;
+        while end < bytes.len() && bytes[end] != b'\n' {
+            end += 1;
+        }
+        self.input[start..end].trim_end_matches('\r').to_string()
     }
 
     // ----- token-level helpers -----
@@ -695,6 +758,12 @@ impl<'a> Parser<'a> {
         };
 
         self.skip_inline_whitespace();
+        // Save the position of the mnemonic so we can produce a snippet
+        // pointing at it (instead of just past it) if it turns out to be
+        // unknown.
+        let mnemonic_line = self.line;
+        let mnemonic_col = self.col;
+        let mnemonic_pos = self.pos;
         let mnemonic = self.parse_ident()?.to_string();
 
         // Terminators (no result).
@@ -789,8 +858,17 @@ impl<'a> Parser<'a> {
         }
 
         // Otherwise — instruction.
-        let (kind, result_ty) =
-            self.parse_inst_kind(&mnemonic, func, arg_values, block_labels, value_labels)?;
+        let (kind, result_ty) = self
+            .parse_inst_kind(&mnemonic, func, arg_values, block_labels, value_labels)
+            .map_err(|e| {
+                // For "unknown instruction" errors, repoint the caret at the
+                // start of the mnemonic instead of after it.
+                if e.msg.starts_with("unknown instruction") {
+                    self.error_at(mnemonic_line, mnemonic_col, mnemonic_pos, e.msg)
+                } else {
+                    e
+                }
+            })?;
 
         let inst_id = func.alloc_inst(Instruction::new(kind, result_ty));
         func.blocks[block].instructions.push(inst_id);
@@ -1495,6 +1573,47 @@ fn @bad() {
 ";
             let err = parse_function(src).unwrap_err();
             assert!(err.msg.contains("bogus") || err.msg.contains("unknown"));
+        });
+    }
+
+    #[test]
+    fn error_includes_source_snippet() {
+        with_session(|| {
+            let src = "\
+fn @bad() {
+  bb0 (entry):
+    v1 = bogus arg0
+    stop
+}
+";
+            let err = parse_function(src).unwrap_err();
+            // line_text should contain the offending line.
+            assert!(err.line_text.contains("bogus arg0"), "got line_text: {:?}", err.line_text);
+            // Display should include both the line and a caret marker.
+            let formatted = err.to_string();
+            assert!(formatted.contains("bogus"), "missing line in:\n{formatted}");
+            assert!(formatted.contains("|"), "missing snippet bar in:\n{formatted}");
+            assert!(formatted.contains("^"), "missing caret in:\n{formatted}");
+            // The line number should appear in the snippet header.
+            assert!(formatted.contains(&format!("{} | ", err.line)), "missing line number");
+        });
+    }
+
+    #[test]
+    fn error_snippet_format_is_clang_like() {
+        // Verify the precise format users will see, end-to-end.
+        with_session(|| {
+            let src = "fn @x() -> notatype {\n  bb0 (entry):\n    stop\n}\n";
+            let err = parse_function(src).unwrap_err();
+            let formatted = err.to_string();
+            // Roughly:
+            //   MIR parse error at line 1, col N: ...
+            //      |
+            //    1 | fn @x() -> notatype {
+            //      |            ^
+            assert!(formatted.starts_with("MIR parse error at line "));
+            assert!(formatted.contains("\n   |\n"));
+            assert!(formatted.contains("notatype"));
         });
     }
 
