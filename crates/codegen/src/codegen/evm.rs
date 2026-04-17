@@ -561,7 +561,7 @@ impl EvmCodegen {
                     .map(|(vid, _)| vid);
 
                 // Generate the instruction
-                self.generate_inst(func, &inst.kind, &liveness, block_id, inst_idx, result_value);
+                self.generate_inst(func, &inst.kind, liveness, block_id, inst_idx, result_value);
             }
 
             // Insert phi copies before terminator
@@ -574,7 +574,7 @@ impl EvmCodegen {
 
             // Spill all live-out values before the terminator so they can be reloaded
             // in successor blocks
-            self.spill_live_out_values(func, &liveness, block_id);
+            self.spill_live_out_values(func, liveness, block_id);
 
             // Generate terminator
             if let Some(term) = &block.terminator {
@@ -1504,9 +1504,8 @@ impl EvmCodegen {
                             // should have ensured all CALL operands are
                             // either immediates, spilled, or re-executable instructions.
                             panic!(
-                                "emit_value_fresh: unhandled instruction kind {:?} for value {:?}. \
-                                 CALL operands should be immediates, spilled values, GAS, or MLOAD.",
-                                other, val
+                                "emit_value_fresh: unhandled instruction kind {other:?} for value {val:?}. \
+                                 CALL operands should be immediates, spilled values, GAS, or MLOAD."
                             );
                         }
                     }
@@ -1515,9 +1514,8 @@ impl EvmCodegen {
             crate::mir::Value::Phi { .. } | crate::mir::Value::Undef(_) => {
                 // Phi nodes and undef values shouldn't appear in CALL operands
                 panic!(
-                    "emit_value_fresh: unexpected phi/undef value {:?}. \
-                     CALL operands should be concrete values.",
-                    val
+                    "emit_value_fresh: unexpected phi/undef value {val:?}. \
+                     CALL operands should be concrete values."
                 );
             }
         }

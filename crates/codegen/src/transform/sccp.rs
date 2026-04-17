@@ -14,9 +14,7 @@
 //! After reaching a fixed point, the rewrite phase replaces constant values
 //! with immediates and rewrites branches with known-constant conditions.
 
-use crate::mir::{
-    BasicBlock, BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId,
-};
+use crate::mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId};
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
@@ -81,19 +79,17 @@ impl SccpPass {
         self.stats = SccpStats::default();
 
         let num_values = func.values.len();
-        let num_blocks = func.blocks.len();
+        let _num_blocks = func.blocks.len();
 
         // Precompute InstId → ValueId map.
         let inst_to_value: FxHashMap<InstId, ValueId> = func
             .values
             .iter_enumerated()
-            .filter_map(|(vid, val)| {
-                if let Value::Inst(iid) = val {
-                    Some((*iid, vid))
-                } else {
-                    None
-                }
-            })
+            .filter_map(
+                |(vid, val)| {
+                    if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
+                },
+            )
             .collect();
 
         // Initialize lattice: all values start as Top.
@@ -208,8 +204,8 @@ impl SccpPass {
         block_id: BlockId,
         inst_to_value: &FxHashMap<InstId, ValueId>,
         lattice: &mut [LatticeValue],
-        executable_blocks: &FxHashSet<BlockId>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
+        _executable_blocks: &FxHashSet<BlockId>,
+        _executable_edges: &FxHashSet<(BlockId, BlockId)>,
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
@@ -217,7 +213,8 @@ impl SccpPass {
 
         for &inst_id in &block.instructions {
             if let Some(&vid) = inst_to_value.get(&inst_id) {
-                let new_val = self.evaluate_instruction(func, &func.instructions[inst_id].kind, lattice);
+                let new_val =
+                    self.evaluate_instruction(func, &func.instructions[inst_id].kind, lattice);
                 if self.update_lattice(lattice, vid, new_val) {
                     ssa_worklist.push_back(vid);
                 }
@@ -243,8 +240,9 @@ impl SccpPass {
         for (vid, val) in func.values.iter_enumerated() {
             if let Value::Phi { incoming, .. } = val {
                 // Is this phi for this block? Check if any incoming pred targets this block.
-                let is_for_block =
-                    incoming.iter().any(|(pred, _)| func.blocks[*pred].successors.contains(&block_id));
+                let is_for_block = incoming
+                    .iter()
+                    .any(|(pred, _)| func.blocks[*pred].successors.contains(&block_id));
                 if !is_for_block {
                     continue;
                 }
@@ -292,7 +290,7 @@ impl SccpPass {
     /// Evaluates a single instruction and returns its lattice value.
     fn evaluate_instruction(
         &self,
-        func: &Function,
+        _func: &Function,
         kind: &InstKind,
         lattice: &[LatticeValue],
     ) -> LatticeValue {
@@ -306,7 +304,7 @@ impl SccpPass {
 
         // If any operand is Bottom, the result is Bottom (overdefined).
         // If any operand is Top, the result is Top (not yet known).
-        let check_operands = |operands: &[ValueId]| -> Option<()> {
+        let _check_operands = |operands: &[ValueId]| -> Option<()> {
             for &op in operands {
                 match &lattice[op.index()] {
                     LatticeValue::Bottom => return None, // Will be Bottom
@@ -455,12 +453,12 @@ impl SccpPass {
                         // Find the matching case.
                         let mut found = false;
                         for &(case_val, target) in cases {
-                            if let LatticeValue::Constant(cv) = &lattice[case_val.index()] {
-                                if cv == v {
-                                    cfg_worklist.push_back((block_id, target));
-                                    found = true;
-                                    break;
-                                }
+                            if let LatticeValue::Constant(cv) = &lattice[case_val.index()]
+                                && cv == v
+                            {
+                                cfg_worklist.push_back((block_id, target));
+                                found = true;
+                                break;
                             }
                         }
                         if !found {
@@ -513,7 +511,7 @@ impl SccpPass {
         inst_to_value: &FxHashMap<InstId, ValueId>,
         lattice: &mut [LatticeValue],
         executable_blocks: &FxHashSet<BlockId>,
-        executable_edges: &FxHashSet<(BlockId, BlockId)>,
+        _executable_edges: &FxHashSet<(BlockId, BlockId)>,
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
@@ -526,13 +524,12 @@ impl SccpPass {
                 let inst = &func.instructions[inst_id];
                 let mut operands = Vec::new();
                 inst.kind.collect_operands(&mut operands);
-                if operands.contains(&vid) {
-                    if let Some(&result_vid) = inst_to_value.get(&inst_id) {
-                        let new_val =
-                            self.evaluate_instruction(func, &inst.kind, lattice);
-                        if self.update_lattice(lattice, result_vid, new_val) {
-                            ssa_worklist.push_back(result_vid);
-                        }
+                if operands.contains(&vid)
+                    && let Some(&result_vid) = inst_to_value.get(&inst_id)
+                {
+                    let new_val = self.evaluate_instruction(func, &inst.kind, lattice);
+                    if self.update_lattice(lattice, result_vid, new_val) {
+                        ssa_worklist.push_back(result_vid);
                     }
                 }
             }
@@ -583,11 +580,10 @@ impl SccpPass {
             }
             if let Some(Terminator::Branch { condition, then_block, else_block }) =
                 &func.blocks[block_id].terminator
+                && let LatticeValue::Constant(v) = &lattice[condition.index()]
             {
-                if let LatticeValue::Constant(v) = &lattice[condition.index()] {
-                    let target = if !v.is_zero() { *then_block } else { *else_block };
-                    branch_rewrites.push((block_id, target));
-                }
+                let target = if !v.is_zero() { *then_block } else { *else_block };
+                branch_rewrites.push((block_id, target));
             }
         }
 
@@ -880,10 +876,7 @@ mod tests {
         pass.run(&mut func);
         assert_eq!(pass.stats.branches_folded, 1);
         // Entry should now jump directly to then_bb.
-        assert!(matches!(
-            func.blocks[func.entry_block].terminator,
-            Some(Terminator::Jump(_))
-        ));
+        assert!(matches!(func.blocks[func.entry_block].terminator, Some(Terminator::Jump(_))));
     }
 
     #[test]

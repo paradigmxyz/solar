@@ -228,8 +228,8 @@ impl Liveness {
         // Phi nodes are not instructions — they live in the value table.
         // We need two pieces of information for the phi-aware dataflow:
         //   - phi_defs[B] = set of ValueIds defined by phis at the entry of B
-        //   - phi_uses: for each (succ_block, pred_block) pair, the set of
-        //     ValueIds that flow from pred to succ via a phi
+        //   - phi_uses: for each (succ_block, pred_block) pair, the set of ValueIds that flow from
+        //     pred to succ via a phi
         //
         // The phi-aware live_out equation is:
         //   live_out(B) = union over S in succ(B) of:

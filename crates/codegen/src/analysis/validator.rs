@@ -7,23 +7,20 @@
 //!
 //! # Checks performed
 //!
-//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has
-//!    an entry in `func.values`.
-//! 2. **Block reference validity**: every `BlockId` mentioned in a
-//!    terminator or phi has an entry in `func.blocks`.
-//! 3. **Single definition**: each `InstId` is referenced by at most one
-//!    `Value::Inst` entry.
+//! 1. **Defined-before-use**: every `ValueId` referenced as an operand has an entry in
+//!    `func.values`.
+//! 2. **Block reference validity**: every `BlockId` mentioned in a terminator or phi has an entry
+//!    in `func.blocks`.
+//! 3. **Single definition**: each `InstId` is referenced by at most one `Value::Inst` entry.
 //! 4. **Terminator presence**: every block has a terminator.
-//! 5. **Successor consistency**: each block's `block.successors` matches
-//!    the actual successors of its terminator.
-//! 6. **Predecessor back-link**: if A's terminator targets B, then B's
-//!    `predecessors` contains A.
+//! 5. **Successor consistency**: each block's `block.successors` matches the actual successors of
+//!    its terminator.
+//! 6. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
 //! 7. **Entry block has no predecessors**.
-//! 8. **Phi block coverage**: every `InstKind::Phi`'s incoming blocks are
-//!    predecessors of the containing block, and every predecessor has an
-//!    incoming entry.
-//! 9. **Instruction-block consistency**: each instruction's `block` field
-//!    matches the block whose `instructions` vector contains it.
+//! 8. **Phi block coverage**: every `InstKind::Phi`'s incoming blocks are predecessors of the
+//!    containing block, and every predecessor has an incoming entry.
+//! 9. **Instruction-block consistency**: each instruction's `block` field matches the block whose
+//!    `instructions` vector contains it.
 //!
 //! # Usage
 //!
@@ -77,7 +74,9 @@ impl ValidationError {
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (self.block, self.inst) {
-            (Some(b), Some(i)) => write!(f, "[bb{}, inst{}] {}", b.index(), i.index(), self.message),
+            (Some(b), Some(i)) => {
+                write!(f, "[bb{}, inst{}] {}", b.index(), i.index(), self.message)
+            }
             (Some(b), None) => write!(f, "[bb{}] {}", b.index(), self.message),
             (None, _) => write!(f, "{}", self.message),
         }
@@ -128,10 +127,7 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
             errors.push(ValidationError::at_block(
                 format!(
                     "successors mismatch: terminator says {:?}, stored {:?}",
-                    term_succs_vec
-                        .iter()
-                        .map(|b| format!("bb{}", b.index()))
-                        .collect::<Vec<_>>(),
+                    term_succs_vec.iter().map(|b| format!("bb{}", b.index())).collect::<Vec<_>>(),
                     stored_succs.iter().map(|b| format!("bb{}", b.index())).collect::<Vec<_>>()
                 ),
                 block_id,
@@ -438,9 +434,7 @@ mod tests {
             func.blocks[target].predecessors.clear();
             let errors = validate_function(&func);
             assert!(
-                errors
-                    .iter()
-                    .any(|e| e.message.contains("does not list bb0 as a predecessor")),
+                errors.iter().any(|e| e.message.contains("does not list bb0 as a predecessor")),
                 "expected predecessor back-link error, got: {errors:#?}"
             );
         });
@@ -460,9 +454,7 @@ mod tests {
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
             let errors = validate_function(&func);
             assert!(
-                errors
-                    .iter()
-                    .any(|e| e.message.contains("entry block must have no predecessors")),
+                errors.iter().any(|e| e.message.contains("entry block must have no predecessors")),
                 "expected entry-block error, got: {errors:#?}"
             );
         });
@@ -503,8 +495,7 @@ mod tests {
         assert_eq!(format!("{e1}"), "oops");
         let e2 = ValidationError::at_block("oops", BlockId::from_usize(3));
         assert_eq!(format!("{e2}"), "[bb3] oops");
-        let e3 =
-            ValidationError::at_inst("oops", BlockId::from_usize(3), InstId::from_usize(5));
+        let e3 = ValidationError::at_inst("oops", BlockId::from_usize(3), InstId::from_usize(5));
         assert_eq!(format!("{e3}"), "[bb3, inst5] oops");
     }
 

@@ -67,9 +67,11 @@ impl DeadCodeEliminator {
         let inst_to_value: FxHashMap<InstId, ValueId> = func
             .values
             .iter_enumerated()
-            .filter_map(|(vid, val)| {
-                if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
-            })
+            .filter_map(
+                |(vid, val)| {
+                    if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
+                },
+            )
             .collect();
 
         // Phase 4: Find all used values
@@ -285,10 +287,10 @@ impl DeadCodeEliminator {
                 }
 
                 // O(1) lookup via precomputed map (was O(V) linear scan).
-                if let Some(&result) = inst_to_value.get(&inst_id) {
-                    if !used_values.contains(&result) {
-                        dead.push((block_id, inst_id));
-                    }
+                if let Some(&result) = inst_to_value.get(&inst_id)
+                    && !used_values.contains(&result)
+                {
+                    dead.push((block_id, inst_id));
                 }
             }
         }

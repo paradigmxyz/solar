@@ -216,13 +216,7 @@ impl<'a> Parser<'a> {
     /// `self.line/col/pos`. Useful when the parser has already advanced past
     /// the offending token (e.g. an unknown mnemonic) and we want the caret
     /// to point back to its start.
-    fn error_at(
-        &self,
-        line: usize,
-        col: usize,
-        pos: usize,
-        msg: impl Into<String>,
-    ) -> ParseError {
+    fn error_at(&self, line: usize, col: usize, pos: usize, msg: impl Into<String>) -> ParseError {
         // Capture the line text at `pos`, not at `self.pos`.
         let bytes = self.input.as_bytes();
         let p = pos.min(bytes.len());

@@ -93,10 +93,10 @@ impl AnalysisManager {
     /// LLVM's `AnalysisManager::getResult<AnalysisT>(F)` pattern.
     pub fn get_or_compute<A: AnalysisPass>(&mut self, analysis: &A, func: &Function) -> &A::Result {
         let key = AnalysisKey::of::<A::Result>();
-        if !self.results.contains_key(&key) {
+        self.results.entry(key).or_insert_with(|| {
             let result = analysis.run(func);
-            self.results.insert(key, Box::new(result));
-        }
+            Box::new(result)
+        });
         self.results[&key].downcast_ref::<A::Result>().unwrap()
     }
 
