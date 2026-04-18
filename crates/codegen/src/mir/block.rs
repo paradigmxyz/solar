@@ -133,6 +133,31 @@ impl Terminator {
             Self::Invalid => "invalid",
         }
     }
+
+    /// Returns the [`ValueId`] operands of this terminator (the values it reads).
+    /// Block targets are NOT included; use [`Self::successors`] for those.
+    #[must_use]
+    pub fn operands(&self) -> SmallVec<[ValueId; 4]> {
+        let mut out = SmallVec::new();
+        match self {
+            Self::Jump(_) => {}
+            Self::Branch { condition, .. } => out.push(*condition),
+            Self::Switch { value, cases, .. } => {
+                out.push(*value);
+                for (case_val, _) in cases {
+                    out.push(*case_val);
+                }
+            }
+            Self::Return { values } => out.extend(values.iter().copied()),
+            Self::Revert { offset, size } => {
+                out.push(*offset);
+                out.push(*size);
+            }
+            Self::Stop | Self::Invalid => {}
+            Self::SelfDestruct { recipient } => out.push(*recipient),
+        }
+        out
+    }
 }
 
 impl fmt::Display for Terminator {

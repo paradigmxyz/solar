@@ -1,0 +1,55 @@
+// === ROOT/tests/ui/codegen/recursive.sol:Recursive ===
+; module @Recursive
+fn @fact(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = gt arg0, 1
+    v3 = iszero v2
+    br v3, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v6 = sub arg0, 1
+    v8 = gt v6, 1
+    v9 = iszero v8
+    br v9, bb3, bb4
+  bb3:
+    ret 1
+  bb4:
+    v13 = sub v6, 1
+    v15 = mul v6, 0
+    v16 = mul arg0, v15
+    ret v16
+}
+
+fn @fib(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = gt arg0, 1
+    v3 = iszero v2
+    br v3, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v5 = sub arg0, 1
+    v7 = gt v5, 1
+    v8 = iszero v7
+    br v8, bb3, bb4
+  bb3:
+    ret v5
+  bb4:
+    v11 = sub v5, 1
+    v14 = sub v5, 2
+    v16 = add 0, 0
+    v18 = sub arg0, 2
+    v20 = gt v18, 1
+    v21 = iszero v20
+    br v21, bb5, bb6
+  bb5:
+    ret v18
+  bb6:
+    v24 = sub v18, 1
+    v27 = sub v18, 2
+    v29 = add 0, 0
+    v30 = add v16, v29
+    ret v30
+}
+

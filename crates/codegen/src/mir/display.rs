@@ -48,7 +48,7 @@ pub fn function_to_dot(func: &Function) -> String {
 
         // Add terminator
         if let Some(term) = &block.terminator {
-            write!(label, "  {}", format_terminator(term)).unwrap();
+            write!(label, "  {}", format_terminator(term, func)).unwrap();
             label.push_str("\\l");
         }
 
@@ -131,6 +131,93 @@ pub fn module_to_dot(module: &Module) -> String {
     }
 
     result
+}
+
+/// Generates a human-readable textual MIR representation of a function.
+///
+/// The format is designed for diffing and FileCheck-style pattern matching:
+/// ```text
+/// fn @name(arg0: uint256, arg1: bool) -> uint256 {
+///   bb0:
+///     v2 = add arg0, 1
+///     br arg1, bb1, bb2
+///   bb1:
+///     ret v2
+///   bb2:
+///     ret arg0
+/// }
+/// ```
+pub fn function_to_text(func: &Function) -> String {
+    let mut out = String::new();
+
+    // Header: fn @name(params) -> returns
+    write!(out, "fn @{}(", func.name).unwrap();
+    for (i, ty) in func.params.iter().enumerate() {
+        if i > 0 {
+            write!(out, ", ").unwrap();
+        }
+        write!(out, "arg{i}: {ty}").unwrap();
+    }
+    write!(out, ")").unwrap();
+    if !func.returns.is_empty() {
+        write!(out, " -> ").unwrap();
+        if func.returns.len() == 1 {
+            write!(out, "{}", func.returns[0]).unwrap();
+        } else {
+            write!(out, "(").unwrap();
+            for (i, ty) in func.returns.iter().enumerate() {
+                if i > 0 {
+                    write!(out, ", ").unwrap();
+                }
+                write!(out, "{ty}").unwrap();
+            }
+            write!(out, ")").unwrap();
+        }
+    }
+    writeln!(out, " {{").unwrap();
+
+    // Blocks
+    for (block_id, block) in func.blocks.iter_enumerated() {
+        let entry_marker = if block_id == func.entry_block { " (entry)" } else { "" };
+        writeln!(out, "  bb{}{}:", block_id.index(), entry_marker).unwrap();
+
+        // Instructions
+        for &inst_id in &block.instructions {
+            let inst = &func.instructions[inst_id];
+            let def_value = func
+                .values
+                .iter_enumerated()
+                .find(|(_, v)| matches!(v, Value::Inst(id) if *id == inst_id))
+                .map(|(vid, _)| vid);
+
+            write!(out, "    ").unwrap();
+            if let Some(vid) = def_value {
+                write!(out, "v{} = ", vid.index()).unwrap();
+            }
+            writeln!(out, "{}", format_inst_kind(&inst.kind, func)).unwrap();
+        }
+
+        // Terminator
+        if let Some(term) = &block.terminator {
+            writeln!(out, "    {}", format_terminator(term, func)).unwrap();
+        }
+    }
+
+    writeln!(out, "}}").unwrap();
+    out
+}
+
+/// Generates textual MIR for an entire module.
+pub fn module_to_text(module: &Module) -> String {
+    let mut out = String::new();
+    writeln!(out, "; module @{}", module.name).unwrap();
+    for (func_id, func) in module.functions.iter_enumerated() {
+        if func_id.index() > 0 {
+            out.push('\n');
+        }
+        out.push_str(&function_to_text(func));
+    }
+    out
 }
 
 /// Formats an instruction kind for display.
@@ -394,21 +481,26 @@ fn fmt_val(vid: ValueId, func: &Function) -> String {
     }
 }
 
-/// Format a terminator for display.
-fn format_terminator(term: &Terminator) -> String {
+/// Format a terminator for display, rendering operands via [`fmt_val`].
+fn format_terminator(term: &Terminator, func: &Function) -> String {
     match term {
         Terminator::Jump(target) => format!("jump bb{}", target.index()),
         Terminator::Branch { condition, then_block, else_block } => {
-            format!("br v{}, bb{}, bb{}", condition.index(), then_block.index(), else_block.index())
+            format!(
+                "br {}, bb{}, bb{}",
+                fmt_val(*condition, func),
+                then_block.index(),
+                else_block.index()
+            )
         }
         Terminator::Switch { value, default, cases } => {
             let cases_str: Vec<_> = cases
                 .iter()
-                .map(|(val, block)| format!("v{} => bb{}", val.index(), block.index()))
+                .map(|(val, block)| format!("{} => bb{}", fmt_val(*val, func), block.index()))
                 .collect();
             format!(
-                "switch v{}, default bb{}, [{}]",
-                value.index(),
+                "switch {}, default bb{}, [{}]",
+                fmt_val(*value, func),
                 default.index(),
                 cases_str.join(", ")
             )
@@ -417,15 +509,98 @@ fn format_terminator(term: &Terminator) -> String {
             if values.is_empty() {
                 "ret".to_string()
             } else {
-                let vals: Vec<_> = values.iter().map(|v| format!("v{}", v.index())).collect();
+                let vals: Vec<_> = values.iter().map(|v| fmt_val(*v, func)).collect();
                 format!("ret {}", vals.join(", "))
             }
         }
         Terminator::Revert { offset, size } => {
-            format!("revert v{}, v{}", offset.index(), size.index())
+            format!("revert {}, {}", fmt_val(*offset, func), fmt_val(*size, func))
         }
         Terminator::Stop => "stop".to_string(),
-        Terminator::SelfDestruct { recipient } => format!("selfdestruct v{}", recipient.index()),
+        Terminator::SelfDestruct { recipient } => {
+            format!("selfdestruct {}", fmt_val(*recipient, func))
+        }
         Terminator::Invalid => "invalid".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{Function, FunctionBuilder, MirType};
+    use solar_interface::{ColorChoice, Ident, Session};
+
+    fn make_func() -> Function {
+        Function::new(Ident::DUMMY)
+    }
+
+    /// Runs `f` inside a fresh test session so the symbol interner is available.
+    fn with_session<F: FnOnce() + Send>(f: F) {
+        let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
+        sess.enter(f);
+    }
+
+    #[test]
+    fn text_linear_function() {
+        with_session(|| {
+            let mut func = make_func();
+            {
+                let mut b = FunctionBuilder::new(&mut func);
+                let x = b.add_param(MirType::uint256());
+                b.add_return(MirType::uint256());
+                let one = b.imm_u64(1);
+                let sum = b.add(x, one);
+                b.ret([sum]);
+            }
+            let text = function_to_text(&func);
+            assert!(text.contains("fn @"));
+            assert!(text.contains("arg0: u256"));
+            assert!(text.contains("-> u256"));
+            assert!(text.contains("bb0 (entry)"));
+            assert!(text.contains("add arg0, 1"));
+            assert!(text.contains("ret v2"));
+        });
+    }
+
+    #[test]
+    fn text_diamond_cfg() {
+        with_session(|| {
+            let mut func = make_func();
+            {
+                let mut b = FunctionBuilder::new(&mut func);
+                let x = b.add_param(MirType::uint256());
+                let cond = b.add_param(MirType::Bool);
+                let then_bb = b.create_block();
+                let else_bb = b.create_block();
+                b.branch(cond, then_bb, else_bb);
+                b.switch_to_block(then_bb);
+                b.ret([x]);
+                b.switch_to_block(else_bb);
+                b.ret([x]);
+            }
+            let text = function_to_text(&func);
+            assert!(text.contains("br arg1, bb1, bb2"));
+            assert!(text.contains("bb1:"));
+            assert!(text.contains("bb2:"));
+            assert!(text.contains("ret arg0"));
+        });
+    }
+
+    #[test]
+    fn text_storage_ops() {
+        with_session(|| {
+            let mut func = make_func();
+            {
+                let mut b = FunctionBuilder::new(&mut func);
+                let slot = b.add_param(MirType::uint256());
+                let val = b.add_param(MirType::uint256());
+                b.sstore(slot, val);
+                let loaded = b.sload(slot);
+                b.ret([loaded]);
+            }
+            let text = function_to_text(&func);
+            assert!(text.contains("sstore arg0, arg1"));
+            assert!(text.contains("sload arg0"));
+        });
     }
 }

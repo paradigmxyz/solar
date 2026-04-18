@@ -104,6 +104,11 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
 
+    // Handle MIR emit if requested (does not require bytecode generation).
+    if sess.opts.emit.contains(&CompilerOutput::Mir) {
+        emit_mir(compiler);
+    }
+
     // Handle bytecode emit if requested
     let needs_bytecode = sess
         .opts
@@ -116,6 +121,24 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     }
 
     Ok(())
+}
+
+/// Emit textual MIR for all contracts using solar-codegen.
+fn emit_mir(compiler: &mut CompilerRef<'_>) {
+    use solar_codegen::{lower, mir::module_to_text};
+
+    let gcx = compiler.gcx();
+
+    for id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(id);
+        if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+            continue;
+        }
+        let module = lower::lower_contract(gcx, id);
+        let name = gcx.contract_fully_qualified_name(id);
+        println!("// === {name} ===");
+        println!("{}", module_to_text(&module));
+    }
 }
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.

@@ -1,0 +1,14 @@
+//@ignore-host: windows
+//@compile-flags: --pass none
+; module @PhiTest
+fn @diamond(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 10], [bb2: 20]
+    ret v1
+}

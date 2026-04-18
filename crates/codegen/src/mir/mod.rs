@@ -26,7 +26,10 @@ mod builder;
 pub use builder::FunctionBuilder;
 
 mod display;
-pub use display::{function_to_dot, module_to_dot};
+pub use display::{function_to_dot, function_to_text, module_to_dot, module_to_text};
+
+mod parser;
+pub use parser::{ParseError, parse_function, parse_module};
 
 newtype_index! {
     /// A unique identifier for a value in the MIR.

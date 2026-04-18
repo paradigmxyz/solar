@@ -31,6 +31,7 @@ pub use codegen::{
     StackModel, StackScheduler,
 };
 
+pub mod pass;
 pub mod transform;
 pub use transform::{
     CommonSubexprEliminator, ConstantFolder, DceStats, DeadCodeEliminator, FunctionInlineInfo,

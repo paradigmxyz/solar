@@ -1,0 +1,14 @@
+//@ignore-host: windows
+//@compile-flags: --pass cfg-simplify
+; module @CfgSimplify
+fn @sequential(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, 1
+    jump bb1
+  bb1:
+    v2 = add v1, 1
+    jump bb2
+  bb2:
+    v3 = add v2, 1
+    ret v3
+}

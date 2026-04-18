@@ -7,6 +7,7 @@ pub mod dce;
 pub mod inline;
 pub mod jump_threading;
 pub mod loop_opt;
+pub mod sccp;
 
 pub use cfg_simplify::{
     CallGraphAnalyzer, CfgSimplifier, CfgSimplifyStats, DeadFunctionEliminator, simplify_cfg,
@@ -20,3 +21,4 @@ pub use inline::{
 };
 pub use jump_threading::{JumpThreader, JumpThreadingStats};
 pub use loop_opt::{LoopOptConfig, LoopOptStats, LoopOptimizer};
+pub use sccp::{SccpPass, SccpStats};

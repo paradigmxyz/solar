@@ -1,0 +1,14 @@
+//@ignore-host: windows
+//@compile-flags: --pass none
+; module @Identity
+fn @add(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, arg1
+    ret v2
+}
+
+fn @double(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, arg0
+    ret v1
+}

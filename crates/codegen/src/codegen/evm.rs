@@ -13,7 +13,9 @@ use crate::{
         stack::{ScheduledOp, StackOp, StackScheduler},
     },
     mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
-    transform::{DeadCodeEliminator, JumpThreader},
+    pass::{
+        AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
+    },
 };
 use alloy_primitives::U256;
 use rustc_hash::FxHashMap;
@@ -334,15 +336,23 @@ impl EvmCodegen {
         }
     }
 
-    /// Runs optimization passes on all functions in the module.
+    /// Runs optimization passes on all functions in the module via the PassManager.
+    ///
+    /// Order:
+    /// 1. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 2. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 3. DCE           — removes dead instructions and any remaining unreachable blocks
+    ///
+    /// Each pass internally iterates to a fixed point. Threading creates orphaned
+    /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
+    /// DCE handles whatever's still unreachable.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        let mut dce = DeadCodeEliminator::new();
-        let mut jump_threader = JumpThreader::new();
+        let mut pm = PassManager::new();
+        pm.add_transform(Box::new(JumpThreadingPass));
+        pm.add_transform(Box::new(CfgSimplifyPass));
+        pm.add_transform(Box::new(DcePass));
         for func in module.functions.iter_mut() {
-            // Run jump threading to eliminate unnecessary jumps (saves 8 gas per threaded jump)
-            jump_threader.run_to_fixpoint(func);
-            // Run DCE to remove dead code (including unreachable blocks after threading)
-            dce.run_to_fixpoint(func);
+            pm.run(func);
         }
     }
 
@@ -504,8 +514,11 @@ impl EvmCodegen {
 
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func: &Function) {
-        // Compute liveness
-        let liveness = Liveness::compute(func);
+        // Run analysis pipeline via the pass manager.
+        // Currently just liveness; future analyses (dominance, loops, etc.)
+        // can be added here and queried from the same AnalysisManager.
+        let mut am = AnalysisManager::new();
+        let liveness: &Liveness = am.get_or_compute(&LivenessAnalysis, func);
 
         // Eliminate phis
         let phi_result = eliminate_phis(func);
@@ -548,7 +561,7 @@ impl EvmCodegen {
                     .map(|(vid, _)| vid);
 
                 // Generate the instruction
-                self.generate_inst(func, &inst.kind, &liveness, block_id, inst_idx, result_value);
+                self.generate_inst(func, &inst.kind, liveness, block_id, inst_idx, result_value);
             }
 
             // Insert phi copies before terminator
@@ -561,7 +574,7 @@ impl EvmCodegen {
 
             // Spill all live-out values before the terminator so they can be reloaded
             // in successor blocks
-            self.spill_live_out_values(func, &liveness, block_id);
+            self.spill_live_out_values(func, liveness, block_id);
 
             // Generate terminator
             if let Some(term) = &block.terminator {
@@ -1491,9 +1504,8 @@ impl EvmCodegen {
                             // should have ensured all CALL operands are
                             // either immediates, spilled, or re-executable instructions.
                             panic!(
-                                "emit_value_fresh: unhandled instruction kind {:?} for value {:?}. \
-                                 CALL operands should be immediates, spilled values, GAS, or MLOAD.",
-                                other, val
+                                "emit_value_fresh: unhandled instruction kind {other:?} for value {val:?}. \
+                                 CALL operands should be immediates, spilled values, GAS, or MLOAD."
                             );
                         }
                     }
@@ -1502,9 +1514,8 @@ impl EvmCodegen {
             crate::mir::Value::Phi { .. } | crate::mir::Value::Undef(_) => {
                 // Phi nodes and undef values shouldn't appear in CALL operands
                 panic!(
-                    "emit_value_fresh: unexpected phi/undef value {:?}. \
-                     CALL operands should be concrete values.",
-                    val
+                    "emit_value_fresh: unexpected phi/undef value {val:?}. \
+                     CALL operands should be concrete values."
                 );
             }
         }

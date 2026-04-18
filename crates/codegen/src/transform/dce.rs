@@ -3,7 +3,7 @@
 //! This pass removes MIR instructions whose results are never used and have no side effects.
 
 use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Dead Code Elimination pass.
@@ -62,11 +62,23 @@ impl DeadCodeEliminator {
         // Phase 2: Find and count unused parameters
         self.unused_params = self.find_unused_parameters(func).len();
 
-        // Phase 3: Find all used values
+        // Phase 3: Precompute InstId → ValueId map (O(V) once, replaces
+        // the O(V)-per-instruction linear scan in find_result_value).
+        let inst_to_value: FxHashMap<InstId, ValueId> = func
+            .values
+            .iter_enumerated()
+            .filter_map(
+                |(vid, val)| {
+                    if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
+                },
+            )
+            .collect();
+
+        // Phase 4: Find all used values
         let used_values = self.collect_used_values(func);
 
-        // Phase 4: Find dead instructions
-        let dead_instructions = self.find_dead_instructions(func, &used_values);
+        // Phase 5: Find dead instructions
+        let dead_instructions = self.find_dead_instructions(func, &used_values, &inst_to_value);
 
         // Remove dead instructions from blocks
         for (block_id, inst_id) in &dead_instructions {
@@ -261,6 +273,7 @@ impl DeadCodeEliminator {
         &self,
         func: &Function,
         used_values: &FxHashSet<ValueId>,
+        inst_to_value: &FxHashMap<InstId, ValueId>,
     ) -> Vec<(BlockId, InstId)> {
         let mut dead = Vec::new();
 
@@ -268,16 +281,13 @@ impl DeadCodeEliminator {
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
 
-                // Instructions with side effects are always kept
+                // Instructions with side effects are always kept.
                 if inst.kind.has_side_effects() {
                     continue;
                 }
 
-                // Find the result value for this instruction
-                let result_value = self.find_result_value(func, inst_id);
-
-                // If the instruction has a result and it's not used, mark as dead
-                if let Some(result) = result_value
+                // O(1) lookup via precomputed map (was O(V) linear scan).
+                if let Some(&result) = inst_to_value.get(&inst_id)
                     && !used_values.contains(&result)
                 {
                     dead.push((block_id, inst_id));
@@ -286,19 +296,6 @@ impl DeadCodeEliminator {
         }
 
         dead
-    }
-
-    /// Finds the ValueId that represents the result of an instruction.
-    fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        // Search through values to find one that references this instruction
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(id) = value
-                && *id == inst_id
-            {
-                return Some(value_id);
-            }
-        }
-        None
     }
 }
 
