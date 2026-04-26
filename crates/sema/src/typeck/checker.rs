@@ -19,7 +19,7 @@ struct TypeChecker<'gcx> {
     source: hir::SourceId,
     contract: Option<hir::ContractId>,
 
-    types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    types: ExprTypes<'gcx>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -27,6 +27,57 @@ struct TypeChecker<'gcx> {
     in_emit: bool,
     /// Whether we're directly inside a revert statement (for the immediate call only).
     in_revert: bool,
+}
+
+const INLINE_EXPR_TYPES: usize = 16;
+
+// The inline variant is intentionally large: boxing it would reintroduce an
+// allocation on the small-expression path this cache is meant to optimize.
+#[allow(clippy::large_enum_variant)]
+enum ExprTypes<'gcx> {
+    Small(SmallVec<[(hir::ExprId, Ty<'gcx>); INLINE_EXPR_TYPES]>),
+    Large(FxHashMap<hir::ExprId, Ty<'gcx>>),
+}
+
+impl Default for ExprTypes<'_> {
+    fn default() -> Self {
+        Self::Small(SmallVec::new())
+    }
+}
+
+impl<'gcx> ExprTypes<'gcx> {
+    #[inline]
+    fn get(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        match self {
+            Self::Small(types) => {
+                types.iter().rev().find_map(|&(expr_id, ty)| (expr_id == id).then_some(ty))
+            }
+            Self::Large(types) => types.get(&id).copied(),
+        }
+    }
+
+    fn insert(&mut self, id: hir::ExprId, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
+        match self {
+            Self::Small(types) => {
+                if let Some((_, prev_ty)) = types.iter_mut().find(|(expr_id, _)| *expr_id == id) {
+                    return Some(std::mem::replace(prev_ty, ty));
+                }
+                if types.len() < INLINE_EXPR_TYPES {
+                    types.push((id, ty));
+                    return None;
+                }
+
+                let mut map = FxHashMap::default();
+                for (expr_id, ty) in types.drain(..) {
+                    map.insert(expr_id, ty);
+                }
+                let prev = map.insert(id, ty);
+                *self = Self::Large(map);
+                prev
+            }
+            Self::Large(types) => types.insert(id, ty),
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -58,7 +109,7 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        self.types[&expr.id]
+        self.types.get(expr.id).unwrap()
     }
 
     #[must_use]

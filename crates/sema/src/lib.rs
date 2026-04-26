@@ -100,7 +100,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     Ok(ControlFlow::Continue(()))
 }
 
-#[instrument(level = "debug", skip_all)]
 fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
         return Ok(ControlFlow::Break(()));
@@ -112,15 +111,51 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         dump_hir(gcx, dump.paths.as_deref())?;
     }
 
-    // Lower HIR types.
-    gcx.hir.par_item_ids().for_each(|id| {
-        let _ = gcx.type_of_item(id);
-        match id {
-            hir::ItemId::Struct(id) => _ = gcx.struct_field_types(id),
-            hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
-            _ => {}
+    let lower_hir_ty = |id| match id {
+        hir::ItemId::Contract(id) => {
+            if has_external_interface_functions(gcx, id) {
+                let _ = gcx.interface_functions(id);
+            }
         }
-    });
+        hir::ItemId::Struct(id) => {
+            let _ = gcx.type_of_item(id.into());
+            let _ = gcx.struct_field_types(id);
+        }
+        hir::ItemId::Function(_)
+        | hir::ItemId::Variable(_)
+        | hir::ItemId::Udvt(_)
+        | hir::ItemId::Error(_)
+        | hir::ItemId::Event(_) => _ = gcx.type_of_item(id),
+        hir::ItemId::Enum(_) => {}
+    };
+
+    // Force the type queries that emit standalone diagnostics. Simple namespace item types
+    // (contracts/enums/struct wrappers) are left lazy.
+    if gcx.sess.is_sequential() {
+        for id in gcx.hir.contract_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.function_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.variable_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.strukt_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.udvt_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.error_ids() {
+            lower_hir_ty(id.into());
+        }
+        for id in gcx.hir.event_ids() {
+            lower_hir_ty(id.into());
+        }
+    } else {
+        gcx.hir.par_item_ids().for_each(lower_hir_ty);
+    }
     gcx.sess.dcx.has_errors()?;
 
     typeck::check(gcx);
@@ -132,6 +167,15 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     }
 
     Ok(ControlFlow::Continue(()))
+}
+
+fn has_external_interface_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) -> bool {
+    gcx.hir.contract(contract_id).linearized_bases.iter().any(|&base| {
+        gcx.hir
+            .contract(base)
+            .functions()
+            .any(|f| gcx.hir.function(f).is_part_of_external_interface())
+    })
 }
 
 fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> Result<()> {

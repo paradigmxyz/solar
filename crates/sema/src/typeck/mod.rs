@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{StateMutability, Visibility};
+use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     parallel,
@@ -16,25 +16,61 @@ mod checker;
 mod override_checker;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
+    if gcx.sess.is_sequential() {
+        for id in gcx.hir.source_ids() {
+            check_source(gcx, id);
+        }
+        for id in gcx.hir.contract_ids() {
+            check_contract(gcx, id);
+        }
+        return;
+    }
+
     parallel!(
         gcx.sess,
         gcx.hir.par_contract_ids().for_each(|id| {
-            check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
-            check_storage_size_upper_bound(gcx, id);
-            check_payable_fallback_without_receive(gcx, id);
-            check_external_type_clashes(gcx, id);
-            check_receive_function(gcx, id);
-            check_unimplemented_functions(gcx, id);
-            override_checker::check(gcx, id);
+            check_contract(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
-            check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
-            if gcx.sess.opts.unstable.typeck {
-                // TODO: Parallelize more.
-                checker::check(gcx, id);
-            }
+            check_source(gcx, id);
         }),
     );
+}
+
+fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
+    check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+    check_storage_size_upper_bound(gcx, id);
+    check_payable_fallback_without_receive(gcx, id);
+    check_external_type_clashes(gcx, id);
+    check_receive_function(gcx, id);
+    check_unimplemented_functions(gcx, id);
+    if needs_override_check(gcx, id) {
+        override_checker::check(gcx, id);
+    }
+}
+
+fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
+    check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+    if gcx.sess.opts.unstable.typeck {
+        // TODO: Parallelize more.
+        checker::check(gcx, id);
+    }
+}
+
+fn needs_override_check(gcx: Gcx<'_>, contract_id: hir::ContractId) -> bool {
+    let contract = gcx.hir.contract(contract_id);
+    if !contract.bases.is_empty() {
+        return true;
+    }
+
+    let needs_abstract_check = !(contract.is_abstract() || contract.kind.is_interface());
+    for f_id in contract.functions() {
+        let f = gcx.hir.function(f_id);
+        if f.override_ || (needs_abstract_check && f.name.is_some() && f.body.is_none()) {
+            return true;
+        }
+    }
+    contract.variables().any(|v_id| gcx.hir.variable(v_id).override_)
 }
 
 fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
@@ -56,7 +92,7 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     for items in external_declarations.values() {
         for (i, &item) in items.iter().enumerate() {
             if let Some(&dup) = items.iter().skip(i + 1).find(|&&other| {
-                !same_external_params(gcx, gcx.type_of_item(item), gcx.type_of_item(other))
+                !same_external_params(gcx.type_of_item(item), gcx.type_of_item(other))
             }) {
                 gcx.dcx()
                     .err(
@@ -113,7 +149,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
                 return false;
             }
         }
-        if !same_external_params(gcx, gcx.type_of_item(a), gcx.type_of_item(b)) {
+        if !same_external_params(gcx.type_of_item(a), gcx.type_of_item(b)) {
             return false;
         }
         true
@@ -152,9 +188,25 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
     }
 }
 
-fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
-    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
-    key(a) == key(b)
+fn same_external_params<'gcx>(a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
+    let a = a.parameters().unwrap();
+    let b = b.parameters().unwrap();
+    a.len() == b.len() && a.iter().zip(b).all(|(&a, &b)| same_external_param(a, b))
+}
+
+fn same_external_param<'gcx>(a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
+    match (a.kind, b.kind) {
+        (TyKind::Ref(a, a_loc), TyKind::Ref(b, b_loc)) => {
+            a == b
+                && normalize_external_data_location(a_loc)
+                    == normalize_external_data_location(b_loc)
+        }
+        _ => a == b,
+    }
+}
+
+fn normalize_external_data_location(loc: DataLocation) -> DataLocation {
+    if loc == DataLocation::Calldata { DataLocation::Memory } else { loc }
 }
 
 fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {

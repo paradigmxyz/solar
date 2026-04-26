@@ -27,6 +27,7 @@ pub struct CommonTypes<'gcx> {
     ints: [Ty<'gcx>; 32],
     uints: [Ty<'gcx>; 32],
     fbs: [Ty<'gcx>; 32],
+    uint_literals: [Ty<'gcx>; 8],
 }
 
 impl<'gcx> CommonTypes<'gcx> {
@@ -68,6 +69,9 @@ impl<'gcx> CommonTypes<'gcx> {
             ints: from_fn(|i| mk(Elementary(Int(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new_fb_bytes(i as u8 + 1))))),
+            uint_literals: from_fn(|i| {
+                mk(IntLiteral(false, TypeSize::new_literal_bits(i as u16 + 1)))
+            }),
         }
     }
 
@@ -105,6 +109,14 @@ impl<'gcx> CommonTypes<'gcx> {
     #[inline]
     pub fn fixed_bytes_(&self, size: TypeSize) -> Ty<'gcx> {
         self.fbs[size.bytes() as usize - 1]
+    }
+
+    /// Unsigned integer literal with a bit size in the range 1..=8.
+    #[inline]
+    #[track_caller]
+    pub fn uint_literal(&self, bits: u16) -> Ty<'gcx> {
+        debug_assert!((1..=8).contains(&bits));
+        self.uint_literals[bits as usize - 1]
     }
 }
 

@@ -10,6 +10,7 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
+    index::Idx,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
     trustme,
@@ -25,7 +26,7 @@ use std::{
     hash::Hash,
     ops::ControlFlow,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -367,6 +368,9 @@ impl<'gcx> Gcx<'gcx> {
         if bits > TypeSize::MAX as u64 {
             return None;
         }
+        if !negative && bits <= 8 {
+            return Some(self.types.uint_literal(bits as u16));
+        }
         Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
     }
 
@@ -670,6 +674,9 @@ macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
+            item_signature: DenseItemCache<&'gcx str>,
+            item_selector: DenseItemCache<B256>,
+            type_of_item: DenseItemCache<Ty<'gcx>>,
             $(
                 $name: FxOnceMap<$key_type, $value>,
             )*
@@ -698,6 +705,100 @@ macro_rules! cached {
             )*
         }
     };
+}
+
+/// Dense per-item cache for queries that are keyed by HIR item IDs.
+///
+/// HIR item vectors are complete before type queries run, so each slot array can be sized once
+/// from the final item count and then filled lazily with `OnceLock`.
+struct DenseItemCache<T: Copy> {
+    contracts: OnceLock<Box<[OnceLock<T>]>>,
+    functions: OnceLock<Box<[OnceLock<T>]>>,
+    variables: OnceLock<Box<[OnceLock<T>]>>,
+    structs: OnceLock<Box<[OnceLock<T>]>>,
+    enums: OnceLock<Box<[OnceLock<T>]>>,
+    udvts: OnceLock<Box<[OnceLock<T>]>>,
+    errors: OnceLock<Box<[OnceLock<T>]>>,
+    events: OnceLock<Box<[OnceLock<T>]>>,
+}
+
+impl<T: Copy> Default for DenseItemCache<T> {
+    fn default() -> Self {
+        Self {
+            contracts: OnceLock::new(),
+            functions: OnceLock::new(),
+            variables: OnceLock::new(),
+            structs: OnceLock::new(),
+            enums: OnceLock::new(),
+            udvts: OnceLock::new(),
+            errors: OnceLock::new(),
+            events: OnceLock::new(),
+        }
+    }
+}
+
+impl<T: Copy> DenseItemCache<T> {
+    #[inline]
+    fn get_or_init<I: Idx>(
+        slots: &OnceLock<Box<[OnceLock<T>]>>,
+        len: usize,
+        id: I,
+        make_val: impl FnOnce() -> T,
+    ) -> T {
+        let slots = slots.get_or_init(|| {
+            std::iter::repeat_with(OnceLock::new).take(len).collect::<Vec<_>>().into_boxed_slice()
+        });
+        *slots[id.index()].get_or_init(make_val)
+    }
+
+    #[inline]
+    fn get_item<'gcx>(
+        &self,
+        gcx: Gcx<'gcx>,
+        id: hir::ItemId,
+        make_val: impl FnOnce(hir::ItemId) -> T,
+    ) -> T {
+        match id {
+            hir::ItemId::Contract(id) => {
+                Self::get_or_init(&self.contracts, gcx.hir.contract_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Function(id) => {
+                Self::get_or_init(&self.functions, gcx.hir.function_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Variable(id) => {
+                Self::get_or_init(&self.variables, gcx.hir.variable_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Struct(id) => {
+                Self::get_or_init(&self.structs, gcx.hir.strukt_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Enum(id) => {
+                Self::get_or_init(&self.enums, gcx.hir.enumm_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Udvt(id) => {
+                Self::get_or_init(&self.udvts, gcx.hir.udvt_ids().len(), id, || make_val(id.into()))
+            }
+            hir::ItemId::Error(id) => {
+                Self::get_or_init(&self.errors, gcx.hir.error_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+            hir::ItemId::Event(id) => {
+                Self::get_or_init(&self.events, gcx.hir.event_ids().len(), id, || {
+                    make_val(id.into())
+                })
+            }
+        }
+    }
 }
 
 cached! {
@@ -797,60 +898,6 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     InterfaceFunctions { functions, inheritance_start }
 }
 
-/// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
-pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
-    let name = gcx.item_name(id);
-    let tys = gcx.item_parameter_types(id);
-    gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied()))
-}
-
-pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
-    keccak256(gcx.item_signature(id))
-}
-
-/// Returns the type of the given item.
-pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
-    let kind = match id {
-        hir::ItemId::Contract(id) => TyKind::Contract(id),
-        hir::ItemId::Function(id) => {
-            let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
-                parameters: gcx.mk_item_tys(f.parameters),
-                returns: gcx.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
-                function_id: Some(id),
-            }))
-        }
-        hir::ItemId::Variable(id) => {
-            let var = gcx.hir.variable(id);
-            let ty = gcx.type_of_hir_ty(&var.ty);
-            return var_type(gcx, var, ty);
-        }
-        hir::ItemId::Struct(id) => TyKind::Struct(id),
-        hir::ItemId::Enum(id) => TyKind::Enum(id),
-        hir::ItemId::Udvt(id) => {
-            let udvt = gcx.hir.udvt(id);
-            if udvt.ty.kind.is_elementary()
-                && let ty = gcx.type_of_hir_ty(&udvt.ty)
-                && ty.is_value_type()
-            {
-                TyKind::Udvt(ty, id)
-            } else {
-                let msg = "the underlying type of UDVTs must be an elementary value type";
-                TyKind::Err(gcx.dcx().err(msg).span(udvt.ty.span).emit())
-            }
-        }
-        hir::ItemId::Error(id) => {
-            TyKind::Error(gcx.mk_item_tys(gcx.hir.error(id).parameters), id)
-        }
-        hir::ItemId::Event(id) => {
-            TyKind::Event(gcx.mk_item_tys(gcx.hir.event(id).parameters), id)
-        }
-    };
-    gcx.mk_ty(kind)
-}
-
 /// Returns the types of the fields of the given struct.
 pub fn struct_field_types(gcx: _, id: hir::StructId) -> &'gcx [Ty<'gcx>] {
     gcx.mk_ty_iter(gcx.hir.strukt(id).fields.iter().map(|&f| gcx.type_of_item(f.into())))
@@ -911,6 +958,73 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::native_members(gcx, ty)
 }
+}
+
+impl<'gcx> Gcx<'gcx> {
+    /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
+    pub fn item_signature(self, id: hir::ItemId) -> &'gcx str {
+        self.cache.item_signature.get_item(self, id, |id| self.item_signature_uncached(id))
+    }
+
+    fn item_signature_uncached(self, id: hir::ItemId) -> &'gcx str {
+        let name = self.item_name(id);
+        let tys = self.item_parameter_types(id);
+        self.bump().alloc_str(&self.mk_abi_signature(name.as_str(), tys.iter().copied()))
+    }
+
+    pub(crate) fn item_selector(self, id: hir::ItemId) -> B256 {
+        self.cache.item_selector.get_item(self, id, |id| keccak256(self.item_signature(id)))
+    }
+
+    /// Returns the type of the given item.
+    pub fn type_of_item(self, id: hir::ItemId) -> Ty<'gcx> {
+        self.cache.type_of_item.get_item(self, id, |id| self.type_of_item_uncached(id))
+    }
+
+    fn type_of_item_uncached(self, id: hir::ItemId) -> Ty<'gcx> {
+        let kind = match id {
+            hir::ItemId::Contract(id) => TyKind::Contract(id),
+            hir::ItemId::Function(id) => {
+                let f = self.hir.function(id);
+                TyKind::FnPtr(self.interner.intern_ty_fn_ptr(
+                    self.bump(),
+                    TyFnPtr {
+                        parameters: self.mk_item_tys(f.parameters),
+                        returns: self.mk_item_tys(f.returns),
+                        state_mutability: f.state_mutability,
+                        visibility: f.visibility,
+                        function_id: Some(id),
+                    },
+                ))
+            }
+            hir::ItemId::Variable(id) => {
+                let var = self.hir.variable(id);
+                let ty = self.type_of_hir_ty(&var.ty);
+                return var_type(self, var, ty);
+            }
+            hir::ItemId::Struct(id) => TyKind::Struct(id),
+            hir::ItemId::Enum(id) => TyKind::Enum(id),
+            hir::ItemId::Udvt(id) => {
+                let udvt = self.hir.udvt(id);
+                if udvt.ty.kind.is_elementary()
+                    && let ty = self.type_of_hir_ty(&udvt.ty)
+                    && ty.is_value_type()
+                {
+                    TyKind::Udvt(ty, id)
+                } else {
+                    let msg = "the underlying type of UDVTs must be an elementary value type";
+                    TyKind::Err(self.dcx().err(msg).span(udvt.ty.span).emit())
+                }
+            }
+            hir::ItemId::Error(id) => {
+                TyKind::Error(self.mk_item_tys(self.hir.error(id).parameters), id)
+            }
+            hir::ItemId::Event(id) => {
+                TyKind::Event(self.mk_item_tys(self.hir.event(id).parameters), id)
+            }
+        };
+        self.mk_ty(kind)
+    }
 }
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
