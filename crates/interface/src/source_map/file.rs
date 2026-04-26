@@ -3,7 +3,7 @@ use std::{
     fmt, io,
     ops::{Range, RangeInclusive},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 /// Identifies an offset of a multi-byte character in a `SourceFile`.
@@ -194,12 +194,21 @@ pub struct SourceFile {
     pub start_pos: BytePos,
     /// The byte length of this source.
     pub source_len: RelativeBytePos,
+    /// Lazily computed line and multibyte-character analysis.
+    ///
+    /// Most successful compilations never need line tables; diagnostics and source-map queries
+    /// initialize this on first use.
+    #[debug(skip)]
+    analysis: OnceLock<SourceFileAnalysis>,
+}
+
+/// Lazily computed source text analysis.
+#[derive(Clone, Debug)]
+struct SourceFileAnalysis {
     /// Locations of lines beginnings in the source code.
-    #[debug(skip)]
-    pub lines: Vec<RelativeBytePos>,
+    lines: Vec<RelativeBytePos>,
     /// Locations of multi-byte characters in the source code.
-    #[debug(skip)]
-    pub multibyte_chars: Vec<MultiByteChar>,
+    multibyte_chars: Vec<MultiByteChar>,
 }
 
 impl PartialEq for SourceFile {
@@ -232,21 +241,29 @@ impl SourceFile {
         let source_len = src.len();
         let source_len = u32::try_from(source_len).map_err(|_| OffsetOverflowError(()))?;
 
-        let (lines, multibyte_chars) = super::analyze::analyze_source_file(&src);
-
         src.shrink_to_fit();
         Ok(Self {
             name,
             src: Arc::new(src),
             start_pos: BytePos::from_u32(0),
             source_len: RelativeBytePos::from_u32(source_len),
-            lines,
-            multibyte_chars,
+            analysis: OnceLock::new(),
+        })
+    }
+
+    fn analysis(&self) -> &SourceFileAnalysis {
+        self.analysis.get_or_init(|| {
+            let (lines, multibyte_chars) = super::analyze::analyze_source_file(&self.src);
+            SourceFileAnalysis { lines, multibyte_chars }
         })
     }
 
     pub fn lines(&self) -> &[RelativeBytePos] {
-        &self.lines
+        &self.analysis().lines
+    }
+
+    pub fn multibyte_chars(&self) -> &[MultiByteChar] {
+        &self.analysis().multibyte_chars
     }
 
     pub fn count_lines(&self) -> usize {
@@ -301,7 +318,7 @@ impl SourceFile {
         // The number of extra bytes due to multibyte chars in the `SourceFile`.
         let mut total_extra_bytes = 0;
 
-        for mbc in self.multibyte_chars.iter() {
+        for mbc in self.multibyte_chars() {
             if mbc.pos < bpos {
                 // Every character is at least one byte, so we only
                 // count the actual extra bytes.

@@ -325,7 +325,7 @@ impl SourceMap {
     }
 
     fn append_source_file(&self, mut file: SourceFile) -> io::Result<Arc<SourceFile>> {
-        trace!(name=%file.name.display(), len=file.src.len(), loc=file.count_lines(), "adding to source map");
+        trace!(name=%file.name.display(), len=file.src.len(), "adding to source map");
 
         let source_files = &mut *self.source_files.write();
         file.start_pos = BytePos(if let Some(last_file) = source_files.last() {

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- [source-map] Make `SourceFile` line and multibyte-character storage lazy; callers should use
+  `SourceFile::lines()` and `SourceFile::multibyte_chars()` instead of accessing the former public
+  fields directly.
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Bug Fixes
