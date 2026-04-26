@@ -16,9 +16,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 self.current_source_id = id;
                 for item in ast.items.iter() {
                     match &item.kind {
-                        ast::ItemKind::Pragma(_)
-                        | ast::ItemKind::Import(_)
-                        | ast::ItemKind::Using(_) => {}
+                        ast::ItemKind::Pragma(pragma) => {
+                            self.validate_pragma_directive(item.span, pragma);
+                        }
+                        ast::ItemKind::Import(_) => {}
+                        ast::ItemKind::Using(using) => {
+                            self.validate_using_directive(item.span, using, None);
+                        }
                         ast::ItemKind::Contract(_)
                         | ast::ItemKind::Function(_)
                         | ast::ItemKind::Variable(_)
@@ -41,6 +45,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
         item: &ast::Item<'_>,
         contract: &'gcx ast::ItemContract<'gcx>,
     ) -> hir::ContractId {
+        if contract.kind.is_library() && !contract.bases.is_empty() {
+            self.dcx().err("library is not allowed to inherit").span(contract.name.span).emit();
+        }
+        if let Some(layout) = &contract.layout {
+            self.validate_expr_ast(layout.slot);
+        }
+
         let id = self.hir.contracts.push(hir::Contract {
             source: self.current_source_id,
             span: item.span,
@@ -67,8 +78,19 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 ast::ItemKind::Pragma(_)
                 | ast::ItemKind::Import(_)
                 | ast::ItemKind::Contract(_) => unreachable!("illegal item in contract body"),
-                ast::ItemKind::Using(_) => continue,
-                ast::ItemKind::Variable(_) => {
+                ast::ItemKind::Using(using) => {
+                    self.validate_using_directive(item.span, using, Some(contract.kind));
+                    continue;
+                }
+                ast::ItemKind::Variable(var) => {
+                    if contract.kind.is_library()
+                        && !var.mutability.is_some_and(|m| m.is_constant())
+                    {
+                        self.dcx()
+                            .err("library cannot have non-constant state variable")
+                            .span(var.span)
+                            .emit();
+                    }
                     let hir::ItemId::Variable(id) = self.lower_item(item) else { unreachable!() };
                     items.push(hir::ItemId::Variable(id));
                     if let Some(getter) = self.hir.variable(id).getter {
@@ -135,6 +157,91 @@ impl<'gcx> super::LoweringContext<'gcx> {
             ref override_,
             returns: _,
         } = *header;
+        if let Some(contract_id) = self.current_contract_id {
+            let contract = self.hir.contract(contract_id);
+            if kind.is_function()
+                && let Some(func_name) = name
+                && func_name == contract.name
+            {
+                self.dcx()
+                    .err("functions are not allowed to have the same name as the contract")
+                    .note(
+                        "if you intend this to be a constructor, use `constructor(...) { ... }` to define it",
+                    )
+                    .span(func_name.span)
+                    .emit();
+            }
+            if contract.kind.is_interface() && !header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions in interfaces cannot have modifiers")
+                    .span(item.span)
+                    .emit();
+            } else if !i.is_implemented() && !header.modifiers.is_empty() {
+                self.dcx()
+                    .err("functions without implementation cannot have modifiers")
+                    .span(item.span)
+                    .emit();
+            }
+        }
+
+        if kind.is_receive() {
+            if self.current_contract_id.is_some_and(|id| self.hir.contract(id).kind.is_library()) {
+                self.dcx()
+                    .err("libraries cannot have receive ether functions")
+                    .span(item.span)
+                    .emit();
+            }
+
+            if !header.state_mutability().is_payable() {
+                self.dcx()
+                    .err("receive ether function must be payable")
+                    .span(item.span)
+                    .help("add `payable` state mutability")
+                    .emit();
+            }
+
+            if !header.parameters.is_empty() {
+                self.dcx()
+                    .err("receive ether function cannot take parameters")
+                    .span(item.span)
+                    .emit();
+            }
+        }
+
+        if header.visibility.is_none()
+            && let Some(contract_id) = self.current_contract_id
+            && let Some(suggested_visibility) = if kind.is_function() {
+                Some(if self.hir.contract(contract_id).kind.is_interface() {
+                    "external"
+                } else {
+                    "public"
+                })
+            } else if kind.is_fallback() || kind.is_receive() {
+                Some("external")
+            } else {
+                None
+            }
+        {
+            self.dcx()
+                .err("no visibility specified")
+                .span(item.span)
+                .help(format!("add `{suggested_visibility}` to the declaration"))
+                .emit();
+        }
+
+        if self.current_contract_id.is_none() && kind.is_function() {
+            if !i.is_implemented() {
+                self.dcx().err("free functions must be implemented").span(item.span).emit();
+            }
+            if let Some(visibility) = header.visibility {
+                self.dcx()
+                    .err("free functions cannot have visibility")
+                    .span(item.span)
+                    .help(format!("remove `{}` from the declaration", *visibility))
+                    .emit();
+            }
+        }
+
         self.hir.functions.push(hir::Function {
             source: self.current_source_id,
             contract: self.current_contract_id,
@@ -186,6 +293,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
     fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
         // handled later: fields
         let ast::ItemStruct { name, fields: _ } = *i;
+        if i.fields.is_empty() {
+            self.dcx().err("structs must have at least one field").span(name.span).emit();
+        }
         self.hir.structs.push(hir::Struct {
             source: self.current_source_id,
             contract: self.current_contract_id,
@@ -197,6 +307,12 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
         let ast::ItemEnum { name, ref variants } = *i;
+        if variants.is_empty() {
+            self.dcx().err("enum must have at least one variant").span(name.span).emit();
+        }
+        if variants.len() > 256 {
+            self.dcx().err("enum cannot have more than 256 variants").span(name.span).emit();
+        }
         self.hir.enums.push(hir::Enum {
             source: self.current_source_id,
             contract: self.current_contract_id,

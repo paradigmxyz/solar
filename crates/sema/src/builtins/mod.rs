@@ -5,16 +5,24 @@ use crate::{
 };
 use solar_ast::StateMutability as SM;
 use solar_interface::{Span, Symbol, kw, sym};
+use std::sync::LazyLock;
 
 pub(crate) mod members;
 pub use members::{Member, MemberList};
 
-pub(crate) fn scopes() -> (Declarations, Box<[Option<Declarations>; Builtin::COUNT]>) {
-    let global = declarations(Builtin::global());
-    let members_map = Box::new(std::array::from_fn(|i| {
+static GLOBAL_SCOPE: LazyLock<Declarations> = LazyLock::new(|| declarations(Builtin::global()));
+static MEMBER_SCOPES: LazyLock<Box<[Option<Declarations>; Builtin::COUNT]>> = LazyLock::new(|| {
+    Box::new(std::array::from_fn(|i| {
         Some(declarations(Builtin::from_index(i).unwrap().members()?))
-    }));
-    (global, members_map)
+    }))
+});
+
+pub(crate) fn global_scope() -> &'static Declarations {
+    &GLOBAL_SCOPE
+}
+
+pub(crate) fn member_scopes() -> &'static [Option<Declarations>; Builtin::COUNT] {
+    &MEMBER_SCOPES
 }
 
 fn declarations(builtins: impl IntoIterator<Item = Builtin>) -> Declarations {

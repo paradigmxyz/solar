@@ -16,7 +16,6 @@ use std::fmt;
 pub(crate) use crate::hir::Res;
 
 impl super::LoweringContext<'_> {
-    #[instrument(level = "debug", skip_all)]
     pub(super) fn collect_exports(&mut self) {
         assert!(self.resolver.source_scopes.is_empty(), "exports already collected");
         self.resolver.source_scopes = self
@@ -36,7 +35,6 @@ impl super::LoweringContext<'_> {
             .collect();
     }
 
-    #[instrument(level = "debug", skip_all)]
     pub(super) fn perform_imports(&mut self) {
         for (source_id, source) in self.hir.sources_enumerated() {
             for &(item_id, import_id) in source.imports {
@@ -237,6 +235,9 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
+    in_unchecked_block: bool,
+    loop_depth: u32,
+    placeholder_count: u32,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -256,7 +257,14 @@ impl std::ops::DerefMut for ResolveContext<'_> {
 
 impl<'gcx> ResolveContext<'gcx> {
     pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
-        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
+        Self {
+            lcx,
+            scopes: SymbolResolverScopes::new(),
+            function_id: None,
+            in_unchecked_block: false,
+            loop_depth: 0,
+            placeholder_count: 0,
+        }
     }
 
     fn init(
@@ -267,6 +275,46 @@ impl<'gcx> ResolveContext<'gcx> {
     ) {
         self.scopes.init(source, contract);
         self.function_id = function;
+    }
+
+    fn in_loop(&self) -> bool {
+        self.loop_depth != 0
+    }
+
+    fn with_loop<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.loop_depth += 1;
+        let result = f(self);
+        self.loop_depth -= 1;
+        result
+    }
+
+    fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
+        if matches!(stmt.kind, ast::StmtKind::DeclSingle(..) | ast::StmtKind::DeclMulti(..)) {
+            self.dcx()
+                .err("variable declarations can only be used inside blocks")
+                .span(stmt.span)
+                .help("wrap the statement in a block (`{ ... }`)")
+                .emit();
+        }
+    }
+
+    fn check_assembly_flags(&self, assembly: &ast::StmtAssembly<'_>) {
+        let mut memory_safe = false;
+        for flag in assembly.flags.iter() {
+            let span = flag.span;
+            match flag.value {
+                sym::memory_dash_safe => {
+                    if memory_safe {
+                        self.dcx()
+                            .err("inline assembly marked memory-safe multiple times")
+                            .span(span)
+                            .emit();
+                    }
+                    memory_safe = true;
+                }
+                _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
+            }
+        }
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -373,8 +421,20 @@ impl<'gcx> ResolveContext<'gcx> {
             self.hir.functions[id].returns =
                 self.lower_variables(ast_func.header.returns(), hir::VarKind::FunctionReturn);
 
+            let current_placeholder_count = self.placeholder_count;
             if let Some(body) = &ast_func.body {
                 self.hir.functions[id].body = Some(self.lower_block(body));
+            }
+            if ast_func.kind.is_modifier() && ast_func.is_implemented() {
+                let num_placeholders_increased = self.placeholder_count - current_placeholder_count;
+                if num_placeholders_increased == 0
+                    && let Some(func_name) = ast_func.header.name
+                {
+                    self.dcx()
+                        .err("modifier must have a `_;` placeholder statement")
+                        .span(func_name.span)
+                        .emit();
+                }
             }
         }
 
@@ -785,8 +845,46 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc(self.lower_stmt_full(stmt))
     }
 
-    #[instrument(name = "lower_stmt", level = "trace", skip_all)]
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
+        match &stmt.kind {
+            ast::StmtKind::While(_, body)
+            | ast::StmtKind::DoWhile(body, _)
+            | ast::StmtKind::For { body, .. } => {
+                self.check_single_statement_variable_declaration(body);
+            }
+            ast::StmtKind::If(_cond, then, else_) => {
+                self.check_single_statement_variable_declaration(then);
+                if let Some(else_) = else_ {
+                    self.check_single_statement_variable_declaration(else_);
+                }
+            }
+            ast::StmtKind::Break | ast::StmtKind::Continue if !self.in_loop() => {
+                let kind =
+                    if matches!(stmt.kind, ast::StmtKind::Break) { "break" } else { "continue" };
+                let msg = format!("`{kind}` outside of a loop");
+                self.dcx().err(msg).span(stmt.span).emit();
+            }
+            ast::StmtKind::Placeholder => {
+                self.placeholder_count += 1;
+                let in_modifier =
+                    self.function_id.is_some_and(|id| self.hir.function(id).kind.is_modifier());
+                if !in_modifier {
+                    self.dcx()
+                        .err("placeholder statements can only be used in modifiers")
+                        .span(stmt.span)
+                        .emit();
+                }
+                if self.in_unchecked_block {
+                    self.dcx()
+                        .err("placeholder statements cannot be used inside unchecked blocks")
+                        .span(stmt.span)
+                        .emit();
+                }
+            }
+            ast::StmtKind::Assembly(assembly) => self.check_assembly_flags(assembly),
+            _ => {}
+        }
+
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
                 match self.lower_variable(var, hir::VarKind::Statement) {
@@ -808,7 +906,15 @@ impl<'gcx> ResolveContext<'gcx> {
             ),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
-                hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
+                if self.in_unchecked_block {
+                    self.dcx().err("`unchecked` blocks cannot be nested").span(stmt.span).emit();
+                }
+
+                let prev = self.in_unchecked_block;
+                self.in_unchecked_block = true;
+                let block = self.lower_block(stmts);
+                self.in_unchecked_block = prev;
+                hir::StmtKind::UncheckedBlock(block)
             }
             ast::StmtKind::Break => hir::StmtKind::Break,
             ast::StmtKind::Continue => hir::StmtKind::Continue,
@@ -925,7 +1031,7 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             ast::StmtKind::While(cond, stmt) => self.in_scope(|this| {
                 let cond = this.lower_expr(cond);
-                let stmt = this.lower_stmt(stmt);
+                let stmt = this.with_loop(|this| this.lower_stmt(stmt));
                 let builder = this.hir_builder();
                 let break_stmt = builder.break_stmt(span);
                 let body = this.arena.alloc_as_slice(
@@ -939,7 +1045,7 @@ impl<'gcx> ResolveContext<'gcx> {
             //     if (<cond>) continue else break;
             // }
             ast::StmtKind::DoWhile(stmt, cond) => self.in_scope(|this| {
-                let stmt = this.in_scope(|this| this.lower_stmt_full(stmt));
+                let stmt = this.with_loop(|this| this.in_scope(|this| this.lower_stmt_full(stmt)));
                 let cond = this.lower_expr(cond);
                 let builder = this.hir_builder();
                 let cont_stmt = builder.continue_stmt(span);
@@ -964,8 +1070,9 @@ impl<'gcx> ResolveContext<'gcx> {
                 self.in_scope_if(init.is_some(), |this| {
                     let init = init.as_deref().map(|stmt| this.lower_stmt_full(stmt));
                     let cond = this.lower_expr_opt(cond.as_deref());
-                    let mut body =
-                        this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body));
+                    let mut body = this.with_loop(|this| {
+                        this.in_scope_if(next.is_some(), |this| this.lower_stmt_full(body))
+                    });
                     let next = this.lower_expr_opt(next.as_deref());
                     let builder = this.hir_builder();
 
@@ -1029,7 +1136,6 @@ impl<'gcx> ResolveContext<'gcx> {
             .alloc_slice_fill_iter(exprs.into_iter().map(|e| self.lower_expr_full(e.as_ref())))
     }
 
-    #[instrument(name = "lower_expr", level = "trace", skip_all)]
     fn lower_expr_full(&mut self, expr: &ast::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::ExprKind::Array(exprs) => hir::ExprKind::Array(self.lower_exprs(&**exprs)),
@@ -1082,7 +1188,10 @@ impl<'gcx> ResolveContext<'gcx> {
                     self.lower_expr_opt(end.as_deref()),
                 ),
             },
-            ast::ExprKind::Lit(lit, _) => hir::ExprKind::Lit(self.lower_lit(lit)),
+            ast::ExprKind::Lit(lit, subdenomination) => {
+                self.validate_literal(lit, subdenomination);
+                hir::ExprKind::Lit(self.lower_lit(lit))
+            }
             ast::ExprKind::Member(expr, member) => {
                 hir::ExprKind::Member(self.lower_expr(expr), *member)
             }
@@ -1135,8 +1244,8 @@ impl<'gcx> ResolveContext<'gcx> {
         hir::CallArgs { kind, span: args.span }
     }
 
-    #[instrument(name = "lower_type", level = "trace", skip_all)]
     fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
+        self.check_function_type_returns(ty);
         let kind = match &ty.kind {
             ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
@@ -1298,20 +1407,19 @@ pub(crate) struct SymbolResolver<'gcx> {
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
     #[debug(ignore)]
-    global_builtin_scope: Declarations,
+    global_builtin_scope: &'static Declarations,
     #[debug(ignore)]
-    builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
+    builtin_member_scopes: &'static [Option<Declarations>; Builtin::COUNT],
 }
 
 impl<'gcx> SymbolResolver<'gcx> {
     pub(crate) fn new(dcx: &'gcx DiagCtxt) -> Self {
-        let (global_builtin_scope, builtin_members_scopes) = crate::builtins::scopes();
         Self {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
-            global_builtin_scope,
-            builtin_members_scopes,
+            global_builtin_scope: crate::builtins::global_scope(),
+            builtin_member_scopes: crate::builtins::member_scopes(),
         }
     }
 
@@ -1389,9 +1497,14 @@ impl<'gcx> SymbolResolver<'gcx> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
-            Res::Builtin(builtin) => self.builtin_members_scopes[builtin as usize].as_ref(),
+            Res::Builtin(builtin) => self.builtin_member_scopes[builtin as usize].as_ref(),
             _ => None,
         }
+    }
+
+    #[inline]
+    fn global_builtin_scope(&self) -> &Declarations {
+        self.global_builtin_scope
     }
 
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
@@ -1438,7 +1551,7 @@ impl SymbolResolverScopes {
             .rev()
             .chain(self.contract.map(|id| &resolver.contract_scopes[id]))
             .chain(self.source.map(|id| &resolver.source_scopes[id]))
-            .chain(std::iter::once(&resolver.global_builtin_scope))
+            .chain(std::iter::once(resolver.global_builtin_scope()))
     }
 
     fn enter(&mut self) {

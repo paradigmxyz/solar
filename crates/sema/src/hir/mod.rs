@@ -153,11 +153,6 @@ macro_rules! indexvec_methods {
             }
         )*
 
-        pub(crate) fn shrink_to_fit(&mut self) {
-            $(
-                self.$plural.shrink_to_fit();
-            )*
-        }
     }};
 }
 

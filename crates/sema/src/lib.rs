@@ -82,13 +82,18 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
     compiler.gcx_mut().sources.topo_sort();
 
-    debug_span!("all_ast_passes").in_scope(|| {
-        gcx.sources.par_asts().for_each(|ast| {
-            ast_passes::run(gcx.sess, ast);
+    // Most AST validation is fused into lowering/resolution below so successful builds only walk
+    // the tree once. If parsing already emitted an error, lowering may not be safe to enter; run
+    // the standalone validator on that error path to preserve additional diagnostics before
+    // returning.
+    if gcx.sess.dcx.has_errors().is_err() {
+        debug_span!("all_ast_passes").in_scope(|| {
+            gcx.sources.par_asts().for_each(|ast| {
+                ast_passes::run(gcx.sess, ast);
+            });
         });
-    });
-
-    gcx.sess.dcx.has_errors()?;
+        gcx.sess.dcx.has_errors()?;
+    }
 
     ast_lowering::lower(compiler.gcx_mut());
 
