@@ -311,14 +311,28 @@ impl<'gcx> ParsingContext<'gcx> {
         file: &SourceFile,
         arena: &'ast ast::Arena,
     ) -> Option<ast::SourceUnit<'ast>> {
-        let lexer = Lexer::from_source_file(self.sess, file);
+        let retain_doc_comments = self.should_retain_doc_comments();
+        let mut lexer = Lexer::from_source_file(self.sess, file);
+        lexer.set_retain_doc_comments(retain_doc_comments);
         let mut parser = Parser::from_lexer(arena, lexer);
+        parser.set_retain_doc_comments(retain_doc_comments);
+        parser.set_retain_yul_ast(self.should_retain_yul_ast());
         if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
             parser.parse_file().map_err(|e| e.emit()).ok()
         }
+    }
+
+    fn should_retain_doc_comments(&self) -> bool {
+        self.sess.opts.unstable.dump.as_ref().is_some_and(|dump| dump.kind.is_ast())
+            || self.sess.opts.unstable.ast_stats
+            || self.sess.opts.unstable.span_visitor
+    }
+
+    fn should_retain_yul_ast(&self) -> bool {
+        self.sess.opts.language.is_yul() || self.should_retain_doc_comments()
     }
 
     /// Resolves the imports of the given file, returning an iterator over all the imported files

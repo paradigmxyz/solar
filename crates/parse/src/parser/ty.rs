@@ -6,7 +6,6 @@ use std::{fmt, ops::RangeInclusive};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a type.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
         let mut ty = self
             .parse_spanned(Self::parse_basic_ty_kind)
@@ -93,6 +92,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
 
         let sm = self.parse_state_mutability();
+        if sm.is_none() && self.token.is_close_delim(Delimiter::Brace) {
+            self.push_expected_state_mutability();
+        }
         match (&mut ty, sm) {
             (ElementaryType::Address(p), Some(StateMutability::Payable)) => *p = true,
             (_, None) => {}

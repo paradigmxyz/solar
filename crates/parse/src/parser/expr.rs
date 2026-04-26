@@ -11,7 +11,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.with_recursion_limit("expression", |this| this.parse_expr_with(None))
     }
 
-    #[instrument(name = "parse_expr", level = "trace", skip_all)]
     pub(super) fn parse_expr_with(
         &mut self,
         with: Option<Box<'ast, Expr<'ast>>>,
@@ -172,15 +171,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a primary expression.
     fn parse_primary_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         let lo = self.token.span;
-        let kind = if self.check_lit() {
+        let kind = if self.token.is_lit() {
             let (lit, sub) = self.parse_lit(true)?;
             ExprKind::Lit(self.alloc(lit), sub)
-        } else if self.eat_keyword(kw::Type) {
+        } else if self.token.is_keyword(kw::Type) {
+            self.bump();
             self.expect(TokenKind::OpenDelim(Delimiter::Parenthesis))?;
             let ty = self.parse_type()?;
             self.expect(TokenKind::CloseDelim(Delimiter::Parenthesis))?;
             ExprKind::TypeCall(ty)
-        } else if self.check_elementary_type() {
+        } else if self.token.is_elementary_type() {
             let mut ty = self.parse_type()?;
             if let TypeKind::Elementary(ElementaryType::Address(payable)) = &mut ty.kind
                 && *payable
@@ -190,11 +190,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 *payable = false;
             }
             ExprKind::Type(ty)
-        } else if self.check_nr_ident() {
+        } else if self.token.is_non_reserved_ident(self.in_yul) {
             let ident = self.parse_ident()?;
             ExprKind::Ident(ident)
-        } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis))
-            || self.check(TokenKind::OpenDelim(Delimiter::Bracket))
+        } else if self.token.kind == TokenKind::OpenDelim(Delimiter::Parenthesis)
+            || self.token.kind == TokenKind::OpenDelim(Delimiter::Bracket)
         {
             // Array or tuple expression.
             let TokenKind::OpenDelim(close_delim) = self.token.kind else { unreachable!() };
@@ -219,6 +219,16 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 ExprKind::Tuple(self.alloc_smallvec(list))
             }
         } else {
+            self.push_expected(super::ExpectedToken::Lit);
+            self.push_expected(super::ExpectedToken::Keyword(kw::Type));
+            self.push_expected(super::ExpectedToken::ElementaryType);
+            self.push_expected(super::ExpectedToken::Ident);
+            self.push_expected(super::ExpectedToken::Token(TokenKind::OpenDelim(
+                Delimiter::Parenthesis,
+            )));
+            self.push_expected(super::ExpectedToken::Token(TokenKind::OpenDelim(
+                Delimiter::Bracket,
+            )));
             return self.unexpected();
         };
         let span = lo.to(self.prev_token.span);

@@ -7,7 +7,6 @@ use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a source unit.
-    #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
         self.parse_items(TokenKind::Eof).map(SourceUnit::new)
     }
@@ -51,7 +50,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an item.
-    #[instrument(level = "debug", skip_all)]
     pub fn parse_item(&mut self) -> PResult<'sess, Option<Item<'ast>>> {
         let docs = self.parse_doc_comments();
         self.parse_spanned(Self::parse_item_kind)
@@ -61,23 +59,30 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     fn parse_item_kind(&mut self) -> PResult<'sess, Option<ItemKind<'ast>>> {
         let kind = if self.is_function_like() {
             self.parse_function().map(ItemKind::Function)
-        } else if self.eat_keyword(kw::Struct) {
+        } else if self.token.is_keyword(kw::Struct) {
+            self.bump();
             self.parse_struct().map(ItemKind::Struct)
-        } else if self.eat_keyword(kw::Event) {
+        } else if self.token.is_keyword(kw::Event) {
+            self.bump();
             self.parse_event().map(ItemKind::Event)
         } else if self.is_contract_like() {
             self.parse_contract().map(ItemKind::Contract)
-        } else if self.eat_keyword(kw::Enum) {
+        } else if self.token.is_keyword(kw::Enum) {
+            self.bump();
             self.parse_enum().map(ItemKind::Enum)
-        } else if self.eat_keyword(kw::Type) {
+        } else if self.token.is_keyword(kw::Type) {
+            self.bump();
             self.parse_udvt().map(ItemKind::Udvt)
-        } else if self.eat_keyword(kw::Pragma) {
+        } else if self.token.is_keyword(kw::Pragma) {
+            self.bump();
             self.parse_pragma().map(ItemKind::Pragma)
-        } else if self.eat_keyword(kw::Import) {
+        } else if self.token.is_keyword(kw::Import) {
+            self.bump();
             self.parse_import().map(ItemKind::Import)
-        } else if self.eat_keyword(kw::Using) {
+        } else if self.token.is_keyword(kw::Using) {
+            self.bump();
             self.parse_using().map(ItemKind::Using)
-        } else if self.check_keyword(sym::error)
+        } else if self.token.is_keyword(sym::error)
             && self.look_ahead(1).is_ident()
             && self.look_ahead(2).is_open_delim(Delimiter::Parenthesis)
         {
@@ -93,7 +98,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Returns `true` if the current token is the start of a function definition.
-    fn is_function_like(&self) -> bool {
+    fn is_function_like(&mut self) -> bool {
         (self.token.is_keyword(kw::Function)
             && !self.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
             || self.token.is_keyword_any(&[
@@ -110,12 +115,12 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Returns `true` if the current token is the start of a variable declaration.
-    pub(super) fn is_variable_declaration(&self) -> bool {
+    pub(super) fn is_variable_declaration(&mut self) -> bool {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2451
         self.token.is_non_reserved_ident(false) || self.is_non_custom_variable_declaration()
     }
 
-    pub(super) fn is_non_custom_variable_declaration(&self) -> bool {
+    pub(super) fn is_non_custom_variable_declaration(&mut self) -> bool {
         self.token.is_keyword(kw::Mapping)
             || (self.token.is_keyword(kw::Function)
                 && self.look_ahead(1).is_open_delim(Delimiter::Parenthesis))
@@ -288,6 +293,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             {
                 modifiers.push(self.parse_modifier()?);
             } else {
+                self.push_expected_visibility();
+                self.push_expected_state_mutability();
                 break;
             }
         }
@@ -356,7 +363,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         let mut bases = None::<BoxSlice<'_, Modifier<'_>>>;
         let mut layout = None::<StorageLayoutSpecifier<'_>>;
         loop {
-            if self.eat_keyword(kw::Is) {
+            if self.token.is_keyword(kw::Is) {
+                self.bump();
                 let new_bases = self.parse_inheritance()?;
                 if let Some(prev) = &bases {
                     let msg = "base contracts already specified";
@@ -371,7 +379,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else if !new_bases.is_empty() {
                     bases = Some(new_bases);
                 }
-            } else if self.check_keyword(sym::layout) {
+            } else if self.token.is_keyword(sym::layout) {
                 let new_layout = self.parse_storage_layout_specifier()?;
                 if let Some(prev) = &layout {
                     let msg = "storage layout already specified";
@@ -940,13 +948,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a storage location: `storage | memory | calldata | transient`.
     fn parse_data_location(&mut self) -> Option<DataLocation> {
-        if self.eat_keyword(kw::Storage) {
+        if self.eat_keyword_noexpect(kw::Storage) {
             Some(DataLocation::Storage)
-        } else if self.eat_keyword(kw::Memory) {
+        } else if self.eat_keyword_noexpect(kw::Memory) {
             Some(DataLocation::Memory)
-        } else if self.eat_keyword(kw::Calldata) {
+        } else if self.eat_keyword_noexpect(kw::Calldata) {
             Some(DataLocation::Calldata)
-        } else if self.check_keyword(sym::transient)
+        } else if self.check_keyword_noexpect(sym::transient)
             && !matches!(
                 self.look_ahead(1).kind,
                 TokenKind::Eq | TokenKind::Semi | TokenKind::CloseDelim(_) | TokenKind::Comma
@@ -961,13 +969,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a visibility: `public | private | internal | external`.
     pub(super) fn parse_visibility(&mut self) -> Option<Visibility> {
-        if self.eat_keyword(kw::Public) {
+        if self.eat_keyword_noexpect(kw::Public) {
             Some(Visibility::Public)
-        } else if self.eat_keyword(kw::Private) {
+        } else if self.eat_keyword_noexpect(kw::Private) {
             Some(Visibility::Private)
-        } else if self.eat_keyword(kw::Internal) {
+        } else if self.eat_keyword_noexpect(kw::Internal) {
             Some(Visibility::Internal)
-        } else if self.eat_keyword(kw::External) {
+        } else if self.eat_keyword_noexpect(kw::External) {
             Some(Visibility::External)
         } else {
             None
@@ -976,11 +984,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses state mutability: `payable | pure | view`.
     pub(super) fn parse_state_mutability(&mut self) -> Option<StateMutability> {
-        if self.eat_keyword(kw::Payable) {
+        if self.eat_keyword_noexpect(kw::Payable) {
             Some(StateMutability::Payable)
-        } else if self.eat_keyword(kw::Pure) {
+        } else if self.eat_keyword_noexpect(kw::Pure) {
             Some(StateMutability::Pure)
-        } else if self.eat_keyword(kw::View) {
+        } else if self.eat_keyword_noexpect(kw::View) {
             Some(StateMutability::View)
         } else {
             None

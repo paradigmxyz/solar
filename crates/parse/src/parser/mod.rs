@@ -8,6 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
+    kw,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -42,11 +43,15 @@ pub struct Parser<'sess, 'ast> {
     /// The previous token.
     pub prev_token: Token,
     /// List of expected tokens. Cleared after each `bump` call.
-    expected_tokens: Vec<ExpectedToken>,
+    expected_tokens: SmallVec<[ExpectedToken; 8]>,
     /// The span of the last unexpected token.
     last_unexpected_token_span: Option<Span>,
     /// The current doc-comments.
-    docs: Vec<DocComment<'ast>>,
+    docs: SmallVec<[DocComment<'ast>; 4]>,
+    /// Whether doc-comments should be retained in the AST.
+    retain_doc_comments: bool,
+    /// Whether inline Yul AST nodes should be retained.
+    retain_yul_ast: bool,
 
     /// The token stream.
     tokens: std::vec::IntoIter<Token>,
@@ -62,7 +67,7 @@ pub struct Parser<'sess, 'ast> {
     recursion_depth: usize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ExpectedToken {
     Token(TokenKind),
     Keyword(Symbol),
@@ -146,9 +151,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             arena,
             token: Token::DUMMY,
             prev_token: Token::DUMMY,
-            expected_tokens: Vec::with_capacity(8),
+            expected_tokens: SmallVec::new(),
             last_unexpected_token_span: None,
-            docs: Vec::with_capacity(4),
+            docs: SmallVec::new(),
+            retain_doc_comments: true,
+            retain_yul_ast: true,
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
@@ -190,7 +197,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             .source_map()
             .new_source_file_with(filename, get_src)
             .map_err(|e| sess.dcx.err(e.to_string()).emit())?;
-        Ok(Self::from_source_file(sess, arena, &file))
+        Ok(Self::new(sess, arena, Lexer::from_source_file(sess, &file).into_tokens()))
     }
 
     /// Creates a new parser from a source file.
@@ -209,6 +216,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Creates a new parser from a lexer.
     pub fn from_lexer(arena: &'ast ast::Arena, lexer: Lexer<'sess, '_>) -> Self {
         Self::new(lexer.sess, arena, lexer.into_tokens())
+    }
+
+    /// Sets whether doc-comments should be retained in the AST.
+    ///
+    /// NatSpec tags are still validated for diagnostics when doc retention is disabled.
+    pub fn set_retain_doc_comments(&mut self, retain: bool) {
+        self.retain_doc_comments = retain;
+    }
+
+    /// Sets whether parsed Yul AST nodes should be retained.
+    ///
+    /// When disabled, inline assembly blocks are still parsed for syntax and diagnostics.
+    pub fn set_retain_yul_ast(&mut self, retain: bool) {
+        self.retain_yul_ast = retain;
     }
 
     /// Returns the diagnostic context.
@@ -234,7 +255,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Allocates a list of objects on the AST arena.
     pub fn alloc_vec<T>(&self, values: Vec<T>) -> BoxSlice<'ast, T> {
-        self.arena.alloc_vec_thin((), values)
+        if values.is_empty() { BoxSlice::default() } else { self.arena.alloc_vec_thin((), values) }
     }
 
     /// Allocates a list of objects on the AST arena.
@@ -242,7 +263,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         &self,
         values: SmallVec<A>,
     ) -> BoxSlice<'ast, A::Item> {
-        self.arena.alloc_smallvec_thin((), values)
+        if values.is_empty() {
+            BoxSlice::default()
+        } else {
+            self.arena.alloc_smallvec_thin((), values)
+        }
     }
 
     /// Returns an "unexpected token" error in a [`PResult`] for the current token.
@@ -455,12 +480,29 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         is_keyword
     }
 
+    #[inline]
+    #[must_use]
+    fn check_keyword_noexpect(&self, kw: Symbol) -> bool {
+        self.token.is_keyword(kw)
+    }
+
     /// If the next token is the given keyword, eats it and returns `true`.
     /// Otherwise, returns `false`. An expectation is also added for diagnostics purposes.
     #[inline]
     #[must_use]
     pub fn eat_keyword(&mut self, kw: Symbol) -> bool {
         let is_keyword = self.check_keyword(kw);
+        if is_keyword {
+            self.bump();
+        }
+        is_keyword
+    }
+
+    /// If the next token is the given keyword, eats it and returns `true`.
+    #[inline]
+    #[must_use]
+    pub fn eat_keyword_noexpect(&mut self, kw: Symbol) -> bool {
+        let is_keyword = self.check_keyword_noexpect(kw);
         if is_keyword {
             self.bump();
         }
@@ -516,6 +558,19 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     // #[inline(never)]
     fn push_expected(&mut self, expected: ExpectedToken) {
         self.expected_tokens.push(expected);
+    }
+
+    fn push_expected_visibility(&mut self) {
+        self.push_expected(ExpectedToken::Keyword(kw::Public));
+        self.push_expected(ExpectedToken::Keyword(kw::Private));
+        self.push_expected(ExpectedToken::Keyword(kw::Internal));
+        self.push_expected(ExpectedToken::Keyword(kw::External));
+    }
+
+    fn push_expected_state_mutability(&mut self) {
+        self.push_expected(ExpectedToken::Keyword(kw::Payable));
+        self.push_expected(ExpectedToken::Keyword(kw::Pure));
+        self.push_expected(ExpectedToken::Keyword(kw::View));
     }
 
     /// Parses a comma-separated sequence delimited by parentheses (e.g. `(x, y)`).
@@ -657,8 +712,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             first = false;
         }
 
-        while !self.check(ket) {
+        while !self.check_noexpect(ket) {
             if self.token.kind == TokenKind::Eof {
+                self.push_expected(ExpectedToken::Token(ket));
                 recovered = Recovered::Yes;
                 break;
             }
@@ -669,17 +725,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(sep_kind) {
-                        Ok(recovered_) => {
-                            if recovered_ == Recovered::Yes {
-                                recovered = Recovered::Yes;
-                                break;
-                            }
+                    if self.check_noexpect(sep_kind) {
+                        self.bump();
+                    } else {
+                        self.push_expected(ExpectedToken::Token(ket));
+                        let recovered_ = self.expect(sep_kind)?;
+                        if recovered_ == Recovered::Yes {
+                            recovered = Recovered::Yes;
+                            break;
                         }
-                        Err(e) => return Err(e),
                     }
 
-                    if self.check(ket) {
+                    if self.check_noexpect(ket) {
                         trailing = true;
                         break;
                     }
@@ -748,6 +805,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.prev_token = std::mem::replace(&mut self.token, next);
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
+                if !self.retain_doc_comments {
+                    validate_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx());
+                    self.token = self.next_token();
+                    continue;
+                }
                 let natspec = if let Some(items) =
                     parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
                 {
@@ -830,14 +892,24 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         context: &str,
         f: impl FnOnce(&mut Self) -> PResult<'sess, T>,
     ) -> PResult<'sess, T> {
-        self.recursion_depth += 1;
-        let res = if self.recursion_depth > PARSER_RECURSION_LIMIT {
-            Err(self.recursion_limit_reached(context))
-        } else {
+        let res = if self.enter_recursion_limit() {
             f(self)
+        } else {
+            Err(self.recursion_limit_reached(context))
         };
-        self.recursion_depth -= 1;
+        self.exit_recursion_limit();
         res
+    }
+
+    #[inline]
+    fn enter_recursion_limit(&mut self) -> bool {
+        self.recursion_depth += 1;
+        self.recursion_depth <= PARSER_RECURSION_LIMIT
+    }
+
+    #[inline]
+    fn exit_recursion_limit(&mut self) {
+        self.recursion_depth -= 1;
     }
 
     #[cold]
@@ -904,7 +976,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
+        if ident.is_yul_keyword() {
             self.expected_ident_found_err().emit();
         }
         self.bump();
@@ -938,12 +1010,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Parses an identifier.
+    #[inline(always)]
     #[track_caller]
     pub fn parse_ident(&mut self) -> PResult<'sess, Ident> {
         self.parse_ident_common(true)
     }
 
     /// Parses an identifier. Does not check if the identifier is a reserved keyword.
+    #[inline(always)]
     #[track_caller]
     pub fn parse_ident_any(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
@@ -957,6 +1031,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if self.check_ident() { self.parse_ident().map(Some) } else { Ok(None) }
     }
 
+    #[inline(always)]
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
@@ -973,6 +1048,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.
+    #[inline(always)]
     #[track_caller]
     fn ident_or_err(&mut self, recover: bool) -> PResult<'sess, Ident> {
         match self.token.ident() {
@@ -1166,6 +1242,74 @@ fn parse_natspec(
     }
     flush_item(&mut items, &mut kind, &mut span, content_start, bytes.len());
     Some(items)
+}
+
+fn validate_natspec(
+    comment_span: Span,
+    comment_symbol: Symbol,
+    comment_kind: ast::CommentKind,
+    in_yul: bool,
+    dcx: &DiagCtxt,
+) {
+    if in_yul {
+        return;
+    }
+
+    let content = comment_symbol.as_str();
+    validate_natspec_content(comment_span, content, comment_kind, dcx);
+}
+
+fn validate_natspec_content(
+    comment_span: Span,
+    content: &str,
+    comment_kind: ast::CommentKind,
+    dcx: &DiagCtxt,
+) {
+    for_each_natspec_tag(content, comment_kind, |tag| {
+        if !is_valid_natspec_tag(tag) {
+            dcx.warn(format!(
+                "invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"
+            ))
+            .span(comment_span)
+            .emit();
+        }
+    });
+}
+
+fn for_each_natspec_tag(content: &str, comment_kind: ast::CommentKind, mut f: impl FnMut(&str)) {
+    let bytes = content.as_bytes();
+    if memchr::memchr(b'@', bytes).is_none() {
+        return;
+    }
+
+    let is_line_start = |line_start: usize, at_pos: usize| match comment_kind {
+        ast::CommentKind::Line => bytes[line_start..at_pos].trim_ascii().is_empty(),
+        ast::CommentKind::Block => {
+            let trimmed = &bytes[line_start..at_pos].trim_ascii_start();
+            trimmed.is_empty()
+                || (trimmed.starts_with(b"*") && trimmed[1..].trim_ascii_end().is_empty())
+        }
+    };
+
+    let mut line_start = 0;
+    for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
+            && is_line_start(line_start, line_start + tag_offset)
+        {
+            let tag_start = line_start + tag_offset + 1;
+            let tag_slice = &bytes[tag_start..line_end];
+            let trimmed = tag_slice.len() - tag_slice.trim_ascii_start().len();
+            let (tag, _) = split_once_ws(content, bytes, tag_start + trimmed, line_end);
+            f(tag);
+        }
+        line_start = line_end + 1;
+    }
+}
+
+fn is_valid_natspec_tag(tag: &str) -> bool {
+    matches!(tag, "title" | "author" | "notice" | "dev" | "param" | "return" | "inheritdoc")
+        || tag.starts_with("custom:")
+        || ast::NATSPEC_INTERNAL_TAGS[..].contains(&tag)
 }
 
 /// Splits a string slice at the first whitespace character using the `memchr` crate.

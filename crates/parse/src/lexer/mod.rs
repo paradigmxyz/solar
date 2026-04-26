@@ -4,10 +4,11 @@ use solar_ast::{
     Base, StrKind,
     token::{CommentKind, Token, TokenKind, TokenLitKind},
 };
-use solar_data_structures::hint::cold_path;
+use solar_data_structures::{hint::cold_path, map::FxHashMap};
 use solar_interface::{
-    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, source_map::SourceFile,
+    BytePos, Session, Span, Symbol, diagnostics::DiagCtxt, kw, source_map::SourceFile, sym,
 };
+use std::collections::hash_map::Entry;
 
 mod cursor;
 use cursor::token::{RawLiteralKind, RawToken, RawTokenKind};
@@ -35,7 +36,12 @@ pub struct Lexer<'sess, 'src> {
     start_pos: BytePos,
     /// Source text to tokenize.
     src: &'src str,
-
+    /// Local cache for identifiers, which tend to repeat heavily within one source.
+    symbol_cache: FxHashMap<&'src str, Symbol>,
+    /// Tiny cache in front of `symbol_cache` for repeated identifiers.
+    symbol_cache_l1: [Option<(&'src str, Symbol)>; 32],
+    /// Whether doc-comments should be emitted for the parser.
+    retain_doc_comments: bool,
     /// When a "unknown start of token: \u{a0}" has already been emitted earlier
     /// in this file, it's safe to treat further occurrences of the non-breaking
     /// space character as whitespace.
@@ -58,14 +64,31 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Creates a new `Lexer` for the given source string and starting position.
     pub fn with_start_pos(sess: &'sess Session, src: &'src str, start_pos: BytePos) -> Self {
         assert!(sess.is_entered(), "session should be entered before lexing");
+        let symbol_cache = if src.len() >= 64 * 1024 {
+            FxHashMap::with_capacity_and_hasher(src.len() / 128, Default::default())
+        } else {
+            FxHashMap::default()
+        };
         Self {
             sess,
             start_pos,
             pos: start_pos,
             src,
             cursor: Cursor::new(src),
+            symbol_cache,
+            symbol_cache_l1: [None; 32],
+            retain_doc_comments: true,
             nbsp_is_whitespace: false,
         }
+    }
+
+    /// Sets whether doc-comment tokens should be emitted for the parser.
+    ///
+    /// When disabled, doc-comments without invalid NatSpec tags are skipped before interning their
+    /// body. Comments that may emit a warning are still tokenized so the parser can report the
+    /// diagnostic with the same NatSpec rules used when docs are retained.
+    pub fn set_retain_doc_comments(&mut self, retain: bool) {
+        self.retain_doc_comments = retain;
     }
 
     /// Returns a reference to the diagnostic context.
@@ -79,17 +102,13 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Note that this skips comments, as [required by the parser](crate::Parser::new).
     ///
     /// Prefer using this method instead of manually collecting tokens using [`Iterator`].
-    #[instrument(name = "lex", level = "debug", skip_all)]
     pub fn into_tokens(mut self) -> Vec<Token> {
         // This is an estimate of the number of tokens in the source.
-        let mut tokens = Vec::with_capacity(self.src.len() / 4);
+        let mut tokens = Vec::with_capacity(self.src.len() / 8);
         loop {
-            let token = self.slop();
+            let token = self.slop_for_parser();
             if token.is_eof() {
                 break;
-            }
-            if token.is_comment() {
-                continue;
             }
             tokens.push(token);
         }
@@ -108,6 +127,125 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     /// Advances the lexer by the length of the token.
     /// Prefer using `self` as an iterator instead.
     pub fn slop(&mut self) -> Token {
+        self.slop_with_comment_handling::<false>()
+    }
+
+    /// Parser-specialized tokenization path.
+    ///
+    /// This intentionally duplicates the generic `slop` cooking logic so the parser can skip
+    /// whitespace and non-doc comments before building a token. Keeping the branch split avoids a
+    /// hot-path comment/whitespace policy flag in normal parsing.
+    pub(crate) fn slop_for_parser(&mut self) -> Token {
+        let mut swallow_next_invalid = 0;
+        loop {
+            let mut skipped = 0;
+            let RawToken { kind: raw_kind, len } = self.cursor.slop_skip_whitespace(&mut skipped);
+            self.pos += skipped;
+            let start = self.pos;
+            self.pos += len;
+
+            // Now "cook" the token, converting the simple `RawTokenKind` into a rich `TokenKind`.
+            // This turns strings into interned symbols and runs additional validation.
+            let kind = match raw_kind {
+                RawTokenKind::LineComment { is_doc } => {
+                    if !is_doc {
+                        continue;
+                    }
+
+                    // Opening delimiter is not included into the symbol.
+                    let content_start = start + BytePos(3);
+                    let content = self.str_from(content_start);
+                    if !self.retain_doc_comments
+                        && !doc_comment_has_invalid_natspec_tag(content, CommentKind::Line)
+                    {
+                        continue;
+                    }
+                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Line)
+                }
+                RawTokenKind::BlockComment { is_doc, terminated } => {
+                    if !terminated {
+                        cold_path();
+                        let msg = if is_doc {
+                            "unterminated block doc-comment"
+                        } else {
+                            "unterminated block comment"
+                        };
+                        self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
+                    }
+
+                    if !is_doc {
+                        continue;
+                    }
+
+                    // Opening delimiter and closing delimiter are not included into the symbol.
+                    let content_start = start + BytePos(3);
+                    let content_end = self.pos - (terminated as u32) * 2;
+                    let content = self.str_from_to(content_start, content_end);
+                    if !self.retain_doc_comments
+                        && !doc_comment_has_invalid_natspec_tag(content, CommentKind::Block)
+                    {
+                        continue;
+                    }
+                    self.cook_doc_comment(content_start, content, is_doc, CommentKind::Block)
+                }
+                RawTokenKind::Whitespace => unreachable!("parser lexer skips whitespace"),
+                RawTokenKind::Ident => {
+                    let sym = self.ident_symbol_from(start);
+                    TokenKind::Ident(sym)
+                }
+                RawTokenKind::Literal { kind } => {
+                    let (kind, symbol) = self.cook_literal(start, self.pos, kind);
+                    TokenKind::Literal(kind, symbol)
+                }
+
+                // Expression-operator symbols.
+                RawTokenKind::Eq => TokenKind::Eq,
+                RawTokenKind::Lt => TokenKind::Lt,
+                RawTokenKind::Le => TokenKind::Le,
+                RawTokenKind::EqEq => TokenKind::EqEq,
+                RawTokenKind::Ne => TokenKind::Ne,
+                RawTokenKind::Ge => TokenKind::Ge,
+                RawTokenKind::Gt => TokenKind::Gt,
+                RawTokenKind::AndAnd => TokenKind::AndAnd,
+                RawTokenKind::OrOr => TokenKind::OrOr,
+                RawTokenKind::Not => TokenKind::Not,
+                RawTokenKind::Tilde => TokenKind::Tilde,
+                RawTokenKind::Walrus => TokenKind::Walrus,
+                RawTokenKind::PlusPlus => TokenKind::PlusPlus,
+                RawTokenKind::MinusMinus => TokenKind::MinusMinus,
+                RawTokenKind::StarStar => TokenKind::StarStar,
+                RawTokenKind::BinOp(binop) => TokenKind::BinOp(binop),
+                RawTokenKind::BinOpEq(binop) => TokenKind::BinOpEq(binop),
+
+                // Structural symbols.
+                RawTokenKind::At => TokenKind::At,
+                RawTokenKind::Dot => TokenKind::Dot,
+                RawTokenKind::Comma => TokenKind::Comma,
+                RawTokenKind::Semi => TokenKind::Semi,
+                RawTokenKind::Colon => TokenKind::Colon,
+                RawTokenKind::Arrow => TokenKind::Arrow,
+                RawTokenKind::FatArrow => TokenKind::FatArrow,
+                RawTokenKind::Question => TokenKind::Question,
+                RawTokenKind::OpenDelim(delim) => TokenKind::OpenDelim(delim),
+                RawTokenKind::CloseDelim(delim) => TokenKind::CloseDelim(delim),
+
+                RawTokenKind::Unknown => {
+                    if let Some(token) = self.handle_unknown_token(start, &mut swallow_next_invalid)
+                    {
+                        token
+                    } else {
+                        continue;
+                    }
+                }
+
+                RawTokenKind::Eof => TokenKind::Eof,
+            };
+            let span = self.new_span(start, self.pos);
+            return Token::new(kind, span);
+        }
+    }
+
+    fn slop_with_comment_handling<const SKIP_NORMAL_COMMENTS: bool>(&mut self) -> Token {
         let mut swallow_next_invalid = 0;
         loop {
             let RawToken { kind: raw_kind, len } = self.cursor.slop();
@@ -118,6 +256,10 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
             // This turns strings into interned symbols and runs additional validation.
             let kind = match raw_kind {
                 RawTokenKind::LineComment { is_doc } => {
+                    if SKIP_NORMAL_COMMENTS && !is_doc {
+                        continue;
+                    }
+
                     // Opening delimiter is not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content = self.str_from(content_start);
@@ -134,6 +276,10 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
                     }
 
+                    if SKIP_NORMAL_COMMENTS && !is_doc {
+                        continue;
+                    }
+
                     // Opening delimiter and closing delimiter are not included into the symbol.
                     let content_start = start + BytePos(if is_doc { 3 } else { 2 });
                     let content_end = self.pos - (terminated as u32) * 2;
@@ -144,7 +290,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                     continue;
                 }
                 RawTokenKind::Ident => {
-                    let sym = self.symbol_from(start);
+                    let sym = self.ident_symbol_from(start);
                     TokenKind::Ident(sym)
                 }
                 RawTokenKind::Literal { kind } => {
@@ -329,7 +475,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         let msg = format!("integers in base {base} are not supported");
                         self.dcx().err(msg).span(self.new_span(start, end)).emit();
                     }
-                    (TokenLitKind::Integer, self.symbol_from_to(start, end))
+                    (TokenLitKind::Integer, self.symbol_from_integer(start, end, base))
                 }
             }
             RawLiteralKind::Rational { base, empty_exponent } => {
@@ -370,11 +516,30 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         (pos - self.start_pos).to_usize()
     }
 
-    /// Slice of the source text from `start` up to but excluding `self.pos`,
-    /// meaning the slice does not include the character `self.ch`.
-    #[cfg_attr(debug_assertions, track_caller)]
-    fn symbol_from(&self, start: BytePos) -> Symbol {
-        self.symbol_from_to(start, self.pos)
+    fn ident_symbol_from(&mut self, start: BytePos) -> Symbol {
+        let s = self.str_from_to(start, self.pos);
+        if let Some(symbol) = hot_symbol(s) {
+            return symbol;
+        }
+
+        let idx = l1_symbol_cache_index(s);
+        if let Some((cached, symbol)) = self.symbol_cache_l1[idx]
+            && cached == s
+        {
+            return symbol;
+        }
+
+        let sess = self.sess;
+        let symbol = match self.symbol_cache.entry(s) {
+            Entry::Occupied(entry) => *entry.get(),
+            Entry::Vacant(entry) => {
+                let symbol = sess.intern(s);
+                entry.insert(symbol);
+                symbol
+            }
+        };
+        self.symbol_cache_l1[idx] = Some((s, symbol));
+        symbol
     }
 
     /// Slice of the source text from `start` up to but excluding `self.pos`,
@@ -390,6 +555,36 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         self.intern(self.str_from_to(start, end))
     }
 
+    fn symbol_from_integer(&self, start: BytePos, end: BytePos, base: Base) -> Symbol {
+        if base == Base::Decimal {
+            let start = self.src_index(start);
+            let end = self.src_index(end);
+            if end == start + 1 {
+                let b = self.src.as_bytes()[start];
+                if b.is_ascii_digit() {
+                    return sym::integer(b - b'0');
+                }
+            }
+        } else if base == Base::Hexadecimal {
+            match self.str_from_to(start, end).as_bytes() {
+                b"0x00" => return sym::zero_x00,
+                b"0x01" => return sym::zero_x01,
+                b"0x04" => return sym::zero_x04,
+                b"0x0c" => return sym::zero_x0c,
+                b"0x14" => return sym::zero_x14,
+                b"0x1c" => return sym::zero_x1c,
+                b"0x1f" => return sym::zero_x1f,
+                b"0x20" => return sym::zero_x20,
+                b"0x40" => return sym::zero_x40,
+                b"0x60" => return sym::zero_x60,
+                b"0x80" => return sym::zero_x80,
+                b"0xff" => return sym::zero_xff,
+                _ => {}
+            }
+        }
+        self.symbol_from_to(start, end)
+    }
+
     /// Slice of the source text spanning from `start` until the end.
     #[cfg_attr(debug_assertions, track_caller)]
     fn str_from_to_end(&self, start: BytePos) -> &'src str {
@@ -403,7 +598,8 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
         if cfg!(debug_assertions) {
             &self.src[range]
         } else {
-            // SAFETY: Should never be out of bounds.
+            // SAFETY: `start` and `end` are produced from lexer byte positions over `self.src`;
+            // debug builds use checked slicing to catch any invariant breakage.
             unsafe { self.src.get_unchecked(range) }
         }
     }
@@ -411,6 +607,158 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
     fn intern(&self, s: &str) -> Symbol {
         self.sess.intern(s)
     }
+}
+
+fn hot_symbol(s: &str) -> Option<Symbol> {
+    // Keep the highest-frequency pre-interned Solidity/Yul words out of the interner hot path.
+    let bytes = s.as_bytes();
+    if let [byte] = *bytes {
+        return Some(match byte {
+            b'a' => sym::a,
+            b'b' => sym::b,
+            b'c' => sym::c,
+            b'd' => sym::d,
+            b'i' => sym::i,
+            b'm' => sym::m,
+            b'n' => sym::n_,
+            b'o' => sym::o,
+            b'p' => sym::p,
+            b'r' => sym::r,
+            b's' => sym::s,
+            b'x' => sym::x,
+            b'y' => sym::y,
+            b'z' => sym::z,
+            _ => return None,
+        });
+    }
+
+    Some(match bytes {
+        b"add" => kw::Add,
+        b"address" => kw::Address,
+        b"amount" => sym::amount,
+        b"and" => kw::And,
+        b"args" => sym::args,
+        b"assembly" => kw::Assembly,
+        b"bool" => kw::Bool,
+        b"break" => kw::Break,
+        b"buffer" => sym::buffer,
+        b"byte" => kw::Byte,
+        b"bytes" => kw::Bytes,
+        b"bytes32" => kw::Bytes32,
+        b"calldata" => kw::Calldata,
+        b"calldataload" => kw::Calldataload,
+        b"constant" => kw::Constant,
+        b"data" => sym::data,
+        b"div" => kw::Div,
+        b"end" => sym::end,
+        b"error" => sym::error,
+        b"eq" => kw::Eq,
+        b"for" => kw::For,
+        b"from" => sym::from,
+        b"function" => kw::Function,
+        b"gas" => kw::Gas,
+        b"gt" => kw::Gt,
+        b"hash" => sym::hash,
+        b"id" => sym::id,
+        b"if" => kw::If,
+        b"int256" => kw::Int256,
+        b"internal" => kw::Internal,
+        b"iszero" => kw::Iszero,
+        b"key" => sym::key,
+        b"keccak256" => kw::Keccak256,
+        b"let" => kw::Let,
+        b"length" => sym::length,
+        b"lt" => kw::Lt,
+        b"map" => sym::map,
+        b"memory" => kw::Memory,
+        b"mload" => kw::Mload,
+        b"mstore" => kw::Mstore,
+        b"mstore8" => kw::Mstore8,
+        b"mul" => kw::Mul,
+        b"not" => kw::Not,
+        b"offset" => sym::offset,
+        b"or" => kw::Or,
+        b"private" => kw::Private,
+        b"pure" => kw::Pure,
+        b"public" => kw::Public,
+        b"result" => sym::result,
+        b"return" => kw::Return,
+        b"returns" => kw::Returns,
+        b"returndatasize" => kw::Returndatasize,
+        b"revert" => kw::Revert,
+        b"shl" => kw::Shl,
+        b"shr" => kw::Shr,
+        b"sload" => kw::Sload,
+        b"sstore" => kw::Sstore,
+        b"staticcall" => kw::Staticcall,
+        b"start" => sym::start,
+        b"storage" => kw::Storage,
+        b"string" => kw::String,
+        b"sub" => kw::Sub,
+        b"to" => sym::to,
+        b"uint256" => kw::UInt256,
+        b"value" => sym::value,
+        b"view" => kw::View,
+        b"virtual" => kw::Virtual,
+        b"xor" => kw::Xor,
+        _ => return None,
+    })
+}
+
+#[inline]
+fn l1_symbol_cache_index(s: &str) -> usize {
+    debug_assert!(!s.is_empty());
+    let bytes = s.as_bytes();
+    (bytes[0] as usize ^ bytes.len()) & 31
+}
+
+fn doc_comment_has_invalid_natspec_tag(content: &str, comment_kind: CommentKind) -> bool {
+    let bytes = content.as_bytes();
+    if memchr::memchr(b'@', bytes).is_none() {
+        return false;
+    }
+
+    let mut line_start = 0;
+    for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end]) {
+            let at_pos = line_start + tag_offset;
+            if is_natspec_line_start(bytes, comment_kind, line_start, at_pos) {
+                let tag_start = at_pos + 1;
+                let tag_slice = &bytes[tag_start..line_end];
+                let tag_start = tag_start + (tag_slice.len() - tag_slice.trim_ascii_start().len());
+                let tag_end = memchr::memchr3(b' ', b'\t', b'\r', &bytes[tag_start..line_end])
+                    .map_or(line_end, |offset| tag_start + offset);
+                if !is_valid_natspec_tag(&content[tag_start..tag_end]) {
+                    return true;
+                }
+            }
+        }
+        line_start = line_end + 1;
+    }
+
+    false
+}
+
+fn is_natspec_line_start(
+    bytes: &[u8],
+    comment_kind: CommentKind,
+    line_start: usize,
+    at_pos: usize,
+) -> bool {
+    match comment_kind {
+        CommentKind::Line => bytes[line_start..at_pos].trim_ascii().is_empty(),
+        CommentKind::Block => {
+            let trimmed = bytes[line_start..at_pos].trim_ascii_start();
+            trimmed.is_empty()
+                || (trimmed.starts_with(b"*") && trimmed[1..].trim_ascii_end().is_empty())
+        }
+    }
+}
+
+fn is_valid_natspec_tag(tag: &str) -> bool {
+    matches!(tag, "title" | "author" | "notice" | "dev" | "param" | "return" | "inheritdoc")
+        || tag.starts_with("custom:")
+        || solar_ast::NATSPEC_INTERNAL_TAGS.contains(&tag)
 }
 
 impl Iterator for Lexer<'_, '_> {

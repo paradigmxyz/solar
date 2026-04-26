@@ -7,7 +7,6 @@ use solar_interface::{Ident, Span, SpannedOption, kw, sym};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses a statement.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
         self.with_recursion_limit("statement", |this| {
             let docs = this.parse_doc_comments();

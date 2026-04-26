@@ -4,7 +4,7 @@ use num_bigint::{BigInt, BigUint};
 use num_rational::Ratio;
 use num_traits::{Num, Signed, Zero};
 use solar_ast::{token::*, *};
-use solar_interface::{ByteSymbol, Session, Symbol, diagnostics::ErrorGuaranteed, kw};
+use solar_interface::{ByteSymbol, Session, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 use std::{borrow::Cow, fmt};
 
 impl<'sess, 'ast> Parser<'sess, 'ast> {
@@ -14,7 +14,6 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// display reasons.
     ///
     /// Returns None if no subdenomination was parsed or if the literal is not a number or rational.
-    #[instrument(level = "trace", skip_all)]
     pub fn parse_lit(
         &mut self,
         with_subdenomination: bool,
@@ -229,6 +228,16 @@ fn parse_integer<'ast>(
     symbol: Symbol,
     subdenomination: Option<SubDenomination>,
 ) -> Result<LitKind<'ast>, LitError> {
+    if let Some(value) = symbol_small_integer(symbol) {
+        let mut n = value;
+        if let Some(subdenomination) = subdenomination {
+            n = n
+                .checked_mul(U256::from(subdenomination.value()))
+                .ok_or(LitError::IntegerTooLarge)?;
+        }
+        return Ok(LitKind::Number(n));
+    }
+
     let s = &strip_underscores(symbol, sess)[..];
     let base = match s.as_bytes() {
         [b'0', b'x', ..] => Base::Hexadecimal,
@@ -259,6 +268,30 @@ fn parse_integer<'ast>(
         n = n.checked_mul(U256::from(subdenomination.value())).ok_or(LitError::IntegerTooLarge)?;
     }
     Ok(LitKind::Number(n))
+}
+
+fn symbol_small_integer(symbol: Symbol) -> Option<U256> {
+    if let Some(digit) = symbol.as_u32().checked_sub(sym::integer(0).as_u32())
+        && digit < 10
+    {
+        return Some(U256::from(digit));
+    }
+
+    Some(U256::from(match symbol {
+        sym::zero_x00 => 0x00u16,
+        sym::zero_x01 => 0x01,
+        sym::zero_x04 => 0x04,
+        sym::zero_x0c => 0x0c,
+        sym::zero_x14 => 0x14,
+        sym::zero_x1c => 0x1c,
+        sym::zero_x1f => 0x1f,
+        sym::zero_x20 => 0x20,
+        sym::zero_x40 => 0x40,
+        sym::zero_x60 => 0x60,
+        sym::zero_x80 => 0x80,
+        sym::zero_xff => 0xff,
+        _ => return None,
+    }))
 }
 
 fn parse_rational<'ast>(
@@ -422,6 +455,34 @@ const fn max_digits<const BITS: u32>(base: Base) -> usize {
 }
 
 fn u256_from_str_radix(s: &str, base: Base) -> Result<U256, LitError> {
+    if base == Base::Decimal && s.len() <= 38 {
+        let mut n = 0u128;
+        for &b in s.as_bytes() {
+            let Some(digit) = b.checked_sub(b'0').filter(|&digit| digit < 10) else {
+                return U256::from_str_radix(s, base as u64).map_err(|_| LitError::IntegerTooLarge);
+            };
+            n = n * 10 + digit as u128;
+        }
+        return Ok(U256::from(n));
+    }
+
+    if base == Base::Hexadecimal && s.len() <= 32 {
+        let mut n = 0u128;
+        for &b in s.as_bytes() {
+            let digit = match b {
+                b'0'..=b'9' => b - b'0',
+                b'a'..=b'f' => b - b'a' + 10,
+                b'A'..=b'F' => b - b'A' + 10,
+                _ => {
+                    return U256::from_str_radix(s, base as u64)
+                        .map_err(|_| LitError::IntegerTooLarge);
+                }
+            };
+            n = (n << 4) | digit as u128;
+        }
+        return Ok(U256::from(n));
+    }
+
     if s.len() <= max_digits::<{ Primitive::BITS }>(base)
         && let Ok(n) = Primitive::from_str_radix(s, base as u32)
     {

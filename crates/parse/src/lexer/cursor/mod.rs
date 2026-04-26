@@ -19,20 +19,21 @@ pub use char_info::*;
 #[cfg(test)]
 mod tests;
 
-/// Peekable iterator over a char sequence.
+/// Cursor over a byte sequence.
 ///
-/// Next characters can be peeked via `first` method,
-/// and position can be shifted forward via `bump` method.
+/// Next bytes can be peeked via `first`, and the position can be shifted forward via `bump`.
+/// The cursor is always built from a valid UTF-8 `str`; token boundaries may be byte offsets, but
+/// non-ASCII paths only skip continuation bytes after the leading byte has already been consumed.
 #[derive(Clone, Debug)]
 pub struct Cursor<'a> {
-    bytes: std::slice::Iter<'a, u8>,
+    bytes: &'a [u8],
 }
 
 impl<'a> Cursor<'a> {
     /// Creates a new cursor over the given input string slice.
     #[inline]
     pub fn new(input: &'a str) -> Self {
-        Cursor { bytes: input.as_bytes().iter() }
+        Cursor { bytes: input.as_bytes() }
     }
 
     /// Creates a new iterator that also returns the position of each token in the input string.
@@ -50,8 +51,7 @@ impl<'a> Cursor<'a> {
     /// Advances the cursor by the length of the token.
     /// Prefer using `Cursor::with_position`, or using it as an iterator instead.
     pub fn slop(&mut self) -> RawToken {
-        // Use the pointer instead of the length to track how many bytes were consumed, since
-        // internally the iterator is a pair of `start` and `end` pointers.
+        // Use pointers to measure the consumed bytes without reloading the slice length.
         let start = self.as_ptr();
 
         let Some(first_char) = self.bump_ret() else { return RawToken::EOF };
@@ -63,7 +63,31 @@ impl<'a> Cursor<'a> {
         RawToken::new(token_kind, len as u32)
     }
 
-    #[inline]
+    /// Slops up a token, skipping leading whitespace and adding its byte length to `skipped`.
+    #[inline(always)]
+    pub fn slop_skip_whitespace(&mut self, skipped: &mut u32) -> RawToken {
+        loop {
+            // Use pointers to measure the consumed bytes without reloading the slice length.
+            let start = self.as_ptr();
+
+            let Some(first_char) = self.bump_ret() else { return RawToken::EOF };
+            if is_whitespace_byte(first_char) {
+                self.whitespace();
+                // SAFETY: `start` points to the same string.
+                *skipped += unsafe { self.as_ptr().offset_from_unsigned(start) } as u32;
+                continue;
+            }
+
+            let token_kind = self.advance_token_kind(first_char);
+
+            // SAFETY: `start` points to the same string.
+            let len = unsafe { self.as_ptr().offset_from_unsigned(start) };
+
+            return RawToken::new(token_kind, len as u32);
+        }
+    }
+
+    #[inline(always)]
     fn advance_token_kind(&mut self, first_char: u8) -> RawTokenKind {
         match first_char {
             // Slash, comment or block comment.
@@ -325,7 +349,8 @@ impl<'a> Cursor<'a> {
 
         // Check if the identifier is a string literal prefix.
         if unlikely(matches!(first, b'h' | b'u')) {
-            // SAFETY: within bounds and lifetime of `self.chars`.
+            // SAFETY: `start` is the beginning of the identifier within `self.bytes`, and
+            // `self.as_ptr()` is the first byte after the identifier.
             let id = unsafe {
                 let start = start.sub(1);
                 std::slice::from_raw_parts(start, self.as_ptr().offset_from_unsigned(start))
@@ -446,18 +471,22 @@ impl<'a> Cursor<'a> {
 
     fn eat_digits(&mut self, mut is_digit: impl FnMut(u8) -> bool) -> bool {
         let mut has_digits = false;
-        loop {
-            match self.first() {
+        let bytes = self.as_bytes();
+        let mut n = 0;
+        while n < bytes.len() {
+            // SAFETY: `n < bytes.len()`.
+            match unsafe { *bytes.get_unchecked(n) } {
                 b'_' => {
-                    self.bump();
+                    n += 1;
                 }
                 c if is_digit(c) => {
                     has_digits = true;
-                    self.bump();
+                    n += 1;
                 }
                 _ => break,
             }
         }
+        self.ignore_bytes(n);
         has_digits
     }
 
@@ -475,13 +504,13 @@ impl<'a> Cursor<'a> {
     /// Returns the remaining input as a byte slice.
     #[inline]
     pub fn as_bytes(&self) -> &'a [u8] {
-        self.bytes.as_slice()
+        self.bytes
     }
 
     /// Returns the pointer to the first byte of the remaining input.
     #[inline]
     pub fn as_ptr(&self) -> *const u8 {
-        self.bytes.as_slice().as_ptr()
+        self.bytes.as_ptr()
     }
 
     /// Returns the last eaten byte.
@@ -512,12 +541,16 @@ impl<'a> Cursor<'a> {
     #[doc(hidden)]
     #[inline]
     fn peek_byte(&self, index: usize) -> u8 {
-        self.as_bytes().get(index).copied().unwrap_or(EOF)
+        let bytes = self.bytes;
+        // SAFETY: guarded by the explicit bounds check above.
+        if index < bytes.len() { unsafe { *bytes.get_unchecked(index) } } else { EOF }
     }
 
     /// Moves to the next character.
     fn bump(&mut self) {
-        self.bytes.next();
+        debug_assert!(!self.bytes.is_empty());
+        // SAFETY: callers only bump after checking that at least one byte is available.
+        self.bytes = unsafe { self.bytes.get_unchecked(1..) };
     }
 
     /// Skips to the end of the current UTF-8 character sequence, with `x` as the first byte.
@@ -533,16 +566,21 @@ impl<'a> Cursor<'a> {
             ..0xF0 => 2,
             _ => 3,
         };
-        // NOTE: The internal iterator was created with from valid UTF-8 string, so we can freely
-        // skip bytes here without checking bounds.
+        // NOTE: The cursor was created from a valid UTF-8 string, so a non-ASCII leading byte is
+        // followed by enough continuation bytes to complete that code point.
         self.ignore_bytes(skip);
     }
 
     /// Moves to the next character, returning the current one.
     fn bump_ret(&mut self) -> Option<u8> {
-        let c = self.as_bytes().first().copied();
-        self.bytes.next();
-        c
+        let bytes = self.bytes;
+        if bytes.is_empty() {
+            return None;
+        }
+        // SAFETY: the empty case returned above, so byte 0 and the tail slice are in bounds.
+        let c = unsafe { *bytes.get_unchecked(0) };
+        self.bytes = unsafe { bytes.get_unchecked(1..) };
+        Some(c)
     }
 
     /// Advances `n` bytes.
@@ -550,7 +588,8 @@ impl<'a> Cursor<'a> {
     #[cfg_attr(debug_assertions, track_caller)]
     fn ignore_bytes(&mut self, n: usize) {
         debug_assert!(n <= self.as_bytes().len());
-        self.bytes = unsafe { self.as_bytes().get_unchecked(n..) }.iter();
+        // SAFETY: callers compute `n` from this same slice; debug builds check the invariant.
+        self.bytes = unsafe { self.bytes.get_unchecked(n..) };
     }
 
     /// Eats symbols until `ch1` or `ch2` is found or until the end of file is reached.
@@ -567,9 +606,16 @@ impl<'a> Cursor<'a> {
     /// Eats symbols while predicate returns true or until the end of file is reached.
     #[inline]
     fn eat_while(&mut self, mut predicate: impl FnMut(u8) -> bool) {
-        while predicate(self.first()) {
-            self.bump();
+        let bytes = self.as_bytes();
+        let mut n = 0;
+        while n < bytes.len() {
+            // SAFETY: `n < bytes.len()`.
+            if !predicate(unsafe { *bytes.get_unchecked(n) }) {
+                break;
+            }
+            n += 1;
         }
+        self.ignore_bytes(n);
     }
 }
 
