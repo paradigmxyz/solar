@@ -106,6 +106,82 @@ mk_groups!(
     "Optimism",
 );
 
+#[cfg(feature = "ci")]
+#[library_benchmark]
+#[benches::ci_analyze(
+    "empty",
+    "Counter",
+    "verifier",
+    "OptimizorClub",
+    "UniswapV3",
+    "Solarray",
+    "console",
+    "Vm",
+    "safeconsole",
+    "Seaport",
+    "Solady"
+)]
+fn analyze(name: &str) {
+    run_analyze(name, &Solar);
+}
+
+#[cfg(feature = "ci")]
+#[library_benchmark]
+#[benches::ci_analyze_no_drop(
+    "empty",
+    "Counter",
+    "verifier",
+    "OptimizorClub",
+    "UniswapV3",
+    "Solarray",
+    "console",
+    "Vm",
+    "safeconsole",
+    "Seaport",
+    "Solady"
+)]
+fn analyze_no_drop(name: &str) {
+    run_analyze_no_drop(name, &Solar);
+}
+
+#[cfg(not(feature = "ci"))]
+#[library_benchmark]
+#[benches::analyze(
+    "empty",
+    "Counter",
+    "verifier",
+    "OptimizorClub",
+    "UniswapV3",
+    "Solarray",
+    "console",
+    "Vm",
+    "safeconsole",
+    "Seaport",
+    "Solady"
+)]
+fn analyze(name: &str) {
+    run_analyze(name, &Solar);
+}
+
+#[cfg(not(feature = "ci"))]
+#[library_benchmark]
+#[benches::analyze_no_drop(
+    "empty",
+    "Counter",
+    "verifier",
+    "OptimizorClub",
+    "UniswapV3",
+    "Solarray",
+    "console",
+    "Vm",
+    "safeconsole",
+    "Seaport",
+    "Solady"
+)]
+fn analyze_no_drop(name: &str) {
+    run_analyze_no_drop(name, &Solar);
+}
+
 #[inline]
 fn run_lex(name: &str, parser: &dyn Parser) {
     assert!(parser.capabilities().can_lex(), "{} can't lex", parser.name());
@@ -121,10 +197,28 @@ fn run_parse(name: &str, parser: &dyn Parser) {
     parser.parse(black_box(src), setup)
 }
 
+#[inline]
+fn run_analyze(name: &str, parser: &dyn Parser) {
+    let Source { name: _, path: _, src, capabilities } = get_src(name);
+    assert!(parser.capabilities().can_analyze(), "{} can't analyze", parser.name());
+    assert!(capabilities.can_analyze(), "{name} can't be analyzed");
+    let setup = &mut *parser.setup(src);
+    parser.analyze(black_box(src), setup)
+}
+
+#[inline]
+fn run_analyze_no_drop(name: &str, parser: &dyn Parser) {
+    let Source { name: _, path: _, src, capabilities } = get_src(name);
+    assert!(parser.capabilities().can_analyze(), "{} can't analyze", parser.name());
+    assert!(capabilities.can_analyze(), "{name} can't be analyzed");
+    let setup = &mut *parser.setup(src);
+    parser.analyze_no_drop(black_box(src), setup)
+}
+
 // use lex_::lex;
 // use parse_::parse;
 
 // iai_callgrind::main!(library_benchmark_groups = lex, parse);
 
-library_benchmark_group!(name = all; benchmarks = solar_enter, lex, parse);
+library_benchmark_group!(name = all; benchmarks = solar_enter, lex, parse, analyze, analyze_no_drop);
 iai_callgrind::main!(library_benchmark_groups = all);

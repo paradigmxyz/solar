@@ -90,7 +90,10 @@ fn parser_benches(c: &mut Criterion) {
                             parser.lex(src, &mut *setup);
                             setup
                         },
-                        criterion::BatchSize::SmallInput,
+                        // Keep setup per-iteration. Solar's compiler carries stage/source-map
+                        // state, so batching multiple measured iterations into one setup can
+                        // short-circuit later iterations and under-report frontend cost.
+                        criterion::BatchSize::PerIteration,
                     )
                 });
             }
@@ -101,7 +104,7 @@ fn parser_benches(c: &mut Criterion) {
                         parser.parse(src, &mut *setup);
                         setup
                     },
-                    criterion::BatchSize::SmallInput,
+                    criterion::BatchSize::PerIteration,
                 )
             });
             if parser.capabilities().can_lower() && scaps.can_lower() {
@@ -112,7 +115,29 @@ fn parser_benches(c: &mut Criterion) {
                             parser.lower(src, &mut *setup);
                             setup
                         },
-                        criterion::BatchSize::SmallInput,
+                        criterion::BatchSize::PerIteration,
+                    )
+                });
+            }
+            if parser.capabilities().can_analyze() && scaps.can_analyze() {
+                g.bench_function(mk_id("analyze"), |b| {
+                    b.iter_batched(
+                        || parser.setup(src),
+                        |mut setup| {
+                            parser.analyze(src, &mut *setup);
+                            setup
+                        },
+                        criterion::BatchSize::PerIteration,
+                    )
+                });
+                g.bench_function(mk_id("analyze-no-drop"), |b| {
+                    b.iter_batched(
+                        || parser.setup(src),
+                        |mut setup| {
+                            parser.analyze_no_drop(src, &mut *setup);
+                            setup
+                        },
+                        criterion::BatchSize::PerIteration,
                     )
                 });
             }

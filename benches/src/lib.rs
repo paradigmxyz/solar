@@ -83,19 +83,20 @@ pub struct Source {
 pub struct Capabilities {
     lex: bool,
     lower: bool,
+    analyze: bool,
 }
 
 impl Capabilities {
     pub fn all() -> Self {
-        Self { lex: true, lower: true }
+        Self { lex: true, lower: true, analyze: true }
     }
 
     pub fn parse_only() -> Self {
-        Self { lex: false, lower: false }
+        Self { lex: false, lower: false, analyze: false }
     }
 
     pub fn lex_and_parse() -> Self {
-        Self { lex: true, lower: false }
+        Self { lex: true, lower: false, analyze: false }
     }
 
     pub fn can_lex(&self) -> bool {
@@ -104,6 +105,10 @@ impl Capabilities {
 
     pub fn can_lower(&self) -> bool {
         self.lower
+    }
+
+    pub fn can_analyze(&self) -> bool {
+        self.analyze
     }
 }
 
@@ -116,6 +121,10 @@ pub trait Parser {
     fn lex(&self, _src: &str, _setup: &mut dyn Any) {}
     fn parse(&self, src: &str, setup: &mut dyn Any);
     fn lower(&self, _src: &str, _setup: &mut dyn Any) {}
+    fn analyze(&self, _src: &str, _setup: &mut dyn Any) {}
+    fn analyze_no_drop(&self, src: &str, setup: &mut dyn Any) {
+        self.analyze(src, setup);
+    }
 }
 
 pub struct Solc;
@@ -206,6 +215,43 @@ impl Parser for Solar {
             // load file
             parsing_context.parse();
             let _ = compiler.lower_asts().unwrap();
+        })
+    }
+
+    fn analyze(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler.enter_mut(|compiler| {
+            let mut parsing_context = compiler.parse();
+            parsing_context.add_file(
+                compiler
+                    .sess()
+                    .source_map()
+                    .new_source_file(PathBuf::from("test.sol"), src)
+                    .unwrap(),
+            );
+            parsing_context.parse();
+            if let std::ops::ControlFlow::Continue(()) = compiler.lower_asts().unwrap() {
+                compiler.drop_asts();
+                let _ = compiler.analysis().unwrap();
+            }
+        })
+    }
+
+    fn analyze_no_drop(&self, src: &str, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+        compiler.enter_mut(|compiler| {
+            let mut parsing_context = compiler.parse();
+            parsing_context.add_file(
+                compiler
+                    .sess()
+                    .source_map()
+                    .new_source_file(PathBuf::from("test.sol"), src)
+                    .unwrap(),
+            );
+            parsing_context.parse();
+            if let std::ops::ControlFlow::Continue(()) = compiler.lower_asts().unwrap() {
+                let _ = compiler.analysis().unwrap();
+            }
         })
     }
 }
