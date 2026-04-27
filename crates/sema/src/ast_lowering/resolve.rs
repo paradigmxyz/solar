@@ -1585,6 +1585,16 @@ impl Declarations {
             return None;
         }
 
+        // Allow events and errors to shadow builtin identifiers (this, super).
+        // Events/errors don't create conflicts with builtins since they exist in different
+        // namespaces and cannot be confused in usage.
+        if matches!(decl.res, Item(Event(_) | Error(_)))
+            && declarations.len() == 1
+            && matches!(declarations[0].res, Builtin(_))
+        {
+            return None;
+        }
+
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.res, Item(Function(_) | Event(_))) {
             let mut getter = None;
