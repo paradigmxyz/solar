@@ -108,7 +108,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         let initial_value = if let Some(init) = var.initializer {
             self.lower_expr(builder, init)
-        } else if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+        } else if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
             // Struct without initializer: allocate memory and zero-initialize
             let total_words = self.calculate_memory_words_for_type(&var.ty);
             let struct_size = total_words * 32;

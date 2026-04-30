@@ -218,13 +218,15 @@ fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), Stri
 
 /// Process a `.mir` input: read file, parse, run passes, print.
 fn process_mir(args: &Args) -> Result<(), String> {
-    let text = std::fs::read_to_string(&args.input)
-        .map_err(|e| format!("failed to read {}: {e}", args.input))?;
-
     let sess = Session::builder().with_stderr_emitter().build();
+    let source = sess
+        .source_map()
+        .load_file(Path::new(&args.input))
+        .map_err(|e| format!("failed to read {}: {e}", args.input))?;
+    let text = source.src.as_str();
     let mut result: Result<(), String> = Ok(());
     sess.enter(|| {
-        let mut module = match parse_module(&text) {
+        let mut module = match parse_module(text) {
             Ok(m) => m,
             Err(e) => {
                 result = Err(format!("{e}"));

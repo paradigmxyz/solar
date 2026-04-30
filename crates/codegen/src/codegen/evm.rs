@@ -34,6 +34,7 @@ struct StackEffect {
 #[derive(Clone, Copy, Debug)]
 enum StackPush {
     /// No value is pushed (pushes == 0).
+    #[allow(dead_code)]
     None,
     /// Push a tracked ValueId (pushes == 1).
     Tracked(ValueId),

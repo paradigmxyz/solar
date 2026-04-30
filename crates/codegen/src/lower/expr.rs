@@ -729,7 +729,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Update free memory pointer: ptr + 32 + ceil(bytecode_len / 32) * 32
-        let aligned_data_len = ((bytecode_len + 31) / 32) * 32;
+        let aligned_data_len = bytecode_len.div_ceil(32) * 32;
         let total_size = 32 + aligned_data_len;
         let total_size_val = builder.imm_u64(total_size as u64);
         let new_free_ptr = builder.add(ptr, total_size_val);
@@ -874,7 +874,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(ptr, length);
 
         // Update free memory pointer: ptr + 32 + ceil(length/32)*32
-        let aligned_data_len = ((current_offset + 31) / 32) * 32;
+        let aligned_data_len = current_offset.div_ceil(32) * 32;
         let total_size = 32 + aligned_data_len;
         let total_size_val = builder.imm_u64(total_size);
         let new_free_ptr = builder.add(ptr, total_size_val);
@@ -887,7 +887,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
     fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>) -> usize {
         use hir::ExprKind;
-        use solar_ast::{ElementaryType, LitKind, StrKind};
+        use solar_ast::{LitKind, StrKind};
 
         match &expr.kind {
             // Literals
@@ -933,7 +933,8 @@ impl<'gcx> Lowerer<'gcx> {
                 ElementaryType::Address(_) => 20,
                 ElementaryType::Bool => 1,
                 ElementaryType::Int(size) | ElementaryType::UInt(size) => size.bytes() as usize,
-                ElementaryType::String | ElementaryType::Bytes => 32, // Dynamic - handled specially
+                // Dynamic - handled specially.
+                ElementaryType::String | ElementaryType::Bytes => 32,
                 ElementaryType::Fixed(size, _) | ElementaryType::UFixed(size, _) => {
                     size.bytes() as usize
                 }
@@ -1966,45 +1967,37 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Fallback: try the original 2-level approach for backward compatibility
-        if let ExprKind::Member(inner_base, inner_member) = &base.kind {
-            if let ExprKind::Ident(res_slice) = &inner_base.kind
-                && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        if let ExprKind::Member(inner_base, inner_member) = &base.kind
+            && let ExprKind::Ident(res_slice) = &inner_base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
+                && !self.struct_storage_base_slots.contains_key(var_id)
             {
-                let var = self.gcx.hir.variable(*var_id);
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
-                    if !self.struct_storage_base_slots.contains_key(var_id) {
-                        let strukt = self.gcx.hir.strukt(*struct_id);
-                        for (i, &field_id) in strukt.fields.iter().enumerate() {
-                            let field = self.gcx.hir.variable(field_id);
-                            if let Some(field_name) = field.name
-                                && field_name.name == inner_member.name
-                            {
-                                if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
-                                    &field.ty.kind
-                                {
-                                    let base_offset =
-                                        self.get_struct_field_memory_offset(*struct_id, i);
+                let strukt = self.gcx.hir.strukt(*struct_id);
+                for (i, &field_id) in strukt.fields.iter().enumerate() {
+                    let field = self.gcx.hir.variable(field_id);
+                    if let Some(field_name) = field.name
+                        && field_name.name == inner_member.name
+                        && let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
+                            &field.ty.kind
+                    {
+                        let base_offset = self.get_struct_field_memory_offset(*struct_id, i);
 
-                                    let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
-                                    for (j, &inner_field_id) in
-                                        inner_strukt.fields.iter().enumerate()
-                                    {
-                                        let inner_field = self.gcx.hir.variable(inner_field_id);
-                                        if let Some(inner_field_name) = inner_field.name
-                                            && inner_field_name.name == member.name
-                                        {
-                                            let inner_offset = self.get_struct_field_memory_offset(
-                                                *inner_struct_id,
-                                                j,
-                                            );
-                                            return Some((
-                                                *var_id,
-                                                base_offset + inner_offset,
-                                                *inner_struct_id,
-                                            ));
-                                        }
-                                    }
-                                }
+                        let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
+                        for (j, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
+                            let inner_field = self.gcx.hir.variable(inner_field_id);
+                            if let Some(inner_field_name) = inner_field.name
+                                && inner_field_name.name == member.name
+                            {
+                                let inner_offset =
+                                    self.get_struct_field_memory_offset(*inner_struct_id, j);
+                                return Some((
+                                    *var_id,
+                                    base_offset + inner_offset,
+                                    *inner_struct_id,
+                                ));
                             }
                         }
                     }

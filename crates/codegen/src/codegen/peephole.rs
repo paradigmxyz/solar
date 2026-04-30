@@ -88,7 +88,7 @@ impl PeepholeOptimizer {
             return Some((2, vec![]));
         }
 
-        // Pattern: SWAPn SWAPn -> (nop) for any n
+        // Pattern: SWAP<N> SWAP<N> -> (nop) for any n
         for n in 2..=16u8 {
             if remaining.len() >= 2
                 && remaining[0] == opcodes::swap(n)
@@ -103,7 +103,7 @@ impl PeepholeOptimizer {
             return Some((2, vec![]));
         }
 
-        // Pattern: DUPn POP -> (nop) for any n
+        // Pattern: DUP<N> POP -> (nop) for any n
         for n in 2..=16u8 {
             if remaining.len() >= 2
                 && remaining[0] == opcodes::dup(n)

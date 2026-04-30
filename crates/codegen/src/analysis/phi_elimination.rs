@@ -259,11 +259,8 @@ fn break_cycles(
     let mut cycle_indices = vec![start_idx];
     let mut current = start_idx;
 
-    loop {
+    while let Some(src) = src_value(&pending[current].src) {
         // Find the copy that writes to our source (the predecessor in the cycle)
-        let Some(src) = src_value(&pending[current].src) else {
-            break;
-        };
         if let Some(&pred_idx) = writes_to.get(&src) {
             if emitted[pred_idx] {
                 break;
