@@ -92,7 +92,7 @@ pub struct ParseError {
     /// Human-readable message.
     pub msg: String,
     /// The offending source line (without trailing newline), captured at
-    /// the time the error was constructed. Used by [`Display`] to render
+    /// the time the error was constructed. Used by [`fmt::Display`] to render
     /// a rustc/clang-style snippet with a caret.
     pub line_text: String,
 }
