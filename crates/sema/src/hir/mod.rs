@@ -1675,7 +1675,7 @@ mod tests {
         assert_size::<Hir<'_>>(str!["216"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
-        assert_size::<Contract<'_>>(str!["120"]);
+        assert_size::<Contract<'_>>(str!["136"]);
         assert_size::<Function<'_>>(str!["136"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);
