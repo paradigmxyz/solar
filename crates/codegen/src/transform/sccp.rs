@@ -46,10 +46,6 @@ impl LatticeValue {
             }
         }
     }
-
-    fn is_constant(&self) -> bool {
-        matches!(self, Self::Constant(_))
-    }
 }
 
 /// SCCP statistics.

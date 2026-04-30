@@ -41,18 +41,18 @@ impl StackMetrics {
 
     /// Records a DUP operation at the given depth (1-16).
     pub fn record_dup(&mut self, depth: u8) {
-        debug_assert!(depth >= 1 && depth <= 16, "DUP depth out of range: {}", depth);
+        debug_assert!((1..=16).contains(&depth), "DUP depth out of range: {depth}");
         self.dup_count += 1;
-        if depth >= 1 && depth <= 16 {
+        if (1..=16).contains(&depth) {
             self.dup_depth_histogram[(depth - 1) as usize] += 1;
         }
     }
 
     /// Records a SWAP operation at the given depth (1-16).
     pub fn record_swap(&mut self, depth: u8) {
-        debug_assert!(depth >= 1 && depth <= 16, "SWAP depth out of range: {}", depth);
+        debug_assert!((1..=16).contains(&depth), "SWAP depth out of range: {depth}");
         self.swap_count += 1;
-        if depth >= 1 && depth <= 16 {
+        if (1..=16).contains(&depth) {
             self.swap_depth_histogram[(depth - 1) as usize] += 1;
         }
     }

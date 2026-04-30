@@ -130,14 +130,14 @@ impl<'a> StackShuffler<'a> {
             let current_count = self.source.iter().filter(|&&v| v == Some(value)).count();
             if current_count < needed {
                 // Need to DUP this value
-                if let Some(depth) = self.find_value(value) {
-                    if depth < MAX_STACK_ACCESS {
-                        for _ in current_count..needed {
-                            let dup_n = (self.find_value(value).unwrap_or(0) + 1) as u8;
-                            if dup_n <= 16 {
-                                self.ops.push(StackOp::Dup(dup_n));
-                                self.source.insert(0, Some(value));
-                            }
+                if let Some(depth) = self.find_value(value)
+                    && depth < MAX_STACK_ACCESS
+                {
+                    for _ in current_count..needed {
+                        let dup_n = (self.find_value(value).unwrap_or(0) + 1) as u8;
+                        if dup_n <= 16 {
+                            self.ops.push(StackOp::Dup(dup_n));
+                            self.source.insert(0, Some(value));
                         }
                     }
                 }
@@ -159,47 +159,46 @@ impl<'a> StackShuffler<'a> {
                     }
 
                     // Find where the target value currently is
-                    if let Some(source_depth) = self.find_value_from(*target_val, target_depth) {
-                        if source_depth != target_depth && source_depth < MAX_STACK_ACCESS {
-                            // Need to swap
-                            if target_depth == 0 {
-                                // Simple case: swap to top
-                                let swap_n = source_depth as u8;
-                                if (1..=16).contains(&swap_n) {
-                                    self.ops.push(StackOp::Swap(swap_n));
-                                    self.source.swap(0, source_depth);
+                    if let Some(source_depth) = self.find_value_from(*target_val, target_depth)
+                        && source_depth != target_depth
+                        && source_depth < MAX_STACK_ACCESS
+                    {
+                        // Need to swap
+                        if target_depth == 0 {
+                            // Simple case: swap to top
+                            let swap_n = source_depth as u8;
+                            if (1..=16).contains(&swap_n) {
+                                self.ops.push(StackOp::Swap(swap_n));
+                                self.source.swap(0, source_depth);
+                            }
+                        } else {
+                            // Need to bring target value to position target_depth
+                            // First swap current top to target_depth, then bring value to
+                            // top, then swap back
+                            if target_depth < MAX_STACK_ACCESS && source_depth < MAX_STACK_ACCESS {
+                                // Swap top with target_depth position
+                                let swap1 = target_depth as u8;
+                                if (1..=16).contains(&swap1) {
+                                    self.ops.push(StackOp::Swap(swap1));
+                                    self.source.swap(0, target_depth);
                                 }
-                            } else {
-                                // Need to bring target value to position target_depth
-                                // First swap current top to target_depth, then bring value to
-                                // top, then swap back
-                                if target_depth < MAX_STACK_ACCESS
-                                    && source_depth < MAX_STACK_ACCESS
+
+                                // Now find where the value we need is
+                                if let Some(new_depth) = self.find_value(*target_val)
+                                    && new_depth > 0
+                                    && new_depth < MAX_STACK_ACCESS
                                 {
-                                    // Swap top with target_depth position
-                                    let swap1 = target_depth as u8;
-                                    if (1..=16).contains(&swap1) {
-                                        self.ops.push(StackOp::Swap(swap1));
-                                        self.source.swap(0, target_depth);
+                                    let swap2 = new_depth as u8;
+                                    if (1..=16).contains(&swap2) {
+                                        self.ops.push(StackOp::Swap(swap2));
+                                        self.source.swap(0, new_depth);
                                     }
+                                }
 
-                                    // Now find where the value we need is
-                                    if let Some(new_depth) = self.find_value(*target_val)
-                                        && new_depth > 0
-                                        && new_depth < MAX_STACK_ACCESS
-                                    {
-                                        let swap2 = new_depth as u8;
-                                        if (1..=16).contains(&swap2) {
-                                            self.ops.push(StackOp::Swap(swap2));
-                                            self.source.swap(0, new_depth);
-                                        }
-                                    }
-
-                                    // Swap back to put the value at target_depth
-                                    if (1..=16).contains(&swap1) {
-                                        self.ops.push(StackOp::Swap(swap1));
-                                        self.source.swap(0, target_depth);
-                                    }
+                                // Swap back to put the value at target_depth
+                                if (1..=16).contains(&swap1) {
+                                    self.ops.push(StackOp::Swap(swap1));
+                                    self.source.swap(0, target_depth);
                                 }
                             }
                         }
@@ -483,10 +482,10 @@ pub fn combine_stack_layouts(layouts: &[BlockStackLayout]) -> Option<BlockStackL
         // Pick the position with highest count, preferring lower depths on ties
         if let Some((&best_pos, _)) = pos_counts.iter().max_by(|a, b| {
             a.1.cmp(b.1).then_with(|| b.0.cmp(a.0)) // Higher count, then lower depth
-        }) {
-            if best_pos < combined.slots.len() && combined.slots[best_pos].is_none() {
-                combined.slots[best_pos] = Some(value);
-            }
+        }) && best_pos < combined.slots.len()
+            && combined.slots[best_pos].is_none()
+        {
+            combined.slots[best_pos] = Some(value);
         }
     }
 
@@ -811,7 +810,7 @@ mod tests {
         let v1 = ValueId::from_usize(1);
 
         let layout = BlockStackLayout::from_values([v0, v1]);
-        let combined = combine_stack_layouts(&[layout.clone()]);
+        let combined = combine_stack_layouts(std::slice::from_ref(&layout));
 
         assert!(combined.is_some());
         assert_eq!(combined.unwrap(), layout);

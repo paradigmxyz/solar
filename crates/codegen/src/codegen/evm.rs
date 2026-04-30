@@ -33,8 +33,6 @@ struct StackEffect {
 /// What value to track for a pushed stack entry.
 #[derive(Clone, Copy, Debug)]
 enum StackPush {
-    /// No value is pushed (pushes == 0).
-    None,
     /// Push a tracked ValueId (pushes == 1).
     Tracked(ValueId),
     /// Push an unknown/untracked value (pushes == 1).
@@ -95,7 +93,6 @@ impl EvmCodegen {
     /// This is the core method for stack-aware emission. After emitting the opcode:
     /// - `effect.pops` values are removed from the scheduler's stack model
     /// - Values are pushed according to `push`:
-    ///   - `StackPush::None`: no value pushed (effect.pushes must be 0)
     ///   - `StackPush::Tracked(v)`: push a tracked ValueId (effect.pushes must be 1)
     ///   - `StackPush::Unknown`: push an untracked value (effect.pushes must be 1)
     fn emit_op_with_effect(&mut self, opcode: u8, effect: StackEffect, push: StackPush) {
@@ -111,7 +108,6 @@ impl EvmCodegen {
 
         // Push produced values
         match (effect.pushes, push) {
-            (0, StackPush::None) => {}
             (1, StackPush::Tracked(v)) => self.scheduler.stack.push(v),
             (1, StackPush::Unknown) => self.scheduler.stack.push_unknown(),
             (n, _) if n > 1 => {
