@@ -1,5 +1,5 @@
 use crate::{Session, SessionGlobals, Span};
-use solar_data_structures::{index::BaseIndex32, trustme};
+use solar_data_structures::{index::NonMaxU32, trustme};
 use solar_macros::symbols;
 use std::{cmp, fmt, hash, str};
 
@@ -197,7 +197,7 @@ impl Ident {
 /// Internally, a `Symbol` is implemented as an index, and all operations
 /// (including hashing, equality, and ordering) operate on that index.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(BaseIndex32);
+pub struct Symbol(NonMaxU32);
 
 impl Default for Symbol {
     #[inline]
@@ -211,7 +211,7 @@ impl Symbol {
     pub const DUMMY: Self = kw::Empty;
 
     const fn new(n: u32) -> Self {
-        Self(BaseIndex32::new(n))
+        Self(NonMaxU32::new(n).unwrap())
     }
 
     /// Maps a string to its interned representation.
@@ -382,7 +382,7 @@ impl fmt::Display for Symbol {
 ///
 /// [`ByteSymbol`] is used less widely, so it has fewer operations defined than [`Symbol`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ByteSymbol(BaseIndex32);
+pub struct ByteSymbol(NonMaxU32);
 
 impl ByteSymbol {
     /// Maps a string to its interned representation.
@@ -496,12 +496,12 @@ impl Interner {
 impl inturn::InternerSymbol for ByteSymbol {
     #[inline]
     fn try_from_usize(n: usize) -> Option<Self> {
-        BaseIndex32::try_from_usize(n).map(Self)
+        u32::try_from(n).ok().and_then(NonMaxU32::new).map(Self)
     }
 
     #[inline]
     fn to_usize(self) -> usize {
-        self.0.index()
+        self.0.get() as usize
     }
 }
 

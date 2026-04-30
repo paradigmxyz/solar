@@ -1,10 +1,10 @@
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         MyEvent(1, "hi");
    ╰╴        ━━━━━━━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = MyEvent(1, "hi");
@@ -18,7 +18,7 @@ LL │         uint x = MyEvent(1, "hi");
    │                  │
    ╰╴                 expected a tuple with 1 element, found one with 0 elements
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         this.takeBytes(EmptyEvent());
@@ -30,7 +30,7 @@ error: mismatched types
 LL │         this.takeBytes(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         MyEvent(1, "y");
@@ -74,7 +74,7 @@ error: expression has to be an event invocation
 LL │         emit Test();
    ╰╴             ━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         revert EmptyEvent();
@@ -86,7 +86,7 @@ error: expression has to be an error
 LL │         revert EmptyEvent();
    ╰╴               ━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         emit MyEvent(EmptyEvent(), "x");
@@ -110,13 +110,13 @@ error: mismatched types
 LL │         revert MyError(EmptyError(), "x");
    ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
    ╰╴                 ━━━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
@@ -150,13 +150,13 @@ LL │         bool b = EmptyError() == EmptyError();
    │                  │
    ╰╴                 tuple()
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                              ━━━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
@@ -168,7 +168,7 @@ error: cannot infer array element type
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
@@ -180,7 +180,7 @@ error: mismatched types
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
@@ -200,7 +200,7 @@ LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    │                  │
    ╰╴                 expected a tuple with 1 element, found one with 0 elements
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         S memory s = S(EmptyEvent());
@@ -212,7 +212,7 @@ error: mismatched types
 LL │         S memory s = S(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint v = m[EmptyEvent()];
@@ -224,7 +224,7 @@ error: mismatched types
 LL │         uint v = m[EmptyEvent()];
    ╰╴                   ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint v = arr[EmptyEvent()];
@@ -236,13 +236,13 @@ error: mismatched types
 LL │         uint v = arr[EmptyEvent()];
    ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();
    ╰╴                 ━━━━━━━━━━━━
 
-error: event invocations have to be prefixed by "emit"
+error: event invocations have to be prefixed by `emit`
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_context.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();

@@ -186,7 +186,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Event(param_tys, id) => {
                         if !self.in_emit {
                             self.dcx()
-                                .err("event invocations have to be prefixed by \"emit\"")
+                                .err("event invocations have to be prefixed by `emit`")
                                 .span(expr.span)
                                 .emit();
                         }

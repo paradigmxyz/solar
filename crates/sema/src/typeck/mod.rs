@@ -13,6 +13,7 @@ use solar_data_structures::{
 use solar_interface::error_code;
 
 mod checker;
+mod override_checker;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -24,6 +25,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
             check_unimplemented_functions(gcx, id);
+            override_checker::check(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
@@ -163,7 +165,7 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 
         if f.marked_virtual && f.visibility == Visibility::Private {
             gcx.dcx()
-                .err("\"virtual\" and \"private\" cannot be used together")
+                .err("`virtual` and `private` cannot be used together")
                 .code(error_code!(3942))
                 .span(f.span)
                 .emit();
@@ -213,7 +215,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check visibility
         if f.visibility != Visibility::External {
             gcx.dcx()
-                .err("receive ether function must be defined as \"external\"")
+                .err("receive ether function must be defined as `external`")
                 .span(gcx.item_span(receive))
                 .emit();
         }
