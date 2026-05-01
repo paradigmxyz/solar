@@ -367,9 +367,12 @@ impl<'a> FileResolver<'a> {
     }
 }
 
-fn sanitize_path(s: &str) -> impl std::ops::Deref<Target = str> + '_ {
-    // TODO: Equivalent of: `boost::filesystem::path(_path).generic_string()`
-    s
+/// Equivalent of `boost::filesystem::path(_path).generic_string()`: returns the
+/// path with every platform-specific separator (`\`) replaced by the generic
+/// one (`/`), so import-path comparison in remappings is consistent across
+/// platforms. Allocation is avoided when the input is already in generic form.
+fn sanitize_path(s: &str) -> Cow<'_, str> {
+    if s.contains('\\') { Cow::Owned(s.replace('\\', "/")) } else { Cow::Borrowed(s) }
 }
 
 #[cfg(test)]
@@ -507,5 +510,40 @@ mod tests {
         ];
         run(&TestCase { remappings: &["a:x/y/z=d", "a/b:x=e"], sources });
         run(&TestCase { remappings: &["a/b:x=e", "a:x/y/z=d"], sources });
+    }
+
+    // Tests for `sanitize_path`: it must mirror
+    // `boost::filesystem::path(_path).generic_string()` semantics — replace the
+    // platform-specific separator (`\`) with the generic one (`/`), and leave
+    // every other character untouched.
+    #[test]
+    fn sanitize_path_empty() {
+        assert_eq!(&*sanitize_path(""), "");
+    }
+
+    #[test]
+    fn sanitize_path_no_separators() {
+        assert_eq!(&*sanitize_path("plainfile.sol"), "plainfile.sol");
+    }
+
+    #[test]
+    fn sanitize_path_already_generic() {
+        assert_eq!(&*sanitize_path("a/b/c.sol"), "a/b/c.sol");
+    }
+
+    #[test]
+    fn sanitize_path_all_backslashes() {
+        assert_eq!(&*sanitize_path("a\\b\\c.sol"), "a/b/c.sol");
+    }
+
+    #[test]
+    fn sanitize_path_mixed_separators() {
+        assert_eq!(&*sanitize_path("a/b\\c/d.sol"), "a/b/c/d.sol");
+    }
+
+    #[test]
+    fn sanitize_path_preserves_consecutive_separators() {
+        // boost's generic_string does not collapse separators.
+        assert_eq!(&*sanitize_path("a\\\\b"), "a//b");
     }
 }
