@@ -669,14 +669,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(sep_kind) {
-                        Ok(recovered_) => {
-                            if recovered_ == Recovered::Yes {
-                                recovered = Recovered::Yes;
-                                break;
-                            }
-                        }
-                        Err(e) => return Err(e),
+                    let recovered_ = self.expect(sep_kind)?;
+                    if recovered_ == Recovered::Yes {
+                        recovered = Recovered::Yes;
+                        break;
                     }
 
                     if self.check(ket) {
