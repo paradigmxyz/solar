@@ -31,18 +31,74 @@ def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
     return failures
 
 
-def runtime_failures(results: list[dict[str, Any]]) -> list[str]:
-    failures = []
+def shorten(value: Any, limit: int = 160) -> str:
+    text = str(value).replace("\n", " ")
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + "…"
+
+
+def format_values(values: dict[str, Any]) -> str:
+    return ", ".join(f"{compiler}={shorten(value)}" for compiler, value in values.items())
+
+
+def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
+    details = []
     for result in results:
         status = result.get("runtime_status")
         if status in (None, "skipped", "ok"):
             continue
-        failures.append(f"{result.get('test_id', '<unknown>')}: runtime_status={status}")
-    return failures
+        test_id = result.get("test_id", "<unknown>")
+        before = len(details)
+
+        for mismatch in result.get("runtime_mismatches") or []:
+            label = mismatch.get("label", "<unknown>")
+            values = mismatch.get("values") or {}
+            details.append(f"{test_id} {label}: {format_values(values)}")
+
+        for compiler_id, data in (result.get("compilers") or {}).items():
+            for check in data.get("runtime_results") or []:
+                if check.get("status") == "ok":
+                    continue
+                label = check.get("label", "<unknown>")
+                error = check.get("error") or check.get("status")
+                details.append(f"{test_id} {compiler_id} {label}: {shorten(error)}")
+
+        if len(details) == before:
+            details.append(f"{test_id}: runtime_status={status}")
+
+    return details
 
 
 def warning(message: str) -> None:
-    print(f"::warning::{message}")
+    escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::warning::{escaped}")
+
+
+def markdown_cell(value: str) -> str:
+    return value.replace("|", "\\|").replace("\n", "<br>")
+
+
+def runtime_summary(result: dict[str, Any]) -> str:
+    status = result.get("runtime_status")
+    if status in (None, "skipped", "ok"):
+        return ""
+
+    parts = []
+    for mismatch in result.get("runtime_mismatches") or []:
+        label = mismatch.get("label", "<unknown>")
+        values = mismatch.get("values") or {}
+        parts.append(f"{label}: {format_values(values)}")
+
+    for compiler_id, data in (result.get("compilers") or {}).items():
+        for check in data.get("runtime_results") or []:
+            if check.get("status") == "ok":
+                continue
+            label = check.get("label", "<unknown>")
+            error = check.get("error") or check.get("status")
+            parts.append(f"{compiler_id} {label}: {shorten(error)}")
+
+    return "<br>".join(markdown_cell(part) for part in parts) or str(status)
 
 
 def append_summary(title: str, results: list[dict[str, Any]]) -> None:
@@ -53,8 +109,8 @@ def append_summary(title: str, results: list[dict[str, Any]]) -> None:
     lines = [
         f"### {title}",
         "",
-        "| Test | Compile | Runtime |",
-        "| ---- | ------- | ------- |",
+        "| Test | Compile | Runtime | Details |",
+        "| ---- | ------- | ------- | ------- |",
     ]
     for result in results:
         compilers = result.get("compilers", {})
@@ -62,7 +118,8 @@ def append_summary(title: str, results: list[dict[str, Any]]) -> None:
         runtime_status = result.get("runtime_status") or "not run"
         lines.append(
             f"| {result.get('test_id', '<unknown>')} | "
-            f"{'ok' if compile_ok else 'failed'} | {runtime_status} |"
+            f"{'ok' if compile_ok else 'failed'} | {runtime_status} | "
+            f"{runtime_summary(result)} |"
         )
     lines.append("")
 
@@ -85,12 +142,12 @@ def main() -> int:
 
     failures = []
     failures.extend(f"micro {failure}" for failure in compiler_failures(micro_results))
-    failures.extend(f"micro {failure}" for failure in runtime_failures(micro_results))
+    failures.extend(f"micro {failure}" for failure in runtime_issue_details(micro_results))
     failures.extend(f"repo {failure}" for failure in compiler_failures(repo_results))
 
-    repo_runtime = runtime_failures(repo_results)
-    for failure in repo_runtime:
-        warning(f"repository runtime mismatch recorded: {failure}")
+    repo_runtime = runtime_issue_details(repo_results)
+    for detail in repo_runtime:
+        warning(f"repository runtime mismatch recorded: {detail}")
 
     if failures:
         print("codegen benchmark failures:", file=sys.stderr)
