@@ -95,7 +95,7 @@ pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
 
     // Sequentialize parallel copies to handle cycles
     let mut temp_counter = 0u32;
-    for (_, copies) in block_copies.iter_mut() {
+    for copies in block_copies.values_mut() {
         sequentialize_copies(&mut copies.copies, &mut temp_counter);
     }
 
