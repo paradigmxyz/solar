@@ -148,6 +148,7 @@ def main() -> int:
     repo_runtime = runtime_issue_details(repo_results)
     for detail in repo_runtime:
         warning(f"repository runtime mismatch recorded: {detail}")
+    failures.extend(f"repo {failure}" for failure in repo_runtime)
 
     if failures:
         print("codegen benchmark failures:", file=sys.stderr)
