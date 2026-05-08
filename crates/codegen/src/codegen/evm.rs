@@ -530,6 +530,8 @@ impl EvmCodegen {
         // Reset scheduler
         self.scheduler = StackScheduler::new();
 
+        self.preallocate_cross_block_spills(func, liveness);
+
         // Create labels for each block
         self.block_labels.clear();
         for block_id in func.blocks.indices() {
@@ -584,6 +586,25 @@ impl EvmCodegen {
         }
     }
 
+    /// Preallocates stable spill slots for values that may cross block boundaries.
+    ///
+    /// Blocks are emitted in layout order, not necessarily dominance order, so a block can be
+    /// emitted before the predecessor that stores one of its live-in values. Reserving the slot up
+    /// front lets the later load use a stable memory location; stores still happen only when the
+    /// value is actually available on the stack.
+    fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
+        for block_id in func.blocks.indices() {
+            for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
+                if matches!(
+                    func.value(val),
+                    crate::mir::Value::Inst(_) | crate::mir::Value::Phi { .. }
+                ) {
+                    self.scheduler.spills.allocate(val);
+                }
+            }
+        }
+    }
+
     /// Spills all live-out values that are currently on the stack to memory.
     /// This ensures values that need to be accessed in successor blocks can be reloaded.
     fn spill_live_out_values(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
@@ -603,31 +624,26 @@ impl EvmCodegen {
             _ => {}
         }
 
-        // If the value is not already spilled, spill it
-        if !self.scheduler.spills.is_spilled(val) {
-            // Check if value is on the stack
-            if let Some(depth) = self.scheduler.stack.find(val) {
-                // Allocate a spill slot
-                let slot = self.scheduler.spills.allocate(val);
+        if let Some(depth) = self.scheduler.stack.find(val) {
+            let slot = self.scheduler.spills.allocate(val);
 
-                // DUP the value to top of stack for storing.
-                // We need to DUP (not just use ensure_on_top) because:
-                // 1. If value is on top, ensure_on_top does nothing but we need a copy
-                // 2. MSTORE will consume the value, and we want to preserve the original
-                let dup_n = (depth + 1) as u8;
-                self.asm.emit_op(opcodes::dup(dup_n));
-                self.scheduler.stack.dup(dup_n);
+            // DUP the value to top of stack for storing.
+            // We need to DUP (not just use ensure_on_top) because:
+            // 1. If value is on top, ensure_on_top does nothing but we need a copy
+            // 2. MSTORE will consume the value, and we want to preserve the original
+            let dup_n = (depth + 1) as u8;
+            self.asm.emit_op(opcodes::dup(dup_n));
+            self.scheduler.stack.dup(dup_n);
 
-                // Store to spill slot: PUSH offset, MSTORE
-                // The PUSH creates an untracked stack entry, so we track it as unknown
-                self.asm.emit_push(U256::from(slot.byte_offset()));
-                self.scheduler.stack.push_unknown();
+            // Store to spill slot: PUSH offset, MSTORE
+            // The PUSH creates an untracked stack entry, so we track it as unknown
+            self.asm.emit_push(U256::from(slot.byte_offset()));
+            self.scheduler.stack.push_unknown();
 
-                self.asm.emit_op(opcodes::MSTORE);
-                // MSTORE consumes 2 values: the untracked offset and the DUP'd value
-                self.scheduler.stack.pop(); // pop the untracked offset
-                self.scheduler.stack.pop(); // pop the DUP'd value (original remains)
-            }
+            self.asm.emit_op(opcodes::MSTORE);
+            // MSTORE consumes 2 values: the untracked offset and the DUP'd value
+            self.scheduler.stack.pop(); // pop the untracked offset
+            self.scheduler.stack.pop(); // pop the DUP'd value (original remains)
         }
     }
 
@@ -1327,6 +1343,12 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::EXTCODECOPY);
                 self.scheduler.instruction_executed(4, None);
             }
+        }
+
+        if let Some(result) = result_value
+            && liveness.live_out(block).contains(result)
+        {
+            self.spill_value_if_needed(func, result);
         }
 
         // Drop dead values after the instruction

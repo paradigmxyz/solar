@@ -272,11 +272,6 @@ impl Liveness {
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().collect();
 
-        // Initialize live_in for all blocks from their upward-exposed uses.
-        for bidx in 0..num_blocks {
-            block_liveness[bidx].live_in = block_uses[bidx].clone();
-        }
-
         while let Some(block_id) = worklist.pop_front() {
             let bidx = block_id.index();
             let block = &func.blocks[block_id];
@@ -294,25 +289,23 @@ impl Liveness {
                 new_live_out.union_with(&contribution);
             }
 
-            // Check if live_out changed
-            if new_live_out != block_liveness[bidx].live_out {
-                block_liveness[bidx].live_out = new_live_out;
-
-                // Compute live_in = use ∪ (live_out - def)
-                let mut new_live_in = block_uses[bidx].clone();
-                for val in block_liveness[bidx].live_out.iter() {
-                    if !block_defs[bidx].contains(val) {
-                        new_live_in.insert(val);
-                    }
+            // live_in = use ∪ (live_out - def)
+            let mut new_live_in = block_uses[bidx].clone();
+            for val in new_live_out.iter() {
+                if !block_defs[bidx].contains(val) {
+                    new_live_in.insert(val);
                 }
+            }
 
-                if new_live_in != block_liveness[bidx].live_in {
-                    block_liveness[bidx].live_in = new_live_in;
+            if new_live_out != block_liveness[bidx].live_out
+                || new_live_in != block_liveness[bidx].live_in
+            {
+                block_liveness[bidx].live_out = new_live_out;
+                block_liveness[bidx].live_in = new_live_in;
 
-                    // Add predecessors to worklist
-                    for &pred in &block.predecessors {
-                        worklist.push_back(pred);
-                    }
+                // Add predecessors to worklist
+                for &pred in &block.predecessors {
+                    worklist.push_back(pred);
                 }
             }
         }
