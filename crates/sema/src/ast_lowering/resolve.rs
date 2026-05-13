@@ -1138,7 +1138,15 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(name = "lower_type", level = "trace", skip_all)]
     fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
         let kind = match &ty.kind {
-            ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
+            ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(match *ty {
+                ast::ElementaryType::Int(size) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::Int(ast::TypeSize::new_int_bits(256))
+                }
+                ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
+                }
+                ty => ty,
+            }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
