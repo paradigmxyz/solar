@@ -221,6 +221,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let span = self.prev_token.span;
                 if let Some(prev) = header.visibility {
                     let msg = "visibility already specified";
+                    //
                     self.dcx()
                         .err(msg)
                         .span(span)

@@ -29,18 +29,22 @@ pub mod signal_handler {
     pub fn install() {}
 }
 
+mod args;
+pub use args::{Args, Subcommands};
+
 // `asm` feature.
 use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut opts = Opts::try_parse_from(itr)?;
-    opts.finish()?;
+    let mut opts = Args::try_parse_from(itr)?;
+    opts.default_compile.finish()?;
+
     Ok(opts)
 }
 

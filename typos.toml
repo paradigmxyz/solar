@@ -13,6 +13,7 @@ extend-exclude = [
     "**/*_tests.*",
     "crates/parse/src/lexer/unicode_chars.rs", # Weird words.
     "dist-workspace.toml",
+    "crates/lsp/src/global_state.rs", # External crate uses the word "typ" in place of "ty".
 ]
 
 [default.extend-words]
