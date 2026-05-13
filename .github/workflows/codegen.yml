@@ -1,0 +1,128 @@
+name: Codegen
+
+permissions: {}
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/scripts/check_codegen_benchmark.py"
+      - ".github/workflows/codegen.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/cli/**"
+      - "crates/codegen/**"
+      - "crates/sema/**"
+      - "crates/solar/**"
+      - "tests/ui/codegen/**"
+      - "tools/solar-mir-opt/**"
+      - "tools/tester/**"
+  pull_request:
+    paths:
+      - ".github/scripts/check_codegen_benchmark.py"
+      - ".github/workflows/codegen.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/cli/**"
+      - "crates/codegen/**"
+      - "crates/sema/**"
+      - "crates/solar/**"
+      - "tests/ui/codegen/**"
+      - "tools/solar-mir-opt/**"
+      - "tools/tester/**"
+  workflow_dispatch:
+    inputs:
+      benchmark_ref:
+        description: "Ref to checkout from walnuthq/solidity-compiler-benchmarks"
+        required: false
+        default: main
+
+env:
+  CARGO_TERM_COLOR: always
+  SOLC_VERSION: 0.8.30
+  BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
+  BENCHMARK_PATH: solidity-compiler-benchmarks
+
+jobs:
+  solar-vs-solc:
+    name: Solar vs solc codegen
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Solar
+        uses: actions/checkout@v6
+
+      - name: Checkout benchmark corpus
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.BENCHMARK_REPOSITORY }}
+          ref: ${{ github.event.inputs.benchmark_ref || 'main' }}
+          path: ${{ env.BENCHMARK_PATH }}
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install solc
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/solc"
+          curl -fsSL \
+            "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
+            -o "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          chmod +x "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
+
+      - name: Build Solar
+        run: cargo build -p solar-compiler --bin solar
+
+      - name: Run micro codegen runtime checks
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --gas \
+            --start-anvil \
+            --output "$RUNNER_TEMP/solar-codegen-micro.json"
+
+      - name: Run repository codegen benchmarks
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite repo \
+            --gas \
+            --start-anvil \
+            --allow-failures \
+            --output "$RUNNER_TEMP/solar-codegen-repo.json"
+
+      - name: Check benchmark results
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/check_codegen_benchmark.py \
+            --micro "$RUNNER_TEMP/solar-codegen-micro.json" \
+            --repo "$RUNNER_TEMP/solar-codegen-repo.json"
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: solar-codegen-benchmark-results
+          path: |
+            ${{ runner.temp }}/solar-codegen-micro.json
+            ${{ runner.temp }}/solar-codegen-repo.json
+          retention-days: 14
