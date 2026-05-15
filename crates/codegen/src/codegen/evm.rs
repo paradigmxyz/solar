@@ -12,7 +12,7 @@ use crate::{
         assembler::{Assembler, Label, opcodes},
         stack::{ScheduledOp, StackOp, StackScheduler},
     },
-    mir::{BlockId, Function, InstKind, Module, Terminator, ValueId},
+    mir::{BlockId, Function, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
     },
@@ -164,8 +164,22 @@ impl EvmCodegen {
         let runtime_code = self.generate_runtime_code(module);
         let runtime_len = runtime_code.len();
 
-        // Generate constructor initialization code (if any)
-        let constructor_code = self.generate_constructor_code(module);
+        // Generate constructor initialization code (if any). Constructor arguments are appended
+        // after the generated deployment bytecode, so the constructor arg offset depends on the
+        // constructor code length. Iterate until the push widths stabilize.
+        let mut constructor_arg_offset = 0usize;
+        let mut constructor_code =
+            self.generate_constructor_code(module, Some(constructor_arg_offset));
+        for _ in 0..8 {
+            let deploy_code_len =
+                Self::calculate_deploy_code_len(constructor_code.len(), runtime_len);
+            let next_arg_offset = deploy_code_len + runtime_len;
+            if next_arg_offset == constructor_arg_offset {
+                break;
+            }
+            constructor_arg_offset = next_arg_offset;
+            constructor_code = self.generate_constructor_code(module, Some(constructor_arg_offset));
+        }
 
         // Deploy code structure:
         // [constructor_code]    ; run constructor (SSTOREs for initializers)
@@ -177,48 +191,7 @@ impl EvmCodegen {
         // PUSH0                 ; memory offset = 0
         // RETURN                ; return the runtime code
 
-        // Calculate push sizes
-        let len_push_size = if runtime_len == 0 {
-            1 // PUSH0
-        } else if runtime_len <= 0xFF {
-            2 // PUSH1
-        } else if runtime_len <= 0xFFFF {
-            3 // PUSH2
-        } else {
-            4 // PUSH3
-        };
-
-        // We need to calculate deploy_code_len, but it depends on the push size for
-        // deploy_code_len itself (circular). We solve by computing iteratively:
-        // - Start with minimum offset_push_size = 2 (PUSH1 for offset up to 255)
-        // - Compute deploy_code_len
-        // - Adjust offset_push_size if needed
-        //
-        // Return code structure:
-        // 1. PUSH runtime_len     (len_push_size bytes)
-        // 2. DUP1                 (1 byte)
-        // 3. PUSH deploy_code_len (offset_push_size bytes)
-        // 4. PUSH0                (1 byte - memory destination)
-        // 5. CODECOPY             (1 byte)
-        // 6. PUSH0                (1 byte - return offset)
-        // 7. RETURN               (1 byte)
-        // Total: len_push_size + offset_push_size + 5
-
-        // First estimate with PUSH1 for offset (2 bytes)
-        let mut offset_push_size = 2;
-        let mut deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
-
-        // Check if we need PUSH2 for the offset
-        if deploy_code_len > 255 {
-            offset_push_size = 3; // PUSH2
-            deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
-        }
-
-        // Check if we need PUSH3 for the offset (very large contracts)
-        if deploy_code_len > 65535 {
-            offset_push_size = 4; // PUSH3
-            deploy_code_len = constructor_code.len() + len_push_size + offset_push_size + 5;
-        }
+        let deploy_code_len = Self::calculate_deploy_code_len(constructor_code.len(), runtime_len);
 
         // Build the deployment bytecode
         let mut deploy_bytecode = Vec::new();
@@ -252,7 +225,11 @@ impl EvmCodegen {
     ///
     /// Constructor arguments are read from the end of the initcode using CODECOPY.
     /// The args are ABI-encoded and appended after the deployment bytecode.
-    fn generate_constructor_code(&mut self, module: &Module) -> Vec<u8> {
+    fn generate_constructor_code(
+        &mut self,
+        module: &Module,
+        constructor_arg_offset: Option<usize>,
+    ) -> Vec<u8> {
         // Find constructor function if it exists
         let constructor = module.functions.iter().find(|f| f.attributes.is_constructor);
 
@@ -274,17 +251,15 @@ impl EvmCodegen {
             self.in_constructor = true;
             self.constructor_param_count = ctor.params.len() as u32;
 
-            // If constructor has parameters, emit code to copy args from code end to memory
-            // Constructor args are appended after bytecode, read via CODECOPY
+            // If constructor has parameters, copy the full ABI-encoded argument blob to memory.
+            // Constructor args are appended after generated deployment bytecode, so the copy size
+            // is `CODESIZE - constructor_arg_offset`.
             if !ctor.params.is_empty() {
-                let args_size = ctor.params.len() * 32;
-                // CODESIZE - args_size = offset where args start
-                // CODECOPY(destOffset=0x80, offset=CODESIZE-args_size, size=args_size)
-                // We use memory starting at 0x80 (after Solidity's scratch space)
-                self.asm.emit_push(U256::from(args_size)); // size
-                self.asm.emit_push(U256::from(args_size)); // for subtraction
+                let arg_offset = constructor_arg_offset.unwrap_or(0);
+                self.asm.emit_push(U256::from(arg_offset));
                 self.asm.emit_op(opcodes::CODESIZE);
-                self.asm.emit_op(opcodes::SUB); // CODESIZE - args_size = offset
+                self.asm.emit_op(opcodes::SUB); // size = CODESIZE - arg_offset
+                self.asm.emit_push(U256::from(arg_offset)); // code offset
                 self.asm.emit_push(U256::from(0x80)); // destOffset in memory
                 self.asm.emit_op(opcodes::CODECOPY);
             }
@@ -335,6 +310,36 @@ impl EvmCodegen {
             bytecode.push(0x5f + num_bytes as u8); // PUSH1 = 0x60, PUSH2 = 0x61, etc.
             bytecode.extend_from_slice(&bytes[first_non_zero..]);
         }
+    }
+
+    fn push_size(value: usize) -> usize {
+        if value == 0 {
+            1
+        } else if value <= 0xFF {
+            2
+        } else if value <= 0xFFFF {
+            3
+        } else {
+            4
+        }
+    }
+
+    fn calculate_deploy_code_len(constructor_len: usize, runtime_len: usize) -> usize {
+        let len_push_size = Self::push_size(runtime_len);
+        let mut offset_push_size = 2;
+        let mut deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
+
+        if deploy_code_len > 255 {
+            offset_push_size = 3;
+            deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
+        }
+
+        if deploy_code_len > 65535 {
+            offset_push_size = 4;
+            deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
+        }
+
+        deploy_code_len
     }
 
     /// Runs optimization passes on all functions in the module via the PassManager.
@@ -395,10 +400,14 @@ impl EvmCodegen {
         let receive_idx = module.functions.iter().position(|f| f.attributes.is_receive);
         let fallback_idx = module.functions.iter().position(|f| f.attributes.is_fallback);
 
-        // Create labels for each function
-        let mut func_labels: Vec<Label> = Vec::new();
-        for _ in module.functions.iter() {
-            func_labels.push(self.asm.new_label());
+        // Create labels only for externally reachable runtime entry points. Internal functions are
+        // inlined during lowering, so emitting their standalone bodies just bloats bytecode.
+        let mut func_labels: Vec<Option<Label>> = Vec::new();
+        for func in module.functions.iter() {
+            let reachable = func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback;
+            func_labels.push(reachable.then(|| self.asm.new_label()));
         }
         let revert_label = self.asm.new_label();
         let has_calldata_label = self.asm.new_label();
@@ -412,10 +421,10 @@ impl EvmCodegen {
         // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else
         // revert
         if let Some(recv_idx) = receive_idx {
-            self.asm.emit_push_label(func_labels[recv_idx]);
+            self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
             self.asm.emit_op(opcodes::JUMP);
         } else if let Some(fb_idx) = fallback_idx {
-            self.asm.emit_push_label(func_labels[fb_idx]);
+            self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
             self.asm.emit_op(opcodes::JUMP);
         } else {
             self.asm.emit_push_label(revert_label);
@@ -438,7 +447,7 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::dup(1));
                 self.asm.emit_push(U256::from_be_slice(&selector));
                 self.asm.emit_op(opcodes::EQ);
-                self.asm.emit_push_label(func_labels[i]);
+                self.asm.emit_push_label(func_labels[i].expect("selector label missing"));
                 self.asm.emit_op(opcodes::JUMPI);
             }
         }
@@ -447,7 +456,7 @@ impl EvmCodegen {
         if let Some(fb_idx) = fallback_idx {
             // Pop selector and jump to fallback
             self.asm.emit_op(opcodes::POP);
-            self.asm.emit_push_label(func_labels[fb_idx]);
+            self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
             self.asm.emit_op(opcodes::JUMP);
         } else {
             self.asm.emit_push_label(revert_label);
@@ -456,7 +465,8 @@ impl EvmCodegen {
 
         // Define function entry points
         for (i, func) in module.functions.iter().enumerate() {
-            self.asm.define_label(func_labels[i]);
+            let Some(label) = func_labels[i] else { continue };
+            self.asm.define_label(label);
             self.asm.emit_op(opcodes::JUMPDEST);
 
             // Pop the selector for regular functions (receive/fallback don't have it on stack)
@@ -1385,7 +1395,10 @@ impl EvmCodegen {
                     self.asm.emit_op(opcodes::MSTORE);
                 }
                 ScheduledOp::LoadArg(index) => {
-                    if self.in_constructor {
+                    let arg_ty = func.params.get(*index as usize).copied();
+                    if self.in_constructor && matches!(arg_ty, Some(MirType::MemPtr)) {
+                        Self::emit_constructor_short_string_arg(&mut self.asm, *index);
+                    } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
                         let offset = 0x80 + (*index as u64) * 32;
@@ -1402,6 +1415,43 @@ impl EvmCodegen {
                 }
             }
         }
+    }
+
+    /// Emits a constructor dynamic string/bytes argument as a short storage string word.
+    ///
+    /// Constructor args are copied to memory at 0x80 in ABI encoding:
+    /// head[index] = dynamic tail offset, tail = [length][data...].
+    /// The current codegen supports short storage strings (<=31 bytes). Long storage strings need
+    /// separate data-slot handling.
+    fn emit_constructor_short_string_arg(asm: &mut Assembler, index: u32) {
+        let head_offset = 0x80 + (index as u64) * 32;
+        let low_byte_mask = U256::MAX - U256::from(0xffu64);
+
+        // data_ptr = 0x80 + mload(head_offset)
+        asm.emit_push(U256::from(head_offset));
+        asm.emit_op(opcodes::MLOAD);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(opcodes::ADD);
+
+        // Stack: data_ptr
+        // Keep data_ptr while loading length and first data word.
+        asm.emit_op(opcodes::dup(1));
+        asm.emit_op(opcodes::MLOAD); // data_ptr, len
+        asm.emit_op(opcodes::dup(2)); // data_ptr, len, data_ptr
+        asm.emit_push(U256::from(32));
+        asm.emit_op(opcodes::ADD);
+        asm.emit_op(opcodes::MLOAD); // data_ptr, len, data_word
+
+        // Clear the low length byte in the data word.
+        asm.emit_push(low_byte_mask);
+        asm.emit_op(opcodes::AND); // data_ptr, len, data_clean
+
+        // Drop data_ptr, then OR data_clean with len * 2.
+        asm.emit_op(opcodes::swap(2)); // data_clean, len, data_ptr
+        asm.emit_op(opcodes::POP); // data_clean, len
+        asm.emit_push(U256::from(1));
+        asm.emit_op(opcodes::SHL); // data_clean, len * 2
+        asm.emit_op(opcodes::OR); // encoded short storage string
     }
 
     /// Emits a value fresh, without trying to DUP from the stack.
@@ -1845,6 +1895,9 @@ impl EvmCodegen {
                 if values.is_empty() {
                     self.asm.emit_push(U256::ZERO);
                     self.asm.emit_push(U256::ZERO);
+                } else if values.len() == 1 && matches!(func.returns.first(), Some(MirType::MemPtr))
+                {
+                    self.emit_short_storage_string_return(func, values[0]);
                 } else if values.len() == 1 {
                     // Single return value - simple case
                     self.emit_value(func, values[0]);
@@ -1894,6 +1947,40 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::INVALID);
             }
         }
+    }
+
+    /// Emits ABI return data for a short storage string word.
+    ///
+    /// Input value layout: high bytes contain the left-aligned data, low byte is `len * 2`.
+    /// Output ABI layout for one dynamic string/bytes return:
+    /// `[offset=0x20][length][data-word]`.
+    fn emit_short_storage_string_return(&mut self, func: &Function, value: ValueId) {
+        let low_byte_mask = U256::MAX - U256::from(0xffu64);
+
+        self.emit_value(func, value);
+
+        // length = (encoded & 0xff) >> 1, store at 0x20.
+        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_push(U256::from(0xffu64));
+        self.asm.emit_op(opcodes::AND);
+        self.asm.emit_push(U256::from(1));
+        self.asm.emit_op(opcodes::SHR);
+        self.asm.emit_push(U256::from(0x20));
+        self.asm.emit_op(opcodes::MSTORE);
+
+        // data = encoded & !0xff, store at 0x40.
+        self.asm.emit_push(low_byte_mask);
+        self.asm.emit_op(opcodes::AND);
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MSTORE);
+
+        // Dynamic ABI head offset.
+        self.asm.emit_push(U256::from(0x20));
+        self.asm.emit_push(U256::ZERO);
+        self.asm.emit_op(opcodes::MSTORE);
+
+        self.asm.emit_push(U256::from(0x60));
+        self.asm.emit_push(U256::ZERO);
     }
 }
 

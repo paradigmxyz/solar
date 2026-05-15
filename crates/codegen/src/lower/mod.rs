@@ -641,6 +641,12 @@ impl<'gcx> Lowerer<'gcx> {
                 self.alloc_local_memory(ret_id);
             }
 
+            if hir_func.kind == hir::FunctionKind::Constructor
+                && let Some(contract_id) = hir_func.contract
+            {
+                self.lower_constructor_prelude(&mut builder, contract_id);
+            }
+
             if let Some(body) = &hir_func.body {
                 self.lower_block(&mut builder, body);
             }
@@ -668,6 +674,52 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         self.module.add_function(mir_func)
+    }
+
+    /// Lowers state-variable initializers and base constructors for an explicit constructor.
+    fn lower_constructor_prelude(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        contract_id: ContractId,
+    ) {
+        let contract = self.gcx.hir.contract(contract_id);
+
+        // Solidity runs construction from base to derived. For each contract in that order,
+        // initialize its state variables, then run its constructor body. The current contract's
+        // own constructor body is lowered by the caller after this prelude.
+        let construction_order: Vec<_> = contract
+            .linearized_bases
+            .iter()
+            .enumerate()
+            .map(|(idx, &base_id)| {
+                let args = idx.checked_sub(1).and_then(|arg_idx| {
+                    contract.linearized_bases_args.get(arg_idx).and_then(|m| *m)
+                });
+                (base_id, args)
+            })
+            .collect();
+
+        for (base_id, args) in construction_order.into_iter().rev() {
+            let base_contract = self.gcx.hir.contract(base_id);
+            for var_id in base_contract.variables() {
+                let var = self.gcx.hir.variable(var_id);
+                if var.is_state_variable()
+                    && !var.is_constant()
+                    && let Some(init) = var.initializer
+                    && let Some(&slot) = self.storage_slots.get(&var_id)
+                {
+                    let init_val = self.lower_expr(builder, init);
+                    let slot_val = builder.imm_u64(slot);
+                    builder.sstore(slot_val, init_val);
+                }
+            }
+
+            if base_id != contract_id
+                && let Some(ctor_id) = base_contract.ctor
+            {
+                self.lower_base_constructor_call(builder, ctor_id, args);
+            }
+        }
     }
 
     /// Computes the 4-byte function selector.

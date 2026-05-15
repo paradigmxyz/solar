@@ -2651,6 +2651,10 @@ impl<'gcx> Lowerer<'gcx> {
         let arg_vals: Vec<ValueId> =
             args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
 
+        if func.returns.is_empty() {
+            return self.lower_inline_void_call(builder, func_id, arg_vals);
+        }
+
         // Check for recursive inlining cycle AFTER evaluating arguments
         if !self.try_enter_inline(func_id) {
             // Cycle detected or max depth exceeded - return placeholder
@@ -2683,6 +2687,112 @@ impl<'gcx> Lowerer<'gcx> {
         result
     }
 
+    /// Lowers a base constructor call using already-resolved constructor arguments.
+    pub(super) fn lower_base_constructor_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ctor_id: hir::FunctionId,
+        modifier: Option<&hir::Modifier<'_>>,
+    ) -> ValueId {
+        let ctor = self.gcx.hir.function(ctor_id);
+        let arg_exprs: Vec<_> = modifier.map(|m| m.args.exprs().collect()).unwrap_or_default();
+        let arg_vals: Vec<ValueId> = ctor
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(i, &param_id)| {
+                let param = self.gcx.hir.variable(param_id);
+                if let Some(arg) = arg_exprs.get(i) {
+                    self.lower_constructor_arg(builder, arg, &param.ty)
+                } else {
+                    builder.imm_u64(0)
+                }
+            })
+            .collect();
+
+        self.lower_inline_void_call(builder, ctor_id, arg_vals)
+    }
+
+    /// Lowers a void internal function by inlining its full statement body.
+    fn lower_inline_void_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let parameters: Vec<_> = func.parameters.to_vec();
+        let body = func.body;
+
+        if !self.try_enter_inline(func_id) {
+            return builder.imm_u64(0);
+        }
+
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+
+        if let Some(body) = body {
+            self.collect_assigned_vars_block(&body);
+        }
+
+        for (i, param_id) in parameters.into_iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        if let Some(body) = body {
+            self.lower_block(builder, &body);
+        }
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.exit_inline();
+
+        builder.imm_u64(0)
+    }
+
+    /// Lowers constructor arguments, encoding short string/bytes literals the same way storage
+    /// strings are represented so base constructors like ERC20("Name", "SYM") initialize public
+    /// string slots correctly.
+    fn lower_constructor_arg(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg: &hir::Expr<'_>,
+        param_ty: &hir::Type<'_>,
+    ) -> ValueId {
+        if matches!(
+            param_ty.kind,
+            hir::TypeKind::Elementary(hir::ElementaryType::String | hir::ElementaryType::Bytes)
+        ) && let Some(encoded) = Self::short_string_storage_literal(arg)
+        {
+            return builder.imm_u256(encoded);
+        }
+
+        self.lower_expr(builder, arg)
+    }
+
+    fn short_string_storage_literal(arg: &hir::Expr<'_>) -> Option<U256> {
+        let ExprKind::Lit(lit) = &arg.kind else { return None };
+        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+        Self::encode_short_storage_bytes(bytes.as_byte_str())
+    }
+
+    fn encode_short_storage_bytes(bytes: &[u8]) -> Option<U256> {
+        if bytes.len() > 31 {
+            return None;
+        }
+
+        let mut encoded = [0u8; 32];
+        encoded[..bytes.len()].copy_from_slice(bytes);
+        encoded[31] = (bytes.len() as u8) * 2;
+        Some(U256::from_be_bytes(encoded))
+    }
+
     /// Lowers an internal library function call by inlining it.
     /// For internal library functions, we inline the function body.
     fn lower_library_call(
@@ -2711,6 +2821,10 @@ impl<'gcx> Lowerer<'gcx> {
             // Lower all explicit arguments
             for arg in args.exprs() {
                 arg_vals.push(self.lower_expr(builder, arg));
+            }
+
+            if func.returns.is_empty() {
+                return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
             // Check for recursive inlining cycle AFTER evaluating arguments
