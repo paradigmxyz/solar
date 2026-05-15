@@ -1,7 +1,7 @@
 //! Statement lowering.
 
 use super::{LoopContext, Lowerer};
-use crate::mir::FunctionBuilder;
+use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
 use solar_sema::hir::{self, StmtKind};
 
@@ -21,7 +21,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a statement to MIR.
-    fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
+    pub(super) fn lower_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir::Stmt<'_>) {
         match &stmt.kind {
             StmtKind::DeclSingle(var_id) => {
                 self.lower_single_var_decl(builder, *var_id);
@@ -110,23 +110,9 @@ impl<'gcx> Lowerer<'gcx> {
             self.lower_expr(builder, init)
         } else if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
             // Struct without initializer: allocate memory and zero-initialize
-            let total_words = self.calculate_memory_words_for_type(&var.ty);
-            let struct_size = total_words * 32;
+            let struct_size = self.memory_struct_size(&var.ty);
             let struct_ptr = self.allocate_memory(builder, struct_size);
-
-            // Zero-initialize all fields
-            for i in 0..total_words {
-                let field_offset = i * 32;
-                if field_offset == 0 {
-                    let zero = builder.imm_u256(U256::ZERO);
-                    builder.mstore(struct_ptr, zero);
-                } else {
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(struct_ptr, offset_val);
-                    let zero = builder.imm_u256(U256::ZERO);
-                    builder.mstore(field_addr, zero);
-                }
-            }
+            self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
             struct_ptr
         } else {
             builder.imm_u256(U256::ZERO)
@@ -141,7 +127,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         if needs_local_memory {
             let offset = self.alloc_local_memory(var_id);
-            let offset_val = builder.imm_u64(offset);
+            let offset_val = self.local_memory_addr(builder, offset);
             builder.mstore(offset_val, initial_value);
         } else {
             // Variable is never reassigned and not from external call - keep as SSA value
@@ -149,10 +135,67 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
+        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &ty.kind {
+            let strukt = self.gcx.hir.strukt(*struct_id);
+            (strukt.fields.len().max(1) as u64) * 32
+        } else {
+            32
+        }
+    }
+
+    fn zero_initialize_memory_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        ptr: ValueId,
+    ) {
+        let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &ty.kind else {
+            let zero = builder.imm_u256(U256::ZERO);
+            builder.mstore(ptr, zero);
+            return;
+        };
+
+        let strukt = self.gcx.hir.strukt(*struct_id);
+        for (i, &field_id) in strukt.fields.iter().enumerate() {
+            let field = self.gcx.hir.variable(field_id);
+            let value = self.zero_memory_field_value(builder, &field.ty);
+            let field_offset = (i as u64) * 32;
+            if field_offset == 0 {
+                builder.mstore(ptr, value);
+            } else {
+                let offset_val = builder.imm_u64(field_offset);
+                let field_addr = builder.add(ptr, offset_val);
+                builder.mstore(field_addr, value);
+            }
+        }
+    }
+
+    fn zero_memory_field_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+    ) -> ValueId {
+        match &ty.kind {
+            hir::TypeKind::Array(array) if array.size.is_none() => {
+                let ptr = self.allocate_memory(builder, 32);
+                let zero = builder.imm_u256(U256::ZERO);
+                builder.mstore(ptr, zero);
+                ptr
+            }
+            hir::TypeKind::Custom(hir::ItemId::Struct(_)) => {
+                let ptr = self.allocate_memory(builder, self.memory_struct_size(ty));
+                self.zero_initialize_memory_value(builder, ty, ptr);
+                ptr
+            }
+            _ => builder.imm_u256(U256::ZERO),
+        }
+    }
+
     /// Lowers a multi-variable declaration.
     /// For external calls with multiple returns, the return data is written to memory
     /// at offsets 0, 32, 64, etc. after the CALL instruction.
-    fn lower_multi_var_decl(
+    pub(super) fn lower_multi_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         var_ids: &[Option<hir::VariableId>],
@@ -173,7 +216,7 @@ impl<'gcx> Lowerer<'gcx> {
                 };
                 // Allocate memory slot and store value
                 let offset = self.alloc_local_memory(*var_id);
-                let offset_val = builder.imm_u64(offset);
+                let offset_val = self.local_memory_addr(builder, offset);
                 builder.mstore(offset_val, val);
             }
         }
@@ -367,7 +410,9 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 // Check if returning a memory struct - expand to individual fields
                 let struct_type = self.get_return_struct_type(expr);
-                if let Some(struct_id) = struct_type {
+                if let Some(struct_id) = struct_type
+                    && builder.func().is_public()
+                {
                     let struct_ptr = self.lower_expr(builder, expr);
                     let strukt = self.gcx.hir.strukt(struct_id);
                     let mut ret_vals = Vec::new();

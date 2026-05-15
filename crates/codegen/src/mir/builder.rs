@@ -1,7 +1,8 @@
 //! MIR function builder.
 
 use super::{
-    BlockId, Function, Immediate, InstKind, Instruction, MirType, Terminator, Value, ValueId,
+    BlockId, Function, FunctionId, Immediate, InstKind, Instruction, MirType, Terminator, Value,
+    ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -223,6 +224,27 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a calldatasize instruction.
     pub fn calldatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::CalldataSize, Some(MirType::uint256()))
+    }
+
+    /// Emits a calldatacopy instruction.
+    pub fn calldatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
+        self.emit_inst(InstKind::CalldataCopy(dest, offset, size), None)
+    }
+
+    /// Emits an internal function call.
+    pub fn internal_call(
+        &mut self,
+        function: FunctionId,
+        args: Vec<ValueId>,
+        result_ty: Option<MirType>,
+    ) -> ValueId {
+        let returns = usize::from(result_ty.is_some());
+        self.emit_inst(InstKind::InternalCall { function, args, returns }, result_ty)
+    }
+
+    /// Emits an address inside the current internal-call frame.
+    pub fn internal_frame_addr(&mut self, offset: u64) -> ValueId {
+        self.emit_inst(InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
     }
 
     /// Emits a caller instruction.

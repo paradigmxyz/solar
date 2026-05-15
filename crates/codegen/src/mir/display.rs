@@ -388,6 +388,13 @@ fn format_inst_kind(kind: &InstKind, func: &Function) -> String {
                 fmt_val(*ret_size, func)
             )
         }
+        InstKind::InternalCall { function, args, returns } => {
+            let args: Vec<_> = args.iter().map(|arg| fmt_val(*arg, func)).collect();
+            let mut parts = vec![format!("fn{}", function.index()), returns.to_string()];
+            parts.extend(args);
+            format!("internal_call {}", parts.join(", "))
+        }
+        InstKind::InternalFrameAddr(offset) => format!("internal_frame_addr {offset}"),
 
         // Contract creation
         InstKind::Create(value, offset, size) => {

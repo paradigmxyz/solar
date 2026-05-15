@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{BlockId, MirType, ValueId};
+use super::{BlockId, FunctionId, MirType, ValueId};
 use smallvec::{SmallVec, smallvec};
 use std::fmt;
 
@@ -113,6 +113,8 @@ pub enum InstKind {
     CalldataCopy(ValueId, ValueId, ValueId),
     /// Get calldata size: `calldatasize()`
     CalldataSize,
+    /// Address inside the current internal-call frame.
+    InternalFrameAddr(u64),
 
     // Code operations
     /// Get code size: `codesize()`
@@ -203,6 +205,8 @@ pub enum InstKind {
         ret_offset: ValueId,
         ret_size: ValueId,
     },
+    /// Internal function call lowered to a direct jump.
+    InternalCall { function: FunctionId, args: Vec<ValueId>, returns: usize },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -353,6 +357,9 @@ impl InstKind {
                 out.push(*ret_offset);
                 out.push(*ret_size);
             }
+            Self::InternalCall { args, .. } => {
+                out.extend(args.iter().copied());
+            }
 
             // Phi node - operands are the incoming values
             Self::Phi(incoming) => {
@@ -364,6 +371,7 @@ impl InstKind {
             // Nullary operations - no operands
             Self::MSize
             | Self::CalldataSize
+            | Self::InternalFrameAddr(_)
             | Self::CodeSize
             | Self::ReturnDataSize
             | Self::Caller
@@ -455,6 +463,8 @@ impl InstKind {
             Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
             }
+            Self::InternalCall { args, .. } => args.iter().copied().collect(),
+            Self::InternalFrameAddr(_) => smallvec![],
 
             Self::MSize
             | Self::CalldataSize
@@ -527,6 +537,7 @@ impl InstKind {
             Self::ExtCodeHash(_) => "extcodehash",
             Self::ReturnDataSize => "returndatasize",
             Self::ReturnDataCopy(_, _, _) => "returndatacopy",
+            Self::InternalFrameAddr(_) => "internal_frame_addr",
             Self::Caller => "caller",
             Self::CallValue => "callvalue",
             Self::Origin => "origin",
@@ -549,6 +560,7 @@ impl InstKind {
             Self::Call { .. } => "call",
             Self::StaticCall { .. } => "staticcall",
             Self::DelegateCall { .. } => "delegatecall",
+            Self::InternalCall { .. } => "internal_call",
             Self::Create(_, _, _) => "create",
             Self::Create2(_, _, _, _) => "create2",
             Self::Log0(_, _) => "log0",
@@ -579,6 +591,7 @@ impl InstKind {
             | Self::Call { .. }
             | Self::StaticCall { .. }
             | Self::DelegateCall { .. }
+            | Self::InternalCall { .. }
             // Contract creation
             | Self::Create(_, _, _)
             | Self::Create2(_, _, _, _)

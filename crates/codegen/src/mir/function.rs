@@ -19,6 +19,8 @@ pub struct Function {
     pub params: Vec<MirType>,
     /// Return types.
     pub returns: Vec<MirType>,
+    /// Bytes reserved in the internal-call frame for local memory slots.
+    pub internal_frame_size: u64,
     /// All values in this function.
     pub values: IndexVec<ValueId, Value>,
     /// All instructions in this function.
@@ -42,6 +44,7 @@ impl Function {
             attributes: FunctionAttributes::default(),
             params: Vec::new(),
             returns: Vec::new(),
+            internal_frame_size: 0,
             values: IndexVec::new(),
             instructions: IndexVec::new(),
             blocks,

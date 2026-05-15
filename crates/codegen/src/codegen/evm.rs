@@ -10,15 +10,18 @@ use crate::{
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     codegen::{
         assembler::{Assembler, Label, opcodes},
-        stack::{ScheduledOp, StackOp, StackScheduler},
+        stack::{ScheduledOp, SpillSlot, StackOp, StackScheduler},
     },
-    mir::{BlockId, Function, InstKind, MirType, Module, Terminator, ValueId},
+    mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
     },
 };
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+const INTERNAL_FRAME_PTR_SLOT: u64 = 0x2000;
+const FREE_MEMORY_START: u64 = 0x4000;
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
@@ -50,6 +53,10 @@ pub struct EvmCodegen {
     scheduler: StackScheduler,
     /// Block labels.
     block_labels: FxHashMap<BlockId, Label>,
+    /// Function labels for direct internal calls.
+    function_labels: FxHashMap<FunctionId, Label>,
+    /// Per-function local frame sizes for direct internal calls.
+    function_frame_sizes: FxHashMap<FunctionId, u64>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Whether we're currently generating constructor code.
@@ -57,6 +64,8 @@ pub struct EvmCodegen {
     in_constructor: bool,
     /// Number of constructor parameters (used for CODECOPY offset calculation).
     constructor_param_count: u32,
+    /// Whether we're emitting an internal function body.
+    in_internal_function: bool,
 }
 
 impl EvmCodegen {
@@ -67,9 +76,12 @@ impl EvmCodegen {
             asm: Assembler::new(),
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
+            function_labels: FxHashMap::default(),
+            function_frame_sizes: FxHashMap::default(),
             block_copies: FxHashMap::default(),
             in_constructor: false,
             constructor_param_count: 0,
+            in_internal_function: false,
         }
     }
 
@@ -242,8 +254,8 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
 
-            // Initialize free memory pointer: MSTORE(0x40, 0x80)
-            self.asm.emit_push(U256::from(0x80));
+            // Initialize free memory pointer above compiler-reserved scratch/local space.
+            self.asm.emit_push(U256::from(FREE_MEMORY_START));
             self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(opcodes::MSTORE);
 
@@ -366,10 +378,12 @@ impl EvmCodegen {
     fn generate_runtime_code(&mut self, module: &Module) -> Vec<u8> {
         self.asm = Assembler::new();
         self.block_labels.clear();
+        self.function_labels.clear();
+        self.function_frame_sizes.clear();
         self.block_copies.clear();
 
-        // Initialize free memory pointer: MSTORE(0x40, 0x80)
-        self.asm.emit_push(U256::from(0x80));
+        // Initialize free memory pointer above compiler-reserved scratch/local space.
+        self.asm.emit_push(U256::from(FREE_MEMORY_START));
         self.asm.emit_push(U256::from(0x40));
         self.asm.emit_op(opcodes::MSTORE);
 
@@ -400,14 +414,33 @@ impl EvmCodegen {
         let receive_idx = module.functions.iter().position(|f| f.attributes.is_receive);
         let fallback_idx = module.functions.iter().position(|f| f.attributes.is_fallback);
 
-        // Create labels only for externally reachable runtime entry points. Internal functions are
-        // inlined during lowering, so emitting their standalone bodies just bloats bytecode.
-        let mut func_labels: Vec<Option<Label>> = Vec::new();
+        let mut internal_targets = FxHashSet::default();
         for func in module.functions.iter() {
-            let reachable = func.selector.is_some()
+            for inst in func.instructions.iter() {
+                if let InstKind::InternalCall { function, .. } = &inst.kind {
+                    internal_targets.insert(*function);
+                }
+            }
+        }
+
+        for (func_id, func) in module.functions.iter_enumerated() {
+            self.function_frame_sizes
+                .insert(func_id, func.internal_frame_size + Self::spill_frame_size(func));
+        }
+
+        // Create labels for externally reachable runtime entry points and internal-call targets.
+        let mut func_labels: Vec<Option<Label>> = Vec::new();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            let external = func.selector.is_some()
                 || func.attributes.is_receive
                 || func.attributes.is_fallback;
-            func_labels.push(reachable.then(|| self.asm.new_label()));
+            let needs_body = !func.attributes.is_constructor
+                && (external || internal_targets.contains(&func_id));
+            let label = needs_body.then(|| self.asm.new_label());
+            if let Some(label) = label {
+                self.function_labels.insert(func_id, label);
+            }
+            func_labels.push(label);
         }
         let revert_label = self.asm.new_label();
         let has_calldata_label = self.asm.new_label();
@@ -463,8 +496,14 @@ impl EvmCodegen {
             self.asm.emit_op(opcodes::JUMP);
         }
 
-        // Define function entry points
+        // Define external function entry points.
         for (i, func) in module.functions.iter().enumerate() {
+            let external = func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback;
+            if !external {
+                continue;
+            }
             let Some(label) = func_labels[i] else { continue };
             self.asm.define_label(label);
             self.asm.emit_op(opcodes::JUMPDEST);
@@ -478,7 +517,25 @@ impl EvmCodegen {
             self.emit_payable_check(func);
 
             // Generate function body
+            self.in_internal_function = false;
             self.generate_function_body(func);
+        }
+
+        // Define internal-call targets once. Calls jump here and return through the frame's
+        // saved return address.
+        for (i, func) in module.functions.iter().enumerate() {
+            let external = func.selector.is_some()
+                || func.attributes.is_receive
+                || func.attributes.is_fallback;
+            if external {
+                continue;
+            }
+            let Some(label) = func_labels[i] else { continue };
+            self.asm.define_label(label);
+            self.asm.emit_op(opcodes::JUMPDEST);
+            self.in_internal_function = true;
+            self.generate_function_body(func);
+            self.in_internal_function = false;
         }
 
         // Revert label
@@ -647,7 +704,7 @@ impl EvmCodegen {
 
             // Store to spill slot: PUSH offset, MSTORE
             // The PUSH creates an untracked stack entry, so we track it as unknown
-            self.asm.emit_push(U256::from(slot.byte_offset()));
+            self.emit_spill_slot_addr(func, slot);
             self.scheduler.stack.push_unknown();
 
             self.asm.emit_op(opcodes::MSTORE);
@@ -1260,6 +1317,26 @@ impl EvmCodegen {
                 );
             }
 
+            InstKind::InternalCall { function, args, returns } => {
+                self.emit_internal_call(
+                    func,
+                    *function,
+                    args,
+                    *returns,
+                    result_value,
+                    liveness,
+                    block,
+                    inst_idx,
+                );
+            }
+
+            InstKind::InternalFrameAddr(offset) => {
+                self.emit_current_internal_frame_addr(*offset);
+                if let Some(result) = result_value {
+                    self.scheduler.stack.push(result);
+                }
+            }
+
             // Log operations
             InstKind::Log0(offset, size) => {
                 // LOG0(offset, size) - stack order: offset on top, then size
@@ -1373,42 +1450,175 @@ impl EvmCodegen {
         }
     }
 
+    fn emit_new_internal_frame_addr(&mut self, offset: u64) {
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MLOAD);
+        if offset != 0 {
+            self.asm.emit_push(U256::from(offset));
+            self.asm.emit_op(opcodes::ADD);
+        }
+    }
+
+    fn emit_current_internal_frame_addr(&mut self, offset: u64) {
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_op(opcodes::MLOAD);
+        if offset != 0 {
+            self.asm.emit_push(U256::from(offset));
+            self.asm.emit_op(opcodes::ADD);
+        }
+    }
+
+    fn spill_frame_size(func: &Function) -> u64 {
+        func.values.len() as u64 * 32
+    }
+
+    fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
+        if self.in_internal_function {
+            let spill_base =
+                64 + (func.params.len() as u64) * 32 + (func.returns.len() as u64) * 32;
+            self.emit_current_internal_frame_addr(
+                spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
+            );
+        } else {
+            self.asm.emit_push(U256::from(slot.byte_offset()));
+        }
+    }
+
+    fn emit_internal_arg_load(&mut self, index: u32) {
+        self.emit_current_internal_frame_addr(64 + u64::from(index) * 32);
+        self.asm.emit_op(opcodes::MLOAD);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_internal_call(
+        &mut self,
+        func: &Function,
+        callee: FunctionId,
+        args: &[ValueId],
+        returns: usize,
+        result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        let Some(&callee_label) = self.function_labels.get(&callee) else {
+            return;
+        };
+        let return_label = self.asm.new_label();
+        let local_frame_size = self.function_frame_sizes.get(&callee).copied().unwrap_or_default();
+        let frame_size = 64 + ((args.len() + returns) as u64) * 32 + local_frame_size;
+
+        // frame[0] = return label
+        self.asm.emit_push_label(return_label);
+        self.emit_new_internal_frame_addr(0);
+        self.asm.emit_op(opcodes::MSTORE);
+
+        // frame[32] = previous frame pointer
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_op(opcodes::MLOAD);
+        self.emit_new_internal_frame_addr(32);
+        self.asm.emit_op(opcodes::MSTORE);
+
+        for (i, &arg) in args.iter().enumerate() {
+            self.emit_value(func, arg);
+            self.emit_new_internal_frame_addr(64 + (i as u64) * 32);
+            self.asm.emit_op(opcodes::MSTORE);
+            self.scheduler.stack.pop();
+        }
+
+        self.spill_live_stack_values(func, liveness, block, inst_idx);
+        self.pop_all_stack_values();
+        self.scheduler.clear_stack();
+
+        // current_frame = frame
+        self.emit_new_internal_frame_addr(0);
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_op(opcodes::MSTORE);
+
+        // free_ptr += frame_size
+        self.emit_new_internal_frame_addr(frame_size);
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MSTORE);
+
+        self.asm.emit_push_label(callee_label);
+        self.asm.emit_op(opcodes::JUMP);
+
+        self.asm.define_label(return_label);
+        self.asm.emit_op(opcodes::JUMPDEST);
+        self.scheduler.clear_stack();
+
+        if let Some(result) = result
+            && returns > 0
+        {
+            self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32);
+            self.asm.emit_op(opcodes::MLOAD);
+            self.scheduler.stack.push(result);
+        }
+
+        // Restore the caller frame pointer. If a result is on the stack, this leaves it there.
+        self.emit_current_internal_frame_addr(32);
+        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_op(opcodes::MSTORE);
+    }
+
+    fn spill_live_stack_values(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        let stack_values: Vec<_> = self.scheduler.stack.iter().flatten().collect();
+        for value in stack_values {
+            if !liveness.is_dead_after(value, block, inst_idx) {
+                self.spill_value_if_needed(func, value);
+            }
+        }
+    }
+
     /// Emits a value to the stack.
     fn emit_value(&mut self, func: &Function, val: ValueId) {
-        let ops = self.scheduler.ensure_on_top(val, func);
+        let ops = self.scheduler.ensure_on_top(val, func).to_vec();
         for op in ops {
             match op {
                 ScheduledOp::Stack(stack_op) => {
                     self.asm.emit_op(stack_op.opcode());
                 }
                 ScheduledOp::PushImmediate(imm) => {
-                    self.asm.emit_push(*imm);
+                    self.asm.emit_push(imm);
                 }
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
-                    self.asm.emit_push(U256::from(slot.byte_offset()));
+                    self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(opcodes::MLOAD);
                 }
                 ScheduledOp::SaveSpill(slot) => {
                     // PUSH slot_offset, MSTORE
-                    self.asm.emit_push(U256::from(slot.byte_offset()));
+                    self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(opcodes::MSTORE);
                 }
                 ScheduledOp::LoadArg(index) => {
-                    let arg_ty = func.params.get(*index as usize).copied();
-                    if self.in_constructor && matches!(arg_ty, Some(MirType::MemPtr)) {
-                        Self::emit_constructor_short_string_arg(&mut self.asm, *index);
+                    let arg_ty = func.params.get(index as usize).copied();
+                    if self.in_internal_function {
+                        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+                        self.asm.emit_op(opcodes::MLOAD);
+                        self.asm.emit_push(U256::from(64 + u64::from(index) * 32));
+                        self.asm.emit_op(opcodes::ADD);
+                        self.asm.emit_op(opcodes::MLOAD);
+                    } else if self.in_constructor && matches!(arg_ty, Some(MirType::MemPtr)) {
+                        Self::emit_constructor_short_string_arg(&mut self.asm, index);
                     } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
-                        let offset = 0x80 + (*index as u64) * 32;
+                        let offset = 0x80 + (index as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(opcodes::MLOAD);
                     } else {
                         // Runtime function: load from calldata
                         // ABI encoding: selector (4 bytes) + args (32 bytes each)
                         // Offset = 4 + index * 32
-                        let offset = 4 + (*index as u64) * 32;
+                        let offset = 4 + (index as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
                         self.asm.emit_op(opcodes::CALLDATALOAD);
                     }
@@ -1466,7 +1676,9 @@ impl EvmCodegen {
                 }
             }
             crate::mir::Value::Arg { index, .. } => {
-                if self.in_constructor {
+                if self.in_internal_function {
+                    self.emit_internal_arg_load(*index);
+                } else if self.in_constructor {
                     let offset = 0x80 + (*index as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
                     self.asm.emit_op(opcodes::MLOAD);
@@ -1482,7 +1694,7 @@ impl EvmCodegen {
                 // or if they're instruction results that produce fresh values (like GAS, MLOAD)
                 if let Some(slot) = self.scheduler.spills.get(val) {
                     // Load from spill slot
-                    self.asm.emit_push(U256::from(slot.byte_offset()));
+                    self.emit_spill_slot_addr(func, slot);
                     self.asm.emit_op(opcodes::MLOAD);
                     self.scheduler.stack.push(val);
                 } else {
@@ -1509,6 +1721,10 @@ impl EvmCodegen {
                         }
                         crate::mir::InstKind::CalldataSize => {
                             self.asm.emit_op(opcodes::CALLDATASIZE);
+                            self.scheduler.stack.push(val);
+                        }
+                        crate::mir::InstKind::InternalFrameAddr(offset) => {
+                            self.emit_current_internal_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {
@@ -1804,7 +2020,7 @@ impl EvmCodegen {
                 // Spill the value on top of stack to the destination's spill slot
                 // This allows the successor block to reload it
                 let slot = self.scheduler.spills.allocate(*dst_val);
-                self.asm.emit_push(U256::from(slot.byte_offset()));
+                self.emit_spill_slot_addr(func, slot);
                 self.scheduler.stack.push_unknown();
                 self.asm.emit_op(opcodes::MSTORE);
                 self.scheduler.stack.pop(); // pop the untracked offset
@@ -1827,6 +2043,21 @@ impl EvmCodegen {
             self.asm.emit_op(opcodes::POP);
             self.scheduler.stack.pop();
         }
+    }
+
+    fn emit_internal_return(&mut self, func: &Function, values: &[ValueId]) {
+        let return_base = 64 + (func.params.len() as u64) * 32;
+        for (i, &value) in values.iter().enumerate() {
+            self.emit_value(func, value);
+            self.emit_current_internal_frame_addr(return_base + (i as u64) * 32);
+            self.asm.emit_op(opcodes::MSTORE);
+            self.scheduler.stack.pop();
+        }
+
+        self.pop_all_stack_values();
+        self.emit_current_internal_frame_addr(0);
+        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(opcodes::JUMP);
     }
 
     /// Generates bytecode for a terminator.
@@ -1892,6 +2123,11 @@ impl EvmCodegen {
             }
 
             Terminator::Return { values } => {
+                if self.in_internal_function {
+                    self.emit_internal_return(func, values);
+                    return;
+                }
+
                 if values.is_empty() {
                     self.asm.emit_push(U256::ZERO);
                     self.asm.emit_push(U256::ZERO);
@@ -1935,7 +2171,11 @@ impl EvmCodegen {
             }
 
             Terminator::Stop => {
-                self.asm.emit_op(opcodes::STOP);
+                if self.in_internal_function {
+                    self.emit_internal_return(func, &[]);
+                } else {
+                    self.asm.emit_op(opcodes::STOP);
+                }
             }
 
             Terminator::SelfDestruct { recipient } => {

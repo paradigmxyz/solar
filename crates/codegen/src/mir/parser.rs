@@ -34,7 +34,8 @@
 //! [`module_to_text`]: super::module_to_text
 
 use super::{
-    BasicBlock, BlockId, Function, InstKind, Instruction, Module, Terminator, Value, ValueId,
+    BasicBlock, BlockId, Function, FunctionId, InstKind, Instruction, Module, Terminator, Value,
+    ValueId,
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
@@ -708,6 +709,17 @@ impl<'a> Parser<'a> {
         block_labels.get(&idx).copied().ok_or_else(|| self.error(format!("unknown block `{id}`")))
     }
 
+    fn parse_function_id(&mut self) -> Result<FunctionId, ParseError> {
+        self.skip_inline();
+        let id = self.parse_ident()?;
+        let rest = id
+            .strip_prefix("fn")
+            .ok_or_else(|| self.error(format!("expected `fnN`, got `{id}`")))?;
+        let idx: usize =
+            rest.parse().map_err(|_| self.error(format!("invalid function index `{id}`")))?;
+        Ok(FunctionId::from_usize(idx))
+    }
+
     /// Parses one instruction line (with optional `vN =` result) or a terminator.
     fn parse_instruction_or_terminator(
         &mut self,
@@ -1282,6 +1294,21 @@ impl<'a> Parser<'a> {
                     },
                     Some(MirType::uint256()),
                 )
+            }
+            "internal_call" => {
+                let function = self.parse_function_id()?;
+                comma!();
+                let returns = self.parse_uint_literal()?.to::<usize>();
+                let mut args = Vec::new();
+                while self.try_punct(',') {
+                    args.push(v!());
+                }
+                let result_ty = (returns > 0).then(MirType::uint256);
+                (InstKind::InternalCall { function, args, returns }, result_ty)
+            }
+            "internal_frame_addr" => {
+                let offset = self.parse_uint_literal()?.to::<u64>();
+                (InstKind::InternalFrameAddr(offset), Some(MirType::MemPtr))
             }
 
             // ----- create -----
