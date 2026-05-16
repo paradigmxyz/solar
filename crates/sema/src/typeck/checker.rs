@@ -6,7 +6,10 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    sym,
+};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -559,12 +562,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::YulFnCall(call) => {
-                for arg in call.arguments {
-                    let _ = self.check_expr(arg);
-                }
-                self.gcx.types.uint(256)
-            }
+            hir::ExprKind::YulFnCall(call) => self.check_yul_fn_call(expr, call),
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -697,6 +695,67 @@ impl<'gcx> TypeChecker<'gcx> {
             [] => self.gcx.types.unit,
             [ty] => *ty,
             tys => self.gcx.mk_ty_tuple(tys),
+        }
+    }
+
+    fn check_yul_fn_call(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        call: &'gcx hir::YulFnCall<'gcx>,
+    ) -> Ty<'gcx> {
+        let Some(result) = self.resolve_yul_function(call.name) else {
+            for arg in call.arguments {
+                let _ = self.check_expr(arg);
+            }
+            return self.gcx.types.uint(256);
+        };
+
+        let id = match result {
+            Ok(id) => id,
+            Err(guar) => {
+                for arg in call.arguments {
+                    let _ = self.check_expr(arg);
+                }
+                return self.gcx.mk_ty_err(guar);
+            }
+        };
+        let ty = self.gcx.type_of_item(hir::ItemId::Function(id));
+        let TyKind::FnPtr(f) = ty.kind else { unreachable!() };
+        self.check_positional_call_args(expr.span, expr.span, call.arguments, f.parameters);
+        self.fn_call_return_type(f.returns)
+    }
+
+    fn resolve_yul_function(
+        &self,
+        name: solar_interface::Ident,
+    ) -> Option<Result<hir::FunctionId, ErrorGuaranteed>> {
+        let decls = self
+            .gcx
+            .symbol_resolver
+            .yul_function_scopes
+            .iter()
+            .filter(|scope| {
+                scope.source == self.source
+                    && scope.contract == self.contract
+                    && scope.span.contains(name.span)
+            })
+            .filter_map(|scope| scope.declarations.resolve(name).map(|decls| (scope.span, decls)))
+            .min_by_key(|(span, _)| span.hi().0 - span.lo().0)
+            .map(|(_, decls)| decls)?;
+
+        match decls
+            .iter()
+            .filter_map(|decl| match decl.res {
+                hir::Res::Item(hir::ItemId::Function(id)) => Some(id),
+                _ => None,
+            })
+            .collect::<WantOne<_>>()
+        {
+            WantOne::Zero => None,
+            WantOne::One(id) => Some(Ok(id)),
+            WantOne::Many => {
+                Some(Err(self.dcx().err("no unique declarations found").span(name.span).emit()))
+            }
         }
     }
 

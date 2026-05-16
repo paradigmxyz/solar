@@ -858,6 +858,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
+        self.record_yul_function_scope(span, &functions);
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
         }
@@ -917,6 +918,32 @@ impl<'gcx> ResolveContext<'gcx> {
             functions.push((function, id));
         }
         functions
+    }
+
+    fn record_yul_function_scope(
+        &mut self,
+        span: Span,
+        functions: &[(&ast::yul::Function<'_>, hir::FunctionId)],
+    ) {
+        if functions.is_empty() {
+            return;
+        }
+
+        let mut declarations = Declarations::with_capacity(functions.len());
+        for &(function, id) in functions {
+            declarations.declare_unchecked(
+                function.name.name,
+                Declaration { res: Res::Item(hir::ItemId::Function(id)), span: function.name.span },
+            );
+        }
+        let source = self.scopes.source.unwrap();
+        let contract = self.scopes.contract;
+        self.resolver.yul_function_scopes.push(YulFunctionScope {
+            source,
+            contract,
+            span,
+            declarations,
+        });
     }
 
     fn append_yul_function_item(&mut self, id: hir::FunctionId) {
@@ -1175,7 +1202,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>) -> hir::ExprKind<'gcx> {
-        // f(a, b) -> yulfncall f(a, b).
         hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
             name: call.name,
             arguments: self.arena.alloc_slice_fill_iter(
@@ -1713,6 +1739,7 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
+    pub(crate) yul_function_scopes: Vec<YulFunctionScope>,
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
@@ -1726,6 +1753,7 @@ impl<'gcx> SymbolResolver<'gcx> {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
+            yul_function_scopes: Vec::new(),
             global_builtin_scope,
             builtin_members_scopes,
         }
@@ -1813,6 +1841,14 @@ impl<'gcx> SymbolResolver<'gcx> {
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
         self.dcx.err(format!("expected {expected}, found {found}")).span(span).emit()
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct YulFunctionScope {
+    pub(crate) source: hir::SourceId,
+    pub(crate) contract: Option<hir::ContractId>,
+    pub(crate) span: Span,
+    pub(crate) declarations: Declarations,
 }
 
 /// Mutable symbol resolution state.
