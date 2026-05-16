@@ -1,3 +1,5 @@
+//@compile-flags: -Ztypeck
+
 contract C {
     function f() public returns (uint256 x) {
         // Ported from solc test/libyul/yulSyntaxTests/for_statement_2.yul.

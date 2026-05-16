@@ -1,3 +1,5 @@
+//@compile-flags: -Ztypeck
+
 contract C {
     function f(uint256 a) public returns (uint256 x, uint256 y) {
         assembly {

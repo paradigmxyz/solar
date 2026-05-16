@@ -1,3 +1,5 @@
+//@compile-flags: -Ztypeck
+
 contract C {
     function f() public returns (uint256 x) {
         // Ported from solc syntaxTests/viewPureChecker/inline_assembly_instructions_allowed.sol.
