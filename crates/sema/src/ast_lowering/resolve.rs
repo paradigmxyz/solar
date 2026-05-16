@@ -1106,8 +1106,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_switch_stmt(&mut self, switch: &ast::yul::StmtSwitch<'_>) -> hir::StmtKind<'gcx> {
-        // switch <selector> case <constant> { <body> } default { <body> }
-        //     -> HIR switch, preserving selector evaluation and case bodies.
         hir::StmtKind::Switch(self.arena.alloc(hir::StmtSwitch {
             selector: self.lower_yul_expr(&switch.selector),
             cases: self.arena.alloc_slice_fill_iter(switch.cases.iter().map(|case| {
@@ -1128,8 +1126,18 @@ impl<'gcx> ResolveContext<'gcx> {
             _ => {}
         }
 
+        // <expr> != 0
         let expr = self.lower_yul_expr(expr);
-        self.yul_not_zero(expr)
+        let zero = self.yul_number_lit(U256::ZERO, expr.span);
+        self.hir_builder().expr(
+            self.next_id(),
+            hir::ExprKind::Binary(
+                expr,
+                hir::BinOp { span: expr.span, kind: hir::BinOpKind::Ne },
+                zero,
+            ),
+            expr.span,
+        )
     }
 
     fn lower_yul_expr(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
@@ -1261,23 +1269,16 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir_builder().expr_owned(self.next_id(), hir::ExprKind::Member(expr, last), last.span)
     }
 
-    fn yul_not_zero(&mut self, expr: &'gcx hir::Expr<'gcx>) -> &'gcx hir::Expr<'gcx> {
-        let zero = self.yul_number_lit(U256::ZERO, expr.span);
-        self.hir_builder().expr(
-            self.next_id(),
-            hir::ExprKind::Binary(
-                expr,
-                hir::BinOp { span: expr.span, kind: hir::BinOpKind::Ne },
-                zero,
-            ),
-            expr.span,
-        )
-    }
-
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
         let lit = self.arena.alloc(ast::Lit {
             span,
-            symbol: Symbol::intern(&value.to_string()),
+            symbol: {
+                if let Ok(small) = u128::try_from(value) {
+                    sym::integer(small)
+                } else {
+                    Symbol::intern(&value.to_string())
+                }
+            },
             kind: ast::LitKind::Number(value),
         });
         self.hir_builder().expr(self.next_id(), hir::ExprKind::Lit(lit), span)
