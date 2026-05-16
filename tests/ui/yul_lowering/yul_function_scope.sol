@@ -31,4 +31,19 @@ contract C {
             x := pair(1) //~ ERROR: unresolved symbol
         }
     }
+
+    function i() public returns (uint256 x, uint256 y) {
+        assembly {
+            function outer(a) -> r {
+                function inner(b) -> c {
+                    c := add(b, 1)
+                }
+
+                r := inner(a)
+            }
+
+            x := outer(1)
+            y := inner(1) //~ ERROR: unresolved symbol
+        }
+    }
 }
