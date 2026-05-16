@@ -7,7 +7,7 @@ contract C {
                 r := add(a, b)
             }
 
-            x := one(1) //~ ERROR: wrong argument count
+            x := one(1)
         }
     }
 

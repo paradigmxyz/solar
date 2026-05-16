@@ -10,7 +10,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    error_code, kw, sym,
+    error_code, sym,
 };
 use std::fmt;
 
@@ -1150,32 +1150,6 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
         match &expr.kind {
-            ast::yul::ExprKind::Call(call) if call.name.name == kw::Iszero => {
-                if let [arg] = &call.arguments[..] {
-                    let arg = self.lower_yul_condition(arg);
-                    return self.hir_builder().expr(
-                        self.next_id(),
-                        hir::ExprKind::Unary(
-                            hir::UnOp { span: call.name.span, kind: hir::UnOpKind::Not },
-                            arg,
-                        ),
-                        expr.span,
-                    );
-                }
-            }
-            ast::yul::ExprKind::Call(call) => {
-                if let Some(kind) = Self::yul_cmp_binop(call.name.name)
-                    && let [lhs, rhs] = &call.arguments[..]
-                {
-                    let lhs = self.lower_yul_expr(lhs);
-                    let rhs = self.lower_yul_expr(rhs);
-                    return self.hir_builder().expr(
-                        self.next_id(),
-                        hir::ExprKind::Binary(lhs, hir::BinOp { span: call.name.span, kind }, rhs),
-                        expr.span,
-                    );
-                }
-            }
             ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
                 return self.lower_yul_expr(expr);
             }
@@ -1194,101 +1168,20 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
-            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
+            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call),
             ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }
 
-    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
-        let name = call.name.name;
-        // Yul operators with native Solidity HIR equivalents are lowered directly.
-        if let Some(kind) = Self::yul_arith_binop(name)
-            && let [lhs, rhs] = &call.arguments[..]
-        {
-            return hir::ExprKind::Binary(
-                self.lower_yul_expr(lhs),
-                hir::BinOp { span: call.name.span, kind },
-                self.lower_yul_expr(rhs),
-            );
-        }
-        if name == kw::Not
-            && let [arg] = &call.arguments[..]
-        {
-            return hir::ExprKind::Unary(
-                hir::UnOp { span: call.name.span, kind: hir::UnOpKind::BitNot },
-                self.lower_yul_expr(arg),
-            );
-        }
-
-        if let Some(res) = self.resolve_yul_call_name(call.name) {
-            // f(a, b) -> f(a, b), where `f` is a Yul function declared in this assembly block.
-            let callee =
-                self.hir_builder().expr(self.next_id(), hir::ExprKind::Ident(res), call.name.span);
-            return hir::ExprKind::Call(
-                callee,
-                self.lower_yul_call_args(call.arguments, span),
-                None,
-            );
-        }
-
-        // Remaining known EVM builtins are kept as builtin calls.
-        if let Some(builtin) = Builtin::yul(name) {
-            let callee = self.hir_builder().expr(
-                self.next_id(),
-                hir::ExprKind::Ident(self.arena.alloc_as_slice(Res::Builtin(builtin))),
-                call.name.span,
-            );
-            return hir::ExprKind::Call(
-                callee,
-                self.lower_yul_call_args(call.arguments, span),
-                None,
-            );
-        }
-
-        // User-defined Yul functions and dialect-specific helpers stay as Yul function calls.
+    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>) -> hir::ExprKind<'gcx> {
+        // f(a, b) -> yulfncall f(a, b).
         hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
             name: call.name,
             arguments: self.arena.alloc_slice_fill_iter(
                 call.arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
             ),
         }))
-    }
-
-    fn resolve_yul_call_name(&mut self, name: Ident) -> Option<&'gcx [Res]> {
-        for scope in self.scopes.scopes.iter().rev() {
-            let Some(decls) = scope.resolve(name) else { continue };
-            let functions = decls
-                .iter()
-                .filter_map(|decl| match decl.res {
-                    Res::Item(hir::ItemId::Function(id)) => {
-                        Some(Res::Item(hir::ItemId::Function(id)))
-                    }
-                    _ => None,
-                })
-                .collect::<SmallVec<[_; 4]>>();
-            if functions.is_empty() {
-                return None;
-            }
-            let functions = self.arena.alloc_smallvec(functions);
-            return Some(&*functions);
-        }
-        None
-    }
-
-    fn lower_yul_call_args(
-        &mut self,
-        arguments: &[ast::yul::Expr<'_>],
-        span: Span,
-    ) -> hir::CallArgs<'gcx> {
-        hir::CallArgs {
-            span,
-            kind: hir::CallArgsKind::Unnamed(
-                self.arena.alloc_slice_fill_iter(
-                    arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
-                ),
-            ),
-        }
     }
 
     fn lower_yul_path_expr(&mut self, path: &ast::PathSlice) -> &'gcx hir::Expr<'gcx> {
@@ -1362,33 +1255,6 @@ impl<'gcx> ResolveContext<'gcx> {
         var.source = self.scopes.source.unwrap_or(self.current_source_id);
         var.contract = self.scopes.contract;
         var
-    }
-
-    fn yul_arith_binop(name: Symbol) -> Option<hir::BinOpKind> {
-        Some(match name {
-            kw::Add => hir::BinOpKind::Add,
-            kw::Sub => hir::BinOpKind::Sub,
-            kw::Mul => hir::BinOpKind::Mul,
-            kw::Div => hir::BinOpKind::Div,
-            kw::Mod => hir::BinOpKind::Rem,
-            kw::Exp => hir::BinOpKind::Pow,
-            kw::And => hir::BinOpKind::BitAnd,
-            kw::Or => hir::BinOpKind::BitOr,
-            kw::Xor => hir::BinOpKind::BitXor,
-            kw::Shl => hir::BinOpKind::Shl,
-            kw::Shr => hir::BinOpKind::Shr,
-            kw::Sar => hir::BinOpKind::Sar,
-            _ => return None,
-        })
-    }
-
-    fn yul_cmp_binop(name: Symbol) -> Option<hir::BinOpKind> {
-        Some(match name {
-            kw::Lt | kw::Slt => hir::BinOpKind::Lt,
-            kw::Gt | kw::Sgt => hir::BinOpKind::Gt,
-            kw::Eq => hir::BinOpKind::Eq,
-            _ => return None,
-        })
     }
 
     fn lower_try_catch_clause(
