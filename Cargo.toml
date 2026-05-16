@@ -6,7 +6,7 @@ resolver = "2"
 [workspace.package]
 version = "0.1.8"
 edition = "2024"
-rust-version = "1.88" # MSRV
+rust-version = "1.95" # MSRV
 authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/paradigmxyz/solar"
