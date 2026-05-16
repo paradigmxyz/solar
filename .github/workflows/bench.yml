@@ -45,7 +45,6 @@ jobs:
       contents: read
     env:
       BASELINE: base
-      IAI_CALLGRIND_RUNNER: iai-callgrind-runner
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
       - uses: actions/checkout@v6
@@ -69,29 +68,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Install benchmark runner
+      - name: Install gungraun-runner
         run: |
-          package=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun" or .name == "iai-callgrind").name' | head -n1)
-          version=$(cargo metadata --format-version=1 | jq -r --arg package "$package" '.packages[] | select(.name == $package).version')
-          case "$package" in
-            gungraun) runner=gungraun-runner ;;
-            iai-callgrind) runner=iai-callgrind-runner ;;
-            *) echo "unknown benchmark runner package: $package" && exit 1 ;;
-          esac
-          cargo binstall "$runner" --version "$version" --no-confirm --no-symlinks --force
-          which "$runner"
+          version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
+          cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
+          which gungraun-runner
       - name: Save baseline
-        run: |
-          bench_target=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "solar-bench").targets[] | select(any(.kind[]; . == "bench") and (.name == "gungraun" or .name == "iai")).name' | head -n1)
-          cargo bench -p solar-bench --bench "$bench_target" --features ci -- --save-baseline=$BASELINE
-          if [ "$bench_target" = "iai" ] && [ -d target/iai ] && [ ! -e target/gungraun ]; then
-            mv target/iai target/gungraun
-          fi
+        run: cargo bench -p solar-bench --bench gungraun --features ci -- --save-baseline=$BASELINE
       - name: Checkout PR
         uses: actions/checkout@v6
         with:
           clean: false
-      - name: Install benchmark runner
+      - name: Install gungraun-runner
         run: |
           version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
           cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
