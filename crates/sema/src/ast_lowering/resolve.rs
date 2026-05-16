@@ -1157,14 +1157,21 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
-        if let Some(res) = self.resolve_yul_call_name(call.name) {
-            let callee =
-                self.hir_builder().expr(self.next_id(), hir::ExprKind::Ident(res), call.name.span);
-            return hir::ExprKind::Call(
-                callee,
-                self.lower_yul_call_args(call.arguments, span),
-                None,
-            );
+        match self.resolve_yul_call_name(call.name) {
+            Ok(Some(res)) => {
+                let callee = self.hir_builder().expr(
+                    self.next_id(),
+                    hir::ExprKind::Ident(res),
+                    call.name.span,
+                );
+                return hir::ExprKind::Call(
+                    callee,
+                    self.lower_yul_call_args(call.arguments, span),
+                    None,
+                );
+            }
+            Ok(None) => {}
+            Err(guar) => return hir::ExprKind::Err(guar),
         }
 
         hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
@@ -1175,9 +1182,18 @@ impl<'gcx> ResolveContext<'gcx> {
         }))
     }
 
-    fn resolve_yul_call_name(&mut self, name: Ident) -> Option<&'gcx [Res]> {
+    fn resolve_yul_call_name(
+        &mut self,
+        name: Ident,
+    ) -> Result<Option<&'gcx [Res]>, ErrorGuaranteed> {
         for scope in self.scopes.scopes.iter().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
+            if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
+                Res::Err(guar) => Some(guar),
+                _ => None,
+            }) {
+                return Err(guar);
+            }
             let functions = decls
                 .iter()
                 .filter_map(|decl| match decl.res {
@@ -1188,12 +1204,28 @@ impl<'gcx> ResolveContext<'gcx> {
                 })
                 .collect::<SmallVec<[_; 4]>>();
             if functions.is_empty() {
-                return None;
+                return Err(self.resolver.report_expected(
+                    "function",
+                    decls[0].res.description(),
+                    name.span,
+                ));
             }
             let functions = self.arena.alloc_smallvec(functions);
-            return Some(&*functions);
+            return Ok(Some(&*functions));
         }
-        None
+        if self.is_out_of_scope_yul_function_name(name) {
+            return Err(self.resolver.emit_resolver_error()(ResolverError::new(
+                name,
+                ResolverErrorKind::Unresolved,
+            )));
+        }
+        Ok(None)
+    }
+
+    fn is_out_of_scope_yul_function_name(&self, name: Ident) -> bool {
+        let Some(function) = self.function_id else { return false };
+        let parent = self.lcx.yul_function_parents.get(&function).copied().unwrap_or(function);
+        self.lcx.yul_function_names.get(&parent).is_some_and(|names| names.contains(&name.name))
     }
 
     fn lower_yul_call_args(

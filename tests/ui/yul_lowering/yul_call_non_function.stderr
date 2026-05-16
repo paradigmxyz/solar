@@ -1,0 +1,8 @@
+error: expected function, found variable
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_call_non_function.sol:LL:CC
+   │
+LL │             dialect_helper(1)
+   ╰╴            ━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

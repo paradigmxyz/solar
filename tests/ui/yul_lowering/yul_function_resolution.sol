@@ -11,12 +11,6 @@ contract C {
         }
     }
 
-    function g(uint256 dialect_helper) public {
-        assembly {
-            dialect_helper(1)
-        }
-    }
-
     function h() public returns (uint256 x, uint256 y) {
         assembly {
             function pair(a) -> b, c {
