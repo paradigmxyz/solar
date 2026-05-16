@@ -857,8 +857,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
-        // function f(a) -> r { <body> }
-        //     -> private function f(uint256 a) returns (uint256 r) { unchecked { <body> } }.
         let functions = self.collect_yul_function_decls(stmts);
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
@@ -881,6 +879,8 @@ impl<'gcx> ResolveContext<'gcx> {
         &mut self,
         stmts: &'stmt [ast::yul::Stmt<'ast>],
     ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
+        // function f(a) -> r { <body> }
+        //     -> private function f(uint256 a) returns (uint256 r) { unchecked { <body> } }.
         let mut functions = SmallVec::new();
         for stmt in stmts {
             let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
