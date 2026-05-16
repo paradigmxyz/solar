@@ -1,7 +1,6 @@
 use crate::hir::{self, ContractId, SourceId};
-use solar_ast::{self as ast, visit::Visit};
-use solar_data_structures::{Never, smallvec::SmallVec};
-use std::ops::ControlFlow;
+use solar_ast as ast;
+use solar_data_structures::smallvec::SmallVec;
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
@@ -21,13 +20,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         | ast::ItemKind::Import(_)
                         | ast::ItemKind::Using(_) => {}
                         ast::ItemKind::Contract(_)
+                        | ast::ItemKind::Function(_)
                         | ast::ItemKind::Variable(_)
                         | ast::ItemKind::Struct(_)
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_)
-                        | ast::ItemKind::Function(_) => items.push(self.lower_item(item)),
+                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
@@ -115,9 +114,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
             ast::ItemKind::Event(i) => hir::ItemId::Event(self.lower_event(item, i)),
         };
         self.hir_to_ast.insert(item_id, item);
-        if matches!(item.kind, ast::ItemKind::Function(_)) {
-            self.collect_yul_functions_in_item(item);
-        }
         item_id
     }
 
@@ -245,54 +241,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
             anonymous,
             parameters: &[],
         })
-    }
-
-    fn collect_yul_functions_in_item(&mut self, item: &'gcx ast::Item<'gcx>) {
-        let _ = YulFunctionCollector { lower: self }.visit_item(item);
-    }
-
-    fn collect_yul_function(&mut self, function: &'gcx ast::yul::Function<'gcx>) {
-        let span = Self::yul_function_span(function);
-        let id = self.hir.functions.push(hir::Function {
-            source: self.current_source_id,
-            contract: self.current_contract_id,
-            span,
-            name: Some(function.name),
-            kind: hir::FunctionKind::Function,
-            visibility: hir::Visibility::Private,
-            state_mutability: hir::StateMutability::NonPayable,
-            modifiers: &[],
-            marked_virtual: false,
-            virtual_: false,
-            override_: false,
-            overrides: &[],
-            parameters: &[],
-            returns: &[],
-            body: None,
-            body_span: function.body.span,
-            gettee: None,
-        });
-        self.yul_function_ids.insert(span, id);
-    }
-
-    pub(super) fn yul_function_span(function: &ast::yul::Function<'_>) -> solar_interface::Span {
-        function.name.span.with_hi(function.body.span.hi())
-    }
-}
-
-struct YulFunctionCollector<'a, 'gcx> {
-    lower: &'a mut super::LoweringContext<'gcx>,
-}
-
-impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
-    type BreakValue = Never;
-
-    fn visit_yul_function(
-        &mut self,
-        function: &'gcx ast::yul::Function<'gcx>,
-    ) -> ControlFlow<Self::BreakValue> {
-        self.lower.collect_yul_function(function);
-        self.walk_yul_function(function)
     }
 }
 

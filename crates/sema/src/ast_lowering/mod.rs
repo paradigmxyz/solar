@@ -56,8 +56,6 @@ struct LoweringContext<'gcx> {
     sources: &'gcx Sources<'gcx>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
     hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
-    /// Mapping from Yul function definition spans to their pre-created HIR functions.
-    yul_function_ids: FxHashMap<solar_interface::Span, hir::FunctionId>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
@@ -78,7 +76,6 @@ impl<'gcx> LoweringContext<'gcx> {
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
-            yul_function_ids: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),
             next_id: IdCounter::new(),
         }

@@ -872,17 +872,41 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn collect_yul_function_decls<'stmt, 'ast>(
-        &self,
+        &mut self,
         stmts: &'stmt [ast::yul::Stmt<'ast>],
     ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
         let mut functions = SmallVec::new();
         for stmt in stmts {
             let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
-            let span = super::LoweringContext::yul_function_span(function);
-            let id = self.lcx.yul_function_ids[&span];
+            let id = self.lower_yul_function_decl(function);
             functions.push((function, id));
         }
         functions
+    }
+
+    fn lower_yul_function_decl(&mut self, function: &ast::yul::Function<'_>) -> hir::FunctionId {
+        let source = self.scopes.source.unwrap();
+        let contract = self.scopes.contract;
+        let span = function.name.span.with_hi(function.body.span.hi());
+        self.hir.functions.push(hir::Function {
+            source,
+            contract,
+            span,
+            name: Some(function.name),
+            kind: hir::FunctionKind::Function,
+            visibility: hir::Visibility::Private,
+            state_mutability: hir::StateMutability::NonPayable,
+            modifiers: &[],
+            marked_virtual: false,
+            virtual_: false,
+            override_: false,
+            overrides: &[],
+            parameters: &[],
+            returns: &[],
+            body: None,
+            body_span: function.body.span,
+            gettee: None,
+        })
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
@@ -897,11 +921,19 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn append_yul_function_item(&mut self, id: hir::FunctionId) {
-        let source = self.scopes.source.unwrap();
-        let mut items =
-            SmallVec::<[_; 16]>::from_iter(self.hir.sources[source].items.iter().copied());
-        items.push(hir::ItemId::Function(id));
-        self.hir.sources[source].items = self.arena.alloc_smallvec(items);
+        let item = hir::ItemId::Function(id);
+        if let Some(contract) = self.scopes.contract {
+            let mut items =
+                SmallVec::<[_; 16]>::from_iter(self.hir.contracts[contract].items.iter().copied());
+            items.push(item);
+            self.hir.contracts[contract].items = self.arena.alloc_smallvec(items);
+        } else {
+            let source = self.scopes.source.unwrap();
+            let mut items =
+                SmallVec::<[_; 16]>::from_iter(self.hir.sources[source].items.iter().copied());
+            items.push(item);
+            self.hir.sources[source].items = self.arena.alloc_smallvec(items);
+        }
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
