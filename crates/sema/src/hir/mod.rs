@@ -172,7 +172,7 @@ impl<'hir> Hir<'hir> {
         let empty_doc_id = docs.push(Doc {
             source: SourceId::MAX,
             item: ItemId::Contract(ContractId::MAX),
-            ast_comments: ast::DocComments::empty(),
+            ast_comments: ast::DocComments::default(),
             comments: &[],
         });
         debug_assert_eq!(empty_doc_id, DocId::EMPTY);
@@ -455,7 +455,7 @@ impl DocId {
     /// The empty documentation id.
     ///
     /// This is reserved as index 0 and represents items with no documentation.
-    pub const EMPTY: Self = unsafe { Self::from_usize_unchecked(0) };
+    pub const EMPTY: Self = Self::from_usize_unchecked(0);
 
     /// Whether a documentation id is empty or not.
     pub fn is_empty(&self) -> bool {
@@ -495,7 +495,7 @@ pub struct Doc<'hir> {
     /// The item this documentation is defined in.
     pub item: ItemId,
     /// Reference to the AST documentation comments.
-    pub(crate) ast_comments: &'hir ast::DocComments<'hir>,
+    pub(crate) ast_comments: ast::DocComments<'hir>,
     /// Resolved natspec items after AST lowering and `@inheritdoc` expansion.
     pub(crate) comments: &'hir [NatSpecItem],
 }

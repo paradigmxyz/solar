@@ -1,6 +1,7 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
 use solar_data_structures::{
+    BumpExt,
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
@@ -138,7 +139,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         self.current_contract_id = prev_contract_id;
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Contract(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Contract(id));
         self.hir.contracts[id].doc = doc_id;
         id
     }
@@ -220,7 +221,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Function(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Function(id));
         self.hir.functions[id].doc = doc_id;
         id
     }
@@ -241,7 +242,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         );
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Variable(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Variable(id));
         self.hir.variables[id].doc = Some(doc_id);
         id
     }
@@ -263,7 +264,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Struct(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Struct(id));
         self.hir.structs[id].doc = doc_id;
         id
     }
@@ -281,7 +282,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Enum(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Enum(id));
         self.hir.enums[id].doc = doc_id;
         id
     }
@@ -299,7 +300,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Udvt(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Udvt(id));
         self.hir.udvts[id].doc = doc_id;
         id
     }
@@ -317,7 +318,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Error(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Error(id));
         self.hir.errors[id].doc = doc_id;
         id
     }
@@ -336,20 +337,33 @@ impl<'gcx> super::LoweringContext<'gcx> {
         });
 
         // Lower docs after `ItemId` is available
-        let doc_id = self.lower_docs(&item.docs, hir::ItemId::Event(id));
+        let doc_id = self.lower_item_docs(item, hir::ItemId::Event(id));
         self.hir.events[id].doc = doc_id;
         id
     }
 
     /// Lowers documentation comments from AST to HIR.
     ///
-    /// Simply stores a reference to the AST doc comments. Validation happens after parameters are
-    /// lowered.
-    fn lower_docs(
-        &mut self,
-        docs: &'gcx ast::DocComments<'gcx>,
-        item_id: hir::ItemId,
-    ) -> hir::DocId {
+    /// Validation happens after parameters are lowered.
+    fn lower_item_docs(&mut self, item: &'gcx ast::Item<'gcx>, item_id: hir::ItemId) -> hir::DocId {
+        if item.docs.is_empty() {
+            return hir::DocId::EMPTY;
+        }
+        let docs = self.copy_doc_comments(&item.docs);
+        self.lower_docs(docs, item_id)
+    }
+
+    fn copy_doc_comments(&self, docs: &ast::DocComments<'_>) -> ast::DocComments<'gcx> {
+        let docs = docs.iter().map(|doc| ast::DocComment {
+            kind: doc.kind,
+            span: doc.span,
+            symbol: doc.symbol,
+            natspec: self.arena.bump().alloc_thin_slice_copy((), doc.natspec),
+        });
+        self.arena.bump().alloc_from_iter_thin((), docs).into()
+    }
+
+    fn lower_docs(&mut self, docs: ast::DocComments<'gcx>, item_id: hir::ItemId) -> hir::DocId {
         if docs.is_empty() {
             return hir::DocId::EMPTY;
         }
@@ -386,15 +400,14 @@ impl<'gcx> super::LoweringContext<'gcx> {
         processed: &mut FxHashSet<hir::DocId>,
         contract_cache: &mut FxHashMap<(Symbol, hir::SourceId), Option<hir::ContractId>>,
     ) {
-        if processed.contains(&doc_id) {
+        if !processed.insert(doc_id) {
             return;
         }
-        processed.insert(doc_id);
 
         let doc = self.hir.doc(doc_id);
         let (item_id, source_id) = (doc.item, doc.source);
         let (local_tags, inheritdoc) =
-            self.validate_item_natspec(doc.ast_comments, item_id, source_id, contract_cache);
+            self.validate_item_natspec(&doc.ast_comments, item_id, source_id, contract_cache);
 
         // Resolve inheritdoc if present
         let resolved_tags = if let Some((contract_id, item_id)) = inheritdoc {
@@ -430,8 +443,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
     /// - Duplicate tags
     /// - Parameter references
     fn validate_item_natspec(
-        &mut self,
-        docs: &'gcx ast::DocComments<'gcx>,
+        &self,
+        docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
         contract_cache: &mut FxHashMap<(Symbol, hir::SourceId), Option<hir::ContractId>>,
@@ -644,7 +657,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     /// Returns the resolved contract ID if validation passed.
     #[inline]
     fn validate_and_cache_inheritdoc_contract(
-        &mut self,
+        &self,
         contract_ident: &solar_interface::Ident,
         tag_span: Span,
         item_id: hir::ItemId,
