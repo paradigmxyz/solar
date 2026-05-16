@@ -46,4 +46,18 @@ contract C {
             y := inner(1) //~ ERROR: unresolved symbol
         }
     }
+
+    function j() public returns (uint256 x) {
+        assembly {
+            function outer(a) -> r {
+                function inner(b) -> c {
+                    c := r //~ ERROR: unresolved symbol
+                }
+
+                r := inner(a)
+            }
+
+            x := outer(1)
+        }
+    }
 }

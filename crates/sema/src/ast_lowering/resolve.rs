@@ -238,6 +238,7 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
+    yul_function_scopes: Vec<usize>,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -257,7 +258,12 @@ impl std::ops::DerefMut for ResolveContext<'_> {
 
 impl<'gcx> ResolveContext<'gcx> {
     pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
-        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
+        Self {
+            lcx,
+            scopes: SymbolResolverScopes::new(),
+            function_id: None,
+            yul_function_scopes: Vec::new(),
+        }
     }
 
     fn init(
@@ -937,26 +943,27 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        let outer_yul_function_scopes = std::mem::take(&mut self.yul_function_scopes);
+        let outer_yul_function_scope_decls = self.scopes.remove_scopes(&outer_yul_function_scopes);
         let previous_function = self.function_id.replace(id);
-        let body = self.in_scope(|this| {
-            this.hir.functions[id].parameters = this.lower_yul_function_variables(
-                id,
-                function.parameters,
-                hir::VarKind::FunctionParam,
-            );
-            this.hir.functions[id].returns = this.lower_yul_function_variables(
-                id,
-                function.returns,
-                hir::VarKind::FunctionReturn,
-            );
+        self.scopes.enter();
+        self.yul_function_scopes.push(self.scopes.scopes.len() - 1);
 
-            let block = this.lower_yul_block(&function.body);
-            let unchecked =
-                this.hir_builder().stmt(hir::StmtKind::UncheckedBlock(block), block.span);
-            this.hir_builder().block(this.arena.alloc_as_slice(unchecked), block.span)
-        });
+        self.hir.functions[id].parameters =
+            self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
+        self.hir.functions[id].returns =
+            self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
+
+        let block = self.lower_yul_block(&function.body);
+        let unchecked = self.hir_builder().stmt(hir::StmtKind::UncheckedBlock(block), block.span);
+        let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
+
+        self.yul_function_scopes.pop();
+        self.scopes.exit();
         self.hir.functions[id].body = Some(body);
         self.function_id = previous_function;
+        self.scopes.restore_scopes(outer_yul_function_scope_decls);
+        self.yul_function_scopes = outer_yul_function_scopes;
     }
 
     fn lower_yul_function_variables(
@@ -1966,6 +1973,20 @@ impl SymbolResolverScopes {
         let mut scope = self.pool.pop().unwrap_or_else(Declarations::new);
         scope.clear();
         self.scopes.push(scope);
+    }
+
+    fn remove_scopes(&mut self, indices: &[usize]) -> Vec<(usize, Declarations)> {
+        let mut removed = Vec::with_capacity(indices.len());
+        for &index in indices.iter().rev() {
+            removed.push((index, self.scopes.remove(index)));
+        }
+        removed
+    }
+
+    fn restore_scopes(&mut self, removed: Vec<(usize, Declarations)>) {
+        for (index, scope) in removed.into_iter().rev() {
+            self.scopes.insert(index, scope);
+        }
     }
 
     #[inline]
