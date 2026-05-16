@@ -242,6 +242,89 @@ declare_builtins! {
     // TODO                => `(bytes memory...) pure returns(bytes memory)`
     BytesConcat            => sym::concat
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
+
+    // Yul EVM builtins.
+    YulStop                => kw::Stop           => gcx.mk_yul_builtin_fn(0, 0);
+    YulAdd                 => kw::Add            => gcx.mk_yul_builtin_fn(2, 1);
+    YulSub                 => kw::Sub            => gcx.mk_yul_builtin_fn(2, 1);
+    YulMul                 => kw::Mul            => gcx.mk_yul_builtin_fn(2, 1);
+    YulDiv                 => kw::Div            => gcx.mk_yul_builtin_fn(2, 1);
+    YulSdiv                => kw::Sdiv           => gcx.mk_yul_builtin_fn(2, 1);
+    YulMod                 => kw::Mod            => gcx.mk_yul_builtin_fn(2, 1);
+    YulSmod                => kw::Smod           => gcx.mk_yul_builtin_fn(2, 1);
+    YulExp                 => kw::Exp            => gcx.mk_yul_builtin_fn(2, 1);
+    YulNot                 => kw::Not            => gcx.mk_yul_builtin_fn(1, 1);
+    YulLt                  => kw::Lt             => gcx.mk_yul_builtin_fn(2, 1);
+    YulGt                  => kw::Gt             => gcx.mk_yul_builtin_fn(2, 1);
+    YulSlt                 => kw::Slt            => gcx.mk_yul_builtin_fn(2, 1);
+    YulSgt                 => kw::Sgt            => gcx.mk_yul_builtin_fn(2, 1);
+    YulEq                  => kw::Eq             => gcx.mk_yul_builtin_fn(2, 1);
+    YulIszero              => kw::Iszero         => gcx.mk_yul_builtin_fn(1, 1);
+    YulAnd                 => kw::And            => gcx.mk_yul_builtin_fn(2, 1);
+    YulOr                  => kw::Or             => gcx.mk_yul_builtin_fn(2, 1);
+    YulXor                 => kw::Xor            => gcx.mk_yul_builtin_fn(2, 1);
+    YulByte                => kw::Byte           => gcx.mk_yul_builtin_fn(2, 1);
+    YulShl                 => kw::Shl            => gcx.mk_yul_builtin_fn(2, 1);
+    YulShr                 => kw::Shr            => gcx.mk_yul_builtin_fn(2, 1);
+    YulSar                 => kw::Sar            => gcx.mk_yul_builtin_fn(2, 1);
+    YulAddmod              => kw::Addmod         => gcx.mk_yul_builtin_fn(3, 1);
+    YulMulmod              => kw::Mulmod         => gcx.mk_yul_builtin_fn(3, 1);
+    YulSignextend          => kw::Signextend     => gcx.mk_yul_builtin_fn(2, 1);
+    YulKeccak256           => kw::Keccak256      => gcx.mk_yul_builtin_fn(2, 1);
+    YulAddress             => kw::Address        => gcx.mk_yul_builtin_fn(0, 1);
+    YulBalance             => kw::Balance        => gcx.mk_yul_builtin_fn(1, 1);
+    YulSelfbalance         => kw::Selfbalance    => gcx.mk_yul_builtin_fn(0, 1);
+    YulCaller              => kw::Caller         => gcx.mk_yul_builtin_fn(0, 1);
+    YulCallvalue           => kw::Callvalue      => gcx.mk_yul_builtin_fn(0, 1);
+    YulCalldataload        => kw::Calldataload   => gcx.mk_yul_builtin_fn(1, 1);
+    YulCalldatasize        => kw::Calldatasize   => gcx.mk_yul_builtin_fn(0, 1);
+    YulCalldatacopy        => kw::Calldatacopy   => gcx.mk_yul_builtin_fn(3, 0);
+    YulCodesize            => kw::Codesize       => gcx.mk_yul_builtin_fn(0, 1);
+    YulCodecopy            => kw::Codecopy       => gcx.mk_yul_builtin_fn(3, 0);
+    YulExtcodesize         => kw::Extcodesize    => gcx.mk_yul_builtin_fn(1, 1);
+    YulExtcodecopy         => kw::Extcodecopy    => gcx.mk_yul_builtin_fn(4, 0);
+    YulReturndatasize      => kw::Returndatasize => gcx.mk_yul_builtin_fn(0, 1);
+    YulReturndatacopy      => kw::Returndatacopy => gcx.mk_yul_builtin_fn(3, 0);
+    YulExtcodehash         => kw::Extcodehash    => gcx.mk_yul_builtin_fn(1, 1);
+    YulMload               => kw::Mload          => gcx.mk_yul_builtin_fn(1, 1);
+    YulMstore              => kw::Mstore         => gcx.mk_yul_builtin_fn(2, 0);
+    YulMstore8             => kw::Mstore8        => gcx.mk_yul_builtin_fn(2, 0);
+    YulSload               => kw::Sload          => gcx.mk_yul_builtin_fn(1, 1);
+    YulSstore              => kw::Sstore         => gcx.mk_yul_builtin_fn(2, 0);
+    YulTload               => kw::Tload          => gcx.mk_yul_builtin_fn(1, 1);
+    YulTstore              => kw::Tstore         => gcx.mk_yul_builtin_fn(2, 0);
+    YulMsize               => kw::Msize          => gcx.mk_yul_builtin_fn(0, 1);
+    YulGas                 => kw::Gas            => gcx.mk_yul_builtin_fn(0, 1);
+    YulLog0                => kw::Log0           => gcx.mk_yul_builtin_fn(2, 0);
+    YulLog1                => kw::Log1           => gcx.mk_yul_builtin_fn(3, 0);
+    YulLog2                => kw::Log2           => gcx.mk_yul_builtin_fn(4, 0);
+    YulLog3                => kw::Log3           => gcx.mk_yul_builtin_fn(5, 0);
+    YulLog4                => kw::Log4           => gcx.mk_yul_builtin_fn(6, 0);
+    YulCreate              => kw::Create         => gcx.mk_yul_builtin_fn(3, 1);
+    YulCreate2             => kw::Create2        => gcx.mk_yul_builtin_fn(4, 1);
+    YulCall                => kw::Call           => gcx.mk_yul_builtin_fn(7, 1);
+    YulCallcode            => kw::Callcode       => gcx.mk_yul_builtin_fn(7, 1);
+    YulDelegatecall        => kw::Delegatecall   => gcx.mk_yul_builtin_fn(6, 1);
+    YulStaticcall          => kw::Staticcall     => gcx.mk_yul_builtin_fn(6, 1);
+    YulReturn              => kw::Return         => gcx.mk_yul_builtin_fn(2, 0);
+    YulRevert              => kw::Revert         => gcx.mk_yul_builtin_fn(2, 0);
+    YulSelfdestruct        => kw::Selfdestruct   => gcx.mk_yul_builtin_fn(1, 0);
+    YulInvalid             => kw::Invalid        => gcx.mk_yul_builtin_fn(0, 0);
+    YulChainid             => kw::Chainid        => gcx.mk_yul_builtin_fn(0, 1);
+    YulBasefee             => kw::Basefee        => gcx.mk_yul_builtin_fn(0, 1);
+    YulBlobbasefee         => kw::Blobbasefee    => gcx.mk_yul_builtin_fn(0, 1);
+    YulBlobhash            => kw::Blobhash       => gcx.mk_yul_builtin_fn(1, 1);
+    YulCoinbase            => kw::Coinbase       => gcx.mk_yul_builtin_fn(0, 1);
+    YulDifficulty          => kw::Difficulty     => gcx.mk_yul_builtin_fn(0, 1);
+    YulPrevrandao          => kw::Prevrandao     => gcx.mk_yul_builtin_fn(0, 1);
+    YulGaslimit            => kw::Gaslimit       => gcx.mk_yul_builtin_fn(0, 1);
+    YulNumber              => kw::Number         => gcx.mk_yul_builtin_fn(0, 1);
+    YulTimestamp           => kw::Timestamp      => gcx.mk_yul_builtin_fn(0, 1);
+    YulGasprice            => kw::Gasprice       => gcx.mk_yul_builtin_fn(0, 1);
+    YulOrigin              => kw::Origin         => gcx.mk_yul_builtin_fn(0, 1);
+    YulBlockhash           => kw::Blockhash      => gcx.mk_yul_builtin_fn(1, 1);
+    YulPop                 => kw::Pop            => gcx.mk_yul_builtin_fn(1, 0);
+    YulMcopy               => kw::Mcopy          => gcx.mk_yul_builtin_fn(3, 0);
 }
 
 impl Builtin {
@@ -314,5 +397,92 @@ impl Builtin {
         debug_assert!(range.end < Self::COUNT);
         (range.start as Primitive..range.end as Primitive)
             .map(|idx| unsafe { Self::from_index(idx as usize).unwrap_unchecked() })
+    }
+
+    pub(crate) fn yul(name: Symbol) -> Option<Self> {
+        Some(match name {
+            kw::Stop => Self::YulStop,
+            kw::Add => Self::YulAdd,
+            kw::Sub => Self::YulSub,
+            kw::Mul => Self::YulMul,
+            kw::Div => Self::YulDiv,
+            kw::Sdiv => Self::YulSdiv,
+            kw::Mod => Self::YulMod,
+            kw::Smod => Self::YulSmod,
+            kw::Exp => Self::YulExp,
+            kw::Not => Self::YulNot,
+            kw::Lt => Self::YulLt,
+            kw::Gt => Self::YulGt,
+            kw::Slt => Self::YulSlt,
+            kw::Sgt => Self::YulSgt,
+            kw::Eq => Self::YulEq,
+            kw::Iszero => Self::YulIszero,
+            kw::And => Self::YulAnd,
+            kw::Or => Self::YulOr,
+            kw::Xor => Self::YulXor,
+            kw::Byte => Self::YulByte,
+            kw::Shl => Self::YulShl,
+            kw::Shr => Self::YulShr,
+            kw::Sar => Self::YulSar,
+            kw::Addmod => Self::YulAddmod,
+            kw::Mulmod => Self::YulMulmod,
+            kw::Signextend => Self::YulSignextend,
+            kw::Keccak256 => Self::YulKeccak256,
+            kw::Address => Self::YulAddress,
+            kw::Balance => Self::YulBalance,
+            kw::Selfbalance => Self::YulSelfbalance,
+            kw::Caller => Self::YulCaller,
+            kw::Callvalue => Self::YulCallvalue,
+            kw::Calldataload => Self::YulCalldataload,
+            kw::Calldatasize => Self::YulCalldatasize,
+            kw::Calldatacopy => Self::YulCalldatacopy,
+            kw::Codesize => Self::YulCodesize,
+            kw::Codecopy => Self::YulCodecopy,
+            kw::Extcodesize => Self::YulExtcodesize,
+            kw::Extcodecopy => Self::YulExtcodecopy,
+            kw::Returndatasize => Self::YulReturndatasize,
+            kw::Returndatacopy => Self::YulReturndatacopy,
+            kw::Extcodehash => Self::YulExtcodehash,
+            kw::Mload => Self::YulMload,
+            kw::Mstore => Self::YulMstore,
+            kw::Mstore8 => Self::YulMstore8,
+            kw::Sload => Self::YulSload,
+            kw::Sstore => Self::YulSstore,
+            kw::Tload => Self::YulTload,
+            kw::Tstore => Self::YulTstore,
+            kw::Msize => Self::YulMsize,
+            kw::Gas => Self::YulGas,
+            kw::Log0 => Self::YulLog0,
+            kw::Log1 => Self::YulLog1,
+            kw::Log2 => Self::YulLog2,
+            kw::Log3 => Self::YulLog3,
+            kw::Log4 => Self::YulLog4,
+            kw::Create => Self::YulCreate,
+            kw::Create2 => Self::YulCreate2,
+            kw::Call => Self::YulCall,
+            kw::Callcode => Self::YulCallcode,
+            kw::Delegatecall => Self::YulDelegatecall,
+            kw::Staticcall => Self::YulStaticcall,
+            kw::Return => Self::YulReturn,
+            kw::Revert => Self::YulRevert,
+            kw::Selfdestruct => Self::YulSelfdestruct,
+            kw::Invalid => Self::YulInvalid,
+            kw::Chainid => Self::YulChainid,
+            kw::Basefee => Self::YulBasefee,
+            kw::Blobbasefee => Self::YulBlobbasefee,
+            kw::Blobhash => Self::YulBlobhash,
+            kw::Coinbase => Self::YulCoinbase,
+            kw::Difficulty => Self::YulDifficulty,
+            kw::Prevrandao => Self::YulPrevrandao,
+            kw::Gaslimit => Self::YulGaslimit,
+            kw::Number => Self::YulNumber,
+            kw::Timestamp => Self::YulTimestamp,
+            kw::Gasprice => Self::YulGasprice,
+            kw::Origin => Self::YulOrigin,
+            kw::Blockhash => Self::YulBlockhash,
+            kw::Pop => Self::YulPop,
+            kw::Mcopy => Self::YulMcopy,
+            _ => return None,
+        })
     }
 }

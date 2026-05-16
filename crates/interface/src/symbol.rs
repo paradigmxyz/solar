@@ -837,6 +837,8 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Codecopy:       "codecopy",
+        Codesize:       "codesize",
         Coinbase:       "coinbase",
         Create:         "create",
         Create2:        "create2",

@@ -190,6 +190,11 @@ pub trait Visit<'hir> {
             ExprKind::Tuple(exprs) => {
                 exprs.iter().copied().flatten().try_for_each(|expr| self.visit_expr(expr))?;
             }
+            ExprKind::YulFnCall(call) => {
+                for arg in call.arguments {
+                    self.visit_expr(arg)?;
+                }
+            }
             ExprKind::Ident(_) => {}
             ExprKind::Lit(_) => {}
             ExprKind::New(ref ty) | ExprKind::TypeCall(ref ty) | ExprKind::Type(ref ty) => {

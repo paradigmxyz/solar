@@ -399,6 +399,12 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty_fn(parameters, state_mutability, Visibility::Internal, returns)
     }
 
+    pub(crate) fn mk_yul_builtin_fn(self, parameters: usize, returns: usize) -> Ty<'gcx> {
+        let parameters = vec![self.types.uint(256); parameters];
+        let returns = vec![self.types.uint(256); returns];
+        self.mk_builtin_fn(&parameters, StateMutability::NonPayable, &returns)
+    }
+
     pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {
         self.mk_ty(TyKind::BuiltinModule(builtin))
     }

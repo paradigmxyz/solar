@@ -559,6 +559,17 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
+            hir::ExprKind::YulFnCall(call) => {
+                let param_tys = vec![self.gcx.types.uint(256); call.arguments.len()];
+                self.check_positional_call_args(expr.span, expr.span, call.arguments, &param_tys);
+                match call.returns {
+                    0 => self.gcx.types.unit,
+                    1 => self.gcx.types.uint(256),
+                    n => self.gcx.mk_ty_tuple(
+                        self.gcx.mk_ty_iter(std::iter::repeat_n(self.gcx.types.uint(256), n)),
+                    ),
+                }
+            }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -1243,7 +1254,8 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Ternary(..)
         | hir::ExprKind::TypeCall(_)
         | hir::ExprKind::Type(_)
-        | hir::ExprKind::Unary(..) => false,
+        | hir::ExprKind::Unary(..)
+        | hir::ExprKind::YulFnCall(_) => false,
     }
 }
 
