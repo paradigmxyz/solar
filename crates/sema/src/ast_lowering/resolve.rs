@@ -1281,11 +1281,15 @@ impl<'gcx> ResolveContext<'gcx> {
         for &segment in rest {
             expr = self.hir_builder().expr(
                 self.next_id(),
-                hir::ExprKind::Member(expr, segment),
+                hir::ExprKind::YulMember(expr, segment),
                 segment.span,
             );
         }
-        self.hir_builder().expr_owned(self.next_id(), hir::ExprKind::Member(expr, last), last.span)
+        self.hir_builder().expr_owned(
+            self.next_id(),
+            hir::ExprKind::YulMember(expr, last),
+            last.span,
+        )
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {

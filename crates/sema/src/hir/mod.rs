@@ -1440,6 +1440,9 @@ pub enum ExprKind<'hir> {
     /// A non-lowerable Yul function call.
     YulFnCall(&'hir YulFnCall<'hir>),
 
+    /// A dotted Yul identifier path.
+    YulMember(&'hir Expr<'hir>, Ident),
+
     Err(ErrorGuaranteed),
 }
 

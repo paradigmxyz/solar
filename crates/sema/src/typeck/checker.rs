@@ -565,6 +565,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 self.gcx.types.uint(256)
             }
+            hir::ExprKind::YulMember(expr, _) => {
+                let _ = self.check_expr(expr);
+                self.gcx.types.uint(256)
+            }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -1252,6 +1256,7 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         hir::ExprKind::Ident(_)
         | hir::ExprKind::Index(..)
         | hir::ExprKind::Member(..)
+        | hir::ExprKind::YulMember(..)
         | hir::ExprKind::Call(..)
         | hir::ExprKind::Tuple(..)
         | hir::ExprKind::Err(_) => true,

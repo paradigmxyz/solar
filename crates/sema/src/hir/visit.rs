@@ -157,7 +157,8 @@ pub trait Visit<'hir> {
             ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
-            | ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
+            | ExprKind::Unary(_, expr)
+            | ExprKind::YulMember(expr, _) => self.visit_expr(expr)?,
             ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
                 self.visit_expr(lhs)?;
                 self.visit_expr(rhs)?;

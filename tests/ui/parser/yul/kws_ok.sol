@@ -7,10 +7,13 @@ contract C {
                 b := number()
             }
 
-            let a := number()
-            a, a := some_call()
+            number.slot := 69
+            number.slot, number.slot := some_call()
 
-            sstore(0, number())
+            number.number := 69
+            number.number, number.number := some_call()
+
+            sstore(number.slot, 1)
 
             pop(number())
         }
