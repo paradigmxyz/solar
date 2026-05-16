@@ -6,7 +6,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -565,7 +565,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 self.gcx.types.uint(256)
             }
-            hir::ExprKind::YulMember(expr, _) => {
+            hir::ExprKind::YulMember(expr, member) => {
+                if is_yul_member(member) {
+                    // TODO: Validate inline assembly suffixes like solc does:
+                    // `.slot`/`.offset` for storage and transient variables, `.offset`/`.length`
+                    // for calldata arrays, and `.address`/`.selector` for external function
+                    // pointers. Assignment rules are suffix- and declaration-dependent.
+                }
                 let _ = self.check_expr(expr);
                 self.gcx.types.uint(256)
             }
@@ -1275,6 +1281,11 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Unary(..)
         | hir::ExprKind::YulFnCall(_) => false,
     }
+}
+
+fn is_yul_member(member: Ident) -> bool {
+    matches!(member.name, sym::length | sym::selector | kw::Address)
+        || matches!(member.name.as_str(), "slot" | "offset")
 }
 
 enum OverloadError {
