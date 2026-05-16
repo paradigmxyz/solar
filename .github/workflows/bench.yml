@@ -44,7 +44,6 @@ jobs:
     permissions:
       contents: read
     env:
-      BASELINE: base
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
       - uses: actions/checkout@v6
@@ -57,14 +56,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
-      - name: Checkout base
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.base_ref || 'main' }}
-          fetch-depth: 2
-      - name: Checkout HEAD^
-        if: ${{ !github.base_ref }}
-        run: git checkout HEAD^
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -73,16 +64,5 @@ jobs:
           version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
           cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
           which gungraun-runner
-      - name: Save baseline
-        run: cargo bench -p solar-bench --bench gungraun --features ci -- --save-baseline=$BASELINE
-      - name: Checkout PR
-        uses: actions/checkout@v6
-        with:
-          clean: false
-      - name: Install gungraun-runner
-        run: |
-          version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
-          cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
-          which gungraun-runner
-      - name: Compare PR benchmarks
-        run: cargo bench -p solar-bench --bench gungraun --features ci -- --baseline=$BASELINE
+      - name: Run benchmarks
+        run: cargo bench -p solar-bench --bench gungraun --features ci
