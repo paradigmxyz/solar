@@ -859,7 +859,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
-        let functions = self.lcx.collect_yul_function_decls(stmts);
+        let functions = self.collect_yul_function_decls(stmts);
         for &(function, id) in &functions {
             self.declare_yul_function(function, id);
         }
@@ -869,6 +869,20 @@ impl<'gcx> ResolveContext<'gcx> {
         let stmts =
             self.arena.alloc_from_iter(stmts.iter().filter_map(|stmt| self.lower_yul_stmt(stmt)));
         hir::Block { span, stmts }
+    }
+
+    fn collect_yul_function_decls<'stmt, 'ast>(
+        &self,
+        stmts: &'stmt [ast::yul::Stmt<'ast>],
+    ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
+        let mut functions = SmallVec::new();
+        for stmt in stmts {
+            let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
+            let span = super::LoweringContext::yul_function_span(function);
+            let id = self.lcx.yul_function_ids[&span];
+            functions.push((function, id));
+        }
+        functions
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {

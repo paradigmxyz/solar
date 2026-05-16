@@ -317,20 +317,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    pub(super) fn collect_yul_function_decls<'stmt, 'ast>(
-        &self,
-        stmts: &'stmt [ast::yul::Stmt<'ast>],
-    ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
-        let mut functions = SmallVec::new();
-        for stmt in stmts {
-            let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
-            let span = Self::yul_function_span(function);
-            let id = self.yul_function_ids[&span];
-            functions.push((function, id));
-        }
-        functions
-    }
-
     fn collect_yul_functions_in_block(
         &mut self,
         parent: hir::FunctionId,
