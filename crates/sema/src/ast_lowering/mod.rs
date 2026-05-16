@@ -6,7 +6,7 @@ use crate::{
 use solar_ast as ast;
 use solar_data_structures::{
     index::{Idx, IndexVec},
-    map::{FxHashMap, FxHashSet},
+    map::FxHashMap,
 };
 use solar_interface::{Session, diagnostics::DiagCtxt};
 
@@ -58,10 +58,6 @@ struct LoweringContext<'gcx> {
     hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
     /// Mapping from Yul function definition spans to their pre-created HIR functions.
     yul_function_ids: FxHashMap<solar_interface::Span, hir::FunctionId>,
-    /// Mapping from generated Yul functions to their enclosing Solidity function.
-    yul_function_parents: FxHashMap<hir::FunctionId, hir::FunctionId>,
-    /// Names of Yul functions declared inside each Solidity function.
-    yul_function_names: FxHashMap<hir::FunctionId, FxHashSet<solar_interface::Symbol>>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
@@ -83,8 +79,6 @@ impl<'gcx> LoweringContext<'gcx> {
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
             yul_function_ids: FxHashMap::default(),
-            yul_function_parents: FxHashMap::default(),
-            yul_function_names: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),
             next_id: IdCounter::new(),
         }

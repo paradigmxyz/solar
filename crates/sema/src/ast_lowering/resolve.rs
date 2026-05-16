@@ -1214,19 +1214,7 @@ impl<'gcx> ResolveContext<'gcx> {
             let functions = self.arena.alloc_smallvec(functions);
             return Ok(Some(&*functions));
         }
-        if self.is_out_of_scope_yul_function_name(name) {
-            return Err(self.resolver.emit_resolver_error()(ResolverError::new(
-                name,
-                ResolverErrorKind::Unresolved,
-            )));
-        }
         Ok(None)
-    }
-
-    fn is_out_of_scope_yul_function_name(&self, name: Ident) -> bool {
-        let Some(function) = self.function_id else { return false };
-        let parent = self.lcx.yul_function_parents.get(&function).copied().unwrap_or(function);
-        self.lcx.yul_function_names.get(&parent).is_some_and(|names| names.contains(&name.name))
     }
 
     fn lower_yul_call_args(

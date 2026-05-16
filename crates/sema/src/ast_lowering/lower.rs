@@ -357,7 +357,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     fn collect_yul_function(
         &mut self,
-        parent: hir::FunctionId,
+        _parent: hir::FunctionId,
         function: &'gcx ast::yul::Function<'gcx>,
     ) {
         let span = Self::yul_function_span(function);
@@ -381,8 +381,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
             gettee: None,
         });
         self.yul_function_ids.insert(span, id);
-        self.yul_function_parents.insert(id, parent);
-        self.yul_function_names.entry(parent).or_default().insert(function.name.name);
     }
 
     pub(super) fn yul_function_span(function: &ast::yul::Function<'_>) -> solar_interface::Span {

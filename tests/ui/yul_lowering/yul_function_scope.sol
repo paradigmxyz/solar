@@ -10,7 +10,7 @@ contract C {
         }
 
         assembly {
-            x, y := pair(1) //~ ERROR: unresolved symbol
+            x, y := pair(1) //~ ERROR: mismatched types
         }
     }
 }
