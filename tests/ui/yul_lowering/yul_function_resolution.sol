@@ -21,4 +21,18 @@ contract C {
             x, y := pair(1)
         }
     }
+
+    function nested() public returns (uint256 x) {
+        assembly {
+            function outer(a) -> r {
+                r := inner(a)
+
+                function inner(b) -> c {
+                    c := add(b, 1)
+                }
+            }
+
+            x := outer(1)
+        }
+    }
 }
