@@ -1,6 +1,7 @@
 use crate::hir::{self, ContractId, SourceId};
-use solar_ast as ast;
-use solar_data_structures::smallvec::SmallVec;
+use solar_ast::{self as ast, visit::Visit};
+use solar_data_structures::{Never, smallvec::SmallVec};
+use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
@@ -25,12 +26,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
-                        ast::ItemKind::Function(_) => {
-                            let id = self.lower_item(item);
-                            items.push(id);
-                            self.collect_yul_functions_in_item(item);
-                        }
+                        | ast::ItemKind::Event(_)
+                        | ast::ItemKind::Function(_) => items.push(self.lower_item(item)),
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
@@ -88,9 +85,6 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 | ast::ItemKind::Event(_) => self.lower_item(item),
             };
             items.push(id);
-            if matches!(item.kind, ast::ItemKind::Function(_)) {
-                self.collect_yul_functions_in_item(item);
-            }
         }
         self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
 
@@ -121,6 +115,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
             ast::ItemKind::Event(i) => hir::ItemId::Event(self.lower_event(item, i)),
         };
         self.hir_to_ast.insert(item_id, item);
+        if matches!(item.kind, ast::ItemKind::Function(_)) {
+            self.collect_yul_functions_in_item(item);
+        }
         item_id
     }
 
@@ -251,90 +248,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
     }
 
     fn collect_yul_functions_in_item(&mut self, item: &'gcx ast::Item<'gcx>) {
-        let ast::ItemKind::Function(function) = &item.kind else { return };
-        if let Some(body) = &function.body {
-            self.collect_yul_functions_in_stmts(body.stmts);
-        }
-    }
-
-    fn collect_yul_functions_in_stmts(&mut self, stmts: &'gcx [ast::Stmt<'gcx>]) {
-        for stmt in stmts {
-            self.collect_yul_functions_in_stmt(stmt);
-        }
-    }
-
-    fn collect_yul_functions_in_stmt(&mut self, stmt: &'gcx ast::Stmt<'gcx>) {
-        match &stmt.kind {
-            ast::StmtKind::Assembly(assembly) => {
-                self.collect_yul_functions_in_block(&assembly.block);
-            }
-            ast::StmtKind::Block(block) | ast::StmtKind::UncheckedBlock(block) => {
-                self.collect_yul_functions_in_stmts(block.stmts);
-            }
-            ast::StmtKind::DoWhile(body, _)
-            | ast::StmtKind::While(_, body)
-            | ast::StmtKind::If(_, body, None) => {
-                self.collect_yul_functions_in_stmt(body);
-            }
-            ast::StmtKind::If(_, true_, Some(false_)) => {
-                self.collect_yul_functions_in_stmt(true_);
-                self.collect_yul_functions_in_stmt(false_);
-            }
-            ast::StmtKind::For { init, body, .. } => {
-                if let Some(init) = init {
-                    self.collect_yul_functions_in_stmt(init);
-                }
-                self.collect_yul_functions_in_stmt(body);
-            }
-            ast::StmtKind::Try(try_) => {
-                for clause in try_.clauses.iter() {
-                    self.collect_yul_functions_in_stmts(clause.block.stmts);
-                }
-            }
-            ast::StmtKind::Break
-            | ast::StmtKind::Continue
-            | ast::StmtKind::DeclSingle(_)
-            | ast::StmtKind::DeclMulti(..)
-            | ast::StmtKind::Emit(..)
-            | ast::StmtKind::Expr(_)
-            | ast::StmtKind::Placeholder
-            | ast::StmtKind::Return(_)
-            | ast::StmtKind::Revert(..) => {}
-        }
-    }
-
-    fn collect_yul_functions_in_block(&mut self, block: &'gcx ast::yul::Block<'gcx>) {
-        for stmt in block.stmts.iter() {
-            match &stmt.kind {
-                ast::yul::StmtKind::Block(block) => {
-                    self.collect_yul_functions_in_block(block);
-                }
-                ast::yul::StmtKind::For(for_) => {
-                    self.collect_yul_functions_in_block(&for_.init);
-                    self.collect_yul_functions_in_block(&for_.step);
-                    self.collect_yul_functions_in_block(&for_.body);
-                }
-                ast::yul::StmtKind::Switch(switch) => {
-                    for case in switch.cases.iter() {
-                        self.collect_yul_functions_in_block(&case.body);
-                    }
-                }
-                ast::yul::StmtKind::If(_, block) => {
-                    self.collect_yul_functions_in_block(block);
-                }
-                ast::yul::StmtKind::FunctionDef(function) => {
-                    self.collect_yul_function(function);
-                    self.collect_yul_functions_in_block(&function.body);
-                }
-                ast::yul::StmtKind::AssignSingle(..)
-                | ast::yul::StmtKind::AssignMulti(..)
-                | ast::yul::StmtKind::Break
-                | ast::yul::StmtKind::Continue
-                | ast::yul::StmtKind::Expr(_)
-                | ast::yul::StmtKind::Leave
-                | ast::yul::StmtKind::VarDecl(..) => {}
-            }
-        }
+        let _ = YulFunctionCollector { lower: self }.visit_item(item);
     }
 
     fn collect_yul_function(&mut self, function: &'gcx ast::yul::Function<'gcx>) {
@@ -363,6 +277,22 @@ impl<'gcx> super::LoweringContext<'gcx> {
 
     pub(super) fn yul_function_span(function: &ast::yul::Function<'_>) -> solar_interface::Span {
         function.name.span.with_hi(function.body.span.hi())
+    }
+}
+
+struct YulFunctionCollector<'a, 'gcx> {
+    lower: &'a mut super::LoweringContext<'gcx>,
+}
+
+impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn visit_yul_function(
+        &mut self,
+        function: &'gcx ast::yul::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        self.lower.collect_yul_function(function);
+        self.walk_yul_function(function)
     }
 }
 
