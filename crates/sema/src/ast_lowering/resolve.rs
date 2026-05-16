@@ -866,17 +866,8 @@ impl<'gcx> ResolveContext<'gcx> {
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
         }
-        let stmts = stmts
-            .iter()
-            .filter_map(|stmt| {
-                if matches!(stmt.kind, ast::yul::StmtKind::FunctionDef(_)) {
-                    None
-                } else {
-                    Some(self.lower_yul_stmt(stmt))
-                }
-            })
-            .collect::<SmallVec<[_; 8]>>();
-        let stmts = self.arena.alloc_smallvec(stmts);
+        let stmts =
+            self.arena.alloc_from_iter(stmts.iter().filter_map(|stmt| self.lower_yul_stmt(stmt)));
         hir::Block { span, stmts }
     }
 
@@ -952,7 +943,7 @@ impl<'gcx> ResolveContext<'gcx> {
         id
     }
 
-    fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> hir::Stmt<'gcx> {
+    fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
         let kind = match &stmt.kind {
             ast::yul::StmtKind::Block(block) => hir::StmtKind::Block(self.lower_yul_block(block)),
             ast::yul::StmtKind::AssignSingle(path, expr) => {
@@ -992,14 +983,12 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::yul::StmtKind::Leave => hir::StmtKind::Return(None),
             ast::yul::StmtKind::Break => hir::StmtKind::Break,
             ast::yul::StmtKind::Continue => hir::StmtKind::Continue,
-            ast::yul::StmtKind::FunctionDef(_) => {
-                hir::StmtKind::Block(self.hir_builder().block(&[], stmt.span))
-            }
+            ast::yul::StmtKind::FunctionDef(_) => return None,
             ast::yul::StmtKind::VarDecl(idents, expr) => {
                 self.lower_yul_var_decl(idents, expr.as_ref(), stmt.span)
             }
         };
-        hir::Stmt { span: stmt.span, kind }
+        Some(hir::Stmt { span: stmt.span, kind })
     }
 
     fn lower_yul_var_decl(
