@@ -325,7 +325,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             }
 
-            let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
+            let item_id = hir::ItemId::Function(id);
+            let Some(&ast_item) = self.hir_to_ast.get(&item_id) else {
+                continue;
+            };
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
 
             self.init(func.source, func.contract, Some(id));
@@ -848,7 +851,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
-        // assembly { <body> } -> unchecked { <body> }
         hir::StmtKind::UncheckedBlock(self.lower_yul_block(&assembly.block))
     }
 
@@ -858,7 +860,6 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
         let functions = self.collect_yul_function_decls(stmts);
-        self.record_yul_function_scope(span, &functions);
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
         }
@@ -885,28 +886,8 @@ impl<'gcx> ResolveContext<'gcx> {
         let mut functions = SmallVec::new();
         for stmt in stmts {
             let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
-            let span = function.name.span.with_hi(function.body.span.hi());
-            let source = self.scopes.source.unwrap();
-            let contract = self.scopes.contract;
-            let id = self.hir.functions.push(hir::Function {
-                source,
-                contract,
-                span,
-                name: Some(function.name),
-                kind: hir::FunctionKind::Function,
-                visibility: hir::Visibility::Private,
-                state_mutability: hir::StateMutability::NonPayable,
-                modifiers: &[],
-                marked_virtual: false,
-                virtual_: false,
-                override_: false,
-                overrides: &[],
-                parameters: &[],
-                returns: &[],
-                body: None,
-                body_span: function.body.span,
-                gettee: None,
-            });
+            let span = super::LoweringContext::yul_function_span(function);
+            let id = self.lcx.yul_function_ids[&span];
             self.append_yul_function_item(id);
             let res = Res::Item(hir::ItemId::Function(id));
             let _ = self.scopes.current_scope().declare_res(
@@ -918,32 +899,6 @@ impl<'gcx> ResolveContext<'gcx> {
             functions.push((function, id));
         }
         functions
-    }
-
-    fn record_yul_function_scope(
-        &mut self,
-        span: Span,
-        functions: &[(&ast::yul::Function<'_>, hir::FunctionId)],
-    ) {
-        if functions.is_empty() {
-            return;
-        }
-
-        let mut declarations = Declarations::with_capacity(functions.len());
-        for &(function, id) in functions {
-            declarations.declare_unchecked(
-                function.name.name,
-                Declaration { res: Res::Item(hir::ItemId::Function(id)), span: function.name.span },
-            );
-        }
-        let source = self.scopes.source.unwrap();
-        let contract = self.scopes.contract;
-        self.resolver.yul_function_scopes.push(YulFunctionScope {
-            source,
-            contract,
-            span,
-            declarations,
-        });
     }
 
     fn append_yul_function_item(&mut self, id: hir::FunctionId) {
@@ -1195,19 +1150,65 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
-            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call),
+            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
             ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }
 
-    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>) -> hir::ExprKind<'gcx> {
+    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
+        if let Some(res) = self.resolve_yul_call_name(call.name) {
+            let callee =
+                self.hir_builder().expr(self.next_id(), hir::ExprKind::Ident(res), call.name.span);
+            return hir::ExprKind::Call(
+                callee,
+                self.lower_yul_call_args(call.arguments, span),
+                None,
+            );
+        }
+
         hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
             name: call.name,
             arguments: self.arena.alloc_slice_fill_iter(
                 call.arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
             ),
         }))
+    }
+
+    fn resolve_yul_call_name(&mut self, name: Ident) -> Option<&'gcx [Res]> {
+        for scope in self.scopes.scopes.iter().rev() {
+            let Some(decls) = scope.resolve(name) else { continue };
+            let functions = decls
+                .iter()
+                .filter_map(|decl| match decl.res {
+                    Res::Item(hir::ItemId::Function(id)) => {
+                        Some(Res::Item(hir::ItemId::Function(id)))
+                    }
+                    _ => None,
+                })
+                .collect::<SmallVec<[_; 4]>>();
+            if functions.is_empty() {
+                return None;
+            }
+            let functions = self.arena.alloc_smallvec(functions);
+            return Some(&*functions);
+        }
+        None
+    }
+
+    fn lower_yul_call_args(
+        &mut self,
+        arguments: &[ast::yul::Expr<'_>],
+        span: Span,
+    ) -> hir::CallArgs<'gcx> {
+        hir::CallArgs {
+            span,
+            kind: hir::CallArgsKind::Unnamed(
+                self.arena.alloc_slice_fill_iter(
+                    arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
+                ),
+            ),
+        }
     }
 
     fn lower_yul_path_expr(&mut self, path: &ast::PathSlice) -> &'gcx hir::Expr<'gcx> {
@@ -1739,7 +1740,6 @@ pub(crate) struct SymbolResolver<'gcx> {
     dcx: &'gcx DiagCtxt,
     pub(crate) source_scopes: IndexVec<hir::SourceId, Declarations>,
     pub(crate) contract_scopes: IndexVec<hir::ContractId, Declarations>,
-    pub(crate) yul_function_scopes: Vec<YulFunctionScope>,
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
@@ -1753,7 +1753,6 @@ impl<'gcx> SymbolResolver<'gcx> {
             dcx,
             source_scopes: IndexVec::new(),
             contract_scopes: IndexVec::new(),
-            yul_function_scopes: Vec::new(),
             global_builtin_scope,
             builtin_members_scopes,
         }
@@ -1841,14 +1840,6 @@ impl<'gcx> SymbolResolver<'gcx> {
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
         self.dcx.err(format!("expected {expected}, found {found}")).span(span).emit()
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct YulFunctionScope {
-    pub(crate) source: hir::SourceId,
-    pub(crate) contract: Option<hir::ContractId>,
-    pub(crate) span: Span,
-    pub(crate) declarations: Declarations,
 }
 
 /// Mutable symbol resolution state.

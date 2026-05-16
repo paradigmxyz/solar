@@ -20,13 +20,16 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         | ast::ItemKind::Import(_)
                         | ast::ItemKind::Using(_) => {}
                         ast::ItemKind::Contract(_)
-                        | ast::ItemKind::Function(_)
                         | ast::ItemKind::Variable(_)
                         | ast::ItemKind::Struct(_)
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
                         | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
+                        ast::ItemKind::Function(_) => {
+                            items.push(self.lower_item(item));
+                            self.collect_yul_functions_in_item(item);
+                        }
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
@@ -84,6 +87,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 | ast::ItemKind::Event(_) => self.lower_item(item),
             };
             items.push(id);
+            if matches!(item.kind, ast::ItemKind::Function(_)) {
+                self.collect_yul_functions_in_item(item);
+            }
         }
         self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
 
@@ -241,6 +247,117 @@ impl<'gcx> super::LoweringContext<'gcx> {
             anonymous,
             parameters: &[],
         })
+    }
+
+    fn collect_yul_functions_in_item(&mut self, item: &'gcx ast::Item<'gcx>) {
+        let ast::ItemKind::Function(function) = &item.kind else { return };
+        if let Some(body) = &function.body {
+            self.collect_yul_functions_in_stmts(body.stmts);
+        }
+    }
+
+    fn collect_yul_functions_in_stmts(&mut self, stmts: &'gcx [ast::Stmt<'gcx>]) {
+        for stmt in stmts {
+            self.collect_yul_functions_in_stmt(stmt);
+        }
+    }
+
+    fn collect_yul_functions_in_stmt(&mut self, stmt: &'gcx ast::Stmt<'gcx>) {
+        match &stmt.kind {
+            ast::StmtKind::Assembly(assembly) => {
+                self.collect_yul_functions_in_block(&assembly.block);
+            }
+            ast::StmtKind::Block(block) | ast::StmtKind::UncheckedBlock(block) => {
+                self.collect_yul_functions_in_stmts(block.stmts);
+            }
+            ast::StmtKind::DoWhile(body, _)
+            | ast::StmtKind::While(_, body)
+            | ast::StmtKind::If(_, body, None) => {
+                self.collect_yul_functions_in_stmt(body);
+            }
+            ast::StmtKind::If(_, true_, Some(false_)) => {
+                self.collect_yul_functions_in_stmt(true_);
+                self.collect_yul_functions_in_stmt(false_);
+            }
+            ast::StmtKind::For { init, body, .. } => {
+                if let Some(init) = init {
+                    self.collect_yul_functions_in_stmt(init);
+                }
+                self.collect_yul_functions_in_stmt(body);
+            }
+            ast::StmtKind::Try(try_) => {
+                for clause in try_.clauses.iter() {
+                    self.collect_yul_functions_in_stmts(clause.block.stmts);
+                }
+            }
+            ast::StmtKind::Break
+            | ast::StmtKind::Continue
+            | ast::StmtKind::DeclSingle(_)
+            | ast::StmtKind::DeclMulti(..)
+            | ast::StmtKind::Emit(..)
+            | ast::StmtKind::Expr(_)
+            | ast::StmtKind::Placeholder
+            | ast::StmtKind::Return(_)
+            | ast::StmtKind::Revert(..) => {}
+        }
+    }
+
+    fn collect_yul_functions_in_block(&mut self, block: &'gcx ast::yul::Block<'gcx>) {
+        for stmt in block.stmts.iter() {
+            match &stmt.kind {
+                ast::yul::StmtKind::Block(block) => self.collect_yul_functions_in_block(block),
+                ast::yul::StmtKind::For(for_) => {
+                    self.collect_yul_functions_in_block(&for_.init);
+                    self.collect_yul_functions_in_block(&for_.step);
+                    self.collect_yul_functions_in_block(&for_.body);
+                }
+                ast::yul::StmtKind::Switch(switch) => {
+                    for case in switch.cases.iter() {
+                        self.collect_yul_functions_in_block(&case.body);
+                    }
+                }
+                ast::yul::StmtKind::If(_, block) => self.collect_yul_functions_in_block(block),
+                ast::yul::StmtKind::FunctionDef(function) => {
+                    self.collect_yul_function(function);
+                    self.collect_yul_functions_in_block(&function.body);
+                }
+                ast::yul::StmtKind::AssignSingle(..)
+                | ast::yul::StmtKind::AssignMulti(..)
+                | ast::yul::StmtKind::Break
+                | ast::yul::StmtKind::Continue
+                | ast::yul::StmtKind::Expr(_)
+                | ast::yul::StmtKind::Leave
+                | ast::yul::StmtKind::VarDecl(..) => {}
+            }
+        }
+    }
+
+    fn collect_yul_function(&mut self, function: &'gcx ast::yul::Function<'gcx>) {
+        let span = Self::yul_function_span(function);
+        let id = self.hir.functions.push(hir::Function {
+            source: self.current_source_id,
+            contract: self.current_contract_id,
+            span,
+            name: Some(function.name),
+            kind: hir::FunctionKind::Function,
+            visibility: hir::Visibility::Private,
+            state_mutability: hir::StateMutability::NonPayable,
+            modifiers: &[],
+            marked_virtual: false,
+            virtual_: false,
+            override_: false,
+            overrides: &[],
+            parameters: &[],
+            returns: &[],
+            body: None,
+            body_span: function.body.span,
+            gettee: None,
+        });
+        self.yul_function_ids.insert(span, id);
+    }
+
+    pub(super) fn yul_function_span(function: &ast::yul::Function<'_>) -> solar_interface::Span {
+        function.name.span.with_hi(function.body.span.hi())
     }
 }
 
