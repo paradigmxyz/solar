@@ -25,7 +25,7 @@ workspace = true
 
 [dependencies]
 bumpalo.workspace = true
-index_vec.workspace = true
+oxc_index.workspace = true
 indexmap.workspace = true
 parking_lot.workspace = true
 rayon.workspace = true
