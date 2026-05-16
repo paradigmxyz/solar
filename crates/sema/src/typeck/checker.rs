@@ -560,8 +560,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::YulFnCall(call) => {
-                let param_tys = vec![self.gcx.types.uint(256); call.arguments.len()];
-                self.check_positional_call_args(expr.span, expr.span, call.arguments, &param_tys);
+                for arg in call.arguments {
+                    let _ = self.check_expr(arg);
+                }
                 match call.returns {
                     0 => self.gcx.types.unit,
                     1 => self.gcx.types.uint(256),
@@ -1184,6 +1185,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 self.visit_stmt(body)?;
                 if let Some(else_) = else_ {
                     self.visit_stmt(else_)?;
+                }
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Switch(switch) => {
+                let _ = self.check_expr(switch.selector);
+                for case in switch.cases {
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
                 }
                 return ControlFlow::Continue(());
             }

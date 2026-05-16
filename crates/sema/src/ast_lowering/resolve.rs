@@ -853,6 +853,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
+        // assembly { <body> } -> unchecked { <body> }
         hir::StmtKind::UncheckedBlock(self.lower_yul_block(&assembly.block))
     }
 
@@ -904,7 +905,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::StmtKind::If(cond, body, None)
             }
             ast::yul::StmtKind::For(for_) => self.lower_yul_for_stmt(for_),
-            ast::yul::StmtKind::Switch(switch) => self.lower_yul_switch_stmt(switch, stmt.span),
+            ast::yul::StmtKind::Switch(switch) => self.lower_yul_switch_stmt(switch),
             ast::yul::StmtKind::Leave => hir::StmtKind::Return(None),
             ast::yul::StmtKind::Break => hir::StmtKind::Break,
             ast::yul::StmtKind::Continue => hir::StmtKind::Continue,
@@ -974,6 +975,15 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
         self.in_scope(|this| {
+            // {
+            //     { <init> }
+            //     loop {
+            //         if (<cond>) {
+            //             { <body> }
+            //             { <step> }
+            //         } else break;
+            //     }
+            // }
             let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
             let cond = this.lower_yul_condition(&for_.cond);
             let step = this.lower_yul_stmts(for_.step.stmts, for_.step.span);
@@ -1013,67 +1023,19 @@ impl<'gcx> ResolveContext<'gcx> {
         })
     }
 
-    fn lower_yul_switch_stmt(
-        &mut self,
-        switch: &ast::yul::StmtSwitch<'_>,
-        span: Span,
-    ) -> hir::StmtKind<'gcx> {
-        let selector = self.lower_yul_expr(&switch.selector, YulExprContext { returns: 1 });
-        let temp_var = self.mk_yul_var(
-            self.function_id,
-            switch.selector.span,
-            self.yul_uint_type(switch.selector.span),
-            None,
-            hir::VarKind::Statement,
-        );
-        let temp = self.hir.variables.push(temp_var);
-        self.hir.variables[temp].initializer = Some(selector);
-        let decl = hir::Stmt { span: switch.selector.span, kind: hir::StmtKind::DeclSingle(temp) };
-
-        let mut else_stmt = switch.default_case().map(|case| {
-            let block = self.lower_yul_block(&case.body);
-            self.hir_builder().stmt_alloc(hir::StmtKind::Block(block), case.body.span)
-        });
-        for case in switch.cases.iter().rev().filter(|case| case.constant.is_some()) {
-            let res = self.arena.alloc_as_slice(Res::Item(hir::ItemId::Variable(temp)));
-            let selector = self.hir_builder().expr(
-                self.next_id(),
-                hir::ExprKind::Ident(res),
-                switch.selector.span,
-            );
-            let lit = self.lower_lit(case.constant.as_ref().unwrap());
-            let lit = self.hir_builder().expr(self.next_id(), hir::ExprKind::Lit(lit), case.span);
-            let cond = self.hir_builder().expr(
-                self.next_id(),
-                hir::ExprKind::Binary(
-                    selector,
-                    hir::BinOp { span: case.span, kind: hir::BinOpKind::Eq },
-                    lit,
-                ),
-                case.span,
-            );
-            let block = self.lower_yul_block(&case.body);
-            let body = self.hir_builder().stmt_alloc(hir::StmtKind::Block(block), case.body.span);
-            else_stmt = Some(
-                self.hir_builder().stmt_alloc(hir::StmtKind::If(cond, body, else_stmt), case.span),
-            );
-        }
-
-        let stmts = if let Some(stmt) = else_stmt {
-            self.arena.alloc_array([
-                decl,
-                hir::Stmt {
-                    span: stmt.span,
-                    kind: hir::StmtKind::Block(hir::Block {
-                        span: stmt.span,
-                        stmts: std::slice::from_ref(stmt),
-                    }),
-                },
-            ])
-        } else {
-            self.arena.alloc_as_slice(decl)
-        };
-        hir::StmtKind::Block(hir::Block { span, stmts })
+    fn lower_yul_switch_stmt(&mut self, switch: &ast::yul::StmtSwitch<'_>) -> hir::StmtKind<'gcx> {
+        // switch <selector> case <constant> { <body> } default { <body> }
+        //     -> HIR switch, preserving selector evaluation and case bodies.
+        hir::StmtKind::Switch(self.arena.alloc(hir::StmtSwitch {
+            selector: self.lower_yul_expr(&switch.selector, YulExprContext { returns: 1 }),
+            cases: self.arena.alloc_slice_fill_iter(switch.cases.iter().map(|case| {
+                hir::StmtSwitchCase {
+                    span: case.span,
+                    constant: case.constant.as_ref().map(|lit| self.lower_lit(lit)),
+                    body: self.lower_yul_block(&case.body),
+                }
+            })),
+        }))
     }
 
     fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
@@ -1143,6 +1105,7 @@ impl<'gcx> ResolveContext<'gcx> {
         context: YulExprContext,
     ) -> hir::ExprKind<'gcx> {
         let name = call.name.name;
+        // Yul operators with native Solidity HIR equivalents are lowered directly.
         if let Some(kind) = Self::yul_arith_binop(name)
             && let [lhs, rhs] = &call.arguments[..]
         {
@@ -1161,6 +1124,7 @@ impl<'gcx> ResolveContext<'gcx> {
             );
         }
 
+        // Remaining known EVM builtins are kept as builtin calls.
         if let Some(builtin) = Builtin::yul(name) {
             let callee = self.hir_builder().expr(
                 self.next_id(),
@@ -1181,6 +1145,9 @@ impl<'gcx> ResolveContext<'gcx> {
             );
         }
 
+        let returns = Self::yul_helper_returns(name).unwrap_or(context.returns);
+
+        // User-defined Yul functions and dialect-specific helpers stay as Yul function calls.
         hir::ExprKind::YulFnCall(self.arena.alloc(
             hir::YulFnCall {
                 name: call.name,
@@ -1190,7 +1157,7 @@ impl<'gcx> ResolveContext<'gcx> {
                             self.lower_yul_expr_full(arg, YulExprContext { returns: 1 })
                         }),
                     ),
-                returns: context.returns,
+                returns,
             },
         ))
     }
@@ -1293,6 +1260,28 @@ impl<'gcx> ResolveContext<'gcx> {
             kw::Eq => hir::BinOpKind::Eq,
             _ => return None,
         })
+    }
+
+    fn yul_helper_returns(name: Symbol) -> Option<usize> {
+        match name {
+            sym::linkersymbol
+            | sym::memoryguard
+            | sym::datasize
+            | sym::dataoffset
+            | sym::loadimmutable
+            | sym::auxdataloadn
+            | sym::eofcreate => Some(1),
+            sym::datacopy | sym::setimmutable | sym::returncontract => Some(0),
+            _ => Self::yul_verbatim_returns(name),
+        }
+    }
+
+    fn yul_verbatim_returns(name: Symbol) -> Option<usize> {
+        let name = name.as_str();
+        let rest = name.strip_prefix("verbatim_")?;
+        let (_, rest) = rest.split_once("i_")?;
+        let returns = rest.strip_suffix('o')?;
+        returns.parse().ok()
     }
 
     fn lower_try_catch_clause(

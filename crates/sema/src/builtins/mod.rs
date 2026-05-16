@@ -245,28 +245,16 @@ declare_builtins! {
 
     // Yul EVM builtins.
     YulStop                => kw::Stop           => gcx.mk_yul_builtin_fn(0, 0);
-    YulAdd                 => kw::Add            => gcx.mk_yul_builtin_fn(2, 1);
-    YulSub                 => kw::Sub            => gcx.mk_yul_builtin_fn(2, 1);
-    YulMul                 => kw::Mul            => gcx.mk_yul_builtin_fn(2, 1);
-    YulDiv                 => kw::Div            => gcx.mk_yul_builtin_fn(2, 1);
     YulSdiv                => kw::Sdiv           => gcx.mk_yul_builtin_fn(2, 1);
-    YulMod                 => kw::Mod            => gcx.mk_yul_builtin_fn(2, 1);
     YulSmod                => kw::Smod           => gcx.mk_yul_builtin_fn(2, 1);
-    YulExp                 => kw::Exp            => gcx.mk_yul_builtin_fn(2, 1);
-    YulNot                 => kw::Not            => gcx.mk_yul_builtin_fn(1, 1);
     YulLt                  => kw::Lt             => gcx.mk_yul_builtin_fn(2, 1);
     YulGt                  => kw::Gt             => gcx.mk_yul_builtin_fn(2, 1);
     YulSlt                 => kw::Slt            => gcx.mk_yul_builtin_fn(2, 1);
     YulSgt                 => kw::Sgt            => gcx.mk_yul_builtin_fn(2, 1);
     YulEq                  => kw::Eq             => gcx.mk_yul_builtin_fn(2, 1);
     YulIszero              => kw::Iszero         => gcx.mk_yul_builtin_fn(1, 1);
-    YulAnd                 => kw::And            => gcx.mk_yul_builtin_fn(2, 1);
-    YulOr                  => kw::Or             => gcx.mk_yul_builtin_fn(2, 1);
-    YulXor                 => kw::Xor            => gcx.mk_yul_builtin_fn(2, 1);
     YulByte                => kw::Byte           => gcx.mk_yul_builtin_fn(2, 1);
-    YulShl                 => kw::Shl            => gcx.mk_yul_builtin_fn(2, 1);
-    YulShr                 => kw::Shr            => gcx.mk_yul_builtin_fn(2, 1);
-    YulSar                 => kw::Sar            => gcx.mk_yul_builtin_fn(2, 1);
+    YulClz                 => sym::clz           => gcx.mk_yul_builtin_fn(1, 1);
     YulAddmod              => kw::Addmod         => gcx.mk_yul_builtin_fn(3, 1);
     YulMulmod              => kw::Mulmod         => gcx.mk_yul_builtin_fn(3, 1);
     YulSignextend          => kw::Signextend     => gcx.mk_yul_builtin_fn(2, 1);
@@ -306,6 +294,9 @@ declare_builtins! {
     YulCallcode            => kw::Callcode       => gcx.mk_yul_builtin_fn(7, 1);
     YulDelegatecall        => kw::Delegatecall   => gcx.mk_yul_builtin_fn(6, 1);
     YulStaticcall          => kw::Staticcall     => gcx.mk_yul_builtin_fn(6, 1);
+    YulExtcall             => sym::extcall       => gcx.mk_yul_builtin_fn(4, 1);
+    YulExtdelegatecall     => sym::extdelegatecall => gcx.mk_yul_builtin_fn(3, 1);
+    YulExtstaticcall       => sym::extstaticcall => gcx.mk_yul_builtin_fn(3, 1);
     YulReturn              => kw::Return         => gcx.mk_yul_builtin_fn(2, 0);
     YulRevert              => kw::Revert         => gcx.mk_yul_builtin_fn(2, 0);
     YulSelfdestruct        => kw::Selfdestruct   => gcx.mk_yul_builtin_fn(1, 0);
@@ -402,28 +393,16 @@ impl Builtin {
     pub(crate) fn yul(name: Symbol) -> Option<Self> {
         Some(match name {
             kw::Stop => Self::YulStop,
-            kw::Add => Self::YulAdd,
-            kw::Sub => Self::YulSub,
-            kw::Mul => Self::YulMul,
-            kw::Div => Self::YulDiv,
             kw::Sdiv => Self::YulSdiv,
-            kw::Mod => Self::YulMod,
             kw::Smod => Self::YulSmod,
-            kw::Exp => Self::YulExp,
-            kw::Not => Self::YulNot,
             kw::Lt => Self::YulLt,
             kw::Gt => Self::YulGt,
             kw::Slt => Self::YulSlt,
             kw::Sgt => Self::YulSgt,
             kw::Eq => Self::YulEq,
             kw::Iszero => Self::YulIszero,
-            kw::And => Self::YulAnd,
-            kw::Or => Self::YulOr,
-            kw::Xor => Self::YulXor,
             kw::Byte => Self::YulByte,
-            kw::Shl => Self::YulShl,
-            kw::Shr => Self::YulShr,
-            kw::Sar => Self::YulSar,
+            sym::clz => Self::YulClz,
             kw::Addmod => Self::YulAddmod,
             kw::Mulmod => Self::YulMulmod,
             kw::Signextend => Self::YulSignextend,
@@ -463,6 +442,9 @@ impl Builtin {
             kw::Callcode => Self::YulCallcode,
             kw::Delegatecall => Self::YulDelegatecall,
             kw::Staticcall => Self::YulStaticcall,
+            sym::extcall => Self::YulExtcall,
+            sym::extdelegatecall => Self::YulExtdelegatecall,
+            sym::extstaticcall => Self::YulExtstaticcall,
             kw::Return => Self::YulReturn,
             kw::Revert => Self::YulRevert,
             kw::Selfdestruct => Self::YulSelfdestruct,

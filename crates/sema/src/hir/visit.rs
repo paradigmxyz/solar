@@ -245,6 +245,14 @@ pub trait Visit<'hir> {
                     self.visit_stmt(false_)?;
                 }
             }
+            StmtKind::Switch(switch) => {
+                self.visit_expr(switch.selector)?;
+                for case in switch.cases {
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
+                }
+            }
             StmtKind::Try(try_) => {
                 self.visit_expr(&try_.expr)?;
                 for clause in try_.clauses {
