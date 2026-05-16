@@ -49,10 +49,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while precedence >= min_precedence {
             while token_precedence(self.token) == precedence {
                 // Parse a**b**c as a**(b**c)
-                let next_precedence = if self.token.kind == TokenKind::BinOp(BinOpToken::Star) {
-                    precedence + 1
-                } else {
+                let next_precedence = if self.token.kind == TokenKind::StarStar {
                     precedence
+                } else {
+                    precedence + 1
                 };
 
                 let token = self.token;
@@ -340,4 +340,57 @@ unsafe fn option_boxes_unwrap_unchecked<'a, 'b, T>(
     debug_assert!(list.iter().all(Option::is_some));
     // SAFETY: Caller must ensure that all elements are `Some`.
     unsafe { std::mem::transmute(list) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_ast::{Arena, BinOpKind, ExprKind};
+    use solar_interface::Session;
+
+    #[test]
+    fn exponentiation_is_right_associative() {
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), "a**b**c")
+                    .expect("failed to create parser");
+
+            let expr = parser.parse_expr().expect("failed to parse expression");
+            let ExprKind::Binary(_, op, rhs) = &expr.kind else {
+                panic!("expected binary expression, got {:?}", expr.kind);
+            };
+            assert_eq!(op.kind, BinOpKind::Pow);
+
+            let ExprKind::Binary(_, rhs_op, _) = &rhs.kind else {
+                panic!("expected right-associative exponentiation, got {:?}", rhs.kind);
+            };
+            assert_eq!(rhs_op.kind, BinOpKind::Pow);
+        });
+    }
+
+    #[test]
+    fn subtraction_is_left_associative() {
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), "a-b-c")
+                    .expect("failed to create parser");
+
+            let expr = parser.parse_expr().expect("failed to parse expression");
+            let ExprKind::Binary(lhs, op, _) = &expr.kind else {
+                panic!("expected binary expression, got {:?}", expr.kind);
+            };
+            assert_eq!(op.kind, BinOpKind::Sub);
+
+            let ExprKind::Binary(_, lhs_op, _) = &lhs.kind else {
+                panic!("expected left-associative subtraction, got {:?}", lhs.kind);
+            };
+            assert_eq!(lhs_op.kind, BinOpKind::Sub);
+        });
+    }
 }
