@@ -859,7 +859,10 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
-        let functions = self.collect_yul_function_decls(stmts);
+        let functions = self.lcx.collect_yul_function_decls(stmts);
+        for &(function, id) in &functions {
+            self.declare_yul_function(function, id);
+        }
         for (function, id) in functions {
             self.lower_yul_function_body(function, id);
         }
@@ -877,28 +880,15 @@ impl<'gcx> ResolveContext<'gcx> {
         hir::Block { span, stmts }
     }
 
-    fn collect_yul_function_decls<'stmt, 'ast>(
-        &mut self,
-        stmts: &'stmt [ast::yul::Stmt<'ast>],
-    ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
-        // function f(a) -> r { <body> }
-        //     -> private function f(uint256 a) returns (uint256 r) { unchecked { <body> } }.
-        let mut functions = SmallVec::new();
-        for stmt in stmts {
-            let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
-            let span = super::LoweringContext::yul_function_span(function);
-            let id = self.lcx.yul_function_ids[&span];
-            self.append_yul_function_item(id);
-            let res = Res::Item(hir::ItemId::Function(id));
-            let _ = self.scopes.current_scope().declare_res(
-                self.lcx.sess,
-                &self.lcx.hir,
-                function.name,
-                res,
-            );
-            functions.push((function, id));
-        }
-        functions
+    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        self.append_yul_function_item(id);
+        let res = Res::Item(hir::ItemId::Function(id));
+        let _ = self.scopes.current_scope().declare_res(
+            self.lcx.sess,
+            &self.lcx.hir,
+            function.name,
+            res,
+        );
     }
 
     fn append_yul_function_item(&mut self, id: hir::FunctionId) {
