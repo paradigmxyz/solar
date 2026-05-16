@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use iai_callgrind::{library_benchmark, library_benchmark_group};
+use gungraun::{library_benchmark, library_benchmark_group};
 use solar_bench::{Parser, Slang, Solang, Solar, Source, get_src};
 use std::hint::black_box;
 
@@ -124,7 +124,7 @@ fn run_parse(name: &str, parser: &dyn Parser) {
 // use lex_::lex;
 // use parse_::parse;
 
-// iai_callgrind::main!(library_benchmark_groups = lex, parse);
+// gungraun::main!(library_benchmark_groups = lex, parse);
 
 library_benchmark_group!(name = all; benchmarks = solar_enter, lex, parse);
-iai_callgrind::main!(library_benchmark_groups = all);
+gungraun::main!(library_benchmark_groups = all);
