@@ -1199,7 +1199,7 @@ pub enum StmtKind<'hir> {
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
 
-    /// A Yul switch statement: `switch expr case 0 { ... } default { ... }`.
+    /// A switch statement: `switch expr case 0 { ... } default { ... }`.
     Switch(&'hir StmtSwitch<'hir>),
 
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -1214,7 +1214,7 @@ pub enum StmtKind<'hir> {
     Err(ErrorGuaranteed),
 }
 
-/// A Yul switch statement: `switch expr case 0 { ... } default { ... }`.
+/// A switch statement: `switch expr case 0 { ... } default { ... }`.
 #[derive(Debug)]
 pub struct StmtSwitch<'hir> {
     /// The switch selector.
@@ -1223,7 +1223,7 @@ pub struct StmtSwitch<'hir> {
     pub cases: &'hir [StmtSwitchCase<'hir>],
 }
 
-/// A case of a Yul switch statement.
+/// A case of a switch statement.
 #[derive(Debug)]
 pub struct StmtSwitchCase<'hir> {
     /// The span of the entire case, from `case` or `default` to the closing brace of the block.
