@@ -4,7 +4,7 @@ use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
-    map::{FxHashSet, FxIndexMap, IndexEntry},
+    map::{FxIndexMap, IndexEntry},
     smallvec::SmallVec,
 };
 use solar_interface::{
@@ -238,7 +238,6 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
-    yul_function_names: FxHashSet<Symbol>,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -258,13 +257,7 @@ impl std::ops::DerefMut for ResolveContext<'_> {
 
 impl<'gcx> ResolveContext<'gcx> {
     pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
-        let yul_function_names = lcx
-            .hir
-            .function_ids()
-            .filter(|&id| !lcx.hir_to_ast.contains_key(&hir::ItemId::Function(id)))
-            .filter_map(|id| lcx.hir.function(id).name.map(|name| name.name))
-            .collect();
-        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None, yul_function_names }
+        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
     }
 
     fn init(
@@ -1221,16 +1214,16 @@ impl<'gcx> ResolveContext<'gcx> {
             let functions = self.arena.alloc_smallvec(functions);
             return Ok(Some(&*functions));
         }
-        if self.yul_function_names.contains(&name.name) && !self.is_yul_fncall_name(name) {
-            return Err(self.resolver.emit_resolver_error()(ResolverError::new(
-                name,
-                ResolverErrorKind::Unresolved,
-            )));
+        if self.is_yul_builtin_name(name) {
+            return Ok(None);
         }
-        Ok(None)
+        Err(self.resolver.emit_resolver_error()(ResolverError::new(
+            name,
+            ResolverErrorKind::Unresolved,
+        )))
     }
 
-    fn is_yul_fncall_name(&self, name: Ident) -> bool {
+    fn is_yul_builtin_name(&self, name: Ident) -> bool {
         name.is_yul_evm_builtin()
             || matches!(
                 name.name,

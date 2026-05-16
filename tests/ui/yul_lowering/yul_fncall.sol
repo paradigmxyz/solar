@@ -9,7 +9,7 @@ contract C {
             }
 
             x, y := yulfn(a, 7)
-            side_effect_only(x)
+            side_effect_only(x) //~ ERROR: unresolved symbol
         }
     }
 }
