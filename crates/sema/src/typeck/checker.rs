@@ -563,13 +563,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 for arg in call.arguments {
                     let _ = self.check_expr(arg);
                 }
-                match call.returns {
-                    0 => self.gcx.types.unit,
-                    1 => self.gcx.types.uint(256),
-                    n => self.gcx.mk_ty_tuple(
-                        self.gcx.mk_ty_iter(std::iter::repeat_n(self.gcx.types.uint(256), n)),
-                    ),
-                }
+                self.gcx.types.uint(256)
             }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
@@ -1093,6 +1087,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
         let prev = self.contract.replace(id);
         let r = self.walk_nested_contract(id);
+        self.contract = prev;
+        r
+    }
+
+    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let contract = self.gcx.hir.function(id).contract;
+        let prev = self.contract;
+        self.contract = contract.or(prev);
+        let r = self.visit_function(self.gcx.hir.function(id));
         self.contract = prev;
         r
     }

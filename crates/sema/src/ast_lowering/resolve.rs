@@ -16,11 +16,6 @@ use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
-#[derive(Clone, Copy)]
-struct YulExprContext {
-    returns: usize,
-}
-
 impl super::LoweringContext<'_> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn collect_exports(&mut self) {
@@ -862,9 +857,127 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
-        let stmts =
-            self.arena.alloc_slice_fill_iter(stmts.iter().map(|stmt| self.lower_yul_stmt(stmt)));
+        // function f(a) -> r { <body> }
+        //     -> private function f(uint256 a) returns (uint256 r) { unchecked { <body> } }.
+        let functions = self.collect_yul_function_decls(stmts);
+        for (function, id) in functions {
+            self.lower_yul_function_body(function, id);
+        }
+        let stmts = stmts
+            .iter()
+            .filter_map(|stmt| {
+                if matches!(stmt.kind, ast::yul::StmtKind::FunctionDef(_)) {
+                    None
+                } else {
+                    Some(self.lower_yul_stmt(stmt))
+                }
+            })
+            .collect::<SmallVec<[_; 8]>>();
+        let stmts = self.arena.alloc_smallvec(stmts);
         hir::Block { span, stmts }
+    }
+
+    fn collect_yul_function_decls<'stmt, 'ast>(
+        &mut self,
+        stmts: &'stmt [ast::yul::Stmt<'ast>],
+    ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
+        let mut functions = SmallVec::new();
+        for stmt in stmts {
+            let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
+            let span = function.name.span.with_hi(function.body.span.hi());
+            let source = self.scopes.source.unwrap();
+            let contract = self.scopes.contract;
+            let id = self.hir.functions.push(hir::Function {
+                source,
+                contract,
+                span,
+                name: Some(function.name),
+                kind: hir::FunctionKind::Function,
+                visibility: hir::Visibility::Private,
+                state_mutability: hir::StateMutability::NonPayable,
+                modifiers: &[],
+                marked_virtual: false,
+                virtual_: false,
+                override_: false,
+                overrides: &[],
+                parameters: &[],
+                returns: &[],
+                body: None,
+                body_span: function.body.span,
+                gettee: None,
+            });
+            self.append_yul_function_item(id);
+            let res = Res::Item(hir::ItemId::Function(id));
+            let _ = self.scopes.current_scope().declare_res(
+                self.lcx.sess,
+                &self.lcx.hir,
+                function.name,
+                res,
+            );
+            functions.push((function, id));
+        }
+        functions
+    }
+
+    fn append_yul_function_item(&mut self, id: hir::FunctionId) {
+        let source = self.scopes.source.unwrap();
+        let mut items =
+            SmallVec::<[_; 16]>::from_iter(self.hir.sources[source].items.iter().copied());
+        items.push(hir::ItemId::Function(id));
+        self.hir.sources[source].items = self.arena.alloc_smallvec(items);
+    }
+
+    fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        let previous_function = self.function_id.replace(id);
+        let body = self.in_scope(|this| {
+            this.hir.functions[id].parameters = this.lower_yul_function_variables(
+                id,
+                function.parameters,
+                hir::VarKind::FunctionParam,
+            );
+            this.hir.functions[id].returns = this.lower_yul_function_variables(
+                id,
+                function.returns,
+                hir::VarKind::FunctionReturn,
+            );
+
+            let block = this.lower_yul_block(&function.body);
+            let unchecked =
+                this.hir_builder().stmt(hir::StmtKind::UncheckedBlock(block), block.span);
+            this.hir_builder().block(this.arena.alloc_as_slice(unchecked), block.span)
+        });
+        self.hir.functions[id].body = Some(body);
+        self.function_id = previous_function;
+    }
+
+    fn lower_yul_function_variables(
+        &mut self,
+        function: hir::FunctionId,
+        idents: &[Ident],
+        kind: hir::VarKind,
+    ) -> &'gcx [hir::VariableId] {
+        self.arena.alloc_slice_fill_iter(
+            idents.iter().map(|&ident| self.lower_yul_function_variable(function, ident, kind)),
+        )
+    }
+
+    fn lower_yul_function_variable(
+        &mut self,
+        function: hir::FunctionId,
+        name: Ident,
+        kind: hir::VarKind,
+    ) -> hir::VariableId {
+        let var = self.mk_yul_var(
+            Some(function),
+            name.span,
+            self.yul_uint_type(name.span),
+            Some(name),
+            kind,
+        );
+        let id = self.hir.variables.push(var);
+        let res = Res::Item(hir::ItemId::Variable(id));
+        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        id
     }
 
     fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> hir::Stmt<'gcx> {
@@ -872,7 +985,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::yul::StmtKind::Block(block) => hir::StmtKind::Block(self.lower_yul_block(block)),
             ast::yul::StmtKind::AssignSingle(path, expr) => {
                 let lhs = self.lower_yul_path_expr(path);
-                let rhs = self.lower_yul_expr(expr, YulExprContext { returns: 1 });
+                let rhs = self.lower_yul_expr(expr);
                 hir::StmtKind::Expr(self.hir_builder().expr(
                     self.next_id(),
                     hir::ExprKind::Assign(lhs, None, rhs),
@@ -888,16 +1001,14 @@ impl<'gcx> ResolveContext<'gcx> {
                     hir::ExprKind::Tuple(components),
                     Span::join_first_last(paths.iter().map(|path| path.span())),
                 );
-                let rhs = self.lower_yul_expr(expr, YulExprContext { returns: paths.len() });
+                let rhs = self.lower_yul_expr(expr);
                 hir::StmtKind::Expr(self.hir_builder().expr(
                     self.next_id(),
                     hir::ExprKind::Assign(lhs, None, rhs),
                     stmt.span,
                 ))
             }
-            ast::yul::StmtKind::Expr(expr) => {
-                hir::StmtKind::Expr(self.lower_yul_expr(expr, YulExprContext { returns: 0 }))
-            }
+            ast::yul::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_yul_expr(expr)),
             ast::yul::StmtKind::If(cond, block) => {
                 let cond = self.lower_yul_condition(cond);
                 let block = self.lower_yul_block(block);
@@ -937,8 +1048,7 @@ impl<'gcx> ResolveContext<'gcx> {
         match (vars.as_slice(), expr) {
             ([var], None) => hir::StmtKind::DeclSingle(*var),
             ([var], Some(expr)) => {
-                self.hir.variables[*var].initializer =
-                    Some(self.lower_yul_expr(expr, YulExprContext { returns: 1 }));
+                self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
                 hir::StmtKind::DeclSingle(*var)
             }
             (_, None) => {
@@ -950,7 +1060,7 @@ impl<'gcx> ResolveContext<'gcx> {
             }
             (_, Some(expr)) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|&var| Some(var))),
-                self.lower_yul_expr(expr, YulExprContext { returns: vars.len() }),
+                self.lower_yul_expr(expr),
             ),
         }
     }
@@ -1027,7 +1137,7 @@ impl<'gcx> ResolveContext<'gcx> {
         // switch <selector> case <constant> { <body> } default { <body> }
         //     -> HIR switch, preserving selector evaluation and case bodies.
         hir::StmtKind::Switch(self.arena.alloc(hir::StmtSwitch {
-            selector: self.lower_yul_expr(&switch.selector, YulExprContext { returns: 1 }),
+            selector: self.lower_yul_expr(&switch.selector),
             cases: self.arena.alloc_slice_fill_iter(switch.cases.iter().map(|case| {
                 hir::StmtSwitchCase {
                     span: case.span,
@@ -1057,8 +1167,8 @@ impl<'gcx> ResolveContext<'gcx> {
                 if let Some(kind) = Self::yul_cmp_binop(call.name.name)
                     && let [lhs, rhs] = &call.arguments[..]
                 {
-                    let lhs = self.lower_yul_expr(lhs, YulExprContext { returns: 1 });
-                    let rhs = self.lower_yul_expr(rhs, YulExprContext { returns: 1 });
+                    let lhs = self.lower_yul_expr(lhs);
+                    let rhs = self.lower_yul_expr(rhs);
                     return self.hir_builder().expr(
                         self.next_id(),
                         hir::ExprKind::Binary(lhs, hir::BinOp { span: call.name.span, kind }, rhs),
@@ -1067,52 +1177,39 @@ impl<'gcx> ResolveContext<'gcx> {
                 }
             }
             ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
-                return self.lower_yul_expr(expr, YulExprContext { returns: 1 });
+                return self.lower_yul_expr(expr);
             }
             _ => {}
         }
 
-        let expr = self.lower_yul_expr(expr, YulExprContext { returns: 1 });
+        let expr = self.lower_yul_expr(expr);
         self.yul_not_zero(expr)
     }
 
-    fn lower_yul_expr(
-        &mut self,
-        expr: &ast::yul::Expr<'_>,
-        context: YulExprContext,
-    ) -> &'gcx hir::Expr<'gcx> {
-        let expr = self.lower_yul_expr_full(expr, context);
+    fn lower_yul_expr(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
+        let expr = self.lower_yul_expr_full(expr);
         self.arena.alloc(expr)
     }
 
-    fn lower_yul_expr_full(
-        &mut self,
-        expr: &ast::yul::Expr<'_>,
-        context: YulExprContext,
-    ) -> hir::Expr<'gcx> {
+    fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
         let kind = match &expr.kind {
             ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
-            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span, context),
+            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
             ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }
 
-    fn lower_yul_call(
-        &mut self,
-        call: &ast::yul::ExprCall<'_>,
-        span: Span,
-        context: YulExprContext,
-    ) -> hir::ExprKind<'gcx> {
+    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
         let name = call.name.name;
         // Yul operators with native Solidity HIR equivalents are lowered directly.
         if let Some(kind) = Self::yul_arith_binop(name)
             && let [lhs, rhs] = &call.arguments[..]
         {
             return hir::ExprKind::Binary(
-                self.lower_yul_expr(lhs, YulExprContext { returns: 1 }),
+                self.lower_yul_expr(lhs),
                 hir::BinOp { span: call.name.span, kind },
-                self.lower_yul_expr(rhs, YulExprContext { returns: 1 }),
+                self.lower_yul_expr(rhs),
             );
         }
         if name == kw::Not
@@ -1120,7 +1217,18 @@ impl<'gcx> ResolveContext<'gcx> {
         {
             return hir::ExprKind::Unary(
                 hir::UnOp { span: call.name.span, kind: hir::UnOpKind::BitNot },
-                self.lower_yul_expr(arg, YulExprContext { returns: 1 }),
+                self.lower_yul_expr(arg),
+            );
+        }
+
+        if let Some(res) = self.resolve_yul_call_name(call.name) {
+            // f(a, b) -> f(a, b), where `f` is a Yul function declared in this assembly block.
+            let callee =
+                self.hir_builder().expr(self.next_id(), hir::ExprKind::Ident(res), call.name.span);
+            return hir::ExprKind::Call(
+                callee,
+                self.lower_yul_call_args(call.arguments, span),
+                None,
             );
         }
 
@@ -1133,33 +1241,54 @@ impl<'gcx> ResolveContext<'gcx> {
             );
             return hir::ExprKind::Call(
                 callee,
-                hir::CallArgs {
-                    span,
-                    kind: hir::CallArgsKind::Unnamed(self.arena.alloc_slice_fill_iter(
-                        call.arguments.iter().map(|arg| {
-                            self.lower_yul_expr_full(arg, YulExprContext { returns: 1 })
-                        }),
-                    )),
-                },
+                self.lower_yul_call_args(call.arguments, span),
                 None,
             );
         }
 
-        let returns = Self::yul_helper_returns(name).unwrap_or(context.returns);
-
         // User-defined Yul functions and dialect-specific helpers stay as Yul function calls.
-        hir::ExprKind::YulFnCall(self.arena.alloc(
-            hir::YulFnCall {
-                name: call.name,
-                arguments:
-                    self.arena.alloc_slice_fill_iter(
-                        call.arguments.iter().map(|arg| {
-                            self.lower_yul_expr_full(arg, YulExprContext { returns: 1 })
-                        }),
-                    ),
-                returns,
-            },
-        ))
+        hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
+            name: call.name,
+            arguments: self.arena.alloc_slice_fill_iter(
+                call.arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
+            ),
+        }))
+    }
+
+    fn resolve_yul_call_name(&mut self, name: Ident) -> Option<&'gcx [Res]> {
+        for scope in self.scopes.scopes.iter().rev() {
+            let Some(decls) = scope.resolve(name) else { continue };
+            let functions = decls
+                .iter()
+                .filter_map(|decl| match decl.res {
+                    Res::Item(hir::ItemId::Function(id)) => {
+                        Some(Res::Item(hir::ItemId::Function(id)))
+                    }
+                    _ => None,
+                })
+                .collect::<SmallVec<[_; 4]>>();
+            if functions.is_empty() {
+                return None;
+            }
+            let functions = self.arena.alloc_smallvec(functions);
+            return Some(&*functions);
+        }
+        None
+    }
+
+    fn lower_yul_call_args(
+        &mut self,
+        arguments: &[ast::yul::Expr<'_>],
+        span: Span,
+    ) -> hir::CallArgs<'gcx> {
+        hir::CallArgs {
+            span,
+            kind: hir::CallArgsKind::Unnamed(
+                self.arena.alloc_slice_fill_iter(
+                    arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
+                ),
+            ),
+        }
     }
 
     fn lower_yul_path_expr(&mut self, path: &ast::PathSlice) -> &'gcx hir::Expr<'gcx> {
@@ -1260,28 +1389,6 @@ impl<'gcx> ResolveContext<'gcx> {
             kw::Eq => hir::BinOpKind::Eq,
             _ => return None,
         })
-    }
-
-    fn yul_helper_returns(name: Symbol) -> Option<usize> {
-        match name {
-            sym::linkersymbol
-            | sym::memoryguard
-            | sym::datasize
-            | sym::dataoffset
-            | sym::loadimmutable
-            | sym::auxdataloadn
-            | sym::eofcreate => Some(1),
-            sym::datacopy | sym::setimmutable | sym::returncontract => Some(0),
-            _ => Self::yul_verbatim_returns(name),
-        }
-    }
-
-    fn yul_verbatim_returns(name: Symbol) -> Option<usize> {
-        let name = name.as_str();
-        let rest = name.strip_prefix("verbatim_")?;
-        let (_, rest) = rest.split_once("i_")?;
-        let returns = rest.strip_suffix('o')?;
-        returns.parse().ok()
     }
 
     fn lower_try_catch_clause(

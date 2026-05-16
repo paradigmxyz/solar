@@ -1448,7 +1448,6 @@ pub enum ExprKind<'hir> {
 pub struct YulFnCall<'hir> {
     pub name: Ident,
     pub arguments: &'hir [Expr<'hir>],
-    pub returns: usize,
 }
 
 /// A named argument: `name: value`.
