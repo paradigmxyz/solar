@@ -4,7 +4,7 @@ use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
-    map::{FxIndexMap, IndexEntry},
+    map::{FxHashSet, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
 };
 use solar_interface::{
@@ -238,6 +238,7 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
+    yul_function_names: FxHashSet<Symbol>,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -257,7 +258,13 @@ impl std::ops::DerefMut for ResolveContext<'_> {
 
 impl<'gcx> ResolveContext<'gcx> {
     pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
-        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
+        let yul_function_names = lcx
+            .hir
+            .function_ids()
+            .filter(|&id| !lcx.hir_to_ast.contains_key(&hir::ItemId::Function(id)))
+            .filter_map(|id| lcx.hir.function(id).name.map(|name| name.name))
+            .collect();
+        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None, yul_function_names }
     }
 
     fn init(
@@ -1214,7 +1221,35 @@ impl<'gcx> ResolveContext<'gcx> {
             let functions = self.arena.alloc_smallvec(functions);
             return Ok(Some(&*functions));
         }
+        if self.yul_function_names.contains(&name.name) && !self.is_yul_fncall_name(name) {
+            return Err(self.resolver.emit_resolver_error()(ResolverError::new(
+                name,
+                ResolverErrorKind::Unresolved,
+            )));
+        }
         Ok(None)
+    }
+
+    fn is_yul_fncall_name(&self, name: Ident) -> bool {
+        name.is_yul_evm_builtin()
+            || matches!(
+                name.name,
+                sym::auxdataloadn
+                    | sym::clz
+                    | sym::datacopy
+                    | sym::dataoffset
+                    | sym::datasize
+                    | sym::eofcreate
+                    | sym::extcall
+                    | sym::extdelegatecall
+                    | sym::extstaticcall
+                    | sym::linkersymbol
+                    | sym::loadimmutable
+                    | sym::memoryguard
+                    | sym::returncontract
+                    | sym::setimmutable
+            )
+            || name.name.as_str().starts_with("verbatim_")
     }
 
     fn lower_yul_call_args(

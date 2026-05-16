@@ -29,8 +29,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         ast::ItemKind::Function(_) => {
                             let id = self.lower_item(item);
                             items.push(id);
-                            let hir::ItemId::Function(id) = id else { unreachable!() };
-                            self.collect_yul_functions_in_item(id, item);
+                            self.collect_yul_functions_in_item(item);
                         }
                     }
                 }
@@ -90,8 +89,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             };
             items.push(id);
             if matches!(item.kind, ast::ItemKind::Function(_)) {
-                let hir::ItemId::Function(id) = id else { unreachable!() };
-                self.collect_yul_functions_in_item(id, item);
+                self.collect_yul_functions_in_item(item);
             }
         }
         self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
@@ -252,57 +250,45 @@ impl<'gcx> super::LoweringContext<'gcx> {
         })
     }
 
-    fn collect_yul_functions_in_item(
-        &mut self,
-        parent: hir::FunctionId,
-        item: &'gcx ast::Item<'gcx>,
-    ) {
+    fn collect_yul_functions_in_item(&mut self, item: &'gcx ast::Item<'gcx>) {
         let ast::ItemKind::Function(function) = &item.kind else { return };
         if let Some(body) = &function.body {
-            self.collect_yul_functions_in_stmts(parent, body.stmts);
+            self.collect_yul_functions_in_stmts(body.stmts);
         }
     }
 
-    fn collect_yul_functions_in_stmts(
-        &mut self,
-        parent: hir::FunctionId,
-        stmts: &'gcx [ast::Stmt<'gcx>],
-    ) {
+    fn collect_yul_functions_in_stmts(&mut self, stmts: &'gcx [ast::Stmt<'gcx>]) {
         for stmt in stmts {
-            self.collect_yul_functions_in_stmt(parent, stmt);
+            self.collect_yul_functions_in_stmt(stmt);
         }
     }
 
-    fn collect_yul_functions_in_stmt(
-        &mut self,
-        parent: hir::FunctionId,
-        stmt: &'gcx ast::Stmt<'gcx>,
-    ) {
+    fn collect_yul_functions_in_stmt(&mut self, stmt: &'gcx ast::Stmt<'gcx>) {
         match &stmt.kind {
             ast::StmtKind::Assembly(assembly) => {
-                self.collect_yul_functions_in_block(parent, &assembly.block);
+                self.collect_yul_functions_in_block(&assembly.block);
             }
             ast::StmtKind::Block(block) | ast::StmtKind::UncheckedBlock(block) => {
-                self.collect_yul_functions_in_stmts(parent, block.stmts);
+                self.collect_yul_functions_in_stmts(block.stmts);
             }
             ast::StmtKind::DoWhile(body, _)
             | ast::StmtKind::While(_, body)
             | ast::StmtKind::If(_, body, None) => {
-                self.collect_yul_functions_in_stmt(parent, body);
+                self.collect_yul_functions_in_stmt(body);
             }
             ast::StmtKind::If(_, true_, Some(false_)) => {
-                self.collect_yul_functions_in_stmt(parent, true_);
-                self.collect_yul_functions_in_stmt(parent, false_);
+                self.collect_yul_functions_in_stmt(true_);
+                self.collect_yul_functions_in_stmt(false_);
             }
             ast::StmtKind::For { init, body, .. } => {
                 if let Some(init) = init {
-                    self.collect_yul_functions_in_stmt(parent, init);
+                    self.collect_yul_functions_in_stmt(init);
                 }
-                self.collect_yul_functions_in_stmt(parent, body);
+                self.collect_yul_functions_in_stmt(body);
             }
             ast::StmtKind::Try(try_) => {
                 for clause in try_.clauses.iter() {
-                    self.collect_yul_functions_in_stmts(parent, clause.block.stmts);
+                    self.collect_yul_functions_in_stmts(clause.block.stmts);
                 }
             }
             ast::StmtKind::Break
@@ -317,32 +303,28 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    fn collect_yul_functions_in_block(
-        &mut self,
-        parent: hir::FunctionId,
-        block: &'gcx ast::yul::Block<'gcx>,
-    ) {
+    fn collect_yul_functions_in_block(&mut self, block: &'gcx ast::yul::Block<'gcx>) {
         for stmt in block.stmts.iter() {
             match &stmt.kind {
                 ast::yul::StmtKind::Block(block) => {
-                    self.collect_yul_functions_in_block(parent, block);
+                    self.collect_yul_functions_in_block(block);
                 }
                 ast::yul::StmtKind::For(for_) => {
-                    self.collect_yul_functions_in_block(parent, &for_.init);
-                    self.collect_yul_functions_in_block(parent, &for_.step);
-                    self.collect_yul_functions_in_block(parent, &for_.body);
+                    self.collect_yul_functions_in_block(&for_.init);
+                    self.collect_yul_functions_in_block(&for_.step);
+                    self.collect_yul_functions_in_block(&for_.body);
                 }
                 ast::yul::StmtKind::Switch(switch) => {
                     for case in switch.cases.iter() {
-                        self.collect_yul_functions_in_block(parent, &case.body);
+                        self.collect_yul_functions_in_block(&case.body);
                     }
                 }
                 ast::yul::StmtKind::If(_, block) => {
-                    self.collect_yul_functions_in_block(parent, block);
+                    self.collect_yul_functions_in_block(block);
                 }
                 ast::yul::StmtKind::FunctionDef(function) => {
-                    self.collect_yul_function(parent, function);
-                    self.collect_yul_functions_in_block(parent, &function.body);
+                    self.collect_yul_function(function);
+                    self.collect_yul_functions_in_block(&function.body);
                 }
                 ast::yul::StmtKind::AssignSingle(..)
                 | ast::yul::StmtKind::AssignMulti(..)
@@ -355,11 +337,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
         }
     }
 
-    fn collect_yul_function(
-        &mut self,
-        _parent: hir::FunctionId,
-        function: &'gcx ast::yul::Function<'gcx>,
-    ) {
+    fn collect_yul_function(&mut self, function: &'gcx ast::yul::Function<'gcx>) {
         let span = Self::yul_function_span(function);
         let id = self.hir.functions.push(hir::Function {
             source: self.current_source_id,
