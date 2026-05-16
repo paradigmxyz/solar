@@ -11,8 +11,8 @@ Run with:
 cargo bench -p solar-bench --bench criterion -- --quiet --format terse parser |& tee benches/criterion.out
 uv --project benches/analyze run benches/analyze/main.py benches/README.md < benches/criterion.out
 
-# iai - requires `valgrind` and `iai-callgrind-runner`
-cargo bench -p solar-bench --bench iai
+# Gungraun - requires `valgrind` and `gungraun-runner`
+cargo bench -p solar-bench --bench gungraun
 ```
 
 Currently this takes around 30 minutes to complete: `sources (12) * parsers (5) * lexers (2) * 15s`.
