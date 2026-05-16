@@ -61,6 +61,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "rational_number_exp_limit_fine"
         | "exponent_fine"
         | "rational_large_1"
+        | "constant_initialized_with_unlimited_arithmetic_expression"
         // `address payable` is allowed by the grammar (see `elementary-type-name`), but not by Solc.
         | "address_payable_type_expression"
         | "mapping_from_address_payable"
@@ -83,6 +84,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "mcopy_as_identifier_pre_cancun"
         | "tload_tstore_not_reserved_before_cancun"
         | "blobhash_pre_cancun_not_reserved"
+        | "clz_reserved_osaka"
         // Arbitrary `pragma experimental` values are allowed by Solc apparently.
         | "experimental_test_warning"
         // "." is not a valid import path.
@@ -99,6 +101,10 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "transient_function_type_with_transient_param"
         | "invalid_state_variable_location"
         | "location_specifiers_for_state_variables"
+
+        // Mapping key types are checked in sema.
+        | "mapping_nonelementary_key_1"
+        | "mapping_nonelementary_key_4"
     ) {
         return Err("manually skipped");
     };

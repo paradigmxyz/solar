@@ -6,9 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 #![cfg_attr(feature = "nightly", feature(never_type))]
-#![cfg_attr(feature = "nightly", feature(debug_closure_helpers))]
 #![cfg_attr(feature = "nightly", feature(rustc_attrs))]
-#![cfg_attr(feature = "nightly", feature(likely_unlikely))]
 #![cfg_attr(feature = "nightly", feature(extern_types))]
 #![cfg_attr(feature = "nightly", allow(internal_features))]
 
@@ -39,6 +37,28 @@ mod thin_slice;
 pub use thin_slice::{RawThinSlice, ThinSlice};
 
 pub use smallvec;
+
+/// Pluralize a word based on a count.
+#[macro_export]
+#[rustfmt::skip]
+macro_rules! pluralize {
+    // Pluralize based on count (e.g., apples)
+    ($x:expr) => {
+        if $x == 1 { "" } else { "s" }
+    };
+    ("has", $x:expr) => {
+        if $x == 1 { "has" } else { "have" }
+    };
+    ("is", $x:expr) => {
+        if $x == 1 { "is" } else { "are" }
+    };
+    ("was", $x:expr) => {
+        if $x == 1 { "was" } else { "were" }
+    };
+    ("this", $x:expr) => {
+        if $x == 1 { "this" } else { "these" }
+    };
+}
 
 /// This calls the passed function while ensuring it won't be inlined into the caller.
 #[inline(never)]

@@ -43,29 +43,7 @@ pub type Result<T = (), E = ErrorGuaranteed> = std::result::Result<T, E>;
 /// The minimum supported Solidity version.
 ///
 /// Solar aims to support Solidity 0.8.* and later versions.
-pub const MIN_SOLIDITY_VERSION: (u64, u64, u64) = (0, 8, 0);
-
-/// Pluralize a word based on a count.
-#[macro_export]
-#[rustfmt::skip]
-macro_rules! pluralize {
-    // Pluralize based on count (e.g., apples)
-    ($x:expr) => {
-        if $x == 1 { "" } else { "s" }
-    };
-    ("has", $x:expr) => {
-        if $x == 1 { "has" } else { "have" }
-    };
-    ("is", $x:expr) => {
-        if $x == 1 { "is" } else { "are" }
-    };
-    ("was", $x:expr) => {
-        if $x == 1 { "was" } else { "were" }
-    };
-    ("this", $x:expr) => {
-        if $x == 1 { "this" } else { "these" }
-    };
-}
+pub const MIN_SOLIDITY_VERSION: semver::Version = semver::Version::new(0, 8, 0);
 
 /// Creates new session globals on the current thread if they doesn't exist already and then
 /// executes the given closure.

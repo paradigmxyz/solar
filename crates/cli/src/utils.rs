@@ -110,7 +110,17 @@ fn try_init_logger(dst: LogDestination) -> Result<impl Sized, String> {
             }
             (Some(tracy_layer().boxed()), Default::default())
         }
-        Ok(s) => return Err(format!("unknown profiler '{s}'; valid values: 'chrome', 'tracy'")),
+        Ok("samply") => {
+            if !cfg!(feature = "tracing-samply") {
+                return Err("samply profiler support is not compiled in".to_string());
+            }
+            (Some(samply_layer().map_err(|e| e.to_string())?.boxed()), Default::default())
+        }
+        Ok(s) => {
+            return Err(format!(
+                "unknown profiler '{s}'; valid values: 'chrome', 'tracy', 'samply'"
+            ));
+        }
         Err(_) => Default::default(),
     };
     tracing_subscriber::Registry::default()
@@ -140,7 +150,6 @@ fn tracy_layer() -> tracing_tracy::TracyLayer<impl tracing_tracy::Config> {
 
     tracing_tracy::TracyLayer::new(Config(Default::default()))
 }
-
 #[cfg(feature = "tracing")]
 #[cfg(not(feature = "tracy"))]
 fn tracy_layer() -> tracing_subscriber::layer::Identity {
@@ -158,11 +167,21 @@ where
 {
     tracing_chrome::ChromeLayerBuilder::new().include_args(true).build()
 }
-
 #[cfg(feature = "tracing")]
 #[cfg(not(feature = "tracing-chrome"))]
 fn chrome_layer() -> (tracing_subscriber::layer::Identity, ()) {
     (tracing_subscriber::layer::Identity::new(), ())
+}
+
+#[cfg(feature = "tracing")]
+#[cfg(feature = "tracing-samply")]
+fn samply_layer() -> std::io::Result<tracing_samply::SamplyLayer> {
+    tracing_samply::SamplyLayer::new()
+}
+#[cfg(feature = "tracing")]
+#[cfg(not(feature = "tracing-samply"))]
+fn samply_layer() -> std::io::Result<tracing_subscriber::layer::Identity> {
+    Ok(tracing_subscriber::layer::Identity::new())
 }
 
 /*

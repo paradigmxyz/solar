@@ -1,22 +1,22 @@
 error: expected `;`, found `}`
-  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
-   |
-LL |     uint x
-   |           - expected `;`
-LL | }
-   | ^ unexpected token
+   ╭▸ ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
+   │
+LL │     uint x
+   │           ─ expected `;`
+LL │ }
+   ╰╴━ unexpected token
 
 error: trailing `,` separator is not allowed
-  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
-   |
-LL |     V,
-   |      ^
+   ╭▸ ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
+   │
+LL │     V,
+   ╰╴     ━
 
 error: trailing `,` separator is not allowed
-  --> ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
-   |
-LL | function f(E arg,) {
-   |                 ^
+   ╭▸ ROOT/tests/ui/parser/trailing_separators.sol:LL:CC
+   │
+LL │ function f(E arg,) {
+   ╰╴                ━
 
 error: aborting due to 3 previous errors
 

@@ -1,0 +1,20 @@
+error: wrong number of arguments for base constructor: expected 2, found 0
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Derived3 is Base() { }
+   ╰╴                     ━━━━━━
+
+error: wrong number of arguments for base constructor: expected 2, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Derived4 is Base(1) { }
+   ╰╴                     ━━━━━━━
+
+error: wrong number of arguments for base constructor: expected 2, found 1
+   ╭▸ ROOT/tests/ui/typeck/base_arguments.sol:LL:CC
+   │
+LL │ contract Derived5 is Base { constructor() Base(2) {} }
+   ╰╴                                          ━━━━━━━
+
+error: aborting due to 3 previous errors
+

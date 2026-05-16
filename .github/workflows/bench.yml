@@ -1,5 +1,7 @@
 name: Benchmark
 
+permissions: {}
+
 on:
   push:
     branches: [main]
@@ -12,8 +14,10 @@ env:
 jobs:
   codspeed:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Checkout submodules
@@ -35,13 +39,16 @@ jobs:
           mode: instrumentation
           token: ${{ secrets.CODSPEED_TOKEN }}
 
-  iai:
+  gungraun:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
+      GUNGRAUN_RUNNER: gungraun-runner
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Checkout submodules
@@ -52,7 +59,7 @@ jobs:
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
@@ -62,15 +69,32 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Install iai-callgrind-runner
-        run: ./.github/scripts/install_iai_callgrind_runner.sh
+      - name: Install benchmark runner
+        run: |
+          package=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun" or .name == "iai-callgrind").name' | head -n1)
+          version=$(cargo metadata --format-version=1 | jq -r --arg package "$package" '.packages[] | select(.name == $package).version')
+          case "$package" in
+            gungraun) runner=gungraun-runner ;;
+            iai-callgrind) runner=iai-callgrind-runner ;;
+            *) echo "unknown benchmark runner package: $package" && exit 1 ;;
+          esac
+          cargo binstall "$runner" --version "$version" --no-confirm --no-symlinks --force
+          which "$runner"
       - name: Save baseline
-        run: cargo bench -p solar-bench --bench iai --features ci -- --save-baseline=$BASELINE
+        run: |
+          bench_target=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "solar-bench").targets[] | select(any(.kind[]; . == "bench") and (.name == "gungraun" or .name == "iai")).name' | head -n1)
+          cargo bench -p solar-bench --bench "$bench_target" --features ci -- --save-baseline=$BASELINE
+          if [ "$bench_target" = "iai" ] && [ -d target/iai ] && [ ! -e target/gungraun ]; then
+            mv target/iai target/gungraun
+          fi
       - name: Checkout PR
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           clean: false
-      - name: Install iai-callgrind-runner
-        run: ./.github/scripts/install_iai_callgrind_runner.sh
+      - name: Install benchmark runner
+        run: |
+          version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
+          cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
+          which gungraun-runner
       - name: Compare PR benchmarks
-        run: cargo bench -p solar-bench --bench iai --features ci -- --baseline=$BASELINE
+        run: cargo bench -p solar-bench --bench gungraun --features ci -- --baseline=$BASELINE

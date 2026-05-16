@@ -1,0 +1,14 @@
+error: calldata structs are read-only
+   ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_struct.sol:LL:CC
+   │
+LL │         s.x = state;
+   ╰╴        ━━━
+
+error: calldata structs are read-only
+   ╭▸ ROOT/tests/ui/typeck/lvalue/calldata_struct.sol:LL:CC
+   │
+LL │         n.inner.x = state;
+   ╰╴        ━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

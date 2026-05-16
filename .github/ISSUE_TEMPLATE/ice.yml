@@ -1,50 +1,51 @@
 name: Internal Compiler Error
 description: Create a report for an internal compiler error (ICE)
+type: Bug
 labels: ["C-bug", "I-ICE"]
 title: "[ICE]: "
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Thank you for finding an Internal Compiler Error! 🧊
+    - type: markdown
+      attributes:
+          value: |
+              Thank you for finding an Internal Compiler Error! 🧊
 
-        If possible, try to provide a minimal verifiable example.
+              If possible, try to provide a minimal verifiable example.
 
-  - type: textarea
-    id: code
-    attributes:
-      label: Code
-      description: Please provide code or a link to a repository that can reproduce the problem
-      placeholder: code
-      render: Solidity
-    validations:
-      required: false
+    - type: textarea
+      id: code
+      attributes:
+          label: Code
+          description: Please provide code or a link to a repository that can reproduce the problem
+          placeholder: code
+          render: Solidity
+      validations:
+          required: false
 
-  - type: textarea
-    id: version
-    attributes:
-      label: Solar Version
-      description: Please provide the `solar` version, `solar --version`. Make sure that you're using the latest version of the compiler!
-      placeholder: |
-        $ solar --version
-      render: Shell
-    validations:
-      required: true
+    - type: textarea
+      id: version
+      attributes:
+          label: Solar Version
+          description: Please provide the `solar` version, `solar --version`. Make sure that you're using the latest version of the compiler!
+          placeholder: |
+              $ solar --version
+          render: Shell
+      validations:
+          required: true
 
-  - type: textarea
-    id: output
-    attributes:
-      label: Current error output
-      description: Please provide the `solar` output you see, including any backtraces
-      placeholder: output
-      render: Shell
-    validations:
-      required: false
+    - type: textarea
+      id: output
+      attributes:
+          label: Current error output
+          description: Please provide the `solar` output you see, including any backtraces
+          placeholder: output
+          render: Shell
+      validations:
+          required: false
 
-  - type: textarea
-    id: extra
-    attributes:
-      label: Anything else?
-      description: If you have more details you want to give us to reproduce this issue, please add it here
-    validations:
-      required: false
+    - type: textarea
+      id: extra
+      attributes:
+          label: Anything else?
+          description: If you have more details you want to give us to reproduce this issue, please add it here
+      validations:
+          required: false

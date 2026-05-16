@@ -65,9 +65,9 @@ impl<'gcx> CommonTypes<'gcx> {
             bytes,
             bytes_ref: mk_refs(bytes),
 
-            ints: from_fn(|i| mk(Elementary(Int(TypeSize::new(i as u8 + 1).unwrap())))),
-            uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new(i as u8 + 1).unwrap())))),
-            fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new(i as u8 + 1).unwrap())))),
+            ints: from_fn(|i| mk(Elementary(Int(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
+            uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
+            fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new_fb_bytes(i as u8 + 1))))),
         }
     }
 

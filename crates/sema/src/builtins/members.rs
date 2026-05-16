@@ -29,7 +29,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
-        TyKind::Slice(_ty) => Default::default(), // TODO: do slices have members
+        TyKind::Slice(_ty) => Default::default(),
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),

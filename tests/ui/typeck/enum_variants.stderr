@@ -1,14 +1,14 @@
 error: enum must have at least one variant
-  --> ROOT/tests/ui/typeck/enum_variants.sol:LL:CC
-   |
-LL |     enum NeedsAtLeastOneVariant { }
-   |          ^^^^^^^^^^^^^^^^^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/enum_variants.sol:LL:CC
+   │
+LL │     enum NeedsAtLeastOneVariant { }
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━
 
 error: enum cannot have more than 256 variants
-  --> ROOT/tests/ui/typeck/enum_variants.sol:LL:CC
-   |
-LL |     enum ExceedsMaxVariants {
-   |          ^^^^^^^^^^^^^^^^^^
+   ╭▸ ROOT/tests/ui/typeck/enum_variants.sol:LL:CC
+   │
+LL │     enum ExceedsMaxVariants {
+   ╰╴         ━━━━━━━━━━━━━━━━━━
 
 error: aborting due to 2 previous errors
 

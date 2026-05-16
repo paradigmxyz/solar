@@ -1,0 +1,26 @@
+error: single bytes in fixed bytes arrays cannot be modified
+   ╭▸ ROOT/tests/ui/typeck/lvalue/fixed_bytes.sol:LL:CC
+   │
+LL │         fixedBytes[idx] = source;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: single bytes in fixed bytes arrays cannot be modified
+   ╭▸ ROOT/tests/ui/typeck/lvalue/fixed_bytes.sol:LL:CC
+   │
+LL │         singleByte[idx] = source;
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: single bytes in fixed bytes arrays cannot be modified
+   ╭▸ ROOT/tests/ui/typeck/lvalue/fixed_bytes.sol:LL:CC
+   │
+LL │         local[idx] = source;
+   ╰╴        ━━━━━━━━━━
+
+error: single bytes in fixed bytes arrays cannot be modified
+   ╭▸ ROOT/tests/ui/typeck/lvalue/fixed_bytes.sol:LL:CC
+   │
+LL │         param[idx] = source;
+   ╰╴        ━━━━━━━━━━
+
+error: aborting due to 4 previous errors
+

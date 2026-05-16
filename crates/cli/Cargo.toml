@@ -32,6 +32,7 @@ tracing-subscriber = { workspace = true, optional = true, features = [
 
 tracing-chrome = { version = "0.7", optional = true }
 tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
+tracing-samply = { version = "0.1.5", optional = true }
 
 mimalloc = { version = "0.1", optional = true }
 
@@ -64,3 +65,4 @@ tracing-chrome = [
 ]
 tracy = ["tracing", "dep:tracing-tracy", "solar-config/tracy"]
 tracy-allocator = ["tracing", "tracy", "solar-config/tracy-allocator"]
+tracing-samply = ["tracing", "dep:tracing-samply", "solar-config/tracing-samply"]

@@ -42,7 +42,7 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
-pub use ty::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 
@@ -358,16 +358,16 @@ impl<'gcx> Gcx<'gcx> {
     pub fn mk_ty_string_literal(self, s: &[u8]) -> Ty<'gcx> {
         self.mk_ty(TyKind::StringLiteral(
             std::str::from_utf8(s).is_ok(),
-            TypeSize::new(s.len().min(32) as u8).unwrap(),
+            TypeSize::new_int_bits(s.len().min(32) as u16 * 8),
         ))
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
-        let bits = bits.next_multiple_of(8).max(8);
-        if bits > 256 {
+        let bits = bits.max(1);
+        if bits > TypeSize::MAX as u64 {
             return None;
         }
-        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_int_bits(bits as u16))))
+        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
@@ -386,6 +386,7 @@ impl<'gcx> Gcx<'gcx> {
             returns: self.mk_tys(returns),
             state_mutability,
             visibility,
+            function_id: None,
         })
     }
 
@@ -591,6 +592,7 @@ impl<'gcx> Gcx<'gcx> {
                     returns: self.mk_item_tys(f.returns),
                     state_mutability: f.state_mutability,
                     visibility: f.visibility,
+                    function_id: None,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -754,6 +756,8 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
                 } else if ty.is_recursive() {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
+                } else if ty.has_internal_function() {
+                    format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
                 } else {
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
@@ -815,6 +819,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
+                function_id: Some(id),
             }))
         }
         hir::ItemId::Variable(id) => {

@@ -669,14 +669,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(sep_kind) {
-                        Ok(recovered_) => {
-                            if recovered_ == Recovered::Yes {
-                                recovered = Recovered::Yes;
-                                break;
-                            }
-                        }
-                        Err(e) => return Err(e),
+                    let recovered_ = self.expect(sep_kind)?;
+                    if recovered_ == Recovered::Yes {
+                        recovered = Recovered::Yes;
+                        break;
                     }
 
                     if self.check(ket) {
@@ -749,7 +745,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while let Some((is_doc, kind, symbol)) = self.token.comment() {
             if is_doc {
                 let natspec = if let Some(items) =
-                    parse_natspec(self.token.span, symbol, self.in_yul, self.dcx())
+                    parse_natspec(self.token.span, symbol, kind, self.in_yul, self.dcx())
                 {
                     self.alloc_smallvec(items)
                 } else {
@@ -1039,6 +1035,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 fn parse_natspec(
     comment_span: Span,
     comment_symbol: Symbol,
+    comment_kind: ast::CommentKind,
     in_yul: bool,
     dcx: &DiagCtxt,
 ) -> Option<SmallVec<[ast::NatSpecItem; 6]>> {
@@ -1084,10 +1081,27 @@ fn parse_natspec(
         }
     }
 
+    // Check if '@' is located at the logical start of the line.
+    let is_line_start = |line_start: usize, at_pos: usize| {
+        match comment_kind {
+            // can only be followed by whitespace
+            ast::CommentKind::Line => bytes[line_start..at_pos].trim_ascii().is_empty(),
+
+            // can only be followed by whitespaces + ('*') + whitespaces
+            ast::CommentKind::Block => {
+                let trimmed = &bytes[line_start..at_pos].trim_ascii_start();
+                trimmed.is_empty()
+                    || (trimmed.starts_with(b"*") && trimmed[1..].trim_ascii_end().is_empty())
+            }
+        }
+    };
+
     // Iterate over each line and look for tags.
     let mut prev_line_end = 0;
     for line_end in memchr::memchr_iter(b'\n', bytes).chain(std::iter::once(bytes.len())) {
-        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end]) {
+        if let Some(tag_offset) = memchr::memchr(b'@', &bytes[line_start..line_end])
+            && is_line_start(line_start, line_start + tag_offset)
+        {
             let tag_start = line_start + tag_offset + 1;
             flush_item(&mut items, &mut kind, &mut span, content_start, prev_line_end);
 
@@ -1133,7 +1147,7 @@ fn parse_natspec(
                         // Emit error for invalid solidity tags, but ignore in Yul.
                         if !in_yul {
                             dcx
-                                .err(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
+                                .warn(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
                                 .span(comment_span)
                                 .emit();
                         }

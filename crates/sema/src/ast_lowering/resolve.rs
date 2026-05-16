@@ -9,7 +9,7 @@ use solar_data_structures::{
 use solar_interface::{
     Ident, Session, Span, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
-    sym,
+    error_code, sym,
 };
 use std::fmt;
 
@@ -339,28 +339,8 @@ impl<'gcx> ResolveContext<'gcx> {
             self.init(func.source, func.contract, Some(id));
 
             let func = self.hir.function(id);
-            self.hir.functions[id].overrides = {
-                let mut overrides = SmallVec::<[_; 8]>::new();
-                if let Some(ov) = &ast_func.header.override_ {
-                    for path in ov.paths.iter() {
-                        let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract")
-                        else {
-                            continue;
-                        };
-                        // TODO: Move to override checker.
-                        let Some(c) = func.contract else {
-                            self.dcx().err("free functions cannot override").span(ov.span).emit();
-                            continue;
-                        };
-                        if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
-                            self.dcx().err("override is not a base contract").span(ov.span).emit();
-                            continue;
-                        }
-                        overrides.push(id);
-                    }
-                }
-                self.arena.alloc_smallvec(overrides)
-            };
+            self.hir.functions[id].overrides =
+                self.lower_overrides(ast_func.header.override_.as_ref(), func.contract, true);
 
             self.hir.functions[id].parameters = self.lower_variables(
                 *ast_func.header.parameters,
@@ -489,15 +469,26 @@ impl<'gcx> ResolveContext<'gcx> {
                     .emit();
             }
             let prev = &mut base_args[base_idx];
-            if let Some(prev) = prev
-                && !prev.args.is_empty()
-            {
-                self.sess
-                    .dcx
-                    .err("base constructor arguments given twice")
-                    .span(base.span)
-                    .span_help(prev.span, "previous declaration")
-                    .emit();
+            if let Some(prev) = prev {
+                if !prev.args.is_empty() {
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given twice")
+                        .span(base.span)
+                        .span_help(prev.span, "previous declaration")
+                        .emit();
+                } else if !prev.args.is_dummy() && !base.args.is_empty() {
+                    // Empty parens in inheritance list, but args in constructor
+                    self.sess
+                        .dcx
+                        .err("base constructor arguments given here")
+                        .span(base.span)
+                        .span_help(
+                            prev.span,
+                            "remove parentheses if you do not want to provide arguments here",
+                        )
+                        .emit();
+                }
             }
             *prev = Some(base);
         };
@@ -513,18 +504,27 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn resolve_var(&mut self, id: hir::VariableId) {
         let var = self.hir.variable(id);
+        let var_source = var.source;
+        let var_contract = var.contract;
+        let var_getter = var.getter;
         let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Variable(id)) else {
             assert!(!var.ty.is_dummy(), "{var:#?}");
             return;
         };
         let ast::ItemKind::Variable(ast_var) = &ast_item.kind else { unreachable!() };
 
-        self.init(var.source, var.contract, None);
+        self.init(var_source, var_contract, None);
 
         let init = ast_var.initializer.as_deref().map(|init| self.lower_expr(init));
         let ty = self.lower_type(&ast_var.ty);
         self.hir.variables[id].initializer = init;
         self.hir.variables[id].ty = ty;
+
+        let overrides = self.lower_overrides(ast_var.override_.as_ref(), var_contract, false);
+        self.hir.variables[id].overrides = overrides;
+        if let Some(getter_id) = var_getter {
+            self.hir.functions[getter_id].overrides = overrides;
+        }
     }
 
     /// Resolves a getter function.
@@ -1178,7 +1178,15 @@ impl<'gcx> ResolveContext<'gcx> {
     #[instrument(name = "lower_type", level = "trace", skip_all)]
     fn lower_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
         let kind = match &ty.kind {
-            ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(*ty),
+            ast::TypeKind::Elementary(ty) => hir::TypeKind::Elementary(match *ty {
+                ast::ElementaryType::Int(size) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::Int(ast::TypeSize::new_int_bits(256))
+                }
+                ast::ElementaryType::UInt(size) if size == ast::TypeSize::ZERO => {
+                    ast::ElementaryType::UInt(ast::TypeSize::new_int_bits(256))
+                }
+                ty => ty,
+            }),
             ast::TypeKind::Array(array) => hir::TypeKind::Array(self.arena.alloc(hir::TypeArray {
                 element: self.lower_type(&array.element),
                 size: self.lower_expr_opt(array.size.as_deref()),
@@ -1226,6 +1234,55 @@ impl<'gcx> ResolveContext<'gcx> {
     /// Creates a HIR builder.
     fn hir_builder(&self) -> hir::HirBuilder<'gcx, '_> {
         hir::Hir::builder(self.arena, &self.next_id)
+    }
+
+    /// Lowers an override specifier, validating that all specified contracts are bases.
+    ///
+    /// Returns `None` if there's no override specifier.
+    fn lower_overrides(
+        &mut self,
+        override_: Option<&ast::Override<'_>>,
+        contract: Option<hir::ContractId>,
+        is_function: bool,
+    ) -> &'gcx [hir::ContractId] {
+        let Some(ov) = override_ else {
+            return &[];
+        };
+
+        let mut overrides = SmallVec::<[hir::ContractId; 8]>::new();
+        for path in ov.paths.iter() {
+            let Ok(id) = self.resolver.resolve_path_as(path, &self.scopes, "contract") else {
+                continue;
+            };
+
+            let Some(c) = contract else {
+                if is_function {
+                    self.dcx()
+                        .err("free functions cannot override")
+                        .code(error_code!(1750))
+                        .span(ov.span)
+                        .emit();
+                }
+                continue;
+            };
+
+            if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+                self.dcx()
+                    .err(format!(
+                        "invalid contract `{}` specified in override list",
+                        self.hir.contract(id).name.as_str()
+                    ))
+                    .code(error_code!(2353))
+                    .span(ov.span)
+                    .note("contract is not a direct or indirect base")
+                    .emit();
+                continue;
+            }
+
+            overrides.push(id);
+        }
+
+        self.arena.alloc_smallvec(overrides)
     }
 }
 

@@ -26,8 +26,7 @@ tree-sitter-solidity = "=1.2.12"
 
 [dev-dependencies]
 criterion.workspace = true
-iai-callgrind = "0.16"
-paste.workspace = true
+gungraun = "0.19"
 
 [features]
 ci = []
@@ -38,6 +37,6 @@ path = "benches/criterion.rs"
 harness = false
 
 [[bench]]
-name = "iai"
-path = "benches/iai.rs"
+name = "gungraun"
+path = "benches/gungraun.rs"
 harness = false

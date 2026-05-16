@@ -35,7 +35,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
     #[rustfmt::skip]
     if matches!(
         stem,
-        // Why should this fail?
+        // TODO: Why should this fail?
         | "unicode_comment_direction_override"
         // TODO: Implement after parsing.
         | "number_literals_2"
@@ -67,6 +67,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "clash_with_non_reserved_pure_yul_builtin"
         | "clash_with_reserved_pure_yul_builtin_eof"
         | "clash_with_reserved_pure_yul_builtin"
+        | "clz"
     ) {
         return Err("manually skipped");
     };

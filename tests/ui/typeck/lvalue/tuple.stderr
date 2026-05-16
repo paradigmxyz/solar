@@ -1,0 +1,20 @@
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (CONST, state) = (x, x);
+   ╰╴         ━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (1, state) = (x, x);
+   ╰╴         ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (1, state) = (x, x);
+   ╰╴                     ━━━━━━ expected `tuple(int_literal[1],uint256)`, found `tuple(uint256,uint256)`
+
+error: aborting due to 3 previous errors
+
