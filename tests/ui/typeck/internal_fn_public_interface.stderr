@@ -1,0 +1,14 @@
+error: types containing internal function pointers cannot be parameter or return types of public getter functions
+   ╭▸ ROOT/tests/ui/typeck/internal_fn_public_interface.sol:LL:CC
+   │
+LL │     function(uint) internal public myInternalFunc;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━
+
+error: types containing internal function pointers cannot be parameter or return types of public getter functions
+   ╭▸ ROOT/tests/ui/typeck/internal_fn_public_interface.sol:LL:CC
+   │
+LL │     S public myVar;
+   ╰╴    ━
+
+error: aborting due to 2 previous errors
+

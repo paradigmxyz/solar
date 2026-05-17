@@ -44,7 +44,7 @@ impl DiagCtxtFlags {
         self.deduplicate_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics |= opts.unstable.track_diagnostics;
-        self.can_emit_warnings |= !opts.no_warnings;
+        self.can_emit_warnings &= !opts.no_warnings;
     }
 }
 

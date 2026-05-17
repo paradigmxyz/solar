@@ -1,0 +1,14 @@
+error: constant variable must be initialized
+   ╭▸ ROOT/tests/ui/parser/constant_no_init.sol:LL:CC
+   │
+LL │ uint constant BAD;
+   ╰╴━━━━━━━━━━━━━━━━━━
+
+error: constant variable must be initialized
+   ╭▸ ROOT/tests/ui/parser/constant_no_init.sol:LL:CC
+   │
+LL │     uint constant ALSO_BAD;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

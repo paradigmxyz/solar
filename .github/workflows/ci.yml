@@ -24,7 +24,7 @@ jobs:
         rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.88" # MSRV
+            rust: "1.95" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
@@ -147,7 +147,7 @@ jobs:
           category: "/language:${{matrix.language}}"
 
   deny:
-    uses: ithacaxyz/ci/.github/workflows/deny.yml@main
+    uses: tempoxyz/ci/.github/workflows/deny.yml@main
     permissions:
       contents: read
 

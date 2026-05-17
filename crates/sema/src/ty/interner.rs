@@ -23,14 +23,10 @@ impl<'gcx> Interner<'gcx> {
         Self::default()
     }
 
-    pub(super) fn intern_ty_with_flags(
-        &self,
-        bump: &'gcx bumpalo::Bump,
-        kind: TyKind<'gcx>,
-        mk_flags: impl FnOnce(&TyKind<'gcx>) -> TyFlags,
-    ) -> Ty<'gcx> {
+    pub(super) fn intern_ty(&self, bump: &'gcx bumpalo::Bump, kind: TyKind<'gcx>) -> Ty<'gcx> {
         Ty(Interned::new_unchecked(
-            self.tys.intern(kind, |kind| bump.alloc(TyData { flags: mk_flags(&kind), kind })),
+            self.tys
+                .intern(kind, |kind| bump.alloc(TyData { flags: TyFlags::calculate(&kind), kind })),
         ))
     }
 

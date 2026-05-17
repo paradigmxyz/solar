@@ -229,16 +229,11 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                     self.check_single_statement_variable_declaration(else_);
                 }
             }
-            ast::StmtKind::Break | ast::StmtKind::Continue => {
-                if !self.in_loop() {
-                    let kind = if matches!(stmt.kind, ast::StmtKind::Break) {
-                        "break"
-                    } else {
-                        "continue"
-                    };
-                    let msg = format!("`{kind}` outside of a loop");
-                    self.dcx().err(msg).span(stmt.span).emit();
-                }
+            ast::StmtKind::Break | ast::StmtKind::Continue if !self.in_loop() => {
+                let kind =
+                    if matches!(stmt.kind, ast::StmtKind::Break) { "break" } else { "continue" };
+                let msg = format!("`{kind}` outside of a loop");
+                self.dcx().err(msg).span(stmt.span).emit();
             }
             ast::StmtKind::UncheckedBlock(_block) => {
                 if self.in_unchecked_block {

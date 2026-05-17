@@ -22,5 +22,29 @@ error: invalid explicit type conversion
 LL │         address a5 = address(u256);
    ╰╴                     ━━━━━━━━━━━━━ cannot convert `uint256` to `address`
 
-error: aborting due to 4 previous errors
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         bytes20 b20_from_p = bytes20(p);
+   ╰╴                             ━━━━━━━━━━ cannot convert `address payable` to `bytes20`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         address payable a6 = payable(b20);
+   ╰╴                                     ━━━ cannot convert `bytes20` to `address payable`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         uint160 u160_from_p = uint160(p);
+   ╰╴                              ━━━━━━━━━━ cannot convert `address payable` to `uint160`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/address_conversions_explicit.sol:LL:CC
+   │
+LL │         address payable a7 = payable(u160);
+   ╰╴                                     ━━━━ cannot convert `uint160` to `address payable`
+
+error: aborting due to 8 previous errors
 
