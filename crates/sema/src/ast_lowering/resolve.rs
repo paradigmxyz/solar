@@ -910,6 +910,23 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
+        let mut memory_safe = false;
+        for flag in assembly.flags.iter() {
+            let span = flag.span;
+            match flag.value {
+                sym::memory_dash_safe => {
+                    if memory_safe {
+                        self.dcx()
+                            .err("inline assembly marked memory-safe multiple times")
+                            .span(span)
+                            .emit();
+                    }
+                    memory_safe = true;
+                }
+                _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
+            }
+        }
+
         hir::StmtKind::UncheckedBlock(self.lower_yul_block(&assembly.block))
     }
 
