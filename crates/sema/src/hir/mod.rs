@@ -15,15 +15,12 @@ use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
 pub use ast::{
-    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
-    StateMutability, UnOp, UnOpKind, VarMut, Visibility,
+    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit, NatSpecItem,
+    NatSpecKind, StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
 mod visit;
 pub use visit::Visit;
-
-mod natspec;
-pub use natspec::*;
 
 /// HIR arena allocator.
 pub struct Arena {
@@ -173,7 +170,6 @@ impl<'hir> Hir<'hir> {
             source: SourceId::MAX,
             item: ItemId::Contract(ContractId::MAX),
             ast_comments: ast::DocComments::default(),
-            comments: &[],
         });
         debug_assert_eq!(empty_doc_id, DocId::EMPTY);
 
@@ -421,6 +417,8 @@ newtype_index! {
     pub struct SourceId;
 
     /// A [`Doc`] ID.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] to access validated and resolved NatSpec items.
     pub struct DocId;
 
     /// A [`Contract`] ID.
@@ -488,24 +486,19 @@ impl fmt::Debug for Source<'_> {
 }
 
 /// The documentation of an item.
+///
+/// Use [`Gcx::natspec_doc_comments`] with the corresponding [`DocId`] to access validated and
+/// resolved NatSpec items.
 #[derive(Debug)]
 pub struct Doc<'hir> {
     /// The source this documentation is defined in.
     pub source: SourceId,
     /// The item this documentation is defined in.
     pub item: ItemId,
-    /// Reference to the AST documentation comments.
+    /// Reference to the raw AST documentation comments.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] for the validated and resolved NatSpec view.
     pub(crate) ast_comments: ast::DocComments<'hir>,
-    /// Resolved natspec items after AST lowering and `@inheritdoc` expansion.
-    pub(crate) comments: &'hir [NatSpecItem],
-}
-
-impl<'hir> Doc<'hir> {
-    /// Returns the resolved natspec doc comments for this item.
-    #[inline]
-    pub fn comments(&self) -> &'hir [NatSpecItem] {
-        self.comments
-    }
 }
 
 #[derive(Clone, Copy, Debug, EnumIs)]
@@ -593,6 +586,21 @@ impl<'hir> Item<'_, 'hir> {
             Item::Error(e) => e.source,
             Item::Event(e) => e.source,
             Item::Variable(v) => v.source,
+        }
+    }
+
+    /// Returns the documentation comments associated with this item.
+    #[inline]
+    pub fn doc(self) -> DocId {
+        match self {
+            Item::Contract(c) => c.doc,
+            Item::Function(f) => f.doc,
+            Item::Struct(s) => s.doc,
+            Item::Enum(e) => e.doc,
+            Item::Udvt(u) => u.doc,
+            Item::Error(e) => e.doc,
+            Item::Event(e) => e.doc,
+            Item::Variable(v) => v.doc.unwrap_or(DocId::EMPTY),
         }
     }
 

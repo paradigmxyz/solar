@@ -16,6 +16,8 @@ use solar_interface::diagnostics::{DiagBuilder, ErrorGuaranteed};
 pub mod lexer;
 pub use lexer::{Cursor, Lexer, unescape};
 
+pub mod natspec;
+
 mod parser;
 pub use parser::{Parser, Recovered};
 

@@ -15,7 +15,7 @@ use solar_data_structures::{
     trustme,
 };
 use solar_interface::{
-    Ident, Session, Span,
+    Ident, Session, Span, Symbol,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     source_map::{FileName, SourceFile},
@@ -45,6 +45,7 @@ mod ty;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+type NatSpecContractKey = (Symbol, hir::SourceId);
 
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
@@ -801,6 +802,27 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
+}
+
+/// Returns the resolved NatSpec doc comments for the given doc ID.
+pub fn natspec_doc_comments(gcx: _, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
+    crate::natspec::resolve_doc_comments(gcx, id)
+}
+
+/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+pub(crate) fn natspec_contract_in_source(
+    gcx: _,
+    key: NatSpecContractKey
+) -> Option<hir::ContractId> {
+    let (name, source_id) = key;
+    gcx.symbol_resolver.source_scopes[source_id]
+        .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+        .and_then(|decls| {
+            decls.iter().find_map(|decl| match decl.res {
+                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
+                _ => None,
+            })
+        })
 }
 
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.

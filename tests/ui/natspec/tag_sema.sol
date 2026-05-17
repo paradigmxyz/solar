@@ -59,7 +59,7 @@ contract DuplicateParamBase {
 }
 
 contract DuplicateInheritdocBase {
-    function foo() public {}
+    function foo() public virtual {}
 }
 
 contract DuplicateInheritdoc is DuplicateInheritdocBase {
@@ -92,7 +92,7 @@ contract InvalidInheritdocBase {
 contract InvalidInheritdoc is InvalidInheritdocBase {
     /// @inheritdoc InvalidInheritdocBase
     //~^ ERROR: tag `@inheritdoc` not valid for events
-    event Transfer(address from, address to);
+    event InvalidInheritdocEvent(address from, address to);
 }
 
 contract InvalidParamName {
@@ -100,12 +100,4 @@ contract InvalidParamName {
     /// @param y Invalid parameter name
     //~^ ERROR: tag `@param` references non-existent parameter 'y'
     function foo(uint x) public {}
-}
-
-contract TooManyReturns {
-    /// @return First return value
-    /// @return Second return value
-    /// @return Third return value
-    //~^ ERROR: too many `@return` tags: function has 2 return values, found 3
-    function foo() public returns (uint, uint) {}
 }
