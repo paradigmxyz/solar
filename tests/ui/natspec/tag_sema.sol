@@ -37,7 +37,6 @@ contract ValidItems {
     function transfer(address to, uint amount) public returns (bool success) {
         return true;
     }
-
 }
 
 // -- ERROR TESTS - DUPLICATE TAGS ---------------------------------------------
@@ -84,7 +83,6 @@ contract InvalidTagContext {
     /// @return Invalid return on event
     //~^ ERROR: tag `@return` not valid for events
     event InvalidReturn(address from, address to);
-
 }
 
 contract InvalidInheritdocBase {
