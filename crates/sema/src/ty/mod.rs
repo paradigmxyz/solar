@@ -669,9 +669,10 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
     ) -> members::MemberList<'gcx> {
         let native = self.native_members(ty);
-        let Some(attached) = self.attached_functions(ty, source, contract) else {
+        let attached = self.attached_functions(ty, source, contract);
+        if attached.is_empty() {
             return native;
-        };
+        }
 
         let mut members = Vec::with_capacity(native.len() + attached.len());
         members.extend_from_slice(native);
@@ -720,7 +721,7 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Option<Vec<members::Member<'gcx>>> {
+    ) -> Vec<members::Member<'gcx>> {
         let mut members = Vec::new();
         let mut seen = FxHashSet::default();
         self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
@@ -757,7 +758,7 @@ impl<'gcx> Gcx<'gcx> {
                 }
             }
         });
-        if members.is_empty() { None } else { Some(members) }
+        members
     }
 
     fn add_attached_function(
