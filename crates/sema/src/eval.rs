@@ -1,5 +1,5 @@
 use crate::{hir, ty::Gcx};
-use alloy_primitives::U256;
+use alloy_primitives::{I256, Sign, U256};
 use solar_ast::LitKind;
 use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
@@ -15,11 +15,11 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
             if int.is_negative() {
                 let msg = "array length cannot be negative";
                 Err(gcx.dcx().err(msg).span(size.span).emit())
-            } else if int.data.is_zero() {
+            } else if int.data().is_zero() {
                 let msg = "array length must be greater than zero";
                 Err(gcx.dcx().err(msg).span(size.span).emit())
             } else {
-                Ok(int.data)
+                Ok(int.data())
             }
         }
         Err(guar) => Err(guar),
@@ -138,45 +138,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     }
 }
 
-/// Represents an integer value with an explicit sign for literal type tracking.
-///
-/// The `data` field always stores the absolute value of the number.
-/// The `negative` field indicates whether the value is negative.
+/// Represents an integer value for constant evaluation.
 pub struct IntScalar {
-    /// The absolute value of the integer.
-    pub data: U256,
-    /// Whether the value is negative.
-    pub negative: bool,
+    data: I256,
+    is_signed: bool,
 }
 
 impl IntScalar {
     /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data, negative: false }
-    }
-
-    /// Creates a new integer value with the given sign.
-    pub fn new_signed(data: U256, negative: bool) -> Self {
-        // Zero is never negative.
-        Self { data, negative: negative && !data.is_zero() }
-    }
-
-    /// Returns the bit length of the integer value.
-    ///
-    /// This is the number of bits needed to represent the value,
-    /// not including the sign bit.
-    pub fn bit_len(&self) -> u64 {
-        self.data.bit_len() as u64
-    }
-
-    /// Returns whether the value is negative.
-    pub fn is_negative(&self) -> bool {
-        self.negative
-    }
-
-    /// Returns the negation of this value.
-    pub fn negate(self) -> Self {
-        if self.data.is_zero() { self } else { Self::new_signed(self.data, !self.negative) }
+        Self { data: I256::from_raw(data), is_signed: false }
     }
 
     /// Creates a new integer value from a boolean.
@@ -193,9 +164,66 @@ impl IntScalar {
         Self::new(U256::from_be_slice(bytes))
     }
 
+    /// Returns the bit length of the integer value.
+    ///
+    /// This is the number of bits needed to represent the value, not including the sign bit.
+    pub fn bit_len(&self) -> u64 {
+        if self.is_negative() {
+            self.data.unsigned_abs().bit_len() as u64
+        } else {
+            self.data().bit_len() as u64
+        }
+    }
+
+    /// Returns whether the value is negative.
+    pub fn is_negative(&self) -> bool {
+        self.is_signed && self.data.is_negative()
+    }
+
+    /// Returns whether the value is tracked as signed.
+    pub fn is_signed(&self) -> bool {
+        self.is_signed
+    }
+
+    /// Returns the integer value as raw unsigned data.
+    pub fn data(&self) -> U256 {
+        self.data.into_raw()
+    }
+
     /// Converts the integer value to a boolean.
     pub fn to_bool(&self) -> bool {
         !self.data.is_zero()
+    }
+
+    fn signed(data: I256) -> Self {
+        Self { data, is_signed: true }
+    }
+
+    fn signed_from_abs(abs: U256) -> Option<Self> {
+        I256::checked_from_sign_and_abs(Sign::Negative, abs).map(Self::signed)
+    }
+
+    fn with_signedness(data: I256, is_signed: bool) -> Self {
+        Self { data, is_signed }
+    }
+
+    fn negate(self) -> Option<Self> {
+        if self.is_signed {
+            return self.data.checked_neg().map(Self::signed);
+        }
+        if self.data.is_zero() {
+            return Some(self);
+        }
+        Self::signed_from_abs(self.data())
+    }
+
+    fn shift_amount(r: Self) -> Option<usize> {
+        (!r.is_negative()).then(|| r.data().try_into().ok()).flatten()
+    }
+
+    fn bitop(self, r: Self, f: impl FnOnce(U256, U256) -> U256) -> Self {
+        let is_signed = self.is_signed || r.is_signed;
+        Self::with_signedness(I256::from_raw(f(self.data(), r.data())), is_signed)
     }
 
     /// Applies the given unary operation to this value.
@@ -205,8 +233,10 @@ impl IntScalar {
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::new(!self.data),
-            hir::UnOpKind::Neg => self.negate(),
+            hir::UnOpKind::Not | hir::UnOpKind::BitNot => {
+                Self::with_signedness(I256::from_raw(!self.data()), self.is_signed)
+            }
+            hir::UnOpKind::Neg => self.negate().ok_or(EE::ArithmeticOverflow)?,
         })
     }
 
@@ -216,92 +246,89 @@ impl IntScalar {
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         use hir::BinOpKind::*;
         Ok(match op {
-            Add => self.checked_add(r).ok_or(EE::ArithmeticOverflow)?,
-            Sub => self.checked_sub(r).ok_or(EE::ArithmeticOverflow)?,
-            Mul => self.checked_mul(r).ok_or(EE::ArithmeticOverflow)?,
-            Div => self.checked_div(r).ok_or(EE::DivisionByZero)?,
-            Rem => self.checked_rem(r).ok_or(EE::DivisionByZero)?,
-            Pow => self.checked_pow(r).ok_or(EE::ArithmeticOverflow)?,
-            BitOr => Self::new(self.data | r.data),
-            BitAnd => Self::new(self.data & r.data),
-            BitXor => Self::new(self.data ^ r.data),
-            Shr => Self::new(self.data.wrapping_shr(r.data.try_into().unwrap_or(usize::MAX))),
-            Shl => Self::new(self.data.wrapping_shl(r.data.try_into().unwrap_or(usize::MAX))),
-            Sar => Self::new(self.data.arithmetic_shr(r.data.try_into().unwrap_or(usize::MAX))),
+            Add if !self.is_signed && !r.is_signed => {
+                Self::new(self.data().checked_add(r.data()).ok_or(EE::ArithmeticOverflow)?)
+            }
+            Add => Self::with_signedness(
+                self.data.checked_add(r.data).ok_or(EE::ArithmeticOverflow)?,
+                self.is_signed || r.is_signed,
+            ),
+            Sub if !self.is_signed && !r.is_signed => {
+                let l = self.data();
+                let r = r.data();
+                if l >= r {
+                    Self::new(l - r)
+                } else {
+                    Self::signed_from_abs(r - l).ok_or(EE::ArithmeticOverflow)?
+                }
+            }
+            Sub => Self::with_signedness(
+                self.data.checked_sub(r.data).ok_or(EE::ArithmeticOverflow)?,
+                true,
+            ),
+            Mul if !self.is_signed && !r.is_signed => {
+                Self::new(self.data().checked_mul(r.data()).ok_or(EE::ArithmeticOverflow)?)
+            }
+            Mul => Self::with_signedness(
+                self.data.checked_mul(r.data).ok_or(EE::ArithmeticOverflow)?,
+                self.is_signed || r.is_signed,
+            ),
+            Div => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                if !self.is_signed && !r.is_signed {
+                    return Ok(Self::new(self.data() / r.data()));
+                }
+                Self::with_signedness(
+                    self.data.checked_div(r.data).ok_or(EE::ArithmeticOverflow)?,
+                    self.is_signed || r.is_signed,
+                )
+            }
+            Rem => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                if !self.is_signed && !r.is_signed {
+                    return Ok(Self::new(self.data() % r.data()));
+                }
+                Self::with_signedness(
+                    self.data.checked_rem(r.data).ok_or(EE::ArithmeticOverflow)?,
+                    self.is_signed || r.is_signed,
+                )
+            }
+            Pow => {
+                if r.is_negative() {
+                    return Err(EE::ArithmeticOverflow);
+                }
+                if !self.is_signed {
+                    return Ok(Self::new(
+                        self.data().checked_pow(r.data()).ok_or(EE::ArithmeticOverflow)?,
+                    ));
+                }
+                Self::with_signedness(
+                    self.data.checked_pow(r.data()).ok_or(EE::ArithmeticOverflow)?,
+                    self.is_signed,
+                )
+            }
+            BitOr => self.bitop(r, |a, b| a | b),
+            BitAnd => self.bitop(r, |a, b| a & b),
+            BitXor => self.bitop(r, |a, b| a ^ b),
+            Shr => {
+                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
+                if self.is_signed {
+                    Self::signed(self.data.asr(r))
+                } else {
+                    Self::new(self.data().wrapping_shr(r))
+                }
+            }
+            Shl => {
+                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
+                Self::with_signedness(I256::from_raw(self.data().wrapping_shl(r)), self.is_signed)
+            }
+            Sar => return Err(EE::UnsupportedBinaryOp),
             Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::UnsupportedBinaryOp),
         })
-    }
-
-    /// Checked addition with sign handling.
-    fn checked_add(self, r: Self) -> Option<Self> {
-        match (self.negative, r.negative) {
-            // Both non-negative: simple add
-            (false, false) => Some(Self::new(self.data.checked_add(r.data)?)),
-            // Both negative: negate(|a| + |b|)
-            (true, true) => Some(Self::new_signed(self.data.checked_add(r.data)?, true)),
-            // Different signs: subtract the smaller absolute value from the larger
-            (false, true) => {
-                // a + (-b) = a - b
-                if self.data >= r.data {
-                    Some(Self::new(self.data.checked_sub(r.data)?))
-                } else {
-                    Some(Self::new_signed(r.data.checked_sub(self.data)?, true))
-                }
-            }
-            (true, false) => {
-                // (-a) + b = b - a
-                if r.data >= self.data {
-                    Some(Self::new(r.data.checked_sub(self.data)?))
-                } else {
-                    Some(Self::new_signed(self.data.checked_sub(r.data)?, true))
-                }
-            }
-        }
-    }
-
-    /// Checked subtraction with sign handling.
-    fn checked_sub(self, r: Self) -> Option<Self> {
-        // a - b = a + (-b)
-        self.checked_add(r.negate())
-    }
-
-    /// Checked multiplication with sign handling.
-    fn checked_mul(self, r: Self) -> Option<Self> {
-        let result = self.data.checked_mul(r.data)?;
-        // Result is negative if exactly one operand is negative
-        Some(Self::new_signed(result, self.negative != r.negative))
-    }
-
-    /// Checked division with sign handling.
-    fn checked_div(self, r: Self) -> Option<Self> {
-        if r.data.is_zero() {
-            return None;
-        }
-        let result = self.data.checked_div(r.data)?;
-        // Result is negative if exactly one operand is negative
-        Some(Self::new_signed(result, self.negative != r.negative))
-    }
-
-    /// Checked remainder with sign handling.
-    fn checked_rem(self, r: Self) -> Option<Self> {
-        if r.data.is_zero() {
-            return None;
-        }
-        let result = self.data.checked_rem(r.data)?;
-        // Result has the sign of the dividend
-        Some(Self::new_signed(result, self.negative))
-    }
-
-    /// Checked exponentiation.
-    fn checked_pow(self, r: Self) -> Option<Self> {
-        // Exponent must be non-negative
-        if r.negative {
-            return None;
-        }
-        let result = self.data.checked_pow(r.data)?;
-        // Result is negative if base is negative and exponent is odd
-        let result_negative = self.negative && r.data.bit(0);
-        Some(Self::new_signed(result, result_negative))
     }
 }
 

@@ -28,5 +28,11 @@ error: mismatched types
 LL │     uint256 neg_to_uint256 = -42;
    ╰╴                             ━━━ expected `uint256`, found `int_literal[6]`
 
-error: aborting due to 5 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_int_literal.sol:LL:CC
+   │
+LL │     uint16 neg_shift_to_uint = (-4) >> 1;
+   ╰╴                               ━━━━━━━━━ expected `uint16`, found `int_literal[2]`
+
+error: aborting due to 6 previous errors
 
