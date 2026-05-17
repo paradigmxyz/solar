@@ -59,7 +59,7 @@ pub trait Visit<'hir> {
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
-        let Function { source: _, contract: _, span: _, name: _, kind: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
+        let Function { source: _, doc: _, contract: _, span: _, name: _, kind: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
         for &param in parameters.iter() {
             self.visit_nested_var(param)?;
         }
