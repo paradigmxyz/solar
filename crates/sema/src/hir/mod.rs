@@ -173,7 +173,6 @@ impl<'hir> Hir<'hir> {
             source: SourceId::MAX,
             item: ItemId::Contract(ContractId::MAX),
             ast_comments: ast::DocComments::default(),
-            comments: &[],
         });
         debug_assert_eq!(empty_doc_id, DocId::EMPTY);
 
@@ -496,16 +495,6 @@ pub struct Doc<'hir> {
     pub item: ItemId,
     /// Reference to the AST documentation comments.
     pub(crate) ast_comments: ast::DocComments<'hir>,
-    /// Resolved natspec items after AST lowering and `@inheritdoc` expansion.
-    pub(crate) comments: &'hir [NatSpecItem],
-}
-
-impl<'hir> Doc<'hir> {
-    /// Returns the resolved natspec doc comments for this item.
-    #[inline]
-    pub fn comments(&self) -> &'hir [NatSpecItem] {
-        self.comments
-    }
 }
 
 #[derive(Clone, Copy, Debug, EnumIs)]

@@ -287,8 +287,8 @@ impl<'c> CompilerRef<'c> {
         crate::lower(self)
     }
 
-    pub fn analysis(&mut self) -> Result<ControlFlow<()>> {
-        crate::analysis(self.gcx_mut())
+    pub fn analysis(&self) -> Result<ControlFlow<()>> {
+        crate::analysis(self.gcx())
     }
 
     fn debug_fmt(&self, name: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result {

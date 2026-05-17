@@ -97,8 +97,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 }
 
 #[instrument(level = "debug", skip_all)]
-fn analysis(mut gcx_mut: ty::GcxMut<'_>) -> Result<ControlFlow<()>> {
-    let gcx = gcx_mut.get();
+fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
         return Ok(ControlFlow::Break(()));
     }
@@ -126,7 +125,7 @@ fn analysis(mut gcx_mut: ty::GcxMut<'_>) -> Result<ControlFlow<()>> {
     typeck::check(gcx);
     gcx.sess.dcx.has_errors()?;
 
-    natspec::validate_and_resolve_docs(&mut gcx_mut);
+    natspec::validate_docs(gcx);
     gcx.sess.dcx.has_errors()?;
 
     if !gcx.sess.opts.emit.is_empty() {

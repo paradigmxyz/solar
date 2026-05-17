@@ -37,7 +37,6 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
             source: self.current_source_id,
             item: item_id,
             ast_comments: docs,
-            comments: &[],
         })
     }
 }
@@ -133,7 +132,7 @@ contract GrandChild is Child1 {
                                 && f.name.is_some_and(|n| n.as_str() == func_name)
                         })
                     })
-                    .map(|func| gcx.hir.doc(func.doc).comments())
+                    .map(|func| gcx.natspec_doc_comments(func.doc))
                     .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
             };
             let base = get_comments("Base", "foo");
@@ -416,7 +415,7 @@ contract LocalParent {
         func_name: &str,
     ) -> &'gcx [crate::hir::NatSpecItem] {
         let id = function_id(gcx, contract_name, func_name);
-        gcx.hir.doc(gcx.hir.function(id).doc).comments()
+        gcx.natspec_doc_comments(gcx.hir.function(id).doc)
     }
 
     fn variable_comments<'gcx>(
@@ -432,7 +431,7 @@ contract LocalParent {
                         && v.name.is_some_and(|n| n.as_str() == var_name)
                 })
             })
-            .and_then(|var| var.doc.map(|doc| gcx.hir.doc(doc).comments()))
+            .and_then(|var| var.doc.map(|doc| gcx.natspec_doc_comments(doc)))
             .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
     }
 

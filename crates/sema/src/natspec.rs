@@ -1,12 +1,6 @@
-use crate::{
-    hir,
-    ty::{Gcx, GcxMut},
-};
+use crate::{hir, ty::Gcx};
 use solar_ast as ast;
-use solar_data_structures::{
-    map::{FxHashMap, FxHashSet},
-    smallvec::SmallVec,
-};
+use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
 
 bitflags::bitflags! {
@@ -51,54 +45,41 @@ impl TagPermissions {
     }
 }
 
-pub(crate) fn validate_and_resolve_docs<'gcx>(gcx: &mut GcxMut<'gcx>) {
-    let resolved = Resolver::new(gcx.get()).validate_and_resolve_docs();
-    let hir = &mut gcx.get_mut().hir;
-    for (doc_id, comments) in resolved {
-        hir.docs[doc_id].comments = comments;
+pub(crate) fn validate_docs(gcx: Gcx<'_>) {
+    for doc_id in gcx.hir.doc_ids() {
+        if !doc_id.is_empty() {
+            let _ = gcx.natspec_doc_comments(doc_id);
+        }
     }
+}
+
+pub(crate) fn resolve_doc_comments<'gcx>(
+    gcx: Gcx<'gcx>,
+    doc_id: hir::DocId,
+) -> &'gcx [hir::NatSpecItem] {
+    if doc_id.is_empty() {
+        return &[];
+    }
+    Resolver::new(gcx).resolve_doc(doc_id)
 }
 
 struct Resolver<'gcx> {
     gcx: Gcx<'gcx>,
-    processed: FxHashSet<hir::DocId>,
-    resolved: FxHashMap<hir::DocId, &'gcx [hir::NatSpecItem]>,
-    contract_cache: FxHashMap<(Symbol, hir::SourceId), Option<hir::ContractId>>,
 }
 
 impl<'gcx> Resolver<'gcx> {
     fn new(gcx: Gcx<'gcx>) -> Self {
-        Self {
-            gcx,
-            processed: FxHashSet::default(),
-            resolved: FxHashMap::default(),
-            contract_cache: FxHashMap::default(),
-        }
+        Self { gcx }
     }
 
-    /// Processes NatSpec tags, validating all of them, and resolving `@inheritdoc` references.
-    fn validate_and_resolve_docs(mut self) -> FxHashMap<hir::DocId, &'gcx [hir::NatSpecItem]> {
-        for doc_id in self.gcx.hir.doc_ids() {
-            if doc_id.is_empty() {
-                continue;
-            }
-            self.process_doc(doc_id);
-        }
-        self.resolved
-    }
-
-    /// Processes a NatSpec doc, validating all tags and resolving `@inheritdoc`.
-    fn process_doc(&mut self, doc_id: hir::DocId) {
-        if !self.processed.insert(doc_id) {
-            return;
-        }
-
+    /// Resolves a NatSpec doc, validating all tags and expanding `@inheritdoc`.
+    fn resolve_doc(&self, doc_id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
         let doc = self.gcx.hir.doc(doc_id);
         let (item_id, source_id) = (doc.item, doc.source);
         let (local_tags, inheritdoc) =
             self.validate_item_natspec(&doc.ast_comments, item_id, source_id);
 
-        let resolved_tags = if let Some((contract_id, item_id)) = inheritdoc {
+        if let Some((contract_id, item_id)) = inheritdoc {
             let inherit_doc_id = self.find_inherited_item(item_id, contract_id).and_then(
                 |inherited| match inherited {
                     hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).doc),
@@ -110,19 +91,13 @@ impl<'gcx> Resolver<'gcx> {
             if let Some(inherit_doc_id) = inherit_doc_id
                 && !inherit_doc_id.is_empty()
             {
-                self.process_doc(inherit_doc_id);
-                self.merge_natspec_tags(
-                    &local_tags,
-                    self.resolved.get(&inherit_doc_id).copied().unwrap_or(&[]),
-                )
+                self.merge_natspec_tags(&local_tags, self.gcx.natspec_doc_comments(inherit_doc_id))
             } else {
                 self.gcx.arena().alloc_slice_copy(&local_tags)
             }
         } else {
             self.gcx.arena().alloc_slice_copy(&local_tags)
-        };
-
-        self.resolved.insert(doc_id, resolved_tags);
+        }
     }
 
     /// Validates NatSpec tags for the given item.
@@ -132,7 +107,7 @@ impl<'gcx> Resolver<'gcx> {
     /// - Duplicate tags
     /// - Parameter references
     fn validate_item_natspec(
-        &mut self,
+        &self,
         docs: &[ast::DocComment<'gcx>],
         item_id: hir::ItemId,
         source_id: hir::SourceId,
@@ -197,9 +172,9 @@ impl<'gcx> Resolver<'gcx> {
                             continue;
                         }
 
-                        if let Some(contract_id) = self.validate_and_cache_inheritdoc_contract(
-                            contract, tag_span, item_id, source_id,
-                        ) {
+                        if let Some(contract_id) = self
+                            .validate_inheritdoc_contract(contract, tag_span, item_id, source_id)
+                        {
                             inheritdoc = Some((contract_id, item_id));
                         }
                     }
@@ -381,11 +356,11 @@ impl<'gcx> Resolver<'gcx> {
         true
     }
 
-    /// Validates and caches contract resolution for `@inheritdoc`.
+    /// Validates contract resolution for `@inheritdoc`.
     /// Returns the resolved contract ID if validation passed.
     #[inline]
-    fn validate_and_cache_inheritdoc_contract(
-        &mut self,
+    fn validate_inheritdoc_contract(
+        &self,
         contract_ident: &solar_interface::Ident,
         tag_span: Span,
         item_id: hir::ItemId,
@@ -394,13 +369,7 @@ impl<'gcx> Resolver<'gcx> {
         let dcx = self.gcx.dcx();
 
         let cache_key = (contract_ident.name, source_id);
-        let contract_id = if let Some(contract_id) = self.contract_cache.get(&cache_key) {
-            *contract_id
-        } else {
-            let contract_id = self.resolve_contract_in_source(contract_ident.name, source_id);
-            self.contract_cache.insert(cache_key, contract_id);
-            contract_id
-        };
+        let contract_id = self.gcx.natspec_contract_in_source(cache_key);
 
         let Some(contract_id) = contract_id else {
             dcx.err(format!(
@@ -442,22 +411,6 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         Some(contract_id)
-    }
-
-    /// Resolves a contract name within a source's scope.
-    fn resolve_contract_in_source(
-        &self,
-        name: Symbol,
-        source_id: hir::SourceId,
-    ) -> Option<hir::ContractId> {
-        self.gcx.symbol_resolver.source_scopes[source_id]
-            .resolve(solar_interface::Ident { name, span: Span::DUMMY })
-            .and_then(|decls| {
-                decls.iter().find_map(|decl| match decl.res {
-                    hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
-                    _ => None,
-                })
-            })
     }
 
     /// Merges local and inherited natspec tags.
