@@ -80,7 +80,7 @@ pub enum NatSpecKind {
     /// `@return <name>`
     ///
     /// Documents a return variable. The optional `name` field contains the return variable name.
-    Return { name: Option<Symbol> },
+    Return { name: Option<Ident> },
     /// `@inheritdoc <contract>`
     ///
     /// Copies all tags from the base function. The `contract` field contains the contract name.
