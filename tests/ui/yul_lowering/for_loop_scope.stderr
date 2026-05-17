@@ -17,3 +17,4 @@ LL │             for { let i := 0 } lt(i, 1) { pop(g()) } {
    ╰╴                                              ━
 
 error: aborting due to 3 previous errors
+
