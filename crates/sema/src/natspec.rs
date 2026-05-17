@@ -84,7 +84,7 @@ impl<'gcx> Resolver<'gcx> {
             let inherit_doc_id = self.find_inherited_item(item_id, contract_id).and_then(
                 |inherited| match inherited {
                     hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).doc),
-                    hir::ItemId::Variable(id) => self.gcx.hir.variable(id).doc,
+                    hir::ItemId::Variable(id) => Some(self.gcx.hir.variable(id).doc),
                     _ => None,
                 },
             );
@@ -853,7 +853,7 @@ contract ReturnDocs {
                         && v.name.is_some_and(|n| n.as_str() == var_name)
                 })
             })
-            .and_then(|var| var.doc.map(|doc| gcx.natspec_doc_comments(doc)))
+            .map(|var| gcx.natspec_doc_comments(var.doc))
             .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
     }
 

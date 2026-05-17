@@ -600,7 +600,7 @@ impl<'hir> Item<'_, 'hir> {
             Item::Udvt(u) => u.doc,
             Item::Error(e) => e.doc,
             Item::Event(e) => e.doc,
-            Item::Variable(v) => v.doc.unwrap_or(DocId::EMPTY),
+            Item::Variable(v) => v.doc,
         }
     }
 
@@ -1025,7 +1025,7 @@ pub struct Variable<'hir> {
     /// The source this variable is defined in.
     pub source: SourceId,
     /// The documentation of this variable.
-    pub doc: Option<DocId>,
+    pub doc: DocId,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
     /// The parent item containing this variable.
@@ -1059,7 +1059,7 @@ impl<'hir> Variable<'hir> {
     /// Creates a new variable.
     pub fn new(
         source: SourceId,
-        doc: Option<DocId>,
+        doc: DocId,
         ty: Type<'hir>,
         name: Option<Ident>,
         kind: VarKind,
@@ -1087,7 +1087,7 @@ impl<'hir> Variable<'hir> {
     /// Creates a new variable statement.
     pub fn new_stmt(
         source: SourceId,
-        docs: Option<DocId>,
+        docs: DocId,
         contract: ContractId,
         function: FunctionId,
         ty: Type<'hir>,

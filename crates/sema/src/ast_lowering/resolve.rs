@@ -773,7 +773,7 @@ impl<'gcx> ResolveContext<'gcx> {
             contract: self.current_contract_id,
             parent,
             span,
-            ..hir::Variable::new(self.current_source_id, None, ty, name, kind)
+            ..hir::Variable::new(self.current_source_id, hir::DocId::EMPTY, ty, name, kind)
         }
     }
 
@@ -1434,7 +1434,7 @@ impl<'gcx> ResolveContext<'gcx> {
             self.scopes.contract,
             parent,
             kind,
-            None,
+            hir::DocId::EMPTY,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());

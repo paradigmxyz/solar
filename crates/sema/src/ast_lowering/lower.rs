@@ -280,7 +280,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             self.current_contract_id,
             None,
             kind,
-            Some(doc),
+            doc,
         );
         debug_assert_eq!(id, pushed_id);
         id
@@ -418,7 +418,7 @@ pub(super) fn lower_variable_partial(
     contract: Option<ContractId>,
     parent: Option<hir::ItemId>,
     kind: hir::VarKind,
-    doc: Option<hir::DocId>,
+    doc: hir::DocId,
 ) -> hir::VariableId {
     // handled later: ty, override_, initializer
     let ast::VariableDefinition {
