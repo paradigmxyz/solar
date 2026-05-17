@@ -4,5 +4,11 @@ error: expected function, found variable
 LL │             dialect_helper(1)
    ╰╴            ━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: unresolved symbol `helper`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_call_non_function.sol:LL:CC
+   │
+LL │             helper(1)
+   ╰╴            ━━━━━━
+
+error: aborting due to 2 previous errors
 

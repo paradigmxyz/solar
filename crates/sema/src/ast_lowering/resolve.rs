@@ -901,6 +901,7 @@ impl<'gcx> ResolveContext<'gcx> {
             span,
             name: Some(function.name),
             kind: hir::FunctionKind::Function,
+            is_yul: true,
             visibility: hir::Visibility::Private,
             state_mutability: hir::StateMutability::NonPayable,
             modifiers: &[],
@@ -1238,13 +1239,20 @@ impl<'gcx> ResolveContext<'gcx> {
             let functions = decls
                 .iter()
                 .filter_map(|decl| match decl.res {
-                    Res::Item(hir::ItemId::Function(id)) => {
+                    Res::Item(hir::ItemId::Function(id)) if self.hir.function(id).is_yul => {
                         Some(Res::Item(hir::ItemId::Function(id)))
                     }
                     _ => None,
                 })
                 .collect::<SmallVec<[_; 4]>>();
             if functions.is_empty() {
+                if decls.iter().all(|decl| matches!(decl.res, Res::Item(hir::ItemId::Function(_))))
+                {
+                    return Err(self.resolver.emit_resolver_error()(ResolverError::new(
+                        name,
+                        ResolverErrorKind::Unresolved,
+                    )));
+                }
                 return Err(self.resolver.report_expected(
                     "function",
                     decls[0].res.description(),

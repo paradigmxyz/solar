@@ -791,6 +791,8 @@ pub struct Function<'hir> {
     pub name: Option<Ident>,
     /// The function kind.
     pub kind: FunctionKind,
+    /// Whether this function was lowered from a Yul function definition.
+    pub is_yul: bool,
     /// The visibility of the function.
     pub visibility: Visibility,
     /// The state mutability of the function.
