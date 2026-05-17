@@ -39,11 +39,19 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] User-defined operator implicit-conversion fallback coverage.
 - [x] Library self-call diagnostics for attached external/public library members.
 - [x] Mutability side-effect checks for operator bodies.
+- [x] Imported-source non-global operator diagnostics.
+- [x] Transitive imported non-global operator diagnostics.
+- [x] UI harness supports `.stderr`-only failures for diagnostics emitted from auxiliary inputs.
 
 ## In progress
 
 ## Remaining solc parity risks
 
-- [ ] Exact solc diagnostics for fallback from builtin to user-defined operators.
-- [ ] Exact solc parser diagnostic wording for malformed `using` directives.
-- [ ] Full imported non-global operator diagnostic matrix.
+None for coverage against the reviewed solc `using` and user-defined operator syntax tests.
+
+## Known diagnostic differences
+
+- Solar uses its generic expected-token parser diagnostics for malformed `using` directives rather
+  than solc's exact parser wording.
+- Solar reports user-defined operator fallback failures with its regular builtin operator and
+  mismatched type diagnostics rather than solc's specialized operand mismatch wording.
