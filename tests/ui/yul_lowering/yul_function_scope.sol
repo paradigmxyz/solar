@@ -67,7 +67,7 @@ contract C {
 
             {
                 function inner() -> r {
-                    // solc: Identifier "a" not found.
+                    // TODO: solc rejects this with `Identifier "a" not found`.
                     r := a
                 }
 
@@ -81,7 +81,7 @@ contract C {
             let a := 1
 
             {
-                // solc: Variable name a already taken in this scope.
+                // TODO: solc rejects this with `Variable name a already taken in this scope`.
                 let a := 2
                 x := a
             }
@@ -95,7 +95,7 @@ contract C {
             }
 
             {
-                // solc: Variable name y already taken in this scope.
+                // TODO: solc rejects this with `Variable name y already taken in this scope`.
                 let y := 2
                 x := y
             }
@@ -107,7 +107,7 @@ contract C {
             let y := 1
 
             {
-                // solc: Function name y already taken in this scope.
+                // TODO: solc rejects this with `Function name y already taken in this scope`.
                 function y() -> r {
                     r := 2
                 }
@@ -124,7 +124,7 @@ contract C {
             }
 
             {
-                // solc: Function name y already taken in this scope.
+                // TODO: solc rejects this with `Function name y already taken in this scope`.
                 function y() -> r {
                     r := 2
                 }
