@@ -559,12 +559,6 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::YulFnCall(call) => {
-                for arg in call.arguments {
-                    let _ = self.check_expr(arg);
-                }
-                self.gcx.types.uint(256)
-            }
             hir::ExprKind::YulMember(expr, member) => {
                 if is_yul_member(member) {
                     // TODO: Validate inline assembly suffixes like solc does:
@@ -1278,8 +1272,7 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Ternary(..)
         | hir::ExprKind::TypeCall(_)
         | hir::ExprKind::Type(_)
-        | hir::ExprKind::Unary(..)
-        | hir::ExprKind::YulFnCall(_) => false,
+        | hir::ExprKind::Unary(..) => false,
     }
 }
 

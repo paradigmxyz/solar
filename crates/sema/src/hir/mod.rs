@@ -1439,20 +1439,10 @@ pub enum ExprKind<'hir> {
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, &'hir Expr<'hir>),
 
-    /// A non-lowerable Yul function call.
-    YulFnCall(&'hir YulFnCall<'hir>),
-
     /// A dotted Yul identifier path.
     YulMember(&'hir Expr<'hir>, Ident),
 
     Err(ErrorGuaranteed),
-}
-
-/// A non-lowerable Yul function call.
-#[derive(Debug)]
-pub struct YulFnCall<'hir> {
-    pub name: Ident,
-    pub arguments: &'hir [Expr<'hir>],
 }
 
 /// A named argument: `name: value`.
