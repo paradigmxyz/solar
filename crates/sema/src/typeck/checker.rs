@@ -862,9 +862,15 @@ impl<'gcx> TypeChecker<'gcx> {
                     );
                     self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
                 }
-                [member] => member.ty,
+                [member] => {
+                    self.check_library_self_call(member, ident.span);
+                    member.ty
+                }
                 [..] => match self.select_member_call_overload(&possible_members, args) {
-                    Ok(member) => member.ty,
+                    Ok(member) => {
+                        self.check_library_self_call(member, ident.span);
+                        member.ty
+                    }
                     Err(e) => {
                         let msg = match e {
                             OverloadError::NotFound => format!(
@@ -883,6 +889,25 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         self.register_ty(callee, ty);
         ty
+    }
+
+    fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
+        let Some(contract_id) = self.contract else { return };
+        if !self.gcx.hir.contract(contract_id).kind.is_library() {
+            return;
+        }
+        let Some(hir::Res::Item(hir::ItemId::Function(function_id))) = member.res else {
+            return;
+        };
+        let function = self.gcx.hir.function(function_id);
+        if function.contract == Some(contract_id)
+            && function.visibility >= solar_ast::Visibility::Public
+        {
+            self.dcx()
+                .err("libraries cannot call their own functions externally")
+                .span(span)
+                .emit();
+        }
     }
 
     fn select_member_call_overload<'a>(

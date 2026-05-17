@@ -37,6 +37,7 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Contract-scope duplicate operator coverage.
 - [x] Non-inherited contract-scope operator coverage.
 - [x] User-defined operator implicit-conversion fallback coverage.
+- [x] Library self-call diagnostics for attached external/public library members.
 
 ## In progress
 
@@ -46,4 +47,3 @@ This tracks the local parity work against the solc syntax tests under:
 - [ ] Exact solc parser diagnostic wording for malformed `using` directives.
 - [ ] Mutability side-effect checks for operator bodies.
 - [ ] Full imported non-global operator diagnostic matrix.
-- [ ] Exact library self-call diagnostics for attached external/public library members.
