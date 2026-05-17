@@ -301,7 +301,7 @@ fn check_using_operator<'gcx>(
             using.contract,
             op,
             params.len() == 1,
-            |_| matches += 1,
+            &mut |_| matches += 1,
         );
         if matches >= 2 {
             gcx.dcx()

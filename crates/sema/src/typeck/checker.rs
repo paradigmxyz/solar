@@ -646,9 +646,16 @@ impl<'gcx> TypeChecker<'gcx> {
     fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
         let op = UserDefinableOperator::from_unop(op)?;
         let mut functions = WantOne::Zero;
-        self.gcx.for_each_user_operator(ty, self.source, self.contract, op, true, |function| {
-            functions.push(function);
-        });
+        self.gcx.for_each_user_operator(
+            ty,
+            self.source,
+            self.contract,
+            op,
+            true,
+            &mut |function| {
+                functions.push(function);
+            },
+        );
         self.check_user_operator(span, functions)
     }
 
@@ -661,14 +668,21 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Option<Ty<'gcx>> {
         let op = UserDefinableOperator::from_binop(op)?;
         let mut functions = WantOne::Zero;
-        self.gcx.for_each_user_operator(lhs, self.source, self.contract, op, false, |function| {
-            let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
-                return;
-            };
-            if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
-                functions.push(function);
-            }
-        });
+        self.gcx.for_each_user_operator(
+            lhs,
+            self.source,
+            self.contract,
+            op,
+            false,
+            &mut |function| {
+                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                    return;
+                };
+                if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
+                    functions.push(function);
+                }
+            },
+        );
         self.check_user_operator(span, functions)
     }
 

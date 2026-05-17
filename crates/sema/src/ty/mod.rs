@@ -686,13 +686,13 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
         op: UserDefinableOperator,
         unary: bool,
-        mut f: impl FnMut(hir::FunctionId),
+        f: &mut dyn FnMut(hir::FunctionId),
     ) {
         let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
             return;
         };
         let ty = self.type_of_item(user_ty.into());
-        self.for_each_using_directive_for_type(ty, source, contract, |using| {
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
             for entry in using.entries {
                 if entry.operator != Some(op) {
                     continue;
@@ -723,7 +723,7 @@ impl<'gcx> Gcx<'gcx> {
     ) -> Option<Vec<members::Member<'gcx>>> {
         let mut members = Vec::new();
         let mut seen = FxHashSet::default();
-        self.for_each_using_directive_for_type(ty, source, contract, |using| {
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
             for entry in using.entries {
                 if entry.operator.is_some() {
                     continue;
@@ -796,7 +796,7 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-        mut f: impl FnMut(&'gcx hir::UsingDirective<'gcx>),
+        f: &mut dyn FnMut(&'gcx hir::UsingDirective<'gcx>),
     ) {
         if let Some(contract) = contract {
             for using in self.hir.contract(contract).usings {
