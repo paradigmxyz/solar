@@ -1263,6 +1263,28 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         self.walk_contract(contract)
     }
 
+    fn visit_function(&mut self, func: &'gcx hir::Function<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let hir::Function { kind, modifiers, parameters, returns, body, .. } = func;
+        for &param in parameters.iter() {
+            self.visit_nested_var(param)?;
+        }
+        for modifier in modifiers.iter() {
+            if kind.is_constructor() && modifier.id.as_contract().is_some() {
+                continue;
+            }
+            self.visit_modifier(modifier)?;
+        }
+        for &ret in returns.iter() {
+            self.visit_nested_var(ret)?;
+        }
+        if let Some(body) = body {
+            for stmt in body.iter() {
+                self.visit_stmt(stmt)?;
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
         let _ = self.check_var(id);
         ControlFlow::Continue(())

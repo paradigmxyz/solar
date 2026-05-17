@@ -15,3 +15,9 @@ struct NestedTestStruct {
 interface TestContract {
     function nestedStructFunction() external pure returns (NestedTestStruct memory);
 }
+
+contract MemberAccessRegression {
+    function bytesLength() external pure returns (uint256) {
+        return bytes("abc").length;
+    }
+}

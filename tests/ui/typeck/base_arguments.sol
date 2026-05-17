@@ -7,6 +7,13 @@ contract Derived3 is Base() { } //~ ERROR: wrong number of arguments for base co
 contract Derived4 is Base(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived5 is Base { constructor() Base(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 
+contract AddressBase {
+    constructor(address) {}
+}
+contract AddressDerived is AddressBase {
+    constructor() AddressBase(msg.sender) {}
+}
+
 // TODO: uncomment this when we have implicit conversions for integer literals
 // contract Derived is Base(2, 3) { }
 // contract Derived1 is Base { 
