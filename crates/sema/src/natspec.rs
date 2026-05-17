@@ -10,6 +10,8 @@ bitflags::bitflags! {
         const DEV    = 1 << 1;
         const TITLE  = 1 << 2;
         const AUTHOR = 1 << 3;
+        const PARAM  = 1 << 4;
+        const RETURN = 1 << 5;
     }
 
     /// Tag permissions for different item types in natspec validation.
@@ -416,9 +418,9 @@ impl<'gcx> Resolver<'gcx> {
     /// Merges local and inherited natspec tags.
     ///
     /// Rules:
-    /// - `@notice`, `@dev`, `@title`, `@author`: local overrides inherited
-    /// - `@param`, `@return`: inherit missing ones, keep local ones
-    /// - `@custom`: merge both
+    /// - `@notice`, `@dev`, `@title`, `@author`: local overrides inherited.
+    /// - `@param`, `@return`: local section overrides inherited section.
+    /// - `@custom`: not inherited.
     fn merge_natspec_tags(
         &self,
         items: &[hir::NatSpecItem],
@@ -427,8 +429,6 @@ impl<'gcx> Resolver<'gcx> {
         use hir::NatSpecKind as HirKind;
 
         let mut local_tags = LocalTags::empty();
-        let mut local_params = FxHashSet::<Symbol>::default();
-        let mut local_returns = FxHashSet::<Option<Symbol>>::default();
         let mut merged = SmallVec::<[hir::NatSpecItem; 8]>::from_slice(items);
 
         for item in items.iter() {
@@ -437,12 +437,8 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Dev => local_tags.insert(LocalTags::DEV),
                 HirKind::Title => local_tags.insert(LocalTags::TITLE),
                 HirKind::Author => local_tags.insert(LocalTags::AUTHOR),
-                HirKind::Param { name } => {
-                    local_params.insert(name.name);
-                }
-                HirKind::Return { name } => {
-                    local_returns.insert(name.map(|i| i.name));
-                }
+                HirKind::Param { .. } => local_tags.insert(LocalTags::PARAM),
+                HirKind::Return { .. } => local_tags.insert(LocalTags::RETURN),
                 HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => {}
             }
         }
@@ -453,9 +449,9 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Dev => !local_tags.contains(LocalTags::DEV),
                 HirKind::Title => !local_tags.contains(LocalTags::TITLE),
                 HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
-                HirKind::Param { name } => !local_params.contains(&name.name),
-                HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
-                HirKind::Custom { .. } | HirKind::Internal { .. } => true,
+                HirKind::Param { .. } => !local_tags.contains(LocalTags::PARAM),
+                HirKind::Return { .. } => !local_tags.contains(LocalTags::RETURN),
+                HirKind::Custom { .. } | HirKind::Internal { .. } => false,
                 HirKind::Inheritdoc { .. } => false,
             };
 
@@ -654,7 +650,7 @@ contract GrandChild is Child1 {
             assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Dev)), 1);
             assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
             assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Return { .. })), 2);
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 0);
 
             let c = get_comments("Child2", "foo");
             assert_tag_contains(
@@ -672,40 +668,34 @@ contract GrandChild is Child1 {
             assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
 
             let c = get_comments("Child3", "foo");
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 1);
             assert_tag_contains(
                 c,
                 |k| matches!(k, NatSpecKind::Param { name } if name.name == sym::x),
                 "from child3",
                 "Child3 @param x",
             );
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "y"),
-                "from base",
-                "Child3 @param y",
-            );
+            assert!(!c.iter().any(
+                |i| matches!(i.kind, NatSpecKind::Param { name } if name.name.as_str() == "y")
+            ));
 
             let c = get_comments("Child4", "foo");
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Return { .. })), 1);
             assert_tag_contains(
                 c,
                 |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"),
                 "Child4 override",
                 "Child4 @return success",
             );
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"),
-                "result value",
-                "Child4 @return value",
-            );
+            assert!(!c.iter().any(
+                |i| matches!(i.kind, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value")
+            ));
 
             let c = get_comments("Child5", "foo");
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 2);
-            assert!(
-                c.iter().any(
-                    |i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "security")
-                )
-            );
+            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
+            assert!(!c.iter().any(
+                |i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "security")
+            ));
             assert!(
                 c.iter().any(
                     |i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "audit")
@@ -720,6 +710,7 @@ contract GrandChild is Child1 {
                 "GrandChild @notice",
             );
             assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+            assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Custom { .. })), 0);
         });
     }
 
