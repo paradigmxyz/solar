@@ -36,12 +36,13 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Contract-level wildcard rejection for specific attached functions.
 - [x] Contract-scope duplicate operator coverage.
 - [x] Non-inherited contract-scope operator coverage.
+- [x] User-defined operator implicit-conversion fallback coverage.
 
 ## In progress
 
 ## Remaining solc parity risks
 
-- [ ] Exact diagnostics for fallback from builtin to user-defined operators.
+- [ ] Exact solc diagnostics for fallback from builtin to user-defined operators.
 - [ ] Exact solc parser diagnostic wording for malformed `using` directives.
 - [ ] Mutability side-effect checks for operator bodies.
 - [ ] Full imported non-global operator diagnostic matrix.
