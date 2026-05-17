@@ -13,9 +13,10 @@ pub use members::{Member, MemberList};
 
 pub(crate) fn scopes() -> (Declarations, FxHashMap<Builtin, Declarations>) {
     let global = declarations(Builtin::global());
-    let members_map = Builtin::iter()
+    let mut members_map = Builtin::iter()
         .filter_map(|builtin| Some((builtin, declarations(builtin.members()?))))
-        .collect();
+        .collect::<FxHashMap<_, _>>();
+    members_map.shrink_to_fit();
     (global, members_map)
 }
 
