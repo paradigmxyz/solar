@@ -1726,3 +1726,80 @@ pub(super) fn report_conflict(
 
     err.emit()
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Compiler;
+    use solar_interface::{ColorChoice, Session};
+    use std::path::PathBuf;
+
+    #[test]
+    fn statement_variables_preserve_function_parent() {
+        let src = r#"
+contract LocalParent {
+    function locals() public pure {
+        uint a = 1;
+        (uint b, uint c) = (2, 3);
+    }
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let gcx = c.gcx();
+            let locals = function_id(gcx, "LocalParent", "locals");
+            let local_parent = Some(crate::hir::ItemId::Function(locals));
+            let local_names: Vec<_> = gcx
+                .hir
+                .variables()
+                .filter(|v| v.kind == crate::hir::VarKind::Statement)
+                .filter_map(|v| v.name.map(|name| (name.name, v.parent)))
+                .collect();
+            for name in ["a", "b", "c"] {
+                assert!(
+                    local_names.iter().any(|&(local, parent)| {
+                        local.as_str() == name && parent == local_parent
+                    }),
+                    "local variable {name} did not preserve its function parent"
+                );
+            }
+        });
+    }
+
+    fn function_id(
+        gcx: crate::ty::Gcx<'_>,
+        contract_name: &str,
+        func_name: &str,
+    ) -> crate::hir::FunctionId {
+        gcx.hir
+            .functions_enumerated()
+            .find(|(_, f)| {
+                f.contract.is_some_and(|cid| {
+                    gcx.hir.contract(cid).name.as_str() == contract_name
+                        && f.name.is_some_and(|n| n.as_str() == func_name)
+                })
+            })
+            .map(|(id, _)| id)
+            .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
+    }
+
+    fn lower_source(src: &str) -> Compiler {
+        let sess =
+            Session::builder().with_buffer_emitter(ColorChoice::Never).single_threaded().build();
+        let mut compiler = Compiler::new(sess);
+
+        let _ = compiler.enter_mut(|compiler| -> solar_interface::Result<_> {
+            let mut parsing_context = compiler.parse();
+            let file = compiler
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("test.sol"), src.to_string())
+                .unwrap();
+            parsing_context.add_file(file);
+            parsing_context.parse();
+            let _ = compiler.lower_asts()?;
+            Ok(())
+        });
+
+        compiler
+    }
+}
