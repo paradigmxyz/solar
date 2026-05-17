@@ -27,14 +27,19 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Imported duplicate operator coverage.
 - [x] Transitive imported global operator coverage.
 - [x] `this`/`super` path rejection coverage.
+- [x] Imported type `global` rejection coverage.
+- [x] Source-local file-level `using` coverage across imports.
+- [x] Imported functions in non-global operator directives.
+- [x] Library member visibility attachment coverage.
+- [x] Malformed `using` directive parser smoke coverage.
 
 ## In progress
 
 ## Remaining solc parity risks
 
-- [ ] Exact solc library-member visibility semantics.
 - [ ] Exact diagnostics for fallback from builtin to user-defined operators.
-- [ ] Full syntax-only matrix for malformed `using` directives.
+- [ ] Full syntax-only matrix for malformed `using` directives and parser recovery.
 - [ ] Mutability side-effect checks for operator bodies.
 - [ ] Remaining duplicate operator matrix across inherited contract scopes.
 - [ ] Full imported non-global operator diagnostic matrix.
+- [ ] Exact library self-call diagnostics for attached external/public library members.

@@ -1,0 +1,14 @@
+error: expected identifier, found keyword `as`
+   ╭▸ ROOT/tests/ui/parser/using_operator_function_missing.sol:LL:CC
+   │
+LL │ using {as -} for uint;
+   ╰╴       ━━
+
+error: expected one of `,`, `as`, or `}`, found `-`
+   ╭▸ ROOT/tests/ui/parser/using_operator_function_missing.sol:LL:CC
+   │
+LL │ using {as -} for uint;
+   ╰╴          ━ expected one of `,`, `as`, or `}`
+
+error: aborting due to 2 previous errors
+
