@@ -5,7 +5,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
-use solar_interface::{Span, Symbol};
+use solar_interface::{Ident, Span, Symbol};
 
 bitflags::bitflags! {
     /// Tracks which documentation tags are locally defined in `merge_natspec_tags`.
@@ -41,7 +41,7 @@ impl TagPermissions {
                 Self::TITLE_AUTHOR | Self::RETURN
             }
             hir::ItemId::Function(_) => Self::PARAM | Self::INHERITDOC | Self::RETURN,
-            hir::ItemId::Variable(_) => Self::PARAM | Self::INHERITDOC,
+            hir::ItemId::Variable(_) => Self::INHERITDOC | Self::RETURN,
             hir::ItemId::Event(_) => Self::PARAM,
             hir::ItemId::Error(_) => Self::PARAM,
             hir::ItemId::Udvt(_) => Self::PARAM,
@@ -265,7 +265,11 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
                         };
                     }
                     NatSpecKind::Return { .. } => {
-                        if !permissions.contains(TagPermissions::RETURN) {
+                        if !permissions.contains(TagPermissions::RETURN)
+                            || item_id
+                                .as_variable()
+                                .is_some_and(|id| !self.hir.variable(id).is_public())
+                        {
                             self.emit_forbidden_tag_error("@return", tag_span, item_id);
                             continue;
                         }
@@ -279,12 +283,16 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
                                 &[]
                             }
                         });
+                        let return_count = match item_id {
+                            hir::ItemId::Variable(_) => 1,
+                            _ => rets.len(),
+                        };
 
-                        let return_valid = if state.return_count > rets.len() {
+                        let return_valid = if state.return_count > return_count {
                             self.dcx().err(format!(
                                 "too many `@return` tags: function has {} return value{}, found {}",
-                                rets.len(),
-                                if rets.len() == 1 { "" } else { "s" },
+                                return_count,
+                                if return_count == 1 { "" } else { "s" },
                                 state.return_count
                             ))
                             .span(tag_span)
@@ -294,8 +302,11 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
                             true
                         };
 
-                        if return_valid {
-                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
+                        if return_valid
+                            && let Some(item) =
+                                self.lower_return_natspec(*natspec, doc_comment.symbol, rets)
+                        {
+                            local_tags.push(item);
                         }
                     }
                 }
@@ -303,6 +314,38 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
         }
 
         (local_tags, inheritdoc)
+    }
+
+    fn lower_return_natspec(
+        &self,
+        natspec: ast::NatSpecItem,
+        symbol: Symbol,
+        rets: &[hir::VariableId],
+    ) -> Option<hir::NatSpecItem> {
+        if !rets.iter().any(|&id| self.hir.variable(id).name.is_some()) {
+            return Some(hir::NatSpecItem::from_ast(natspec, symbol));
+        }
+
+        let Some((name, content_start)) = first_word(symbol, natspec) else {
+            self.dcx()
+                .err("tag `@return` does not contain the name of its return parameter")
+                .span(natspec.span)
+                .emit();
+            return None;
+        };
+
+        if !rets.iter().any(|&id| self.hir.variable(id).name.is_some_and(|n| n.name == name)) {
+            self.dcx()
+                .err(format!("tag `@return` references non-existent return parameter '{name}'"))
+                .span(natspec.span)
+                .emit();
+            return None;
+        }
+
+        let mut item = hir::NatSpecItem::from_ast(natspec, symbol);
+        item.kind = hir::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
+        item.content_start = content_start;
+        Some(item)
     }
 
     #[cold]
@@ -492,6 +535,7 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
         for base_item_id in self.hir.contract_item_ids(contract_id) {
             if let Some(base_name) = self.hir.item(base_item_id).name()
                 && base_name.name == item_name.name
+                && self.inherited_item_matches(item_id, base_item_id)
             {
                 return Some(base_item_id);
             }
@@ -499,6 +543,75 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
 
         None
     }
+
+    fn inherited_item_matches(&self, item_id: hir::ItemId, base_item_id: hir::ItemId) -> bool {
+        match (item_id, base_item_id) {
+            (hir::ItemId::Function(id), hir::ItemId::Function(base_id)) => {
+                let item = self.hir.function(id);
+                let base = self.hir.function(base_id);
+                item.kind == base.kind
+                    && self.variable_types_match(item.parameters, base.parameters)
+            }
+            (hir::ItemId::Variable(_), hir::ItemId::Variable(_)) => true,
+            _ => false,
+        }
+    }
+
+    fn variable_types_match(&self, a: &[hir::VariableId], b: &[hir::VariableId]) -> bool {
+        a.len() == b.len()
+            && a.iter().zip(b).all(|(&a, &b)| {
+                self.types_match(&self.hir.variable(a).ty, &self.hir.variable(b).ty)
+            })
+    }
+
+    fn types_match(&self, a: &hir::Type<'_>, b: &hir::Type<'_>) -> bool {
+        match (&a.kind, &b.kind) {
+            (hir::TypeKind::Elementary(a), hir::TypeKind::Elementary(b)) => a == b,
+            (hir::TypeKind::Custom(a), hir::TypeKind::Custom(b)) => a == b,
+            (hir::TypeKind::Array(a), hir::TypeKind::Array(b)) => {
+                self.types_match(&a.element, &b.element) && self.array_sizes_match(a.size, b.size)
+            }
+            (hir::TypeKind::Function(a), hir::TypeKind::Function(b)) => {
+                a.visibility == b.visibility
+                    && a.state_mutability == b.state_mutability
+                    && self.variable_types_match(a.parameters, b.parameters)
+                    && self.variable_types_match(a.returns, b.returns)
+            }
+            (hir::TypeKind::Mapping(a), hir::TypeKind::Mapping(b)) => {
+                self.types_match(&a.key, &b.key) && self.types_match(&a.value, &b.value)
+            }
+            _ => false,
+        }
+    }
+
+    fn array_sizes_match(&self, a: Option<&hir::Expr<'_>>, b: Option<&hir::Expr<'_>>) -> bool {
+        match (a, b) {
+            (None, None) => true,
+            (Some(a), Some(b)) => self
+                .sess
+                .source_map()
+                .span_to_snippet(a.span)
+                .is_ok_and(|a| self.sess.source_map().span_to_snippet(b.span) == Ok(a)),
+            _ => false,
+        }
+    }
+}
+
+fn first_word(symbol: Symbol, natspec: ast::NatSpecItem) -> Option<(Symbol, u32)> {
+    let content = symbol.as_str();
+    let range = natspec.content_range();
+    let bytes = &content.as_bytes()[range.clone()];
+    let start = range.start + (bytes.len() - bytes.trim_ascii_start().len());
+    let bytes = &content.as_bytes()[start..range.end];
+    let len = bytes.iter().position(u8::is_ascii_whitespace).unwrap_or(bytes.len());
+    if len == 0 {
+        return None;
+    }
+
+    let end = start + len;
+    let rest = &content.as_bytes()[end..range.end];
+    let content_start = end + (rest.len() - rest.trim_ascii_start().len());
+    Some((Symbol::intern(&content[start..end]), content_start as u32))
 }
 
 #[cfg(test)]
@@ -577,6 +690,45 @@ contract GrandChild is Child1 {
         return (true, x - y);
     }
 }
+
+contract OverloadBase {
+    /// @notice address overload
+    /// @param a address parameter
+    function overloaded(address a) public virtual {}
+
+    /// @notice uint overload
+    /// @param a uint parameter
+    function overloaded(uint a) public virtual {}
+}
+
+contract OverloadChild is OverloadBase {
+    /// @inheritdoc OverloadBase
+    function overloaded(uint a) public override {}
+}
+
+contract VariableDocs {
+    /// @return The number of decimals
+    uint8 public decimals;
+}
+
+contract ReturnDocs {
+    /// @return the value
+    function unnamedReturn() public pure returns (uint) {
+        return 1;
+    }
+
+    /// @return result The value
+    function namedReturn() public pure returns (uint result) {
+        return 1;
+    }
+}
+
+contract LocalParent {
+    function locals() public pure {
+        uint a = 1;
+        (uint b, uint c) = (2, 3);
+    }
+}
 "#;
         let compiler = lower_source(src);
         compiler.enter_sequential(|c| {
@@ -593,6 +745,18 @@ contract GrandChild is Child1 {
                     })
                     .map(|func| gcx.hir.doc(func.doc).comments())
                     .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
+            };
+            let get_var_comments = |contract_name: &str, var_name: &str| {
+                gcx.hir
+                    .variables()
+                    .find(|v| {
+                        v.contract.is_some_and(|cid| {
+                            gcx.hir.contract(cid).name.as_str() == contract_name
+                                && v.name.is_some_and(|n| n.as_str() == var_name)
+                        })
+                    })
+                    .and_then(|var| var.doc.map(|doc| gcx.hir.doc(doc).comments()))
+                    .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
             };
 
             let base = get_comments("Base", "foo");
@@ -715,6 +879,75 @@ contract GrandChild is Child1 {
                 "GrandChild @notice",
             );
             assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Param { .. })), 2);
+
+            let overloaded = get_comments("OverloadChild", "overloaded");
+            assert_tag_contains(
+                overloaded,
+                |k| matches!(k, NatSpecKind::Notice),
+                "uint overload",
+                "OverloadChild @notice",
+            );
+            assert_tag_contains(
+                overloaded,
+                |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "a"),
+                "uint parameter",
+                "OverloadChild @param a",
+            );
+            assert!(
+                !overloaded.iter().any(|item| item.content().contains("address")),
+                "OverloadChild inherited docs from the wrong overload"
+            );
+
+            let decimals = get_var_comments("VariableDocs", "decimals");
+            assert_tag_contains(
+                decimals,
+                |k| matches!(k, NatSpecKind::Return { name: None }),
+                "The number of decimals",
+                "VariableDocs.decimals @return",
+            );
+
+            let unnamed = get_comments("ReturnDocs", "unnamedReturn");
+            assert_tag_contains(
+                unnamed,
+                |k| matches!(k, NatSpecKind::Return { name: None }),
+                "the value",
+                "ReturnDocs.unnamedReturn @return",
+            );
+
+            let named = get_comments("ReturnDocs", "namedReturn");
+            assert_tag_contains(
+                named,
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "result"),
+                "The value",
+                "ReturnDocs.namedReturn @return result",
+            );
+
+            let locals = gcx
+                .hir
+                .functions_enumerated()
+                .find(|(_, f)| {
+                    f.contract.is_some_and(|cid| {
+                        gcx.hir.contract(cid).name.as_str() == "LocalParent"
+                            && f.name.is_some_and(|n| n.as_str() == "locals")
+                    })
+                })
+                .map(|(id, _)| id)
+                .expect("LocalParent.locals not found");
+            let local_parent = Some(crate::hir::ItemId::Function(locals));
+            let local_names: Vec<_> = gcx
+                .hir
+                .variables()
+                .filter(|v| v.kind == crate::hir::VarKind::Statement)
+                .filter_map(|v| v.name.map(|name| (name.name, v.parent)))
+                .collect();
+            for name in ["a", "b", "c"] {
+                assert!(
+                    local_names.iter().any(|&(local, parent)| {
+                        local.as_str() == name && parent == local_parent
+                    }),
+                    "local variable {name} did not preserve its function parent"
+                );
+            }
         });
     }
 

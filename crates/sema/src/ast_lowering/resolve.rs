@@ -822,16 +822,25 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_stmt_full(&mut self, stmt: &ast::Stmt<'_>) -> hir::Stmt<'gcx> {
         let kind = match &stmt.kind {
             ast::StmtKind::DeclSingle(var) => {
-                match self.lower_variable(var, None, hir::VarKind::Statement) {
+                match self.lower_variable(
+                    var,
+                    self.function_id.map(hir::ItemId::Function),
+                    hir::VarKind::Statement,
+                ) {
                     (id, Ok(())) => hir::StmtKind::DeclSingle(id),
                     (_, Err(guar)) => hir::StmtKind::Err(guar),
                 }
             }
             ast::StmtKind::DeclMulti(vars, expr) => hir::StmtKind::DeclMulti(
                 self.arena.alloc_slice_fill_iter(vars.iter().map(|var| {
-                    var.as_ref()
-                        .unspan()
-                        .map(|var| self.lower_variable(var, None, hir::VarKind::Statement).0)
+                    var.as_ref().unspan().map(|var| {
+                        self.lower_variable(
+                            var,
+                            self.function_id.map(hir::ItemId::Function),
+                            hir::VarKind::Statement,
+                        )
+                        .0
+                    })
                 })),
                 self.lower_expr(expr),
             ),

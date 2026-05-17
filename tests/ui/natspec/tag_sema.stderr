@@ -40,6 +40,18 @@ error: tag `@return` not valid for events
 LL │     /// @return Invalid return on event
    ╰╴         ━━━━━━
 
+error: tag `@return` not valid for variables
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @return Invalid return on private variable
+   ╰╴         ━━━━━━
+
+error: tag `@param` not valid for variables
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @param owner Invalid parameter on variable
+   ╰╴         ━━━━━
+
 error: tag `@inheritdoc` not valid for events
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
@@ -58,5 +70,17 @@ error: too many `@return` tags: function has 2 return values, found 3
 LL │     /// @return Third return value
    ╰╴         ━━━━━━
 
-error: aborting due to 9 previous errors
+error: tag `@return` references non-existent return parameter 'other'
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @return other Invalid return name
+   ╰╴         ━━━━━━
+
+error: tag `@return` does not contain the name of its return parameter
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @return
+   ╰╴         ━━━━━━
+
+error: aborting due to 13 previous errors
 

@@ -1122,20 +1122,18 @@ fn parse_natspec(
                 "author" => ast::NatSpecKind::Author,
                 "notice" => ast::NatSpecKind::Notice,
                 "dev" => ast::NatSpecKind::Dev,
-                "param" | "return" | "inheritdoc" => {
+                "param" | "inheritdoc" => {
                     let (name, content_start_pos) =
                         split_once_ws(content, bytes, rest_start, line_end);
                     content_start = content_start_pos;
                     let ident = Ident::new(Symbol::intern(name), comment_span);
                     match tag {
                         "param" => ast::NatSpecKind::Param { name: ident },
-                        "return" => ast::NatSpecKind::Return {
-                            name: if content_start_pos == line_end { None } else { Some(ident) },
-                        },
                         "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
                         _ => unreachable!(),
                     }
                 }
+                "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
                     if let Some(custom_tag) = tag.strip_prefix("custom:") {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
@@ -1268,7 +1266,7 @@ mod tests {
             check(4, &span4, "notice", None, Some("and continues here"));
             check(5, "dev", "dev", None, Some("This is dev documentation"));
             check(6, "param", "param", Some("x"), Some("The input parameter"));
-            check(7, "return", "return", Some("result"), Some("The return value"));
+            check(7, "return", "return", None, Some("result The return value"));
             check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(9, "custom:security", "custom", Some("security"), Some("High priority"));
             check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
@@ -1320,7 +1318,7 @@ mod tests {
             check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
-            check(5, "return", "return", Some("result"), Some("The return value"));
+            check(5, "return", "return", None, Some("result The return value"));
             check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(7, "custom:security", "custom", Some("security"), Some("High priority"));
             check(8, "src", "internal", Some("src"), Some("0:123:456"));

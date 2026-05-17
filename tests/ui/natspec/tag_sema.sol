@@ -37,6 +37,19 @@ contract ValidItems {
     function transfer(address to, uint amount) public returns (bool success) {
         return true;
     }
+
+    /// @return The number of decimals
+    uint8 public decimals;
+
+    /// @return The unnamed return description
+    function unnamedReturn() public returns (uint) {
+        return 1;
+    }
+
+    /// @return result The named return description
+    function namedReturn() public returns (uint result) {
+        return 1;
+    }
 }
 
 // -- ERROR TESTS - DUPLICATE TAGS ---------------------------------------------
@@ -83,6 +96,14 @@ contract InvalidTagContext {
     /// @return Invalid return on event
     //~^ ERROR: tag `@return` not valid for events
     event InvalidReturn(address from, address to);
+
+    /// @return Invalid return on private variable
+    //~^ ERROR: tag `@return` not valid for variables
+    uint private privateVariable;
+
+    /// @param owner Invalid parameter on variable
+    //~^ ERROR: tag `@param` not valid for variables
+    mapping(address owner => uint) public balanceOf;
 }
 
 contract InvalidInheritdocBase {
@@ -108,4 +129,14 @@ contract TooManyReturns {
     /// @return Third return value
     //~^ ERROR: too many `@return` tags: function has 2 return values, found 3
     function foo() public returns (uint, uint) {}
+}
+
+contract InvalidReturnNames {
+    /// @return other Invalid return name
+    //~^ ERROR: tag `@return` references non-existent return parameter 'other'
+    function invalidName() public returns (uint result) {}
+
+    /// @return
+    //~^ ERROR: tag `@return` does not contain the name of its return parameter
+    function missingName() public returns (uint result) {}
 }
