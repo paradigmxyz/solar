@@ -945,6 +945,7 @@ impl<'gcx> ResolveContext<'gcx> {
             self.scopes.contract,
             parent,
             kind,
+            None,
         );
         self.hir.variables[id].ty = self.lower_type(&var.ty);
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
