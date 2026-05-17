@@ -326,7 +326,11 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
             return Some(hir::NatSpecItem::from_ast(natspec, symbol));
         }
 
-        let Some((name, content_start)) = first_word(symbol, natspec) else {
+        let Some((name, content_start)) = solar_parse::natspec::first_word(
+            symbol.as_str(),
+            natspec.content_start as usize,
+            natspec.content_end as usize,
+        ) else {
             self.dcx()
                 .err("tag `@return` does not contain the name of its return parameter")
                 .span(natspec.span)
@@ -334,6 +338,7 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
             return None;
         };
 
+        let name = Symbol::intern(name);
         if !rets.iter().any(|&id| self.hir.variable(id).name.is_some_and(|n| n.name == name)) {
             self.dcx()
                 .err(format!("tag `@return` references non-existent return parameter '{name}'"))
@@ -344,7 +349,7 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
 
         let mut item = hir::NatSpecItem::from_ast(natspec, symbol);
         item.kind = hir::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
-        item.content_start = content_start;
+        item.content_start = content_start as u32;
         Some(item)
     }
 
@@ -535,7 +540,7 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
         for base_item_id in self.hir.contract_item_ids(contract_id) {
             if let Some(base_name) = self.hir.item(base_item_id).name()
                 && base_name.name == item_name.name
-                && self.inherited_item_matches(item_id, base_item_id)
+                && self.items_have_matching_signature(item_id, base_item_id)
             {
                 return Some(base_item_id);
             }
@@ -543,75 +548,6 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
 
         None
     }
-
-    fn inherited_item_matches(&self, item_id: hir::ItemId, base_item_id: hir::ItemId) -> bool {
-        match (item_id, base_item_id) {
-            (hir::ItemId::Function(id), hir::ItemId::Function(base_id)) => {
-                let item = self.hir.function(id);
-                let base = self.hir.function(base_id);
-                item.kind == base.kind
-                    && self.variable_types_match(item.parameters, base.parameters)
-            }
-            (hir::ItemId::Variable(_), hir::ItemId::Variable(_)) => true,
-            _ => false,
-        }
-    }
-
-    fn variable_types_match(&self, a: &[hir::VariableId], b: &[hir::VariableId]) -> bool {
-        a.len() == b.len()
-            && a.iter().zip(b).all(|(&a, &b)| {
-                self.types_match(&self.hir.variable(a).ty, &self.hir.variable(b).ty)
-            })
-    }
-
-    fn types_match(&self, a: &hir::Type<'_>, b: &hir::Type<'_>) -> bool {
-        match (&a.kind, &b.kind) {
-            (hir::TypeKind::Elementary(a), hir::TypeKind::Elementary(b)) => a == b,
-            (hir::TypeKind::Custom(a), hir::TypeKind::Custom(b)) => a == b,
-            (hir::TypeKind::Array(a), hir::TypeKind::Array(b)) => {
-                self.types_match(&a.element, &b.element) && self.array_sizes_match(a.size, b.size)
-            }
-            (hir::TypeKind::Function(a), hir::TypeKind::Function(b)) => {
-                a.visibility == b.visibility
-                    && a.state_mutability == b.state_mutability
-                    && self.variable_types_match(a.parameters, b.parameters)
-                    && self.variable_types_match(a.returns, b.returns)
-            }
-            (hir::TypeKind::Mapping(a), hir::TypeKind::Mapping(b)) => {
-                self.types_match(&a.key, &b.key) && self.types_match(&a.value, &b.value)
-            }
-            _ => false,
-        }
-    }
-
-    fn array_sizes_match(&self, a: Option<&hir::Expr<'_>>, b: Option<&hir::Expr<'_>>) -> bool {
-        match (a, b) {
-            (None, None) => true,
-            (Some(a), Some(b)) => self
-                .sess
-                .source_map()
-                .span_to_snippet(a.span)
-                .is_ok_and(|a| self.sess.source_map().span_to_snippet(b.span) == Ok(a)),
-            _ => false,
-        }
-    }
-}
-
-fn first_word(symbol: Symbol, natspec: ast::NatSpecItem) -> Option<(Symbol, u32)> {
-    let content = symbol.as_str();
-    let range = natspec.content_range();
-    let bytes = &content.as_bytes()[range.clone()];
-    let start = range.start + (bytes.len() - bytes.trim_ascii_start().len());
-    let bytes = &content.as_bytes()[start..range.end];
-    let len = bytes.iter().position(u8::is_ascii_whitespace).unwrap_or(bytes.len());
-    if len == 0 {
-        return None;
-    }
-
-    let end = start + len;
-    let rest = &content.as_bytes()[end..range.end];
-    let content_start = end + (rest.len() - rest.trim_ascii_start().len());
-    Some((Symbol::intern(&content[start..end]), content_start as u32))
 }
 
 #[cfg(test)]

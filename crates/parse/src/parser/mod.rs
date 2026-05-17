@@ -1108,7 +1108,8 @@ fn parse_natspec(
             // Skip leading whitespace after '@'
             let tag_slice = &bytes[tag_start..line_end];
             let trimmed = tag_slice.len() - tag_slice.trim_ascii_start().len();
-            let (tag, rest_start) = split_once_ws(content, bytes, tag_start + trimmed, line_end);
+            let (tag, rest_start) =
+                crate::natspec::split_once_ws(content, tag_start + trimmed, line_end);
 
             // Calculate span: from first non-whitespace char after '@' to end of tag name.
             let tag_lo =
@@ -1124,7 +1125,7 @@ fn parse_natspec(
                 "dev" => ast::NatSpecKind::Dev,
                 "param" | "inheritdoc" => {
                     let (name, content_start_pos) =
-                        split_once_ws(content, bytes, rest_start, line_end);
+                        crate::natspec::split_once_ws(content, rest_start, line_end);
                     content_start = content_start_pos;
                     let ident = Ident::new(Symbol::intern(name), comment_span);
                     match tag {
@@ -1162,25 +1163,6 @@ fn parse_natspec(
     }
     flush_item(&mut items, &mut kind, &mut span, content_start, bytes.len());
     Some(items)
-}
-
-/// Splits a string slice at the first whitespace character using the `memchr` crate.
-/// Returns the content up to the whitespace and the position of the first following non-blank char.
-#[inline]
-fn split_once_ws<'a>(
-    content: &'a str,
-    bytes: &'a [u8],
-    start: usize,
-    end: usize,
-) -> (&'a str, usize) {
-    if let Some(ws_pos) =
-        memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end]).map(|offset| start + offset)
-    {
-        let rest = &bytes[ws_pos..end];
-        (&content[start..ws_pos], ws_pos + (rest.len() - rest.trim_ascii_start().len()))
-    } else {
-        (&content[start..end], end)
-    }
 }
 
 #[cfg(test)]
