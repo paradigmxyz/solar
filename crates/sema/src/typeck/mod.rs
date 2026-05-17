@@ -383,4 +383,10 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
 
         self.walk_stmt(stmt)
     }
+
+    // Statements don't appear in expressions. Short-circuit to avoid walking the full tree.
+    #[inline]
+    fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
 }

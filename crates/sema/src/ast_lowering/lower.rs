@@ -384,6 +384,12 @@ struct YulFunctionCollector<'a, 'gcx> {
 impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
     type BreakValue = Never;
 
+    // Yul function definitions only appear in statements. Short-circuit expressions.
+    #[inline]
+    fn visit_expr(&mut self, _expr: &'gcx ast::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
+
     fn visit_yul_function(
         &mut self,
         function: &'gcx ast::yul::Function<'gcx>,
@@ -392,6 +398,15 @@ impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
         self.lcx.yul_functions.insert(super::yul_function_key(function), id);
         self.items.push(hir::ItemId::Function(id));
         self.visit_yul_block(&function.body)
+    }
+
+    // Yul function definitions only appear in statements. Short-circuit expressions.
+    #[inline]
+    fn visit_yul_expr(
+        &mut self,
+        _expr: &'gcx ast::yul::Expr<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
     }
 }
 
