@@ -417,6 +417,8 @@ newtype_index! {
     pub struct SourceId;
 
     /// A [`Doc`] ID.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] to access validated and resolved NatSpec items.
     pub struct DocId;
 
     /// A [`Contract`] ID.
@@ -484,13 +486,18 @@ impl fmt::Debug for Source<'_> {
 }
 
 /// The documentation of an item.
+///
+/// Use [`Gcx::natspec_doc_comments`] with the corresponding [`DocId`] to access validated and
+/// resolved NatSpec items.
 #[derive(Debug)]
 pub struct Doc<'hir> {
     /// The source this documentation is defined in.
     pub source: SourceId,
     /// The item this documentation is defined in.
     pub item: ItemId,
-    /// Reference to the AST documentation comments.
+    /// Reference to the raw AST documentation comments.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] for the validated and resolved NatSpec view.
     pub(crate) ast_comments: ast::DocComments<'hir>,
 }
 
