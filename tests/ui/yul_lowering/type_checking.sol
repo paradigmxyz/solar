@@ -10,10 +10,15 @@ contract C {
         function() external returns (uint256) extFn
     ) external {
         uint256[] storage storageRef = stateArray;
+        bytes memory memoryBytes = hex"1234";
+        bool ok;
         assembly {
             let scratch := 0
             scratch := add(local, 1)
             pop(scratch)
+            ok := iszero(0)
+            pop(ok)
+            pop(memoryBytes)
 
             pop(state.slot)
             pop(state.offset)

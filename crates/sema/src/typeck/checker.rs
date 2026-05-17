@@ -252,8 +252,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.try_set_not_lvalue(reason);
                 }
                 let ty = self.type_of_res(res);
-                if self.in_yul && !self.in_yul_member_base {
-                    self.check_yul_external_ident(res, ty, expr.span);
+                if self.in_yul
+                    && !self.in_yul_member_base
+                    && self.check_yul_external_ident(res, ty, expr.span)
+                {
+                    return self.gcx.types.uint(256);
                 }
                 ty
             }
@@ -604,8 +607,8 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn check_yul_external_ident(&mut self, res: hir::Res, ty: Ty<'gcx>, span: Span) {
-        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return };
+    fn check_yul_external_ident(&mut self, res: hir::Res, ty: Ty<'gcx>, span: Span) -> bool {
+        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return false };
         let var = self.gcx.hir.variable(var_id);
 
         if self.in_lvalue() && !var.is_local_variable() {
@@ -613,7 +616,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .err("only local variables can be assigned to in inline assembly")
                 .span(span)
                 .emit();
-            return;
+            return false;
         }
 
         if var.is_state_variable() && !var.is_constant() {
@@ -622,6 +625,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(span)
                 .help("use `.slot` and `.offset` to access storage or transient storage variables")
                 .emit();
+            return false;
         } else if ty.data_stored_in(DataLocation::Storage)
             || ty.data_stored_in(DataLocation::Transient)
         {
@@ -630,13 +634,17 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(span)
                 .help("use `.slot` or `.offset`")
                 .emit();
+            return false;
         } else if is_dynamic_calldata_array(ty) {
             self.dcx()
                 .err("calldata variables need a suffix in inline assembly")
                 .span(span)
                 .help("use `.offset` or `.length`")
                 .emit();
+            return false;
         }
+
+        true
     }
 
     fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) {
