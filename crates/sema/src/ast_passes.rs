@@ -407,6 +407,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         if *global && self.contract.is_some() {
             self.dcx().err("`global` can only be used at file level").span(self.item_span).emit();
         }
+        if !*global && let ast::UsingList::Multiple(paths) = list {
+            for (path, operator) in paths.iter() {
+                if operator.is_some() {
+                    self.dcx()
+                        .err("operators can only be defined in a global `using for` directive")
+                        .span(path.span())
+                        .emit();
+                }
+            }
+        }
         if let Some(contract) = self.contract
             && contract.kind.is_interface()
         {

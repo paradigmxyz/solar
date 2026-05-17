@@ -3,10 +3,10 @@
 type Int is int256;
 
 using {add as +} for Int global; //~ ERROR: has more than one definition
-using {add2 as +} for Int; //~ ERROR: operators can only be defined in a global
+using {add2 as +} for Int global;
 //~^ ERROR: has more than one definition
 using {neg as -} for Int global; //~ ERROR: has more than one definition
-using {neg2 as -} for Int; //~ ERROR: operators can only be defined in a global
+using {neg2 as -} for Int global;
 //~^ ERROR: has more than one definition
 
 function add(Int a, Int b) pure returns (Int) {

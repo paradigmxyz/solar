@@ -74,11 +74,5 @@ LL │ ┃     return a;
 LL │ ┃ }
    ╰╴┗━┛
 
-error: operators can only be defined in a global `using for` directive
-   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
-   │
-LL │     using {vadd as +} for V;
-   ╰╴           ━━━━
-
-error: aborting due to 7 previous errors
+error: aborting due to 6 previous errors
 

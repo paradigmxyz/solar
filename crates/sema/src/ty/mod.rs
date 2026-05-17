@@ -667,17 +667,10 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> members::MemberList<'gcx> {
+    ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
         let native = self.native_members(ty);
         let attached = self.attached_functions(ty, source, contract);
-        if attached.is_empty() {
-            return native;
-        }
-
-        let mut members = Vec::with_capacity(native.len() + attached.len());
-        members.extend_from_slice(native);
-        members.extend(attached);
-        self.bump().alloc_vec(members)
+        native.iter().copied().chain(attached)
     }
 
     pub(crate) fn for_each_user_operator(
@@ -758,7 +751,7 @@ impl<'gcx> Gcx<'gcx> {
                             );
                         }
                     }
-                    hir::UsingEntryKind::Err => {}
+                    hir::UsingEntryKind::Err(_) => {}
                 }
             }
         });

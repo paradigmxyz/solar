@@ -323,7 +323,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 let possible_members = self
                     .gcx
                     .members_of(expr_ty, self.source, self.contract)
-                    .iter()
                     .filter(|m| m.name == ident.name)
                     .collect::<SmallVec<[_; 4]>>();
 
@@ -850,11 +849,10 @@ impl<'gcx> TypeChecker<'gcx> {
             let possible_members = self
                 .gcx
                 .members_of(receiver_ty, self.source, self.contract)
-                .iter()
                 .filter(|m| m.name == ident.name)
                 .collect::<SmallVec<[_; 4]>>();
 
-            match possible_members[..] {
+            match &possible_members[..] {
                 [] => {
                     let msg = format!(
                         "member `{ident}` not found on type `{}`",
@@ -912,13 +910,13 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn select_member_call_overload<'a>(
         &mut self,
-        members: &[&'a members::Member<'gcx>],
+        members: &'a [members::Member<'gcx>],
         args: &hir::CallArgs<'gcx>,
     ) -> Result<&'a members::Member<'gcx>, OverloadError> {
         let mut best = None;
         let mut best_score = None;
         let mut ambiguous = false;
-        for &member in members {
+        for member in members {
             let TyKind::FnPtr(function_ty) = member.ty.kind else { continue };
             let param_names = function_ty
                 .function_id

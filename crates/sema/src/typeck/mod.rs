@@ -85,7 +85,7 @@ fn check_using_directive(gcx: Gcx<'_>, using: &hir::UsingDirective<'_>) {
                     check_using_function(gcx, using, entry, function, using_ty);
                 }
             }
-            hir::UsingEntryKind::Err => {}
+            hir::UsingEntryKind::Err(_) => {}
         }
     }
 }
@@ -207,13 +207,6 @@ fn check_using_operator<'gcx>(
     op: UserDefinableOperator,
 ) {
     let function = gcx.hir.function(function_id);
-
-    if !using.global {
-        gcx.dcx()
-            .err("operators can only be defined in a global `using for` directive")
-            .span(entry.span)
-            .emit();
-    }
 
     if function_ty.state_mutability != StateMutability::Pure || !function.is_free() {
         gcx.dcx()

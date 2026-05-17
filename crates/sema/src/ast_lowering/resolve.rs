@@ -461,7 +461,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::UsingList::Single(path) => {
                 let kind = match self.resolve_path_as::<hir::ContractId>(path, "library") {
                     Ok(id) => hir::UsingEntryKind::Library(id),
-                    Err(_) => hir::UsingEntryKind::Err,
+                    Err(guar) => hir::UsingEntryKind::Err(guar),
                 };
                 self.arena.alloc_as_slice(hir::UsingEntry {
                     span: path.span(),
@@ -487,22 +487,27 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_using_functions(&mut self, path: &ast::PathSlice) -> hir::UsingEntryKind<'gcx> {
-        let Ok(decls) = self.resolve_paths(path) else {
-            return hir::UsingEntryKind::Err;
+        let decls = match self.resolve_paths(path) {
+            Ok(decls) => decls,
+            Err(guar) => return hir::UsingEntryKind::Err(guar),
         };
 
         let mut functions = SmallVec::<[_; 4]>::new();
         let mut saw_non_function = false;
+        let mut error = None;
         for decl in decls {
             match decl.res {
                 Res::Item(hir::ItemId::Function(id)) => functions.push(id),
-                Res::Err(_) => {}
+                Res::Err(guar) => error = Some(guar),
                 _ => saw_non_function = true,
             }
         }
+        if let Some(guar) = error {
+            return hir::UsingEntryKind::Err(guar);
+        }
         if functions.len() != 1 || saw_non_function {
-            self.dcx().err("expected function name").span(path.span()).emit();
-            return hir::UsingEntryKind::Err;
+            let guar = self.dcx().err("expected function name").span(path.span()).emit();
+            return hir::UsingEntryKind::Err(guar);
         }
         hir::UsingEntryKind::Functions(self.arena.alloc_smallvec(functions))
     }

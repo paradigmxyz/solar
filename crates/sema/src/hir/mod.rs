@@ -881,7 +881,7 @@ pub enum UsingEntryKind<'hir> {
     /// `using { f } for T`.
     Functions(&'hir [FunctionId]),
     /// An erroneous entry.
-    Err,
+    Err(ErrorGuaranteed),
 }
 
 /// A function.

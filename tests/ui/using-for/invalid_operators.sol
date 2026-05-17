@@ -36,7 +36,3 @@ using {notPure as /} for U global; //~ ERROR: only pure free functions
 function vadd(V a, V b) pure returns (V) {
     return a;
 }
-
-contract C {
-    using {vadd as +} for V; //~ ERROR: operators can only be defined in a global
-}

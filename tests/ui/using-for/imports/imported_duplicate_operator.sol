@@ -7,4 +7,3 @@ function add2(Int a, Int b) pure returns (Int) {
 }
 
 using {add2 as +} for Int; //~ ERROR: operators can only be defined in a global
-//~^ ERROR: has more than one definition
