@@ -326,7 +326,9 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         // We allow EVM builtins in any position if multiple segments are present:
         // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
-        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_yul_evm_builtin()) {
+        if first.is_yul_keyword()
+            || (path.segments().len() == 1 && first.is_reserved_yul_evm_builtin())
+        {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
         for &ident in &path.segments()[1..] {

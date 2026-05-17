@@ -254,7 +254,7 @@ declare_builtins! {
     YulEq                  => kw::Eq               => gcx.mk_yul_builtin_fn(2, 1);
     YulIszero              => kw::Iszero           => gcx.mk_yul_builtin_fn(1, 1);
     YulByte                => kw::Byte             => gcx.mk_yul_builtin_fn(2, 1);
-    YulClz                 => sym::clz             => gcx.mk_yul_builtin_fn(1, 1);
+    YulClz                 => kw::Clz              => gcx.mk_yul_builtin_fn(1, 1);
     YulAddmod              => kw::Addmod           => gcx.mk_yul_builtin_fn(3, 1);
     YulMulmod              => kw::Mulmod           => gcx.mk_yul_builtin_fn(3, 1);
     YulSignextend          => kw::Signextend       => gcx.mk_yul_builtin_fn(2, 1);
@@ -294,9 +294,9 @@ declare_builtins! {
     YulCallcode            => kw::Callcode         => gcx.mk_yul_builtin_fn(7, 1);
     YulDelegatecall        => kw::Delegatecall     => gcx.mk_yul_builtin_fn(6, 1);
     YulStaticcall          => kw::Staticcall       => gcx.mk_yul_builtin_fn(6, 1);
-    YulExtcall             => sym::extcall         => gcx.mk_yul_builtin_fn(4, 1);
-    YulExtdelegatecall     => sym::extdelegatecall => gcx.mk_yul_builtin_fn(3, 1);
-    YulExtstaticcall       => sym::extstaticcall   => gcx.mk_yul_builtin_fn(3, 1);
+    YulExtcall             => kw::Extcall          => gcx.mk_yul_builtin_fn(4, 1);
+    YulExtdelegatecall     => kw::Extdelegatecall  => gcx.mk_yul_builtin_fn(3, 1);
+    YulExtstaticcall       => kw::Extstaticcall    => gcx.mk_yul_builtin_fn(3, 1);
     YulReturn              => kw::Return           => gcx.mk_yul_builtin_fn(2, 0);
     YulRevert              => kw::Revert           => gcx.mk_yul_builtin_fn(2, 0);
     YulSelfdestruct        => kw::Selfdestruct     => gcx.mk_yul_builtin_fn(1, 0);

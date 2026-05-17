@@ -145,6 +145,12 @@ impl Ident {
         self.name.is_yul_builtin()
     }
 
+    /// Returns `true` if the identifier is a reserved Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_reserved_yul_evm_builtin(self) -> bool {
+        self.name.is_reserved_yul_builtin()
+    }
+
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
     /// for possible future use.
     #[inline]
@@ -304,7 +310,15 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            | matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+    }
+
+    /// Returns `true` if the symbol is a reserved Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_reserved_yul_builtin(self) -> bool {
+        (self >= kw::Add && self <= kw::Xor)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
@@ -312,9 +326,9 @@ impl Symbol {
     #[inline]
     pub fn is_reserved(self, yul: bool) -> bool {
         if yul {
-            self.is_yul_keyword() | self.is_yul_builtin()
+            self.is_yul_keyword() || self.is_reserved_yul_builtin()
         } else {
-            self.is_used_keyword() | self.is_unused_keyword()
+            self.is_used_keyword() || self.is_unused_keyword()
         }
     }
 
@@ -820,7 +834,6 @@ symbols! {
         // Some builtins have already been previously declared, so they can't be redeclared here.
         // See `is_yul_builtin`.
         // https://docs.soliditylang.org/en/latest/yul.html#evm-dialect
-        // TODO: The remaining internal dialect builtins.
         Add:            "add",
         Addmod:         "addmod",
         And:            "and",
@@ -899,6 +912,21 @@ symbols! {
         Tstore:         "tstore",
         Xor:            "xor",
 
+        Auxdataloadn:   "auxdataloadn",
+        Clz:            "clz",
+        Datacopy:       "datacopy",
+        Dataoffset:     "dataoffset",
+        Datasize:       "datasize",
+        Eofcreate:      "eofcreate",
+        Extcall:        "extcall",
+        Extdelegatecall: "extdelegatecall",
+        Extstaticcall:   "extstaticcall",
+        Linkersymbol:   "linkersymbol",
+        Loadimmutable:  "loadimmutable",
+        Memoryguard:    "memoryguard",
+        Returncontract: "returncontract",
+        Setimmutable:   "setimmutable",
+
         // Experimental Solidity specific keywords.
         Class:         "class",
         Instantiation: "instantiation",
@@ -934,17 +962,12 @@ symbols! {
         abicoder,
         assert,
         at,
-        auxdataloadn,
         block,
-        clz,
         code,
         codehash,
         concat,
         creationCode,
         data,
-        datacopy,
-        dataoffset,
-        datasize,
         decode,
         ecrecover,
         encode,
@@ -952,38 +975,31 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
-        eofcreate,
         error,
         experimental,
-        extcall,
-        extdelegatecall,
-        extstaticcall,
         from,
         gasleft,
         global,
         interfaceId,
         layout,
         length,
-        linkersymbol,
-        loadimmutable,
         max,
         memory_dash_safe: "memory-safe",
-        memoryguard,
         min,
         msg,
         name,
         object,
+        offset,
         push,
         require,
-        returncontract,
         ripemd160,
         runtimeCode,
         selector,
         send,
         sender,
-        setimmutable,
         sha256,
         sig,
+        slot,
         solidity,
         super_: "super",
         this,

@@ -1284,8 +1284,7 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
 }
 
 fn is_yul_member(member: Ident) -> bool {
-    matches!(member.name, sym::length | sym::selector | kw::Address)
-        || matches!(member.name.as_str(), "slot" | "offset")
+    matches!(member.name, sym::length | sym::offset | sym::selector | sym::slot | kw::Address)
 }
 
 enum OverloadError {

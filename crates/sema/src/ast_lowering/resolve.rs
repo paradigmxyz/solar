@@ -1272,25 +1272,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn is_yul_builtin_name(&self, name: Ident) -> bool {
-        name.is_yul_evm_builtin()
-            || matches!(
-                name.name,
-                sym::auxdataloadn
-                    | sym::clz
-                    | sym::datacopy
-                    | sym::dataoffset
-                    | sym::datasize
-                    | sym::eofcreate
-                    | sym::extcall
-                    | sym::extdelegatecall
-                    | sym::extstaticcall
-                    | sym::linkersymbol
-                    | sym::loadimmutable
-                    | sym::memoryguard
-                    | sym::returncontract
-                    | sym::setimmutable
-            )
-            || name.name.as_str().starts_with("verbatim_")
+        name.is_yul_evm_builtin() || name.name.as_str().starts_with("verbatim_")
     }
 
     fn lower_yul_call_args(
