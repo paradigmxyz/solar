@@ -59,3 +59,15 @@ contract C {
     function func_internal_nested_3() internal returns(Nested memory) {}
     function func_internal_nested_4() internal returns(Nested storage) {}
 }
+
+contract MappingLocation {
+    struct Value {
+        uint256 x;
+    }
+
+    mapping(uint256 => Value) values;
+
+    function get(uint256 key) internal returns (Value storage value) {
+        value = values[key];
+    }
+}
