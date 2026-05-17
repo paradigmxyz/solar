@@ -333,7 +333,7 @@ impl<'gcx> ResolveContext<'gcx> {
 
             let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Function(id)) else {
                 // Should only be Yul.
-                debug_assert!(self.hir.function(id).body.is_none());
+                debug_assert!(self.hir.function(id).is_yul);
                 continue;
             };
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
