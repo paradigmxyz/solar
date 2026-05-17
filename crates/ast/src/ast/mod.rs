@@ -87,7 +87,6 @@ impl std::ops::Deref for Arena {
 }
 
 /// A list of doc-comments.
-#[repr(transparent)]
 #[derive(Default)]
 pub struct DocComments<'ast>(BoxSlice<'ast, DocComment<'ast>>);
 
@@ -120,7 +119,7 @@ impl fmt::Debug for DocComments<'_> {
     }
 }
 
-impl<'ast> DocComments<'ast> {
+impl DocComments<'_> {
     /// Returns the span containing all doc-comments.
     pub fn span(&self) -> Span {
         Span::join_first_last(self.iter().map(|d| d.span))
