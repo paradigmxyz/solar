@@ -336,7 +336,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty(self, kind: TyKind<'gcx>) -> Ty<'gcx> {
-        self.interner.intern_ty_with_flags(self.bump(), kind, |kind| TyFlags::calculate(self, kind))
+        self.interner.intern_ty(self.bump(), kind)
     }
 
     pub fn mk_tys(self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
@@ -744,7 +744,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported() {
+            if !ty.can_be_exported(gcx) {
                 // TODO: implement `interfaceType`
                 if c.kind.is_library() {
                     result = Err(ErrorGuaranteed::new_unchecked());
@@ -752,9 +752,9 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 }
 
                 let kind = f.description();
-                let msg = if ty.has_mapping() {
+                let msg = if ty.has_mapping(gcx) {
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.is_recursive() {
+                } else if ty.is_recursive(gcx) {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
                 } else if ty.has_internal_function() {
                     format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
@@ -917,12 +917,17 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     use hir::DataLocation::*;
 
     // https://github.com/argotorg/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
-    let has_reference_or_mapping_type = ty.is_reference_type() || ty.has_mapping();
+    let mut has_reference_or_mapping_type_slot = None;
+    let mut has_reference_or_mapping_type = || {
+        *has_reference_or_mapping_type_slot
+            .get_or_insert_with(|| ty.is_reference_type() || ty.has_mapping(gcx))
+    };
+
     let mut func_vis = None;
     let mut locs;
     let allowed: &[_] = if var.is_state_variable() {
         &[None, Some(Transient)]
-    } else if !has_reference_or_mapping_type || var.is_event_or_error_parameter() {
+    } else if !has_reference_or_mapping_type() || var.is_event_or_error_parameter() {
         &[None]
     } else if var.is_callable_or_catch_parameter() {
         locs = SmallVec::<[_; 3]>::new();
@@ -954,7 +959,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     let mut var_loc = var.data_location;
     if !allowed.contains(&var_loc) {
         if !ty.references_error() {
-            let msg = if !has_reference_or_mapping_type {
+            let msg = if !has_reference_or_mapping_type() {
                 "data location can only be specified for array, struct or mapping types".to_string()
             } else if let Some(var_loc) = var_loc {
                 format!("invalid data location `{var_loc}`")
@@ -962,7 +967,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
                 "expected data location".to_string()
             };
             let mut err = gcx.dcx().err(msg).span(var.span);
-            if has_reference_or_mapping_type {
+            if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",
                     expected = or_list(
@@ -1016,7 +1021,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(loc @ (Memory | Storage | Calldata)) => loc,
             Some(Transient) => unimplemented!(),
             None => {
-                assert!(!has_reference_or_mapping_type, "data location not properly set");
+                debug_assert!(!has_reference_or_mapping_type(), "data location not properly set");
                 Memory
             }
         }
