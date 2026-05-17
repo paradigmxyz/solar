@@ -803,7 +803,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'gcx hir::Stmt<'gcx> {
-        self.arena.alloc(self.lower_stmt_full(stmt))
+        self.arena.alloc_with(|| self.lower_stmt_full(stmt))
     }
 
     #[instrument(name = "lower_stmt", level = "trace", skip_all)]
@@ -1155,8 +1155,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_expr(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        let expr = self.lower_yul_expr_full(expr);
-        self.arena.alloc(expr)
+        self.arena.alloc_with(|| self.lower_yul_expr_full(expr))
     }
 
     fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
@@ -1245,8 +1244,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_path_expr(&mut self, path: &ast::PathSlice) -> &'gcx hir::Expr<'gcx> {
-        let expr = self.lower_yul_path_expr_full(path);
-        self.arena.alloc(expr)
+        self.arena.alloc_with(|| self.lower_yul_path_expr_full(path))
     }
 
     fn lower_yul_path_expr_full(&mut self, path: &ast::PathSlice) -> hir::Expr<'gcx> {
@@ -1477,7 +1475,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        self.arena.alloc(self.lower_expr_full(expr))
+        self.arena.alloc_with(|| self.lower_expr_full(expr))
     }
 
     fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'gcx hir::Expr<'gcx>> {
@@ -1578,7 +1576,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
-        self.arena.alloc(lit.copy_without_data())
+        self.arena.alloc_with(|| lit.copy_without_data())
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {
