@@ -6,6 +6,7 @@ use crate::{
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Span, Symbol, kw, sym};
+use std::sync::OnceLock;
 
 pub(crate) mod members;
 pub use members::{Member, MemberList};
@@ -399,8 +400,15 @@ impl Builtin {
 
     /// Returns the Yul builtin with the given name.
     pub fn from_yul_name(name: Symbol) -> Option<Self> {
-        Self::make_range_iter(Self::FIRST_YUL..Self::LAST_YUL)
-            .find(|builtin| builtin.name() == name)
+        static YUL_NAMES: OnceLock<FxHashMap<Symbol, Builtin>> = OnceLock::new();
+        YUL_NAMES
+            .get_or_init(|| {
+                Self::make_range_iter(Self::FIRST_YUL..Self::LAST_YUL)
+                    .map(|builtin| (builtin.name(), builtin))
+                    .collect()
+            })
+            .get(&name)
+            .copied()
     }
 
     #[inline]
