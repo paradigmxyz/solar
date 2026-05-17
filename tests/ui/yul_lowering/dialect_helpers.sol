@@ -13,9 +13,9 @@ contract C {
             y := auxdataloadn(0)
             x := eofcreate("runtime", 0, 0, 0, 0)
             returncontract("runtime", 0, 0)
-            x := verbatim_0i_1o(hex"58")
-            y := verbatim_1i_1o(hex"6001", x)
-            verbatim_2i_0o(hex"5050", x, y)
+            x := verbatim_0i_1o(hex"58") //~ ERROR: unsupported verbatim builtin
+            y := verbatim_1i_1o(hex"6001", x) //~ ERROR: unsupported verbatim builtin
+            verbatim_2i_0o(hex"5050", x, y) //~ ERROR: unsupported verbatim builtin
         }
     }
 }

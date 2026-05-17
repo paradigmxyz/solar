@@ -1199,7 +1199,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
-        match self.resolve_yul_call_name(call.name, call.arguments.len()) {
+        match self.resolve_yul_call_name(call.name) {
             Ok(res) => {
                 let callee = self.hir_builder().expr(
                     self.next_id(),
@@ -1212,11 +1212,7 @@ impl<'gcx> ResolveContext<'gcx> {
         }
     }
 
-    fn resolve_yul_call_name(
-        &mut self,
-        name: Ident,
-        argument_count: usize,
-    ) -> Result<&'gcx [Res], ErrorGuaranteed> {
+    fn resolve_yul_call_name(&mut self, name: Ident) -> Result<&'gcx [Res], ErrorGuaranteed> {
         for scope in self.scopes.scopes.iter().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
             if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
@@ -1255,76 +1251,12 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
         }
         if name.name.as_str().starts_with("verbatim_") {
-            let id = self.lower_verbatim_function(name, argument_count);
-            return Ok(self.arena.alloc_as_slice(Res::Item(hir::ItemId::Function(id))));
+            return Err(self.dcx().err("unsupported verbatim builtin").span(name.span).emit());
         }
         Err(self.resolver.emit_resolver_error()(ResolverError::new(
             name,
             ResolverErrorKind::Unresolved,
         )))
-    }
-
-    fn lower_verbatim_function(&mut self, name: Ident, argument_count: usize) -> hir::FunctionId {
-        let source = self.scopes.source.unwrap();
-        let contract = self.scopes.contract;
-        let id = self.hir.functions.push(hir::Function {
-            source,
-            contract,
-            span: name.span,
-            name: Some(name),
-            kind: hir::FunctionKind::Function,
-            is_yul: true,
-            visibility: hir::Visibility::Private,
-            state_mutability: hir::StateMutability::NonPayable,
-            modifiers: &[],
-            marked_virtual: false,
-            virtual_: false,
-            override_: false,
-            overrides: &[],
-            parameters: &[],
-            returns: &[],
-            body: None,
-            body_span: name.span,
-            gettee: None,
-        });
-
-        let (parameters, returns) = self
-            .parse_verbatim_signature(name)
-            .map(|(inputs, outputs)| (inputs.saturating_add(1), outputs))
-            .unwrap_or((argument_count, 1));
-        self.hir.functions[id].parameters =
-            self.lower_verbatim_variables(id, parameters, hir::VarKind::FunctionParam, name.span);
-        self.hir.functions[id].returns =
-            self.lower_verbatim_variables(id, returns, hir::VarKind::FunctionReturn, name.span);
-        id
-    }
-
-    fn parse_verbatim_signature(&self, name: Ident) -> Option<(usize, usize)> {
-        let name = name.name.as_str().strip_prefix("verbatim_")?;
-        let (inputs, outputs) = name.split_once("i_")?;
-        let outputs = outputs.strip_suffix('o')?;
-        Some((inputs.parse().ok()?, outputs.parse().ok()?))
-    }
-
-    fn lower_verbatim_variables(
-        &mut self,
-        function: hir::FunctionId,
-        len: usize,
-        kind: hir::VarKind,
-        span: Span,
-    ) -> &'gcx [hir::VariableId] {
-        self.arena.alloc_slice_fill_iter((0..len).map(|index| {
-            let ty = if kind == hir::VarKind::FunctionParam && index == 0 {
-                self.yul_bytes_type(span)
-            } else {
-                self.yul_uint_type(span)
-            };
-            let mut var = self.mk_yul_var(Some(function), span, ty, None, kind);
-            if kind == hir::VarKind::FunctionParam && index == 0 {
-                var.data_location = Some(hir::DataLocation::Memory);
-            }
-            self.hir.variables.push(var)
-        }))
     }
 
     fn lower_yul_call_args(
@@ -1396,10 +1328,6 @@ impl<'gcx> ResolveContext<'gcx> {
                 ast::TypeSize::new_int_bits(256),
             )),
         }
-    }
-
-    fn yul_bytes_type(&self, span: Span) -> hir::Type<'gcx> {
-        hir::Type { span, kind: hir::TypeKind::Elementary(ast::ElementaryType::Bytes) }
     }
 
     fn mk_yul_var(

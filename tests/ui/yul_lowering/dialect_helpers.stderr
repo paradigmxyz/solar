@@ -1,0 +1,20 @@
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := verbatim_0i_1o(hex"58")
+   ╰╴                 ━━━━━━━━━━━━━━
+
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             y := verbatim_1i_1o(hex"6001", x)
+   ╰╴                 ━━━━━━━━━━━━━━
+
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             verbatim_2i_0o(hex"5050", x, y)
+   ╰╴            ━━━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
+
