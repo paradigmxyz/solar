@@ -29,6 +29,7 @@ contract C {
     function h() public returns (uint256 x) {
         assembly {
             x := pair(1) //~ ERROR: unresolved symbol
+            side_effect_only(x) //~ ERROR: unresolved symbol
         }
     }
 

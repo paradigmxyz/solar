@@ -18,7 +18,8 @@ contract C {
                 c := add(a, 2)
             }
 
-            x, y := pair(1)
+            let a, b := pair(1)
+            x, y := pair(add(a, b))
         }
     }
 

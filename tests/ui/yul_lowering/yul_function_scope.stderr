@@ -16,6 +16,12 @@ error: unresolved symbol `pair`
 LL │             x := pair(1)
    ╰╴                 ━━━━
 
+error: unresolved symbol `side_effect_only`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             side_effect_only(x)
+   ╰╴            ━━━━━━━━━━━━━━━━
+
 error: unresolved symbol `inner`
    ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
    │
@@ -28,5 +34,5 @@ error: unresolved symbol `r`
 LL │                     c := r
    ╰╴                         ━
 
-error: aborting due to 5 previous errors
+error: aborting due to 6 previous errors
 
