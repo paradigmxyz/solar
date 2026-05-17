@@ -31,7 +31,7 @@ contract C {
             for { let i := 0 } lt(i, 1) { pop(g()) } {
                 //~^ ERROR: unresolved symbol
                 function g() -> r {
-                    r := i
+                    r := i //~ ERROR: unresolved symbol
                 }
             }
         }

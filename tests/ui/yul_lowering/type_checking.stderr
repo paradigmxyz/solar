@@ -1,0 +1,46 @@
+error: inline assembly expression statements cannot return values
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             add(1, 2)
+   ╰╴            ━━━━━━━━━
+
+error: inline assembly expression statements cannot return values
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             pair()
+   ╰╴            ━━━━━━
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             pop(state)
+   │                 ━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             pop(state.length)
+   ╰╴                      ━━━━━━
+
+error: state variables cannot be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             state.slot := 1
+   ╰╴            ━━━━━
+
+error: calldata variables only support `.offset` and `.length`
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             pop(data.slot)
+   ╰╴                     ━━━━
+
+error: suffix `.slot` is not supported by this variable or type
+   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   │
+LL │             pop(local.slot)
+   ╰╴                      ━━━━
+
+error: aborting due to 7 previous errors
+

@@ -27,6 +27,10 @@ struct TypeChecker<'gcx> {
     in_emit: bool,
     /// Whether we're directly inside a revert statement (for the immediate call only).
     in_revert: bool,
+    /// Whether we're checking expressions lowered from inline assembly.
+    in_yul: bool,
+    /// Whether the current identifier is the base of a Yul dotted external reference.
+    in_yul_member_base: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -50,6 +54,8 @@ impl<'gcx> TypeChecker<'gcx> {
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
+            in_yul: false,
+            in_yul_member_base: false,
         }
     }
 
@@ -245,7 +251,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
                     self.try_set_not_lvalue(reason);
                 }
-                self.type_of_res(res)
+                let ty = self.type_of_res(res);
+                if self.in_yul && !self.in_yul_member_base {
+                    self.check_yul_external_ident(res, ty, expr.span);
+                }
+                ty
             }
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr(lhs);
@@ -560,13 +570,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::YulMember(expr, member) => {
-                if is_yul_member(member) {
-                    // TODO: Validate inline assembly suffixes like solc does:
-                    // `.slot`/`.offset` for storage and transient variables, `.offset`/`.length`
-                    // for calldata arrays, and `.address`/`.selector` for external function
-                    // pointers. Assignment rules are suffix- and declaration-dependent.
-                }
-                let _ = self.check_expr(expr);
+                self.check_yul_member(expr, member);
                 self.gcx.types.uint(256)
             }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
@@ -596,6 +600,114 @@ impl<'gcx> TypeChecker<'gcx> {
             self.dcx()
                 .err("types in storage containing (nested) mappings cannot be assigned to")
                 .span(expr.span)
+                .emit();
+        }
+    }
+
+    fn check_yul_external_ident(&mut self, res: hir::Res, ty: Ty<'gcx>, span: Span) {
+        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return };
+        let var = self.gcx.hir.variable(var_id);
+
+        if self.in_lvalue() && !var.is_local_variable() {
+            self.dcx()
+                .err("only local variables can be assigned to in inline assembly")
+                .span(span)
+                .emit();
+            return;
+        }
+
+        if var.is_state_variable() && !var.is_constant() {
+            self.dcx()
+                .err("only local variables are supported in inline assembly")
+                .span(span)
+                .help("use `.slot` and `.offset` to access storage or transient storage variables")
+                .emit();
+        } else if ty.data_stored_in(DataLocation::Storage)
+            || ty.data_stored_in(DataLocation::Transient)
+        {
+            self.dcx()
+                .err("storage reference variables need a suffix in inline assembly")
+                .span(span)
+                .help("use `.slot` or `.offset`")
+                .emit();
+        } else if is_dynamic_calldata_array(ty) {
+            self.dcx()
+                .err("calldata variables need a suffix in inline assembly")
+                .span(span)
+                .help("use `.offset` or `.length`")
+                .emit();
+        }
+    }
+
+    fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) {
+        let prev = std::mem::replace(&mut self.in_yul_member_base, true);
+        let ty = self.check_expr(expr);
+        self.in_yul_member_base = prev;
+
+        let Some(res) = yul_member_base_res(expr) else {
+            self.dcx()
+                .err("inline assembly suffixes can only be used with variables")
+                .span(member.span)
+                .emit();
+            return;
+        };
+        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
+            self.dcx()
+                .err("inline assembly suffixes can only be used with variables")
+                .span(member.span)
+                .emit();
+            return;
+        };
+        let var = self.gcx.hir.variable(var_id);
+        let suffix = member.name;
+        let is_lvalue = self.in_lvalue();
+
+        if !is_yul_member(member) {
+            self.dcx()
+                .err(format!("unsupported inline assembly suffix `.{member}`"))
+                .span(member.span)
+                .emit();
+        } else if !var.is_constant()
+            && (var.is_state_variable()
+                || ty.data_stored_in(DataLocation::Storage)
+                || ty.data_stored_in(DataLocation::Transient))
+        {
+            if !matches!(suffix, sym::slot | sym::offset) {
+                self.dcx()
+                    .err("storage variables only support `.slot` and `.offset`")
+                    .span(member.span)
+                    .emit();
+            } else if is_lvalue && var.is_state_variable() {
+                self.dcx()
+                    .err("state variables cannot be assigned to in inline assembly")
+                    .span(expr.span)
+                    .emit();
+            } else if is_lvalue && suffix != sym::slot {
+                self.dcx().err("only `.slot` can be assigned to").span(member.span).emit();
+            }
+        } else if is_dynamic_calldata_array(ty) {
+            if !matches!(suffix, sym::offset | sym::length) {
+                self.dcx()
+                    .err("calldata variables only support `.offset` and `.length`")
+                    .span(member.span)
+                    .emit();
+            }
+        } else if let TyKind::FnPtr(f) = ty.kind {
+            if !matches!(suffix, sym::selector | kw::Address) {
+                self.dcx()
+                    .err("function pointer variables only support `.selector` and `.address`")
+                    .span(member.span)
+                    .emit();
+            } else if f.visibility != hir::Visibility::External {
+                self.dcx()
+                    .err("only external function pointer variables support `.selector` and `.address`")
+                    .span(member.span)
+                    .emit();
+            }
+        } else {
+            self.dcx()
+                .err(format!("suffix `.{member}` is not supported by this variable or type"))
+                .span(member.span)
                 .emit();
         }
     }
@@ -1242,6 +1354,27 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::AssemblyBlock(block) => {
+                let prev = std::mem::replace(&mut self.in_yul, true);
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+                self.in_yul = prev;
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Expr(expr) if self.in_yul => {
+                let ty = self.check_expr(expr);
+                if !matches!(expr.kind, hir::ExprKind::Assign(..))
+                    && !ty.is_unit()
+                    && !ty.references_error()
+                {
+                    self.dcx()
+                        .err("inline assembly expression statements cannot return values")
+                        .span(expr.span)
+                        .emit();
+                }
+                return ControlFlow::Continue(());
+            }
             _ => {}
         }
         self.walk_stmt(stmt)
@@ -1274,6 +1407,24 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
+}
+
+fn yul_member_base_res(expr: &hir::Expr<'_>) -> Option<hir::Res> {
+    let hir::ExprKind::Ident(res) = expr.kind else { return None };
+    match res {
+        [res] => Some(*res),
+        _ => res.iter().copied().find(|res| res.as_variable().is_some()),
+    }
+}
+
+fn is_dynamic_calldata_array(ty: Ty<'_>) -> bool {
+    if ty.loc() != Some(DataLocation::Calldata) {
+        return false;
+    }
+    matches!(
+        ty.peel_refs().kind,
+        TyKind::DynArray(_) | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+    )
 }
 
 fn is_yul_member(member: Ident) -> bool {
