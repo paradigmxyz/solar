@@ -168,13 +168,13 @@ contract GrandChild is Child1 {
             );
             assert_tag_contains(
                 base,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"),
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.as_str() == "success"),
                 "operation succeeded",
                 "Base @return success",
             );
             assert_tag_contains(
                 base,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"),
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.as_str() == "value"),
                 "result value",
                 "Base @return value",
             );
@@ -224,13 +224,13 @@ contract GrandChild is Child1 {
             let c = get_comments("Child4", "foo");
             assert_tag_contains(
                 c,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"),
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.as_str() == "success"),
                 "Child4 override",
                 "Child4 @return success",
             );
             assert_tag_contains(
                 c,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"),
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.as_str() == "value"),
                 "result value",
                 "Child4 @return value",
             );
@@ -354,7 +354,7 @@ contract ReturnDocs {
             let named = function_comments(c.gcx(), "ReturnDocs", "namedReturn");
             assert_tag_contains(
                 named,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "result"),
+                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.as_str() == "result"),
                 "The value",
                 "ReturnDocs.namedReturn @return result",
             );

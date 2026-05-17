@@ -7,7 +7,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     smallvec::SmallVec,
 };
-use solar_interface::{Ident, Span, Symbol};
+use solar_interface::{Span, Symbol};
 
 bitflags::bitflags! {
     /// Tracks which documentation tags are locally defined in `merge_natspec_tags`.
@@ -327,7 +327,7 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         let mut item = natspec;
-        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
+        item.kind = ast::NatSpecKind::Return { name: Some(name) };
         item.content_start = content_start as u32;
         Some(item)
     }
@@ -488,7 +488,7 @@ impl<'gcx> Resolver<'gcx> {
                     local_params.insert(name.name);
                 }
                 HirKind::Return { name } => {
-                    local_returns.insert(name.map(|i| i.name));
+                    local_returns.insert(*name);
                 }
                 HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => {}
             }
@@ -501,7 +501,7 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Title => !local_tags.contains(LocalTags::TITLE),
                 HirKind::Author => !local_tags.contains(LocalTags::AUTHOR),
                 HirKind::Param { name } => !local_params.contains(&name.name),
-                HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
+                HirKind::Return { name } => !local_returns.contains(name),
                 HirKind::Custom { .. } | HirKind::Internal { .. } => true,
                 HirKind::Inheritdoc { .. } => false,
             };
