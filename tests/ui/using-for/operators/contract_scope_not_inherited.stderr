@@ -1,0 +1,22 @@
+error: cannot apply builtin operator `+` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/contract_scope_not_inherited.sol:LL:CC
+   │
+LL │         return a + b;
+   │                ┬ ━ ─ Int
+   │                │
+   ╰╴               Int
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/operators/contract_scope_not_inherited.sol:LL:CC
+   │
+LL │     using {add as +} for Int;
+   ╰╴           ━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/operators/contract_scope_not_inherited.sol:LL:CC
+   │
+LL │     using {add2 as +} for Int;
+   ╰╴           ━━━━
+
+error: aborting due to 3 previous errors
+
