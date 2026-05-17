@@ -1053,6 +1053,7 @@ fn parse_natspec(
         items.push(ast::NatSpecItem {
             kind: ast::NatSpecKind::Notice,
             span: comment_span,
+            symbol: comment_symbol,
             content_start: 0,
             content_end: content.len() as u32,
         });
@@ -1068,6 +1069,7 @@ fn parse_natspec(
         items: &mut SmallVec<[ast::NatSpecItem; 6]>,
         kind: &mut Option<ast::NatSpecKind>,
         span: &mut Option<Span>,
+        symbol: Symbol,
         content_start: usize,
         content_end: usize,
     ) {
@@ -1075,6 +1077,7 @@ fn parse_natspec(
             items.push(ast::NatSpecItem {
                 span: span.take().unwrap(),
                 kind: k,
+                symbol,
                 content_start: content_start as u32,
                 content_end: content_end as u32,
             });
@@ -1103,7 +1106,14 @@ fn parse_natspec(
             && is_line_start(line_start, line_start + tag_offset)
         {
             let tag_start = line_start + tag_offset + 1;
-            flush_item(&mut items, &mut kind, &mut span, content_start, prev_line_end);
+            flush_item(
+                &mut items,
+                &mut kind,
+                &mut span,
+                comment_symbol,
+                content_start,
+                prev_line_end,
+            );
 
             // Skip leading whitespace after '@'
             let tag_slice = &bytes[tag_start..line_end];
@@ -1161,7 +1171,7 @@ fn parse_natspec(
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(&mut items, &mut kind, &mut span, content_start, bytes.len());
+    flush_item(&mut items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
     Some(items)
 }
 

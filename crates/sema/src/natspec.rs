@@ -164,7 +164,7 @@ impl<'gcx> Resolver<'gcx> {
                     | NatSpecKind::Dev
                     | NatSpecKind::Custom { .. }
                     | NatSpecKind::Internal { .. } => {
-                        local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
+                        local_tags.push(*natspec);
                     }
                     NatSpecKind::Title => {
                         if self.validate_tag_once(
@@ -175,14 +175,14 @@ impl<'gcx> Resolver<'gcx> {
                             SeenTags::TITLE,
                             item_id,
                         ) {
-                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
+                            local_tags.push(*natspec);
                         }
                     }
                     NatSpecKind::Author => {
                         if !permissions.contains(TagPermissions::TITLE_AUTHOR) {
                             self.emit_forbidden_tag_error("@author", tag_span, item_id);
                         } else {
-                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
+                            local_tags.push(*natspec);
                         }
                     }
                     NatSpecKind::Inheritdoc { contract } => {
@@ -231,7 +231,7 @@ impl<'gcx> Resolver<'gcx> {
                         });
 
                         if params.contains(&name.name) {
-                            local_tags.push(NatSpecItem::from_ast(*natspec, doc_comment.symbol));
+                            local_tags.push(*natspec);
                         } else {
                             self.gcx
                                 .dcx()
@@ -282,8 +282,7 @@ impl<'gcx> Resolver<'gcx> {
                         };
 
                         if return_valid
-                            && let Some(item) =
-                                self.lower_return_natspec(*natspec, doc_comment.symbol, rets)
+                            && let Some(item) = self.lower_return_natspec(*natspec, rets)
                         {
                             local_tags.push(item);
                         }
@@ -298,15 +297,14 @@ impl<'gcx> Resolver<'gcx> {
     fn lower_return_natspec(
         &self,
         natspec: ast::NatSpecItem,
-        symbol: Symbol,
         rets: &[hir::VariableId],
     ) -> Option<hir::NatSpecItem> {
         if !rets.iter().any(|&id| self.gcx.hir.variable(id).name.is_some()) {
-            return Some(hir::NatSpecItem::from_ast(natspec, symbol));
+            return Some(natspec);
         }
 
         let Some((name, content_start)) = solar_parse::natspec::first_word(
-            symbol.as_str(),
+            natspec.symbol.as_str(),
             natspec.content_start as usize,
             natspec.content_end as usize,
         ) else {
@@ -328,7 +326,7 @@ impl<'gcx> Resolver<'gcx> {
             return None;
         }
 
-        let mut item = hir::NatSpecItem::from_ast(natspec, symbol);
+        let mut item = natspec;
         item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
         item.content_start = content_start as u32;
         Some(item)

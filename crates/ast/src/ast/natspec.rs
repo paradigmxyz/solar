@@ -18,8 +18,8 @@ pub struct DocComment<'ast> {
 
 impl<'ast> DocComment<'ast> {
     /// Returns the content of a natspec excluding its tag.
-    pub fn natspec_content(&self, item: &NatSpecItem) -> &str {
-        &self.symbol.as_str()[item.content_range()]
+    pub fn natspec_content<'a>(&self, item: &'a NatSpecItem) -> &'a str {
+        item.content()
     }
 }
 
@@ -30,6 +30,8 @@ pub struct NatSpecItem {
     pub kind: NatSpecKind,
     /// Span of the tag. '@' is not included.
     pub span: Span,
+    /// The symbol containing this tag's content.
+    pub symbol: Symbol,
     /// Byte offset into the doc comment's symbol where this tag's content starts.
     pub content_start: u32,
     /// Byte offset into the doc comment's symbol where this tag's content ends.
@@ -40,6 +42,13 @@ impl NatSpecItem {
     /// Returns the byte range of this item's content within the doc comment's symbol.
     pub fn content_range(&self) -> std::ops::Range<usize> {
         self.content_start as usize..self.content_end as usize
+    }
+
+    /// Returns the text content of this natspec item.
+    ///
+    /// The content is extracted from the symbol using the byte offsets.
+    pub fn content(&self) -> &str {
+        &self.symbol.as_str()[self.content_range()]
     }
 }
 
