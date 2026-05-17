@@ -44,7 +44,7 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
-- Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that imports them. Files under `auxiliary/` are helper inputs, not standalone UI tests.
+- Auxiliary files go in `auxiliary/` subdirectory
 
 ### UI Test Annotations
 
@@ -58,16 +58,6 @@ contract Test {
 
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
-
-### Porting solc Tests
-
-- Port solc syntax tests into the existing `tests/ui/` hierarchy by feature area.
-- For solc multi-source tests, make the main source the UI test file and put imported/helper sources in a sibling `auxiliary/` directory.
-- Rewrite imports to use relative paths such as `import "./auxiliary/helper.sol";`.
-- Keep expected diagnostics as inline `//~ ERROR:` annotations when they occur in the main UI test file.
-- If diagnostics come from imported auxiliary files, prefer a `.stderr` expectation for the main UI test instead of annotating the auxiliary file.
-- Do not put `//@compile-flags` or UI annotations in `auxiliary/` files unless they are intentionally standalone tests, which should usually be avoided.
-- Preserve the semantic intent of the solc test, but use Solar diagnostic wording and existing UI-test style.
 
 ## Diagnostics Style
 
