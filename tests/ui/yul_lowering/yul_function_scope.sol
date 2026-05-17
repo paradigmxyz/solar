@@ -60,4 +60,77 @@ contract C {
             x := outer(1)
         }
     }
+
+    function k() public returns (uint256 x) {
+        assembly {
+            let a := 1
+
+            {
+                function inner() -> r {
+                    // solc: Identifier "a" not found.
+                    r := a
+                }
+
+                x := inner()
+            }
+        }
+    }
+
+    function l() public returns (uint256 x) {
+        assembly {
+            let a := 1
+
+            {
+                // solc: Variable name a already taken in this scope.
+                let a := 2
+                x := a
+            }
+        }
+    }
+
+    function m() public returns (uint256 x) {
+        assembly {
+            function y() -> r {
+                r := 1
+            }
+
+            {
+                // solc: Variable name y already taken in this scope.
+                let y := 2
+                x := y
+            }
+        }
+    }
+
+    function n() public returns (uint256 x) {
+        assembly {
+            let y := 1
+
+            {
+                // solc: Function name y already taken in this scope.
+                function y() -> r {
+                    r := 2
+                }
+
+                x := y()
+            }
+        }
+    }
+
+    function o() public returns (uint256 x) {
+        assembly {
+            function y() -> r {
+                r := 1
+            }
+
+            {
+                // solc: Function name y already taken in this scope.
+                function y() -> r {
+                    r := 2
+                }
+
+                x := y()
+            }
+        }
+    }
 }
