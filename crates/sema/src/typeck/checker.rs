@@ -18,6 +18,7 @@ struct TypeChecker<'gcx> {
     gcx: Gcx<'gcx>,
     source: hir::SourceId,
     contract: Option<hir::ContractId>,
+    function_mutability: Option<hir::StateMutability>,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
@@ -46,6 +47,7 @@ impl<'gcx> TypeChecker<'gcx> {
             gcx,
             source,
             contract: None,
+            function_mutability: None,
             types: Default::default(),
             lvalue_context: None,
             in_emit: false,
@@ -182,6 +184,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             f.function_id
                                 .map(|id| self.get_call_param_names(id, f.parameters.len()))
                         };
+                        self.check_call_mutability(expr.span, f.state_mutability);
                         self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
                         self.fn_call_return_type(f.returns)
                     }
@@ -777,6 +780,27 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn check_call_mutability(&self, span: Span, callee: hir::StateMutability) {
+        let Some(current) = self.function_mutability else { return };
+        let msg = match (current, callee) {
+            (hir::StateMutability::Pure, hir::StateMutability::View) => {
+                "function declared as `pure`, but this expression reads from the environment or state and thus requires `view`"
+            }
+            (
+                hir::StateMutability::Pure,
+                hir::StateMutability::Payable | hir::StateMutability::NonPayable,
+            ) => {
+                "function cannot be declared as `pure` because this expression potentially modifies state"
+            }
+            (
+                hir::StateMutability::View,
+                hir::StateMutability::Payable | hir::StateMutability::NonPayable,
+            ) => "function declared as `view`, but this expression potentially modifies state",
+            _ => return,
+        };
+        self.dcx().err(msg).span(span).emit();
+    }
+
     fn get_param_names(
         &self,
         params: &[hir::VariableId],
@@ -1337,11 +1361,14 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
-        let contract = self.gcx.hir.function(id).contract;
+        let function = self.gcx.hir.function(id);
+        let contract = function.contract;
         let prev = self.contract;
+        let prev_mutability = self.function_mutability.replace(function.state_mutability);
         self.contract = contract.or(prev);
-        let r = self.visit_function(self.gcx.hir.function(id));
+        let r = self.visit_function(function);
         self.contract = prev;
+        self.function_mutability = prev_mutability;
         r
     }
 
