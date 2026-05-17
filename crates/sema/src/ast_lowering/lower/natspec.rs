@@ -621,7 +621,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn natspec_inheritdoc_comprehensive() {
+    fn natspec_inheritdoc_merges_tags() {
         use crate::hir::NatSpecKind;
 
         let src = r#"
@@ -691,44 +691,6 @@ contract GrandChild is Child1 {
     }
 }
 
-contract OverloadBase {
-    /// @notice address overload
-    /// @param a address parameter
-    function overloaded(address a) public virtual {}
-
-    /// @notice uint overload
-    /// @param a uint parameter
-    function overloaded(uint a) public virtual {}
-}
-
-contract OverloadChild is OverloadBase {
-    /// @inheritdoc OverloadBase
-    function overloaded(uint a) public override {}
-}
-
-contract VariableDocs {
-    /// @return The number of decimals
-    uint8 public decimals;
-}
-
-contract ReturnDocs {
-    /// @return the value
-    function unnamedReturn() public pure returns (uint) {
-        return 1;
-    }
-
-    /// @return result The value
-    function namedReturn() public pure returns (uint result) {
-        return 1;
-    }
-}
-
-contract LocalParent {
-    function locals() public pure {
-        uint a = 1;
-        (uint b, uint c) = (2, 3);
-    }
-}
 "#;
         let compiler = lower_source(src);
         compiler.enter_sequential(|c| {
@@ -746,19 +708,6 @@ contract LocalParent {
                     .map(|func| gcx.hir.doc(func.doc).comments())
                     .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
             };
-            let get_var_comments = |contract_name: &str, var_name: &str| {
-                gcx.hir
-                    .variables()
-                    .find(|v| {
-                        v.contract.is_some_and(|cid| {
-                            gcx.hir.contract(cid).name.as_str() == contract_name
-                                && v.name.is_some_and(|n| n.as_str() == var_name)
-                        })
-                    })
-                    .and_then(|var| var.doc.map(|doc| gcx.hir.doc(doc).comments()))
-                    .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
-            };
-
             let base = get_comments("Base", "foo");
             assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Notice)), 1);
             assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Dev)), 1);
@@ -880,7 +829,32 @@ contract LocalParent {
             );
             assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Param { .. })), 2);
 
-            let overloaded = get_comments("OverloadChild", "overloaded");
+        });
+    }
+
+    #[test]
+    fn natspec_inheritdoc_matches_overload_signature() {
+        use crate::hir::NatSpecKind;
+
+        let src = r#"
+contract OverloadBase {
+    /// @notice address overload
+    /// @param a address parameter
+    function overloaded(address a) public virtual {}
+
+    /// @notice uint overload
+    /// @param a uint parameter
+    function overloaded(uint a) public virtual {}
+}
+
+contract OverloadChild is OverloadBase {
+    /// @inheritdoc OverloadBase
+    function overloaded(uint a) public override {}
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let overloaded = function_comments(c.gcx(), "OverloadChild", "overloaded");
             assert_tag_contains(
                 overloaded,
                 |k| matches!(k, NatSpecKind::Notice),
@@ -897,16 +871,51 @@ contract LocalParent {
                 !overloaded.iter().any(|item| item.content().contains("address")),
                 "OverloadChild inherited docs from the wrong overload"
             );
+        });
+    }
 
-            let decimals = get_var_comments("VariableDocs", "decimals");
+    #[test]
+    fn natspec_public_variable_return_docs() {
+        use crate::hir::NatSpecKind;
+
+        let src = r#"
+contract VariableDocs {
+    /// @return The number of decimals
+    uint8 public decimals;
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let decimals = variable_comments(c.gcx(), "VariableDocs", "decimals");
             assert_tag_contains(
                 decimals,
                 |k| matches!(k, NatSpecKind::Return { name: None }),
                 "The number of decimals",
                 "VariableDocs.decimals @return",
             );
+        });
+    }
 
-            let unnamed = get_comments("ReturnDocs", "unnamedReturn");
+    #[test]
+    fn natspec_return_docs_resolve_names() {
+        use crate::hir::NatSpecKind;
+
+        let src = r#"
+contract ReturnDocs {
+    /// @return the value
+    function unnamedReturn() public pure returns (uint) {
+        return 1;
+    }
+
+    /// @return result The value
+    function namedReturn() public pure returns (uint result) {
+        return 1;
+    }
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let unnamed = function_comments(c.gcx(), "ReturnDocs", "unnamedReturn");
             assert_tag_contains(
                 unnamed,
                 |k| matches!(k, NatSpecKind::Return { name: None }),
@@ -914,25 +923,30 @@ contract LocalParent {
                 "ReturnDocs.unnamedReturn @return",
             );
 
-            let named = get_comments("ReturnDocs", "namedReturn");
+            let named = function_comments(c.gcx(), "ReturnDocs", "namedReturn");
             assert_tag_contains(
                 named,
                 |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "result"),
                 "The value",
                 "ReturnDocs.namedReturn @return result",
             );
+        });
+    }
 
-            let locals = gcx
-                .hir
-                .functions_enumerated()
-                .find(|(_, f)| {
-                    f.contract.is_some_and(|cid| {
-                        gcx.hir.contract(cid).name.as_str() == "LocalParent"
-                            && f.name.is_some_and(|n| n.as_str() == "locals")
-                    })
-                })
-                .map(|(id, _)| id)
-                .expect("LocalParent.locals not found");
+    #[test]
+    fn statement_variables_preserve_function_parent() {
+        let src = r#"
+contract LocalParent {
+    function locals() public pure {
+        uint a = 1;
+        (uint b, uint c) = (2, 3);
+    }
+}
+"#;
+        let compiler = lower_source(src);
+        compiler.enter_sequential(|c| {
+            let gcx = c.gcx();
+            let locals = function_id(gcx, "LocalParent", "locals");
             let local_parent = Some(crate::hir::ItemId::Function(locals));
             let local_names: Vec<_> = gcx
                 .hir
@@ -949,6 +963,49 @@ contract LocalParent {
                 );
             }
         });
+    }
+
+    fn function_id(
+        gcx: crate::ty::Gcx<'_>,
+        contract_name: &str,
+        func_name: &str,
+    ) -> crate::hir::FunctionId {
+        gcx.hir
+            .functions_enumerated()
+            .find(|(_, f)| {
+                f.contract.is_some_and(|cid| {
+                    gcx.hir.contract(cid).name.as_str() == contract_name
+                        && f.name.is_some_and(|n| n.as_str() == func_name)
+                })
+            })
+            .map(|(id, _)| id)
+            .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
+    }
+
+    fn function_comments<'gcx>(
+        gcx: crate::ty::Gcx<'gcx>,
+        contract_name: &str,
+        func_name: &str,
+    ) -> &'gcx [crate::hir::NatSpecItem] {
+        let id = function_id(gcx, contract_name, func_name);
+        gcx.hir.doc(gcx.hir.function(id).doc).comments()
+    }
+
+    fn variable_comments<'gcx>(
+        gcx: crate::ty::Gcx<'gcx>,
+        contract_name: &str,
+        var_name: &str,
+    ) -> &'gcx [crate::hir::NatSpecItem] {
+        gcx.hir
+            .variables()
+            .find(|v| {
+                v.contract.is_some_and(|cid| {
+                    gcx.hir.contract(cid).name.as_str() == contract_name
+                        && v.name.is_some_and(|n| n.as_str() == var_name)
+                })
+            })
+            .and_then(|var| var.doc.map(|doc| gcx.hir.doc(doc).comments()))
+            .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
     }
 
     fn lower_source(src: &str) -> Compiler {
