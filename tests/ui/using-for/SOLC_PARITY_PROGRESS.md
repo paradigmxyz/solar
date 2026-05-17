@@ -32,13 +32,15 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Imported functions in non-global operator directives.
 - [x] Library member visibility attachment coverage.
 - [x] Malformed `using` directive parser smoke coverage.
+- [x] Expanded malformed `using` parser matrix for wildcard, `global`, and operator forms.
+- [x] Contract-level wildcard rejection for specific attached functions.
 
 ## In progress
 
 ## Remaining solc parity risks
 
 - [ ] Exact diagnostics for fallback from builtin to user-defined operators.
-- [ ] Full syntax-only matrix for malformed `using` directives and parser recovery.
+- [ ] Exact solc parser diagnostic wording for malformed `using` directives.
 - [ ] Mutability side-effect checks for operator bodies.
 - [ ] Remaining duplicate operator matrix across inherited contract scopes.
 - [ ] Full imported non-global operator diagnostic matrix.

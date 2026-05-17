@@ -384,11 +384,17 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         &mut self,
         using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        let ast::UsingDirective { list: _, ty, global } = using;
+        let ast::UsingDirective { list, ty, global } = using;
         let with_ty = ty.is_some();
         if self.contract.is_none() && !with_ty {
             self.dcx()
                 .err("the type has to be specified explicitly at file level (cannot use `*`)")
+                .span(self.item_span)
+                .emit();
+        }
+        if self.contract.is_some() && !with_ty && matches!(list, ast::UsingList::Multiple(_)) {
+            self.dcx()
+                .err("the type has to be specified explicitly when attaching specific functions")
                 .span(self.item_span)
                 .emit();
         }
