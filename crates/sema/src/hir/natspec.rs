@@ -78,7 +78,7 @@ impl NatSpecItem {
             AstKind::Title => HirKind::Title,
             AstKind::Author => HirKind::Author,
             AstKind::Param { name } => HirKind::Param { name: *name },
-            AstKind::Return { name } => HirKind::Return { name: *name },
+            AstKind::Return => HirKind::Return { name: None },
             AstKind::Custom { name } => HirKind::Custom { name: *name },
             AstKind::Internal { tag } => HirKind::Internal { tag: *tag },
             AstKind::Inheritdoc { .. } => {

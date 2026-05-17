@@ -264,7 +264,7 @@ impl<'gcx> super::super::LoweringContext<'gcx> {
                                 .emit();
                         };
                     }
-                    NatSpecKind::Return { .. } => {
+                    NatSpecKind::Return => {
                         if !permissions.contains(TagPermissions::RETURN)
                             || item_id
                                 .as_variable()

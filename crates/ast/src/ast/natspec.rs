@@ -68,10 +68,10 @@ pub enum NatSpecKind {
     ///
     /// Documents a parameter. The `name` field contains the parameter name.
     Param { name: Ident },
-    /// `@return <name>`
+    /// `@return`
     ///
-    /// Documents a return variable. The optional `name` field contains the return variable name.
-    Return { name: Option<Ident> },
+    /// Documents a return variable. Return names are resolved during lowering.
+    Return,
     /// `@inheritdoc <contract>`
     ///
     /// Copies all tags from the base function. The `contract` field contains the contract name.
