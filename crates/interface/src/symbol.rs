@@ -141,13 +141,13 @@ impl Ident {
 
     /// Returns `true` if the identifier is a Yul EVM builtin keyword.
     #[inline]
-    pub fn is_yul_evm_builtin(self) -> bool {
+    pub fn is_yul_builtin(self) -> bool {
         self.name.is_yul_builtin()
     }
 
     /// Returns `true` if the identifier is a reserved Yul EVM builtin keyword.
     #[inline]
-    pub fn is_reserved_yul_evm_builtin(self) -> bool {
+    pub fn is_reserved_yul_builtin(self) -> bool {
         self.name.is_reserved_yul_builtin()
     }
 
@@ -326,9 +326,9 @@ impl Symbol {
     #[inline]
     pub fn is_reserved(self, yul: bool) -> bool {
         if yul {
-            self.is_yul_keyword() || self.is_reserved_yul_builtin()
+            self.is_yul_keyword() | self.is_reserved_yul_builtin()
         } else {
-            self.is_used_keyword() || self.is_unused_keyword()
+            self.is_used_keyword() | self.is_unused_keyword()
         }
     }
 

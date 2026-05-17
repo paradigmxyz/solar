@@ -900,7 +900,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
+        if !ident.is_yul_builtin() && ident.is_reserved(true) {
             self.expected_ident_found_err().emit();
         }
         self.bump();
