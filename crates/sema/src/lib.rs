@@ -21,6 +21,7 @@ pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;
+mod natspec;
 
 mod compiler;
 pub use compiler::{Compiler, CompilerRef};
@@ -118,6 +119,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
             hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
             _ => {}
         }
+        natspec::validate_item_docs(gcx, id);
     });
     gcx.sess.dcx.has_errors()?;
 
