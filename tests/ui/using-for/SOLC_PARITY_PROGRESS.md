@@ -38,16 +38,14 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Non-inherited contract-scope operator coverage.
 - [x] User-defined operator implicit-conversion fallback coverage.
 - [x] Library self-call diagnostics for attached external/public library members.
-- [x] Mutability side-effect checks for operator bodies.
 - [x] Imported-source non-global operator diagnostics.
 - [x] Transitive imported non-global operator diagnostics.
-- [x] UI harness supports `.stderr`-only failures for diagnostics emitted from auxiliary inputs.
 
 ## In progress
 
 ## Remaining solc parity risks
 
-None for coverage against the reviewed solc `using` and user-defined operator syntax tests.
+- [ ] Mutability side-effect checks for operator bodies.
 
 ## Known diagnostic differences
 
