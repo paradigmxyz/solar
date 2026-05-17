@@ -241,12 +241,6 @@ pub(super) struct ResolveContext<'gcx> {
     yul_function_scopes: Vec<usize>,
 }
 
-enum YulCallName<'gcx> {
-    Function(&'gcx [Res]),
-    Builtin(Builtin),
-    Verbatim(Ident),
-}
-
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
     type Target = super::LoweringContext<'gcx>;
     #[inline]
@@ -1206,39 +1200,34 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
         match self.resolve_yul_call_name(call.name) {
-            Ok(YulCallName::Function(res)) => {
+            Ok(Some(res)) => {
                 let callee = self.hir_builder().expr(
                     self.next_id(),
                     hir::ExprKind::Ident(res),
                     call.name.span,
                 );
-                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span), None)
+                return hir::ExprKind::Call(
+                    callee,
+                    self.lower_yul_call_args(call.arguments, span),
+                    None,
+                );
             }
-            Ok(YulCallName::Builtin(builtin)) => {
-                self.lower_yul_fn_call(hir::YulFnCallFunction::Builtin(builtin), call.arguments)
-            }
-            Ok(YulCallName::Verbatim(name)) => {
-                self.lower_yul_fn_call(hir::YulFnCallFunction::Verbatim(name), call.arguments)
-            }
-            Err(guar) => hir::ExprKind::Err(guar),
+            Ok(None) => {}
+            Err(guar) => return hir::ExprKind::Err(guar),
         }
-    }
 
-    fn lower_yul_fn_call(
-        &mut self,
-        function: hir::YulFnCallFunction,
-        arguments: &[ast::yul::Expr<'_>],
-    ) -> hir::ExprKind<'gcx> {
         hir::ExprKind::YulFnCall(self.arena.alloc(hir::YulFnCall {
-            function,
-            arguments:
-                self.arena.alloc_slice_fill_iter(
-                    arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
-                ),
+            name: call.name,
+            arguments: self.arena.alloc_slice_fill_iter(
+                call.arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
+            ),
         }))
     }
 
-    fn resolve_yul_call_name(&mut self, name: Ident) -> Result<YulCallName<'gcx>, ErrorGuaranteed> {
+    fn resolve_yul_call_name(
+        &mut self,
+        name: Ident,
+    ) -> Result<Option<&'gcx [Res]>, ErrorGuaranteed> {
         for scope in self.scopes.scopes.iter().rev() {
             let Some(decls) = scope.resolve(name) else { continue };
             if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
@@ -1271,18 +1260,19 @@ impl<'gcx> ResolveContext<'gcx> {
                 ));
             }
             let functions = self.arena.alloc_smallvec(functions);
-            return Ok(YulCallName::Function(&*functions));
+            return Ok(Some(&*functions));
         }
-        if let Some(builtin) = Builtin::from_yul_name(name.name) {
-            return Ok(YulCallName::Builtin(builtin));
-        }
-        if name.name.as_str().starts_with("verbatim_") {
-            return Ok(YulCallName::Verbatim(name));
+        if self.is_yul_builtin_name(name) {
+            return Ok(None);
         }
         Err(self.resolver.emit_resolver_error()(ResolverError::new(
             name,
             ResolverErrorKind::Unresolved,
         )))
+    }
+
+    fn is_yul_builtin_name(&self, name: Ident) -> bool {
+        name.is_yul_evm_builtin() || name.name.as_str().starts_with("verbatim_")
     }
 
     fn lower_yul_call_args(

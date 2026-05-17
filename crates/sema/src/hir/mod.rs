@@ -1451,15 +1451,8 @@ pub enum ExprKind<'hir> {
 /// A non-lowerable Yul function call.
 #[derive(Debug)]
 pub struct YulFnCall<'hir> {
-    pub function: YulFnCallFunction,
+    pub name: Ident,
     pub arguments: &'hir [Expr<'hir>],
-}
-
-/// A non-lowerable Yul function call target.
-#[derive(Debug)]
-pub enum YulFnCallFunction {
-    Builtin(Builtin),
-    Verbatim(Ident),
 }
 
 /// A named argument: `name: value`.

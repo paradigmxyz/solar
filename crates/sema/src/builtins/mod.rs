@@ -244,19 +244,6 @@ declare_builtins! {
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
 
     // Yul EVM builtins.
-    YulAdd                 => kw::Add              => gcx.mk_yul_builtin_fn(2, 1);
-    YulSub                 => kw::Sub              => gcx.mk_yul_builtin_fn(2, 1);
-    YulMul                 => kw::Mul              => gcx.mk_yul_builtin_fn(2, 1);
-    YulDiv                 => kw::Div              => gcx.mk_yul_builtin_fn(2, 1);
-    YulMod                 => kw::Mod              => gcx.mk_yul_builtin_fn(2, 1);
-    YulExp                 => kw::Exp              => gcx.mk_yul_builtin_fn(2, 1);
-    YulNot                 => kw::Not              => gcx.mk_yul_builtin_fn(1, 1);
-    YulAnd                 => kw::And              => gcx.mk_yul_builtin_fn(2, 1);
-    YulOr                  => kw::Or               => gcx.mk_yul_builtin_fn(2, 1);
-    YulXor                 => kw::Xor              => gcx.mk_yul_builtin_fn(2, 1);
-    YulShl                 => kw::Shl              => gcx.mk_yul_builtin_fn(2, 1);
-    YulShr                 => kw::Shr              => gcx.mk_yul_builtin_fn(2, 1);
-    YulSar                 => kw::Sar              => gcx.mk_yul_builtin_fn(2, 1);
     YulStop                => kw::Stop             => gcx.mk_yul_builtin_fn(0, 0);
     YulSdiv                => kw::Sdiv             => gcx.mk_yul_builtin_fn(2, 1);
     YulSmod                => kw::Smod             => gcx.mk_yul_builtin_fn(2, 1);
@@ -329,16 +316,6 @@ declare_builtins! {
     YulBlockhash           => kw::Blockhash        => gcx.mk_yul_builtin_fn(1, 1);
     YulPop                 => kw::Pop              => gcx.mk_yul_builtin_fn(1, 0);
     YulMcopy               => kw::Mcopy            => gcx.mk_yul_builtin_fn(3, 0);
-    YulAuxdataloadn        => kw::Auxdataloadn     => gcx.mk_yul_builtin_fn(1, 1);
-    YulDatacopy            => kw::Datacopy         => gcx.mk_yul_builtin_fn(3, 0);
-    YulDataoffset          => kw::Dataoffset       => gcx.mk_yul_builtin_fn(1, 1);
-    YulDatasize            => kw::Datasize         => gcx.mk_yul_builtin_fn(1, 1);
-    YulEofcreate           => kw::Eofcreate        => gcx.mk_yul_builtin_fn(5, 1);
-    YulLinkersymbol        => kw::Linkersymbol     => gcx.mk_yul_builtin_fn(1, 1);
-    YulLoadimmutable       => kw::Loadimmutable    => gcx.mk_yul_builtin_fn(1, 1);
-    YulMemoryguard         => kw::Memoryguard      => gcx.mk_yul_builtin_fn(1, 1);
-    YulSetimmutable        => kw::Setimmutable     => gcx.mk_yul_builtin_fn(3, 0);
-    YulReturncontract      => kw::Returncontract   => gcx.mk_yul_builtin_fn(3, 0);
 }
 
 impl Builtin {
@@ -356,9 +333,6 @@ impl Builtin {
 
     const FIRST_ABI: usize = Self::AbiEncode as usize;
     const LAST_ABI: usize = Self::AbiDecode as usize + 1;
-
-    const FIRST_YUL: usize = Self::YulAdd as usize;
-    const LAST_YUL: usize = Self::YulReturncontract as usize + 1;
 
     /// Returns an iterator over all builtins.
     #[inline]
@@ -406,18 +380,12 @@ impl Builtin {
         }))
     }
 
-    /// Returns the Yul builtin with the given name.
-    pub fn from_yul_name(name: Symbol) -> Option<Self> {
-        Self::make_range_iter(Self::FIRST_YUL..Self::LAST_YUL)
-            .find(|builtin| builtin.name() == name)
-    }
-
     #[inline]
     fn make_range_iter(
         range: std::ops::Range<usize>,
     ) -> impl ExactSizeIterator<Item = Self> + Clone {
         debug_assert!(range.start < Self::COUNT);
-        debug_assert!(range.end <= Self::COUNT);
+        debug_assert!(range.end < Self::COUNT);
         (range.start as Primitive..range.end as Primitive)
             .map(|idx| unsafe { Self::from_index(idx as usize).unwrap_unchecked() })
     }
