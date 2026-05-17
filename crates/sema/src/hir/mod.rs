@@ -15,15 +15,12 @@ use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
 pub use ast::{
-    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
-    StateMutability, UnOp, UnOpKind, VarMut, Visibility,
+    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit, NatSpecItem,
+    NatSpecKind, StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
 mod visit;
 pub use visit::Visit;
-
-mod natspec;
-pub use natspec::*;
 
 /// HIR arena allocator.
 pub struct Arena {
