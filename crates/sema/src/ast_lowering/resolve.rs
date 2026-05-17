@@ -912,6 +912,9 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        // Yul function bodies do not inherit Yul variable scopes from enclosing Yul functions,
+        // but they still need the surrounding Solidity scopes. Temporarily removing only the
+        // tracked Yul function scopes models that boundary while lowering the body.
         let outer_yul_function_scopes = std::mem::take(&mut self.yul_function_scopes);
         let outer_yul_function_scope_decls = self.scopes.remove_scopes(&outer_yul_function_scopes);
         let previous_function = self.function_id.replace(id);
