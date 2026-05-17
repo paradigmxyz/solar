@@ -1,0 +1,20 @@
+error: unresolved symbol `j`
+   ╭▸ ROOT/tests/ui/yul_lowering/for_loop_scope.sol:LL:CC
+   │
+LL │                 pop(j)
+   ╰╴                    ━
+
+error: unresolved symbol `j`
+   ╭▸ ROOT/tests/ui/yul_lowering/for_loop_scope.sol:LL:CC
+   │
+LL │             for { let i := 0 } lt(i, 1) { pop(j) } {
+   ╰╴                                              ━
+
+error: unresolved symbol `g`
+   ╭▸ ROOT/tests/ui/yul_lowering/for_loop_scope.sol:LL:CC
+   │
+LL │             for { let i := 0 } lt(i, 1) { pop(g()) } {
+   ╰╴                                              ━
+
+error: aborting due to 3 previous errors
+

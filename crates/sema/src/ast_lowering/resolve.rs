@@ -1,9 +1,10 @@
 use crate::{builtins::Builtin, hir};
+use alloy_primitives::U256;
 use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
-    map::{FxIndexMap, IndexEntry},
+    map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
 };
 use solar_interface::{
@@ -25,6 +26,11 @@ impl super::LoweringContext<'_> {
             .map(|source| {
                 let mut scope = Declarations::with_capacity(source.items.len());
                 for &item_id in source.items {
+                    if let hir::ItemId::Function(id) = item_id
+                        && self.hir.function(id).is_yul
+                    {
+                        continue;
+                    }
                     let item = self.hir.item(item_id);
                     if let Some(name) = item.name() {
                         let decl = Declaration { res: Res::Item(item_id), span: name.span };
@@ -135,6 +141,11 @@ impl super::LoweringContext<'_> {
                 let _ = self.declare_in(&mut scope, sym::super_, super_);
 
                 for &item_id in contract.items {
+                    if let hir::ItemId::Function(id) = item_id
+                        && self.hir.function(id).is_yul
+                    {
+                        continue;
+                    }
                     if let Some(name) = self.hir.item(item_id).name() {
                         let _ = self.declare_kind_in(&mut scope, name, Res::Item(item_id));
                     }
@@ -237,6 +248,7 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
+    yul_function_scopes: Vec<usize>,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -256,7 +268,12 @@ impl std::ops::DerefMut for ResolveContext<'_> {
 
 impl<'gcx> ResolveContext<'gcx> {
     pub(super) fn new(lcx: super::LoweringContext<'gcx>) -> Self {
-        Self { lcx, scopes: SymbolResolverScopes::new(), function_id: None }
+        Self {
+            lcx,
+            scopes: SymbolResolverScopes::new(),
+            function_id: None,
+            yul_function_scopes: Vec::new(),
+        }
     }
 
     fn init(
@@ -333,7 +350,11 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             }
 
-            let ast_item = self.hir_to_ast[&hir::ItemId::Function(id)];
+            let Some(&ast_item) = self.hir_to_ast.get(&hir::ItemId::Function(id)) else {
+                // Should only be Yul.
+                debug_assert!(self.hir.function(id).is_yul);
+                continue;
+            };
             let ast::ItemKind::Function(ast_func) = &ast_item.kind else { unreachable!() };
 
             self.init(func.source, func.contract, Some(id));
@@ -815,7 +836,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_stmt(&mut self, stmt: &ast::Stmt<'_>) -> &'gcx hir::Stmt<'gcx> {
-        self.arena.alloc(self.lower_stmt_full(stmt))
+        self.arena.alloc_with(|| self.lower_stmt_full(stmt))
     }
 
     #[instrument(name = "lower_stmt", level = "trace", skip_all)]
@@ -844,10 +865,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
-                ErrorGuaranteed::new_unchecked(),
-            ),
+            ast::StmtKind::Assembly(assembly) => self.lower_yul_assembly(assembly),
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
@@ -889,6 +907,468 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::StmtKind::Placeholder => hir::StmtKind::Placeholder,
         };
         hir::Stmt { span: stmt.span, kind }
+    }
+
+    fn lower_yul_assembly(&mut self, assembly: &ast::StmtAssembly<'_>) -> hir::StmtKind<'gcx> {
+        let mut memory_safe = false;
+        for flag in assembly.flags.iter() {
+            let span = flag.span;
+            match flag.value {
+                sym::memory_dash_safe => {
+                    if memory_safe {
+                        self.dcx()
+                            .err("inline assembly marked memory-safe multiple times")
+                            .span(span)
+                            .emit();
+                    }
+                    memory_safe = true;
+                }
+                _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
+            }
+        }
+
+        hir::StmtKind::UncheckedBlock(self.lower_yul_block(&assembly.block))
+    }
+
+    fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
+        self.in_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
+    }
+
+    fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
+        let functions = self.collect_yul_function_decls(stmts);
+        for &(function, id) in &functions {
+            self.declare_yul_function(function, id);
+        }
+        for (function, id) in functions {
+            self.lower_yul_function_body(function, id);
+        }
+        let stmts =
+            self.arena.alloc_from_iter(stmts.iter().filter_map(|stmt| self.lower_yul_stmt(stmt)));
+        hir::Block { span, stmts }
+    }
+
+    fn collect_yul_function_decls<'stmt, 'ast>(
+        &mut self,
+        stmts: &'stmt [ast::yul::Stmt<'ast>],
+    ) -> SmallVec<[(&'stmt ast::yul::Function<'ast>, hir::FunctionId); 4]> {
+        let mut functions = SmallVec::new();
+        for stmt in stmts {
+            let ast::yul::StmtKind::FunctionDef(function) = &stmt.kind else { continue };
+            let id = self.lcx.yul_functions[&super::yul_function_key(function)];
+            functions.push((function, id));
+        }
+        functions
+    }
+
+    fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        let res = Res::Item(hir::ItemId::Function(id));
+        let _ = self.scopes.current_scope().declare_res(
+            self.lcx.sess,
+            &self.lcx.hir,
+            function.name,
+            res,
+        );
+    }
+
+    fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
+        // Yul function bodies do not inherit Yul variable scopes from enclosing Yul functions,
+        // but they still need the surrounding Solidity scopes. Temporarily removing only the
+        // tracked Yul function scopes models that boundary while lowering the body.
+        let outer_yul_function_scopes = std::mem::take(&mut self.yul_function_scopes);
+        let outer_yul_function_scope_decls = self.scopes.remove_scopes(&outer_yul_function_scopes);
+        let previous_function = self.function_id.replace(id);
+        self.scopes.enter();
+        self.yul_function_scopes.push(self.scopes.scopes.len() - 1);
+
+        self.hir.functions[id].parameters =
+            self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
+        self.hir.functions[id].returns =
+            self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
+
+        let block = self.lower_yul_block(&function.body);
+        let unchecked = self.hir_builder().stmt(hir::StmtKind::UncheckedBlock(block), block.span);
+        let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
+
+        self.yul_function_scopes.pop();
+        self.scopes.exit();
+        self.hir.functions[id].body = Some(body);
+        self.function_id = previous_function;
+        self.scopes.restore_scopes(outer_yul_function_scope_decls);
+        self.yul_function_scopes = outer_yul_function_scopes;
+    }
+
+    fn lower_yul_function_variables(
+        &mut self,
+        function: hir::FunctionId,
+        idents: &[Ident],
+        kind: hir::VarKind,
+    ) -> &'gcx [hir::VariableId] {
+        self.arena.alloc_slice_fill_iter(
+            idents.iter().map(|&ident| self.lower_yul_function_variable(function, ident, kind)),
+        )
+    }
+
+    fn lower_yul_function_variable(
+        &mut self,
+        function: hir::FunctionId,
+        name: Ident,
+        kind: hir::VarKind,
+    ) -> hir::VariableId {
+        let var = self.mk_yul_var(
+            Some(function),
+            name.span,
+            self.yul_uint_type(name.span),
+            Some(name),
+            kind,
+        );
+        let id = self.hir.variables.push(var);
+        let res = Res::Item(hir::ItemId::Variable(id));
+        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        id
+    }
+
+    fn lower_yul_stmt(&mut self, stmt: &ast::yul::Stmt<'_>) -> Option<hir::Stmt<'gcx>> {
+        let kind = match &stmt.kind {
+            ast::yul::StmtKind::Block(block) => hir::StmtKind::Block(self.lower_yul_block(block)),
+            ast::yul::StmtKind::AssignSingle(path, expr) => {
+                let lhs = self.lower_yul_path_expr(path);
+                let rhs = self.lower_yul_expr(expr);
+                hir::StmtKind::Expr(self.hir_builder().expr(
+                    self.next_id(),
+                    hir::ExprKind::Assign(lhs, None, rhs),
+                    stmt.span,
+                ))
+            }
+            ast::yul::StmtKind::AssignMulti(paths, expr) => {
+                // (a, b, c) = <expr>
+                let components = self.arena.alloc_slice_fill_iter(
+                    paths.iter().map(|path| Some(self.lower_yul_path_expr(path))),
+                );
+                let lhs = self.hir_builder().expr(
+                    self.next_id(),
+                    hir::ExprKind::Tuple(components),
+                    Span::join_first_last(paths.iter().map(|path| path.span())),
+                );
+                let rhs = self.lower_yul_expr(expr);
+                hir::StmtKind::Expr(self.hir_builder().expr(
+                    self.next_id(),
+                    hir::ExprKind::Assign(lhs, None, rhs),
+                    stmt.span,
+                ))
+            }
+            ast::yul::StmtKind::Expr(expr) => hir::StmtKind::Expr(self.lower_yul_expr(expr)),
+            ast::yul::StmtKind::If(cond, block) => {
+                let cond = self.lower_yul_condition(cond);
+                let block = self.lower_yul_block(block);
+                let body = self.hir_builder().stmt_alloc(hir::StmtKind::Block(block), block.span);
+                hir::StmtKind::If(cond, body, None)
+            }
+            ast::yul::StmtKind::For(for_) => self.lower_yul_for_stmt(for_),
+            ast::yul::StmtKind::Switch(switch) => self.lower_yul_switch_stmt(switch),
+            ast::yul::StmtKind::Leave => hir::StmtKind::Return(None),
+            ast::yul::StmtKind::Break => hir::StmtKind::Break,
+            ast::yul::StmtKind::Continue => hir::StmtKind::Continue,
+            ast::yul::StmtKind::FunctionDef(_) => return None,
+            ast::yul::StmtKind::VarDecl(idents, expr) => {
+                self.lower_yul_var_decl(idents, expr.as_ref(), stmt.span)
+            }
+        };
+        Some(hir::Stmt { span: stmt.span, kind })
+    }
+
+    fn lower_yul_var_decl(
+        &mut self,
+        idents: &[Ident],
+        expr: Option<&ast::yul::Expr<'_>>,
+        span: Span,
+    ) -> hir::StmtKind<'gcx> {
+        let vars = idents
+            .iter()
+            .map(|&ident| self.lower_yul_variable(ident))
+            .collect::<SmallVec<[_; 4]>>();
+        if let Some(guar) = vars.iter().find_map(|(_, result)| result.err()) {
+            return hir::StmtKind::Err(guar);
+        }
+
+        match (vars.as_slice(), expr) {
+            ([(var, _)], None) => hir::StmtKind::DeclSingle(*var),
+            ([(var, _)], Some(expr)) => {
+                self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
+                hir::StmtKind::DeclSingle(*var)
+            }
+            (vars, None) => {
+                let stmts = self.arena.alloc_slice_fill_iter(
+                    vars.iter()
+                        .map(|&(var, _)| hir::Stmt { span, kind: hir::StmtKind::DeclSingle(var) }),
+                );
+                hir::StmtKind::Block(hir::Block { span, stmts })
+            }
+            (vars, Some(expr)) => hir::StmtKind::DeclMulti(
+                self.arena.alloc_slice_fill_iter(vars.iter().map(|&(var, _)| Some(var))),
+                self.lower_yul_expr(expr),
+            ),
+        }
+    }
+
+    fn lower_yul_variable(
+        &mut self,
+        name: Ident,
+    ) -> (hir::VariableId, Result<(), ErrorGuaranteed>) {
+        let var = self.mk_yul_var(
+            self.function_id,
+            name.span,
+            self.yul_uint_type(name.span),
+            Some(name),
+            hir::VarKind::Statement,
+        );
+        let id = self.hir.variables.push(var);
+        let res = Res::Item(hir::ItemId::Variable(id));
+        let result =
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
+        (id, result)
+    }
+
+    fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
+        self.in_scope(|this| {
+            // {
+            //     { <init> } // fake block
+            //     loop {
+            //         if (<cond>) {
+            //             { <body> } // fake block
+            //             { <step> } // fake block
+            //         } else break;
+            //     }
+            // }
+            let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
+            let cond = this.lower_yul_condition(&for_.cond);
+            let step = this.in_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let body = this.in_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
+            let builder = this.hir_builder();
+
+            let step_stmt = builder.stmt(hir::StmtKind::Block(step), step.span);
+            let body = builder.stmt(
+                hir::StmtKind::Block(builder.block(
+                    this.arena.alloc_array([
+                        builder.stmt(hir::StmtKind::Block(body), body.span),
+                        step_stmt,
+                    ]),
+                    for_.body.span,
+                )),
+                for_.body.span,
+            );
+            let break_stmt = builder.break_stmt(for_.cond.span);
+            let loop_body = builder.stmt(
+                hir::StmtKind::If(cond, this.arena.alloc(body), Some(break_stmt)),
+                for_.body.span,
+            );
+            let loop_stmt = builder.stmt(
+                hir::StmtKind::Loop(
+                    builder.block(this.arena.alloc_as_slice(loop_body), for_.body.span),
+                    hir::LoopSource::For,
+                ),
+                for_.body.span,
+            );
+            hir::StmtKind::Block(builder.block(
+                this.arena.alloc_array([
+                    builder.stmt(hir::StmtKind::Block(init), for_.init.span),
+                    loop_stmt,
+                ]),
+                for_.init.span.with_hi(for_.body.span.hi()),
+            ))
+        })
+    }
+
+    fn lower_yul_switch_stmt(&mut self, switch: &ast::yul::StmtSwitch<'_>) -> hir::StmtKind<'gcx> {
+        hir::StmtKind::Switch(self.arena.alloc(hir::StmtSwitch {
+            selector: self.lower_yul_expr(&switch.selector),
+            cases: self.arena.alloc_slice_fill_iter(switch.cases.iter().map(|case| {
+                hir::StmtSwitchCase {
+                    span: case.span,
+                    constant: case.constant.as_ref().map(|lit| self.lower_lit(lit)),
+                    body: self.lower_yul_block(&case.body),
+                }
+            })),
+        }))
+    }
+
+    fn lower_yul_condition(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
+        match &expr.kind {
+            ast::yul::ExprKind::Lit(lit) if matches!(lit.kind, ast::LitKind::Bool(_)) => {
+                return self.lower_yul_expr(expr);
+            }
+            _ => {}
+        }
+
+        // <expr> != 0
+        let expr = self.lower_yul_expr(expr);
+        let zero = self.yul_number_lit(U256::ZERO, expr.span);
+        self.hir_builder().expr(
+            self.next_id(),
+            hir::ExprKind::Binary(
+                expr,
+                hir::BinOp { span: expr.span, kind: hir::BinOpKind::Ne },
+                zero,
+            ),
+            expr.span,
+        )
+    }
+
+    fn lower_yul_expr(&mut self, expr: &ast::yul::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
+        self.arena.alloc_with(|| self.lower_yul_expr_full(expr))
+    }
+
+    fn lower_yul_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir::Expr<'gcx> {
+        let kind = match &expr.kind {
+            ast::yul::ExprKind::Path(path) => return self.lower_yul_path_expr_full(path),
+            ast::yul::ExprKind::Call(call) => self.lower_yul_call(call, expr.span),
+            ast::yul::ExprKind::Lit(lit) => hir::ExprKind::Lit(self.lower_lit(lit)),
+        };
+        self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
+    }
+
+    fn lower_yul_call(&mut self, call: &ast::yul::ExprCall<'_>, span: Span) -> hir::ExprKind<'gcx> {
+        match self.resolve_yul_call_name(call.name) {
+            Ok(res) => {
+                let callee = self.hir_builder().expr(
+                    self.next_id(),
+                    hir::ExprKind::Ident(res),
+                    call.name.span,
+                );
+                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span), None)
+            }
+            Err(guar) => hir::ExprKind::Err(guar),
+        }
+    }
+
+    fn resolve_yul_call_name(&mut self, name: Ident) -> Result<&'gcx [Res], ErrorGuaranteed> {
+        for scope in self.scopes.scopes.iter().rev() {
+            let Some(decls) = scope.resolve(name) else { continue };
+            if let Some(guar) = decls.iter().find_map(|decl| match decl.res {
+                Res::Err(guar) => Some(guar),
+                _ => None,
+            }) {
+                return Err(guar);
+            }
+            let functions = decls
+                .iter()
+                .filter_map(|decl| match decl.res {
+                    Res::Item(hir::ItemId::Function(id)) if self.hir.function(id).is_yul => {
+                        Some(Res::Item(hir::ItemId::Function(id)))
+                    }
+                    _ => None,
+                })
+                .collect::<SmallVec<[_; 4]>>();
+            if functions.is_empty() {
+                if decls.iter().all(|decl| matches!(decl.res, Res::Item(hir::ItemId::Function(_))))
+                {
+                    return Err(self.resolver.emit_resolver_error()(ResolverError::new(
+                        name,
+                        ResolverErrorKind::Unresolved,
+                    )));
+                }
+                return Err(self.resolver.report_expected(
+                    "function",
+                    decls[0].res.description(),
+                    name.span,
+                ));
+            }
+            let functions = self.arena.alloc_smallvec(functions);
+            return Ok(&*functions);
+        }
+        if let Some(builtin) = Builtin::from_yul_name(name.name) {
+            return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
+        }
+        if name.name.as_str().starts_with("verbatim_") {
+            return Err(self.dcx().err("unsupported verbatim builtin").span(name.span).emit());
+        }
+        Err(self.resolver.emit_resolver_error()(ResolverError::new(
+            name,
+            ResolverErrorKind::Unresolved,
+        )))
+    }
+
+    fn lower_yul_call_args(
+        &mut self,
+        arguments: &[ast::yul::Expr<'_>],
+        span: Span,
+    ) -> hir::CallArgs<'gcx> {
+        hir::CallArgs {
+            span,
+            kind: hir::CallArgsKind::Unnamed(
+                self.arena.alloc_slice_fill_iter(
+                    arguments.iter().map(|arg| self.lower_yul_expr_full(arg)),
+                ),
+            ),
+        }
+    }
+
+    fn lower_yul_path_expr(&mut self, path: &ast::PathSlice) -> &'gcx hir::Expr<'gcx> {
+        self.arena.alloc_with(|| self.lower_yul_path_expr_full(path))
+    }
+
+    fn lower_yul_path_expr_full(&mut self, path: &ast::PathSlice) -> hir::Expr<'gcx> {
+        let segments = path.segments();
+        let first = segments.first().copied().unwrap();
+        let kind = match self.resolve_paths(ast::PathSlice::from_ref(&first)) {
+            Ok(decls) => hir::ExprKind::Ident(
+                self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
+            ),
+            Err(guar) => hir::ExprKind::Err(guar),
+        };
+        let Some((&last, rest)) = segments[1..].split_last() else {
+            return self.hir_builder().expr_owned(self.next_id(), kind, first.span);
+        };
+        let mut expr = self.hir_builder().expr(self.next_id(), kind, first.span);
+        for &segment in rest {
+            expr = self.hir_builder().expr(
+                self.next_id(),
+                hir::ExprKind::YulMember(expr, segment),
+                segment.span,
+            );
+        }
+        self.hir_builder().expr_owned(
+            self.next_id(),
+            hir::ExprKind::YulMember(expr, last),
+            last.span,
+        )
+    }
+
+    fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
+        let lit = self.arena.alloc(ast::Lit {
+            span,
+            symbol: {
+                if let Ok(small) = u128::try_from(value) {
+                    sym::integer(small)
+                } else {
+                    Symbol::intern(&value.to_string())
+                }
+            },
+            kind: ast::LitKind::Number(value),
+        });
+        self.hir_builder().expr(self.next_id(), hir::ExprKind::Lit(lit), span)
+    }
+
+    fn yul_uint_type(&self, span: Span) -> hir::Type<'gcx> {
+        hir::Type {
+            span,
+            kind: hir::TypeKind::Elementary(ast::ElementaryType::UInt(
+                ast::TypeSize::new_int_bits(256),
+            )),
+        }
+    }
+
+    fn mk_yul_var(
+        &mut self,
+        function: Option<hir::FunctionId>,
+        span: Span,
+        ty: hir::Type<'gcx>,
+        name: Option<Ident>,
+        kind: hir::VarKind,
+    ) -> hir::Variable<'gcx> {
+        let mut var = self.mk_var(function.map(Into::into), span, ty, name, kind);
+        var.source = self.scopes.source.unwrap_or(self.current_source_id);
+        var.contract = self.scopes.contract;
+        var
     }
 
     fn lower_try_catch_clause(
@@ -1062,7 +1542,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_expr(&mut self, expr: &ast::Expr<'_>) -> &'gcx hir::Expr<'gcx> {
-        self.arena.alloc(self.lower_expr_full(expr))
+        self.arena.alloc_with(|| self.lower_expr_full(expr))
     }
 
     fn lower_expr_opt(&mut self, expr: Option<&ast::Expr<'_>>) -> Option<&'gcx hir::Expr<'gcx>> {
@@ -1163,7 +1643,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
-        self.arena.alloc(lit.copy_without_data())
+        self.arena.alloc_with(|| lit.copy_without_data())
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {
@@ -1366,7 +1846,7 @@ pub(crate) struct SymbolResolver<'gcx> {
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
-    builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
+    builtin_members_scopes: FxHashMap<Builtin, Declarations>,
 }
 
 impl<'gcx> SymbolResolver<'gcx> {
@@ -1455,7 +1935,7 @@ impl<'gcx> SymbolResolver<'gcx> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
-            Res::Builtin(builtin) => self.builtin_members_scopes[builtin as usize].as_ref(),
+            Res::Builtin(builtin) => self.builtin_members_scopes.get(&builtin),
             _ => None,
         }
     }
@@ -1511,6 +1991,20 @@ impl SymbolResolverScopes {
         let mut scope = self.pool.pop().unwrap_or_else(Declarations::new);
         scope.clear();
         self.scopes.push(scope);
+    }
+
+    fn remove_scopes(&mut self, indices: &[usize]) -> Vec<(usize, Declarations)> {
+        let mut removed = Vec::with_capacity(indices.len());
+        for &index in indices.iter().rev() {
+            removed.push((index, self.scopes.remove(index)));
+        }
+        removed
+    }
+
+    fn restore_scopes(&mut self, removed: Vec<(usize, Declarations)>) {
+        for (index, scope) in removed.into_iter().rev() {
+            self.scopes.insert(index, scope);
+        }
     }
 
     #[inline]

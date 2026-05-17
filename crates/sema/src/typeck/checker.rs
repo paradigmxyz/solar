@@ -6,7 +6,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -559,6 +559,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
+            hir::ExprKind::YulMember(expr, member) => {
+                if is_yul_member(member) {
+                    // TODO: Validate inline assembly suffixes like solc does:
+                    // `.slot`/`.offset` for storage and transient variables, `.offset`/`.length`
+                    // for calldata arrays, and `.address`/`.selector` for external function
+                    // pointers. Assignment rules are suffix- and declaration-dependent.
+                }
+                let _ = self.check_expr(expr);
+                self.gcx.types.uint(256)
+            }
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -1085,6 +1095,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let contract = self.gcx.hir.function(id).contract;
+        let prev = self.contract;
+        self.contract = contract.or(prev);
+        let r = self.visit_function(self.gcx.hir.function(id));
+        self.contract = prev;
+        r
+    }
+
     fn visit_contract(
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
@@ -1176,6 +1195,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::Switch(switch) => {
+                let _ = self.check_expr(switch.selector);
+                for case in switch.cases {
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
+                }
+                return ControlFlow::Continue(());
+            }
             hir::StmtKind::Emit(call_expr) | hir::StmtKind::Revert(call_expr) => {
                 let is_emit = matches!(stmt.kind, hir::StmtKind::Emit(_));
                 if is_emit {
@@ -1228,6 +1256,7 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         hir::ExprKind::Ident(_)
         | hir::ExprKind::Index(..)
         | hir::ExprKind::Member(..)
+        | hir::ExprKind::YulMember(..)
         | hir::ExprKind::Call(..)
         | hir::ExprKind::Tuple(..)
         | hir::ExprKind::Err(_) => true,
@@ -1245,6 +1274,10 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
+}
+
+fn is_yul_member(member: Ident) -> bool {
+    matches!(member.name, sym::length | sym::offset | sym::selector | sym::slot | kw::Address)
 }
 
 enum OverloadError {

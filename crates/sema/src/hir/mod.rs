@@ -857,6 +857,8 @@ pub struct Function<'hir> {
     pub name: Option<Ident>,
     /// The function kind.
     pub kind: FunctionKind,
+    /// Whether this function was lowered from a Yul function definition.
+    pub is_yul: bool,
     /// The visibility of the function.
     pub visibility: Visibility,
     /// The state mutability of the function.
@@ -1251,9 +1253,6 @@ pub struct Stmt<'hir> {
 /// A kind of statement.
 #[derive(Debug)]
 pub enum StmtKind<'hir> {
-    // TODO: Yul to HIR.
-    // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-    // Assembly(StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.
     DeclSingle(VariableId),
 
@@ -1293,6 +1292,9 @@ pub enum StmtKind<'hir> {
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
 
+    /// A switch statement: `switch expr case 0 { ... } default { ... }`.
+    Switch(&'hir StmtSwitch<'hir>),
+
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
     Try(&'hir StmtTry<'hir>),
 
@@ -1303,6 +1305,26 @@ pub enum StmtKind<'hir> {
     Placeholder,
 
     Err(ErrorGuaranteed),
+}
+
+/// A switch statement: `switch expr case 0 { ... } default { ... }`.
+#[derive(Debug)]
+pub struct StmtSwitch<'hir> {
+    /// The switch selector.
+    pub selector: &'hir Expr<'hir>,
+    /// The cases of the switch statement. Includes the default case in the last position, if any.
+    pub cases: &'hir [StmtSwitchCase<'hir>],
+}
+
+/// A case of a switch statement.
+#[derive(Debug)]
+pub struct StmtSwitchCase<'hir> {
+    /// The span of the entire case, from `case` or `default` to the closing brace of the block.
+    pub span: Span,
+    /// The constant of the case, if any. `None` for the default case.
+    pub constant: Option<&'hir Lit<'hir>>,
+    /// The case body.
+    pub body: Block<'hir>,
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -1507,6 +1529,9 @@ pub enum ExprKind<'hir> {
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, &'hir Expr<'hir>),
+
+    /// A dotted Yul identifier path.
+    YulMember(&'hir Expr<'hir>, Ident),
 
     Err(ErrorGuaranteed),
 }

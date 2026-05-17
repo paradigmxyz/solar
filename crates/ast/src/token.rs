@@ -789,7 +789,7 @@ impl TokenDescription {
             _ if token.is_used_keyword() => Some(Self::Keyword),
             _ if token.is_unused_keyword() => Some(Self::ReservedKeyword),
             _ if token.is_ident_where(|id| id.is_yul_keyword()) => Some(Self::YulKeyword),
-            _ if token.is_ident_where(|id| id.is_yul_evm_builtin()) => Some(Self::YulEvmBuiltin),
+            _ if token.is_ident_where(|id| id.is_yul_builtin()) => Some(Self::YulEvmBuiltin),
             _ => None,
         }
     }

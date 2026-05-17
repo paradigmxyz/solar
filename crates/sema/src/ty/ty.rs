@@ -640,6 +640,17 @@ impl<'gcx> Ty<'gcx> {
             // byte literal -> bytesN/bytes
             // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
             (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, _), Ref(inner, DataLocation::Memory))
+                if matches!(inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
+            (StringLiteral(true, _), Elementary(String)) => Ok(()),
+            (StringLiteral(true, _), Ref(inner, DataLocation::Memory))
+                if matches!(inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
                 if size_from.bytes() <= size_to.bytes() {
                     Ok(())

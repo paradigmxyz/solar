@@ -1,6 +1,8 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
-use solar_data_structures::{BumpExt, smallvec::SmallVec};
+use solar_ast::visit::Visit;
+use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
@@ -27,7 +29,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
+                        | ast::ItemKind::Event(_) => {
+                            let item_id = self.lower_item(item);
+                            items.push(item_id);
+                            if matches!(item.kind, ast::ItemKind::Function(_)) {
+                                self.collect_yul_functions_in_item(item, &mut items);
+                            }
+                        }
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
@@ -122,6 +130,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 | ast::ItemKind::Event(_) => self.lower_item(item),
             };
             items.push(id);
+            if matches!(item.kind, ast::ItemKind::Function(_)) {
+                self.collect_yul_functions_in_item(item, &mut items);
+            }
         }
         self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
 
@@ -155,6 +166,17 @@ impl<'gcx> super::LoweringContext<'gcx> {
         item_id
     }
 
+    fn collect_yul_functions_in_item(
+        &mut self,
+        item: &'gcx ast::Item<'gcx>,
+        items: &mut SmallVec<[hir::ItemId; 16]>,
+    ) {
+        let ast::ItemKind::Function(function) = &item.kind else { return };
+        let Some(body) = &function.body else { return };
+        let mut collector = YulFunctionCollector { lcx: self, items };
+        let _ = collector.visit_block(body);
+    }
+
     fn lower_function(
         &mut self,
         item: &'gcx ast::Item<'gcx>,
@@ -182,6 +204,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             span: item.span,
             name,
             kind,
+            is_yul: false,
             gettee: None,
             modifiers: &[],
             marked_virtual: virtual_.is_some(),
@@ -206,6 +229,37 @@ impl<'gcx> super::LoweringContext<'gcx> {
             returns: &[],
             body: None,
             body_span,
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
+    }
+
+    fn lower_yul_function_decl(
+        &mut self,
+        function: &'gcx ast::yul::Function<'gcx>,
+    ) -> hir::FunctionId {
+        let id = self.hir.functions.next_idx();
+        let span = function.name.span.with_hi(function.body.span.hi());
+        let pushed_id = self.hir.functions.push(hir::Function {
+            source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
+            contract: self.current_contract_id,
+            span,
+            name: Some(function.name),
+            kind: hir::FunctionKind::Function,
+            is_yul: true,
+            visibility: hir::Visibility::Private,
+            state_mutability: hir::StateMutability::NonPayable,
+            modifiers: &[],
+            marked_virtual: false,
+            virtual_: false,
+            override_: false,
+            overrides: &[],
+            parameters: &[],
+            returns: &[],
+            body: None,
+            body_span: function.body.span,
+            gettee: None,
         });
         debug_assert_eq!(id, pushed_id);
         id
@@ -322,6 +376,25 @@ impl<'gcx> super::LoweringContext<'gcx> {
     }
 }
 
+struct YulFunctionCollector<'a, 'gcx> {
+    lcx: &'a mut super::LoweringContext<'gcx>,
+    items: &'a mut SmallVec<[hir::ItemId; 16]>,
+}
+
+impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn visit_yul_function(
+        &mut self,
+        function: &'gcx ast::yul::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let id = self.lcx.lower_yul_function_decl(function);
+        self.lcx.yul_functions.insert(super::yul_function_key(function), id);
+        self.items.push(hir::ItemId::Function(id));
+        self.visit_yul_block(&function.body)
+    }
+}
+
 /// Lowers an AST `VariableDefinition` to a HIR `Variable`.
 pub(super) fn lower_variable_partial(
     hir: &mut hir::Hir<'_>,
@@ -399,6 +472,7 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
         span,
         name,
         kind: ast::FunctionKind::Function,
+        is_yul: false,
         visibility: ast::Visibility::External,
         state_mutability: ast::StateMutability::View,
         modifiers: &[],

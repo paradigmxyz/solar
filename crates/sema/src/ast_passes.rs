@@ -25,7 +25,6 @@ struct AstValidator<'sess, 'ast> {
     contract: Option<&'ast ast::ItemContract<'ast>>,
     function_kind: Option<ast::FunctionKind>,
     in_unchecked_block: bool,
-    loop_depth: u32,
     placeholder_count: u32,
 }
 
@@ -37,7 +36,6 @@ impl<'sess> AstValidator<'sess, '_> {
             contract: None,
             function_kind: None,
             in_unchecked_block: false,
-            loop_depth: 0,
             placeholder_count: 0,
         }
     }
@@ -46,10 +44,6 @@ impl<'sess> AstValidator<'sess, '_> {
     #[inline]
     fn dcx(&self) -> &'sess DiagCtxt {
         self.dcx
-    }
-
-    fn in_loop(&self) -> bool {
-        self.loop_depth != 0
     }
 
     fn check_single_statement_variable_declaration(&self, stmt: &ast::Stmt<'_>) {
@@ -217,23 +211,13 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             ast::StmtKind::While(_, body)
             | ast::StmtKind::DoWhile(body, _)
             | ast::StmtKind::For { body, .. } => {
-                self.loop_depth += 1;
                 self.check_single_statement_variable_declaration(body);
-                let r = self.walk_stmt(stmt);
-                self.loop_depth -= 1;
-                return r;
             }
             ast::StmtKind::If(_cond, then, else_) => {
                 self.check_single_statement_variable_declaration(then);
                 if let Some(else_) = else_ {
                     self.check_single_statement_variable_declaration(else_);
                 }
-            }
-            ast::StmtKind::Break | ast::StmtKind::Continue if !self.in_loop() => {
-                let kind =
-                    if matches!(stmt.kind, ast::StmtKind::Break) { "break" } else { "continue" };
-                let msg = format!("`{kind}` outside of a loop");
-                self.dcx().err(msg).span(stmt.span).emit();
             }
             ast::StmtKind::UncheckedBlock(_block) => {
                 if self.in_unchecked_block {
@@ -259,26 +243,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                         .err("placeholder statements cannot be used inside unchecked blocks")
                         .span(stmt.span)
                         .emit();
-                }
-            }
-            ast::StmtKind::Assembly(assembly) => {
-                let mut memory_safe = false;
-
-                // TODO: Move to Yul lowering
-                for flag in assembly.flags.iter() {
-                    let span = flag.span;
-                    match flag.value {
-                        sym::memory_dash_safe => {
-                            if memory_safe {
-                                self.dcx()
-                                    .err("inline assembly marked memory-safe multiple times")
-                                    .span(span)
-                                    .emit();
-                            }
-                            memory_safe = true;
-                        }
-                        _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
-                    }
                 }
             }
             _ => {}
