@@ -1,0 +1,8 @@
+error: member `add` not found on type `U`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_not_method.sol:LL:CC
+   │
+LL │         a.add(b);
+   ╰╴          ━━━
+
+error: aborting due to 1 previous error
+

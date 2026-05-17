@@ -1,0 +1,8 @@
+error: expected function name
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_event_implementor.sol:LL:CC
+   │
+LL │ using {C.E as *} for U global;
+   ╰╴       ━━━
+
+error: aborting due to 1 previous error
+

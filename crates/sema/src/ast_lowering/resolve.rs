@@ -500,7 +500,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 _ => saw_non_function = true,
             }
         }
-        if functions.is_empty() || saw_non_function {
+        if functions.len() != 1 || saw_non_function {
             self.dcx().err("expected function name").span(path.span()).emit();
             return hir::UsingEntryKind::Err;
         }

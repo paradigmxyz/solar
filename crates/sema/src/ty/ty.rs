@@ -110,7 +110,7 @@ impl<'gcx> Ty<'gcx> {
 
     #[doc(alias = "with_location_if_reference")]
     pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
-        if self.is_reference_type() {
+        if self.peel_refs().is_reference_type() {
             return self.with_loc(gcx, loc);
         }
         self

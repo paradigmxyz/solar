@@ -1,5 +1,5 @@
 use crate::{
-    builtins::Builtin,
+    builtins::{Builtin, members},
     hir::{self, Visit},
     ty::{Gcx, Ty, TyKind},
 };
@@ -155,7 +155,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
-                let mut callee_ty = self.check_expr(callee);
+                let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
+                    self.check_member_call_callee(callee, receiver, ident, args)
+                } else {
+                    self.check_expr(callee)
+                };
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
                 let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
@@ -175,9 +179,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
                         } else {
-                            f.function_id.map(|id| {
-                                self.get_param_names(self.gcx.hir.function(id).parameters)
-                            })
+                            f.function_id
+                                .map(|id| self.get_call_param_names(id, f.parameters.len()))
                         };
                         self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
                         self.fn_call_return_type(f.returns)
@@ -781,6 +784,18 @@ impl<'gcx> TypeChecker<'gcx> {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
+    fn get_call_param_names(
+        &self,
+        function: hir::FunctionId,
+        param_count: usize,
+    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+        let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
+        if names.len() > param_count {
+            names.drain(..names.len() - param_count);
+        }
+        names
+    }
+
     fn get_struct_field_names(
         &self,
         id: hir::StructId,
@@ -821,6 +836,131 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn check_member_call_callee(
+        &mut self,
+        callee: &'gcx hir::Expr<'gcx>,
+        receiver: &'gcx hir::Expr<'gcx>,
+        ident: Ident,
+        args: &hir::CallArgs<'gcx>,
+    ) -> Ty<'gcx> {
+        let receiver_ty = self.check_expr(receiver);
+        let ty = if receiver_ty.references_error() {
+            receiver_ty
+        } else {
+            let possible_members = self
+                .gcx
+                .members_of(receiver_ty, self.source, self.contract)
+                .iter()
+                .filter(|m| m.name == ident.name)
+                .collect::<SmallVec<[_; 4]>>();
+
+            match possible_members[..] {
+                [] => {
+                    let msg = format!(
+                        "member `{ident}` not found on type `{}`",
+                        receiver_ty.display(self.gcx)
+                    );
+                    self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
+                }
+                [member] => member.ty,
+                [..] => match self.select_member_call_overload(&possible_members, args) {
+                    Ok(member) => member.ty,
+                    Err(e) => {
+                        let msg = match e {
+                            OverloadError::NotFound => format!(
+                                "no matching member `{ident}` found on type `{}`",
+                                receiver_ty.display(self.gcx)
+                            ),
+                            OverloadError::Ambiguous => format!(
+                                "member `{ident}` not unique on type `{}`",
+                                receiver_ty.display(self.gcx)
+                            ),
+                        };
+                        self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
+                    }
+                },
+            }
+        };
+        self.register_ty(callee, ty);
+        ty
+    }
+
+    fn select_member_call_overload<'a>(
+        &mut self,
+        members: &[&'a members::Member<'gcx>],
+        args: &hir::CallArgs<'gcx>,
+    ) -> Result<&'a members::Member<'gcx>, OverloadError> {
+        let mut best = None;
+        let mut best_score = None;
+        let mut ambiguous = false;
+        for &member in members {
+            let TyKind::FnPtr(function_ty) = member.ty.kind else { continue };
+            let param_names = function_ty
+                .function_id
+                .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
+            let Some(score) =
+                self.call_args_match_score(args, function_ty.parameters, param_names.as_deref())
+            else {
+                continue;
+            };
+            match best_score.map(|best_score| score.cmp(&best_score)) {
+                None | Some(std::cmp::Ordering::Greater) => {
+                    best = Some(member);
+                    best_score = Some(score);
+                    ambiguous = false;
+                }
+                Some(std::cmp::Ordering::Equal) => ambiguous = true,
+                Some(std::cmp::Ordering::Less) => {}
+            }
+        }
+        if ambiguous { Err(OverloadError::Ambiguous) } else { best.ok_or(OverloadError::NotFound) }
+    }
+
+    fn call_args_match_score(
+        &mut self,
+        args: &hir::CallArgs<'gcx>,
+        param_tys: &[Ty<'gcx>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
+    ) -> Option<usize> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                if exprs.len() != param_tys.len() {
+                    return None;
+                }
+                exprs.iter().zip(param_tys).try_fold(0, |score, (expr, &param_ty)| {
+                    self.arg_match_score(expr, param_ty).map(|arg_score| score + arg_score)
+                })
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                let names = param_names?;
+                if named_args.len() != param_tys.len() {
+                    return None;
+                }
+                let mut seen = vec![false; param_tys.len()];
+                let mut score = 0;
+                for arg in named_args {
+                    let index = names.iter().position(|&name| name == Some(arg.name.name))?;
+                    if seen[index] {
+                        return None;
+                    }
+                    seen[index] = true;
+                    score += self.arg_match_score(&arg.value, param_tys[index])?;
+                }
+                Some(score)
+            }
+        }
+    }
+
+    fn arg_match_score(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        param_ty: Ty<'gcx>,
+    ) -> Option<usize> {
+        let ty = self.check_expr_once(expr);
+        ty.try_convert_implicit_to(param_ty, self.gcx).ok()?;
+        Some(if ty == param_ty { 2 } else { 1 })
+    }
+
     fn check_positional_call_args(
         &mut self,
         call_span: Span,
@@ -850,10 +990,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let count = std::cmp::min(exprs.len(), param_tys.len());
         for i in 0..count {
-            let _ = self.expect_ty(&exprs[i], param_tys[i]);
+            let actual = self.check_expr_once(&exprs[i]);
+            self.check_expected(&exprs[i], actual, param_tys[i]);
         }
         for expr in exprs.iter().skip(count) {
-            let _ = self.check_expr(expr);
+            let _ = self.check_expr_once(expr);
         }
     }
 
@@ -897,7 +1038,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     .err(format!("duplicate named argument `{arg_name}`"))
                     .span(arg.name.span)
                     .emit();
-                let _ = self.check_expr(&arg.value);
+                let _ = self.check_expr_once(&arg.value);
                 continue;
             }
             seen_names.push(arg_name);
@@ -906,7 +1047,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
             match param_idx {
                 Some(idx) => {
-                    let _ = self.expect_ty(&arg.value, param_tys[idx]);
+                    let actual = self.check_expr_once(&arg.value);
+                    self.check_expected(&arg.value, actual, param_tys[idx]);
                 }
                 None => {
                     self.dcx()
@@ -915,10 +1057,14 @@ impl<'gcx> TypeChecker<'gcx> {
                         ))
                         .span(arg.name.span)
                         .emit();
-                    let _ = self.check_expr(&arg.value);
+                    let _ = self.check_expr_once(&arg.value);
                 }
             }
         }
+    }
+
+    fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
+        if let Some(&ty) = self.types.get(&expr.id) { ty } else { self.check_expr(expr) }
     }
 
     #[must_use]
