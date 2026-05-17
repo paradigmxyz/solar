@@ -1,0 +1,38 @@
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {add as +} for Int global;
+   ╰╴       ━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {add2 as +} for Int;
+   ╰╴       ━━━━
+
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {add2 as +} for Int;
+   ╰╴       ━━━━
+
+error: user-defined unary operator `-` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {neg as -} for Int global;
+   ╰╴       ━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {neg2 as -} for Int;
+   ╰╴       ━━━━
+
+error: user-defined unary operator `-` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_distinct_functions.sol:LL:CC
+   │
+LL │ using {neg2 as -} for Int;
+   ╰╴       ━━━━
+
+error: aborting due to 6 previous errors
+

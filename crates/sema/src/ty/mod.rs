@@ -693,6 +693,7 @@ impl<'gcx> Gcx<'gcx> {
             return;
         };
         let ty = self.type_of_item(user_ty.into());
+        let mut seen = FxHashSet::default();
         self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
             for entry in using.entries {
                 if entry.operator != Some(op) {
@@ -708,6 +709,9 @@ impl<'gcx> Gcx<'gcx> {
                         continue;
                     }
                     if function_ty.parameters.first() != Some(&ty) {
+                        continue;
+                    }
+                    if !seen.insert(function_id) {
                         continue;
                     }
                     f(function_id);
