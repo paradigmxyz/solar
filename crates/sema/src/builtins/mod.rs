@@ -329,27 +329,6 @@ declare_builtins! {
     YulBlockhash           => kw::Blockhash        => gcx.mk_yul_builtin_fn(1, 1);
     YulPop                 => kw::Pop              => gcx.mk_yul_builtin_fn(1, 0);
     YulMcopy               => kw::Mcopy            => gcx.mk_yul_builtin_fn(3, 0);
-    YulAuxdataloadn        => kw::Auxdataloadn     => gcx.mk_yul_builtin_fn(1, 1);
-    YulDatacopy            => kw::Datacopy         => gcx.mk_yul_builtin_fn(3, 0);
-    YulDataoffset          => kw::Dataoffset
-                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory], SM::NonPayable, &[gcx.types.uint(256)]);
-    YulDatasize            => kw::Datasize
-                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory], SM::NonPayable, &[gcx.types.uint(256)]);
-    YulEofcreate           => kw::Eofcreate
-                           => gcx.mk_builtin_fn(
-                               &[gcx.types.string_ref.memory, gcx.types.uint(256), gcx.types.uint(256), gcx.types.uint(256), gcx.types.uint(256)],
-                               SM::NonPayable,
-                               &[gcx.types.uint(256)],
-                           );
-    YulLinkersymbol        => kw::Linkersymbol
-                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory], SM::NonPayable, &[gcx.types.uint(256)]);
-    YulLoadimmutable       => kw::Loadimmutable
-                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory], SM::NonPayable, &[gcx.types.uint(256)]);
-    YulMemoryguard         => kw::Memoryguard      => gcx.mk_yul_builtin_fn(1, 1);
-    YulSetimmutable        => kw::Setimmutable
-                           => gcx.mk_builtin_fn(&[gcx.types.uint(256), gcx.types.string_ref.memory, gcx.types.uint(256)], SM::NonPayable, &[]);
-    YulReturncontract      => kw::Returncontract
-                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory, gcx.types.uint(256), gcx.types.uint(256)], SM::NonPayable, &[]);
 }
 
 impl Builtin {
@@ -369,7 +348,7 @@ impl Builtin {
     const LAST_ABI: usize = Self::AbiDecode as usize + 1;
 
     const FIRST_YUL: usize = Self::YulAdd as usize;
-    const LAST_YUL: usize = Self::YulReturncontract as usize + 1;
+    const LAST_YUL: usize = Self::YulMcopy as usize + 1;
 
     /// Returns an iterator over all builtins.
     #[inline]
