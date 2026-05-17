@@ -1082,8 +1082,8 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
             let cond = this.lower_yul_condition(&for_.cond);
-            let step = this.lower_yul_stmts(for_.step.stmts, for_.step.span);
-            let body = this.lower_yul_stmts(for_.body.stmts, for_.body.span);
+            let step = this.in_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let body = this.in_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
 
             let step_stmt = builder.stmt(hir::StmtKind::Block(step), step.span);

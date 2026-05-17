@@ -1,16 +1,18 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
-    hir::{self, Item, ItemId, Res},
+    hir::{self, Item, ItemId, Res, Visit},
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
 use solar_ast::{StateMutability, Visibility};
 use solar_data_structures::{
+    Never,
     map::{FxHashMap, FxHashSet},
     parallel,
 };
-use solar_interface::error_code;
+use solar_interface::{Span, error_code};
+use std::ops::ControlFlow;
 
 mod checker;
 mod override_checker;
@@ -29,6 +31,7 @@ pub(crate) fn check(gcx: Gcx<'_>) {
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+            check_break_continue(gcx, id);
             if gcx.sess.opts.unstable.typeck {
                 // TODO: Parallelize more.
                 checker::check(gcx, id);
@@ -318,5 +321,66 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Error(..) => {
             unreachable!()
         }
+    }
+}
+
+fn check_break_continue(gcx: Gcx<'_>, source: hir::SourceId) {
+    let mut checker = BreakContinueChecker::new(gcx);
+    let _ = checker.visit_nested_source(source);
+}
+
+struct BreakContinueChecker<'gcx> {
+    gcx: Gcx<'gcx>,
+    loop_depth: u32,
+}
+
+impl<'gcx> BreakContinueChecker<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
+        Self { gcx, loop_depth: 0 }
+    }
+
+    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Never> {
+        for stmt in block.stmts {
+            self.visit_stmt(stmt)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn check_break_continue(&self, span: Span, kind: &str) {
+        if self.loop_depth == 0 {
+            let msg = format!("`{kind}` outside of a loop");
+            self.gcx.sess.dcx.err(msg).span(span).emit();
+        }
+    }
+}
+
+impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let loop_depth = std::mem::replace(&mut self.loop_depth, 0);
+        let r = self.visit_function(self.hir().function(id));
+        self.loop_depth = loop_depth;
+        r
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match stmt.kind {
+            hir::StmtKind::Break => self.check_break_continue(stmt.span, "break"),
+            hir::StmtKind::Continue => self.check_break_continue(stmt.span, "continue"),
+            hir::StmtKind::Loop(block, _) => {
+                self.loop_depth += 1;
+                let r = self.visit_block(block);
+                self.loop_depth -= 1;
+                return r;
+            }
+            _ => {}
+        }
+
+        self.walk_stmt(stmt)
     }
 }
