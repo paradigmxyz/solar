@@ -981,6 +981,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 ))
             }
             ast::yul::StmtKind::AssignMulti(paths, expr) => {
+                // (a, b, c) = <expr>
                 let components = self.arena.alloc_slice_fill_iter(
                     paths.iter().map(|path| Some(self.lower_yul_path_expr(path))),
                 );
@@ -1030,22 +1031,21 @@ impl<'gcx> ResolveContext<'gcx> {
             return hir::StmtKind::Err(guar);
         }
 
-        let vars = vars.iter().map(|&(var, _)| var).collect::<SmallVec<[_; 4]>>();
         match (vars.as_slice(), expr) {
-            ([var], None) => hir::StmtKind::DeclSingle(*var),
-            ([var], Some(expr)) => {
+            ([(var, _)], None) => hir::StmtKind::DeclSingle(*var),
+            ([(var, _)], Some(expr)) => {
                 self.hir.variables[*var].initializer = Some(self.lower_yul_expr(expr));
                 hir::StmtKind::DeclSingle(*var)
             }
-            (_, None) => {
+            (vars, None) => {
                 let stmts = self.arena.alloc_slice_fill_iter(
                     vars.iter()
-                        .map(|&var| hir::Stmt { span, kind: hir::StmtKind::DeclSingle(var) }),
+                        .map(|&(var, _)| hir::Stmt { span, kind: hir::StmtKind::DeclSingle(var) }),
                 );
                 hir::StmtKind::Block(hir::Block { span, stmts })
             }
-            (_, Some(expr)) => hir::StmtKind::DeclMulti(
-                self.arena.alloc_slice_fill_iter(vars.iter().map(|&var| Some(var))),
+            (vars, Some(expr)) => hir::StmtKind::DeclMulti(
+                self.arena.alloc_slice_fill_iter(vars.iter().map(|&(var, _)| Some(var))),
                 self.lower_yul_expr(expr),
             ),
         }
@@ -1072,11 +1072,11 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
         self.in_scope(|this| {
             // {
-            //     { <init> }
+            //     { <init> } // fake block
             //     loop {
             //         if (<cond>) {
-            //             { <body> }
-            //             { <step> }
+            //             { <body> } // fake block
+            //             { <step> } // fake block
             //         } else break;
             //     }
             // }
