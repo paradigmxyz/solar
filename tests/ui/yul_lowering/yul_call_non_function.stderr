@@ -10,5 +10,11 @@ error: unresolved symbol `helper`
 LL │             helper(1)
    ╰╴            ━━━━━━
 
-error: aborting due to 2 previous errors
+error: expected function, found variable
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_call_non_function.sol:LL:CC
+   │
+LL │             local_helper(1)
+   ╰╴            ━━━━━━━━━━━━
+
+error: aborting due to 3 previous errors
 

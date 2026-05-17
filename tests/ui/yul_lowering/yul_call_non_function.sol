@@ -16,4 +16,11 @@ contract C {
             helper(1) //~ ERROR: unresolved symbol
         }
     }
+
+    function h() public {
+        function(uint256) internal pure returns (uint256) local_helper = helper;
+        assembly {
+            local_helper(1) //~ ERROR: expected function
+        }
+    }
 }
