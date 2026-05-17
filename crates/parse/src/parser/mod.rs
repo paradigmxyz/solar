@@ -1134,7 +1134,7 @@ fn parse_natspec(
                         _ => unreachable!(),
                     }
                 }
-                "return" => ast::NatSpecKind::Return,
+                "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
                     if let Some(custom_tag) = tag.strip_prefix("custom:") {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
@@ -1187,7 +1187,7 @@ mod tests {
             ast::NatSpecKind::Notice if kind == "notice" => None,
             ast::NatSpecKind::Dev if kind == "dev" => None,
             ast::NatSpecKind::Param { name } if kind == "param" => Some(name.name.as_str()),
-            ast::NatSpecKind::Return if kind == "return" => None,
+            ast::NatSpecKind::Return { .. } if kind == "return" => None,
             ast::NatSpecKind::Inheritdoc { contract } if kind == "inheritdoc" => {
                 Some(contract.name.as_str())
             }

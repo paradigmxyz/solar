@@ -46,7 +46,7 @@ impl NatSpecItem {
 /// The kind of a [`NatSpecItem`].
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NatSpecKind {
     /// `@title`
     ///
@@ -68,10 +68,10 @@ pub enum NatSpecKind {
     ///
     /// Documents a parameter. The `name` field contains the parameter name.
     Param { name: Ident },
-    /// `@return`
+    /// `@return <name>`
     ///
-    /// Documents a return variable. Return names are resolved during lowering.
-    Return,
+    /// Documents a return variable. The optional `name` field contains the return variable name.
+    Return { name: Option<Ident> },
     /// `@inheritdoc <contract>`
     ///
     /// Copies all tags from the base function. The `contract` field contains the contract name.

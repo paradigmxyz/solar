@@ -243,7 +243,7 @@ impl<'gcx> Resolver<'gcx> {
                                 .emit();
                         };
                     }
-                    NatSpecKind::Return => {
+                    NatSpecKind::Return { .. } => {
                         if !permissions.contains(TagPermissions::RETURN)
                             || item_id
                                 .as_variable()
@@ -329,7 +329,7 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         let mut item = hir::NatSpecItem::from_ast(natspec, symbol);
-        item.kind = hir::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
+        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
         item.content_start = content_start as u32;
         Some(item)
     }
@@ -492,7 +492,7 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Return { name } => {
                     local_returns.insert(name.map(|i| i.name));
                 }
-                HirKind::Custom { .. } | HirKind::Internal { .. } => {}
+                HirKind::Custom { .. } | HirKind::Internal { .. } | HirKind::Inheritdoc { .. } => {}
             }
         }
 
@@ -505,6 +505,7 @@ impl<'gcx> Resolver<'gcx> {
                 HirKind::Param { name } => !local_params.contains(&name.name),
                 HirKind::Return { name } => !local_returns.contains(&name.map(|n| n.name)),
                 HirKind::Custom { .. } | HirKind::Internal { .. } => true,
+                HirKind::Inheritdoc { .. } => false,
             };
 
             if should_inherit {
