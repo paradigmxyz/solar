@@ -4,7 +4,7 @@ use solar_ast as ast;
 use solar_data_structures::{
     BumpExt,
     index::{Idx, IndexVec},
-    map::{FxIndexMap, IndexEntry},
+    map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
 };
 use solar_interface::{
@@ -1773,7 +1773,7 @@ pub(crate) struct SymbolResolver<'gcx> {
     #[debug(ignore)]
     global_builtin_scope: Declarations,
     #[debug(ignore)]
-    builtin_members_scopes: Box<[Option<Declarations>; Builtin::COUNT]>,
+    builtin_members_scopes: FxHashMap<Builtin, Declarations>,
 }
 
 impl<'gcx> SymbolResolver<'gcx> {
@@ -1862,7 +1862,7 @@ impl<'gcx> SymbolResolver<'gcx> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
             Res::Namespace(id) => Some(&self.source_scopes[id]),
-            Res::Builtin(builtin) => self.builtin_members_scopes[builtin as usize].as_ref(),
+            Res::Builtin(builtin) => self.builtin_members_scopes.get(&builtin),
             _ => None,
         }
     }

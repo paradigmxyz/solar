@@ -4,16 +4,17 @@ use crate::{
     ty::{Gcx, Ty},
 };
 use solar_ast::StateMutability as SM;
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Span, Symbol, kw, sym};
 
 pub(crate) mod members;
 pub use members::{Member, MemberList};
 
-pub(crate) fn scopes() -> (Declarations, Box<[Option<Declarations>; Builtin::COUNT]>) {
+pub(crate) fn scopes() -> (Declarations, FxHashMap<Builtin, Declarations>) {
     let global = declarations(Builtin::global());
-    let members_map = Box::new(std::array::from_fn(|i| {
-        Some(declarations(Builtin::from_index(i).unwrap().members()?))
-    }));
+    let members_map = Builtin::iter()
+        .filter_map(|builtin| Some((builtin, declarations(builtin.members()?))))
+        .collect();
     (global, members_map)
 }
 
