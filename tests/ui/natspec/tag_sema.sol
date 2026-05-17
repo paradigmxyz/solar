@@ -60,7 +60,7 @@ contract DuplicateParamBase {
 }
 
 contract DuplicateInheritdocBase {
-    function foo() public {}
+    function foo() public virtual {}
 }
 
 contract DuplicateInheritdoc is DuplicateInheritdocBase {
@@ -94,7 +94,7 @@ contract InvalidInheritdocBase {
 contract InvalidInheritdoc is InvalidInheritdocBase {
     /// @inheritdoc InvalidInheritdocBase
     //~^ ERROR: tag `@inheritdoc` not valid for events
-    event Transfer(address from, address to);
+    event InvalidInheritdocEvent(address from, address to);
 }
 
 contract InvalidParamName {
