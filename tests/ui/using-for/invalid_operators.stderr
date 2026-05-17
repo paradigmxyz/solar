@@ -1,0 +1,84 @@
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {add as +, add2 as +} for U global;
+   ╰╴       ━━━
+
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {add as +, add2 as +} for U global;
+   ╰╴                 ━━━━
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃
+LL │ ┃     return a + b;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {badParams as -} for U global;
+   │        ━━━━━━━━━
+   ╰ help: function `badParams` needs to have one or two parameters of type `U` to be used for operator `-`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃
+LL │ ┃     return a + b;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {badParams as -} for U global;
+   │        ━━━━━━━━━
+   ╰ help: function `badParams` needs to return `U` to be used for operator `-`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ ┏ function badReturn(U a, U b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     return U.unwrap(a) + U.unwrap(b);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {badReturn as *} for U global;
+   │        ━━━━━━━━━
+   ╰ help: function `badReturn` needs to return `U` to be used for operator `*`
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ using {notPure as /} for U global;
+   │        ━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │ ┏ function notPure(U a, U b) view returns (U) {
+LL │ ┃     return a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
+   │
+LL │     using {vadd as +} for V;
+   ╰╴           ━━━━
+
+error: aborting due to 7 previous errors
+

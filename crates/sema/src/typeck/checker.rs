@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span};
+use solar_ast::{DataLocation, ElementaryType, Span, UserDefinableOperator};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
@@ -541,7 +541,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(expr)
                 };
-                // TODO: custom operators
                 if valid_unop(ty, op.kind) {
                     // Propagate negativity for integer literals under unary negation.
                     if op.kind == hir::UnOpKind::Neg
@@ -549,6 +548,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     {
                         return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
                     }
+                    ty
+                } else if let Some(ty) = self.check_user_unop(expr.span, ty, op.kind) {
                     ty
                 } else {
                     let msg = format!(
@@ -622,11 +623,13 @@ impl<'gcx> TypeChecker<'gcx> {
         assign: bool,
     ) -> Ty<'gcx> {
         let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
-        // TODO: custom operators
         if let Some(common) = common
             && !(assign && common != lhs)
         {
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
+        }
+        if !assign && let Some(ty) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+            return ty;
         }
 
         let msg = format!(
@@ -638,6 +641,76 @@ impl<'gcx> TypeChecker<'gcx> {
         err = err.span_label(lhs_e.span, lhs.display(self.gcx).to_string());
         err = err.span_label(rhs_e.span, rhs.display(self.gcx).to_string());
         self.gcx.mk_ty_err(err.emit())
+    }
+
+    fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
+        let op = match op {
+            hir::UnOpKind::Neg => UserDefinableOperator::Sub,
+            hir::UnOpKind::BitNot => UserDefinableOperator::BitNot,
+            _ => return None,
+        };
+        self.check_user_operator(
+            span,
+            self.gcx.user_operator(ty, self.source, self.contract, op, true),
+        )
+    }
+
+    fn check_user_binop(
+        &self,
+        span: Span,
+        lhs: Ty<'gcx>,
+        rhs: Ty<'gcx>,
+        op: hir::BinOpKind,
+    ) -> Option<Ty<'gcx>> {
+        let op = match op {
+            hir::BinOpKind::BitAnd => UserDefinableOperator::BitAnd,
+            hir::BinOpKind::BitOr => UserDefinableOperator::BitOr,
+            hir::BinOpKind::BitXor => UserDefinableOperator::BitXor,
+            hir::BinOpKind::Add => UserDefinableOperator::Add,
+            hir::BinOpKind::Div => UserDefinableOperator::Div,
+            hir::BinOpKind::Rem => UserDefinableOperator::Rem,
+            hir::BinOpKind::Mul => UserDefinableOperator::Mul,
+            hir::BinOpKind::Sub => UserDefinableOperator::Sub,
+            hir::BinOpKind::Eq => UserDefinableOperator::Eq,
+            hir::BinOpKind::Ge => UserDefinableOperator::Ge,
+            hir::BinOpKind::Gt => UserDefinableOperator::Gt,
+            hir::BinOpKind::Le => UserDefinableOperator::Le,
+            hir::BinOpKind::Lt => UserDefinableOperator::Lt,
+            hir::BinOpKind::Ne => UserDefinableOperator::Ne,
+            _ => return None,
+        };
+        let functions = self
+            .gcx
+            .user_operator(lhs, self.source, self.contract, op, false)
+            .into_iter()
+            .filter(|&function| {
+                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                    return false;
+                };
+                rhs.convert_implicit_to(function_ty.parameters[1], self.gcx)
+            })
+            .collect();
+        self.check_user_operator(span, functions)
+    }
+
+    fn check_user_operator(&self, span: Span, functions: Vec<hir::FunctionId>) -> Option<Ty<'gcx>> {
+        match functions.as_slice() {
+            [] => None,
+            &[function] => {
+                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                    unreachable!()
+                };
+                Some(self.fn_call_return_type(function_ty.returns))
+            }
+            [..] => Some(
+                self.gcx.mk_ty_err(
+                    self.dcx()
+                        .err("user-defined operator has more than one matching definition")
+                        .span(span)
+                        .emit(),
+                ),
+            ),
+        }
     }
 
     /// Returns `(index_ty, result_ty)` for the given value type, if it is indexable.

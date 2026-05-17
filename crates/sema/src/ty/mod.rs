@@ -6,7 +6,7 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
@@ -668,8 +668,169 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> members::MemberList<'gcx> {
-        let _ = (source, contract); // TODO
-        self.native_members(ty)
+        let mut members = self.native_members(ty).to_vec();
+        members.extend(self.attached_functions(ty, source, contract));
+        self.bump().alloc_vec(members)
+    }
+
+    pub(crate) fn user_operator(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        op: UserDefinableOperator,
+        unary: bool,
+    ) -> Vec<hir::FunctionId> {
+        let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
+            return Vec::new();
+        };
+        let ty = self.type_of_item(user_ty.into());
+        let mut functions = Vec::new();
+        for using in self.using_directives_for_type(ty, source, contract) {
+            for entry in using.entries {
+                if entry.operator != Some(op) {
+                    continue;
+                }
+                let hir::UsingEntryKind::Functions(candidates) = entry.kind else { continue };
+                for &function_id in candidates {
+                    let TyKind::FnPtr(function_ty) = self.type_of_item(function_id.into()).kind
+                    else {
+                        continue;
+                    };
+                    if function_ty.parameters.len() != if unary { 1 } else { 2 } {
+                        continue;
+                    }
+                    if function_ty.parameters.first() != Some(&ty) {
+                        continue;
+                    }
+                    functions.push(function_id);
+                }
+            }
+        }
+        functions
+    }
+
+    fn attached_functions(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<members::Member<'gcx>> {
+        let mut members = Vec::new();
+        let mut seen = FxHashSet::default();
+        for using in self.using_directives_for_type(ty, source, contract) {
+            for entry in using.entries {
+                if entry.operator.is_some() {
+                    continue;
+                }
+                match entry.kind {
+                    hir::UsingEntryKind::Library(library) => {
+                        for function in self.hir.contract(library).functions() {
+                            let f = self.hir.function(function);
+                            if !f.is_ordinary()
+                                || f.parameters.is_empty()
+                                || f.visibility == Visibility::Private
+                            {
+                                continue;
+                            }
+                            self.add_attached_function(ty, function, None, &mut seen, &mut members);
+                        }
+                    }
+                    hir::UsingEntryKind::Functions(functions) => {
+                        for &function in functions {
+                            let name = self.item_name(function).name;
+                            self.add_attached_function(
+                                ty,
+                                function,
+                                Some(name),
+                                &mut seen,
+                                &mut members,
+                            );
+                        }
+                    }
+                    hir::UsingEntryKind::Err => {}
+                }
+            }
+        }
+        members
+    }
+
+    fn add_attached_function(
+        self,
+        ty: Ty<'gcx>,
+        function: hir::FunctionId,
+        name: Option<Symbol>,
+        seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
+        members: &mut Vec<members::Member<'gcx>>,
+    ) {
+        let TyKind::FnPtr(function_ty) = self.type_of_item(function.into()).kind else {
+            return;
+        };
+        let Some((&self_ty, parameters)) = function_ty.parameters.split_first() else {
+            return;
+        };
+        if !ty.convert_implicit_to(self_ty, self) {
+            return;
+        }
+        let name = name.unwrap_or_else(|| self.item_name(function).name);
+        if !seen.insert((name, function)) {
+            return;
+        }
+        let ty = self.mk_ty_fn_ptr(TyFnPtr {
+            parameters,
+            returns: function_ty.returns,
+            state_mutability: function_ty.state_mutability,
+            visibility: function_ty.visibility,
+            function_id: Some(function),
+        });
+        members.push(members::Member::with_res(name, ty, hir::ItemId::from(function)));
+    }
+
+    fn using_directives_for_type(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<&'gcx hir::UsingDirective<'gcx>> {
+        let mut directives = Vec::new();
+        if let Some(contract) = contract {
+            directives.extend(self.hir.contract(contract).usings);
+        }
+        directives.extend(self.hir.source(source).usings);
+
+        if let Some(type_source) = self.type_definition_source(ty)
+            && type_source != source
+        {
+            directives.extend(
+                self.hir
+                    .source(type_source)
+                    .usings
+                    .iter()
+                    .filter(|using| using.global && using.ty.is_some()),
+            );
+        }
+
+        directives.retain(|using| self.using_directive_applies(using, ty));
+        directives
+    }
+
+    fn using_directive_applies(self, using: &hir::UsingDirective<'_>, ty: Ty<'gcx>) -> bool {
+        let Some(using_ty) = &using.ty else {
+            return true;
+        };
+        let using_ty = self.type_of_hir_ty(using_ty);
+        let loc = ty.loc().unwrap_or(DataLocation::Storage);
+        ty == using_ty.with_loc_if_ref(self, loc)
+    }
+
+    fn type_definition_source(self, ty: Ty<'gcx>) -> Option<hir::SourceId> {
+        match ty.peel_refs().kind {
+            TyKind::Contract(id) => Some(self.hir.contract(id).source),
+            TyKind::Struct(id) => Some(self.hir.strukt(id).source),
+            TyKind::Enum(id) => Some(self.hir.enumm(id).source),
+            TyKind::Udvt(_, id) => Some(self.hir.udvt(id).source),
+            _ => None,
+        }
     }
 }
 

@@ -421,6 +421,93 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     #[instrument(level = "debug", skip_all)]
+    pub(super) fn resolve_using_directives(&mut self) {
+        for source_id in self.hir.source_ids() {
+            let Some(ast) = &self.sources[source_id].ast else { continue };
+            self.init(source_id, None, None);
+
+            let mut usings = SmallVec::<[_; 8]>::new();
+            for item in ast.items.iter() {
+                if let ast::ItemKind::Using(using) = &item.kind {
+                    usings.push(self.lower_using_directive(item.span, using));
+                }
+            }
+            self.hir.sources[source_id].usings = self.arena.alloc_smallvec(usings);
+        }
+
+        for contract_id in self.hir.contract_ids() {
+            let ast_item = self.hir_to_ast[&hir::ItemId::Contract(contract_id)];
+            let ast::ItemKind::Contract(ast_contract) = &ast_item.kind else { unreachable!() };
+            let source = self.hir.contract(contract_id).source;
+            self.init(source, Some(contract_id), None);
+
+            let mut usings = SmallVec::<[_; 8]>::new();
+            for item in ast_contract.body.iter() {
+                if let ast::ItemKind::Using(using) = &item.kind {
+                    usings.push(self.lower_using_directive(item.span, using));
+                }
+            }
+            self.hir.contracts[contract_id].usings = self.arena.alloc_smallvec(usings);
+        }
+    }
+
+    fn lower_using_directive(
+        &mut self,
+        span: Span,
+        using: &'gcx ast::UsingDirective<'gcx>,
+    ) -> hir::UsingDirective<'gcx> {
+        let ty = using.ty.as_ref().map(|ty| self.lower_type(ty));
+        let entries = match &using.list {
+            ast::UsingList::Single(path) => {
+                let kind = match self.resolve_path_as::<hir::ContractId>(path, "library") {
+                    Ok(id) => hir::UsingEntryKind::Library(id),
+                    Err(_) => hir::UsingEntryKind::Err,
+                };
+                self.arena.alloc_as_slice(hir::UsingEntry {
+                    span: path.span(),
+                    kind,
+                    operator: None,
+                })
+            }
+            ast::UsingList::Multiple(paths) => {
+                self.arena.alloc_slice_fill_iter(paths.iter().map(|(path, operator)| {
+                    let kind = self.lower_using_functions(path);
+                    hir::UsingEntry { span: path.span(), kind, operator: *operator }
+                }))
+            }
+        };
+        hir::UsingDirective {
+            span,
+            source: self.scopes.source.unwrap(),
+            contract: self.scopes.contract,
+            ty,
+            global: using.global,
+            entries,
+        }
+    }
+
+    fn lower_using_functions(&mut self, path: &ast::PathSlice) -> hir::UsingEntryKind<'gcx> {
+        let Ok(decls) = self.resolve_paths(path) else {
+            return hir::UsingEntryKind::Err;
+        };
+
+        let mut functions = SmallVec::<[_; 4]>::new();
+        let mut saw_non_function = false;
+        for decl in decls {
+            match decl.res {
+                Res::Item(hir::ItemId::Function(id)) => functions.push(id),
+                Res::Err(_) => {}
+                _ => saw_non_function = true,
+            }
+        }
+        if functions.is_empty() || saw_non_function {
+            self.dcx().err("expected function name").span(path.span()).emit();
+            return hir::UsingEntryKind::Err;
+        }
+        hir::UsingEntryKind::Functions(self.arena.alloc_smallvec(functions))
+    }
+
+    #[instrument(level = "debug", skip_all)]
     pub(super) fn resolve_base_args(&mut self) {
         for c_id in self.hir.contract_ids() {
             let contract = self.hir.contract(c_id);

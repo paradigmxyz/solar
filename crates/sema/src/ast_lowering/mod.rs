@@ -37,6 +37,8 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     rcx.resolve_symbols();
+    // Resolve `using for` directives after all functions and types are available.
+    rcx.resolve_using_directives();
     // Resolve constructor base args.
     rcx.resolve_base_args();
     let mut lcx = rcx.lcx;

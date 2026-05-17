@@ -12,6 +12,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
+                usings: &[],
                 docs: &[],
             };
             if let Some(ast) = &source.ast {
@@ -102,6 +103,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             fallback: None,
             receive: None,
             items: &[],
+            usings: &[],
         });
         debug_assert_eq!(id, pushed_id);
         let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
