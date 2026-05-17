@@ -294,9 +294,16 @@ fn check_using_operator<'gcx>(
     }
 
     if matches!(params.len(), 1 | 2) {
-        let matches =
-            gcx.user_operator(using_ty, using.source, using.contract, op, params.len() == 1);
-        if matches.len() >= 2 {
+        let mut matches = 0;
+        gcx.for_each_user_operator(
+            using_ty,
+            using.source,
+            using.contract,
+            op,
+            params.len() == 1,
+            |_| matches += 1,
+        );
+        if matches >= 2 {
             gcx.dcx()
                 .err(format!(
                     "user-defined {} operator `{}` has more than one definition matching the operand type visible in the current scope",

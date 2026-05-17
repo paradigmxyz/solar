@@ -649,10 +649,11 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::UnOpKind::BitNot => UserDefinableOperator::BitNot,
             _ => return None,
         };
-        self.check_user_operator(
-            span,
-            self.gcx.user_operator(ty, self.source, self.contract, op, true),
-        )
+        let mut functions = WantOne::Zero;
+        self.gcx.for_each_user_operator(ty, self.source, self.contract, op, true, |function| {
+            functions.push(function);
+        });
+        self.check_user_operator(span, functions)
     }
 
     fn check_user_binop(
@@ -679,30 +680,32 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::BinOpKind::Ne => UserDefinableOperator::Ne,
             _ => return None,
         };
-        let functions = self
-            .gcx
-            .user_operator(lhs, self.source, self.contract, op, false)
-            .into_iter()
-            .filter(|&function| {
-                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
-                    return false;
-                };
-                rhs.convert_implicit_to(function_ty.parameters[1], self.gcx)
-            })
-            .collect();
+        let mut functions = WantOne::Zero;
+        self.gcx.for_each_user_operator(lhs, self.source, self.contract, op, false, |function| {
+            let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                return;
+            };
+            if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
+                functions.push(function);
+            }
+        });
         self.check_user_operator(span, functions)
     }
 
-    fn check_user_operator(&self, span: Span, functions: Vec<hir::FunctionId>) -> Option<Ty<'gcx>> {
-        match functions.as_slice() {
-            [] => None,
-            &[function] => {
+    fn check_user_operator(
+        &self,
+        span: Span,
+        functions: WantOne<hir::FunctionId>,
+    ) -> Option<Ty<'gcx>> {
+        match functions {
+            WantOne::Zero => None,
+            WantOne::One(function) => {
                 let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
                 };
                 Some(self.fn_call_return_type(function_ty.returns))
             }
-            [..] => Some(
+            WantOne::Many => Some(
                 self.gcx.mk_ty_err(
                     self.dcx()
                         .err("user-defined operator has more than one matching definition")
@@ -1367,16 +1370,24 @@ enum WantOne<T> {
 impl<T> FromIterator<T> for WantOne<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut iter = iter.into_iter().peekable();
-        match iter.peek() {
+        match iter.next() {
             None => Self::Zero,
-            Some(_) => {
-                let first = iter.next().unwrap();
+            Some(first) => {
                 match iter.peek() {
                     None => Self::One(first),
                     Some(_) => Self::Many, // (std::iter::once(first).chain(iter).collect()),
                 }
             }
         }
+    }
+}
+
+impl<T> WantOne<T> {
+    fn push(&mut self, value: T) {
+        *self = match std::mem::replace(self, Self::Zero) {
+            Self::Zero => Self::One(value),
+            Self::One(_) | Self::Many => Self::Many,
+        };
     }
 }
 

@@ -668,25 +668,31 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> members::MemberList<'gcx> {
-        let mut members = self.native_members(ty).to_vec();
-        members.extend(self.attached_functions(ty, source, contract));
+        let native = self.native_members(ty);
+        let Some(attached) = self.attached_functions(ty, source, contract) else {
+            return native;
+        };
+
+        let mut members = Vec::with_capacity(native.len() + attached.len());
+        members.extend_from_slice(native);
+        members.extend(attached);
         self.bump().alloc_vec(members)
     }
 
-    pub(crate) fn user_operator(
+    pub(crate) fn for_each_user_operator(
         self,
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
         op: UserDefinableOperator,
         unary: bool,
-    ) -> Vec<hir::FunctionId> {
+        mut f: impl FnMut(hir::FunctionId),
+    ) {
         let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
-            return Vec::new();
+            return;
         };
         let ty = self.type_of_item(user_ty.into());
-        let mut functions = Vec::new();
-        for using in self.using_directives_for_type(ty, source, contract) {
+        self.for_each_using_directive_for_type(ty, source, contract, |using| {
             for entry in using.entries {
                 if entry.operator != Some(op) {
                     continue;
@@ -703,11 +709,10 @@ impl<'gcx> Gcx<'gcx> {
                     if function_ty.parameters.first() != Some(&ty) {
                         continue;
                     }
-                    functions.push(function_id);
+                    f(function_id);
                 }
             }
-        }
-        functions
+        });
     }
 
     fn attached_functions(
@@ -715,10 +720,10 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<members::Member<'gcx>> {
+    ) -> Option<Vec<members::Member<'gcx>>> {
         let mut members = Vec::new();
         let mut seen = FxHashSet::default();
-        for using in self.using_directives_for_type(ty, source, contract) {
+        self.for_each_using_directive_for_type(ty, source, contract, |using| {
             for entry in using.entries {
                 if entry.operator.is_some() {
                     continue;
@@ -751,8 +756,8 @@ impl<'gcx> Gcx<'gcx> {
                     hir::UsingEntryKind::Err => {}
                 }
             }
-        }
-        members
+        });
+        if members.is_empty() { None } else { Some(members) }
     }
 
     fn add_attached_function(
@@ -786,32 +791,35 @@ impl<'gcx> Gcx<'gcx> {
         members.push(members::Member::with_res(name, ty, hir::ItemId::from(function)));
     }
 
-    fn using_directives_for_type(
+    fn for_each_using_directive_for_type(
         self,
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<&'gcx hir::UsingDirective<'gcx>> {
-        let mut directives = Vec::new();
+        mut f: impl FnMut(&'gcx hir::UsingDirective<'gcx>),
+    ) {
         if let Some(contract) = contract {
-            directives.extend(self.hir.contract(contract).usings);
+            for using in self.hir.contract(contract).usings {
+                if self.using_directive_applies(using, ty) {
+                    f(using);
+                }
+            }
         }
-        directives.extend(self.hir.source(source).usings);
+        for using in self.hir.source(source).usings {
+            if self.using_directive_applies(using, ty) {
+                f(using);
+            }
+        }
 
         if let Some(type_source) = self.type_definition_source(ty)
             && type_source != source
         {
-            directives.extend(
-                self.hir
-                    .source(type_source)
-                    .usings
-                    .iter()
-                    .filter(|using| using.global && using.ty.is_some()),
-            );
+            for using in self.hir.source(type_source).usings {
+                if using.global && using.ty.is_some() && self.using_directive_applies(using, ty) {
+                    f(using);
+                }
+            }
         }
-
-        directives.retain(|using| self.using_directive_applies(using, ty));
-        directives
     }
 
     fn using_directive_applies(self, using: &hir::UsingDirective<'_>, ty: Ty<'gcx>) -> bool {
