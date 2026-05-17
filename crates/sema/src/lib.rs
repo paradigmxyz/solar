@@ -21,6 +21,7 @@ pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;
+mod natspec;
 
 mod compiler;
 pub use compiler::{Compiler, CompilerRef};
@@ -96,7 +97,8 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 }
 
 #[instrument(level = "debug", skip_all)]
-fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
+fn analysis(mut gcx_mut: ty::GcxMut<'_>) -> Result<ControlFlow<()>> {
+    let gcx = gcx_mut.get();
     if let ControlFlow::Break(()) = gcx.advance_stage(CompilerStage::Analysis) {
         return Ok(ControlFlow::Break(()));
     }
@@ -122,6 +124,9 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     gcx.sess.dcx.has_errors()?;
 
     typeck::check(gcx);
+    gcx.sess.dcx.has_errors()?;
+
+    natspec::validate_and_resolve_docs(&mut gcx_mut);
     gcx.sess.dcx.has_errors()?;
 
     if !gcx.sess.opts.emit.is_empty() {

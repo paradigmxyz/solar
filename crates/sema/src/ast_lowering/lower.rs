@@ -3,7 +3,6 @@ use solar_ast as ast;
 use solar_data_structures::smallvec::SmallVec;
 
 mod natspec;
-mod signature;
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
