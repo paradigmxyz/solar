@@ -5,12 +5,22 @@ library CallLib {
         uint256 value;
     }
 
+    struct Text {
+        string value;
+    }
+
     function id(uint256 value) internal pure returns (uint256) {
         return value;
     }
 }
 
-contract CallChecking {
+contract StaticBase {
+    function internalId(uint256 value) internal pure returns (uint256) {
+        return value;
+    }
+}
+
+contract CallChecking is StaticBase {
     event E(uint a, bytes32 b);
     event EmptyEvent();
     error MyError(uint code, bytes32 message);
@@ -35,9 +45,17 @@ contract CallChecking {
         bytes memory b = bytes.concat(hex"12", hex"34");
         uint256 value = CallLib.id(values.length);
         CallLib.Helper memory helper = CallLib.Helper({value: value});
+        CallLib.Text memory text = CallLib.Text({value: "text"});
+        require(value == StaticBase.internalId(0), "value");
+        revert("reason");
         s;
         b;
         helper;
+        text;
+    }
+
+    function testConversions() public pure returns (address, bool) {
+        return (address(0), bytes4(0x01ffc9a7) == 0x01ffc9a7);
     }
 
     // === Correct positional arguments ===

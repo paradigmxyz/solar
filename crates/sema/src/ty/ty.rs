@@ -110,7 +110,7 @@ impl<'gcx> Ty<'gcx> {
 
     #[doc(alias = "with_location_if_reference")]
     pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
-        if self.is_reference_type() {
+        if matches!(self.kind, TyKind::Ref(..)) || self.is_reference_type() {
             return self.with_loc(gcx, loc);
         }
         self
@@ -658,7 +658,6 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
-
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
             (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
@@ -809,6 +808,11 @@ impl<'gcx> Ty<'gcx> {
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
             | (Elementary(UInt(size_from)), Elementary(FixedBytes(size_to)))
                 if size_from == size_to =>
+            {
+                Ok(())
+            }
+            (IntLiteral(false, size_from), Elementary(FixedBytes(size_to)))
+                if size_from.bits() <= size_to.bits() =>
             {
                 Ok(())
             }
