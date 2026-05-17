@@ -122,7 +122,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 if let Some(common) = common {
                     // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1583
-                    self.gcx.mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                    self.gcx
+                        .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                        .with_loc_if_ref_opt(self.gcx, expected.and_then(Ty::loc))
                 } else {
                     self.gcx.mk_ty_err(
                         self.dcx().err("cannot infer array element type").span(expr.span).emit(),
@@ -162,6 +164,9 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
                 if let Some(ty) = self.check_overloaded_builtin_call(callee, args) {
+                    return ty;
+                }
+                if let Some(ty) = self.check_overloaded_function_call(callee, args) {
                     return ty;
                 }
 
@@ -965,6 +970,30 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         None
+    }
+
+    fn check_overloaded_function_call(
+        &mut self,
+        callee: &'gcx hir::Expr<'gcx>,
+        args: &hir::CallArgs<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        let hir::ExprKind::Ident(res) = callee.kind else { return None };
+        let candidates = res
+            .iter()
+            .filter_map(|res| match res {
+                hir::Res::Item(hir::ItemId::Function(id)) => {
+                    let ty = self.gcx.type_of_item((*id).into());
+                    let TyKind::FnPtr(f) = ty.kind else { unreachable!() };
+                    (f.parameters.len() == args.len()).then_some((*id, f))
+                }
+                _ => None,
+            })
+            .collect::<SmallVec<[_; 4]>>();
+        let [(id, f)] = candidates[..] else { return None };
+
+        let param_names = self.get_param_names(self.gcx.hir.function(id).parameters);
+        self.check_call_args(callee.span, args, f.parameters, Some(&param_names));
+        Some(self.fn_call_return_type(f.returns))
     }
 
     fn check_positional_call_args(

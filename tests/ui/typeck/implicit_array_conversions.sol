@@ -5,6 +5,11 @@
 // Fixed arrays must also have the same length.
 
 contract C {
+    function fixedMemoryLiteral() external pure {
+        uint256[2] memory values = [uint256(1), uint256(2)];
+        values;
+    }
+
     // === Valid: same element type assignment ===
     function sameDynamicArray(uint256[] memory a) internal pure {
         uint256[] memory b = a;
