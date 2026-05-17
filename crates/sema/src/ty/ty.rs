@@ -242,15 +242,28 @@ impl<'gcx> Ty<'gcx> {
     }
 
     /// Returns `true` if the type is recursive.
-    #[inline]
-    pub fn is_recursive(self) -> bool {
-        self.flags.contains(TyFlags::IS_RECURSIVE)
+    pub fn is_recursive(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
+            TyKind::Struct(id)
+                if matches!(gcx.struct_recursiveness(id), Recursiveness::Recursive) =>
+            {
+                ControlFlow::Break(())
+            }
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
     }
 
     /// Returns `true` if this type contains a mapping.
-    #[inline]
-    pub fn has_mapping(self) -> bool {
-        self.flags.contains(TyFlags::HAS_MAPPING)
+    pub fn has_mapping(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| {
+            if matches!(ty.kind, TyKind::Mapping(..)) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .is_break()
     }
 
     /// Returns `true` if this type contains a non-public (internal/private) function pointer.
@@ -273,9 +286,9 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
-    pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive()
-            || self.has_mapping()
+    pub fn can_be_exported(self, gcx: Gcx<'gcx>) -> bool {
+        !(self.is_recursive(gcx)
+            || self.has_mapping(gcx)
             || self.has_internal_function()
             || self.references_error())
     }
@@ -363,6 +376,54 @@ impl<'gcx> Ty<'gcx> {
         }
     }
 
+    /// Visits the type, its subtypes, and non-recursive struct fields.
+    fn visit_with_structs<T>(
+        self,
+        gcx: Gcx<'gcx>,
+        f: &mut impl FnMut(Self) -> ControlFlow<T>,
+    ) -> ControlFlow<T> {
+        f(self)?;
+        match self.kind {
+            TyKind::Struct(id) => {
+                if let Recursiveness::None = gcx.struct_recursiveness(id) {
+                    for &ty in gcx.struct_field_types(id) {
+                        ty.visit_with_structs(gcx, f)?;
+                    }
+                }
+                ControlFlow::Continue(())
+            }
+            TyKind::Elementary(_)
+            | TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(..)
+            | TyKind::Contract(_)
+            | TyKind::FnPtr(_)
+            | TyKind::Enum(_)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_)
+            | TyKind::Err(_) => ControlFlow::Continue(()),
+
+            TyKind::Ref(ty, _)
+            | TyKind::DynArray(ty)
+            | TyKind::Array(ty, _)
+            | TyKind::Slice(ty)
+            | TyKind::Udvt(ty, _)
+            | TyKind::Type(ty)
+            | TyKind::Meta(ty) => ty.visit_with_structs(gcx, f),
+
+            TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
+                for ty in list {
+                    ty.visit_with_structs(gcx, f)?;
+                }
+                ControlFlow::Continue(())
+            }
+
+            TyKind::Mapping(k, v) => {
+                k.visit_with_structs(gcx, f)?;
+                v.visit_with_structs(gcx, f)
+            }
+        }
+    }
+
     /// Returns `true` if the type is an array.
     #[inline]
     pub fn is_array(self) -> bool {
@@ -403,7 +464,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
         match self.kind {
             TyKind::Struct(id) => {
-                self.is_recursive()
+                self.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
@@ -1031,31 +1092,28 @@ bitflags::bitflags! {
     /// [`Ty`] flags.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct TyFlags: u8 {
-        /// Whether this type is recursive.
-        const IS_RECURSIVE = 1 << 0;
-        /// Whether this type contains a mapping.
-        const HAS_MAPPING  = 1 << 1;
         /// Whether an error is reachable.
-        const HAS_ERROR    = 1 << 2;
+        const HAS_ERROR    = 1 << 0;
         /// Whether this type contains a non-public (internal/private) function pointer.
-        const HAS_INTERNAL_FN = 1 << 3;
+        const HAS_INTERNAL_FN = 1 << 1;
     }
 }
 
 impl TyFlags {
-    pub(super) fn calculate<'gcx>(gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) -> Self {
+    pub(super) fn calculate(ty: &TyKind<'_>) -> Self {
         let mut flags = Self::empty();
-        flags.add_ty_kind(gcx, ty);
+        flags.add_ty_kind(ty);
         flags
     }
 
-    fn add_ty_kind<'gcx>(&mut self, gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) {
+    fn add_ty_kind(&mut self, ty: &TyKind<'_>) {
         match *ty {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
             | TyKind::Enum(_)
+            | TyKind::Struct(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
 
@@ -1080,18 +1138,7 @@ impl TyFlags {
             TyKind::Mapping(k, v) => {
                 self.add_ty(k);
                 self.add_ty(v);
-                self.add(Self::HAS_MAPPING);
             }
-
-            TyKind::Struct(id) => match gcx.struct_recursiveness(id) {
-                Recursiveness::None => self.add_tys(gcx.struct_field_types(id)),
-                Recursiveness::Recursive => {
-                    self.add(Self::IS_RECURSIVE);
-                }
-                Recursiveness::Infinite(_guar) => {
-                    self.add(Self::HAS_ERROR);
-                }
-            },
 
             TyKind::Err(_) => self.add(Self::HAS_ERROR),
         }

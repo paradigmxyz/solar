@@ -41,6 +41,9 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     rcx.resolve_base_args();
     let mut lcx = rcx.lcx;
 
+    // Process and resolve docs in a single pass (combines validation and @inheritdoc resolution).
+    lcx.validate_and_resolve_docs();
+
     // Clean up.
     lcx.shrink_to_fit();
 

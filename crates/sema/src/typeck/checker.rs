@@ -422,7 +422,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.mk_ty_err(err.emit())
                     }
                     _ if ty.is_array_like() => {
-                        if ty.has_mapping() {
+                        if ty.has_mapping(self.gcx) {
                             self.gcx.mk_ty_err(
                                 self.dcx()
                                     .err("cannot instantiate mappings")
@@ -592,7 +592,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
         // variable (local storage pointers are OK).
-        if ty.has_mapping() && !self.is_local_or_return_variable(expr) {
+        if ty.has_mapping(self.gcx) && !self.is_local_or_return_variable(expr) {
             self.dcx()
                 .err("types in storage containing (nested) mappings cannot be assigned to")
                 .span(expr.span)
@@ -863,7 +863,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = self.gcx.type_of_item(id.into());
 
         if let Some(init) = var.initializer {
-            if var.is_state_variable() && ty.has_mapping() {
+            if var.is_state_variable() && ty.has_mapping(self.gcx) {
                 self.dcx()
                     .err("types in storage containing (nested) mappings cannot be assigned to")
                     .span(var.span)
@@ -895,7 +895,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 var.data_location,
                 Some(DataLocation::Calldata) | Some(DataLocation::Memory)
             )
-            && ty.has_mapping()
+            && ty.has_mapping(self.gcx)
         {
             self.dcx()
                 .err(format!(

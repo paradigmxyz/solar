@@ -1,4 +1,4 @@
-use super::{Interner, Ty, TyFlags, TyKind};
+use super::{Interner, Ty, TyKind};
 use solar_ast::{DataLocation, ElementaryType, TypeSize};
 
 /// Pre-interned types.
@@ -37,10 +37,7 @@ impl<'gcx> CommonTypes<'gcx> {
         use TyKind::*;
         use std::array::from_fn;
 
-        // NOTE: We need to skip calculating flags here because it would require `Gcx` when we
-        // haven't built one yet. This is fine since elementary types don't have any flags.
-        // If that ever changes, then this closure should also reflect that.
-        let mk = |kind| interner.intern_ty_with_flags(bump, kind, |_| TyFlags::empty());
+        let mk = |kind| interner.intern_ty(bump, kind);
         let mk_refs = |ty| EachDataLoc {
             storage: mk(Ref(ty, DataLocation::Storage)),
             transient: mk(Ref(ty, DataLocation::Transient)),
