@@ -119,13 +119,11 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
             hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
             _ => {}
         }
+        natspec::validate_item_docs(gcx, id);
     });
     gcx.sess.dcx.has_errors()?;
 
     typeck::check(gcx);
-    gcx.sess.dcx.has_errors()?;
-
-    natspec::validate_docs(gcx);
     gcx.sess.dcx.has_errors()?;
 
     if !gcx.sess.opts.emit.is_empty() {

@@ -34,6 +34,12 @@ error: tag `@title` not valid for functions
 LL │     /// @title Invalid title on function
    ╰╴         ━━━━━
 
+error: tag `@param` references non-existent parameter 'y'
+   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
+   │
+LL │     /// @param y Invalid parameter name
+   ╰╴         ━━━━━
+
 error: tag `@return` not valid for events
    ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
    │
@@ -45,12 +51,6 @@ error: tag `@inheritdoc` not valid for events
    │
 LL │     /// @inheritdoc InvalidInheritdocBase
    ╰╴         ━━━━━━━━━━
-
-error: tag `@param` references non-existent parameter 'y'
-   ╭▸ ROOT/tests/ui/natspec/tag_sema.sol:LL:CC
-   │
-LL │     /// @param y Invalid parameter name
-   ╰╴         ━━━━━
 
 error: aborting due to 8 previous errors
 

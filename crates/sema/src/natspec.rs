@@ -47,11 +47,10 @@ impl TagPermissions {
     }
 }
 
-pub(crate) fn validate_docs(gcx: Gcx<'_>) {
-    for doc_id in gcx.hir.doc_ids() {
-        if !doc_id.is_empty() {
-            let _ = gcx.natspec_doc_comments(doc_id);
-        }
+pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
+    let doc_id = gcx.hir.item(item_id).doc();
+    if !doc_id.is_empty() {
+        let _ = gcx.natspec_doc_comments(doc_id);
     }
 }
 

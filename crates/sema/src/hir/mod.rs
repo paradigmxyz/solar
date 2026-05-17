@@ -589,6 +589,21 @@ impl<'hir> Item<'_, 'hir> {
         }
     }
 
+    /// Returns the documentation comments associated with this item.
+    #[inline]
+    pub fn doc(self) -> DocId {
+        match self {
+            Item::Contract(c) => c.doc,
+            Item::Function(f) => f.doc,
+            Item::Struct(s) => s.doc,
+            Item::Enum(e) => e.doc,
+            Item::Udvt(u) => u.doc,
+            Item::Error(e) => e.doc,
+            Item::Event(e) => e.doc,
+            Item::Variable(v) => v.doc.unwrap_or(DocId::EMPTY),
+        }
+    }
+
     /// Returns the parameters of the item.
     #[inline]
     pub fn parameters(self) -> Option<&'hir [VariableId]> {
