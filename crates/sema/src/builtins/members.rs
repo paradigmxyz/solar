@@ -11,14 +11,15 @@ pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
 pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
-    let expected_ref = || panic!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
             ElementaryType::Address(false) => address(gcx).collect(),
             ElementaryType::Address(true) => address_payable(gcx).collect(),
             ElementaryType::Bool => Default::default(),
             ElementaryType::String => Default::default(),
-            ElementaryType::Bytes => expected_ref(),
+            ElementaryType::Bytes => {
+                reference(gcx, ty.with_loc(gcx, DataLocation::Memory), ty, DataLocation::Memory)
+            }
             ElementaryType::Fixed(..) | ElementaryType::UFixed(..) => Default::default(),
             ElementaryType::Int(_size) => Default::default(),
             ElementaryType::UInt(_size) => Default::default(),
@@ -27,14 +28,17 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
         TyKind::IntLiteral(..) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
-        TyKind::DynArray(_ty) => expected_ref(),
-        TyKind::Array(_ty, _len) => expected_ref(),
+        TyKind::DynArray(_) | TyKind::Array(..) => {
+            reference(gcx, ty.with_loc(gcx, DataLocation::Memory), ty, DataLocation::Memory)
+        }
         TyKind::Slice(_ty) => Default::default(),
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::FnPtr(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
-        TyKind::Struct(_id) => expected_ref(),
+        TyKind::Struct(_id) => {
+            reference(gcx, ty.with_loc(gcx, DataLocation::Memory), ty, DataLocation::Memory)
+        }
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
         TyKind::Error(_tys, _id) => Member::of_builtins(gcx, [Builtin::FunctionSelector]),
