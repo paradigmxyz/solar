@@ -24,7 +24,7 @@ error: cannot apply unary operator `-` to `bool`
    ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
    │
 LL │         U c = -x;
-   ╰╴               ━
+   ╰╴              ━━
 
 error: cannot apply builtin operator `+` to `U` and `uint32`
    ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
@@ -52,7 +52,7 @@ error: cannot apply unary operator `-` to `uint32`
    ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
    │
 LL │         U c = -x;
-   ╰╴               ━
+   ╰╴              ━━
 
 error: aborting due to 8 previous errors
 
