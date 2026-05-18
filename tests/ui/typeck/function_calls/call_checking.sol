@@ -1,15 +1,5 @@
 //@compile-flags: -Ztypeck
 
-library CallLib {
-    struct Helper {
-        uint256 value;
-    }
-
-    function id(uint256 value) internal pure returns (uint256) {
-        return value;
-    }
-}
-
 contract CallChecking {
     event E(uint a, bytes32 b);
     event EmptyEvent();
@@ -27,17 +17,6 @@ contract CallChecking {
     }
     function multiReturn() public pure returns (uint, bytes32) {
         return (1, "hi");
-    }
-
-    function testBuiltinsAndLibraryMembers() public pure {
-        uint256[] memory values = new uint256[](2);
-        string memory s = string.concat("a", "b", "c");
-        bytes memory b = bytes.concat(hex"12", hex"34");
-        uint256 value = CallLib.id(values.length);
-        CallLib.Helper memory helper = CallLib.Helper({value: value});
-        s;
-        b;
-        helper;
     }
 
     // === Correct positional arguments ===

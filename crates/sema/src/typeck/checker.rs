@@ -2,7 +2,7 @@ use crate::{
     builtins::Builtin,
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFnPtr, TyKind},
+    ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
@@ -196,14 +196,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 self.get_param_names(self.gcx.hir.function(id).parameters)
                             })
                         };
-                        if !self.check_variadic_builtin_call(args, f) {
-                            self.check_call_args(
-                                expr.span,
-                                args,
-                                f.parameters,
-                                param_names.as_deref(),
-                            );
-                        }
+                        self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
@@ -462,11 +455,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
-                            self.gcx.mk_builtin_fn(
-                                &[self.gcx.types.uint(256)],
-                                hir::StateMutability::Pure,
-                                &[ty],
-                            )
+                            self.gcx.mk_builtin_fn(&[], hir::StateMutability::Pure, &[ty])
                         }
                     }
                     TyKind::Err(_) => ty,
@@ -818,9 +807,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
             }
-            TyKind::Mapping(key, value) => {
-                (key, value.with_loc_if_ref(self.gcx, DataLocation::Storage))
-            }
+            TyKind::Mapping(key, value) => (key, value.with_loc_if_ref_opt(self.gcx, loc)),
             _ => return None,
         })
     }
@@ -915,40 +902,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
         }
-    }
-
-    fn check_variadic_builtin_call(
-        &mut self,
-        args: &hir::CallArgs<'gcx>,
-        f: &'gcx TyFnPtr<'gcx>,
-    ) -> bool {
-        if f.function_id.is_some() || !f.parameters.is_empty() || f.returns.len() != 1 {
-            return false;
-        }
-        if !matches!(
-            f.returns[0].peel_refs().kind,
-            TyKind::Elementary(ElementaryType::String | ElementaryType::Bytes)
-        ) {
-            return false;
-        }
-
-        match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => {
-                for expr in exprs {
-                    let _ = self.check_expr(expr);
-                }
-            }
-            hir::CallArgsKind::Named(named_args) => {
-                self.dcx()
-                    .err("named arguments cannot be used for functions that take arbitrary parameters")
-                    .span(args.span)
-                    .emit();
-                for arg in named_args {
-                    let _ = self.check_expr(&arg.value);
-                }
-            }
-        }
-        true
     }
 
     fn check_positional_call_args(
