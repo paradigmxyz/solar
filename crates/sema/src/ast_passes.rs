@@ -384,7 +384,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         &mut self,
         using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        let ast::UsingDirective { list, ty, global } = using;
+        let ast::UsingDirective { ref list, ref ty, global } = *using;
         let with_ty = ty.is_some();
         if self.contract.is_none() && !with_ty {
             self.dcx()
@@ -398,16 +398,16 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 .span(self.item_span)
                 .emit();
         }
-        if *global && !with_ty {
+        if global && !with_ty {
             self.dcx()
                 .err("can only globally attach functions to specific types")
                 .span(self.item_span)
                 .emit();
         }
-        if *global && self.contract.is_some() {
+        if global && self.contract.is_some() {
             self.dcx().err("`global` can only be used at file level").span(self.item_span).emit();
         }
-        if !*global && let ast::UsingList::Multiple(paths) = list {
+        if !global && let ast::UsingList::Multiple(paths) = list {
             for (path, operator) in paths.iter() {
                 if operator.is_some() {
                     self.dcx()
