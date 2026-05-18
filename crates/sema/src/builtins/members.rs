@@ -67,6 +67,7 @@ pub struct Member<'gcx> {
     pub name: Symbol,
     pub ty: Ty<'gcx>,
     pub res: Option<hir::Res>,
+    /// Whether this is a `using for` function whose first parameter is bound to the receiver.
     pub attached: bool,
 }
 
