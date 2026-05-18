@@ -1,7 +1,7 @@
 //@compile-flags: -Ztypeck
 
 library L {
-    function pick(uint256 self, uint8 x) internal pure returns (uint8) {
+    function pick(uint256 self, bool x) internal pure returns (bool) {
         self;
         return x;
     }
@@ -27,9 +27,9 @@ library L {
 contract C {
     using L for uint256;
 
-    function f(uint256 x, uint8 y) public pure {
+    function f(uint256 x, bool y) public pure {
         uint256 z = 1;
-        uint8 a = x.pick(y);
+        bool a = x.pick(y);
         uint256 b = x.pick(z);
         uint256 c = x.pair({x: 2, y: 3});
         uint256 d = x.onlySelf();

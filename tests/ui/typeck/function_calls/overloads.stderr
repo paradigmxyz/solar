@@ -1,8 +1,8 @@
 error: no unique declarations found
    ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC
    │
-LL │         pick(1);
-   ╰╴        ━━━━
+LL │         ambiguousPick(value);
+   ╰╴        ━━━━━━━━━━━━━
 
 error: no matching declarations found
    ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC

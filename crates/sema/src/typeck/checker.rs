@@ -941,29 +941,21 @@ impl<'gcx> TypeChecker<'gcx> {
             return Ok(res);
         }
 
-        let mut best = None;
-        let mut best_score = None;
-        let mut ambiguous = false;
+        let mut selected = WantOne::Zero;
         for &res in res {
             let ty = self.type_of_res(res);
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
                 continue;
             };
-            let Some(score) = self.call_args_match_score(args, param_tys, param_names.as_deref())
-            else {
-                continue;
-            };
-            match best_score.map(|best_score| score.cmp(&best_score)) {
-                None | Some(std::cmp::Ordering::Greater) => {
-                    best = Some(res);
-                    best_score = Some(score);
-                    ambiguous = false;
-                }
-                Some(std::cmp::Ordering::Equal) => ambiguous = true,
-                Some(std::cmp::Ordering::Less) => {}
+            if self.call_args_match(args, param_tys, param_names.as_deref()) {
+                selected.push(res);
             }
         }
-        if ambiguous { Err(OverloadError::Ambiguous) } else { best.ok_or(OverloadError::NotFound) }
+        match selected {
+            WantOne::Zero => Err(OverloadError::NotFound),
+            WantOne::One(res) => Ok(res),
+            WantOne::Many => Err(OverloadError::Ambiguous),
+        }
     }
 
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
@@ -992,75 +984,66 @@ impl<'gcx> TypeChecker<'gcx> {
         members: &'a [members::Member<'gcx>],
         args: &hir::CallArgs<'gcx>,
     ) -> Result<&'a members::Member<'gcx>, OverloadError> {
-        let mut best = None;
-        let mut best_score = None;
-        let mut ambiguous = false;
+        let mut selected = WantOne::Zero;
         for member in members {
             let TyKind::FnPtr(function_ty) = member.ty.kind else { continue };
             let param_names = function_ty
                 .function_id
                 .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
-            let Some(score) =
-                self.call_args_match_score(args, function_ty.parameters, param_names.as_deref())
-            else {
-                continue;
-            };
-            match best_score.map(|best_score| score.cmp(&best_score)) {
-                None | Some(std::cmp::Ordering::Greater) => {
-                    best = Some(member);
-                    best_score = Some(score);
-                    ambiguous = false;
-                }
-                Some(std::cmp::Ordering::Equal) => ambiguous = true,
-                Some(std::cmp::Ordering::Less) => {}
+            if self.call_args_match(args, function_ty.parameters, param_names.as_deref()) {
+                selected.push(member);
             }
         }
-        if ambiguous { Err(OverloadError::Ambiguous) } else { best.ok_or(OverloadError::NotFound) }
+        match selected {
+            WantOne::Zero => Err(OverloadError::NotFound),
+            WantOne::One(member) => Ok(member),
+            WantOne::Many => Err(OverloadError::Ambiguous),
+        }
     }
 
-    fn call_args_match_score(
+    fn call_args_match(
         &mut self,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
         param_names: Option<&[Option<solar_interface::Symbol>]>,
-    ) -> Option<usize> {
+    ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
                 if exprs.len() != param_tys.len() {
-                    return None;
+                    return false;
                 }
-                exprs.iter().zip(param_tys).try_fold(0, |score, (expr, &param_ty)| {
-                    self.arg_match_score(expr, param_ty).map(|arg_score| score + arg_score)
-                })
+                exprs
+                    .iter()
+                    .zip(param_tys)
+                    .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty))
             }
             hir::CallArgsKind::Named(named_args) => {
-                let names = param_names?;
+                let Some(names) = param_names else { return false };
                 if named_args.len() != param_tys.len() {
-                    return None;
+                    return false;
                 }
                 let mut seen = vec![false; param_tys.len()];
-                let mut score = 0;
                 for arg in named_args {
-                    let index = names.iter().position(|&name| name == Some(arg.name.name))?;
+                    let Some(index) = names.iter().position(|&name| name == Some(arg.name.name))
+                    else {
+                        return false;
+                    };
                     if seen[index] {
-                        return None;
+                        return false;
                     }
                     seen[index] = true;
-                    score += self.arg_match_score(&arg.value, param_tys[index])?;
+                    if !self.arg_matches(&arg.value, param_tys[index]) {
+                        return false;
+                    }
                 }
-                Some(score)
+                true
             }
         }
     }
 
-    fn arg_match_score(
-        &mut self,
-        expr: &'gcx hir::Expr<'gcx>,
-        param_ty: Ty<'gcx>,
-    ) -> Option<usize> {
+    fn arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, param_ty: Ty<'gcx>) -> bool {
         let ty = self.check_expr_once(expr);
-        ty.try_convert_implicit_to(param_ty, self.gcx).ok()?;
-        Some(if ty == param_ty { 2 } else { 1 })
+        ty.try_convert_implicit_to(param_ty, self.gcx).is_ok()
     }
 
     fn check_positional_call_args(
