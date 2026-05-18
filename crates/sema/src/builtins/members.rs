@@ -277,15 +277,16 @@ pub(crate) fn contract_type<'gcx>(
             hir::Item::Function(f) => {
                 if contract.kind.is_library() {
                     f.visibility != hir::Visibility::Private
-                } else if in_deriving_scope {
-                    matches!(
-                        f.visibility,
-                        hir::Visibility::Internal
-                            | hir::Visibility::Public
-                            | hir::Visibility::External
-                    )
                 } else {
-                    matches!(f.visibility, hir::Visibility::Public | hir::Visibility::External)
+                    (in_deriving_scope
+                        && matches!(
+                            f.visibility,
+                            hir::Visibility::Internal | hir::Visibility::Public
+                        ))
+                        || matches!(
+                            f.visibility,
+                            hir::Visibility::Public | hir::Visibility::External
+                        )
                 }
             }
             item if contract.kind.is_library() => item.visibility() != hir::Visibility::Private,
