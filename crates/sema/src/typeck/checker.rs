@@ -20,6 +20,7 @@ struct TypeChecker<'gcx> {
     source: hir::SourceId,
     contract: Option<hir::ContractId>,
     function: Option<hir::FunctionId>,
+    construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
@@ -49,6 +50,7 @@ impl<'gcx> TypeChecker<'gcx> {
             source,
             contract: None,
             function: None,
+            construction_context: 0,
             types: Default::default(),
             lvalue_context: None,
             in_emit: false,
@@ -904,7 +906,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(var.span)
                     .emit();
             } else if expect {
-                let _ = self.expect_ty(init, ty);
+                let _ = if var.is_state_variable() {
+                    self.with_construction_context(|this| this.expect_ty(init, ty))
+                } else {
+                    self.expect_ty(init, ty)
+                };
             }
         }
 
@@ -1059,7 +1065,15 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn in_constructor_context(&self) -> bool {
-        self.function.is_some_and(|id| self.gcx.hir.function(id).kind.is_constructor())
+        self.construction_context != 0
+            || self.function.is_some_and(|id| self.gcx.hir.function(id).kind.is_constructor())
+    }
+
+    fn with_construction_context<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.construction_context += 1;
+        let result = f(self);
+        self.construction_context -= 1;
+        result
     }
 
     fn res_not_lvalue_reason(&self, res: hir::Res) -> Option<NotLvalueReason> {
@@ -1149,6 +1163,26 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
+    fn visit_function(&mut self, func: &'gcx hir::Function<'gcx>) -> ControlFlow<Self::BreakValue> {
+        for &param in func.parameters {
+            self.visit_nested_var(param)?;
+        }
+        for modifier in func.modifiers.iter() {
+            if !matches!(modifier.id, hir::ItemId::Contract(_)) {
+                self.visit_modifier(modifier)?;
+            }
+        }
+        for &ret in func.returns {
+            self.visit_nested_var(ret)?;
+        }
+        if let Some(ref body) = func.body {
+            for stmt in body.iter() {
+                self.visit_stmt(stmt)?;
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
     fn visit_contract(
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
@@ -1177,15 +1211,19 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         for (arg_expr, expected_arg_ty) in
                             modifier.args.exprs().zip(ctor_param_types.iter())
                         {
-                            let actual_arg_ty =
-                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            let actual_arg_ty = self.with_construction_context(|this| {
+                                this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
+                            });
                             self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
                     }
                 }
             }
         }
-        self.walk_contract(contract)
+        for &item in contract.items {
+            self.visit_nested_item(item)?;
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
