@@ -3137,6 +3137,8 @@ dependencies = [
  "bumpalo",
  "derive_more",
  "either",
+ "num-bigint",
+ "num-traits",
  "once_map",
  "paste",
  "rayon",
