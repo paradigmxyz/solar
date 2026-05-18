@@ -37,6 +37,18 @@ LL │         function() internal pure g = f;
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
    │
+LL │         function() external pure returns (uint256) f = internalTarget;
+   ╰╴                                                       ━━━━━━━━━━━━━━ expected `function () pure external returns (uint256)`, found `function () pure returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function() external pure returns (uint256) f = privateTarget;
+   ╰╴                                                       ━━━━━━━━━━━━━ expected `function () pure external returns (uint256)`, found `function () pure returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
 LL │         function() payable external g = this.h;
    ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () external`
 
@@ -82,5 +94,5 @@ error: mismatched types
 LL │         function() pure external g = this.h;
    ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () view external`
 
-error: aborting due to 14 previous errors
+error: aborting due to 16 previous errors
 
