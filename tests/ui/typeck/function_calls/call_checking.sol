@@ -65,7 +65,7 @@ contract CallChecking is StaticBase {
         return true;
     }
 
-    function privateView(uint256) private view {}
+    function internalView(uint256) internal view {}
 
     function testBuiltinsAndLibraryMembers() public pure {
         uint256[] memory values = new uint256[](2);
@@ -88,7 +88,7 @@ contract CallChecking is StaticBase {
     }
 
     function testOverloadAndFunctionPointer() public view {
-        function(uint256) internal view fnIn = privateView;
+        function(uint256) internal view fnIn = internalView;
         overloaded(1);
         overloaded(1, 2);
         fnIn;
