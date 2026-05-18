@@ -490,7 +490,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_signed(self) -> bool {
         matches!(
             self.kind,
-            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, _)
+            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, ..)
         )
     }
 
@@ -661,7 +661,7 @@ impl<'gcx> Ty<'gcx> {
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
-            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+            (IntLiteral(neg, size, _), Elementary(UInt(target_size))) => {
                 // Unsigned: reject negative, check size fits
                 if neg {
                     Result::Err(TyConvertError::Incompatible)
@@ -671,7 +671,7 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::Incompatible)
                 }
             }
-            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+            (IntLiteral(neg, size, _), Elementary(Int(target_size))) => {
                 // Signed: non-negative values need strict inequality since they use the
                 // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
                 // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
@@ -812,8 +812,9 @@ impl<'gcx> Ty<'gcx> {
             {
                 Ok(())
             }
-            (IntLiteral(false, size_from), Elementary(FixedBytes(size_to)))
-                if size_from.bits() <= size_to.bits() =>
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
+            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
             {
                 Ok(())
             }
@@ -830,7 +831,7 @@ impl<'gcx> Ty<'gcx> {
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
-            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
+            (IntLiteral(..), IntLiteral(..)) => unreachable!(),
 
             // Int <-> Int: any size allowed (only width changes, sign stays same).
             (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
@@ -947,8 +948,8 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::IntLiteral(false, size) => gcx.types.uint_(size),
-            TyKind::IntLiteral(true, size) => gcx.types.int_(size),
+            TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
+            TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             // TODO: basetype.is_dynamically_encoded
             TyKind::Slice(ty)
@@ -1014,8 +1015,9 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, TypeSize),
 
-    /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
-    IntLiteral(bool, TypeSize),
+    /// Any integer or fixed-point number literal.
+    /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
+    IntLiteral(bool, TypeSize, Option<TypeSize>),
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),

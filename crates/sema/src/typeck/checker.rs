@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span};
+use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
@@ -545,9 +545,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 if valid_unop(ty, op.kind) {
                     // Propagate negativity for integer literals under unary negation.
                     if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                        && let TyKind::IntLiteral(neg, size, fixed_bytes_size) = ty.kind
                     {
-                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                        let fixed_bytes_size =
+                            fixed_bytes_size.filter(|&size| size == TypeSize::ZERO);
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
                 } else {
