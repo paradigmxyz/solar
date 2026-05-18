@@ -275,11 +275,12 @@ pub(crate) fn contract_type<'gcx>(
         .filter(|&item_id| match gcx.hir.item(item_id) {
             hir::Item::Function(f) if !f.is_ordinary() => false,
             hir::Item::Function(f) => {
-                if contract.kind.is_library() || in_deriving_scope {
-                    f.visibility >= hir::Visibility::Internal
+                let min_visibility = if contract.kind.is_library() || in_deriving_scope {
+                    hir::Visibility::Internal
                 } else {
-                    f.visibility >= hir::Visibility::Public
-                }
+                    hir::Visibility::Public
+                };
+                f.visibility >= min_visibility
             }
             item if contract.kind.is_library() => item.visibility() != hir::Visibility::Private,
             item if in_deriving_scope => item.is_visible_in_derived_contracts(),
@@ -288,8 +289,7 @@ pub(crate) fn contract_type<'gcx>(
             | hir::Item::Udvt(_)
             | hir::Item::Error(_)
             | hir::Item::Event(_) => true,
-            hir::Item::Contract(_) => false,
-            hir::Item::Variable(_) => false,
+            hir::Item::Contract(_) | hir::Item::Variable(_) => false,
         })
         .map(|id| Member::with_res(gcx.item_name(id).name, gcx.type_of_res(hir::Res::Item(id)), id))
         .collect()
