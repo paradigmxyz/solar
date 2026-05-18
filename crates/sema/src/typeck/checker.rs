@@ -1163,23 +1163,18 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         r
     }
 
-    fn visit_function(&mut self, func: &'gcx hir::Function<'gcx>) -> ControlFlow<Self::BreakValue> {
-        for &param in func.parameters {
-            self.visit_nested_var(param)?;
+    fn visit_modifier(
+        &mut self,
+        modifier: &'gcx hir::Modifier<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        if matches!(modifier.id, hir::ItemId::Contract(_)) {
+            return ControlFlow::Continue(());
         }
-        for modifier in func.modifiers.iter() {
-            if !matches!(modifier.id, hir::ItemId::Contract(_)) {
-                self.visit_modifier(modifier)?;
-            }
-        }
-        for &ret in func.returns {
-            self.visit_nested_var(ret)?;
-        }
-        if let Some(ref body) = func.body {
-            for stmt in body.iter() {
-                self.visit_stmt(stmt)?;
-            }
-        }
+        self.walk_modifier(modifier)
+    }
+
+    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
+        let _ = self.check_var(id);
         ControlFlow::Continue(())
     }
 
@@ -1223,11 +1218,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         for &item in contract.items {
             self.visit_nested_item(item)?;
         }
-        ControlFlow::Continue(())
-    }
-
-    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
-        let _ = self.check_var(id);
         ControlFlow::Continue(())
     }
 
