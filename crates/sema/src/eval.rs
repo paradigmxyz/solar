@@ -1,10 +1,13 @@
 use crate::{hir, ty::Gcx};
 use alloy_primitives::U256;
+use num_bigint::{BigInt, BigUint, Sign};
+use num_traits::{One, Signed, Zero};
 use solar_ast::LitKind;
 use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
+const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -12,11 +15,15 @@ const RECURSION_LIMIT: usize = 64;
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
     match ConstantEvaluator::new(gcx).eval(size) {
         Ok(int) => {
-            if int.data.is_zero() {
+            let Some(int) = int.as_u256() else {
+                let msg = "array length cannot be negative";
+                return Err(gcx.dcx().err(msg).span(size.span).emit());
+            };
+            if int.is_zero() {
                 let msg = "array length must be greater than zero";
                 Err(gcx.dcx().err(msg).span(size.span).emit())
             } else {
-                Ok(int.data)
+                Ok(int)
             }
         }
         Err(guar) => Err(guar),
@@ -83,7 +90,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             hir::ExprKind::Binary(l, bin_op, r) => {
                 let l = self.try_eval(l)?;
                 let r = self.try_eval(r)?;
-                l.binop(&r, bin_op.kind).map_err(Into::into)
+                l.binop(r, bin_op.kind).map_err(Into::into)
             }
             // hir::ExprKind::Call(_, _) => unimplemented!(),
             // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
@@ -135,18 +142,20 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     }
 }
 
+/// Represents an integer value for constant evaluation.
 pub struct IntScalar {
-    pub data: U256,
+    data: BigInt,
 }
 
 impl IntScalar {
+    /// Creates a new non-negative integer value.
     pub fn new(data: U256) -> Self {
-        Self { data }
+        Self { data: Self::bigint_from_u256(data) }
     }
 
     /// Creates a new integer value from a boolean.
     pub fn from_bool(value: bool) -> Self {
-        Self { data: U256::from(value as u8) }
+        Self::new(U256::from(value as u8))
     }
 
     /// Creates a new integer value from big-endian bytes.
@@ -155,7 +164,30 @@ impl IntScalar {
     ///
     /// Panics if `bytes` is empty or has a length greater than 32.
     pub fn from_be_bytes(bytes: &[u8]) -> Self {
-        Self { data: U256::from_be_slice(bytes) }
+        Self::new(U256::from_be_slice(bytes))
+    }
+
+    /// Returns the bit length of the integer value.
+    ///
+    /// This is the number of bits needed for the literal type.
+    pub fn bit_len(&self) -> u64 {
+        Self::bits(&self.data)
+    }
+
+    /// Returns whether the value is negative.
+    pub fn is_negative(&self) -> bool {
+        self.data.is_negative()
+    }
+
+    /// Returns whether the value requires a signed integer type.
+    pub fn is_signed(&self) -> bool {
+        self.is_negative()
+    }
+
+    /// Returns the non-negative integer value as unsigned data.
+    pub fn as_u256(&self) -> Option<U256> {
+        let data = self.data.to_biguint()?;
+        U256::try_from_le_slice(&data.to_bytes_le())
     }
 
     /// Converts the integer value to a boolean.
@@ -163,65 +195,132 @@ impl IntScalar {
         !self.data.is_zero()
     }
 
+    fn bigint_from_u256(data: U256) -> BigInt {
+        BigInt::from_bytes_be(Sign::Plus, &data.to_be_bytes::<32>())
+    }
+
+    fn checked(data: BigInt) -> Result<Self, EE> {
+        if Self::bits(&data) > MAX_BITS {
+            return Err(EE::ArithmeticOverflow);
+        }
+        Ok(Self { data })
+    }
+
+    fn bits(data: &BigInt) -> u64 {
+        if data.is_zero() {
+            return 1;
+        }
+        if data.is_positive() {
+            return data.bits();
+        }
+        let abs = data.magnitude();
+        // Signed N-bit two's-complement values cover [-2^(N - 1), 2^(N - 1) - 1].
+        // Negative powers of two therefore fit in one fewer value bit than other negatives.
+        if Self::is_power_of_two(abs) { abs.bits() } else { abs.bits() + 1 }
+    }
+
+    fn is_power_of_two(value: &BigUint) -> bool {
+        !value.is_zero() && (value & (value - BigUint::one())).is_zero()
+    }
+
+    fn negate(self) -> Result<Self, EE> {
+        Self::checked(-self.data)
+    }
+
+    fn shift_amount(r: Self) -> Option<usize> {
+        r.as_u256()?.try_into().ok()
+    }
+
+    fn bitop(self, r: Self, f: impl FnOnce(BigInt, BigInt) -> BigInt) -> Result<Self, EE> {
+        Self::checked(f(self.data, r.data))
+    }
+
     /// Applies the given unary operation to this value.
-    pub fn unop(&self, op: hir::UnOpKind) -> Result<Self, EE> {
+    pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match op {
             hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
             | hir::UnOpKind::PostInc
             | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::new(!self.data),
-            hir::UnOpKind::Neg => Self::new(self.data.wrapping_neg()),
+            hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::checked(!self.data)?,
+            hir::UnOpKind::Neg => self.negate()?,
         })
     }
 
     /// Applies the given binary operation to this value.
-    pub fn binop(&self, r: &Self, op: hir::BinOpKind) -> Result<Self, EE> {
-        let l = self;
+    ///
+    /// For literal arithmetic, this preserves the exact mathematical value.
+    pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        use hir::BinOpKind::*;
         Ok(match op {
-            // hir::BinOpKind::Lt => Self::from_bool(l.data < r.data),
-            // hir::BinOpKind::Le => Self::from_bool(l.data <= r.data),
-            // hir::BinOpKind::Gt => Self::from_bool(l.data > r.data),
-            // hir::BinOpKind::Ge => Self::from_bool(l.data >= r.data),
-            // hir::BinOpKind::Eq => Self::from_bool(l.data == r.data),
-            // hir::BinOpKind::Ne => Self::from_bool(l.data != r.data),
-            // hir::BinOpKind::Or => Self::from_bool(l.data != 0 || r.data != 0),
-            // hir::BinOpKind::And => Self::from_bool(l.data != 0 && r.data != 0),
-            hir::BinOpKind::BitOr => Self::new(l.data | r.data),
-            hir::BinOpKind::BitAnd => Self::new(l.data & r.data),
-            hir::BinOpKind::BitXor => Self::new(l.data ^ r.data),
-            hir::BinOpKind::Shr => {
-                Self::new(l.data.wrapping_shr(r.data.try_into().unwrap_or(usize::MAX)))
+            Add => Self::checked(self.data + r.data)?,
+            Sub => Self::checked(self.data - r.data)?,
+            Mul => Self::checked(self.data * r.data)?,
+            Div => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                Self::checked(self.data / r.data)?
             }
-            hir::BinOpKind::Shl => {
-                Self::new(l.data.wrapping_shl(r.data.try_into().unwrap_or(usize::MAX)))
+            Rem => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                Self::checked(self.data % r.data)?
             }
-            hir::BinOpKind::Sar => {
-                Self::new(l.data.arithmetic_shr(r.data.try_into().unwrap_or(usize::MAX)))
+            Pow => {
+                if r.is_negative() {
+                    return Err(EE::ArithmeticOverflow);
+                }
+                self.checked_pow(r)?
             }
-            hir::BinOpKind::Add => {
-                Self::new(l.data.checked_add(r.data).ok_or(EE::ArithmeticOverflow)?)
+            BitOr => self.bitop(r, |a, b| a | b)?,
+            BitAnd => self.bitop(r, |a, b| a & b)?,
+            BitXor => self.bitop(r, |a, b| a ^ b)?,
+            Shr => {
+                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
+                Self::checked(self.data >> r)?
             }
-            hir::BinOpKind::Sub => {
-                Self::new(l.data.checked_sub(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Pow => {
-                Self::new(l.data.checked_pow(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Mul => {
-                Self::new(l.data.checked_mul(r.data).ok_or(EE::ArithmeticOverflow)?)
-            }
-            hir::BinOpKind::Div => Self::new(l.data.checked_div(r.data).ok_or(EE::DivisionByZero)?),
-            hir::BinOpKind::Rem => Self::new(l.data.checked_rem(r.data).ok_or(EE::DivisionByZero)?),
-            hir::BinOpKind::Lt
-            | hir::BinOpKind::Le
-            | hir::BinOpKind::Gt
-            | hir::BinOpKind::Ge
-            | hir::BinOpKind::Eq
-            | hir::BinOpKind::Ne
-            | hir::BinOpKind::Or
-            | hir::BinOpKind::And => return Err(EE::UnsupportedBinaryOp),
+            Shl => self.checked_shl(r)?,
+            Sar => return Err(EE::UnsupportedBinaryOp),
+            Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::UnsupportedBinaryOp),
         })
+    }
+
+    fn checked_shl(self, r: Self) -> Result<Self, EE> {
+        if self.data.is_zero() {
+            return Ok(self);
+        }
+        let shift: u64 = r
+            .as_u256()
+            .ok_or(EE::ArithmeticOverflow)?
+            .try_into()
+            .map_err(|_| EE::ArithmeticOverflow)?;
+        let bits = Self::bits(&self.data);
+        if shift > MAX_BITS.saturating_sub(bits) {
+            return Err(EE::ArithmeticOverflow);
+        }
+        Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
+    }
+
+    fn checked_pow(self, r: Self) -> Result<Self, EE> {
+        if self.data.is_zero() {
+            return Ok(self);
+        }
+        if self.data.is_one() {
+            return Ok(self);
+        }
+        if self.data == BigInt::from(-1) {
+            let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+            let is_odd = exp.bit(0);
+            return Self::checked(if is_odd { self.data } else { BigInt::one() });
+        }
+        let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+        if exp > U256::from(MAX_BITS) {
+            return Err(EE::ArithmeticOverflow);
+        }
+        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
+        Self::checked(self.data.pow(exp))
     }
 }
 
