@@ -66,11 +66,9 @@ contract C {
             pop(state.length) //~ ERROR: storage variables only support `.slot` and `.offset`
             state.slot := 1 //~ ERROR: state variables cannot be assigned to in inline assembly
             pop(storageRef) //~ ERROR: storage reference variables need a suffix in inline assembly
-            //~^ ERROR: mismatched types
             storageRef.offset := 1 //~ ERROR: only `.slot` can be assigned to
             pop(storageRef.length) //~ ERROR: storage variables only support `.slot` and `.offset`
             pop(data) //~ ERROR: calldata variables need a suffix in inline assembly
-            //~^ ERROR: mismatched types
             pop(data.slot) //~ ERROR: calldata variables only support `.offset` and `.length`
             pop(local.slot) //~ ERROR: suffix `.slot` is not supported by this variable or type
             pop(extFn.slot) //~ ERROR: function pointer variables only support `.selector` and `.address`

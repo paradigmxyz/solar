@@ -58,12 +58,6 @@ LL │             pop(storageRef)
    │
    ╰ help: use `.slot` or `.offset`
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
-   │
-LL │             pop(storageRef)
-   ╰╴                ━━━━━━━━━━ expected `uint256`, found `uint256[] storage`
-
 error: only `.slot` can be assigned to
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -83,12 +77,6 @@ LL │             pop(data)
    │                 ━━━━
    │
    ╰ help: use `.offset` or `.length`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
-   │
-LL │             pop(data)
-   ╰╴                ━━━━ expected `uint256`, found `uint256[] calldata`
 
 error: calldata variables only support `.offset` and `.length`
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
@@ -114,5 +102,5 @@ error: only external function pointer variables support `.selector` and `.addres
 LL │             pop(intFn.selector)
    ╰╴                      ━━━━━━━━
 
-error: aborting due to 18 previous errors
+error: aborting due to 16 previous errors
 

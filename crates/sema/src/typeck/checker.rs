@@ -7,7 +7,11 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{
+    Ident,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw, sym,
+};
 use std::ops::ControlFlow;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -260,8 +264,12 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.try_set_not_lvalue(reason);
                 }
                 let ty = self.type_of_res(res);
-                if self.in_yul && self.check_yul_external_ident(res, ty, expr.span) {
-                    return self.gcx.types.uint(256);
+                if self.in_yul {
+                    match self.check_yul_external_ident(res, ty, expr.span) {
+                        Ok(true) => return self.gcx.types.uint(256),
+                        Ok(false) => {}
+                        Err(guar) => return self.gcx.mk_ty_err(guar),
+                    }
                 }
                 ty
             }
@@ -619,46 +627,51 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn check_yul_external_ident(&mut self, res: hir::Res, ty: Ty<'gcx>, span: Span) -> bool {
-        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return false };
+    fn check_yul_external_ident(
+        &mut self,
+        res: hir::Res,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> Result<bool, ErrorGuaranteed> {
+        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return Ok(false) };
         let var = self.gcx.hir.variable(var_id);
 
         if var.is_immutable() {
-            self.dcx()
+            return Err(self
+                .dcx()
                 .err("assembly access to immutable variables is not supported")
                 .span(span)
-                .emit();
-            return false;
+                .emit());
         }
 
         if var.is_state_variable() && !var.is_constant() {
-            self.dcx()
+            return Err(self
+                .dcx()
                 .err("only local variables are supported in inline assembly")
                 .span(span)
                 .help("use `.slot` and `.offset` to access storage or transient storage variables")
-                .emit();
-            return false;
+                .emit());
         }
 
         if ty.data_stored_in(DataLocation::Storage) || ty.data_stored_in(DataLocation::Transient) {
-            self.dcx()
+            return Err(self
+                .dcx()
                 .err("storage reference variables need a suffix in inline assembly")
                 .span(span)
                 .help("use `.slot` or `.offset`")
-                .emit();
-            return false;
+                .emit());
         }
 
         if is_dynamic_calldata_array(ty) {
-            self.dcx()
+            return Err(self
+                .dcx()
                 .err("calldata variables need a suffix in inline assembly")
                 .span(span)
                 .help("use `.offset` or `.length`")
-                .emit();
-            return false;
+                .emit());
         }
 
-        true
+        Ok(true)
     }
 
     fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) {
