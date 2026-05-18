@@ -59,6 +59,8 @@ function f() {
     // int_literal[3] negative (17-24 bits) -> int24+ works
     int32 neg_32769_i32 = -32769;
 
+    int8 neg_129_i8 = -129; //~ ERROR: mismatched types
+
     // Negative literals cannot coerce to unsigned types
     uint8 neg_to_uint8 = -1; //~ ERROR: mismatched types
     uint256 neg_to_uint256 = -42; //~ ERROR: mismatched types
@@ -75,6 +77,12 @@ function f() {
     // Negation of binary expressions - binary ops on int literals are now
     // evaluated during type checking to preserve the literal type
     int16 neg_binop = -(1 + 2);
+    int8 neg_128_binop = -(127 + 1);
+    int8 neg_129_binop = -(128 + 1); //~ ERROR: mismatched types
+
+    int256 mixed_large = (-1) + (2 ** 255);
+    int256 mixed_large_commuted = (2 ** 255) + (-1);
+    uint256 mixed_large_uint = (-1) + (2 ** 255);
 
     int16 neg_shift = (-4) >> 1;
     uint16 neg_shift_to_uint = (-4) >> 1; //~ ERROR: mismatched types

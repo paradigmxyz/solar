@@ -158,7 +158,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 // literal type through binary operations (needed for -(1 + 2) to work).
                 if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
                     && !op.kind.is_cmp()
-                    && let Some(lit_ty) = self.try_eval_int_literal_binop(expr)
+                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                 {
                     return lit_ty;
                 }
@@ -540,21 +540,26 @@ impl<'gcx> TypeChecker<'gcx> {
                 debug_assert!(ty.kind.is_elementary(), "non-elementary ExprKind::Type: {ty:?}");
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
-            hir::ExprKind::Unary(op, expr) => {
+            hir::ExprKind::Unary(op, inner) => {
                 // For negation, don't propagate expected type to the inner expression
                 // because we'll modify the type (flipping the sign for int literals).
                 let propagate_expected = op.kind != hir::UnOpKind::Neg
                     || !matches!(expected, Some(ty) if ty.is_signed());
                 let ty = if op.kind.has_side_effects() {
-                    self.require_lvalue(expr)
+                    self.require_lvalue(inner)
                 } else if propagate_expected {
-                    self.check_expr_with(expr, expected)
+                    self.check_expr_with(inner, expected)
                 } else {
-                    self.check_expr(expr)
+                    self.check_expr(inner)
                 };
                 // TODO: custom operators
                 if valid_unop(ty, op.kind) {
-                    // Propagate negativity for integer literals under unary negation.
+                    if op.kind == hir::UnOpKind::Neg
+                        && let TyKind::IntLiteral(..) = ty.kind
+                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                    {
+                        return lit_ty;
+                    }
                     if op.kind == hir::UnOpKind::Neg
                         && let TyKind::IntLiteral(neg, size) = ty.kind
                     {
@@ -613,11 +618,11 @@ impl<'gcx> TypeChecker<'gcx> {
         false
     }
 
-    /// Tries to evaluate a binary expression where both operands are int literals.
+    /// Tries to evaluate an expression made up of int literals.
     ///
     /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
-    /// This is used to preserve literal type through binary operations.
-    fn try_eval_int_literal_binop(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+    /// This is used to preserve literal type through literal expressions.
+    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         let result = evaluator.try_eval(expr).ok()?;
         self.gcx.mk_ty_int_literal(result.is_negative(), result.bit_len())
