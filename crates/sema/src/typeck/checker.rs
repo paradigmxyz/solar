@@ -187,6 +187,12 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::FnPtr(f) => {
+                        if self.is_invalid_contract_type_function_call(callee, f) {
+                            self.dcx()
+                                .err("cannot call function via contract type name")
+                                .span(callee.span)
+                                .emit();
+                        }
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
                         } else {
@@ -994,6 +1000,29 @@ impl<'gcx> TypeChecker<'gcx> {
         let param_names = self.get_param_names(self.gcx.hir.function(id).parameters);
         self.check_call_args(callee.span, args, f.parameters, Some(&param_names));
         Some(self.fn_call_return_type(f.returns))
+    }
+
+    fn is_invalid_contract_type_function_call(
+        &self,
+        callee: &hir::Expr<'gcx>,
+        f: &TyFnPtr<'gcx>,
+    ) -> bool {
+        let hir::ExprKind::Member(base, _) = callee.peel_parens().kind else { return false };
+        let Some(function_id) = f.function_id else { return false };
+
+        let hir::ExprKind::Ident(res) = base.peel_parens().kind else { return false };
+        let [hir::Res::Item(hir::ItemId::Contract(contract_id))] = res else { return false };
+
+        if self.gcx.hir.contract(*contract_id).kind.is_library() {
+            return false;
+        }
+
+        let function = self.gcx.hir.function(function_id);
+        let in_deriving_scope = self.contract.is_some_and(|current| {
+            self.gcx.hir.contract(current).linearized_bases.contains(contract_id)
+        });
+        !(in_deriving_scope
+            && matches!(function.visibility, hir::Visibility::Internal | hir::Visibility::Public))
     }
 
     fn check_positional_call_args(

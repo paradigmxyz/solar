@@ -127,10 +127,6 @@ fn fixed_bytes(gcx: Gcx<'_>) -> MemberListOwned<'_> {
 }
 
 pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
-    let c = gcx.hir.contract(id);
-    if c.kind.is_library() {
-        return contract_type(gcx, id);
-    }
     gcx.interface_functions(id)
         .iter()
         .map(|f| {
@@ -204,8 +200,7 @@ fn reference<'gcx>(
 // `Enum.Variant`, `Udvt.wrap`
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
-        // TODO: https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
-        TyKind::Contract(id) => contract_type(gcx, id),
+        TyKind::Contract(_) => Default::default(),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -259,18 +254,42 @@ fn bytes_ty(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::BytesConcat])
 }
 
-fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+pub(crate) fn contract_type<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::ContractId,
+    current_contract: Option<hir::ContractId>,
+) -> MemberListOwned<'gcx> {
+    let contract = gcx.hir.contract(id);
+    let in_deriving_scope = current_contract
+        .is_some_and(|current| gcx.hir.contract(current).linearized_bases.contains(&id));
     gcx.hir
         .contract_item_ids(id)
-        .filter(|&id| match gcx.hir.item(id) {
-            hir::Item::Function(f) => f.is_ordinary(),
+        .filter(|&item_id| match gcx.hir.item(item_id) {
+            hir::Item::Function(f) if !f.is_ordinary() => false,
+            hir::Item::Function(f) => {
+                if contract.kind.is_library() {
+                    f.visibility != hir::Visibility::Private
+                } else {
+                    (in_deriving_scope
+                        && matches!(
+                            f.visibility,
+                            hir::Visibility::Internal | hir::Visibility::Public
+                        ))
+                        || matches!(
+                            f.visibility,
+                            hir::Visibility::Public | hir::Visibility::External
+                        )
+                }
+            }
+            item if contract.kind.is_library() => item.visibility() != hir::Visibility::Private,
+            item if in_deriving_scope => item.is_visible_in_derived_contracts(),
             hir::Item::Struct(_)
             | hir::Item::Enum(_)
             | hir::Item::Udvt(_)
             | hir::Item::Error(_)
-            | hir::Item::Event(_)
-            | hir::Item::Variable(_) => true,
+            | hir::Item::Event(_) => true,
             hir::Item::Contract(_) => false,
+            hir::Item::Variable(_) => false,
         })
         .map(|id| Member::with_res(gcx.item_name(id).name, gcx.type_of_res(hir::Res::Item(id)), id))
         .collect()
