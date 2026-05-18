@@ -35,10 +35,12 @@ contract Test is Base {
     }
 
     function test() external {
-        IMMUT = 7; //~ ERROR: cannot assign to an immutable variable
+        IMMUT = 7; //~ ERROR: cannot assign to immutable here
+        //~^ HELP: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
     }
 
     function indirect() internal {
-        IMMUT = 8; //~ ERROR: cannot assign to an immutable variable
+        IMMUT = 8; //~ ERROR: cannot assign to immutable here
+        //~^ HELP: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
     }
 }

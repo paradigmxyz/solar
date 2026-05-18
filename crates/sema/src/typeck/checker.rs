@@ -1036,9 +1036,17 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
+        if matches!(result, Err(NotLvalueReason::Immutable)) {
+            self.dcx()
+                .err("cannot assign to immutable here")
+                .span(expr.span)
+                .help("immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies")
+                .emit();
+            return ty;
+        }
+
         let msg = match result {
             Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
-            Err(NotLvalueReason::Immutable) => "cannot assign to an immutable variable",
             Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
             Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
             Err(NotLvalueReason::FixedBytesIndex) => {
@@ -1047,7 +1055,9 @@ impl<'gcx> TypeChecker<'gcx> {
             Err(NotLvalueReason::ArrayLength) => {
                 "member `length` is read-only and cannot be used to resize arrays"
             }
-            Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
+            Err(NotLvalueReason::Immutable) | Err(NotLvalueReason::Generic) | Ok(()) => {
+                "expression has to be an lvalue"
+            }
         };
         self.dcx().err(msg).span(expr.span).emit();
 

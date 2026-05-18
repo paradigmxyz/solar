@@ -1,14 +1,18 @@
-error: cannot assign to an immutable variable
+error: cannot assign to immutable here
    ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
    │
 LL │         IMMUT = 7;
-   ╰╴        ━━━━━
+   │         ━━━━━
+   │
+   ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
 
-error: cannot assign to an immutable variable
+error: cannot assign to immutable here
    ╭▸ ROOT/tests/ui/typeck/lvalue/immutable.sol:LL:CC
    │
 LL │         IMMUT = 8;
-   ╰╴        ━━━━━
+   │         ━━━━━
+   │
+   ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
 
 error: aborting due to 2 previous errors
 
