@@ -83,7 +83,8 @@ contract CallChecking is StaticBase {
     }
 
     function testConversions() public pure returns (address, bool) {
-        return (address(0), bytes4(0x01ffc9a7) == 0x01ffc9a7);
+        bytes4 selector = hex"01ffc9a7";
+        return (address(0), selector == hex"01ffc9a7");
     }
 
     function testOverloadAndFunctionPointer() public view {
