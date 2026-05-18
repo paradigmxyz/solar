@@ -883,37 +883,32 @@ impl<'gcx> TypeChecker<'gcx> {
                 .filter(|m| m.name == ident.name)
                 .collect::<SmallVec<[_; 4]>>();
 
-            match &possible_members[..] {
-                [] => {
-                    let msg = format!(
-                        "member `{ident}` not found on type `{}`",
-                        receiver_ty.display(self.gcx)
-                    );
-                    self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
-                }
-                [member] => {
+            match self.select_member_call_overload(&possible_members, args) {
+                Ok(member) => {
                     self.check_library_self_call(member, ident.span);
                     member.ty
                 }
-                [..] => match self.select_member_call_overload(&possible_members, args) {
-                    Ok(member) => {
-                        self.check_library_self_call(member, ident.span);
-                        member.ty
-                    }
-                    Err(e) => {
-                        let msg = match e {
-                            OverloadError::NotFound => format!(
+                Err(e) => {
+                    let msg = match e {
+                        OverloadError::NotFound if possible_members.is_empty() => format!(
+                            "member `{ident}` not found on type `{}`",
+                            receiver_ty.display(self.gcx)
+                        ),
+                        OverloadError::NotFound => {
+                            format!(
                                 "no matching member `{ident}` found on type `{}`",
                                 receiver_ty.display(self.gcx)
-                            ),
-                            OverloadError::Ambiguous => format!(
+                            )
+                        }
+                        OverloadError::Ambiguous => {
+                            format!(
                                 "member `{ident}` not unique on type `{}`",
                                 receiver_ty.display(self.gcx)
-                            ),
-                        };
-                        self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
-                    }
-                },
+                            )
+                        }
+                    };
+                    self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
+                }
             }
         };
         self.register_ty(callee, ty);
@@ -1017,6 +1012,12 @@ impl<'gcx> TypeChecker<'gcx> {
         members: &'a [members::Member<'gcx>],
         args: &hir::CallArgs<'gcx>,
     ) -> Result<&'a members::Member<'gcx>, OverloadError> {
+        match members {
+            [] => return Err(OverloadError::NotFound),
+            [member] => return Ok(member),
+            _ => {}
+        }
+
         let mut selected = WantOne::Zero;
         for member in members {
             let TyKind::FnPtr(function_ty) = member.ty.kind else { continue };
