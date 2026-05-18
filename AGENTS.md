@@ -62,13 +62,12 @@ Use `^` or `v` to point to lines above/below.
 
 ### Porting Tests from Solc
 
-Always look at the corresponding Solc test when porting behavior. Solc tests may
-embed multiple source files in one `.sol` file with `==== Source: ... ====`
-annotations. When porting those tests, split the secondary sources into the
-UI test's `auxiliary/` directory and update imports accordingly. Do not put them
-in `aux/`; that directory name is invalid on Windows and will be rejected. Add
-the Solc test path at the top of the ported test, or above the ported function
-when only one function is copied.
+Always look at the corresponding Solc test when porting behavior. Solc is always
+available in `testdata/solidity`. Solc tests may embed multiple source files in
+one `.sol` file with `==== Source: ... ====` annotations. When porting those
+tests, split the secondary sources into the UI test's `auxiliary/` directory and
+update imports accordingly. Add the Solc test path at the top of
+the ported test, or above the ported function when only one function is copied.
 
 ## Diagnostics Style
 
