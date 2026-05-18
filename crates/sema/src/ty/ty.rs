@@ -812,6 +812,11 @@ impl<'gcx> Ty<'gcx> {
             {
                 Ok(())
             }
+            (IntLiteral(false, size_from), Elementary(FixedBytes(size_to)))
+                if size_from.bits() <= size_to.bits() =>
+            {
+                Ok(())
+            }
 
             // address <-> bytes20.
             (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),

@@ -20,6 +20,14 @@ contract C {
         bytes4 b4 = bytes4(u32);    // uint32 (4 bytes) to bytes4 (4 bytes)
     }
 
+    // Valid: unsigned integer literals to FixedBytes when they fit.
+    function validIntLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0x01);
+        bytes2 b2 = bytes2(0x0102);
+        bytes4 b4 = bytes4(0x01ffc9a7);
+        bytes32 b32 = bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+    }
+
     // Invalid: FixedBytes to signed Int (not allowed)
     function invalidBytesToSignedInt(bytes4 b4, bytes8 b8) public pure {
         int32 i32 = int32(b4);      //~ ERROR: invalid explicit type conversion
@@ -41,5 +49,12 @@ contract C {
     function invalidUintToBytes(uint64 u64) public pure {
         bytes4 b4 = bytes4(u64);    //~ ERROR: invalid explicit type conversion
         bytes32 b32 = bytes32(u64); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: integer literals to FixedBytes when they do not fit or are signed.
+    function invalidIntLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0x0100); //~ ERROR: invalid explicit type conversion
+        bytes2 b2 = bytes2(0x010000); //~ ERROR: invalid explicit type conversion
+        bytes1 b3 = bytes1(-0x01); //~ ERROR: invalid explicit type conversion
     }
 }
