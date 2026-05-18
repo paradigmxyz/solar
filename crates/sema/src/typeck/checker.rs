@@ -1036,30 +1036,29 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        if matches!(result, Err(NotLvalueReason::Immutable)) {
-            self.dcx()
-                .err("cannot assign to immutable here")
-                .span(expr.span)
-                .help("immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies")
-                .emit();
-            return ty;
-        }
-
-        let msg = match result {
-            Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
-            Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
-            Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
+        let (msg, help) = match result {
+            Err(NotLvalueReason::Constant) => ("cannot assign to a constant variable", None),
+            Err(NotLvalueReason::Immutable) => (
+                "cannot assign to immutable here",
+                Some(
+                    "immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies",
+                ),
+            ),
+            Err(NotLvalueReason::CalldataArray) => ("calldata arrays are read-only", None),
+            Err(NotLvalueReason::CalldataStruct) => ("calldata structs are read-only", None),
             Err(NotLvalueReason::FixedBytesIndex) => {
-                "single bytes in fixed bytes arrays cannot be modified"
+                ("single bytes in fixed bytes arrays cannot be modified", None)
             }
             Err(NotLvalueReason::ArrayLength) => {
-                "member `length` is read-only and cannot be used to resize arrays"
+                ("member `length` is read-only and cannot be used to resize arrays", None)
             }
-            Err(NotLvalueReason::Immutable) | Err(NotLvalueReason::Generic) | Ok(()) => {
-                "expression has to be an lvalue"
-            }
+            Err(NotLvalueReason::Generic) | Ok(()) => ("expression has to be an lvalue", None),
         };
-        self.dcx().err(msg).span(expr.span).emit();
+        let mut diag = self.dcx().err(msg).span(expr.span);
+        if let Some(help) = help {
+            diag = diag.help(help);
+        }
+        diag.emit();
 
         ty
     }
