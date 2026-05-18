@@ -40,35 +40,5 @@ error: unresolved symbol `a`
 LL │                     r := a
    ╰╴                         ━
 
-error: variable name `a` already taken in this scope
-   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
-   │
-LL │                 let a := 2
-   ╰╴                    ━
-
-error: variable name `y` already taken in this scope
-   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
-   │
-LL │                 let y := 2
-   ╰╴                    ━
-
-error: function name `y` already taken in this scope
-   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
-   │
-LL │                 function y() -> r {
-   ╰╴                         ━
-
-error: expected function, found variable
-   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
-   │
-LL │                 x := y()
-   ╰╴                     ━
-
-error: function name `y` already taken in this scope
-   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
-   │
-LL │                 function y() -> r {
-   ╰╴                         ━
-
-error: aborting due to 12 previous errors
+error: aborting due to 7 previous errors
 

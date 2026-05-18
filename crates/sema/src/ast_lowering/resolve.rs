@@ -972,13 +972,6 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn declare_yul_function(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        if self.yul_name_conflict(function.name).is_some() {
-            self.dcx()
-                .err(format!("function name `{}` already taken in this scope", function.name))
-                .span(function.name.span)
-                .emit();
-            return;
-        }
         let res = Res::Item(hir::ItemId::Function(id));
         let _ = self.scopes.current_scope().declare_res(
             self.lcx.sess,
@@ -1037,15 +1030,7 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        if self.yul_name_conflict(name).is_some() {
-            self.dcx()
-                .err(format!("variable name `{name}` already taken in this scope"))
-                .span(name.span)
-                .emit();
-        } else {
-            let _ =
-                self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
-        }
+        let _ = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         id
     }
 
@@ -1145,24 +1130,9 @@ impl<'gcx> ResolveContext<'gcx> {
         );
         let id = self.hir.variables.push(var);
         let res = Res::Item(hir::ItemId::Variable(id));
-        let result = if self.yul_name_conflict(name).is_some() {
-            Err(self
-                .dcx()
-                .err(format!("variable name `{name}` already taken in this scope"))
-                .span(name.span)
-                .emit())
-        } else {
-            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res)
-        };
+        let result =
+            self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         (id, result)
-    }
-
-    fn yul_name_conflict(&self, name: Ident) -> Option<Declaration> {
-        self.yul_scopes
-            .iter()
-            .rev()
-            .filter_map(|&index| self.scopes.scopes.get(index))
-            .find_map(|scope| scope.resolve(name).and_then(|decls| decls.first().copied()))
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {

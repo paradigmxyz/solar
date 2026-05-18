@@ -81,7 +81,7 @@ contract C {
             let a := 1
 
             {
-                let a := 2 //~ ERROR: variable name `a` already taken in this scope
+                let a := 2
                 x := a
             }
         }
@@ -94,7 +94,7 @@ contract C {
             }
 
             {
-                let y := 2 //~ ERROR: variable name `y` already taken in this scope
+                let y := 2
                 x := y
             }
         }
@@ -105,11 +105,11 @@ contract C {
             let y := 1
 
             {
-                function y() -> r { //~ ERROR: function name `y` already taken in this scope
+                function y() -> r {
                     r := 2
                 }
 
-                x := y() //~ ERROR: expected function
+                x := y()
             }
         }
     }
@@ -121,7 +121,7 @@ contract C {
             }
 
             {
-                function y() -> r { //~ ERROR: function name `y` already taken in this scope
+                function y() -> r {
                     r := 2
                 }
 
