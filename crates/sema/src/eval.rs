@@ -7,6 +7,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
+const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
@@ -199,7 +200,7 @@ impl IntScalar {
     }
 
     fn checked(data: BigInt) -> Result<Self, EE> {
-        if Self::bits(&data) > u64::from(solar_ast::TypeSize::MAX) {
+        if Self::bits(&data) > MAX_BITS {
             return Err(EE::ArithmeticOverflow);
         }
         Ok(Self { data })
@@ -280,13 +281,26 @@ impl IntScalar {
                 let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
                 Self::checked(self.data >> r)?
             }
-            Shl => {
-                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
-                Self::checked(self.data << r)?
-            }
+            Shl => self.checked_shl(r)?,
             Sar => return Err(EE::UnsupportedBinaryOp),
             Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::UnsupportedBinaryOp),
         })
+    }
+
+    fn checked_shl(self, r: Self) -> Result<Self, EE> {
+        if self.data.is_zero() {
+            return Ok(self);
+        }
+        let shift: u64 = r
+            .as_u256()
+            .ok_or(EE::ArithmeticOverflow)?
+            .try_into()
+            .map_err(|_| EE::ArithmeticOverflow)?;
+        let bits = Self::bits(&self.data);
+        if shift > MAX_BITS.saturating_sub(bits) {
+            return Err(EE::ArithmeticOverflow);
+        }
+        Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
     }
 
     fn checked_pow(self, r: Self) -> Result<Self, EE> {
@@ -301,11 +315,11 @@ impl IntScalar {
             let is_odd = exp.bit(0);
             return Self::checked(if is_odd { self.data } else { BigInt::one() });
         }
-        let exp = r
-            .as_u256()
-            .ok_or(EE::ArithmeticOverflow)?
-            .try_into()
-            .map_err(|_| EE::ArithmeticOverflow)?;
+        let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+        if exp > U256::from(MAX_BITS) {
+            return Err(EE::ArithmeticOverflow);
+        }
+        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Self::checked(self.data.pow(exp))
     }
 }

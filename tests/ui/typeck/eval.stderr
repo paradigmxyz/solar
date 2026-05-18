@@ -31,6 +31,18 @@ error: array length cannot be negative
 LL │     function d2(uint[zeroPublic - 1] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━
 
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d3(uint[2 ** 4294967295] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d4(uint[1 << 4294967295] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
@@ -115,5 +127,5 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     uint[bigLiteral + 1] public tooBig1;
    ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 18 previous errors
+error: aborting due to 20 previous errors
 
