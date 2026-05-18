@@ -184,6 +184,11 @@ impl IntScalar {
         self.is_negative()
     }
 
+    /// Returns whether the integer value is zero.
+    pub fn is_zero(&self) -> bool {
+        self.data.is_zero()
+    }
+
     /// Returns the non-negative integer value as unsigned data.
     pub fn as_u256(&self) -> Option<U256> {
         let data = self.data.to_biguint()?;
