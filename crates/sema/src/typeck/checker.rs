@@ -874,41 +874,43 @@ impl<'gcx> TypeChecker<'gcx> {
         args: &hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
         let receiver_ty = self.check_expr(receiver);
-        let ty = if receiver_ty.references_error() {
-            receiver_ty
-        } else {
-            let possible_members = self
-                .gcx
-                .members_of(receiver_ty, self.source, self.contract)
-                .filter(|m| m.name == ident.name)
-                .collect::<SmallVec<[_; 4]>>();
+        if let Err(e) = receiver_ty.error_reported() {
+            let ty = self.gcx.mk_ty_err(e);
+            self.register_ty(callee, ty);
+            return ty;
+        }
 
-            match self.select_member_call_overload(&possible_members, args) {
-                Ok(member) => {
-                    self.check_library_self_call(member, ident.span);
-                    member.ty
-                }
-                Err(e) => {
-                    let msg = match e {
-                        OverloadError::NotFound if possible_members.is_empty() => format!(
-                            "member `{ident}` not found on type `{}`",
+        let possible_members = self
+            .gcx
+            .members_of(receiver_ty, self.source, self.contract)
+            .filter(|m| m.name == ident.name)
+            .collect::<SmallVec<[_; 4]>>();
+
+        let ty = match self.select_member_call_overload(&possible_members, args) {
+            Ok(member) => {
+                self.check_library_self_call(member, ident.span);
+                member.ty
+            }
+            Err(e) => {
+                let msg = match e {
+                    OverloadError::NotFound if possible_members.is_empty() => format!(
+                        "member `{ident}` not found on type `{}`",
+                        receiver_ty.display(self.gcx)
+                    ),
+                    OverloadError::NotFound => {
+                        format!(
+                            "no matching member `{ident}` found on type `{}`",
                             receiver_ty.display(self.gcx)
-                        ),
-                        OverloadError::NotFound => {
-                            format!(
-                                "no matching member `{ident}` found on type `{}`",
-                                receiver_ty.display(self.gcx)
-                            )
-                        }
-                        OverloadError::Ambiguous => {
-                            format!(
-                                "member `{ident}` not unique on type `{}`",
-                                receiver_ty.display(self.gcx)
-                            )
-                        }
-                    };
-                    self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
-                }
+                        )
+                    }
+                    OverloadError::Ambiguous => {
+                        format!(
+                            "member `{ident}` not unique on type `{}`",
+                            receiver_ty.display(self.gcx)
+                        )
+                    }
+                };
+                self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
             }
         };
         self.register_ty(callee, ty);
