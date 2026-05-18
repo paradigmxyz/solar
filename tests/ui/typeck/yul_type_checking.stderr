@@ -1,17 +1,17 @@
 error: inline assembly expression statements cannot return values
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             add(1, 2)
    ╰╴            ━━━━━━━━━
 
 error: inline assembly expression statements cannot return values
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pair()
    ╰╴            ━━━━━━
 
 error: only local variables are supported in inline assembly
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(state)
    │                 ━━━━━
@@ -19,25 +19,25 @@ LL │             pop(state)
    ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
 
 error: only local variables can be assigned to in inline assembly
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             state := 1
    ╰╴            ━━━━━
 
 error: storage variables only support `.slot` and `.offset`
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(state.length)
    ╰╴                      ━━━━━━
 
 error: state variables cannot be assigned to in inline assembly
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             state.slot := 1
    ╰╴            ━━━━━
 
 error: storage reference variables need a suffix in inline assembly
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(storageRef)
    │                 ━━━━━━━━━━
@@ -45,25 +45,25 @@ LL │             pop(storageRef)
    ╰ help: use `.slot` or `.offset`
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(storageRef)
    ╰╴                ━━━━━━━━━━ expected `uint256`, found `uint256[] storage`
 
 error: only `.slot` can be assigned to
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             storageRef.offset := 1
    ╰╴                       ━━━━━━
 
 error: storage variables only support `.slot` and `.offset`
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(storageRef.length)
    ╰╴                           ━━━━━━
 
 error: calldata variables need a suffix in inline assembly
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(data)
    │                 ━━━━
@@ -71,31 +71,31 @@ LL │             pop(data)
    ╰ help: use `.offset` or `.length`
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(data)
    ╰╴                ━━━━ expected `uint256`, found `uint256[] calldata`
 
 error: calldata variables only support `.offset` and `.length`
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(data.slot)
    ╰╴                     ━━━━
 
 error: suffix `.slot` is not supported by this variable or type
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(local.slot)
    ╰╴                      ━━━━
 
 error: function pointer variables only support `.selector` and `.address`
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(extFn.slot)
    ╰╴                      ━━━━
 
 error: only external function pointer variables support `.selector` and `.address`
-   ╭▸ ROOT/tests/ui/yul_lowering/type_checking.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(intFn.selector)
    ╰╴                      ━━━━━━━━
