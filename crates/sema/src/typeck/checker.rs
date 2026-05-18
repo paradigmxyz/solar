@@ -1,10 +1,11 @@
 use crate::{
     builtins::Builtin,
+    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyFnPtr, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span};
+use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
@@ -160,6 +161,16 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Binary(lhs_e, op, rhs_e) => {
                 let lhs = self.check_expr(lhs_e);
                 let rhs = self.check_expr(rhs_e);
+
+                // When both operands are IntLiteral, evaluate the expression to preserve
+                // literal type through binary operations (needed for -(1 + 2) to work).
+                if let (TyKind::IntLiteral(..), TyKind::IntLiteral(..)) = (lhs.kind, rhs.kind)
+                    && !op.kind.is_cmp()
+                    && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
+                {
+                    return lit_ty;
+                }
+
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
@@ -570,25 +581,32 @@ impl<'gcx> TypeChecker<'gcx> {
                 debug_assert!(ty.kind.is_elementary(), "non-elementary ExprKind::Type: {ty:?}");
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
-            hir::ExprKind::Unary(op, expr) => {
+            hir::ExprKind::Unary(op, inner) => {
                 // For negation, don't propagate expected type to the inner expression
                 // because we'll modify the type (flipping the sign for int literals).
                 let propagate_expected = op.kind != hir::UnOpKind::Neg
                     || !matches!(expected, Some(ty) if ty.is_signed());
                 let ty = if op.kind.has_side_effects() {
-                    self.require_lvalue(expr)
+                    self.require_lvalue(inner)
                 } else if propagate_expected {
-                    self.check_expr_with(expr, expected)
+                    self.check_expr_with(inner, expected)
                 } else {
-                    self.check_expr(expr)
+                    self.check_expr(inner)
                 };
                 // TODO: custom operators
                 if valid_unop(ty, op.kind) {
-                    // Propagate negativity for integer literals under unary negation.
                     if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                        && let TyKind::IntLiteral(..) = ty.kind
+                        && let Some(lit_ty) = self.try_eval_int_literal_expr(expr)
                     {
-                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                        return lit_ty;
+                    }
+                    if op.kind == hir::UnOpKind::Neg
+                        && let TyKind::IntLiteral(neg, size, fixed_bytes_size) = ty.kind
+                    {
+                        let fixed_bytes_size =
+                            fixed_bytes_size.filter(|&size| size == TypeSize::ZERO);
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
                 } else {
@@ -758,6 +776,21 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
         false
+    }
+
+    /// Tries to evaluate an expression made up of int literals.
+    ///
+    /// Returns the resulting IntLiteral type if successful, or None if evaluation fails.
+    /// This is used to preserve literal type through literal expressions.
+    fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
+        let mut evaluator = ConstantEvaluator::new(self.gcx);
+        let result = evaluator.try_eval(expr).ok()?;
+        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
+        self.gcx.mk_ty_int_literal_with_fixed_bytes(
+            result.is_negative(),
+            result.bit_len(),
+            compatible_fixed_bytes,
+        )
     }
 
     fn check_binop(
@@ -1742,7 +1775,7 @@ fn binop_common_type<'gcx>(
                 return valid_shift(ty, other, op);
             }
             if op.is_cmp()
-                && let TyKind::IntLiteral(false, size) = other.kind
+                && let TyKind::IntLiteral(false, size, _) = other.kind
                 && size.bits() <= bytes_size.bits()
             {
                 return Some(ty);
