@@ -66,13 +66,8 @@ contract MappingLocation {
     }
 
     mapping(uint256 => Value) values;
-    mapping(address => mapping(address => bool)) approvals;
 
     function get(uint256 key) internal returns (Value storage value) {
         value = values[key];
-    }
-
-    function set(address operator, bool approved) external {
-        approvals[msg.sender][operator] = approved;
     }
 }

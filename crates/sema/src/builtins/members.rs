@@ -133,7 +133,23 @@ fn fixed_bytes(gcx: Gcx<'_>) -> MemberListOwned<'_> {
 pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     let c = gcx.hir.contract(id);
     if c.kind.is_library() {
-        return contract_type(gcx, id);
+        return gcx
+            .hir
+            .contract_item_ids(id)
+            .filter(|&id| match gcx.hir.item(id) {
+                hir::Item::Function(f) => f.is_ordinary(),
+                hir::Item::Struct(_)
+                | hir::Item::Enum(_)
+                | hir::Item::Udvt(_)
+                | hir::Item::Error(_)
+                | hir::Item::Event(_)
+                | hir::Item::Variable(_) => true,
+                hir::Item::Contract(_) => false,
+            })
+            .map(|id| {
+                Member::with_res(gcx.item_name(id).name, gcx.type_of_res(hir::Res::Item(id)), id)
+            })
+            .collect();
     }
     gcx.interface_functions(id)
         .iter()
@@ -209,7 +225,8 @@ fn reference<'gcx>(
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         // TODO: https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
-        TyKind::Contract(id) => contract_type(gcx, id),
+        TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => contract(gcx, id),
+        TyKind::Contract(_) => Default::default(),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -261,23 +278,6 @@ fn string_ty(gcx: Gcx<'_>) -> MemberListOwned<'_> {
 
 fn bytes_ty(gcx: Gcx<'_>) -> MemberListOwned<'_> {
     Member::of_builtins(gcx, [Builtin::BytesConcat])
-}
-
-fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
-    gcx.hir
-        .contract_item_ids(id)
-        .filter(|&id| match gcx.hir.item(id) {
-            hir::Item::Function(f) => f.is_ordinary(),
-            hir::Item::Struct(_)
-            | hir::Item::Enum(_)
-            | hir::Item::Udvt(_)
-            | hir::Item::Error(_)
-            | hir::Item::Event(_)
-            | hir::Item::Variable(_) => true,
-            hir::Item::Contract(_) => false,
-        })
-        .map(|id| Member::with_res(gcx.item_name(id).name, gcx.type_of_res(hir::Res::Item(id)), id))
-        .collect()
 }
 
 fn type_contract(gcx: Gcx<'_>) -> MemberListOwned<'_> {

@@ -172,10 +172,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
-                if let Some(ty) = self.check_overloaded_builtin_call(callee, args) {
-                    return ty;
-                }
-
                 let mut callee_ty = self.check_expr(callee);
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -297,9 +293,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let prev_lvalue = self.lvalue_context.take();
                         let _ = self.expect_ty(index, index_ty);
-                        self.lvalue_context = prev_lvalue;
                     } else {
                         self.dcx().err("index expression cannot be omitted").span(expr.span).emit();
                     }
@@ -844,16 +838,6 @@ impl<'gcx> TypeChecker<'gcx> {
             );
         };
         let from = self.check_expr(from_expr);
-        if matches!(
-            to.kind,
-            TyKind::Elementary(ElementaryType::Address(false) | ElementaryType::Address(true))
-        ) && matches!(
-            from_expr.kind,
-            hir::ExprKind::Lit(lit)
-                if matches!(lit.kind, solar_ast::LitKind::Number(n) if n.is_zero())
-        ) {
-            return to;
-        }
         match from.try_convert_explicit_to(to, self.gcx) {
             Ok(result_ty) => result_ty,
             Err(err) => {
@@ -965,39 +949,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
         true
-    }
-
-    fn check_overloaded_builtin_call(
-        &mut self,
-        callee: &'gcx hir::Expr<'gcx>,
-        args: &hir::CallArgs<'gcx>,
-    ) -> Option<Ty<'gcx>> {
-        let hir::ExprKind::Ident(res) = callee.kind else { return None };
-        let has_builtin = |builtin| res.contains(&hir::Res::Builtin(builtin));
-
-        if has_builtin(Builtin::Require) || has_builtin(Builtin::RequireMsg) {
-            let params = match args.kind {
-                hir::CallArgsKind::Unnamed([_]) => &[self.gcx.types.bool][..],
-                hir::CallArgsKind::Unnamed([_, _]) => {
-                    &[self.gcx.types.bool, self.gcx.types.string_ref.memory][..]
-                }
-                _ => &[self.gcx.types.bool][..],
-            };
-            self.check_call_args(callee.span, args, params, None);
-            return Some(self.gcx.types.unit);
-        }
-
-        if has_builtin(Builtin::Revert) || has_builtin(Builtin::RevertMsg) {
-            let params = match args.kind {
-                hir::CallArgsKind::Unnamed([]) => &[][..],
-                hir::CallArgsKind::Unnamed([_]) => &[self.gcx.types.string_ref.memory][..],
-                _ => &[][..],
-            };
-            self.check_call_args(callee.span, args, params, None);
-            return Some(self.gcx.types.unit);
-        }
-
-        None
     }
 
     fn check_positional_call_args(
@@ -1712,15 +1663,9 @@ fn binop_common_type<'gcx>(
             }
         }
 
-        TyKind::Elementary(hir::ElementaryType::FixedBytes(bytes_size)) => {
+        TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
             if op.is_shift() {
                 return valid_shift(ty, other, op);
-            }
-            if op.is_cmp()
-                && let TyKind::IntLiteral(false, size, _) = other.kind
-                && size.bits() <= bytes_size.bits()
-            {
-                return Some(ty);
             }
             if let Some(common_type) = ty.common_type(other, gcx)
                 && common_type.is_fixed_bytes()
