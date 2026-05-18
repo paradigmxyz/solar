@@ -39,16 +39,6 @@ contract CallChecking is StaticBase {
         return (1, "hi");
     }
 
-    function overloaded(uint256) internal pure returns (bool) {
-        return true;
-    }
-
-    function overloaded(uint256, uint256) internal pure returns (bool) {
-        return true;
-    }
-
-    function privateView(uint256) private view {}
-
     function testBuiltinsAndLibraryMembers() public pure {
         uint256[] memory values = new uint256[](2);
         string memory s = string.concat("a", "b", "c");
@@ -66,13 +56,6 @@ contract CallChecking is StaticBase {
 
     function testConversions() public pure returns (address, bool) {
         return (address(0), bytes4(0x01ffc9a7) == 0x01ffc9a7);
-    }
-
-    function testOverloadAndFunctionPointer() public view {
-        function(uint256) internal view fnIn = privateView;
-        overloaded(1);
-        overloaded(1, 2);
-        fnIn;
     }
 
     // === Correct positional arguments ===

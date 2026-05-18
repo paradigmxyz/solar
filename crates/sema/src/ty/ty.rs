@@ -722,12 +722,8 @@ impl<'gcx> Ty<'gcx> {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
-                let visibility_ok = from_fn.visibility == to_fn.visibility
-                    || matches!(
-                        (from_fn.visibility, to_fn.visibility),
-                        (Visibility::Private, Visibility::Internal)
-                    );
-                if !visibility_ok {
+                // Visibility must match.
+                if from_fn.visibility != to_fn.visibility {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
