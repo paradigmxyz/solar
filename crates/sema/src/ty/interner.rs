@@ -7,9 +7,10 @@ use solar_data_structures::{Interned, map::FxBuildHasher};
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
+    mem::ManuallyDrop,
 };
 
-type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
+type InternSet<T> = horde::SyncTable<T, (), FxBuildHasher>;
 
 #[derive(Default)]
 pub(super) struct Interner<'gcx> {
@@ -152,15 +153,30 @@ fn intern_reader<K: Copy, V>(k: &K, _: &V) -> K {
 }
 */
 
-impl<K: Eq + Hash + Copy, S: BuildHasher> Intern<K> for once_map::OnceMap<K, (), S> {
+impl<K: Eq + Hash + Copy, S: BuildHasher> Intern<K> for horde::SyncTable<K, (), S> {
     #[inline]
     fn intern<Q>(&self, key: Q, make: impl FnOnce(Q) -> K) -> K
     where
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        const { assert!(!std::mem::needs_drop::<Q>()) }
-        self.map_insert_ref(&key, |key| make(unsafe { std::ptr::read(key) }), make_val, with_result)
+        const { assert!(!std::mem::needs_drop::<Q>()) };
+        let key = ManuallyDrop::new(key);
+        let hash = self.hash_key(&*key);
+        horde::collect::pin(|pin| {
+            if let Some((key, _)) = self.read(pin).get(&*key, Some(hash)) {
+                *key
+            } else {
+                let mut map = self.lock();
+                if let Some((key, _)) = map.read().get(&*key, Some(hash)) {
+                    *key
+                } else {
+                    let key = make(unsafe { std::ptr::read(&*key) });
+                    let (key, _) = map.insert_new(key, (), Some(hash));
+                    *key
+                }
+            }
+        })
     }
 
     #[inline]
@@ -169,14 +185,20 @@ impl<K: Eq + Hash + Copy, S: BuildHasher> Intern<K> for once_map::OnceMap<K, (),
         K: Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
-        self.map_insert_ref(key, make, make_val, with_result)
+        let hash = self.hash_key(key);
+        horde::collect::pin(|pin| {
+            if let Some((key, _)) = self.read(pin).get(key, Some(hash)) {
+                *key
+            } else {
+                let mut map = self.lock();
+                if let Some((key, _)) = map.read().get(key, Some(hash)) {
+                    *key
+                } else {
+                    let key = make(key);
+                    let (key, _) = map.insert_new(key, (), Some(hash));
+                    *key
+                }
+            }
+        })
     }
-}
-
-#[inline]
-fn make_val<K>(_: &K) {}
-
-#[inline]
-fn with_result<K: Copy, V>(k: &K, _: &V) -> K {
-    *k
 }

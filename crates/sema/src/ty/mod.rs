@@ -44,7 +44,7 @@ use interner::Interner;
 mod ty;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
-type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+type FxHordeMap<K, V> = horde::SyncTable<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 
 /// A function exported by a contract.
@@ -712,7 +712,7 @@ macro_rules! cached {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<$key_type, $value>,
+                $name: FxHordeMap<$key_type, $value>,
             )*
         }
 
@@ -1103,19 +1103,28 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
-/// `OnceMap::insert` but with `Copy` keys and values.
+/// Insert into a horde map with `Copy` keys and values.
 #[inline]
-fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
+fn cache_insert<K, V>(map: &FxHordeMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
 where
     K: Copy + Eq + Hash,
     V: Copy,
 {
-    map.map_insert(key, make_val, cache_insert_with_result)
-}
+    let hash = map.hash_key(&key);
+    if let Some(value) =
+        horde::collect::pin(|pin| map.read(pin).get(&key, Some(hash)).map(|(_, value)| *value))
+    {
+        return value;
+    }
 
-#[inline]
-fn cache_insert_with_result<K, V: Copy>(_: &K, v: &V) -> V {
-    *v
+    let value = make_val(&key);
+    let mut map = map.lock();
+    if let Some((_, value)) = map.read().get(&key, Some(hash)) {
+        *value
+    } else {
+        map.insert_new(key, value, Some(hash));
+        value
+    }
 }
 
 #[cfg(false)]

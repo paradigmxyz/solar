@@ -1,7 +1,6 @@
 //! SourceMap related types and operations.
 
 use crate::{BytePos, CharPos, Span};
-use once_map::OnceMap;
 use solar_data_structures::{
     fmt,
     map::FxBuildHasher,
@@ -178,7 +177,7 @@ pub struct SourceMap {
     // INVARIANT: `source_files` is monotonic.
     source_files: RwLock<Vec<Arc<SourceFile>>>,
     #[debug(skip)]
-    id_to_file: OnceMap<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
+    id_to_file: horde::SyncTable<SourceFileId, Arc<SourceFile>, FxBuildHasher>,
 
     base_path: RwLock<Option<PathBuf>>,
     #[debug(skip)]
@@ -210,7 +209,7 @@ impl SourceMap {
     /// Clears the source map, returning all the contained `SourceFile`s.
     #[must_use]
     pub fn take(&mut self) -> Vec<Arc<SourceFile>> {
-        self.id_to_file.clear();
+        self.id_to_file = Default::default();
         std::mem::take(self.source_files.get_mut())
     }
 
@@ -273,7 +272,10 @@ impl SourceMap {
     /// Returns the source file with the given path, if it exists.
     /// Does not attempt to load the file.
     pub fn get_file_ref(&self, filename: &FileName) -> Option<Arc<SourceFile>> {
-        self.id_to_file.get_cloned(&SourceFileId::new(filename))
+        let id = SourceFileId::new(filename);
+        horde::collect::pin(|pin| {
+            self.id_to_file.read(pin).get(&id, None).map(|(_, file)| file.clone())
+        })
     }
 
     /// Loads a file from the given path.
@@ -318,10 +320,22 @@ impl SourceMap {
         get_src: impl FnOnce() -> io::Result<String>,
     ) -> io::Result<Arc<SourceFile>> {
         let id = SourceFileId::new(&filename);
-        self.id_to_file.try_insert_cloned(id, |&id| {
+        let hash = self.id_to_file.hash_key(&id);
+        if let Some(file) = horde::collect::pin(|pin| {
+            self.id_to_file.read(pin).get(&id, Some(hash)).map(|(_, file)| file.clone())
+        }) {
+            return Ok(file);
+        }
+
+        let mut map = self.id_to_file.lock();
+        if let Some((_, file)) = map.read().get(&id, Some(hash)) {
+            Ok(file.clone())
+        } else {
             let file = SourceFile::new(filename, id, get_src()?)?;
-            self.append_source_file(file)
-        })
+            let file = self.append_source_file(file)?;
+            map.insert_new(id, file.clone(), Some(hash));
+            Ok(file)
+        }
     }
 
     fn append_source_file(&self, mut file: SourceFile) -> io::Result<Arc<SourceFile>> {

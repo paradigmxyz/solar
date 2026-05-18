@@ -171,7 +171,7 @@ itoa = "1.0"
 inturn = "0.1.0"
 libc = "0.2"
 memchr = "2.7"
-once_map = { version = "0.4.20", default-features = false, features = ["std"] }
+horde = "0.1.5"
 paste = "1.0"
 rustc-hash = "2.0"
 scoped-tls = "1.0"
