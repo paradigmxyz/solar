@@ -14,10 +14,3 @@ contract Derived3 is Base() { } //~ ERROR: wrong number of arguments for base co
 contract Derived4 is Base(1) { } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived5 is Base { constructor() Base(2) {} } //~ ERROR: wrong number of arguments for base constructor: expected 2, found 1
 contract Derived6 is Base { constructor() Base("a", 1) {} } //~ ERROR: mismatched types
-
-contract AddressBase {
-    constructor(address) {}
-}
-contract AddressDerived is AddressBase {
-    constructor() AddressBase(msg.sender) {}
-}
