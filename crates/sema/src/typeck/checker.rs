@@ -1173,11 +1173,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         self.walk_modifier(modifier)
     }
 
-    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
-        let _ = self.check_var(id);
-        ControlFlow::Continue(())
-    }
-
     fn visit_contract(
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
@@ -1218,6 +1213,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         for &item in contract.items {
             self.visit_nested_item(item)?;
         }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
+        let _ = self.check_var(id);
         ControlFlow::Continue(())
     }
 
