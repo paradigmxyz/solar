@@ -6,8 +6,11 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, UserDefinableOperator};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
+
+type ParamNames = SmallVec<[Option<Symbol>; 8]>;
+type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNames>);
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
@@ -157,6 +160,8 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Call(callee, ref args, ref _opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
+                } else if let hir::ExprKind::Ident(res) = callee.kind {
+                    self.check_ident_call_callee(callee, res, args)
                 } else {
                     self.check_expr(callee)
                 };
@@ -776,18 +781,11 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn get_param_names(
-        &self,
-        params: &[hir::VariableId],
-    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+    fn get_param_names(&self, params: &[hir::VariableId]) -> ParamNames {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
-    fn get_call_param_names(
-        &self,
-        function: hir::FunctionId,
-        param_count: usize,
-    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
+    fn get_call_param_names(&self, function: hir::FunctionId, param_count: usize) -> ParamNames {
         let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
         if names.len() > param_count {
             names.drain(..names.len() - param_count);
@@ -889,6 +887,27 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
+    fn check_ident_call_callee(
+        &mut self,
+        callee: &'gcx hir::Expr<'gcx>,
+        res: &'gcx [hir::Res],
+        args: &hir::CallArgs<'gcx>,
+    ) -> Ty<'gcx> {
+        let res = match self.select_call_overload(res, args) {
+            Ok(res) => res,
+            Err(e) => {
+                let msg = match e {
+                    OverloadError::NotFound => "no matching declarations found",
+                    OverloadError::Ambiguous => "no unique declarations found",
+                };
+                hir::Res::Err(self.dcx().err(msg).span(callee.span).emit())
+            }
+        };
+        let ty = self.type_of_res(res);
+        self.register_ty(callee, ty);
+        ty
+    }
+
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
         let Some(contract_id) = self.contract else { return };
         if !self.gcx.hir.contract(contract_id).kind.is_library() {
@@ -905,6 +924,66 @@ impl<'gcx> TypeChecker<'gcx> {
                 .err("libraries cannot call their own functions externally")
                 .span(span)
                 .emit();
+        }
+    }
+
+    fn select_call_overload(
+        &mut self,
+        res: &[hir::Res],
+        args: &hir::CallArgs<'gcx>,
+    ) -> Result<hir::Res, OverloadError> {
+        match res {
+            [] => unreachable!("no candidates for overload resolution"),
+            &[res] => return Ok(res),
+            _ => {}
+        }
+        if let Some(&res @ hir::Res::Err(_)) = res.iter().find(|res| res.is_err()) {
+            return Ok(res);
+        }
+
+        let mut best = None;
+        let mut best_score = None;
+        let mut ambiguous = false;
+        for &res in res {
+            let ty = self.type_of_res(res);
+            let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
+                continue;
+            };
+            let Some(score) = self.call_args_match_score(args, param_tys, param_names.as_deref())
+            else {
+                continue;
+            };
+            match best_score.map(|best_score| score.cmp(&best_score)) {
+                None | Some(std::cmp::Ordering::Greater) => {
+                    best = Some(res);
+                    best_score = Some(score);
+                    ambiguous = false;
+                }
+                Some(std::cmp::Ordering::Equal) => ambiguous = true,
+                Some(std::cmp::Ordering::Less) => {}
+            }
+        }
+        if ambiguous { Err(OverloadError::Ambiguous) } else { best.ok_or(OverloadError::NotFound) }
+    }
+
+    fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
+        match ty.kind {
+            TyKind::FnPtr(function_ty) => {
+                let param_names = function_ty
+                    .function_id
+                    .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
+                Some((function_ty.parameters, param_names))
+            }
+            TyKind::Event(param_tys, id) => {
+                let event = self.gcx.hir.event(id);
+                Some((param_tys, Some(self.get_param_names(event.parameters))))
+            }
+            TyKind::Error(param_tys, id) => {
+                let error = self.gcx.hir.error(id);
+                Some((param_tys, Some(self.get_param_names(error.parameters))))
+            }
+            TyKind::Err(_) => None,
+            _ => None,
         }
     }
 

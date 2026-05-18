@@ -1,0 +1,14 @@
+error: no unique declarations found
+   ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC
+   │
+LL │         pick(1);
+   ╰╴        ━━━━
+
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/typeck/function_calls/overloads.sol:LL:CC
+   │
+LL │         pick(value);
+   ╰╴        ━━━━
+
+error: aborting due to 2 previous errors
+
