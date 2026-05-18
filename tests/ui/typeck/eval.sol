@@ -25,8 +25,8 @@ contract C {
     function a2(uint[x / zeroPublic] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
     function b(uint[x] memory) public {}
     function c(uint[x * 2] memory) public {}
-    function d(uint[0 - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
+    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: array length cannot be negative
     function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
     function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
 

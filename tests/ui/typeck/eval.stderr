@@ -19,17 +19,17 @@ error: failed to evaluate constant: attempted to divide by zero
 LL │     function a2(uint[x / zeroPublic] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d(uint[0 - 1] memory) public {}
-   ╰╴                    ━━━━━ evaluation of constant value failed here
+   ╰╴                    ━━━━━
 
-error: failed to evaluate constant: arithmetic overflow
+error: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d2(uint[zeroPublic - 1] memory) public {}
-   ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
+   ╰╴                     ━━━━━━━━━━━━━━
 
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
