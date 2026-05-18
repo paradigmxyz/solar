@@ -40,6 +40,34 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Library self-call diagnostics for attached external/public library members.
 - [x] Imported-source non-global operator diagnostics.
 - [x] Transitive imported non-global operator diagnostics.
+- [x] Audited ported multi-source solc cases: local ports use `auxiliary/`, not `aux/`.
+
+## Multi-Source Port Audit
+
+Solar UI tests do not embed solc's `==== Source:` blocks. Ported multi-source cases are split
+into the nearest `auxiliary/` directory instead.
+
+- `using/global_working.sol` -> `global/global_directives.sol` +
+  `global/auxiliary/global_directives.sol`.
+- `using/global_for_type_from_other_file.sol` -> `global/imported_type_global.sol` +
+  `global/auxiliary/imported_types.sol`.
+- `using/file_level_inactive_after_import.sol` -> `imports/file_level_using_not_imported.sol` +
+  `imports/auxiliary/file_level_using.sol`.
+- `using/module_2.sol`, `using/module_3.sol`, and `using/library_import_as.sol` import coverage ->
+  `imports/imported_members.sol`, `imports/module_alias.sol`, and
+  `imports/auxiliary/imported_using.sol`.
+- `operators/userDefined/calling_operator_imported.sol` ->
+  `imports/imported_global_operator.sol`, `operators/imported_global.sol`, and their
+  `auxiliary/` sources.
+- `operators/userDefined/calling_operator_imported_non_global.sol` ->
+  `imports/imported_non_global_operator_definition.sol` +
+  `imports/auxiliary/defined_non_global_operator.sol`.
+- `operators/userDefined/calling_operator_imported_transitively.sol` ->
+  `imports/transitive_global_operator.sol` + `imports/auxiliary/transitive_*.sol`.
+- `operators/userDefined/calling_operator_imported_transitively_non_global.sol` ->
+  `imports/transitive_non_global_operator.sol` + `imports/auxiliary/non_global_*.sol`.
+- `operators/userDefined/multiple_operator_definitions_different_functions_global_and_non_global_different_files.sol`
+  -> `imports/imported_duplicate_operator.sol` + `imports/auxiliary/transitive_base.sol`.
 
 ## In progress
 
