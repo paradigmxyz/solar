@@ -10,7 +10,11 @@ use solar_interface::Symbol;
 pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
-pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
+pub(crate) fn native_members<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    current_contract: Option<hir::ContractId>,
+) -> MemberList<'gcx> {
     let expected_ref = || panic!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
@@ -56,7 +60,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
             .map(|b| Member::of_builtin(gcx, b))
             .collect(),
-        TyKind::Type(ty) => type_type(gcx, ty),
+        TyKind::Type(ty) => type_type(gcx, ty, current_contract),
         TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),
     })
@@ -198,9 +202,13 @@ fn reference<'gcx>(
 }
 
 // `Enum.Variant`, `Udvt.wrap`
-fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
+fn type_type<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    current_contract: Option<hir::ContractId>,
+) -> MemberListOwned<'gcx> {
     match ty.kind {
-        TyKind::Contract(_) => Default::default(),
+        TyKind::Contract(id) => contract_type(gcx, id, current_contract),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }

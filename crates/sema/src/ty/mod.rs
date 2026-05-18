@@ -688,12 +688,7 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
     ) -> members::MemberList<'gcx> {
         let _ = source; // TODO: source-level using-for directives
-        if let TyKind::Type(ty) = ty.kind
-            && let TyKind::Contract(id) = ty.kind
-        {
-            return self.bump().alloc_vec(members::contract_type(self, id, contract));
-        }
-        self.native_members(ty)
+        members::native_members(self, ty, contract)
     }
 }
 
@@ -973,10 +968,6 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
             gcx.dcx().err("recursive struct definition").span(gcx.item_span(id)).emit()
         ),
     }
-}
-
-fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
-    members::native_members(gcx, ty)
 }
 }
 
