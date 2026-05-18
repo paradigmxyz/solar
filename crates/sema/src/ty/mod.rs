@@ -45,6 +45,7 @@ mod ty;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+type HirTypeKey = usize;
 type NatSpecContractKey = (Symbol, hir::SourceId);
 
 /// A function exported by a contract.
@@ -579,8 +580,12 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
-    /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
-    pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
+    /// Returns the [`Ty`] of the given [`hir::Type`].
+    pub fn type_of_hir_ty(self, ty: &hir::Type<'gcx>) -> Ty<'gcx> {
+        self.type_of_hir_ty_cached(ty as *const _ as HirTypeKey)
+    }
+
+    fn type_of_hir_ty_uncached(self, ty: &hir::Type<'gcx>) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
@@ -820,7 +825,7 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    fn using_directive_applies(self, using: &hir::UsingDirective<'_>, ty: Ty<'gcx>) -> bool {
+    fn using_directive_applies(self, using: &'gcx hir::UsingDirective<'gcx>, ty: Ty<'gcx>) -> bool {
         let Some(using_ty) = &using.ty else {
             return true;
         };
@@ -875,6 +880,13 @@ macro_rules! cached {
 }
 
 cached! {
+fn type_of_hir_ty_cached(gcx: _, key: HirTypeKey) -> Ty<'gcx> {
+    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`, so their addresses are stable
+    // and valid cache keys for the same lifetime.
+    let ty = unsafe { &*(key as *const hir::Type<'gcx>) };
+    gcx.type_of_hir_ty_uncached(ty)
+}
+
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
