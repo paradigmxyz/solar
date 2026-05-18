@@ -33,6 +33,9 @@ contract C {
         bytes1 b1 = bytes1(0);
         bytes2 b2 = bytes2(0x00000);
         bytes32 b32 = bytes32(-0x0);
+        bytes1 b3 = bytes1(1 - 1);
+        bytes32 b4 = bytes32(0x01 - 0x01);
+        bytes16 b16 = bytes16(0x00 + 0);
     }
 
     // Invalid: FixedBytes to signed Int (not allowed)
@@ -67,5 +70,8 @@ contract C {
         bytes2 b5 = bytes2(0xff); //~ ERROR: invalid explicit type conversion
         bytes1 b6 = bytes1(0x0100); //~ ERROR: invalid explicit type conversion
         bytes2 b7 = bytes2(0x010000); //~ ERROR: invalid explicit type conversion
+        bytes1 b8 = bytes1(0x02 - 0x01); //~ ERROR: invalid explicit type conversion
+        bytes1 b9 = bytes1(0x00 + 0x01); //~ ERROR: invalid explicit type conversion
+        bytes2 b10 = bytes2(0x0102 + 0); //~ ERROR: invalid explicit type conversion
     }
 }

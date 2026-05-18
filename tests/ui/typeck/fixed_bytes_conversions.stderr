@@ -82,5 +82,23 @@ error: invalid explicit type conversion
 LL │         bytes2 b7 = bytes2(0x010000);
    ╰╴                    ━━━━━━━━━━━━━━━━ cannot convert `int_literal[17]` to `bytes2`
 
-error: aborting due to 14 previous errors
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b8 = bytes1(0x02 - 0x01);
+   ╰╴                    ━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[1]` to `bytes1`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b9 = bytes1(0x00 + 0x01);
+   ╰╴                    ━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[1]` to `bytes1`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes2 b10 = bytes2(0x0102 + 0);
+   ╰╴                     ━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[9]` to `bytes2`
+
+error: aborting due to 17 previous errors
 
