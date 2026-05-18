@@ -19,6 +19,7 @@ struct TypeChecker<'gcx> {
     gcx: Gcx<'gcx>,
     source: hir::SourceId,
     contract: Option<hir::ContractId>,
+    function: Option<hir::FunctionId>,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
@@ -47,6 +48,7 @@ impl<'gcx> TypeChecker<'gcx> {
             gcx,
             source,
             contract: None,
+            function: None,
             types: Default::default(),
             lvalue_context: None,
             in_emit: false,
@@ -253,7 +255,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
                 self.type_of_res(res)
@@ -379,9 +381,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
-                            && possible_members[0].res.is_some_and(|res| {
-                                res_not_lvalue_reason(self.gcx, res).is_some()
-                            }) =>
+                            && possible_members[0]
+                                .res
+                                .is_some_and(|res| self.res_not_lvalue_reason(res).is_some()) =>
                     {
                         Some(NotLvalueReason::Generic)
                     }
@@ -1056,6 +1058,14 @@ impl<'gcx> TypeChecker<'gcx> {
         self.lvalue_context.is_some()
     }
 
+    fn in_constructor_context(&self) -> bool {
+        self.function.is_some_and(|id| self.gcx.hir.function(id).kind.is_constructor())
+    }
+
+    fn res_not_lvalue_reason(&self, res: hir::Res) -> Option<NotLvalueReason> {
+        res_not_lvalue_reason(self.gcx, res, self.in_constructor_context())
+    }
+
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
         match self.try_resolve_overloads(res) {
             Ok(res) => res,
@@ -1131,9 +1141,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
         let contract = self.gcx.hir.function(id).contract;
         let prev = self.contract;
+        let prev_function = self.function.replace(id);
         self.contract = contract.or(prev);
         let r = self.visit_function(self.gcx.hir.function(id));
         self.contract = prev;
+        self.function = prev_function;
         r
     }
 
@@ -1340,13 +1352,17 @@ impl<T> FromIterator<T> for WantOne<T> {
     }
 }
 
-fn res_not_lvalue_reason(gcx: Gcx<'_>, res: hir::Res) -> Option<NotLvalueReason> {
+fn res_not_lvalue_reason(
+    gcx: Gcx<'_>,
+    res: hir::Res,
+    allow_immutable: bool,
+) -> Option<NotLvalueReason> {
     match res {
         hir::Res::Item(hir::ItemId::Variable(var)) => {
             let var = gcx.hir.variable(var);
             match var.mutability {
                 Some(m) if m.is_constant() => Some(NotLvalueReason::Constant),
-                Some(m) if m.is_immutable() => Some(NotLvalueReason::Immutable),
+                Some(m) if m.is_immutable() && !allow_immutable => Some(NotLvalueReason::Immutable),
                 _ => None,
             }
         }
