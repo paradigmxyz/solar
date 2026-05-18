@@ -275,7 +275,9 @@ pub(crate) fn contract_type<'gcx>(
         .filter(|&item_id| match gcx.hir.item(item_id) {
             hir::Item::Function(f) if !f.is_ordinary() => false,
             hir::Item::Function(f) => {
-                if contract.kind.is_library() || in_deriving_scope {
+                if contract.kind.is_library() {
+                    f.visibility != hir::Visibility::Private
+                } else if in_deriving_scope {
                     f.visibility >= hir::Visibility::Internal
                 } else {
                     f.visibility >= hir::Visibility::Public
