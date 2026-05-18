@@ -637,7 +637,12 @@ impl<'gcx> TypeChecker<'gcx> {
     fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         let result = evaluator.try_eval(expr).ok()?;
-        self.gcx.mk_ty_int_literal(result.is_negative(), result.bit_len())
+        let compatible_fixed_bytes = (!result.to_bool()).then_some(TypeSize::ZERO);
+        self.gcx.mk_ty_int_literal_with_fixed_bytes(
+            result.is_negative(),
+            result.bit_len(),
+            compatible_fixed_bytes,
+        )
     }
 
     fn check_binop(
