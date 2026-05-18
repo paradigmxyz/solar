@@ -45,8 +45,8 @@ mod ty;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
-type HirTypeKey = usize;
 type NatSpecContractKey = (Symbol, hir::SourceId);
+type UsingDirectiveKey = usize;
 
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
@@ -582,10 +582,6 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the [`Ty`] of the given [`hir::Type`].
     pub fn type_of_hir_ty(self, ty: &hir::Type<'gcx>) -> Ty<'gcx> {
-        self.type_of_hir_ty_cached(ty as *const _ as HirTypeKey)
-    }
-
-    fn type_of_hir_ty_uncached(self, ty: &hir::Type<'gcx>) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
@@ -616,6 +612,14 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Err(guar) => TyKind::Err(guar),
         };
         self.mk_ty(kind)
+    }
+
+    /// Returns the target type of the given [`hir::UsingDirective`].
+    pub(crate) fn type_of_using_directive(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        self.type_of_using_directive_cached(using as *const _ as UsingDirectiveKey)
     }
 
     fn type_of_item_simple(self, id: hir::ItemId, span: Span) -> Ty<'gcx> {
@@ -826,10 +830,9 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     fn using_directive_applies(self, using: &'gcx hir::UsingDirective<'gcx>, ty: Ty<'gcx>) -> bool {
-        let Some(using_ty) = &using.ty else {
+        let Some(using_ty) = self.type_of_using_directive(using) else {
             return true;
         };
-        let using_ty = self.type_of_hir_ty(using_ty);
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
         ty == using_ty.with_loc_if_ref(self, loc)
     }
@@ -880,11 +883,10 @@ macro_rules! cached {
 }
 
 cached! {
-fn type_of_hir_ty_cached(gcx: _, key: HirTypeKey) -> Ty<'gcx> {
-    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`, so their addresses are stable
-    // and valid cache keys for the same lifetime.
-    let ty = unsafe { &*(key as *const hir::Type<'gcx>) };
-    gcx.type_of_hir_ty_uncached(ty)
+fn type_of_using_directive_cached(gcx: _, key: UsingDirectiveKey) -> Option<Ty<'gcx>> {
+    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`.
+    let using = unsafe { &*(key as *const hir::UsingDirective<'gcx>) };
+    using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty))
 }
 
 /// Returns the [ERC-165] interface ID of the given contract.

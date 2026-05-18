@@ -46,8 +46,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
     );
 }
 
-fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &hir::UsingDirective<'gcx>) {
-    let using_ty = using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty));
+fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
+    let using_ty = gcx.type_of_using_directive(using);
 
     if using.global
         && let Some(ty) = using_ty
