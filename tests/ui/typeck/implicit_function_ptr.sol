@@ -1,10 +1,19 @@
 //@compile-flags: -Ztypeck
 
 // Tests for implicit function pointer conversions.
-// Function pointers require exact parameter/return types and visibility.
+// Function pointers require exact parameter/return types.
+// Visibility must match, except private functions can convert to internal function pointers.
 // State mutability follows: pure -> view -> nonpayable, payable -> nonpayable.
 
 contract C {
+    function privateTarget() private pure returns (uint256) {
+        return 1;
+    }
+
+    function internalTarget() internal pure returns (uint256) {
+        return 1;
+    }
+
     // === Valid: same function type ===
     function sameFnType() internal pure {
         function() external pure returns (uint256) f;
@@ -33,6 +42,11 @@ contract C {
     function payableToNonpayable() internal pure {
         function() external payable returns (uint256) f;
         function() external returns (uint256) g = f;
+    }
+
+    // === Valid: private function -> internal function pointer ===
+    function privateToInternal() internal pure {
+        function() internal pure returns (uint256) f = privateTarget;
     }
 
     // === Invalid: view -> pure (view is less restrictive) ===
@@ -69,6 +83,16 @@ contract C {
     function differentVisibility() internal pure {
         function() external pure f;
         function() internal pure g = f; //~ ERROR: mismatched types
+    }
+
+    // === Invalid: internal function -> external function pointer ===
+    function internalToExternal() internal pure {
+        function() external pure returns (uint256) f = internalTarget; //~ ERROR: mismatched types
+    }
+
+    // === Invalid: private function -> external function pointer ===
+    function privateToExternal() internal pure {
+        function() external pure returns (uint256) f = privateTarget; //~ ERROR: mismatched types
     }
 }
 

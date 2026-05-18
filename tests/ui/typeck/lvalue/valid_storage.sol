@@ -1,5 +1,4 @@
 //@compile-flags: -Ztypeck
-// TODO: `mismatched types` errors on integer literals are a current limitation of solar
 // Valid lvalue assignments for storage variables
 
 contract Test {

@@ -365,11 +365,24 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+        self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
+    }
+
+    pub fn mk_ty_int_literal_with_fixed_bytes(
+        self,
+        negative: bool,
+        bits: u64,
+        compatible_fixed_bytes: Option<TypeSize>,
+    ) -> Option<Ty<'gcx>> {
         let bits = bits.max(1);
         if bits > TypeSize::MAX as u64 {
             return None;
         }
-        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
+        Some(self.mk_ty(TyKind::IntLiteral(
+            negative,
+            TypeSize::new_literal_bits(bits as u16),
+            compatible_fixed_bytes,
+        )))
     }
 
     pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
@@ -653,7 +666,13 @@ impl<'gcx> Gcx<'gcx> {
         match &lit.kind {
             solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s.as_byte_str()),
             solar_ast::LitKind::Number(int) => {
-                self.mk_ty_int_literal(false, int.bit_len() as _).unwrap_or_else(|| {
+                let compatible_fixed_bytes = compatible_fixed_bytes_type(lit);
+                self.mk_ty_int_literal_with_fixed_bytes(
+                    false,
+                    int.bit_len() as _,
+                    compatible_fixed_bytes,
+                )
+                .unwrap_or_else(|| {
                     self.mk_ty_err(
                         self.dcx()
                             .err("integer literal is greater than 2**256")
@@ -845,6 +864,21 @@ impl<'gcx> Gcx<'gcx> {
             TyKind::Udvt(_, id) => Some(self.hir.udvt(id).source),
             _ => None,
         }
+    }
+}
+
+fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
+    let solar_ast::LitKind::Number(int) = lit.kind else { return None };
+    if int.is_zero() {
+        return Some(TypeSize::ZERO);
+    }
+
+    let hex = lit.symbol.as_str().strip_prefix("0x")?;
+    let digit_count = hex.bytes().filter(|&b| b != b'_').count();
+    if digit_count % 2 == 0 {
+        TypeSize::try_new_fb_bytes((digit_count / 2).try_into().ok()?)
+    } else {
+        None
     }
 }
 

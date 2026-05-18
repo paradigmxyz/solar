@@ -20,6 +20,24 @@ contract C {
         bytes4 b4 = bytes4(u32);    // uint32 (4 bytes) to bytes4 (4 bytes)
     }
 
+    // Valid: same-size hex integer literals to FixedBytes.
+    function validHexLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0x01);
+        bytes2 b2 = bytes2(0x0102);
+        bytes4 b4 = bytes4(0x01ffc9a7);
+        bytes32 b32 = bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+    }
+
+    // Valid: zero integer literals to FixedBytes.
+    function validZeroLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0);
+        bytes2 b2 = bytes2(0x00000);
+        bytes32 b32 = bytes32(-0x0);
+        bytes1 b3 = bytes1(1 - 1);
+        bytes32 b4 = bytes32(0x01 - 0x01);
+        bytes16 b16 = bytes16(0x00 + 0);
+    }
+
     // Invalid: FixedBytes to signed Int (not allowed)
     function invalidBytesToSignedInt(bytes4 b4, bytes8 b8) public pure {
         int32 i32 = int32(b4);      //~ ERROR: invalid explicit type conversion
@@ -41,5 +59,19 @@ contract C {
     function invalidUintToBytes(uint64 u64) public pure {
         bytes4 b4 = bytes4(u64);    //~ ERROR: invalid explicit type conversion
         bytes32 b32 = bytes32(u64); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: non-zero integer literals to FixedBytes unless they are same-size hex literals.
+    function invalidIntLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(1); //~ ERROR: invalid explicit type conversion
+        bytes2 b2 = bytes2(256); //~ ERROR: invalid explicit type conversion
+        bytes1 b3 = bytes1(-0x01); //~ ERROR: invalid explicit type conversion
+        bytes1 b4 = bytes1(0x1); //~ ERROR: invalid explicit type conversion
+        bytes2 b5 = bytes2(0xff); //~ ERROR: invalid explicit type conversion
+        bytes1 b6 = bytes1(0x0100); //~ ERROR: invalid explicit type conversion
+        bytes2 b7 = bytes2(0x010000); //~ ERROR: invalid explicit type conversion
+        bytes1 b8 = bytes1(0x02 - 0x01); //~ ERROR: invalid explicit type conversion
+        bytes1 b9 = bytes1(0x00 + 0x01); //~ ERROR: invalid explicit type conversion
+        bytes2 b10 = bytes2(0x0102 + 0); //~ ERROR: invalid explicit type conversion
     }
 }

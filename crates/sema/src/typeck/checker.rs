@@ -5,7 +5,7 @@ use crate::{
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span, UserDefinableOperator};
+use solar_ast::{DataLocation, ElementaryType, Span, UserDefinableOperator, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
@@ -567,9 +567,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         return lit_ty;
                     }
                     if op.kind == hir::UnOpKind::Neg
-                        && let TyKind::IntLiteral(neg, size) = ty.kind
+                        && let TyKind::IntLiteral(neg, size, fixed_bytes_size) = ty.kind
                     {
-                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size));
+                        let fixed_bytes_size =
+                            fixed_bytes_size.filter(|&size| size == TypeSize::ZERO);
+                        return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
                 } else if let Some(ty) = self.check_user_unop(expr.span, ty, op.kind) {
@@ -643,7 +645,12 @@ impl<'gcx> TypeChecker<'gcx> {
     fn try_eval_int_literal_expr(&self, expr: &'gcx hir::Expr<'gcx>) -> Option<Ty<'gcx>> {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         let result = evaluator.try_eval(expr).ok()?;
-        self.gcx.mk_ty_int_literal(result.is_negative(), result.bit_len())
+        let compatible_fixed_bytes = result.is_zero().then_some(TypeSize::ZERO);
+        self.gcx.mk_ty_int_literal_with_fixed_bytes(
+            result.is_negative(),
+            result.bit_len(),
+            compatible_fixed_bytes,
+        )
     }
 
     fn check_binop(
