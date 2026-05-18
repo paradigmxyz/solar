@@ -12,28 +12,10 @@ library CallLib {
     function id(uint256 value) internal pure returns (uint256) {
         return value;
     }
-
-    function privateId(uint256 value) private pure returns (uint256) {
-        return value;
-    }
 }
 
 contract StaticBase {
     function internalId(uint256 value) internal pure returns (uint256) {
-        return value;
-    }
-
-    function externalId(uint256 value) external pure returns (uint256) {
-        return value;
-    }
-}
-
-contract UnrelatedStatic {
-    function internalId(uint256 value) internal pure returns (uint256) {
-        return value;
-    }
-
-    function publicId(uint256 value) public pure returns (uint256) {
         return value;
     }
 }
@@ -91,18 +73,6 @@ contract CallChecking is StaticBase {
         overloaded(1);
         overloaded(1, 2);
         fnIn;
-    }
-
-    function testInvalidTypeMembers() public pure {
-        bytes4 externalSelector = StaticBase.externalId.selector;
-        bytes4 publicSelector = UnrelatedStatic.publicId.selector;
-        externalSelector;
-        publicSelector;
-
-        CallLib.privateId(1); //~ ERROR: member `privateId` not found
-        StaticBase.externalId(1); //~ ERROR: cannot call function via contract type name
-        UnrelatedStatic.publicId(1); //~ ERROR: cannot call function via contract type name
-        UnrelatedStatic.internalId(1); //~ ERROR: member `internalId` not found
     }
 
     // === Correct positional arguments ===

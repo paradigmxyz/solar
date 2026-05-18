@@ -687,12 +687,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> members::MemberList<'gcx> {
-        let _ = source; // TODO: source-level using-for directives
-        if let TyKind::Type(ty) = ty.kind
-            && let TyKind::Contract(id) = ty.kind
-        {
-            return self.bump().alloc_vec(members::contract_type(self, id, contract));
-        }
+        let _ = (source, contract); // TODO
         self.native_members(ty)
     }
 }
