@@ -30,8 +30,6 @@ struct TypeChecker<'gcx> {
     in_revert: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
-    /// Whether the current identifier is the base of a Yul dotted external reference.
-    in_yul_member_base: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -56,7 +54,6 @@ impl<'gcx> TypeChecker<'gcx> {
             in_emit: false,
             in_revert: false,
             in_yul: false,
-            in_yul_member_base: false,
         }
     }
 
@@ -263,10 +260,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.try_set_not_lvalue(reason);
                 }
                 let ty = self.type_of_res(res);
-                if self.in_yul
-                    && !self.in_yul_member_base
-                    && self.check_yul_external_ident(res, ty, expr.span)
-                {
+                if self.in_yul && self.check_yul_external_ident(res, ty, expr.span) {
                     return self.gcx.types.uint(256);
                 }
                 ty
@@ -666,11 +660,8 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) {
-        let prev = std::mem::replace(&mut self.in_yul_member_base, true);
-        let ty = self.check_expr(expr);
-        self.in_yul_member_base = prev;
-
-        let Some(res) = yul_member_base_res(expr) else {
+        let (ty, res) = self.check_yul_member_base(expr);
+        let Some(res) = res else {
             self.dcx()
                 .err("inline assembly suffixes can only be used with variables")
                 .span(member.span)
@@ -736,6 +727,21 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(member.span)
                 .emit();
         }
+    }
+
+    fn check_yul_member_base(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> (Ty<'gcx>, Option<hir::Res>) {
+        if let hir::ExprKind::Ident(res) = expr.kind {
+            let res = self.resolve_overloads(res, expr.span);
+            if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                self.try_set_not_lvalue(reason);
+            }
+            return (self.type_of_res(res), Some(res));
+        }
+
+        (self.check_expr(expr), None)
     }
 
     /// Returns true if the expression refers to a local or return variable.
@@ -1447,14 +1453,6 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::TypeCall(_)
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
-    }
-}
-
-fn yul_member_base_res(expr: &hir::Expr<'_>) -> Option<hir::Res> {
-    let hir::ExprKind::Ident(res) = expr.kind else { return None };
-    match res {
-        [res] => Some(*res),
-        _ => res.iter().copied().find(|res| res.as_variable().is_some()),
     }
 }
 
