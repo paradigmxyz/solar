@@ -45,6 +45,7 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
 - Auxiliary files go in `auxiliary/` subdirectory
+- solc is present in testdata/solidity, port tests to tests/ui
 
 ### UI Test Annotations
 
