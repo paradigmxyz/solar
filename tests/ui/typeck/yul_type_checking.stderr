@@ -18,11 +18,25 @@ LL │             pop(state)
    │
    ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
 
-error: only local variables can be assigned to in inline assembly
+error: only local variables are supported in inline assembly
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             state := 1
-   ╰╴            ━━━━━
+   │             ━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             constantValue := 1
+   ╰╴            ━━━━━━━━━━━━━
+
+error: assembly access to immutable variables is not supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(immutableValue)
+   ╰╴                ━━━━━━━━━━━━━━
 
 error: storage variables only support `.slot` and `.offset`
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
@@ -100,5 +114,5 @@ error: only external function pointer variables support `.selector` and `.addres
 LL │             pop(intFn.selector)
    ╰╴                      ━━━━━━━━
 
-error: aborting due to 16 previous errors
+error: aborting due to 18 previous errors
 

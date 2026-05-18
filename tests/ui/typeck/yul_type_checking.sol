@@ -3,6 +3,8 @@
 contract C {
     uint256 state;
     uint256[] stateArray;
+    uint256 constant constantValue = 1;
+    uint256 immutable immutableValue = 1;
 
     function positive(
         uint256 local,
@@ -24,6 +26,7 @@ contract C {
             pop(state.offset)
             pop(storageRef.slot)
             pop(storageRef.offset)
+            pop(constantValue)
             storageRef.slot := state.slot
 
             pop(data.offset)
@@ -57,7 +60,9 @@ contract C {
             add(1, 2) //~ ERROR: inline assembly expression statements cannot return values
             pair() //~ ERROR: inline assembly expression statements cannot return values
             pop(state) //~ ERROR: only local variables are supported in inline assembly
-            state := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            state := 1 //~ ERROR: only local variables are supported in inline assembly
+            constantValue := 1 //~ ERROR: cannot assign to a constant variable
+            pop(immutableValue) //~ ERROR: assembly access to immutable variables is not supported
             pop(state.length) //~ ERROR: storage variables only support `.slot` and `.offset`
             state.slot := 1 //~ ERROR: state variables cannot be assigned to in inline assembly
             pop(storageRef) //~ ERROR: storage reference variables need a suffix in inline assembly

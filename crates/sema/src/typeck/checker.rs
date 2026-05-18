@@ -623,9 +623,9 @@ impl<'gcx> TypeChecker<'gcx> {
         let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return false };
         let var = self.gcx.hir.variable(var_id);
 
-        if self.in_lvalue() && !var.is_local_variable() {
+        if var.is_immutable() {
             self.dcx()
-                .err("only local variables can be assigned to in inline assembly")
+                .err("assembly access to immutable variables is not supported")
                 .span(span)
                 .emit();
             return false;
@@ -638,16 +638,18 @@ impl<'gcx> TypeChecker<'gcx> {
                 .help("use `.slot` and `.offset` to access storage or transient storage variables")
                 .emit();
             return false;
-        } else if ty.data_stored_in(DataLocation::Storage)
-            || ty.data_stored_in(DataLocation::Transient)
-        {
+        }
+
+        if ty.data_stored_in(DataLocation::Storage) || ty.data_stored_in(DataLocation::Transient) {
             self.dcx()
                 .err("storage reference variables need a suffix in inline assembly")
                 .span(span)
                 .help("use `.slot` or `.offset`")
                 .emit();
             return false;
-        } else if is_dynamic_calldata_array(ty) {
+        }
+
+        if is_dynamic_calldata_array(ty) {
             self.dcx()
                 .err("calldata variables need a suffix in inline assembly")
                 .span(span)
