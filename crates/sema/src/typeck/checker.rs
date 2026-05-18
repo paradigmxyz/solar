@@ -342,10 +342,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     .filter(|m| m.name == ident.name)
                     .collect::<SmallVec<[_; 4]>>();
 
-                // TODO: overload resolution
-
-                let ty = match possible_members[..] {
-                    [] => {
+                let ty = match self.select_member_access(&possible_members) {
+                    Ok(member) => member.ty,
+                    Err(MemberAccessError::NotFound) => {
                         let msg = format!(
                             "member `{ident}` not found on type `{}`",
                             expr_ty.display(self.gcx)
@@ -354,12 +353,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
-                    [member] if member.attached => self.attached_function_access_error(ident),
-                    [member] => member.ty,
-                    [..] if possible_members.iter().all(|member| member.attached) => {
-                        self.attached_function_access_error(ident)
-                    }
-                    [..] => {
+                    Err(MemberAccessError::Attached) => self.attached_function_access_error(ident),
+                    Err(MemberAccessError::Ambiguous) => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
                             expr_ty.display(self.gcx)
@@ -919,6 +914,21 @@ impl<'gcx> TypeChecker<'gcx> {
         };
         self.register_ty(callee, ty);
         ty
+    }
+
+    fn select_member_access<'a>(
+        &self,
+        members: &'a [members::Member<'gcx>],
+    ) -> Result<&'a members::Member<'gcx>, MemberAccessError> {
+        match members {
+            [] => Err(MemberAccessError::NotFound),
+            [member] if member.attached => Err(MemberAccessError::Attached),
+            [member] => Ok(member),
+            [..] if members.iter().all(|member| member.attached) => {
+                Err(MemberAccessError::Attached)
+            }
+            [..] => Err(MemberAccessError::Ambiguous),
+        }
     }
 
     fn check_ident_call_callee(
@@ -1670,6 +1680,12 @@ fn is_yul_member(member: Ident) -> bool {
 
 enum OverloadError {
     NotFound,
+    Ambiguous,
+}
+
+enum MemberAccessError {
+    NotFound,
+    Attached,
     Ambiguous,
 }
 
