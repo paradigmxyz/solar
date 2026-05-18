@@ -44,7 +44,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
-- Auxiliary files go in `auxiliary/` subdirectory
+- Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
+  imports or secondary source files. Do not use `aux/`: Windows rejects it.
 
 ### UI Test Annotations
 
@@ -58,6 +59,15 @@ contract Test {
 
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
+
+### Porting Tests from Solc
+
+Always look at the corresponding Solc test when porting behavior. Solc is always
+available in `testdata/solidity`. Solc tests may embed multiple source files in
+one `.sol` file with `==== Source: ... ====` annotations. When porting those
+tests, split the secondary sources into the UI test's `auxiliary/` directory and
+update imports accordingly. Add the Solc test path at the top of
+the ported test, or above the ported function when only one function is copied.
 
 ## Diagnostics Style
 
