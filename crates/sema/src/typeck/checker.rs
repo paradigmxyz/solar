@@ -5,7 +5,7 @@ use crate::{
     ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span, UserDefinableOperator, TypeSize};
+use solar_ast::{DataLocation, ElementaryType, Span, TypeSize, UserDefinableOperator};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
