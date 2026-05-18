@@ -96,7 +96,18 @@ contract C {
     }
 }
 
-// Tests from solc for member access on function types with state mutability conversions.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_payable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_pure.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_view.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_nonpayable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_pure.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_view.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_nonpayable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_payable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_view.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_nonpayable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_payable.sol.
+// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_pure.sol.
 
 contract NonpayableToPayable {
     function h() external {}

@@ -1,5 +1,13 @@
-// Tests for diamond inheritance with public state variables
-// Based on solc tests: public_vars_multiple_diamond*.sol, diamond_*.sol
+// Ported from test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond1.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond2.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_interface_empty_intermediate_public_state_variable_and_function.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable_and_function.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable_and_function_implemented.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_empty_bottom_public_state_variable.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_implemented_public_state_variable.sol.
+// Ported from test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_public_state_variable.sol.
 
 // ==== Valid: public var can override single interface function ====
 interface ISimple {
