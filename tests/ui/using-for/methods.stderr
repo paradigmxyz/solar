@@ -1,0 +1,8 @@
+error: attached function `inc` can only be called
+   ╭▸ ROOT/tests/ui/using-for/methods.sol:LL:CC
+   │
+LL │         x.inc;
+   ╰╴          ━━━
+
+error: aborting due to 1 previous error
+

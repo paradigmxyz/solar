@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, Ty, TyFnPtr, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize, UserDefinableOperator};
@@ -354,7 +354,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
+                    [member] if member.attached => self.attached_function_access_error(ident),
                     [member] => member.ty,
+                    [..] if possible_members.iter().all(|member| member.attached) => {
+                        self.attached_function_access_error(ident)
+                    }
                     [..] => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
@@ -886,10 +890,10 @@ impl<'gcx> TypeChecker<'gcx> {
             .filter(|m| m.name == ident.name)
             .collect::<SmallVec<[_; 4]>>();
 
-        let ty = match self.select_member_call_overload(&possible_members, args) {
+        let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
-                member.ty
+                self.member_call_ty(receiver_ty, member)
             }
             Err(e) => {
                 let msg = match e {
@@ -957,6 +961,31 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn attached_function_access_error(&self, ident: Ident) -> Ty<'gcx> {
+        let msg = format!("attached function `{ident}` can only be called");
+        self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
+    }
+
+    fn member_call_ty(&self, receiver_ty: Ty<'gcx>, member: &members::Member<'gcx>) -> Ty<'gcx> {
+        if !member.attached {
+            return member.ty;
+        }
+
+        let TyKind::FnPtr(function_ty) = member.ty.kind else { return member.ty };
+        let Some((&self_ty, parameters)) = function_ty.parameters.split_first() else {
+            return member.ty;
+        };
+        debug_assert!(receiver_ty.convert_implicit_to(self_ty, self.gcx));
+
+        self.gcx.mk_ty_fn_ptr(TyFnPtr {
+            parameters,
+            returns: function_ty.returns,
+            state_mutability: function_ty.state_mutability,
+            visibility: function_ty.visibility,
+            function_id: function_ty.function_id,
+        })
+    }
+
     fn select_call_overload(
         &mut self,
         res: &[hir::Res],
@@ -1011,6 +1040,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn select_member_call_overload<'a>(
         &mut self,
+        receiver_ty: Ty<'gcx>,
         members: &'a [members::Member<'gcx>],
         args: &hir::CallArgs<'gcx>,
     ) -> Result<&'a members::Member<'gcx>, OverloadError> {
@@ -1022,11 +1052,12 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let mut selected = WantOne::Zero;
         for member in members {
-            let TyKind::FnPtr(function_ty) = member.ty.kind else { continue };
-            let param_names = function_ty
-                .function_id
-                .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
-            if self.call_args_match(args, function_ty.parameters, param_names.as_deref()) {
+            let Some((parameters, param_names)) =
+                self.member_call_candidate_params(receiver_ty, member)
+            else {
+                continue;
+            };
+            if self.call_args_match(args, parameters, param_names.as_deref()) {
                 selected.push(member);
             }
         }
@@ -1035,6 +1066,26 @@ impl<'gcx> TypeChecker<'gcx> {
             WantOne::One(member) => Ok(member),
             WantOne::Many => Err(OverloadError::Ambiguous),
         }
+    }
+
+    fn member_call_candidate_params(
+        &self,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) -> Option<CallCandidateParams<'gcx>> {
+        let TyKind::FnPtr(function_ty) = member.ty.kind else { return None };
+        let parameters = if member.attached {
+            let (&self_ty, parameters) = function_ty.parameters.split_first()?;
+            if !receiver_ty.convert_implicit_to(self_ty, self.gcx) {
+                return None;
+            }
+            parameters
+        } else {
+            function_ty.parameters
+        };
+        let param_names =
+            function_ty.function_id.map(|id| self.get_call_param_names(id, parameters.len()));
+        Some((parameters, param_names))
     }
 
     fn call_args_match(

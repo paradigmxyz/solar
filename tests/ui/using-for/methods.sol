@@ -31,6 +31,7 @@ contract C {
     function f(S memory s) public pure {
         uint256 x = 1;
         x.inc();
+        x.inc; //~ ERROR: attached function `inc` can only be called
         x.twice();
         x.add(2);
         s.field();

@@ -67,15 +67,20 @@ pub struct Member<'gcx> {
     pub name: Symbol,
     pub ty: Ty<'gcx>,
     pub res: Option<hir::Res>,
+    pub attached: bool,
 }
 
 impl<'gcx> Member<'gcx> {
     pub fn new(name: Symbol, ty: Ty<'gcx>) -> Self {
-        Self { name, ty, res: None }
+        Self { name, ty, res: None, attached: false }
     }
 
     pub fn with_res(name: Symbol, ty: Ty<'gcx>, res: impl Into<hir::Res>) -> Self {
-        Self { name, ty, res: Some(res.into()) }
+        Self { name, ty, res: Some(res.into()), attached: false }
+    }
+
+    pub fn with_attached_function(name: Symbol, ty: Ty<'gcx>, function: hir::FunctionId) -> Self {
+        Self { name, ty, res: Some(hir::ItemId::from(function).into()), attached: true }
     }
 
     pub fn with_builtin(builtin: Builtin, ty: Ty<'gcx>) -> Self {

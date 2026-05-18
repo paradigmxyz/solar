@@ -794,10 +794,11 @@ impl<'gcx> Gcx<'gcx> {
         seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
         members: &mut Vec<members::Member<'gcx>>,
     ) {
-        let TyKind::FnPtr(function_ty) = self.type_of_item(function.into()).kind else {
+        let fn_ty = self.type_of_item(function.into());
+        let TyKind::FnPtr(function_ty) = fn_ty.kind else {
             return;
         };
-        let Some((&self_ty, parameters)) = function_ty.parameters.split_first() else {
+        let Some(&self_ty) = function_ty.parameters.first() else {
             return;
         };
         if !ty.convert_implicit_to(self_ty, self) {
@@ -807,14 +808,7 @@ impl<'gcx> Gcx<'gcx> {
         if !seen.insert((name, function)) {
             return;
         }
-        let ty = self.mk_ty_fn_ptr(TyFnPtr {
-            parameters,
-            returns: function_ty.returns,
-            state_mutability: function_ty.state_mutability,
-            visibility: function_ty.visibility,
-            function_id: Some(function),
-        });
-        members.push(members::Member::with_res(name, ty, hir::ItemId::from(function)));
+        members.push(members::Member::with_attached_function(name, fn_ty, function));
     }
 
     fn for_each_using_directive_for_type(
