@@ -1310,6 +1310,9 @@ pub enum StmtKind<'hir> {
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'hir>),
 
+    /// An inline assembly block: `assembly { ... }`.
+    AssemblyBlock(Block<'hir>),
+
     /// An emit statement: `emit Foo.bar(42);`.
     ///
     /// Always contains an `ExprKind::Call`.
@@ -1766,7 +1769,7 @@ impl TypeKind<'_> {
     pub fn is_reference_type(&self) -> bool {
         match self {
             TypeKind::Elementary(t) => t.is_reference_type(),
-            TypeKind::Custom(ItemId::Struct(_)) | TypeKind::Array(_) => true,
+            TypeKind::Custom(ItemId::Struct(_)) | TypeKind::Array(_) | TypeKind::Mapping(_) => true,
             _ => false,
         }
     }

@@ -34,5 +34,11 @@ error: unresolved symbol `r`
 LL │                     c := r
    ╰╴                         ━
 
-error: aborting due to 6 previous errors
+error: unresolved symbol `a`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │                     r := a
+   ╰╴                         ━
+
+error: aborting due to 7 previous errors
 

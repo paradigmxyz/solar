@@ -7,11 +7,13 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize, UserDefinableOperator};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
 
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
 type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNames>);
+
+mod yul;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
@@ -22,6 +24,8 @@ struct TypeChecker<'gcx> {
     gcx: Gcx<'gcx>,
     source: hir::SourceId,
     contract: Option<hir::ContractId>,
+    function: Option<hir::FunctionId>,
+    construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
 
@@ -31,6 +35,8 @@ struct TypeChecker<'gcx> {
     in_emit: bool,
     /// Whether we're directly inside a revert statement (for the immediate call only).
     in_revert: bool,
+    /// Whether we're checking expressions lowered from inline assembly.
+    in_yul: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -50,10 +56,13 @@ impl<'gcx> TypeChecker<'gcx> {
             gcx,
             source,
             contract: None,
+            function: None,
+            construction_context: 0,
             types: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
+            in_yul: false,
         }
     }
 
@@ -261,10 +270,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+                if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
-                self.type_of_res(res)
+                let ty = self.type_of_res(res);
+                if self.in_yul {
+                    match self.check_yul_external_ident(res, ty, expr.span) {
+                        Ok(true) => return self.gcx.types.uint(256),
+                        Ok(false) => {}
+                        Err(guar) => return self.gcx.mk_ty_err(guar),
+                    }
+                }
+                ty
             }
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr(lhs);
@@ -385,9 +402,9 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
-                            && possible_members[0].res.is_some_and(|res| {
-                                res_not_lvalue_reason(self.gcx, res).is_some()
-                            }) =>
+                            && possible_members[0]
+                                .res
+                                .is_some_and(|res| self.res_not_lvalue_reason(res).is_some()) =>
                     {
                         Some(NotLvalueReason::Generic)
                     }
@@ -448,7 +465,11 @@ impl<'gcx> TypeChecker<'gcx> {
                             )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
-                            self.gcx.mk_builtin_fn(&[], hir::StateMutability::Pure, &[ty])
+                            self.gcx.mk_builtin_fn(
+                                &[self.gcx.types.uint(256)],
+                                hir::StateMutability::Pure,
+                                &[ty],
+                            )
                         }
                     }
                     TyKind::Err(_) => ty,
@@ -543,7 +564,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                debug_assert!(ty.kind.is_elementary(), "non-elementary ExprKind::Type: {ty:?}");
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
@@ -584,16 +604,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::YulMember(expr, member) => {
-                if is_yul_member(member) {
-                    // TODO: Validate inline assembly suffixes like solc does:
-                    // `.slot`/`.offset` for storage and transient variables, `.offset`/`.length`
-                    // for calldata arrays, and `.address`/`.selector` for external function
-                    // pointers. Assignment rules are suffix- and declaration-dependent.
-                }
-                let _ = self.check_expr(expr);
-                self.gcx.types.uint(256)
-            }
+            hir::ExprKind::YulMember(expr, member) => self.check_yul_member(expr, member),
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -1267,7 +1278,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(var.span)
                     .emit();
             } else if expect {
-                let _ = self.expect_ty(init, ty);
+                let _ = if var.is_state_variable() {
+                    self.with_construction_context(|this| this.expect_ty(init, ty))
+                } else {
+                    self.expect_ty(init, ty)
+                };
             }
         }
 
@@ -1393,20 +1408,29 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         }
 
-        let msg = match result {
-            Err(NotLvalueReason::Constant) => "cannot assign to a constant variable",
-            Err(NotLvalueReason::Immutable) => "cannot assign to an immutable variable",
-            Err(NotLvalueReason::CalldataArray) => "calldata arrays are read-only",
-            Err(NotLvalueReason::CalldataStruct) => "calldata structs are read-only",
+        let (msg, help) = match result {
+            Err(NotLvalueReason::Constant) => ("cannot assign to a constant variable", None),
+            Err(NotLvalueReason::Immutable) => (
+                "cannot assign to immutable here",
+                Some(
+                    "immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies",
+                ),
+            ),
+            Err(NotLvalueReason::CalldataArray) => ("calldata arrays are read-only", None),
+            Err(NotLvalueReason::CalldataStruct) => ("calldata structs are read-only", None),
             Err(NotLvalueReason::FixedBytesIndex) => {
-                "single bytes in fixed bytes arrays cannot be modified"
+                ("single bytes in fixed bytes arrays cannot be modified", None)
             }
             Err(NotLvalueReason::ArrayLength) => {
-                "member `length` is read-only and cannot be used to resize arrays"
+                ("member `length` is read-only and cannot be used to resize arrays", None)
             }
-            Err(NotLvalueReason::Generic) | Ok(()) => "expression has to be an lvalue",
+            Err(NotLvalueReason::Generic) | Ok(()) => ("expression has to be an lvalue", None),
         };
-        self.dcx().err(msg).span(expr.span).emit();
+        let mut diag = self.dcx().err(msg).span(expr.span);
+        if let Some(help) = help {
+            diag = diag.help(help);
+        }
+        diag.emit();
 
         ty
     }
@@ -1419,6 +1443,22 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn in_lvalue(&self) -> bool {
         self.lvalue_context.is_some()
+    }
+
+    fn in_constructor_context(&self) -> bool {
+        self.construction_context != 0
+            || self.function.is_some_and(|id| self.gcx.hir.function(id).kind.is_constructor())
+    }
+
+    fn with_construction_context<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.construction_context += 1;
+        let result = f(self);
+        self.construction_context -= 1;
+        result
+    }
+
+    fn res_not_lvalue_reason(&self, res: hir::Res) -> Option<NotLvalueReason> {
+        res_not_lvalue_reason(self.gcx, res, self.in_constructor_context())
     }
 
     fn resolve_overloads(&self, res: &[hir::Res], span: Span) -> hir::Res {
@@ -1496,10 +1536,22 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
         let contract = self.gcx.hir.function(id).contract;
         let prev = self.contract;
+        let prev_function = self.function.replace(id);
         self.contract = contract.or(prev);
         let r = self.visit_function(self.gcx.hir.function(id));
         self.contract = prev;
+        self.function = prev_function;
         r
+    }
+
+    fn visit_modifier(
+        &mut self,
+        modifier: &'gcx hir::Modifier<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        if matches!(modifier.id, hir::ItemId::Contract(_)) {
+            return ControlFlow::Continue(());
+        }
+        self.walk_modifier(modifier)
     }
 
     fn visit_contract(
@@ -1530,15 +1582,19 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                         for (arg_expr, expected_arg_ty) in
                             modifier.args.exprs().zip(ctor_param_types.iter())
                         {
-                            let actual_arg_ty =
-                                self.check_expr_kind(arg_expr, Some(*expected_arg_ty));
+                            let actual_arg_ty = self.with_construction_context(|this| {
+                                this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
+                            });
                             self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
                     }
                 }
             }
         }
-        self.walk_contract(contract)
+        for &item in contract.items {
+            self.visit_nested_item(item)?;
+        }
+        ControlFlow::Continue(())
     }
 
     fn visit_nested_var(&mut self, id: hir::VariableId) -> ControlFlow<Self::BreakValue> {
@@ -1640,6 +1696,27 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::AssemblyBlock(block) => {
+                let prev = std::mem::replace(&mut self.in_yul, true);
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+                self.in_yul = prev;
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Expr(expr) if self.in_yul => {
+                let ty = self.check_expr(expr);
+                if !matches!(expr.kind, hir::ExprKind::Assign(..))
+                    && !ty.is_unit()
+                    && !ty.references_error()
+                {
+                    self.dcx()
+                        .err("inline assembly expression statements cannot return values")
+                        .span(expr.span)
+                        .emit();
+                }
+                return ControlFlow::Continue(());
+            }
             _ => {}
         }
         self.walk_stmt(stmt)
@@ -1672,10 +1749,6 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
-}
-
-fn is_yul_member(member: Ident) -> bool {
-    matches!(member.name, sym::length | sym::offset | sym::selector | sym::slot | kw::Address)
 }
 
 enum OverloadError {
@@ -1719,13 +1792,17 @@ impl<T> WantOne<T> {
     }
 }
 
-fn res_not_lvalue_reason(gcx: Gcx<'_>, res: hir::Res) -> Option<NotLvalueReason> {
+fn res_not_lvalue_reason(
+    gcx: Gcx<'_>,
+    res: hir::Res,
+    allow_immutable: bool,
+) -> Option<NotLvalueReason> {
     match res {
         hir::Res::Item(hir::ItemId::Variable(var)) => {
             let var = gcx.hir.variable(var);
             match var.mutability {
                 Some(m) if m.is_constant() => Some(NotLvalueReason::Constant),
-                Some(m) if m.is_immutable() => Some(NotLvalueReason::Immutable),
+                Some(m) if m.is_immutable() && !allow_immutable => Some(NotLvalueReason::Immutable),
                 _ => None,
             }
         }

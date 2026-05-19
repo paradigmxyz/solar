@@ -1045,6 +1045,11 @@ pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
+/// Returns the type of the given builtin.
+pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
+    builtin.ty_impl(gcx)
+}
+
 /// Returns the type of the given item.
 pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
     let kind = match id {

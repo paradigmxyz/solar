@@ -220,7 +220,10 @@ pub trait Visit<'hir> {
                 }
                 self.visit_expr(expr)?;
             }
-            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) | StmtKind::Loop(block, _) => {
+            StmtKind::Block(block)
+            | StmtKind::UncheckedBlock(block)
+            | StmtKind::AssemblyBlock(block)
+            | StmtKind::Loop(block, _) => {
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }

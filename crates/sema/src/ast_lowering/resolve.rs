@@ -248,7 +248,8 @@ pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
     scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
-    yul_function_scopes: Vec<usize>,
+    yul_scopes: Vec<usize>,
+    yul_function_scope: Option<usize>,
 }
 
 impl<'gcx> std::ops::Deref for ResolveContext<'gcx> {
@@ -272,7 +273,8 @@ impl<'gcx> ResolveContext<'gcx> {
             lcx,
             scopes: SymbolResolverScopes::new(),
             function_id: None,
-            yul_function_scopes: Vec::new(),
+            yul_scopes: Vec::new(),
+            yul_function_scope: None,
         }
     }
 
@@ -892,6 +894,15 @@ impl<'gcx> ResolveContext<'gcx> {
         t
     }
 
+    fn in_yul_scope<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> T {
+        self.scopes.enter();
+        self.yul_scopes.push(self.scopes.scopes.len() - 1);
+        let t = f(self);
+        self.yul_scopes.pop();
+        self.scopes.exit();
+        t
+    }
+
     fn in_scope_if<T>(&mut self, cond: bool, f: impl FnOnce(&mut Self) -> T) -> T {
         if cond { self.in_scope(f) } else { f(self) }
     }
@@ -1019,11 +1030,11 @@ impl<'gcx> ResolveContext<'gcx> {
             }
         }
 
-        hir::StmtKind::UncheckedBlock(self.lower_yul_block(&assembly.block))
+        hir::StmtKind::AssemblyBlock(self.lower_yul_block(&assembly.block))
     }
 
     fn lower_yul_block(&mut self, block: &ast::yul::Block<'_>) -> hir::Block<'gcx> {
-        self.in_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
+        self.in_yul_scope(|this| this.lower_yul_stmts(block.stmts, block.span))
     }
 
     fn lower_yul_stmts(&mut self, stmts: &[ast::yul::Stmt<'_>], span: Span) -> hir::Block<'gcx> {
@@ -1063,14 +1074,11 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_function_body(&mut self, function: &ast::yul::Function<'_>, id: hir::FunctionId) {
-        // Yul function bodies do not inherit Yul variable scopes from enclosing Yul functions,
-        // but they still need the surrounding Solidity scopes. Temporarily removing only the
-        // tracked Yul function scopes models that boundary while lowering the body.
-        let outer_yul_function_scopes = std::mem::take(&mut self.yul_function_scopes);
-        let outer_yul_function_scope_decls = self.scopes.remove_scopes(&outer_yul_function_scopes);
         let previous_function = self.function_id.replace(id);
         self.scopes.enter();
-        self.yul_function_scopes.push(self.scopes.scopes.len() - 1);
+        let function_scope = self.scopes.scopes.len() - 1;
+        self.yul_scopes.push(function_scope);
+        let previous_yul_function_scope = self.yul_function_scope.replace(function_scope);
 
         self.hir.functions[id].parameters =
             self.lower_yul_function_variables(id, function.parameters, hir::VarKind::FunctionParam);
@@ -1078,15 +1086,14 @@ impl<'gcx> ResolveContext<'gcx> {
             self.lower_yul_function_variables(id, function.returns, hir::VarKind::FunctionReturn);
 
         let block = self.lower_yul_block(&function.body);
-        let unchecked = self.hir_builder().stmt(hir::StmtKind::UncheckedBlock(block), block.span);
+        let unchecked = self.hir_builder().stmt(hir::StmtKind::AssemblyBlock(block), block.span);
         let body = self.hir_builder().block(self.arena.alloc_as_slice(unchecked), block.span);
 
-        self.yul_function_scopes.pop();
+        self.yul_function_scope = previous_yul_function_scope;
+        self.yul_scopes.pop();
         self.scopes.exit();
         self.hir.functions[id].body = Some(body);
         self.function_id = previous_function;
-        self.scopes.restore_scopes(outer_yul_function_scope_decls);
-        self.yul_function_scopes = outer_yul_function_scopes;
     }
 
     fn lower_yul_function_variables(
@@ -1221,7 +1228,7 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     fn lower_yul_for_stmt(&mut self, for_: &ast::yul::StmtFor<'_>) -> hir::StmtKind<'gcx> {
-        self.in_scope(|this| {
+        self.in_yul_scope(|this| {
             // {
             //     { <init> } // fake block
             //     loop {
@@ -1233,8 +1240,10 @@ impl<'gcx> ResolveContext<'gcx> {
             // }
             let init = this.lower_yul_stmts(for_.init.stmts, for_.init.span);
             let cond = this.lower_yul_condition(&for_.cond);
-            let step = this.in_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
-            let body = this.in_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
+            let step =
+                this.in_yul_scope(|this| this.lower_yul_stmts(for_.step.stmts, for_.step.span));
+            let body =
+                this.in_yul_scope(|this| this.lower_yul_stmts(for_.body.stmts, for_.body.span));
             let builder = this.hir_builder();
 
             let step_stmt = builder.stmt(hir::StmtKind::Block(step), step.span);
@@ -1401,7 +1410,7 @@ impl<'gcx> ResolveContext<'gcx> {
     fn lower_yul_path_expr_full(&mut self, path: &ast::PathSlice) -> hir::Expr<'gcx> {
         let segments = path.segments();
         let first = segments.first().copied().unwrap();
-        let kind = match self.resolve_paths(ast::PathSlice::from_ref(&first)) {
+        let kind = match self.resolve_yul_paths(first) {
             Ok(decls) => hir::ExprKind::Ident(
                 self.arena.alloc_slice_fill_iter(decls.iter().map(|decl| decl.res)),
             ),
@@ -1423,6 +1432,22 @@ impl<'gcx> ResolveContext<'gcx> {
             hir::ExprKind::YulMember(expr, last),
             last.span,
         )
+    }
+
+    fn resolve_yul_paths(&self, name: Ident) -> Result<&[Declaration], ErrorGuaranteed> {
+        let function_scope = self.yul_function_scope;
+        for (index, scope) in self.scopes.scopes.iter().enumerate().rev() {
+            let Some(decls) = scope.resolve(name) else { continue };
+            if function_scope.is_some_and(|function_scope| index < function_scope)
+                && decls.iter().all(|decl| decl.res.as_variable().is_some())
+            {
+                continue;
+            }
+            return Ok(decls);
+        }
+        self.resolver
+            .resolve_name_non_local(name, &self.scopes)
+            .map_err(self.resolver.emit_resolver_error())
     }
 
     fn yul_number_lit(&mut self, value: U256, span: Span) -> &'gcx hir::Expr<'gcx> {
@@ -2023,6 +2048,17 @@ impl<'gcx> SymbolResolver<'gcx> {
         scopes.get(self).find_map(move |scope| scope.resolve(name))
     }
 
+    fn resolve_name_non_local<'a>(
+        &'a self,
+        name: Ident,
+        scopes: &'a SymbolResolverScopes,
+    ) -> Result<&'a [Declaration], ResolverError> {
+        scopes
+            .get_non_local(self)
+            .find_map(move |scope| scope.resolve(name))
+            .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
+    }
+
     fn scope_of(&self, declaration: Res) -> Option<&Declarations> {
         match declaration {
             Res::Item(hir::ItemId::Contract(id)) => Some(&self.contract_scopes[id]),
@@ -2071,10 +2107,17 @@ impl SymbolResolverScopes {
         resolver: &'a SymbolResolver<'_>,
     ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
         debug_assert!(self.source.is_some() || self.contract.is_some());
-        self.scopes
-            .iter()
-            .rev()
-            .chain(self.contract.map(|id| &resolver.contract_scopes[id]))
+        self.scopes.iter().rev().chain(self.get_non_local(resolver))
+    }
+
+    #[inline]
+    fn get_non_local<'a>(
+        &'a self,
+        resolver: &'a SymbolResolver<'_>,
+    ) -> impl Iterator<Item = &'a Declarations> + Clone + 'a {
+        self.contract
+            .map(|id| &resolver.contract_scopes[id])
+            .into_iter()
             .chain(self.source.map(|id| &resolver.source_scopes[id]))
             .chain(std::iter::once(&resolver.global_builtin_scope))
     }
@@ -2083,20 +2126,6 @@ impl SymbolResolverScopes {
         let mut scope = self.pool.pop().unwrap_or_else(Declarations::new);
         scope.clear();
         self.scopes.push(scope);
-    }
-
-    fn remove_scopes(&mut self, indices: &[usize]) -> Vec<(usize, Declarations)> {
-        let mut removed = Vec::with_capacity(indices.len());
-        for &index in indices.iter().rev() {
-            removed.push((index, self.scopes.remove(index)));
-        }
-        removed
-    }
-
-    fn restore_scopes(&mut self, removed: Vec<(usize, Declarations)>) {
-        for (index, scope) in removed.into_iter().rev() {
-            self.scopes.insert(index, scope);
-        }
     }
 
     #[inline]

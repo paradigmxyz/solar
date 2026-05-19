@@ -236,7 +236,11 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_reference_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_reference_type(),
-            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Slice(_) => true,
+            TyKind::Struct(_)
+            | TyKind::Array(..)
+            | TyKind::DynArray(_)
+            | TyKind::Slice(_)
+            | TyKind::Mapping(..) => true,
             _ => false,
         }
     }
@@ -658,6 +662,12 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
+            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
@@ -777,6 +787,8 @@ impl<'gcx> Ty<'gcx> {
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
+    /// Explicit conversions are a superset of implicit conversions.
+    ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
@@ -808,16 +820,11 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::InvalidConversion)
                 }
             }
+            (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
             | (Elementary(UInt(size_from)), Elementary(FixedBytes(size_to)))
-                if size_from == size_to =>
-            {
-                Ok(())
-            }
-            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
-            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
                 if size_from == size_to =>
             {
                 Ok(())
@@ -833,6 +840,13 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+
+            // Integer literals -> address.
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
+            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
+                Ok(())
+            }
+
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
             (IntLiteral(..), IntLiteral(..)) => unreachable!(),
@@ -930,10 +944,15 @@ impl<'gcx> Ty<'gcx> {
     ) -> Result<Self, TyConvertError> {
         self.can_convert_explicit_to(other, gcx)?;
 
-        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        // Handle special cases where unlocated reference targets get a data location.
         use ElementaryType::*;
         use TyKind::*;
         Ok(match (self.kind, other.kind) {
+            (StringLiteral(..), Elementary(Bytes)) => gcx.types.bytes_ref.memory,
+            (StringLiteral(true, _), Elementary(String)) => gcx.types.string_ref.memory,
+            (Ref(from_inner, loc), _) if from_inner == other && other.is_reference_type() => {
+                other.with_loc(gcx, loc)
+            }
             (Ref(from_inner, loc), Elementary(Bytes))
                 if matches!(from_inner.kind, Elementary(String)) =>
             {

@@ -16,5 +16,11 @@ error: unresolved symbol `g`
 LL │             for { let i := 0 } lt(i, 1) { pop(g()) } {
    ╰╴                                              ━
 
-error: aborting due to 3 previous errors
+error: unresolved symbol `i`
+   ╭▸ ROOT/tests/ui/yul_lowering/for_loop_scope.sol:LL:CC
+   │
+LL │                     r := i
+   ╰╴                         ━
+
+error: aborting due to 4 previous errors
 
