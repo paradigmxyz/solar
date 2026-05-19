@@ -672,91 +672,95 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) -> Ty<'gcx> {
-        let (ty, res) = self.check_yul_member_base(expr);
-        let Some(res) = res else {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err("inline assembly suffixes can only be used with variables")
-                    .span(member.span)
-                    .emit(),
-            );
-        };
-        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err("inline assembly suffixes can only be used with variables")
-                    .span(member.span)
-                    .emit(),
-            );
-        };
-        let var = self.gcx.hir.variable(var_id);
-
-        if var.is_immutable() {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err("assembly access to immutable variables is not supported")
-                    .span(expr.span)
-                    .emit(),
-            );
+        enum ErrorKind {
+            NonVariable,
+            Immutable,
+            UnsupportedSuffix,
+            UnsupportedBase,
+            UnsupportedMember(YulMemberSet),
+            NonExternalFunction,
+            Assignment(YulMemberAssignmentError),
         }
 
-        if !is_yul_member(member.name) {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err(format!("unsupported inline assembly suffix `.{member}`"))
-                    .span(member.span)
-                    .emit(),
-            );
-        }
+        let mut inner = || -> Result<(), ErrorKind> {
+            let (ty, res) = self.check_yul_member_base(expr);
+            let Some(res) = res else { return Err(ErrorKind::NonVariable) };
+            let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
+                return Err(ErrorKind::NonVariable);
+            };
+            let var = self.gcx.hir.variable(var_id);
 
-        let Some(member_set) = yul_member_set(var, ty) else {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err(format!("suffix `.{member}` is not supported by this variable or type"))
-                    .span(member.span)
-                    .emit(),
-            );
-        };
-
-        let Some(yul_member) = member_set.member(member.name) else {
-            return self.gcx.mk_ty_err(
-                self.dcx().err(member_set.unsupported_member_message()).span(member.span).emit(),
-            );
-        };
-
-        if let YulMemberSet::Function { external: false } = member_set {
-            return self.gcx.mk_ty_err(
-                self.dcx()
-                    .err(
-                        "only external function pointer variables support `.selector` and `.address`",
-                    )
-                    .span(member.span)
-                    .emit(),
-            );
-        }
-
-        if self.in_lvalue()
-            && !yul_member.assignable
-            && let Some(error) = member_set.assignment_error()
-        {
-            match error {
-                YulMemberAssignmentError::StateVariable => {
-                    return self.gcx.mk_ty_err(
-                        self.dcx()
-                            .err("state variables cannot be assigned to in inline assembly")
-                            .span(expr.span)
-                            .emit(),
-                    );
-                }
-                YulMemberAssignmentError::StorageOffset => {
-                    return self.gcx.mk_ty_err(
-                        self.dcx().err("only `.slot` can be assigned to").span(member.span).emit(),
-                    );
-                }
+            if var.is_immutable() {
+                return Err(ErrorKind::Immutable);
             }
-        }
 
-        self.gcx.types.uint(256)
+            if !is_yul_member(member.name) {
+                return Err(ErrorKind::UnsupportedSuffix);
+            }
+
+            let Some(member_set) = yul_member_set(var, ty) else {
+                return Err(ErrorKind::UnsupportedBase);
+            };
+
+            let Some(yul_member) = member_set.member(member.name) else {
+                return Err(ErrorKind::UnsupportedMember(member_set));
+            };
+
+            if let YulMemberSet::Function { external: false } = member_set {
+                return Err(ErrorKind::NonExternalFunction);
+            }
+
+            if self.in_lvalue()
+                && !yul_member.assignable
+                && let Some(error) = member_set.assignment_error()
+            {
+                return Err(ErrorKind::Assignment(error));
+            }
+
+            Ok(())
+        };
+
+        let guar = match inner() {
+            Ok(()) => return self.gcx.types.uint(256),
+            Err(ErrorKind::NonVariable) => self
+                .dcx()
+                .err("inline assembly suffixes can only be used with variables")
+                .span(member.span)
+                .emit(),
+            Err(ErrorKind::Immutable) => self
+                .dcx()
+                .err("assembly access to immutable variables is not supported")
+                .span(expr.span)
+                .emit(),
+            Err(ErrorKind::UnsupportedSuffix) => self
+                .dcx()
+                .err(format!("unsupported inline assembly suffix `.{member}`"))
+                .span(member.span)
+                .emit(),
+            Err(ErrorKind::UnsupportedBase) => self
+                .dcx()
+                .err(format!("suffix `.{member}` is not supported by this variable or type"))
+                .span(member.span)
+                .emit(),
+            Err(ErrorKind::UnsupportedMember(member_set)) => {
+                self.dcx().err(member_set.unsupported_member_message()).span(member.span).emit()
+            }
+            Err(ErrorKind::NonExternalFunction) => self
+                .dcx()
+                .err("only external function pointer variables support `.selector` and `.address`")
+                .span(member.span)
+                .emit(),
+            Err(ErrorKind::Assignment(YulMemberAssignmentError::StateVariable)) => self
+                .dcx()
+                .err("state variables cannot be assigned to in inline assembly")
+                .span(expr.span)
+                .emit(),
+            Err(ErrorKind::Assignment(YulMemberAssignmentError::StorageOffset)) => {
+                self.dcx().err("only `.slot` can be assigned to").span(member.span).emit()
+            }
+        };
+
+        self.gcx.mk_ty_err(guar)
     }
 
     fn check_yul_member_base(
