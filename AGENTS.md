@@ -97,3 +97,6 @@ self.dcx()
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.
 - **Arena allocation**: AST nodes use arenas for performance.
 - **Benchmarks**: See @benches/README.md to benchmark when working on performance-critical code.
+- Do not describe Solar in the third person. This repository is the project:
+  say "we", "this codebase", or "the compiler" instead of "Solar does",
+  "Solar is", or "Solar supports".
