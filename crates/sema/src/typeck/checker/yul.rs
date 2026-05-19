@@ -8,6 +8,10 @@ use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
+    /// Checks whether a resolved identifier should be treated as an external Solidity reference in
+    /// Yul. Returns `Ok(true)` when the identifier was accepted and should be typed as a Yul word,
+    /// `Ok(false)` when it is not a Yul external reference and normal typing should continue, and
+    /// `Err` after emitting a diagnostic for invalid external-reference use.
     pub(super) fn check_yul_external_ident(
         &mut self,
         res: hir::Res,
