@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported.sol.
+
 //@compile-flags: -Ztypeck
 
 import {Int} from "./auxiliary/operator_imported.sol";

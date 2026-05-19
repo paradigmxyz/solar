@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/semanticTests/using/using_global_invisible.sol.
+
 //@compile-flags: -Ztypeck
 
 import {C} from "./auxiliary/global_invisible_mid.sol";

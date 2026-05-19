@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_non_global.sol.
+
 type DefinedInt is int256;
 
 function add(DefinedInt a, DefinedInt b) pure returns (DefinedInt) {

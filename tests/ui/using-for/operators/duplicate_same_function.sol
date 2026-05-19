@@ -1,3 +1,7 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_same_directive.sol.
+// - test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_separate_directives.sol.
+
 //@compile-flags: -Ztypeck
 
 type Int is int256;

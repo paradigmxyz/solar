@@ -1,3 +1,9 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/using/module_2.sol.
+// - test/libsolidity/syntaxTests/using/module_3.sol.
+// - test/libsolidity/syntaxTests/using/library_import_as.sol.
+// - test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported.sol.
+
 type Int is int256;
 
 function add(Int a, Int b) pure returns (Int) {

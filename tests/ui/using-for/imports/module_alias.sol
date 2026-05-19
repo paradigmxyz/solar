@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/module_3.sol.
+
 //@compile-flags: -Ztypeck
 
 import "./auxiliary/imported_using.sol" as M;

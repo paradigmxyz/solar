@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/global_working.sol.
+
 //@compile-flags: -Ztypeck
 
 import {S, U} from "./auxiliary/global_directives.sol";

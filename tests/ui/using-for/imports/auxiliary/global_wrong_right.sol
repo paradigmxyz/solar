@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_transitively.sol.
+
 import "./global_wrong_type.sol";
 
 function add2(Int a, Int b) pure returns (Int) {

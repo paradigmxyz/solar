@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_event.sol.
+
 //@compile-flags: -Ztypeck
 
 type U is uint256;

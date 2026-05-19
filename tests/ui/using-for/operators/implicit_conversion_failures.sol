@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_with_implicit_conversion.sol.
+
 //@compile-flags: -Ztypeck
 
 type U is uint256;

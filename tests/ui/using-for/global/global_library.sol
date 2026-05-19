@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/semanticTests/using/using_global_all_the_types.sol.
+
 //@compile-flags: -Ztypeck
 
 import {E, S, T} from "./auxiliary/global_library.sol";

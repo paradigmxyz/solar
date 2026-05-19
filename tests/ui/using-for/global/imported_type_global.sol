@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/global_for_type_from_other_file.sol.
+
 //@compile-flags: -Ztypeck
 
 import {ImportedS, ImportedU} from "./auxiliary/imported_types.sol";

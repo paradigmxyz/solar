@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_on_file_and_contract_level.sol.
+
 //@compile-flags: -Ztypeck
 
 type Int is int256;

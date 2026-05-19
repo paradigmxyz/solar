@@ -1,3 +1,9 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/using/global_for_non_user_defined.sol.
+// - test/libsolidity/syntaxTests/using/global_library_for_builtin.sol.
+// - test/libsolidity/syntaxTests/using/global_library_for_interface.sol.
+// - test/libsolidity/syntaxTests/operators/userDefined/defining_operator_for_contract.sol.
+
 //@compile-flags: -Ztypeck
 
 contract C {}

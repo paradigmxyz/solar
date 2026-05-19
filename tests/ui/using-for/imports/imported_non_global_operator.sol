@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_non_global.sol.
+
 //@compile-flags: -Ztypeck
 
 import {ImportedInt} from "./auxiliary/non_global_operator.sol";

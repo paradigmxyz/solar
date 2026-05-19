@@ -1,3 +1,5 @@
+// Derived from solc test: test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
+
 //@compile-flags: -Ztypeck
 
 library L {

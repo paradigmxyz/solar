@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/library_functions_attached_at_file_level_used_inside_library.sol.
+
 //@compile-flags: -Ztypeck
 
 library L {

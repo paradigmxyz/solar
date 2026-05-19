@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/free_reference_type.sol.
+
 //@compile-flags: -Ztypeck
 
 function memoryHead(uint256[] memory x) pure returns (uint256) {

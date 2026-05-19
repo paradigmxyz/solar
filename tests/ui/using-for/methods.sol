@@ -1,3 +1,8 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/using/using_free_functions.sol.
+// - test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
+// - test/libsolidity/syntaxTests/using/global_working.sol.
+
 //@compile-flags: -Ztypeck
 
 struct S {

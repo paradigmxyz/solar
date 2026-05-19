@@ -1,3 +1,8 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_different_functions_same_directive.sol.
+// - test/libsolidity/syntaxTests/operators/userDefined/operator_taking_and_returning_types_not_matching_using_for.sol.
+// - test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_non_pure_function.sol.
+
 //@compile-flags: -Ztypeck
 
 type U is uint256;

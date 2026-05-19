@@ -1,3 +1,7 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/using/module_2.sol.
+// - test/libsolidity/syntaxTests/using/library_import_as.sol.
+
 //@compile-flags: -Ztypeck
 
 import {inc, Lib} from "./auxiliary/imported_using.sol";

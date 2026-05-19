@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/bound_calldata_parameter_accepting_calldata.sol.
+
 //@compile-flags: -Ztypeck
 
 struct S {

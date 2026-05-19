@@ -1,3 +1,5 @@
+// Solc test: test/libsolidity/syntaxTests/using/bound_calldata_parameter_not_accepting_memory.sol.
+
 //@compile-flags: -Ztypeck
 
 library L {

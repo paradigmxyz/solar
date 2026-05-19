@@ -1,3 +1,8 @@
+// Solc tests:
+// - test/libsolidity/syntaxTests/using/library_functions_at_file_level.sol.
+// - test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
+// - test/libsolidity/syntaxTests/using/private_library_function_inside_scope.sol.
+
 //@compile-flags: -Ztypeck
 
 library L {
