@@ -1,8 +1,12 @@
 //@compile-flags: -Ztypeck
 
+type U256 is uint256;
+type Word is bytes32;
+
 contract C {
     uint256 state;
     uint256[] stateArray;
+    U256 udvtState;
     uint256 constant constantValue = 1;
     uint256 constant constantExpr = 1 + 2;
     bool constant boolConstant = true;
@@ -16,6 +20,8 @@ contract C {
     function positive(
         uint256 local,
         bytes32 word,
+        U256 udvt,
+        Word udvtWord,
         uint256[] calldata data,
         function() external returns (uint256) extFn
     ) external {
@@ -28,12 +34,18 @@ contract C {
             pop(scratch)
             let wordValue := word
             word := add(wordValue, 1)
+            let udvtValue := udvt
+            udvt := add(udvtValue, 1)
+            let udvtWordValue := udvtWord
+            udvtWord := add(udvtWordValue, 1)
             ok := iszero(0)
             pop(ok)
             pop(memoryBytes)
 
             pop(state.slot)
             pop(state.offset)
+            pop(udvtState.slot)
+            pop(udvtState.offset)
             pop(storageRef.slot)
             pop(storageRef.offset)
             pop(constantValue)
@@ -60,6 +72,14 @@ contract C {
         return 1;
     }
 
+    // TODO: enable once UDVT `.wrap` is implemented in Solar.
+    // U256 constant udvtConstant = U256.wrap(1);
+    // function udvt_constant() external {
+    //     assembly {
+    //         pop(udvtConstant)
+    //     }
+    // }
+
     function negative(
         uint256 local,
         uint256[] calldata data,
@@ -77,6 +97,8 @@ contract C {
             pair() //~ ERROR: inline assembly expression statements cannot return values
             pop(state) //~ ERROR: only local variables are supported in inline assembly
             state := 1 //~ ERROR: only local variables are supported in inline assembly
+            pop(udvtState) //~ ERROR: only local variables are supported in inline assembly
+            udvtState := 1 //~ ERROR: only local variables are supported in inline assembly
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
             pop(convertedConstant) //~ ERROR: only direct number constants are supported in inline assembly
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly

@@ -26,6 +26,22 @@ LL │             state := 1
    │
    ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
 
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(udvtState)
+   │                 ━━━━━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             udvtState := 1
+   │             ━━━━━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
 error: cannot assign to a constant variable
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -138,5 +154,5 @@ error: access to functions is not allowed in inline assembly
 LL │             pop(helper)
    ╰╴                ━━━━━━
 
-error: aborting due to 22 previous errors
+error: aborting due to 24 previous errors
 
