@@ -338,6 +338,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
                 }
             }
+            hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
                 let expr_ty = self.check_expr(expr);
