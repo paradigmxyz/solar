@@ -446,7 +446,11 @@ impl<'gcx> TypeChecker<'gcx> {
                             )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
-                            self.gcx.mk_builtin_fn(&[], hir::StateMutability::Pure, &[ty])
+                            self.gcx.mk_builtin_fn(
+                                &[self.gcx.types.uint(256)],
+                                hir::StateMutability::Pure,
+                                &[ty],
+                            )
                         }
                     }
                     TyKind::Err(_) => ty,
