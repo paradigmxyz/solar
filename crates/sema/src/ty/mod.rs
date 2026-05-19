@@ -593,8 +593,8 @@ impl<'gcx> Gcx<'gcx> {
         self.item_selector(id.into())
     }
 
-    /// Returns the [`Ty`] of the given [`hir::Type`].
-    pub fn type_of_hir_ty(self, ty: &hir::Type<'gcx>) -> Ty<'gcx> {
+    /// Computes the [`Ty`] of the given [`hir::Type`]. Not cached.
+    pub fn type_of_hir_ty(self, ty: &hir::Type<'_>) -> Ty<'gcx> {
         let kind = match ty.kind {
             hir::TypeKind::Elementary(ty) => TyKind::Elementary(ty),
             hir::TypeKind::Array(array) => {
