@@ -816,6 +816,7 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::InvalidConversion)
                 }
             }
+            (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
@@ -932,10 +933,15 @@ impl<'gcx> Ty<'gcx> {
     ) -> Result<Self, TyConvertError> {
         self.can_convert_explicit_to(other, gcx)?;
 
-        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        // Handle special cases where unlocated reference targets get a data location.
         use ElementaryType::*;
         use TyKind::*;
         Ok(match (self.kind, other.kind) {
+            (StringLiteral(..), Elementary(Bytes)) => gcx.types.bytes_ref.memory,
+            (StringLiteral(true, _), Elementary(String)) => gcx.types.string_ref.memory,
+            (Ref(from_inner, loc), _) if from_inner == other && other.is_reference_type() => {
+                other.with_loc(gcx, loc)
+            }
             (Ref(from_inner, loc), Elementary(Bytes))
                 if matches!(from_inner.kind, Elementary(String)) =>
             {
