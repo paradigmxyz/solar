@@ -15,7 +15,7 @@ impl<'gcx> TypeChecker<'gcx> {
             } else {
                 self.gcx.mk_ty_err(
                     self.dcx()
-                        .err(format!("string literal too long ({len} > 32)"))
+                        .err(format!("String literal too long ({len} > 32)"))
                         .span(lit.span)
                         .emit(),
                 )
