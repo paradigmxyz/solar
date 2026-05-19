@@ -822,12 +822,6 @@ impl<'gcx> Ty<'gcx> {
             {
                 Ok(())
             }
-            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
-            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
-                if size_from == size_to =>
-            {
-                Ok(())
-            }
 
             // address <-> bytes20.
             (Elementary(Address(false)), Elementary(FixedBytes(s))) if s.bytes() == 20 => Ok(()),

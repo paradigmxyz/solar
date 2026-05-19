@@ -1,3 +1,69 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b1 = b2;
+   ╰╴                    ━━ expected `bytes1`, found `bytes2`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes4 b4 = b32;
+   ╰╴                    ━━━ expected `bytes4`, found `bytes32`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes memory b = bytes(b4);
+   ╰╴                         ━━━━━━━━━ cannot convert `bytes4` to `bytes`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes4 b4FromBytes = b;
+   ╰╴                             ━ expected `bytes4`, found `bytes memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes memory bytesFromB4 = b4;
+   ╰╴                                   ━━ expected `bytes memory`, found `bytes4`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         uint32 u32FromB4 = b4;
+   ╰╴                           ━━ expected `uint32`, found `bytes4`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes4 b4FromU32 = u32;
+   ╰╴                           ━━━ expected `bytes4`, found `uint32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         int32 i32FromB4 = b4;
+   ╰╴                          ━━ expected `int32`, found `bytes4`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes4 b4FromI32 = i32;
+   ╰╴                           ━━━ expected `bytes4`, found `int32`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes20 b20FromAddress = a;
+   ╰╴                                 ━ expected `bytes20`, found `address`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         address addressFromB20 = b20;
+   ╰╴                                 ━━━ expected `address`, found `bytes20`
+
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
    │
@@ -160,5 +226,5 @@ error: mismatched types
 LL │         bytes2 b10 = 0x0102 + 0;
    ╰╴                     ━━━━━━━━━━ expected `bytes2`, found `int_literal[9]`
 
-error: aborting due to 27 previous errors
+error: aborting due to 38 previous errors
 

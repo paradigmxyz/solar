@@ -1,12 +1,41 @@
 //@compile-flags: -Ztypeck
 
 contract C {
+    // Valid: implicit FixedBytes widening and same-size conversion.
+    function validImplicitBytesToBytes(bytes1 b1, bytes4 b4) public pure {
+        bytes2 b2 = b1;
+        bytes32 b32 = b4;
+        bytes4 same = b4;
+    }
+
+    // Invalid: implicit FixedBytes narrowing.
+    function invalidImplicitBytesToBytes(bytes2 b2, bytes32 b32) public pure {
+        bytes1 b1 = b2; //~ ERROR: mismatched types
+        bytes4 b4 = b32; //~ ERROR: mismatched types
+    }
+
     // Valid: FixedBytes to FixedBytes (any size)
     function validBytesToBytes(bytes4 b4) public pure {
         bytes32 b32 = bytes32(b4);  // smaller to larger: right-pads with zeros
         bytes2 b2 = bytes2(b32);    // larger to smaller: truncates right
         bytes1 b1 = bytes1(b4);     // larger to smaller
         bytes16 b16 = bytes16(b1);  // smaller to larger
+    }
+
+    // Valid: explicit bytes to FixedBytes conversion.
+    function validBytesToFixedBytes(bytes memory b) public pure {
+        bytes4 b4 = bytes4(b);
+    }
+
+    // Invalid: explicit FixedBytes to bytes conversion.
+    function invalidFixedBytesToBytes(bytes4 b4) public pure {
+        bytes memory b = bytes(b4); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: implicit bytes and FixedBytes conversions.
+    function invalidImplicitBytes(bytes memory b, bytes4 b4) public pure {
+        bytes4 b4FromBytes = b; //~ ERROR: mismatched types
+        bytes memory bytesFromB4 = b4; //~ ERROR: mismatched types
     }
 
     // Valid: FixedBytes to UInt (same size only)
@@ -18,6 +47,26 @@ contract C {
     // Valid: UInt to FixedBytes (same size only)
     function validUintToBytes(uint32 u32) public pure {
         bytes4 b4 = bytes4(u32);    // uint32 (4 bytes) to bytes4 (4 bytes)
+    }
+
+    // Invalid: implicit FixedBytes and integer conversions.
+    function invalidImplicitIntegerConversions(bytes4 b4, uint32 u32, int32 i32) public pure {
+        uint32 u32FromB4 = b4; //~ ERROR: mismatched types
+        bytes4 b4FromU32 = u32; //~ ERROR: mismatched types
+        int32 i32FromB4 = b4; //~ ERROR: mismatched types
+        bytes4 b4FromI32 = i32; //~ ERROR: mismatched types
+    }
+
+    // Valid: explicit address and FixedBytes conversions.
+    function validAddressBytes20(address a, bytes20 b20) public pure {
+        bytes20 b20FromAddress = bytes20(a);
+        address addressFromB20 = address(b20);
+    }
+
+    // Invalid: implicit address and FixedBytes conversions.
+    function invalidImplicitAddressBytes20(address a, bytes20 b20) public pure {
+        bytes20 b20FromAddress = a; //~ ERROR: mismatched types
+        address addressFromB20 = b20; //~ ERROR: mismatched types
     }
 
     // Valid: same-size hex integer literals to FixedBytes.
