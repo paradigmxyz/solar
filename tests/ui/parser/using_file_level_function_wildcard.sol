@@ -1,4 +1,4 @@
-// Solc test: test/libsolidity/syntaxTests/using/using_for_ast_file_level.sol.
+// Ported from test/libsolidity/syntaxTests/using/using_for_ast_file_level.sol.
 
 function f(uint256) pure {}
 

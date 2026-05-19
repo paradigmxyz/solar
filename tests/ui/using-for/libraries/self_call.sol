@@ -1,6 +1,5 @@
-// Solc test: test/libsolidity/syntaxTests/using/library_functions_attached_at_file_level_used_inside_library.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/using/library_functions_attached_at_file_level_used_inside_library.sol.
 
 library L {
     using {L.ext, L.pub, L.inner, L.priv} for uint256;

@@ -1,11 +1,9 @@
-// Solc tests:
-// - test/libsolidity/syntaxTests/using/using_contract_err.sol.
-// - test/libsolidity/syntaxTests/using/using_free_no_parameters_err.sol.
-// - test/libsolidity/syntaxTests/using/free_functions_implicit_conversion_err.sol.
-// - test/libsolidity/syntaxTests/using/private_library_function_outside_scope.sol.
-// - test/libsolidity/syntaxTests/using/global_for_type_defined_elsewhere.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/using/using_contract_err.sol.
+// Ported from test/libsolidity/syntaxTests/using/using_free_no_parameters_err.sol.
+// Ported from test/libsolidity/syntaxTests/using/free_functions_implicit_conversion_err.sol.
+// Ported from test/libsolidity/syntaxTests/using/private_library_function_outside_scope.sol.
+// Ported from test/libsolidity/syntaxTests/using/global_for_type_defined_elsewhere.sol.
 
 uint256 constant X = 1;
 

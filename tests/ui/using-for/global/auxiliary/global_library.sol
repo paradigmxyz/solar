@@ -1,4 +1,4 @@
-// Solc test: test/libsolidity/semanticTests/using/using_global_all_the_types.sol.
+// Ported from test/libsolidity/semanticTests/using/using_global_all_the_types.sol.
 
 enum E {
     A,

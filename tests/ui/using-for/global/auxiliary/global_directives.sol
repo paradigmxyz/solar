@@ -1,4 +1,4 @@
-// Solc test: test/libsolidity/syntaxTests/using/global_working.sol.
+// Ported from test/libsolidity/syntaxTests/using/global_working.sol.
 
 struct S {
     uint256 x;

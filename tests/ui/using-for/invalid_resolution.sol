@@ -1,8 +1,6 @@
-// Solc tests:
-// - test/libsolidity/syntaxTests/using/function_name_without_braces_inside_contract_err.sol.
-// - test/libsolidity/syntaxTests/using/using_non_function.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/using/function_name_without_braces_inside_contract_err.sol.
+// Ported from test/libsolidity/syntaxTests/using/using_non_function.sol.
 
 uint256 constant X = 1;
 

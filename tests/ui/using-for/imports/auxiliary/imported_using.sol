@@ -1,8 +1,7 @@
-// Solc tests:
-// - test/libsolidity/syntaxTests/using/module_2.sol.
-// - test/libsolidity/syntaxTests/using/module_3.sol.
-// - test/libsolidity/syntaxTests/using/library_import_as.sol.
-// - test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported.sol.
+// Ported from test/libsolidity/syntaxTests/using/module_2.sol.
+// Ported from test/libsolidity/syntaxTests/using/module_3.sol.
+// Ported from test/libsolidity/syntaxTests/using/library_import_as.sol.
+// Ported from test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported.sol.
 
 type Int is int256;
 

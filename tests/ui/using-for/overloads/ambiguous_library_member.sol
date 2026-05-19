@@ -1,6 +1,5 @@
-// Derived from solc test: test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
 
 library L {
     function pick(uint256 self, uint8 x) internal pure returns (uint8) {

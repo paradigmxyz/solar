@@ -1,9 +1,7 @@
-// Solc tests:
-// - test/libsolidity/syntaxTests/using/library_functions_at_file_level.sol.
-// - test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
-// - test/libsolidity/syntaxTests/using/private_library_function_inside_scope.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/using/library_functions_at_file_level.sol.
+// Ported from test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
+// Ported from test/libsolidity/syntaxTests/using/private_library_function_inside_scope.sol.
 
 library L {
     function ext(uint256 x) external pure returns (uint256) {

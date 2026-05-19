@@ -1,6 +1,5 @@
-// Solc test: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_non_global.sol.
-
 //@compile-flags: -Ztypeck
+// Ported from test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_non_global.sol.
 
 import {ImportedInt} from "./auxiliary/non_global_operator.sol";
 import {add, neg} from "./auxiliary/non_global_operator.sol";
