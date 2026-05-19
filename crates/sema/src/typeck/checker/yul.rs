@@ -104,7 +104,6 @@ impl<'gcx> TypeChecker<'gcx> {
         enum ErrorKind {
             NonVariable,
             Immutable,
-            UnsupportedSuffix,
             UnsupportedBase,
             UnsupportedMember(YulMemberSet),
             NonExternalFunction,
@@ -121,10 +120,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
             if var.is_immutable() {
                 return Err(ErrorKind::Immutable);
-            }
-
-            if !is_yul_member(member.name) {
-                return Err(ErrorKind::UnsupportedSuffix);
             }
 
             let Some(member_set) = yul_member_set(var, ty) else {
@@ -160,11 +155,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 .dcx()
                 .err("assembly access to immutable variables is not supported")
                 .span(expr.span)
-                .emit(),
-            Err(ErrorKind::UnsupportedSuffix) => self
-                .dcx()
-                .err(format!("unsupported inline assembly suffix `.{member}`"))
-                .span(member.span)
                 .emit(),
             Err(ErrorKind::UnsupportedBase) => self
                 .dcx()
@@ -300,16 +290,4 @@ fn yul_member_set(var: &hir::Variable<'_>, ty: Ty<'_>) -> Option<YulMemberSet> {
     }
 
     None
-}
-
-fn is_yul_member(name: Symbol) -> bool {
-    [
-        YulMember::new(sym::length, true),
-        YulMember::new(sym::offset, true),
-        YulMember::new(sym::selector, true),
-        YulMember::new(sym::slot, true),
-        YulMember::new(kw::Address, true),
-    ]
-    .into_iter()
-    .any(|member| member.name == name)
 }
