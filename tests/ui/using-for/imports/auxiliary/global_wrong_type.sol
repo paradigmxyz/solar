@@ -1,1 +1,1 @@
-type WrongSourceInt is int256;
+type Int is int256;

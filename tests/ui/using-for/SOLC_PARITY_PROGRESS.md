@@ -55,7 +55,7 @@ into the nearest `auxiliary/` directory instead.
 - `semanticTests/using/using_global_all_the_types.sol` ->
   `global/global_library.sol` + `global/auxiliary/global_library.sol`.
 - `semanticTests/using/using_global_invisible.sol` ->
-  `global/global_library_invisible.sol` + `global/auxiliary/global_library.sol`.
+  `global/global_library_invisible.sol` + `global/auxiliary/global_invisible_*.sol`.
 - `using/global_for_type_from_other_file.sol` -> `global/imported_type_global.sol` +
   `global/auxiliary/imported_types.sol`.
 - `using/file_level_inactive_after_import.sol` -> `imports/file_level_using_not_imported.sol` +

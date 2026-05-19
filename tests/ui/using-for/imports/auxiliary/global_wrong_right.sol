@@ -1,11 +1,12 @@
 import "./global_wrong_type.sol";
 
-function addRight(WrongSourceInt a, WrongSourceInt b) pure returns (WrongSourceInt) {
-    return WrongSourceInt.wrap(WrongSourceInt.unwrap(a) + WrongSourceInt.unwrap(b));
+function add2(Int a, Int b) pure returns (Int) {
+    return Int.wrap(Int.unwrap(a) + Int.unwrap(b));
 }
 
-function negRight(WrongSourceInt a) pure returns (WrongSourceInt) {
-    return WrongSourceInt.wrap(-WrongSourceInt.unwrap(a));
+function unsub2(Int a) pure returns (Int) {
+    return Int.wrap(-Int.unwrap(a));
 }
 
-using {addRight as +, negRight as -} for WrongSourceInt global;
+using {add2 as +} for Int global;
+using {unsub2 as -} for Int global;

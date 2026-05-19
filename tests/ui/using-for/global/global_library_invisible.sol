@@ -1,9 +1,10 @@
 //@compile-flags: -Ztypeck
 
-import {Maker} from "./auxiliary/global_library.sol";
+import {C} from "./auxiliary/global_invisible_mid.sol";
 
-contract C {
-    function f(Maker maker) public view returns (uint256) {
-        return maker.make().inc().inc().dec().unwrap();
+contract D {
+    function test() public returns (uint256) {
+        C c = new C();
+        return c.f().inc().inc().dec().unwrap();
     }
 }

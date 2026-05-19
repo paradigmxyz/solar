@@ -1,28 +1,40 @@
 error: can only use `global` with types defined in the same source unit at file level
    ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_left.sol:LL:CC
    │
-LL │ using {addLeft as +, negLeft as -} for WrongSourceInt global;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ using {add1 as +} for Int global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_left.sol:LL:CC
+   │
+LL │ using {unsub1 as -} for Int global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: can only use `global` with types defined in the same source unit at file level
    ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_right.sol:LL:CC
    │
-LL │ using {addRight as +, negRight as -} for WrongSourceInt global;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ using {add2 as +} for Int global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: cannot apply builtin operator `+` to `WrongSourceInt` and `WrongSourceInt`
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_right.sol:LL:CC
+   │
+LL │ using {unsub2 as -} for Int global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot apply builtin operator `+` to `Int` and `Int`
    ╭▸ ROOT/tests/ui/using-for/imports/transitive_global_operator_wrong_source.sol:LL:CC
    │
-LL │         return a + b;
-   │                ┬ ━ ─ WrongSourceInt
-   │                │
-   ╰╴               WrongSourceInt
+LL │         Int.wrap(0) + Int.wrap(0);
+   │         ┬────────── ━ ─────────── Int
+   │         │
+   ╰╴        Int
 
-error: cannot apply unary operator `-` to `WrongSourceInt`
+error: cannot apply unary operator `-` to `Int`
    ╭▸ ROOT/tests/ui/using-for/imports/transitive_global_operator_wrong_source.sol:LL:CC
    │
-LL │         return -a;
-   ╰╴               ━━
+LL │         -Int.wrap(0);
+   ╰╴        ━━━━━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: aborting due to 6 previous errors
 
