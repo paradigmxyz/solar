@@ -1,0 +1,28 @@
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_left.sol:LL:CC
+   │
+LL │ using {addLeft as +, negLeft as -} for WrongSourceInt global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/global_wrong_right.sol:LL:CC
+   │
+LL │ using {addRight as +, negRight as -} for WrongSourceInt global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot apply builtin operator `+` to `WrongSourceInt` and `WrongSourceInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/transitive_global_operator_wrong_source.sol:LL:CC
+   │
+LL │         return a + b;
+   │                ┬ ━ ─ WrongSourceInt
+   │                │
+   ╰╴               WrongSourceInt
+
+error: cannot apply unary operator `-` to `WrongSourceInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/transitive_global_operator_wrong_source.sol:LL:CC
+   │
+LL │         return -a;
+   ╰╴               ━━
+
+error: aborting due to 4 previous errors
+

@@ -25,6 +25,10 @@ library L {
     function inc(T t) internal pure returns (T) {
         return T.wrap(T.unwrap(t) + 1);
     }
+
+    function dec(T t) external pure returns (T) {
+        return T.wrap(T.unwrap(t) - 1);
+    }
 }
 
 contract Maker {
@@ -36,3 +40,8 @@ contract Maker {
 using L for E global;
 using L for S global;
 using L for T global;
+using {unwrap} for T global;
+
+function unwrap(T t) pure returns (uint256) {
+    return T.unwrap(t);
+}
