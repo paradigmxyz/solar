@@ -7,8 +7,10 @@ use crate::{
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::ops::ControlFlow;
+
+mod yul;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
@@ -30,6 +32,8 @@ struct TypeChecker<'gcx> {
     in_emit: bool,
     /// Whether we're directly inside a revert statement (for the immediate call only).
     in_revert: bool,
+    /// Whether we're checking expressions lowered from inline assembly.
+    in_yul: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -55,6 +59,7 @@ impl<'gcx> TypeChecker<'gcx> {
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
+            in_yul: false,
         }
     }
 
@@ -260,7 +265,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
-                self.type_of_res(res)
+                let ty = self.type_of_res(res);
+                if self.in_yul {
+                    match self.check_yul_external_ident(res, ty, expr.span) {
+                        Ok(true) => return self.gcx.types.uint(256),
+                        Ok(false) => {}
+                        Err(guar) => return self.gcx.mk_ty_err(guar),
+                    }
+                }
+                ty
             }
             hir::ExprKind::Index(lhs, index) => {
                 let ty = self.check_expr(lhs);
@@ -584,16 +597,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::YulMember(expr, member) => {
-                if is_yul_member(member) {
-                    // TODO: Validate inline assembly suffixes like solc does:
-                    // `.slot`/`.offset` for storage and transient variables, `.offset`/`.length`
-                    // for calldata arrays, and `.address`/`.selector` for external function
-                    // pointers. Assignment rules are suffix- and declaration-dependent.
-                }
-                let _ = self.check_expr(expr);
-                self.gcx.types.uint(256)
-            }
+            hir::ExprKind::YulMember(expr, member) => self.check_yul_member(expr, member),
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -1327,6 +1331,27 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                 }
                 return ControlFlow::Continue(());
             }
+            hir::StmtKind::AssemblyBlock(block) => {
+                let prev = std::mem::replace(&mut self.in_yul, true);
+                for stmt in block.stmts {
+                    self.visit_stmt(stmt)?;
+                }
+                self.in_yul = prev;
+                return ControlFlow::Continue(());
+            }
+            hir::StmtKind::Expr(expr) if self.in_yul => {
+                let ty = self.check_expr(expr);
+                if !matches!(expr.kind, hir::ExprKind::Assign(..))
+                    && !ty.is_unit()
+                    && !ty.references_error()
+                {
+                    self.dcx()
+                        .err("inline assembly expression statements cannot return values")
+                        .span(expr.span)
+                        .emit();
+                }
+                return ControlFlow::Continue(());
+            }
             _ => {}
         }
         self.walk_stmt(stmt)
@@ -1359,10 +1384,6 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
-}
-
-fn is_yul_member(member: Ident) -> bool {
-    matches!(member.name, sym::length | sym::offset | sym::selector | sym::slot | kw::Address)
 }
 
 enum OverloadError {

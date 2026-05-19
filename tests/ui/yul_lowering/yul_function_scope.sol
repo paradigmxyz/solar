@@ -68,8 +68,7 @@ contract C {
 
             {
                 function inner() -> r {
-                    // TODO: solc rejects this with `Identifier "a" not found`.
-                    r := a
+                    r := a //~ ERROR: unresolved symbol
                 }
 
                 x := inner()
@@ -82,7 +81,6 @@ contract C {
             let a := 1
 
             {
-                // TODO: solc rejects this with `Variable name a already taken in this scope`.
                 let a := 2
                 x := a
             }
@@ -96,7 +94,6 @@ contract C {
             }
 
             {
-                // TODO: solc rejects this with `Variable name y already taken in this scope`.
                 let y := 2
                 x := y
             }
@@ -108,7 +105,6 @@ contract C {
             let y := 1
 
             {
-                // TODO: solc rejects this with `Function name y already taken in this scope`.
                 function y() -> r {
                     r := 2
                 }
@@ -125,7 +121,6 @@ contract C {
             }
 
             {
-                // TODO: solc rejects this with `Function name y already taken in this scope`.
                 function y() -> r {
                     r := 2
                 }

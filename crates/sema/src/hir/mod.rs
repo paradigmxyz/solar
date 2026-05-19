@@ -1267,6 +1267,9 @@ pub enum StmtKind<'hir> {
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'hir>),
 
+    /// An inline assembly block: `assembly { ... }`.
+    AssemblyBlock(Block<'hir>),
+
     /// An emit statement: `emit Foo.bar(42);`.
     ///
     /// Always contains an `ExprKind::Call`.
