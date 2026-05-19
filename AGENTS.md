@@ -60,17 +60,30 @@ contract Test {
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
 
+Common file-level UI directives:
+
+- `//@compile-flags: ...`: Pass extra compiler flags for this test.
+- `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
+  imported/auxiliary source.
+- `// check-fail`: Mark the test as expected to fail even if no inline
+  diagnostic annotation appears in the primary file.
+- `//@ignore-host: windows`: Skip a test on a specific host.
+- `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
+  multiple revisions.
+
+When porting solc tests, add attribution using the existing style:
+`// Ported from test/libsolidity/.../name.sol.` Use one line per upstream file.
+Place these after initial UI metadata directives such as `//@compile-flags`,
+`//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
+put the attribution at the top.
+
 ### Porting Tests from Solc
 
 Always look at the corresponding Solc test when porting behavior. Solc is always
 available in `testdata/solidity`. Solc tests may embed multiple source files in
 one `.sol` file with `==== Source: ... ====` annotations. When porting those
 tests, split the secondary sources into the UI test's `auxiliary/` directory and
-update imports accordingly. Add attribution using the existing style:
-`// Ported from test/libsolidity/.../name.sol.` Use one line per upstream file.
-Place these after initial UI metadata directives such as `//@compile-flags`,
-`//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
-put the attribution at the top.
+update imports accordingly.
 
 ## Diagnostics Style
 
