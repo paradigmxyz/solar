@@ -658,6 +658,12 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
+            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
@@ -777,6 +783,8 @@ impl<'gcx> Ty<'gcx> {
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
+    /// Explicit conversions are a superset of implicit conversions.
+    ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
@@ -812,12 +820,6 @@ impl<'gcx> Ty<'gcx> {
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
             | (Elementary(UInt(size_from)), Elementary(FixedBytes(size_to)))
-                if size_from == size_to =>
-            {
-                Ok(())
-            }
-            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
-            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
                 if size_from == size_to =>
             {
                 Ok(())
