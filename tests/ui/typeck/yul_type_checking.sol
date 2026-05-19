@@ -94,28 +94,51 @@ contract C {
             }
 
             add(1, 2) //~ ERROR: inline assembly expression statements cannot return values
+
             pair() //~ ERROR: inline assembly expression statements cannot return values
+
             pop(state) //~ ERROR: only local variables are supported in inline assembly
+
             state := 1 //~ ERROR: only local variables are supported in inline assembly
+
             pop(udvtState) //~ ERROR: only local variables are supported in inline assembly
+
             udvtState := 1 //~ ERROR: only local variables are supported in inline assembly
+
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
+
             pop(convertedConstant) //~ ERROR: only direct number constants are supported in inline assembly
+
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly
+
             pop(immutableValue) //~ ERROR: assembly access to immutable variables is not supported
+
             pop(immutableValue.slot) //~ ERROR: assembly access to immutable variables is not supported
+
             pop(state.length) //~ ERROR: storage variables only support `.slot` and `.offset`
+
             state.slot := 1 //~ ERROR: state variables cannot be assigned to in inline assembly
+
             pop(storageRef) //~ ERROR: storage reference variables need a suffix in inline assembly
+
             storageRef.offset := 1 //~ ERROR: only `.slot` can be assigned to
+
             pop(storageRef.length) //~ ERROR: storage variables only support `.slot` and `.offset`
+
             pop(data) //~ ERROR: calldata variables need a suffix in inline assembly
+
             pop(data.slot) //~ ERROR: calldata variables only support `.offset` and `.length`
+
             pop(local.slot) //~ ERROR: suffix `.slot` is not supported by this variable or type
+
             pop(extFn) //~ ERROR: only types that use one stack slot are supported
+
             extFn := 0 //~ ERROR: only types that use one stack slot are supported
+
             pop(extFn.slot) //~ ERROR: function pointer variables only support `.selector` and `.address`
+
             pop(intFn.selector) //~ ERROR: only external function pointer variables support `.selector` and `.address`
+
             pop(helper) //~ ERROR: access to functions is not allowed in inline assembly
         }
     }
