@@ -51,12 +51,6 @@ LL │             constantValue := 1
 error: only direct number constants are supported in inline assembly
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
-LL │             pop(convertedConstant)
-   ╰╴                ━━━━━━━━━━━━━━━━━
-
-error: only direct number constants are supported in inline assembly
-   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
-   │
 LL │             pop(stringConstant)
    ╰╴                ━━━━━━━━━━━━━━
 
@@ -292,5 +286,5 @@ error: expression has to be an lvalue
 LL │             CustomEvent := 1
    ╰╴            ━━━━━━━━━━━
 
-error: aborting due to 47 previous errors
+error: aborting due to 46 previous errors
 

@@ -1,8 +1,7 @@
 use super::TypeChecker;
 use crate::{
-    eval::ConstantEvaluator,
     hir,
-    ty::{Gcx, Ty, TyKind},
+    ty::{Ty, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, Span};
 use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
@@ -51,7 +50,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
-        if var.is_constant() && !self.in_lvalue() && !is_yul_supported_constant(self.gcx, var, ty) {
+        if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
                 .err("only direct number constants are supported in inline assembly")
@@ -217,16 +216,6 @@ fn is_dynamic_calldata_array(ty: Ty<'_>) -> bool {
         ty.peel_refs().kind,
         TyKind::DynArray(_) | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
     )
-}
-
-fn is_yul_supported_constant(gcx: Gcx<'_>, var: &hir::Variable<'_>, ty: Ty<'_>) -> bool {
-    if !ty.is_value_type() {
-        return false;
-    }
-
-    let Some(init) = var.initializer else { return false };
-    let init = init.peel_parens();
-    matches!(init.kind, hir::ExprKind::Lit(_)) || ConstantEvaluator::new(gcx).try_eval(init).is_ok()
 }
 
 #[derive(Clone, Copy)]

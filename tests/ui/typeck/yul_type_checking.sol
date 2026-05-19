@@ -67,6 +67,7 @@ contract C {
             pop(boolConstant)
             pop(addressConstant)
             pop(bytes32Constant)
+            pop(convertedConstant)
             storageRef.slot := state.slot
 
             pop(data.offset)
@@ -120,8 +121,6 @@ contract C {
             udvtState := 1 //~ ERROR: only local variables are supported in inline assembly
 
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
-
-            pop(convertedConstant) //~ ERROR: only direct number constants are supported in inline assembly
 
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly
 
