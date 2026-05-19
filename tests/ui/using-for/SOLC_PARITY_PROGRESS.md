@@ -20,6 +20,8 @@ This tracks the local parity work against the solc syntax tests under:
 - [x] Import and module alias coverage.
 - [x] Reference-type and data-location coverage.
 - [x] Global directive coverage.
+- [x] Global library directive coverage for enum, struct, and UDVT.
+- [x] Global using lookup when the type is not directly nameable in the current source.
 - [x] Imported global operator coverage.
 - [x] Invalid operator implementor coverage.
 - [x] Duplicate operator detection across global and non-global directives.
@@ -49,6 +51,10 @@ into the nearest `auxiliary/` directory instead.
 
 - `using/global_working.sol` -> `global/global_directives.sol` +
   `global/auxiliary/global_directives.sol`.
+- `semanticTests/using/using_global_all_the_types.sol` ->
+  `global/global_library.sol` + `global/auxiliary/global_library.sol`.
+- `semanticTests/using/using_global_invisible.sol` ->
+  `global/global_library_invisible.sol` + `global/auxiliary/global_library.sol`.
 - `using/global_for_type_from_other_file.sol` -> `global/imported_type_global.sol` +
   `global/auxiliary/imported_types.sol`.
 - `using/file_level_inactive_after_import.sol` -> `imports/file_level_using_not_imported.sol` +
