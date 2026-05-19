@@ -5,6 +5,8 @@
 // Fixed arrays must also have the same length.
 
 contract C {
+    uint256[] storageArr;
+
     // === Valid: same element type assignment ===
     function sameDynamicArray(uint256[] memory a) internal pure {
         uint256[] memory b = a;
@@ -12,6 +14,49 @@ contract C {
 
     function sameFixedArray(uint256[3] memory a) internal pure {
         uint256[3] memory b = a;
+    }
+
+    // === Valid: explicit conversions preserve data locations ===
+
+    function explicitMemoryArray(uint256[] memory a) internal pure returns (uint256[] memory) {
+        return uint256[](a);
+    }
+
+    function explicitCalldataArray(uint256[] calldata a) external pure returns (uint256[] memory) {
+        return uint256[](a);
+    }
+
+    function explicitStorageArray() internal view returns (uint256) {
+        uint256[] storage a = storageArr;
+        uint256[] storage b = uint256[](a);
+        return b.length;
+    }
+
+    function explicitFixedArray(uint256[3] memory a) internal pure returns (uint256[3] memory) {
+        return uint256[3](a);
+    }
+
+    // === Invalid: explicit array conversions must preserve shape and element type ===
+
+    function explicitFixedToDynamic(uint256[3] memory a) internal pure returns (uint256[] memory) {
+        return uint256[](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitDynamicToFixed(uint256[] memory a) internal pure returns (uint256[3] memory) {
+        return uint256[3](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitElementMismatch(uint8[] memory a) internal pure returns (uint256[] memory) {
+        return uint256[](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitMemoryToCalldata(uint256[] memory a) external pure {
+        uint256[] calldata b = uint256[](a); //~ ERROR: mismatched types
+    }
+
+    function explicitStorageToCalldata() external view {
+        uint256[] storage a = storageArr;
+        uint256[] calldata b = uint256[](a); //~ ERROR: mismatched types
     }
 
     // === Invalid: different array lengths ===
