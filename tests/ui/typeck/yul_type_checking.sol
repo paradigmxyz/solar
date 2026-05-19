@@ -68,6 +68,10 @@ contract C {
             pop(addressConstant)
             pop(bytes32Constant)
             pop(convertedConstant)
+            pop("abc")
+            pop(hex"1234")
+            mstore(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef")
+            mstore(32, hex"1234567890123456789012345678901234567890123456789012345678901234")
             storageRef.slot := state.slot
 
             pop(data.offset)
@@ -121,6 +125,10 @@ contract C {
             udvtState := 1 //~ ERROR: only local variables are supported in inline assembly
 
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
+
+            pop("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg") //~ ERROR: string literal too long (33 > 32)
+
+            pop(hex"123456789012345678901234567890123456789012345678901234567890123456") //~ ERROR: string literal too long (33 > 32)
 
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly
 
