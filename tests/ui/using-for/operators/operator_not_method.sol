@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/calling_operator_as_attached_function_via_function_name.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_as_attached_function_via_function_name.sol
 
 type U is uint256;
 

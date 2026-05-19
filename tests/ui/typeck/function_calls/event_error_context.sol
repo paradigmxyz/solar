@@ -1,9 +1,9 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/events/event_without_emit_deprecated.sol.
-// Ported from test/libsolidity/syntaxTests/events/multiple_event_without_emit.sol.
-// Ported from test/libsolidity/syntaxTests/emit/emit_non_event.sol.
-// Ported from test/libsolidity/syntaxTests/revertStatement/error_used_elsewhere.sol.
-// Ported from test/libsolidity/syntaxTests/revertStatement/revert_event.sol.
+// ported-from: test/libsolidity/syntaxTests/events/event_without_emit_deprecated.sol
+// ported-from: test/libsolidity/syntaxTests/events/multiple_event_without_emit.sol
+// ported-from: test/libsolidity/syntaxTests/emit/emit_non_event.sol
+// ported-from: test/libsolidity/syntaxTests/revertStatement/error_used_elsewhere.sol
+// ported-from: test/libsolidity/syntaxTests/revertStatement/revert_event.sol
 
 contract EventErrorContext {
     event MyEvent(uint a, bytes32 b);

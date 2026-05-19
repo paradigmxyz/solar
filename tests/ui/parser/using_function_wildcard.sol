@@ -1,4 +1,4 @@
-// Ported from test/libsolidity/syntaxTests/using/using_functions_with_ast.sol.
+// ported-from: test/libsolidity/syntaxTests/using/using_functions_with_ast.sol
 
 function f(uint256) pure {}
 

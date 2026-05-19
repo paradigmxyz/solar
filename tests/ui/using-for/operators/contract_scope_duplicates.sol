@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_on_file_and_contract_level.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_on_file_and_contract_level.sol
 
 type Int is int256;
 

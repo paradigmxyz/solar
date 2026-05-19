@@ -1,7 +1,7 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/semanticTests/using/free_functions_individual.sol.
-// Ported from test/libsolidity/semanticTests/using/free_function_multi.sol.
-// Ported from test/libsolidity/semanticTests/using/library_functions_inside_contract.sol.
+// ported-from: test/libsolidity/semanticTests/using/free_functions_individual.sol
+// ported-from: test/libsolidity/semanticTests/using/free_function_multi.sol
+// ported-from: test/libsolidity/semanticTests/using/library_functions_inside_contract.sol
 
 function inc(uint256 self) pure returns (uint256) {
     return self + 1;

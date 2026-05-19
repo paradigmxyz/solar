@@ -1,4 +1,4 @@
-// Ported from test/libsolidity/semanticTests/using/using_global_invisible.sol.
+// ported-from: test/libsolidity/semanticTests/using/using_global_invisible.sol
 
 type T is uint256;
 

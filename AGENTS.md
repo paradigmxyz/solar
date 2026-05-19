@@ -79,8 +79,9 @@ one `.sol` file with `==== Source: ... ====` annotations. When porting those
 tests, split the secondary sources into the UI test's `auxiliary/` directory and
 update imports accordingly.
 
-Add attribution using the existing style:
-`// Ported from test/libsolidity/.../name.sol.` Use one line per upstream file.
+Add attribution using:
+`// ported-from: test/libsolidity/.../name.sol`. Use one line per upstream file.
+Do not add a full stop or other trailing punctuation after the path.
 Place these after initial UI metadata directives such as `//@compile-flags`,
 `//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
 put the attribution at the top.

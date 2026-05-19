@@ -1,6 +1,6 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_contract_function_at_file_level.sol.
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_library_function_at_file_level.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_contract_function_at_file_level.sol
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_library_function_at_file_level.sol
 
 type U is uint256;
 

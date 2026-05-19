@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/using/bound_calldata_parameter_accepting_calldata.sol.
+// ported-from: test/libsolidity/syntaxTests/using/bound_calldata_parameter_accepting_calldata.sol
 
 struct S {
     uint256 x;

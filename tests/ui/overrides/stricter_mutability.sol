@@ -1,12 +1,12 @@
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability1.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability2.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability3.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability4.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability5.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability6.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability7.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_less_strict_mutability.sol.
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability1.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability2.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability3.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability4.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability5.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability6.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability7.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_less_strict_mutability.sol
 
 // ==== Valid: pure can override view ====
 contract ViewBase {

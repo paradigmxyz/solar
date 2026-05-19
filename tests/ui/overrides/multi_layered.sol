@@ -1,5 +1,5 @@
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_multi_layered_fine.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_multi_layered_error.sol.
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_multi_layered_fine.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_multi_layered_error.sol
 
 // ==== Valid: multi-layered with proper override specification ====
 interface IBase {

@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/using/bound_calldata_parameter_not_accepting_memory.sol.
+// ported-from: test/libsolidity/syntaxTests/using/bound_calldata_parameter_not_accepting_memory.sol
 
 library L {
     function f(bytes calldata x) internal pure returns (uint256) {

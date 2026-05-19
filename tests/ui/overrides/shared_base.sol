@@ -1,6 +1,6 @@
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_shared_base.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_shared_base_partial.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/override_shared_base_simple.sol.
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_shared_base.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_shared_base_partial.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_shared_base_simple.sol
 
 // ==== Valid: shared non-virtual base (C3 linearization resolves) ====
 contract SharedNonVirtual {

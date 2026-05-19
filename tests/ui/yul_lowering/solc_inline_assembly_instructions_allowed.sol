@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/viewPureChecker/inline_assembly_instructions_allowed.sol.
+// ported-from: test/libsolidity/syntaxTests/viewPureChecker/inline_assembly_instructions_allowed.sol
 
 contract C {
     function f() public returns (uint256 x) {

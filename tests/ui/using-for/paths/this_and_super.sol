@@ -1,6 +1,6 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/using/external_function_qualified_with_this.sol.
-// Ported from test/libsolidity/syntaxTests/using/function_from_base_contract_qualified_with_super.sol.
+// ported-from: test/libsolidity/syntaxTests/using/external_function_qualified_with_this.sol
+// ported-from: test/libsolidity/syntaxTests/using/function_from_base_contract_qualified_with_super.sol
 
 contract C {
     using {this.contractFunction} for uint256; //~ ERROR: `this` is a builtin

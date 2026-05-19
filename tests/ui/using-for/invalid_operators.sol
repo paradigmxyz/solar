@@ -1,7 +1,7 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_different_functions_same_directive.sol.
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/operator_taking_and_returning_types_not_matching_using_for.sol.
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_non_pure_function.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_different_functions_same_directive.sol
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/operator_taking_and_returning_types_not_matching_using_for.sol
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/implementing_operator_with_non_pure_function.sol
 
 type U is uint256;
 type V is uint256;

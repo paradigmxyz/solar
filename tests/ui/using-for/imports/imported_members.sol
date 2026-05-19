@@ -1,6 +1,6 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/using/module_2.sol.
-// Ported from test/libsolidity/syntaxTests/using/library_import_as.sol.
+// ported-from: test/libsolidity/syntaxTests/using/module_2.sol
+// ported-from: test/libsolidity/syntaxTests/using/library_import_as.sol
 
 import {inc, Lib} from "./auxiliary/imported_using.sol";
 

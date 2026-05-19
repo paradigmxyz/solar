@@ -1,3 +1,3 @@
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_transitively.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_transitively.sol
 
 type Int is int256;

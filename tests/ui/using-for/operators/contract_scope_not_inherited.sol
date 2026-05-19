@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/using_for_with_operator_at_contract_level_in_base_contract.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/using_for_with_operator_at_contract_level_in_base_contract.sol
 
 type Int is int256;
 

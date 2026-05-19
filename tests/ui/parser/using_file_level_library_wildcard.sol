@@ -1,4 +1,4 @@
-// Ported from test/libsolidity/syntaxTests/using/using_library_ast_file_level.sol.
+// ported-from: test/libsolidity/syntaxTests/using/using_library_ast_file_level.sol
 
 library L {}
 

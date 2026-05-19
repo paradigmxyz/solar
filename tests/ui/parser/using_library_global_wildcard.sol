@@ -1,4 +1,4 @@
-// Ported from test/libsolidity/syntaxTests/using/global_library_with_asterisk.sol.
+// ported-from: test/libsolidity/syntaxTests/using/global_library_with_asterisk.sol
 
 library L {}
 

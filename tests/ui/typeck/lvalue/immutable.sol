@@ -1,10 +1,10 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/immutable/variable_declaration_value.sol.
-// Ported from test/libsolidity/semanticTests/immutable/multiple_initializations.sol.
-// Ported from test/libsolidity/syntaxTests/immutable/ctor_initialization_tuple.sol.
-// Ported from test/libsolidity/syntaxTests/immutable/inheritance_ctor_argument.sol.
-// Ported from test/libsolidity/syntaxTests/immutable/writing_after_initialization.sol.
-// Ported from test/libsolidity/syntaxTests/immutable/ctor_indirect_initialization.sol.
+// ported-from: test/libsolidity/syntaxTests/immutable/variable_declaration_value.sol
+// ported-from: test/libsolidity/semanticTests/immutable/multiple_initializations.sol
+// ported-from: test/libsolidity/syntaxTests/immutable/ctor_initialization_tuple.sol
+// ported-from: test/libsolidity/syntaxTests/immutable/inheritance_ctor_argument.sol
+// ported-from: test/libsolidity/syntaxTests/immutable/writing_after_initialization.sol
+// ported-from: test/libsolidity/syntaxTests/immutable/ctor_indirect_initialization.sol
 
 contract Base {
     constructor(uint256) {}

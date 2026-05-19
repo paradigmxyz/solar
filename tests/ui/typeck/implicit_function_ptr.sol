@@ -96,18 +96,18 @@ contract C {
     }
 }
 
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_payable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_pure.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_view.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_nonpayable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_pure.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_payable_view.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_nonpayable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_payable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_pure_view.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_nonpayable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_payable.sol.
-// Ported from test/libsolidity/syntaxTests/conversion/function_type_view_pure.sol.
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_payable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_pure.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_view.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_payable_nonpayable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_payable_pure.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_payable_view.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_pure_nonpayable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_pure_payable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_pure_view.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_view_nonpayable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_view_payable.sol
+// ported-from: test/libsolidity/syntaxTests/conversion/function_type_view_pure.sol
 
 contract NonpayableToPayable {
     function h() external {}

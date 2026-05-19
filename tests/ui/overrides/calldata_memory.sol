@@ -1,5 +1,5 @@
-// Ported from test/libsolidity/syntaxTests/inheritance/override/calldata_memory_interface.sol.
-// Ported from test/libsolidity/syntaxTests/inheritance/override/calldata_memory_struct.sol.
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/calldata_memory_interface.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/calldata_memory_struct.sol
 
 // ==== Valid: interface calldata can be implemented with memory (external -> public) ====
 interface ICalldataToMemory {

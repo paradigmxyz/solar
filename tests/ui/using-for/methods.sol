@@ -1,7 +1,7 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/using/using_free_functions.sol.
-// Ported from test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol.
-// Ported from test/libsolidity/syntaxTests/using/global_working.sol.
+// ported-from: test/libsolidity/syntaxTests/using/using_free_functions.sol
+// ported-from: test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol
+// ported-from: test/libsolidity/syntaxTests/using/global_working.sol
 
 struct S {
     uint256 x;

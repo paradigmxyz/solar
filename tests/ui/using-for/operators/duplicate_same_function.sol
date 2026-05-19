@@ -1,6 +1,6 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_same_directive.sol.
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_separate_directives.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_same_directive.sol
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_separate_directives.sol
 
 type Int is int256;
 

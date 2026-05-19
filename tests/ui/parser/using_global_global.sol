@@ -1,4 +1,4 @@
-// Ported from test/libsolidity/syntaxTests/using/global_multiple_global_keywords.sol.
+// ported-from: test/libsolidity/syntaxTests/using/global_multiple_global_keywords.sol
 
 struct S {
     uint256 x;

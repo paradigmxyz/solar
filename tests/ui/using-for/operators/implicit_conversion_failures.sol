@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/calling_operator_with_implicit_conversion.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_with_implicit_conversion.sol
 
 type U is uint256;
 

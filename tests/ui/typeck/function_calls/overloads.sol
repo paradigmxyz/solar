@@ -1,5 +1,5 @@
 //@compile-flags: -Ztypeck
-// Ported from test/libsolidity/semanticTests/freeFunctions/overloads.sol.
+// ported-from: test/libsolidity/semanticTests/freeFunctions/overloads.sol
 
 contract C {
     event E(bool flag);

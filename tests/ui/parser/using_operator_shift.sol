@@ -1,3 +1,3 @@
-// Ported from test/libsolidity/syntaxTests/operators/userDefined/operator_parsing_non_user_definable.sol.
+// ported-from: test/libsolidity/syntaxTests/operators/userDefined/operator_parsing_non_user_definable.sol
 
 using {f as <<} for uint256; //~ ERROR: expected
