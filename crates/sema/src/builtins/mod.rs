@@ -57,8 +57,12 @@ macro_rules! declare_builtins {
                 }
             }
 
-            /// Returns the type of the builtin.
-            pub fn ty($slf, $gcx: Gcx<'_>) -> Ty<'_> {
+            /// Returns the cached type of the builtin.
+            pub fn ty<'gcx>($slf, $gcx: Gcx<'gcx>) -> Ty<'gcx> {
+                $gcx.type_of_builtin($slf)
+            }
+
+            pub(crate) fn ty_uncached<'gcx>($slf, $gcx: Gcx<'gcx>) -> Ty<'gcx> {
                 match $slf {
                     $(
                         Builtin::$variant_name => $ty,
